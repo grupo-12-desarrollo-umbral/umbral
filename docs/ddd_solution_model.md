@@ -1,0 +1,537 @@
+# UMBRAL DDD Solution Model
+
+This document is the canonical DDD-oriented view of the solution.
+
+It consolidates the material that was previously split across strategic mapping, service-contract notes, and part of the architecture discussion.
+
+Read it together with:
+
+- `docs/academic_requirements_umbral.md`
+- `docs/requirements_traceability.md`
+- `docs/condensed_roadmap_umbral.md`
+- `docs/umbral_user_stories.md`
+- `docs/bd_umbral_entity_spec.md`
+- `docs/adr/001_platform_shape_adr.md`
+- `CONTEXT-MAP.md`
+- `mission-design-service/CONTEXT.md`
+- `session-operations-service/CONTEXT.md`
+- `scoring-monitoring-service/CONTEXT.md`
+- `identity-access-service/CONTEXT.md`
+
+This document owns:
+
+- subdomains
+- bounded contexts
+- aggregates and ownership boundaries
+- domain events
+- repository interfaces
+- domain services and policies
+- application services derived from the backlog
+- cross-context contracts at DDD level
+
+This document does not replace:
+
+- the academic baseline
+- the roadmap and product decisions
+- the field-level logical entity specification
+- the bounded-context-local terminology owned by each service `CONTEXT.md`
+
+## 1. Strategic inputs
+
+The model is constrained by six stable inputs:
+
+- the academic requirements baseline in `academic_requirements_umbral.md`
+- the committed scope and delivery decisions in `condensed_roadmap_umbral.md`
+- the backlog and acceptance criteria in `umbral_user_stories.md`
+- the context mapping in `CONTEXT-MAP.md`
+- the bounded-context-local language in each service `CONTEXT.md`
+- the logical entity detail in `bd_umbral_entity_spec.md`
+
+The current committed scope is:
+
+- `Administrador` and `Operador` use the web client
+- participant teams use the mobile client
+- the platform supports `TreasureHunt` and `Trivia`
+- every `LiveSession` belongs to exactly one mode
+- scoring, ranking, monitoring, and audit remain shared platform concerns
+
+## 2. Subdomains
+
+| Subdomain                          | Type                      | Main capability                                                                                | Why it exists                                                |
+| ---------------------------------- | ------------------------- | ---------------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
+| `Live Gameplay Operations`         | Core                      | Run live sessions, manage teams, release clues, receive submissions, and enforce runtime rules | This is the operational heart of UMBRAL                      |
+| `Mission and Content Authoring`    | Supporting                | Create missions and trivia content that can later be used in sessions                          | Content preparation changes differently from live operations |
+| `Scoring, Ranking, and Monitoring` | Supporting                | Evaluate performance, apply penalties, refresh ranking, and expose supervision views           | Score traceability and monitoring need explicit ownership    |
+| `Access and Identity`              | Supporting / externalized | Authenticate actors and enforce access permissions                                             | Identity is necessary but not the primary domain core        |
+
+## 3. Bounded contexts
+
+### `MissionDesign`
+
+Owns:
+
+- `Mission`
+- `MissionNode`
+- `Target`
+- `TriviaQuiz`
+- `TriviaQuestion`
+- `TriviaOption`
+- `MissionActivation`
+- source-content readiness for live use
+
+Main use-case focus:
+
+- mission authoring
+- mission structure updates
+- trivia authoring
+- source publication or activation
+
+### `SessionOperations`
+
+Owns:
+
+- `LiveSession`
+- `Team`
+- `SessionParticipant`
+- `TeamMember`
+- `JoinContext`
+- `EvidenceSubmission`
+- `TreasureEvidenceSubmission`
+- `TargetResolution`
+- `TriviaAnswerSubmission`
+- `ClueReleaseRecord`
+- `SessionEvent`
+
+Main use-case focus:
+
+- session creation and lifecycle
+- team registration and assignment
+- participant join and reconnection
+- clue release and runtime progression
+- evidence intake and runtime control
+
+### `ScoringMonitoring`
+
+Owns:
+
+- `ScoreEntry`
+- `Penalty`
+- `Ranking`
+- `AuditHistory`
+- monitoring projections
+- score-policy execution
+
+Main use-case focus:
+
+- score traceability
+- penalty registration
+- ranking refresh
+- audit and monitoring views
+
+### `Identity`
+
+This is modeled as a supporting bounded context in the current version.
+
+Rules:
+
+- authentication is externalized to `Keycloak`
+- authorization decisions remain explicit through the `Identity` contracts and the owning application services
+- this context does not replace `SessionOperations` ownership of live-session participation rules, but it does own identity and access language
+
+Owns:
+
+- `User`
+- `Role`
+- `IdentityProviderSession`
+- `JoinToken`
+- actor-access validation facts
+
+Main use-case focus:
+
+- authenticate administrators, operators, and participants
+- manage identity-provider session state relevant to the platform
+- enforce role/access policies
+- validate whether an authenticated actor may enter a requested team/session context
+
+## 4. Context-to-deployable map
+
+| Bounded Context     | Primary deployable           | Notes                                                                           |
+| ------------------- | ---------------------------- | ------------------------------------------------------------------------------- |
+| `MissionDesign`     | `mission-design-service`     | Owns authoring and source readiness                                             |
+| `SessionOperations` | `session-operations-service` | Owns live runtime authority                                                     |
+| `ScoringMonitoring` | `scoring-monitoring-service` | Owns scoring, ranking, and monitoring views                                     |
+| `Identity`          | `identity-access-service`    | Owns identity and access language while delegating authentication to `Keycloak` |
+
+Supporting deployables:
+
+- `api-gateway`
+- `umbral-web`
+- `umbral-mobile`
+- `rabbitmq`
+- `postgres`
+- `keycloak`
+- optional workers for non-blocking secondary flows
+
+Microservice rules:
+
+- microservices follow business capability cohesion
+- aggregates are never split into separate services
+- infrastructure components are not bounded contexts
+- background workers are execution components, not domain services
+
+## 5. Aggregate map
+
+### `MissionDesign`
+
+Aggregate roots:
+
+- `Mission`
+- `TriviaQuiz`
+
+Internal entities and value objects:
+
+- `MissionNode`
+- `Target`
+- `TriviaQuestion`
+- `TriviaOption`
+- `Difficulty`
+- `MaximumTime`
+- `MissionActivation`
+
+### `SessionOperations`
+
+Aggregate roots:
+
+- `LiveSession`
+
+Internal entities and value objects:
+
+- `Team`
+- `SessionParticipant`
+- `TeamMember`
+- `JoinContext`
+- `EvidenceSubmission`
+- `TreasureEvidenceSubmission`
+- `TargetResolution`
+- `TriviaAnswerSubmission`
+- `ClueReleaseRecord`
+- `SessionEvent`
+- `SessionState`
+- `SessionSource`
+- `TeamCode`
+
+### `ScoringMonitoring`
+
+Aggregate roots:
+
+- `ScoreEntry`
+- `Penalty`
+
+Projection-oriented owned models:
+
+- `Ranking`
+- `AuditHistory`
+- monitoring dashboards
+
+Supporting value objects and policies:
+
+- `ScoreValue`
+- `PenaltyReason`
+- `ResolutionTime`
+- `ScorePolicy`
+
+### `Identity`
+
+Aggregate roots:
+
+- `User`
+- `IdentityProviderSession`
+
+Internal entities and value objects:
+
+- `Role`
+- `JoinToken`
+- access-policy validation facts
+
+Field-level logical detail remains in `docs/bd_umbral_entity_spec.md`.
+
+## 6. Domain events
+
+### `MissionDesign`
+
+- `MissionCreated`
+- `MissionDetailsUpdated`
+- `MissionStructureChanged`
+- `MissionNodeAdded`
+- `MissionNodeUpdated`
+- `MissionNodeRemoved`
+- `TargetAttachedToClue`
+- `TargetRemovedFromClue`
+- `MissionActivated`
+- `MissionDeactivated`
+- `TriviaQuizCreated`
+- `TriviaQuizDetailsUpdated`
+- `TriviaQuestionAdded`
+- `TriviaQuestionUpdated`
+- `TriviaQuestionRemoved`
+- `TriviaQuizPublished`
+- `TriviaQuizArchived`
+
+### `SessionOperations`
+
+- `LiveSessionCreated`
+- `LiveSessionScheduled`
+- `LiveSessionStarted`
+- `LiveSessionPaused`
+- `LiveSessionResumed`
+- `LiveSessionFinished`
+- `LiveSessionCancelled`
+- `TeamRegisteredInSession`
+- `ParticipantJoinedSession`
+- `ParticipantAssignedToTeam`
+- `ClueReleasedToTeam`
+- `EvidenceSubmissionRegistered`
+- `EvidenceSubmissionAccepted`
+- `EvidenceSubmissionRejected`
+- `TargetResolved`
+- `TriviaAnswerSubmitted`
+- `SessionStateChanged`
+- `SessionEventRecorded`
+
+### `ScoringMonitoring`
+
+- `ScoreEntryRecorded`
+- `ScoreEntryAdjusted`
+- `PenaltyApplied`
+- `PenaltyReverted`
+- `RankingRecalculated`
+- `MonitoringProjectionUpdated`
+- `AuditHistoryUpdated`
+- `ScorePolicyEvaluated`
+
+### `Identity`
+
+- `UserProvisioned`
+- `UserAccessDeactivated`
+- `UserRoleAssigned`
+- `UserRoleRevoked`
+- `IdentityProviderSessionStarted`
+- `IdentityProviderSessionEnded`
+- `JoinTokenIssued`
+- `JoinTokenConsumed`
+- `AccessDecisionRecorded`
+
+Only completed business facts that another deployable genuinely needs should be promoted to public integration events.
+
+## 7. Repository interfaces
+
+Repository interfaces are defined around aggregate roots and clearly owned projections, not around every entity.
+
+### `MissionDesign`
+
+- `IMissionRepository`
+- `ITriviaQuizRepository`
+- `IMissionReadModelRepository`
+- `ITriviaQuizReadModelRepository`
+
+### `SessionOperations`
+
+- `ILiveSessionRepository`
+- `IJoinContextRepository` only if persisted outside the aggregate strategy
+- `ISessionReadModelRepository`
+- `ITeamBoardReadModelRepository`
+- `ISessionEventReadRepository`
+
+### `ScoringMonitoring`
+
+- `IScoreEntryRepository`
+- `IPenaltyRepository`
+- `IRankingReadModelRepository`
+- `IMonitoringProjectionRepository`
+- `IAuditHistoryRepository`
+
+### `Identity`
+
+- `IUserRepository`
+- `IIdentityProviderSessionRepository`
+- `IJoinTokenRepository`
+- `IAccessReadModelRepository`
+
+## 8. Domain services and policies
+
+These are domain-level rules that should not be diluted into controllers or infrastructure adapters.
+
+### `MissionDesign`
+
+- `MissionActivationPolicy`
+  - decides whether a mission is ready for live use
+- `MissionStructurePolicy`
+  - protects mission hierarchy invariants
+- `TriviaPublicationPolicy`
+  - decides whether a trivia quiz is publishable
+
+### `SessionOperations`
+
+- `SessionCreationPolicy`
+  - validates whether a `LiveSession` may be created from a source aggregate
+- `SessionStateTransitionPolicy`
+  - governs valid lifecycle transitions
+- `ClueReleasePolicy`
+  - prevents invalid or duplicate clue release
+- `JoinPolicy`
+  - validates participant access, team membership, late join, and reconnection rules
+- `EvidenceValidationPolicy`
+  - validates whether an evidence submission can be accepted or rejected
+- `TargetResolutionPolicy`
+  - prevents duplicate or invalid target resolution
+
+### `ScoringMonitoring`
+
+- `ScorePolicy`
+  - decides how points are granted, deducted, or normalized
+- `RankingPolicy`
+  - orders teams and applies tie-break rules
+- `PenaltyPolicy`
+  - validates penalty eligibility and justification requirements
+
+### `Identity`
+
+- `AccessPolicy`
+  - validates whether an authenticated actor may access a protected capability or team/session context
+- `JoinTokenPolicy`
+  - validates issuance, expiration, consumption, and replay constraints for join tokens
+- `IdentityProvisioningPolicy`
+  - keeps application-side user/role state aligned with externalized authentication
+
+## 9. Application services derived from the backlog
+
+These application services are derived from `docs/umbral_user_stories.md`. They coordinate use cases, invoke domain rules, and persist changes through repositories.
+
+### `MissionDesign`
+
+- `CreateMission`
+- `UpdateMission`
+- `AddMissionNode`
+- `UpdateMissionNode`
+- `ActivateMission`
+- `DeactivateMission`
+- `CreateTriviaQuiz`
+- `AddTriviaQuestion`
+- `PublishTriviaQuiz`
+- `ArchiveTriviaQuiz`
+- `GetMissionCatalog`
+- `GetMissionDetail`
+- `GetTriviaCatalog`
+- `GetTriviaDetail`
+
+Backlog alignment:
+
+- `HU-09` to `HU-14`
+
+### `SessionOperations`
+
+- `CreateLiveSession`
+- `AssignOperatorToSession`
+- `RegisterTeamInSession`
+- `JoinParticipantToSession`
+- `ReconnectParticipantToSession`
+- `StartSession`
+- `PauseSession`
+- `ResumeSession`
+- `FinishSession`
+- `CancelSession`
+- `ReleaseClueToTeam`
+- `RegisterEvidenceSubmission`
+- `AcceptEvidenceSubmission`
+- `RejectEvidenceSubmission`
+- `SubmitTriviaAnswer`
+- `GetSessionBoard`
+- `GetTeamBoard`
+- `GetSessionHistory`
+
+Backlog alignment:
+
+- `HU-15` to `HU-36`
+
+### `ScoringMonitoring`
+
+- `RecordScoreEntry`
+- `ApplyPenalty`
+- `RevertPenalty`
+- `RecalculateRanking`
+- `RefreshMonitoringProjection`
+- `RefreshAuditHistory`
+- `GetRankingSnapshot`
+- `GetScoreHistory`
+- `GetMonitoringDashboard`
+- `GetAuditHistory`
+
+Backlog alignment:
+
+- `HU-37` to `HU-40`
+
+### `Identity`
+
+- `AuthenticateUser`
+- `DeactivateUserAccess`
+- `AssignUserRole`
+- `IssueJoinToken`
+- `ValidateParticipantMembershipAccess`
+- `ReconnectAuthenticatedParticipant`
+- `GetUserAccessCatalog`
+- `GetAuthenticatedActorProfile`
+
+Backlog alignment:
+
+- `HU-01` to `HU-08`
+
+## 10. Cross-context contracts
+
+The DDD rule is ownership first.
+
+`MissionDesign` exposes:
+
+- mission summary and mission snapshot contracts
+- mission activation status
+- trivia quiz summary and trivia snapshot contracts
+- source availability facts for session creation
+
+`SessionOperations` exposes:
+
+- live-session summary and snapshot contracts
+- team progress and team board contracts
+- join-context views
+- runtime completion facts that may affect scoring or monitoring
+
+`ScoringMonitoring` exposes:
+
+- score-entry history
+- penalty facts
+- ranking snapshots
+- monitoring dashboards
+- audit-history projections
+
+`Identity` exposes:
+
+- authenticated actor views
+- actor role snapshots
+- join-token validation facts
+- access decisions and access-validation results
+
+Communication rules:
+
+- synchronous calls are narrow validation or lookup requests
+- asynchronous events describe completed business facts
+- the minimum explicit RabbitMQ workflow is `EvidenceSubmissionRegistered` published after successful evidence registration, then consumed by audit/history, notification, and secondary recalculation or projection-support flows
+- no service can read another service's persistence directly
+- no shared domain library can collapse the bounded contexts
+
+## 11. What this document makes unnecessary as separate canonicals
+
+This document absorbs the purpose of:
+
+- strategic subdomain to bounded-context mapping
+- service contract and repository catalog material
+- DDD-level microservice split heuristics
+
+Those materials may still exist in `docs/archive/`, but they should no longer be treated as active canonical references.

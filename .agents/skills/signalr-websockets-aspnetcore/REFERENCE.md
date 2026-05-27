@@ -1,0 +1,512 @@
+# SignalR WebSockets in ASP.NET Core
+
+This reference is written for reusable use across ASP.NET Core 10 web APIs, MVC apps, Razor Pages apps, Blazor-hosting backends, and hybrid solutions that need server-driven real-time messaging.
+
+It focuses on SignalR over WebSockets and fallback transports. It does not cover classic ASP.NET SignalR or HTTP webhook integrations. If a user actually means outbound webhooks, treat that as a separate concern.
+
+## Authoritative References
+
+Primary sources used for this skill:
+
+- Use hubs in ASP.NET Core SignalR: https://learn.microsoft.com/en-us/aspnet/core/signalr/hubs?view=aspnetcore-10.0
+- Authentication and authorization in ASP.NET Core SignalR: https://learn.microsoft.com/en-us/aspnet/core/signalr/authn-and-authz?view=aspnetcore-10.0
+- Security considerations in ASP.NET Core SignalR: https://learn.microsoft.com/en-us/aspnet/core/signalr/security?view=aspnetcore-10.0
+- Manage users and groups in SignalR: https://learn.microsoft.com/en-us/aspnet/core/signalr/groups?view=aspnetcore-10.0
+- Host ASP.NET Core SignalR in background services: https://learn.microsoft.com/en-us/aspnet/core/signalr/background-services?view=aspnetcore-10.0
+- Use hub filters in ASP.NET Core SignalR: https://learn.microsoft.com/en-us/aspnet/core/signalr/hub-filters?view=aspnetcore-10.0
+- Configuration in ASP.NET Core SignalR: https://learn.microsoft.com/en-us/aspnet/core/signalr/configuration?view=aspnetcore-10.0
+- ASP.NET Core SignalR JavaScript client: https://learn.microsoft.com/en-us/aspnet/core/signalr/javascript-client?view=aspnetcore-10.0
+- ASP.NET Core SignalR .NET client: https://learn.microsoft.com/en-us/aspnet/core/signalr/dotnet-client?view=aspnetcore-10.0
+- ASP.NET Core SignalR production hosting and scaling: https://learn.microsoft.com/en-us/aspnet/core/signalr/scale?view=aspnetcore-10.0
+- Redis backplane for ASP.NET Core SignalR scale-out: https://learn.microsoft.com/en-us/aspnet/core/signalr/redis-backplane?view=aspnetcore-10.0
+
+## Outcome
+
+When using this skill, produce code that:
+
+- fits the existing project structure before adding abstractions
+- treats hubs as transport adapters, not as business-core objects
+- uses DI, options, auth, logging, and cancellation correctly
+- makes connection lifecycle and reconnect behavior explicit
+- supports scale, diagnostics, and security from the start
+
+## Project Discovery Checklist
+
+Before editing code, inspect:
+
+- host type and endpoint style used by the app
+- current auth mode: cookies, JWT bearer, external identity provider, or mixed
+- whether clients are browser, .NET, mobile, or mixed
+- whether the app already has domain events, background jobs, or notification abstractions
+- whether the app needs per-user, per-tenant, per-room, or global broadcast patterns
+- whether presence state must survive reconnects, scale-out, or restarts
+- whether Azure SignalR Service, Redis, or single-node hosting is expected
+- whether tests already cover auth, hosting, or transport concerns
+
+Do not invent a new application boundary if the codebase already has one that can own outbound real-time notifications.
+
+## Decide Whether SignalR Is the Right Tool
+
+Use SignalR when the server needs to push events to connected clients with low latency, such as:
+
+- live notifications
+- dashboards and activity feeds
+- collaborative state updates
+- presence indicators
+- streaming progress or telemetry to an active session
+
+Do not use SignalR as the primary system of record. If the message must survive offline clients, restarts, or long delays:
+
+- persist the durable event first
+- then fan out to SignalR as a projection or delivery channel
+
+SignalR is connection-oriented, not guaranteed-delivery messaging infrastructure.
+
+## Baseline Registration
+
+In the app host:
+
+- register SignalR with `builder.Services.AddSignalR()`
+- map endpoints with `app.MapHub<T>` in the routing pipeline
+- place authentication and authorization before hub mapping
+
+Keep endpoint paths stable and explicit, for example:
+
+- `/hubs/notifications`
+- `/hubs/presence`
+- `/hubs/progress`
+
+Prefer one hub per bounded interaction style over one giant all-purpose hub.
+
+## Contract Design
+
+Decide these before writing hub code:
+
+1. Client contract
+   - Which methods does the server call on clients?
+   - Are payloads versioned DTOs?
+   - Do method names reflect domain language?
+2. Invocation model
+   - server-to-client notifications
+   - client-to-server commands
+   - request/response style calls
+   - streaming
+3. Targeting model
+   - all clients
+   - caller
+   - others in same connection context
+   - user
+   - group
+   - connection ID
+4. Failure model
+   - what happens if the client is offline
+   - whether reconnect should replay state
+   - whether state must be rehydrated after reconnect
+
+Recommended defaults:
+
+- explicit DTOs
+- strongly typed hubs for medium or large codebases
+- thin hub methods that delegate to application services
+- group names generated by trusted server code, not raw client strings
+- client bootstrapping endpoint or startup event to recover state after reconnect
+
+## Strongly Typed Hubs vs String-Based Sends
+
+Prefer `Hub<TClient>` when:
+
+- the codebase values compile-time safety
+- the server owns the client contract
+- refactors should be caught by the compiler
+
+String-based `SendAsync` can be acceptable when:
+
+- the integration is highly dynamic
+- the project already standardizes on that style
+- a temporary spike or small app does not justify more ceremony
+
+For reusable production code, strongly typed hubs are the better default.
+
+## Hub Design Rules
+
+SignalR hubs are transient. This has several implications:
+
+- do not store mutable state in hub instance fields
+- do not cache connections in the hub instance
+- do not inject scoped services and hold them past a method call
+- always await asynchronous sends and work that depends on the connection
+
+Good hub methods are:
+
+- small
+- authorization-aware
+- cancellation-aware
+- focused on transport adaptation
+
+Push business rules into services, handlers, or use cases outside the hub.
+
+## Connection Lifecycle
+
+Model the lifecycle explicitly:
+
+1. App startup
+   - register SignalR services
+   - bind and validate options
+   - map hub endpoints
+   - configure auth, CORS, and logging
+2. Negotiation and transport selection
+   - the client connects to the hub endpoint
+   - SignalR negotiates transport unless the client explicitly constrains it
+   - WebSockets is usually the preferred transport when available
+3. Connection established
+   - `OnConnectedAsync` runs
+   - identity is available through the connection context
+   - connection-scoped setup can happen here
+4. Normal operation
+   - client invokes hub methods
+   - server sends to clients, users, groups, or connections
+   - filters, auth, logging, and buffering constraints apply
+5. Transient failure or reconnect
+   - the client may enter reconnecting state
+   - a new connection ID may be created after recovery
+   - server-side ephemeral state may need to be rebuilt
+6. Disconnect
+   - `OnDisconnectedAsync` runs
+   - clean up in-memory registries or presence projections
+   - do not rely on disconnect for critical durable business invariants
+
+## `OnConnectedAsync` and `OnDisconnectedAsync`
+
+Use `OnConnectedAsync` for:
+
+- adding the connection to trusted default groups
+- recording connection metadata for presence or diagnostics
+- resolving tenant or user context from authenticated claims
+
+Use `OnDisconnectedAsync` for:
+
+- removing connection metadata from in-memory or distributed registries
+- telemetry
+- notifying presence projections if the app actually needs it
+
+Do not use disconnect hooks as the only place to close durable workflows. Disconnect may occur during crashes, app restarts, or network failures. The app must tolerate delayed or missing cleanup.
+
+Group membership is automatically removed when a connection ends. You do not need to manually remove that connection from groups during `OnDisconnectedAsync`.
+
+## Users, Connections, and Groups
+
+Know the differences:
+
+- one user can have multiple simultaneous connections
+- one connection has one connection ID
+- groups are named collections of connections, not users
+
+Use cases:
+
+- `Clients.User(userId)` for per-user fan-out across devices or tabs
+- `Clients.Group(groupName)` for room, tenant, dashboard, or topic delivery
+- `Clients.Client(connectionId)` for a specific session
+
+Best practices:
+
+- derive `userId` from authenticated claims, not from caller input
+- centralize group name generation in server code
+- authorize group membership before calling `AddToGroupAsync`
+- treat groups as ephemeral membership, not as the source of durable authorization state
+
+If reconnect happens, group membership for the old connection does not automatically transfer to a new connection. Rejoin logic must be part of the reconnect or bootstrap flow.
+
+## Authentication and Authorization
+
+SignalR integrates with ASP.NET Core authentication and authorization. In a hub:
+
+- `Context.User` exposes the authenticated principal
+- `Context.UserIdentifier` is used for per-user messaging
+
+Recommended approach:
+
+- require authenticated access for non-public hubs
+- use `[Authorize]` on the hub or on sensitive methods
+- use policy-based authorization for tenant, role, or capability checks
+- customize user ID resolution only when the default claim mapping is insufficient
+
+Important ASP.NET Core 10 behavior:
+
+- known API endpoints using cookie authentication return `401` or `403` instead of redirecting to a login page
+
+Token guidance:
+
+- browser clients may send bearer tokens in the query string for WebSockets or Server-Sent Events
+- always require HTTPS
+- avoid logging full URLs if they can contain access tokens
+- if token expiry must terminate active connections, consider `CloseOnAuthenticationExpiration`
+
+Never trust:
+
+- caller-provided user IDs
+- caller-provided tenant IDs
+- raw group names without server-side authorization
+
+## CORS and Transport Security
+
+If the browser client is served from a different origin:
+
+- configure CORS explicitly
+- allow only expected origins
+- allow credentials when required
+
+SignalR security guidance is explicit that CORS protections do not apply to WebSockets in the same way they do to normal cross-origin HTTP requests. Do not assume permissive CORS equals safe WebSocket exposure.
+
+Security rules:
+
+- use HTTPS only
+- avoid `AllowAnyOrigin` on real production hubs
+- avoid exposing connection IDs as public identifiers
+- do not log secrets, raw tokens, or sensitive payloads
+
+## Hub Filters
+
+Use `IHubFilter` when you need cross-cutting behavior around:
+
+- logging
+- validation
+- timing
+- exception mapping
+- tenant resolution
+- consistent authorization checks beyond attributes
+
+Filters are usually a better place for transport-wide behavior than repeating the same code in every hub method.
+
+Keep filters small and composable. Avoid turning them into hidden business pipelines that are hard to reason about.
+
+## Publishing Outside Hubs with `IHubContext`
+
+Do not inject hub classes directly into other services.
+
+Use `IHubContext<THub>` or `IHubContext<THub, TClient>` from:
+
+- controllers
+- Minimal API handlers
+- background services
+- domain-event notification handlers
+- application services at the edge of the app
+
+This keeps the hub transport reachable without tying the rest of the system to a hub instance lifecycle.
+
+Recommended pattern:
+
+- business work commits durable state first
+- an application-layer adapter publishes the real-time projection via `IHubContext`
+- if the publish fails, log and recover according to app needs instead of rolling back unrelated domain work unless the user explicitly requires that coupling
+
+## Background Services and Event Fan-Out
+
+SignalR works well with `BackgroundService` for:
+
+- progress updates
+- scheduled broadcasts
+- fan-out of domain events that were already persisted
+- long-running job status
+
+Best practices:
+
+- inject `IHubContext`
+- keep workers cancellation-aware
+- avoid hot loops that blast clients faster than they can consume
+- batch or coalesce noisy updates when the business requirement allows it
+
+For high-frequency data, always ask:
+
+- what is the required freshness
+- can updates be sampled
+- can only changed fields be sent
+
+## Reconnect and Client Recovery
+
+SignalR clients do not automatically guarantee full session recovery. Design recovery explicitly.
+
+Client expectations:
+
+- JavaScript and .NET clients can be configured with automatic reconnect
+- default retry schedules exist, but apps can provide their own policies
+- reconnect may produce a new connection ID
+
+Server implications:
+
+- connection-scoped in-memory state tied to the old connection is gone
+- group membership and presence registries may need to be re-established
+- any missed messages during downtime need either replay logic or rehydration from durable state
+
+Recommended recovery model:
+
+1. reconnect client
+2. re-authenticate if needed
+3. rejoin authorized groups
+4. call a bootstrap method or HTTP endpoint to fetch current state
+5. resume incremental live updates
+
+Do not try to make SignalR itself behave like a durable queue.
+
+## Streaming
+
+Use SignalR streaming when:
+
+- the client should receive incremental results
+- the payload is naturally chunked
+- long-running operations need progressive feedback
+
+Avoid streaming when:
+
+- the client only needs final state
+- replay, durability, or queue semantics are required
+- backpressure and cancellation are not clearly handled
+
+Streaming code must be cancellation-aware and should avoid unbounded memory growth.
+
+## Configuration and Tuning
+
+Default settings are usually fine at first. Tune only when measurements justify it.
+
+Relevant knobs include:
+
+- `HandshakeTimeout`
+- `KeepAliveInterval`
+- server timeout on clients
+- transport selection
+- buffer sizes such as `ApplicationMaxBufferSize` and `TransportMaxBufferSize`
+
+Guidance from Microsoft:
+
+- `HandshakeTimeout` is an advanced setting; change it only if severe latency causes handshake timeout failures
+- when changing `KeepAliveInterval`, the corresponding client `ServerTimeout` should usually be about twice that value
+- increasing buffer sizes can improve throughput for larger payloads but increases memory pressure
+
+Practical rules:
+
+- prefer smaller messages
+- avoid giant payloads over hubs
+- measure memory before increasing buffer limits
+- restrict transports only for a concrete operational reason
+
+## Error Handling
+
+Hub methods can throw exceptions, but clients should not see internal server details by default.
+
+Recommended approach:
+
+- validate input early
+- throw domain-appropriate errors only when the client genuinely needs actionable failure information
+- keep unexpected exception details in server logs, not client payloads
+- map predictable failures into stable client-facing shapes or `HubException` when appropriate
+
+Connection failures, disconnects, and reconnects are normal. Design the client UX around that fact.
+
+## Presence and Connection Registries
+
+If the app needs presence:
+
+- track it as an application concern, not as an incidental side effect
+- decide whether presence is per user, per device, per tab, or per tenant
+- decide whether it must survive scale-out
+
+Implementation options:
+
+- in-memory registry for a single-node app
+- distributed cache or shared store for multi-node presence
+- projected presence model updated on connect and disconnect
+
+Presence is not free. Do not build it unless the feature requires it.
+
+## Scale-Out and Hosting
+
+Single-node SignalR is simplest, but many apps eventually need scale-out.
+
+Important concerns:
+
+- every persistent connection consumes server resources
+- idle connections still occupy memory and connection slots
+- load balancing can break connection affinity unless the hosting model accounts for it
+
+Recommended choices:
+
+- on Azure, prefer Azure SignalR Service
+- on self-managed infrastructure, consider Redis backplane when low-latency co-location is feasible
+
+Operational notes from Microsoft guidance:
+
+- Azure SignalR Service avoids the app server owning every persistent client connection directly
+- sticky sessions are not required with Azure SignalR Service because clients are redirected to the service
+- Redis backplane is best when it is close to the app servers; long network latency to Redis harms performance
+
+Design implications:
+
+- anything stored only in local process memory may break under scale-out
+- group joins and user targeting work across scale-out only when the chosen hosting strategy supports it correctly
+- presence, throttling, and replay logic must consider distributed deployment explicitly
+
+## Observability
+
+At minimum, add structured logs around:
+
+- connect
+- disconnect
+- auth failure
+- group join or leave attempts
+- publish success and failure
+- reconnect events on clients when possible
+
+Useful metrics:
+
+- active connections
+- connects per minute
+- disconnects per minute
+- sends per hub and per target type
+- send failure rate
+- reconnect attempts
+- average payload size
+
+Correlate hub activity with request IDs, user IDs, tenant IDs, or operation IDs where safe.
+
+## Testing Strategy
+
+Test at several levels:
+
+1. unit tests
+   - pure application services used by hubs
+   - group-name generation
+   - auth or authorization helpers
+2. integration tests
+   - authenticated hub connection flow
+   - method invocation and server push
+   - group membership rules
+3. operational tests
+   - reconnect behavior
+   - scale-out assumptions
+   - token expiry behavior if relevant
+
+Prioritize behavior tests over trying to mock every SignalR primitive in isolation.
+
+## Anti-Patterns
+
+Avoid these:
+
+- fat hubs with direct data access and business rules
+- using SignalR events as the only durable audit trail
+- trusting client strings for group or tenant routing
+- using connection IDs as public durable identifiers
+- storing required shared state in hub instance fields
+- flooding clients with high-frequency updates that should be coalesced
+- changing advanced transport knobs before measuring the actual bottleneck
+- assuming reconnect preserves all state automatically
+
+## Delivery Semantics to State Explicitly
+
+When writing code or design docs, state these clearly:
+
+- whether offline clients miss messages
+- whether reconnect replays anything
+- whether clients should bootstrap current state after reconnect
+- whether ordering matters across multiple servers
+- what consistency the client should expect
+
+If the user requests stronger guarantees than SignalR naturally provides, introduce durable storage or a separate messaging mechanism instead of over-promising real-time transport behavior.
