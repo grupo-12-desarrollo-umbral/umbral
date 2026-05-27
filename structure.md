@@ -13,6 +13,8 @@ This document defines the baseline folder structure for a .NET microservices mon
 
 The goal is to preserve a consistent structure without carrying template/sample domain boilerplate.
 
+For bounded context ownership, aggregate boundaries, domain events, and cross-context contracts see `docs/ddd_solution_model.md`.
+
 ---
 
 ## Monorepo Tree
@@ -174,47 +176,6 @@ umbral-backend/
 
 ---
 
-## DDD and Boundary Rules
-
-### Bounded Contexts
-
-- Each folder under `services/` is a separate microservice and a separate bounded context.
-- Every service owns its own `Domain`, `Application`, `Infrastructure`, and `Api`.
-- Do not create a shared domain across services.
-- Cross-service collaboration must happen through explicit integration boundaries, not by referencing another service's domain model.
-
-### Domain Layer
-
-- `Domain` contains the business model of the service.
-- Entities, value objects, domain events, enums, and domain exceptions belong here.
-- Domain code must not depend on `Application`, `Infrastructure`, or `Api`.
-- Domain services should exist only when domain logic does not naturally belong to a single entity or value object.
-- `Constants/` is allowed in `Domain` when the constants are part of the service's business language.
-
-### Application Layer
-
-- `Application` orchestrates use cases.
-- Authorization decisions for business operations belong here, even when authentication is handled externally.
-- `Commands`, `Queries`, and `Handlers` are separated by design in this baseline.
-- Handlers depend on abstractions from `Application/Common/Interfaces`, never on transport concerns.
-- Application events and their handlers are optional and should be used only when they help coordinate internal workflows.
-
-### Infrastructure Layer
-
-- `Infrastructure` contains implementations for persistence, identity integration, notifications, and external integrations.
-- `Infrastructure/Identity/Keycloak` is for integration with Keycloak or an external identity service, not for business rules.
-- `Infrastructure/Persistence` contains EF Core concerns.
-- Repositories are optional. If EF Core with `IApplicationDbContext` is sufficient, do not create repository abstractions without a clear reason.
-
-### Api Layer
-
-- `Api` is the transport layer for HTTP and SignalR.
-- Endpoints should delegate to application use cases and avoid embedding business rules.
-- `CurrentUser` is an adapter from HTTP context to application abstractions.
-- Inbound webhooks belong in `Api/Endpoints`; outbound webhooks belong in `Infrastructure/Integrations/Webhooks`.
-
----
-
 ## Dependency Direction
 
 ```text
@@ -358,49 +319,7 @@ It should also avoid DDD-hostile shortcuts such as:
 
 ---
 
-## Alignment Plan
-
-This section turns the baseline into a concrete migration target for the current Umbral services.
-
-### Repository-Level Changes
-
-- Create a `services/` folder at the repository root.
-- Move each service into its own bounded-context folder under `services/`.
-- Stop using root-level `src/` and `tests/` as the long-term home for service code.
-- Keep shared documentation in root `README.md` and cross-cutting operational material in `docs/` and `deploy/`.
-
-### Service Targets
-
-#### `identity-access-service`
-
-- Owns authentication and authorization integration concerns for the platform.
-- Expected application concepts: `Users`, `Roles`, `Permissions`.
-- Expected infrastructure emphasis: `Identity/Keycloak`, persistence for local identity-access state, optional realtime/admin notifications if needed.
-- Tests should live under `tests/UnitTests`, `tests/IntegrationTests`, and `tests/EndToEndTests`.
-
-#### `mission-design-service`
-
-- Owns mission-definition and planning concerns.
-- Expected application concepts: `Missions`, `MissionPlans`, `Constraints`.
-- The current root-level codebase most closely resembles the starting point for this service and should be migrated here first.
-- Replace template/sample artifacts such as `Todo*`, `Counter`, and `Weather` with mission-design concepts.
-- Tests should live under `tests/UnitTests`, `tests/IntegrationTests`, and `tests/EndToEndTests`.
-
-#### `session-operations-service`
-
-- Owns execution/session lifecycle concerns.
-- Expected application concepts: `Sessions`, `SessionRuns`, `SessionAssignments`.
-- Realtime support is likely to be relevant here when operational state changes need to reach clients immediately.
-- Tests should live under `tests/UnitTests`, `tests/IntegrationTests`, and `tests/EndToEndTests`.
-
-#### `scoring-monitoring-service`
-
-- Owns scoring, telemetry, monitoring, and alerting concerns.
-- Expected application concepts: `Scores`, `Metrics`, `Alerts`.
-- Outbound integrations and notifications are likely to be more important here than in some other services.
-- Tests should live under `tests/UnitTests`, `tests/IntegrationTests`, and `tests/EndToEndTests`.
-
-### Concrete Target Tree
+## Concrete Service Layout
 
 ```text
 umbral-backend/
@@ -410,9 +329,8 @@ umbral-backend/
 │   │   │   ├── Api/
 │   │   │   ├── Application/
 │   │   │   │   ├── Common/
-│   │   │   │   ├── Users/
-│   │   │   │   ├── Roles/
-│   │   │   │   └── Permissions/
+│   │   │   │   ├── Users/           # User provisioning, role assignment, access management
+│   │   │   │   └── JoinTokens/      # Token issuance and validation for participant entry
 │   │   │   ├── Domain/
 │   │   │   ├── Infrastructure/
 │   │   │   ├── Directory.Build.props
@@ -428,9 +346,8 @@ umbral-backend/
 │   │   │   ├── Api/
 │   │   │   ├── Application/
 │   │   │   │   ├── Common/
-│   │   │   │   ├── Missions/
-│   │   │   │   ├── MissionPlans/
-│   │   │   │   └── Constraints/
+│   │   │   │   ├── Missions/        # Mission CRUD, node management, activation
+│   │   │   │   └── TriviaQuizzes/   # Quiz authoring, question management, publication
 │   │   │   ├── Domain/
 │   │   │   ├── Infrastructure/
 │   │   │   ├── Directory.Build.props
@@ -446,9 +363,10 @@ umbral-backend/
 │   │   │   ├── Api/
 │   │   │   ├── Application/
 │   │   │   │   ├── Common/
-│   │   │   │   ├── Sessions/
-│   │   │   │   ├── SessionRuns/
-│   │   │   │   └── SessionAssignments/
+│   │   │   │   ├── LiveSessions/    # Session lifecycle commands and session-level queries
+│   │   │   │   ├── Teams/           # Team registration and team-level queries
+│   │   │   │   ├── Participants/    # Participant join and reconnect flows
+│   │   │   │   └── Evidence/        # Evidence submission, review, and target resolution
 │   │   │   ├── Domain/
 │   │   │   ├── Infrastructure/
 │   │   │   ├── Directory.Build.props
@@ -464,9 +382,9 @@ umbral-backend/
 │       │   ├── Api/
 │       │   ├── Application/
 │       │   │   ├── Common/
-│       │   │   ├── Scores/
-│       │   │   ├── Metrics/
-│       │   │   └── Alerts/
+│       │   │   ├── ScoreEntries/    # Score recording commands and history queries
+│       │   │   ├── Penalties/       # Penalty apply and revert commands
+│       │   │   └── Rankings/        # Ranking recalculation and snapshot queries
 │       │   ├── Domain/
 │       │   ├── Infrastructure/
 │       │   ├── Directory.Build.props
@@ -483,9 +401,3 @@ umbral-backend/
 └── README.md
 ```
 
-### Findings This Plan Resolves
-
-- It fixes the root boundary mismatch by moving service code under `services/<service-name>/`.
-- It fixes the test taxonomy mismatch by standardizing on `UnitTests`, `IntegrationTests`, and `EndToEndTests`.
-- It fixes the application-feature mismatch by defining concrete business feature folders per service instead of leaving `Application` as only `Common`.
-- It removes template/sample residue by replacing generic sample concepts with real Umbral service concepts.
