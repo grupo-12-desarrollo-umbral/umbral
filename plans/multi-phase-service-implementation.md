@@ -7,6 +7,27 @@
 
 ---
 
+## Prompt & commit protocol
+
+**One prompt covers exactly one phase. Nothing more.**
+
+- Finish a phase → verify it → commit → then write the next prompt.
+- Never combine phases in a single prompt, even if they feel small.
+- Each commit message must reference the phase: `feat(mission-design): phase 1.1 — domain layer`.
+
+### Verification gate per phase
+
+| Phase | Must pass before committing |
+|---|---|
+| X.1 Domain | Project compiles with no errors; all domain types resolve |
+| X.2 Application | `dotnet build` clean; handler unit tests green |
+| X.3 Infrastructure | `dotnet ef migrations add` succeeds; repository integration test green |
+| X.4 Api | At least one endpoint returns expected response via `curl` or HTTP test |
+
+If a phase fails its gate, fix it in the **same prompt session** before committing. Do not carry broken state into the next phase.
+
+---
+
 ## Service order
 
 1. `mission-design-service` — two clean aggregate roots, no real-time, best scaffold baseline
