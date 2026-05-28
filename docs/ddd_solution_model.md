@@ -12,6 +12,8 @@ Read it together with:
 - `docs/umbral_user_stories.md`
 - `docs/bd_umbral_entity_spec.md`
 - `docs/adr/001_platform_shape_adr.md`
+- `docs/adr/0001-gateway-central-jwt-validation.md`
+- `docs/adr/0002-websocket-token-extraction-at-gateway.md`
 - `CONTEXT-MAP.md`
 - `mission-design-service/CONTEXT.md`
 - `session-operations-service/CONTEXT.md`

@@ -123,7 +123,7 @@ umbral-backend/
 │   │   │   │   └── Domain.csproj
 │   │   │   │
 │   │   │   ├── Infrastructure/                                  # External implementations
-│   │   │   │   ├── Identity/
+│   │   │   │   ├── Identity/                                    # identity-access-service only — see ADR-0001
 │   │   │   │   │   ├── Keycloak/
 │   │   │   │   │   │   ├── KeycloakOptions.cs
 │   │   │   │   │   │   ├── KeycloakClaimMapper.cs
@@ -142,10 +142,10 @@ umbral-backend/
 │   │   │   │   │   ├── Repositories/                           # Optional
 │   │   │   │   │   │   └── <Entity>Repository.cs
 │   │   │   │   │   └── DependencyInjection.cs
-│   │   │   │   ├── Realtime/
+│   │   │   │   ├── Realtime/                                    # session-operations-service only
 │   │   │   │   │   ├── SignalRNotifier.cs
 │   │   │   │   │   └── DependencyInjection.cs
-│   │   │   │   ├── Integrations/
+│   │   │   │   ├── Integrations/                                # Optional — only when service has outbound contracts
 │   │   │   │   │   └── Webhooks/
 │   │   │   │   │       ├── WebhookDispatcher.cs
 │   │   │   │   │       ├── WebhookPayloadFactory.cs
@@ -235,10 +235,14 @@ This structure is entity-oriented by convention, but the folder name should stil
 
 ### `Infrastructure/Identity`
 
-- Keycloak configuration
+**`identity-access-service` only** — see ADR-0001.
+
+- Keycloak admin-client configuration for user provisioning
 - Claims translation
 - JWT event hooks
 - Identity service adapters
+
+Other services do not carry `Infrastructure/Identity/Keycloak/`. They read actor identity from the trusted headers forwarded by the `api-gateway` (`X-User-Id`, `X-User-Role`, `X-User-Email`) via `CurrentUserService`.
 
 ### `Infrastructure/Persistence`
 
@@ -395,8 +399,18 @@ umbral-backend/
 │       │   └── EndToEndTests/
 │       ├── README.md
 │       └── structure.md
+├── api-gateway/
+│   ├── src/
+│   │   ├── Program.cs
+│   │   ├── DependencyInjection.cs
+│   │   ├── Transforms/
+│   │   │   └── WebSocketTokenExtractionTransform.cs  # Extracts ?access_token for SignalR upgrades — see ADR-0002
+│   │   ├── appsettings.json
+│   │   └── ApiGateway.csproj
+│   └── README.md
 ├── docs/
 ├── deploy/
+│   └── docker-compose.yml                            # Keycloak, api-gateway, postgres, rabbitmq
 ├── .gitignore
 └── README.md
 ```

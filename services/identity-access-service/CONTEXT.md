@@ -31,14 +31,18 @@ The identity-side facts returned after authentication, such as actor identity, r
 _Avoid_: final authorization, join decision, session approval
 
 **JoinToken**:
-The limited-scope token owned by `Identity` that proves a participant may enter a specific `LiveSession` and `Team` through the approved join flow, referencing them only as authorization targets.
-_Avoid_: invite token, entry token, team join token
+The limited-scope token owned by `Identity` that proves a participant may enter a specific `LiveSession` and `Team` through the approved join flow, referencing them only as authorization targets. Participants must already hold a valid Keycloak JWT before a `JoinToken` can be consumed; the gateway validates the JWT first, and `identity-access-service` validates the `JoinToken` as a subsequent application-level guard.
+_Avoid_: invite token, entry token, team join token, unauthenticated join
+
+**Post-Login Provisioning**:
+The step that follows a successful Keycloak login where the client explicitly calls `identity-access-service` to synchronize or create the application-side `User` record from the Keycloak-issued claims. This is what `AuthenticateUser` does — it is not a re-implementation of login, it is the application-side onboarding step that makes the actor known to the platform.
+_Avoid_: re-authenticating with Keycloak, duplicating the login flow
 
 ## Boundary Rules
 
 **Authentication**:
-Authentication is externalized to `Keycloak` or another OIDC-compatible identity provider, but the `Identity` bounded context still owns the language and contracts Umbral uses around actor identity and access.
-_Avoid_: session admission, runtime ownership
+Authentication is externalized to `Keycloak`. The `api-gateway` validates every inbound Keycloak JWT and forwards identity as three trusted headers (`X-User-Id`, `X-User-Role`, `X-User-Email`); the original JWT is stripped. Individual services read these headers only — they do not validate tokens independently. After a successful Keycloak login, clients must complete `Post-Login Provisioning` before accessing protected capabilities.
+_Avoid_: session admission, runtime ownership, per-service JWT validation, re-implementing login
 
 **Access Validation**:
 `Identity` may validate actor identity, role, token status, and coarse access-policy conditions for a requested target, but it does not decide whether a specific live session may be joined right now. This decision belongs to `SessionOperations`.
