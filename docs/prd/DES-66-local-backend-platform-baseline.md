@@ -389,3 +389,88 @@ microservices platform.
   evidence, that its backend is becoming a real microservices platform rather
   than remaining a set of structural placeholders, including the accepted
   public auth entry path through `api-gateway` and `Keycloak`.
+
+## Implementation Progress
+
+_Last updated: 2026-05-28_
+
+### Done
+
+**`api-gateway` scaffold (complete)**
+- YARP reverse proxy wired with `AddReverseProxy().LoadFromConfig(...)`.
+- `JwtBearer` validation against Keycloak (`Authority`, `Audience`,
+  `RequireHttpsMetadata`).
+- `TrustedHeadersTransform`: injects `X-User-Id`, `X-User-Role`,
+  `X-User-Email` from validated claims; strips the `Authorization` header
+  before forwarding.
+- `WebSocketTokenExtractionTransform`: reads `?access_token` on WebSocket
+  upgrade so SignalR connections authenticate through the same path.
+- `appsettings.json` (Docker service-name addresses) and
+  `appsettings.Development.json` (localhost port overrides) committed.
+- Project builds clean (`dotnet build api-gateway/src/ApiGateway.csproj`).
+
+**`mission-design-service` infrastructure scaffolding (partial)**
+- Clean Architecture layer structure (`Domain` / `Application` /
+  `Infrastructure` / `Api`) exists with real project files.
+- Domain base types: `BaseAuditableEntity`, `BaseEntity`, `BaseEvent`,
+  `ValueObject`, `Roles` constants.
+- Application boilerplate: five MediatR pipeline behaviors, shared
+  exceptions, core interfaces (`IApplicationDbContext`, `IClock`,
+  `ICurrentUser`, `IIdentityService`, `INotifier`, `IWebhookDispatcher`),
+  `Result` / `PagedResult` models, `[Authorize]` attribute and
+  `Permissions` constants.
+- Infrastructure persistence wiring: `ApplicationDbContext` (Npgsql,
+  `ApplyConfigurationsFromAssembly`), `AuditableEntityInterceptor`,
+  `DispatchDomainEventsInterceptor`, `ApplicationDbContextInitialiser`,
+  connection-string binding via `GetConnectionString("umbral_backendDb")`.
+- Api layer: minimal `/health` and `/alive` endpoints, exception handler,
+  OpenAPI, CORS, `AddWebServices` DI extension.
+
+### Pending
+
+The items below are ordered by the sequence mandated in this PRD. The
+immediate blocker group is items 1–3, which together close the "no proven
+public auth path" gap at minimum scope.
+
+**1. `CurrentUserService` — switch to trusted headers (Phase X.4, each
+service)**
+Each service's `CurrentUser` implementation still reads
+`ClaimTypes.NameIdentifier` / `ClaimTypes.Role` from the JWT principal.
+Per ADR-0001, downstream services must not parse tokens; they must read
+`X-User-Id`, `X-User-Role`, and `X-User-Email` from the headers injected
+by the gateway. `mission-design-service` is the first service that needs
+this change because it is the first authenticated downstream target.
+
+**2. `api-gateway` Dockerfile**
+No Dockerfile exists for the gateway. It must be present before the
+gateway can participate in Docker Compose or prove the containerized auth
+path.
+
+**3. Minimal Docker Compose for the public auth proof path**
+The `deploy/` directory contains only a `postgres/init` stub. A root
+`docker-compose.yml` must wire: `postgres`, `keycloak`, `api-gateway`, and
+`mission-design-service`. RabbitMQ and the remaining services can be added
+in the subsequent step. This is the canonical local entrypoint required by
+this PRD.
+
+**4. `mission-design-service` — Mission aggregate and first real slice**
+The domain, application, and infrastructure layers have scaffolding but no
+`Mission` entity, commands, queries, entity mappings, or EF Core migrations.
+Also required: real health/readiness check that probes the PostgreSQL
+connection (not the current static response), a `Dockerfile`, and
+`CurrentUserService` reading trusted headers (item 1 above).
+
+**5. Upgrade remaining three services from shells**
+`identity-access-service`, `session-operations-service`, and
+`scoring-monitoring-service` are `.gitkeep` skeletons. Each must receive
+owned persistence, service-owned migrations, real health/readiness, and
+a Dockerfile before cross-service integration is attempted. The order
+within this group follows the PRD: `session-operations-service` first
+(runtime core), then `scoring-monitoring-service`, then
+`identity-access-service`.
+
+**6. Gateway integration test**
+One authenticated route test covering: valid token → admission with correct
+trusted headers forwarded to `mission-design-service`; invalid/missing
+token → 401. This is the executable proof of the full auth path that this
+PRD requires.
