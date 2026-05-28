@@ -2,6 +2,7 @@
   <PropertyGroup>
     <AssemblyName>ApiGateway</AssemblyName>
     <RootNamespace>ApiGateway</RootNamespace>
+    <StaticWebAssetsEnabled>false</StaticWebAssetsEnabled>
   </PropertyGroup>
 
   <ItemGroup>
