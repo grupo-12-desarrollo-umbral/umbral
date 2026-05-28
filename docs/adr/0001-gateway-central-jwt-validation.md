@@ -11,3 +11,5 @@ The `api-gateway` is an ASP.NET Core app using YARP as the reverse-proxy engine.
 - `Infrastructure/Identity/Keycloak/` exists only in `identity-access-service`, not in the other three services.
 - `ICurrentUser` implementations read `HttpContext` request headers, not JWT claims.
 - The gateway must be the entry point for all client traffic; direct service-to-service calls within the cluster bypass it by design and are trusted without token validation.
+- Keycloak 24+ moved the `sub` claim into the built-in `basic` client scope. Both `umbral-web` and `umbral-mobile` must list `basic` in their `defaultClientScopes`; without it access tokens carry no `sub` claim and `X-User-Id` is never set.
+- The gateway's error contract: **401** means the token is absent, invalid, or expired — the client should re-authenticate. **503** means Keycloak is temporarily unreachable — the client should retry. Conflating the two would cause clients to silently burn refresh tokens during a Keycloak outage.
