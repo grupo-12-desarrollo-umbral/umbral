@@ -1,6 +1,6 @@
 ---
 name: to-prd
-description: Turn the current conversation context into a PRD, publish it to Linear, and save a local copy to docs/prd/. Use when user wants to create a PRD from the current context.
+description: Turn the current conversation context into a PRD and publish it to the project issue tracker. Use when user wants to create a PRD from the current context.
 ---
 
 This skill takes the current conversation context and codebase understanding and produces a PRD. Do NOT interview the user — just synthesize what you already know.
@@ -22,12 +22,13 @@ Load these before writing the PRD. They are authoritative for this project.
 |---|---|
 | `docs/ddd_solution_model.md` | Bounded contexts, aggregates, domain events, repository interfaces, domain services, application services, HU backlog alignment |
 | `docs/bd_umbral_entity_spec.md` | Field-level entity spec, value objects, enums, invariants, key constraints |
+| `CONTEXT-MAP.md` | Cross-context relationships — then follow the link to the relevant service `CONTEXT.md` for its ubiquitous language |
 
 Use the vocabulary from these docs throughout the PRD. Never invent concepts not found in them.
 
 ## Process
 
-1. Load the canonical documents above. Then explore any additional repo context relevant to the service (service `CONTEXT.md`, ADRs). Use the project's domain glossary vocabulary throughout the PRD.
+1. Load the canonical documents above. Follow `CONTEXT-MAP.md` to the relevant service `CONTEXT.md` to pick up its ubiquitous language. Then explore any additional repo context (ADRs, existing service structure).
 
 2. Sketch out the major modules you will need to build or modify to complete the implementation. Actively look for opportunities to extract deep modules that can be tested in isolation.
 

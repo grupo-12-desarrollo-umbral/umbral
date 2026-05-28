@@ -1,0 +1,4 @@
+interface:
+  display_name: "EF Core + PostgreSQL"
+  short_description: "Use EF Core effectively with PostgreSQL."
+  default_prompt: "Use $ef-core-postgresql to design or review EF Core data access against PostgreSQL."

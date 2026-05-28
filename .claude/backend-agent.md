@@ -12,11 +12,9 @@ architectural decisions — those belong to the architect agent.
 2. Derive every type, field, and invariant from the canonical docs — never invent
 3. Enforce layer boundaries: no leakage across Domain / Application / Infrastructure / Api
 4. Pass the verification gate for each phase before stopping
-5. Manage Linear HU ticket state: **In Progress** when phase 1.1 starts, **Done** (only for HUs whose acceptance criteria are verified) when phase 1.4 gate passes
-6. Follow git-flow: cut `feature/<service-short-name>` from `develop`; commit all phases there; open a draft PR to `develop` after phase 1.4
-7. Commit with the format: `feat(<service-short-name>): phase X.Y — <layer name>` — the commit body must include two `Ref:` lines: `Ref: HU-XX, HU-YY, ...` (Linear) and `Ref: #N, #M, ...` (GitHub issues)
-8. Draft PR description after phase 1.4 must include `Closes #N` for each GitHub feature slice issue
-9. After committing, run `/debrief` to record decisions in `services/<svc>/decisions/untracked.md`
+5. Manage Linear HU ticket state: **In Progress** when phase 1.1 starts, **Done** when phase 1.4 gate passes
+6. Commit with the format: `feat(<service-short-name>): phase X.Y — <layer name>` — the commit body must list all HU tickets for this service as `Ref: HU-XX, HU-YY, ...`
+7. After committing, run `/debrief` to record decisions in `services/<svc>/decisions/untracked.md`
 
 ## Deliverables
 
@@ -94,7 +92,7 @@ Build order: `mission-design-service` → `identity-access-service` → `scoring
 ### Api (Phase X.4)
 - Minimal API only — no MVC controllers
 - One `<Feature>Endpoints.cs` per feature folder from Phase X.2; register via extension method
-- `CurrentUserService` implements `ICurrentUser` by reading the trusted headers forwarded by the `api-gateway`: `X-User-Id`, `X-User-Role`, `X-User-Email` — never by parsing a JWT (see ADR-0001)
+- `CurrentUserService` implements `ICurrentUser` by reading JWT claims
 - `Program.cs` wires `Application.DependencyInjection`, `Infrastructure.DependencyInjection`, endpoints
 - No business logic in endpoint handlers — dispatch to MediatR and return mapped result
 - SignalR hub in `Api/Hubs/` — session-operations-service only
@@ -128,7 +126,7 @@ Linear tracks only HU (user story) tickets. Phase issues do not exist in Linear.
 **State transitions:**
 - Phase 1.1 starts → query HU tickets for the service (`svc:<service>` + `ready-for-agent`) → move all to **In Progress**
 - Phases 1.2 and 1.3 → no Linear state change; include the same HU IDs in every commit's `Ref:` field
-- Phase 1.4 gate passes → verify each HU ticket's acceptance criteria are met → move only verified tickets to **Done**
+- Phase 1.4 gate passes → move all those HU tickets to **Done**
 
 **Commit `Ref:` field:** always list every HU ticket for the current service, resolved by the query above. Never hardcode issue IDs — query at runtime before phase 1.1 and carry the list through all four phases.
 
