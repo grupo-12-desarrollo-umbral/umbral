@@ -3,7 +3,7 @@
 ## [001] Phase 1 — Proven public auth path (api-gateway scaffold + Compose baseline)
 **Date:** 2026-05-28
 **Phase:** 1 — Proven public auth path
-**Commits:** 0b2fc67, 45f35fe, 45cbb2a (uncommitted verification fixes pending)
+**Commits:** 0b2fc67, 45cbb2a, 38dc89c, da51517, e02a238, 1f26783, 68cfc48
 **HU tickets advanced:** HU-11, HU-12, HU-13, HU-15, HU-17, HU-18, HU-41, HU-42, HU-43
 
 **What was built**
