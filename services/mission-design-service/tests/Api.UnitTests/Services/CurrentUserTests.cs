@@ -1,7 +1,7 @@
 using Microsoft.AspNetCore.Http;
 using umbral_backend.Web.Services;
 
-namespace umbral_backend.Application.UnitTests.Api.Services;
+namespace umbral_backend.Web.UnitTests.Services;
 
 public class CurrentUserTests
 {
