@@ -257,3 +257,24 @@ established home for that dependency.
 - [ ] Full seven-container Compose stack (postgres, keycloak, rabbitmq,
   api-gateway, and all four services) starts with `docker compose up` and
   all health checks pass
+
+---
+
+## Guardrails
+
+Apply these across all phases when scaffolding or extending services:
+
+- **Api.csproj SDK**: every service's `Api` project must declare
+  `<Project Sdk="Microsoft.NET.Sdk.Web">`, not `Microsoft.NET.Sdk`.
+  The base SDK does not resolve `Microsoft.AspNetCore.App` types and will
+  produce confusing missing-type errors at build time.
+- **No `SkipGetTargetFrameworkProperties`**: never add
+  `SkipGetTargetFrameworkProperties="true"` to a `<ProjectReference>`.
+  It masks SDK mismatch errors instead of fixing them; the real fix is
+  always the correct SDK on the referenced project.
+- **`NotFoundException` ambiguity**: `Application/GlobalUsings.cs` has
+  `global using Ardalis.GuardClauses;`, and `Ardalis.GuardClauses` ships
+  its own `NotFoundException`. Any handler that writes
+  `throw new NotFoundException(...)` must fully qualify it as
+  `umbral_backend.Application.Common.Exceptions.NotFoundException` to
+  avoid an ambiguous-type compile error.
