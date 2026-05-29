@@ -1,24 +1,29 @@
-using Testcontainers.PostgreSql;
 using umbral_backend.Domain.Entities;
 using umbral_backend.Infrastructure.Persistence;
 
 namespace umbral_backend.Infrastructure.IntegrationTests.Persistence;
 
-public class ApplicationDbContextTests
+public class ApplicationDbContextTests : IClassFixture<PostgreSqlFixture>
 {
+    private readonly PostgreSqlFixture _fixture;
+
+    public ApplicationDbContextTests(PostgreSqlFixture fixture)
+    {
+        _fixture = fixture;
+    }
+
+    private ApplicationDbContext BuildContext()
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseNpgsql(_fixture.ConnectionString)
+            .Options;
+        return new ApplicationDbContext(options);
+    }
+
     [Fact]
     public async Task CanPersistAndReadMissionAggregate()
     {
-        await using var postgres = new PostgreSqlBuilder()
-            .WithImage("postgres:16-alpine")
-            .Build();
-        await postgres.StartAsync();
-
-        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
-            .UseNpgsql(postgres.GetConnectionString())
-            .Options;
-
-        await using var context = new ApplicationDbContext(options);
+        await using var context = BuildContext();
         await context.Database.EnsureCreatedAsync();
 
         context.Missions.Add(Mission.Create("Mission Beta", "Persisted through postgres", "Advanced", 60));

@@ -6,6 +6,7 @@
         <Nullable>enable</Nullable>
         <RootNamespace>umbral_backend.Infrastructure.IntegrationTests</RootNamespace>
         <AssemblyName>umbral_backend.Infrastructure.IntegrationTests</AssemblyName>
+        <RunSettingsFilePath>$(MSBuildProjectDirectory)\integration.runsettings</RunSettingsFilePath>
     </PropertyGroup>
 
     <ItemGroup>
