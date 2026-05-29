@@ -22,6 +22,10 @@ One realm (`umbral`), two clients:
 
 Roles are realm-level assignments. The `X-User-Role` header maps directly to the Keycloak realm role.
 
+Both clients must include `basic` in `defaultClientScopes`. Keycloak 24+ moved the `sub` claim into the built-in `basic` scope; omitting it causes access tokens to carry no `sub`, which means `X-User-Id` is never injected by the gateway.
+
+The Compose `healthcheck` for the Keycloak container must probe the management port (9000, `GET /health/ready`) rather than the main HTTP port (8080). The `/health/ready` endpoint returns 200 only after realm imports complete; a check against port 8080 can pass while the `umbral` realm is still being imported, causing the gateway to start before its OIDC metadata endpoint is available.
+
 **4. JoinToken is a post-authentication application guard**
 Participants authenticate with Keycloak first (mobile OIDC flow). The `JoinToken` issued by `identity-access-service` is consumed after the gateway has already validated the actor's Keycloak JWT. It is an application-level check on top of authentication, not a bypass around it.
 
