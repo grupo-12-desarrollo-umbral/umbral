@@ -56,7 +56,7 @@ Browser-based end-to-end tests:
 dotnet add tests/System.EndToEndTests package Microsoft.Playwright.Xunit
 dotnet add tests/System.EndToEndTests package FluentAssertions
 dotnet build tests/System.EndToEndTests
-pwsh tests/System.EndToEndTests/bin/Debug/net8.0/playwright.ps1 install
+pwsh tests/System.EndToEndTests/bin/Debug/net10.0/playwright.ps1 install
 ```
 
 ## Example Coverage Commands
@@ -65,6 +65,8 @@ Using Microsoft.Testing.Platform coverage support:
 
 ```bash
 dotnet test --coverage --coverage-output coverage.cobertura.xml --coverage-output-format cobertura
+python3 .claude/skills/aspnet-backend-testing/scripts/check_cobertura_threshold.py coverage.cobertura.xml 95
+# or, if the skill lives under .agents/:
 python3 .agents/skills/aspnet-backend-testing/scripts/check_cobertura_threshold.py coverage.cobertura.xml 95
 ```
 
@@ -72,6 +74,8 @@ Using Coverlet where the repo already standardizes on it:
 
 ```bash
 dotnet test /p:CollectCoverage=true /p:CoverletOutputFormat=cobertura
+python3 .claude/skills/aspnet-backend-testing/scripts/check_cobertura_threshold.py path/to/coverage.cobertura.xml 95
+# or, if the skill lives under .agents/:
 python3 .agents/skills/aspnet-backend-testing/scripts/check_cobertura_threshold.py path/to/coverage.cobertura.xml 95
 ```
 

@@ -111,6 +111,28 @@ Use these to verify:
 
 Do not treat EF Core in-memory behavior as proof that the production database works.
 
+**Testcontainers fixture sharing** — never create a container inside a `[Fact]` body. Container startup takes 4–8 s each time. Instead use `IClassFixture<T>` to share one container across all tests in a class, or `ICollectionFixture<T>` to share across multiple test classes:
+
+```csharp
+public class PostgreSqlFixture : IAsyncLifetime
+{
+    private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder()
+        .WithImage("postgres:16-alpine").Build();
+
+    public string ConnectionString => _postgres.GetConnectionString();
+    public Task InitializeAsync() => _postgres.StartAsync();
+    public Task DisposeAsync() => _postgres.DisposeAsync().AsTask();
+}
+
+public class MyTests : IClassFixture<PostgreSqlFixture>
+{
+    private readonly PostgreSqlFixture _fixture;
+    public MyTests(PostgreSqlFixture fixture) => _fixture = fixture;
+}
+```
+
+**Handler dependencies** — Application-layer handlers must depend on repository interfaces (e.g., `IMissionRepository`), not on `DbContext` directly. Depending on `DbContext` makes the handler impossible to unit test and forces it into the integration test suite. The integration test then verifies that the real repository implements the interface correctly; the handler behavior is verified separately with a mocked interface.
+
 ### Presentation/API layer
 
 Preferred tests:
