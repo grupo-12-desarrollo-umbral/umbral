@@ -49,3 +49,9 @@ _Avoid_: opaque score total
 **Derived Views**:
 `Ranking`, `AuditHistory`, and monitoring views are derived models owned by `ScoringMonitoring`; they do not replace runtime authority in `SessionOperations`.
 _Avoid_: session control, admission authority
+
+## Required Patterns
+
+**Strategy**:
+Score calculation and difficulty-based, mode-specific normalization or evaluation policies must be implemented as interchangeable strategies so scoring behavior can vary without branching across handlers.
+_Avoid_: central score handlers full of mode checks

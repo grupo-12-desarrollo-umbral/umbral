@@ -48,6 +48,12 @@ _Avoid_: session admission, runtime ownership, per-service JWT validation, re-im
 `Identity` may validate actor identity, role, token status, and coarse access-policy conditions for a requested target, but it does not decide whether a specific live session may be joined right now. This decision belongs to `SessionOperations`.
 _Avoid_: final admission, join approval
 
+## Required Patterns
+
+**Proxy**:
+Role and policy-based access guards should behave as proxies in service and presentation layers, restricting protected capabilities before the underlying operation executes.
+_Avoid_: leaking raw authorization conditionals into every use case or transport entry point
+
 ## Example Dialogue
 
 Dev: "The participant authenticated successfully. Can Identity admit them into Team Red?"
