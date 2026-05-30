@@ -1,13 +1,16 @@
 # Agent Instructions
 
-## Implementation work
+## Monorepo Structure
 
-Before writing any service code, read `.agents/backend-agent.md`. It defines the canonical documents to load, layer rules, verification gates, and constraints. Do not start implementation without it.
+This repo has two independently deployable workloads:
 
-## Structure Enforcement
+- `backend/` — .NET microservices (api-gateway + bounded-context services). Read `backend/AGENTS.md` before touching anything here.
+- `frontend/` — Next.js app. Read `frontend/AGENTS.md` before touching anything here.
 
-Before creating or moving any file, read `structure.md` and place it
-according to the Concrete Target Tree and DDD/Boundary rules.
+For the integration boundary between them, read `CONTEXT-MAP.md` in this directory.
 
-Do not invent new folder paths outside the established structure
-without updating `structure.md` first.
+## Boundary Rules
+
+- Do not import or reference backend source files from frontend tasks, or vice versa.
+- API contracts (routes, payloads, event shapes) are the only shared surface. If a contract changes, flag it explicitly — both sides must be updated together.
+- Do not create files at the monorepo root except for shared configuration (e.g. `.editorconfig`, `docker-compose.yml`) or documentation that applies to both workloads.
