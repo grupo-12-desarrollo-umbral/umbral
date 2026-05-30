@@ -26,9 +26,10 @@ When ready:
 
 1. **Create PRD** (one-time): run `/to-prd` after reading HU tickets + canonical docs → publishes `DES-XX` to Linear.
 2. **Create feature branch**: `git checkout -b feature/identity-access develop`
-3. **Move tickets to In Progress** in Linear (HU-01 to HU-08).
-4. **Run 4 phases** in order — each phase: implement → gate passes → commit with `Ref: HU-XX` → `/debrief`.
-5. **After phase 1.4**: coverage gate (≥95%) → open draft PR → verify each HU ticket's acceptance criteria → move covered tickets to Done.
+3. **Fetch the ready backlog for the service** in Linear (`svc:identity-access-service` + `ready-for-agent`) and resolve only the HU ticket(s) for the slice you are starting.
+4. **Move only those resolved HU ticket(s) to In Progress** in Linear.
+5. **Run 4 phases** in order for that slice — each phase: implement → gate passes → commit with `Ref: HU-XX` for the resolved slice ticket(s) → `/debrief`.
+6. **After phase 1.4**: coverage gate (≥95%) → open draft PR → verify the resolved slice ticket(s)' acceptance criteria → move only covered ticket(s) to Done.
 
 ---
 

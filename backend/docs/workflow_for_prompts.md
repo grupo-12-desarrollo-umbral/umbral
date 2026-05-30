@@ -1,30 +1,100 @@
-# Workflow — mission-design-service trivia prompts
+# Workflow Prompts — Feature Slice Branches With Backend Phase Gates
 
-Covers HU-11, HU-14A, HU-14B, HU-12, HU-13.
-PRD: DES-62 (already exists). Branch: `feature/mission-design-service` (already exists).
+This document shows how to drive implementation prompts when the branch and PR represent a feature slice rather than a whole backend service.
+
+The examples below keep the backend phase gates intact while allowing one slice to include both:
+
+- `backend/services/...`
+- `frontend/...`
 
 ---
 
-## Pre-flight — move tickets via Linear MCP
+## Core rule
 
-Type this prompt:
+The branch is **feature-scoped**.
 
+The backend prompts are still **phase-scoped**.
+
+That means:
+
+- one branch can contain frontend work plus backend work
+- one backend prompt still covers exactly one phase in exactly one backend service
+- one draft PR represents the user-visible slice
+
+---
+
+## Naming
+
+Use branch names like:
+
+- `feature/trivia-quiz-authoring`
+- `feature/trivia-quiz-publish`
+- `feature/participant-rejoin-session`
+
+Avoid:
+
+- `feature/mission-design-service`
+- `feature/session-operations-service`
+
+---
+
+## Recommended slice shape
+
+Prefer this shape:
+
+1. One HU or tightly-coupled HU bundle
+2. One frontend flow
+3. One backend service where possible
+
+If a slice requires multiple backend services, keep the same branch but finish one backend service at a time.
+
+---
+
+## Example slice — trivia quiz authoring
+
+Scope:
+
+- HUs: `HU-11`, `HU-14A`, `HU-14B`, `HU-12`, `HU-13`
+- Frontend area: `frontend/` admin trivia authoring flow
+- Backend service: `backend/services/mission-design-service`
+- PRD: `backend/docs/prd/DES-62-mission-design-service-baseline.md`
+- Branch: `feature/trivia-quiz-authoring`
+
+This is still a single backend service, but the branch name reflects the feature the user experiences.
+
+---
+
+## Pre-flight
+
+Create the slice branch:
+
+```text
+git checkout develop
+git checkout -b feature/trivia-quiz-authoring
 ```
+
+Move the relevant HUs to **In Progress** in Linear:
+
+```text
 Move HU-11, HU-14A, HU-14B, HU-12, and HU-13 to In Progress in Linear.
 ```
+
+If a GitHub issue exists for the slice, keep its number available for commit `Ref:` lines and the final PR description.
+
 ---
 
-## Phase 2.1 — Domain layer
+## Backend Phase 2.1 — Domain layer
 
 Type this prompt:
 
-```
-Read docs/prd/DES-62-mission-design-service-baseline.md,
-docs/ddd_solution_model.md, docs/bd_umbral_entity_spec.md, and
-plans/multi-phase-service-implementation.md.
+```text
+Read backend/docs/prd/DES-62-mission-design-service-baseline.md,
+backend/docs/ddd_solution_model.md,
+backend/docs/bd_umbral_entity_spec.md, and
+backend/plans/multi-phase-service-implementation.md.
 
 Implement Phase 2.1 — TriviaQuiz domain layer in
-services/mission-design-service/src/Domain/:
+backend/services/mission-design-service/src/Domain/:
 
 - TriviaQuiz aggregate root (Title, Description, Status, Questions collection)
 - TriviaQuestion child entity (QuestionText, Timer, Score, Explanation, Options)
@@ -38,82 +108,90 @@ services/mission-design-service/src/Domain/:
   score range, timer range, not publishable, already used)
 
 Gate: dotnet build exits 0, all types resolve.
-Do not touch Mission or any other layer.
+Do not touch any other backend layer or the frontend.
 ```
 
-After gate passes, commit:
+After the gate passes, commit:
 
-```
-feat(mission-design): TriviaQuiz + TriviaQuestion + TriviaOption domain layer
+```text
+feat(mission-design): phase 2.1 — domain layer
 
 Ref: HU-11, HU-14A, HU-14B, HU-12, HU-13
+Ref: #<slice-issue>
 ```
 
 Then run: `/debrief`
 
 ---
 
-## Phase 2.2 — Application layer
+## Backend Phase 2.2 — Application layer
 
 Type this prompt:
 
-```
-Read docs/prd/DES-62-mission-design-service-baseline.md,
-docs/ddd_solution_model.md, and plans/multi-phase-service-implementation.md.
+```text
+Read backend/docs/prd/DES-62-mission-design-service-baseline.md,
+backend/docs/ddd_solution_model.md, and
+backend/plans/multi-phase-service-implementation.md.
 
 Implement Phase 2.2 — TriviaQuiz application layer in
-services/mission-design-service/src/Application/TriviaQuizzes/:
+backend/services/mission-design-service/src/Application/TriviaQuizzes/:
 
 Repository interfaces (Application/Common/Interfaces/):
 - ITriviaQuizRepository
 - ITriviaQuizReadModelRepository
 
 Commands + validators + handlers:
-- CreateTriviaQuizCommand       (HU-11)
-- UpdateTriviaQuizCommand       (HU-11)
-- AddTriviaQuestionCommand      (HU-14A)
-- UpdateTriviaQuestionCommand   (HU-14A)
-- RemoveTriviaQuestionCommand   (HU-14A)
-- PublishTriviaQuizCommand      (HU-12)
-- ArchiveTriviaQuizCommand      (HU-12)
-- DuplicateTriviaQuizCommand    (HU-13)
+- CreateTriviaQuizCommand
+- UpdateTriviaQuizCommand
+- AddTriviaQuestionCommand
+- UpdateTriviaQuestionCommand
+- RemoveTriviaQuestionCommand
+- PublishTriviaQuizCommand
+- ArchiveTriviaQuizCommand
+- DuplicateTriviaQuizCommand
 
 Queries + handlers:
-- GetTriviaCatalogQuery         (HU-11)
-- GetTriviaDetailQuery          (HU-11)
+- GetTriviaCatalogQuery
+- GetTriviaDetailQuery
 
-DTOs: TriviaQuizDto, TriviaQuizSummaryDto, TriviaQuestionDto, TriviaOptionDto
+DTOs:
+- TriviaQuizDto
+- TriviaQuizSummaryDto
+- TriviaQuestionDto
+- TriviaOptionDto
 
 Gate: dotnet build clean + at least one handler unit test green for
-CreateTriviaQuizCommandHandler and PublishTriviaQuizCommand (valid + invalid paths).
-Do not touch Mission or Infrastructure.
+CreateTriviaQuizCommandHandler and PublishTriviaQuizCommand
+(valid + invalid paths).
+Do not touch Domain, Infrastructure, Api, or the frontend.
 ```
 
-Commit one per HU:
+Commit:
 
-```
-feat(mission-design): CreateTriviaQuiz command + query handlers    Ref: HU-11
-feat(mission-design): AddTriviaQuestion command handlers           Ref: HU-14A, HU-14B
-feat(mission-design): PublishTriviaQuiz + ArchiveTriviaQuiz        Ref: HU-12
-feat(mission-design): DuplicateTriviaQuiz command                  Ref: HU-13
+```text
+feat(mission-design): phase 2.2 — application layer
+
+Ref: HU-11, HU-14A, HU-14B, HU-12, HU-13
+Ref: #<slice-issue>
 ```
 
 Then run: `/debrief`
 
 ---
 
-## Phase 2.3 — Infrastructure layer
+## Backend Phase 2.3 — Infrastructure layer
 
 Type this prompt:
 
-```
-Read docs/prd/DES-62-mission-design-service-baseline.md,
-docs/bd_umbral_entity_spec.md, and plans/multi-phase-service-implementation.md.
+```text
+Read backend/docs/prd/DES-62-mission-design-service-baseline.md,
+backend/docs/bd_umbral_entity_spec.md, and
+backend/plans/multi-phase-service-implementation.md.
 
 Implement Phase 2.3 — TriviaQuiz infrastructure layer in
-services/mission-design-service/src/Infrastructure/:
+backend/services/mission-design-service/src/Infrastructure/:
 
-- TriviaQuizConfiguration.cs EF Core config (owned collections for questions/options)
+- TriviaQuizConfiguration.cs EF Core config
 - TriviaQuestionConfiguration.cs
 - TriviaOptionConfiguration.cs
 - Add DbSet<TriviaQuiz> TriviaQuizzes to ApplicationDbContext
@@ -124,42 +202,43 @@ services/mission-design-service/src/Infrastructure/:
 
 Gate: migration succeeds + at least one repository integration test green
 (persist a TriviaQuiz, retrieve it, assert fields match).
-Do not touch Mission config or Application layer.
+Do not touch Domain, Application, Api, or the frontend.
 ```
 
 Commit:
 
-```
-feat(mission-design): TriviaQuiz EF config, repositories, migration
+```text
+feat(mission-design): phase 2.3 — infrastructure layer
 
 Ref: HU-11, HU-14A, HU-14B, HU-12, HU-13
+Ref: #<slice-issue>
 ```
 
 Then run: `/debrief`
 
 ---
 
-## Phase 2.4 — API layer + coverage gate
+## Backend Phase 2.4 — API layer plus coverage gate
 
 Type this prompt:
 
-```
-Read docs/prd/DES-62-mission-design-service-baseline.md and
-plans/multi-phase-service-implementation.md.
+```text
+Read backend/docs/prd/DES-62-mission-design-service-baseline.md and
+backend/plans/multi-phase-service-implementation.md.
 
 Implement Phase 2.4 — TriviaQuiz API layer in
-services/mission-design-service/src/Api/Endpoints/TriviaEndpoints.cs:
+backend/services/mission-design-service/src/Api/Endpoints/TriviaEndpoints.cs:
 
-POST   /trivia                        CreateTriviaQuizCommand       HU-11
-GET    /trivia                        GetTriviaCatalogQuery          HU-11
-GET    /trivia/{id}                   GetTriviaDetailQuery           HU-11
-PUT    /trivia/{id}                   UpdateTriviaQuizCommand        HU-11
-POST   /trivia/{id}/questions         AddTriviaQuestionCommand       HU-14A
-PUT    /trivia/{id}/questions/{qid}   UpdateTriviaQuestionCommand    HU-14A
-DELETE /trivia/{id}/questions/{qid}   RemoveTriviaQuestionCommand    HU-14A
-POST   /trivia/{id}/publish           PublishTriviaQuizCommand       HU-12
-POST   /trivia/{id}/archive           ArchiveTriviaQuizCommand       HU-12
-POST   /trivia/{id}/duplicate         DuplicateTriviaQuizCommand     HU-13
+POST   /trivia                        CreateTriviaQuizCommand
+GET    /trivia                        GetTriviaCatalogQuery
+GET    /trivia/{id}                   GetTriviaDetailQuery
+PUT    /trivia/{id}                   UpdateTriviaQuizCommand
+POST   /trivia/{id}/questions         AddTriviaQuestionCommand
+PUT    /trivia/{id}/questions/{qid}   UpdateTriviaQuestionCommand
+DELETE /trivia/{id}/questions/{qid}   RemoveTriviaQuestionCommand
+POST   /trivia/{id}/publish           PublishTriviaQuizCommand
+POST   /trivia/{id}/archive           ArchiveTriviaQuizCommand
+POST   /trivia/{id}/duplicate         DuplicateTriviaQuizCommand
 
 Register TriviaEndpoints in Api/DependencyInjection.cs.
 
@@ -170,39 +249,85 @@ dotnet test --coverage --coverage-output-format cobertura
 python .agents/skills/aspnet-backend-testing/scripts/check_cobertura_threshold.py merged.cobertura.xml 95
 
 If below 95%, add the missing tests before committing.
+Do not touch the frontend in this phase prompt.
 ```
 
-Commit one per HU:
+Commit:
 
-```
-feat(mission-design): TriviaQuiz CRUD endpoints                    Ref: HU-11
-feat(mission-design): question management endpoints                Ref: HU-14A, HU-14B
-feat(mission-design): publish + archive + duplicate endpoints      Ref: HU-12, HU-13
+```text
+feat(mission-design): phase 2.4 — api layer
+
+Ref: HU-11, HU-14A, HU-14B, HU-12, HU-13
+Ref: #<slice-issue>
 ```
 
 Then run: `/debrief`
 
 ---
 
-## Close out
+## Frontend prompt after backend contracts are green
 
-Open the draft PR:
+Once backend phase 2.4 is complete, you can implement or finish the user-facing flow in `frontend/`.
 
+Type a frontend prompt shaped like this:
+
+```text
+Read frontend/docs/umbral_user_stories.md and the backend API contract implemented for trivia quiz authoring.
+
+Implement the trivia quiz authoring flow in frontend/ for:
+
+- create quiz
+- edit quiz
+- manage questions and options
+- publish and archive actions
+- duplicate action
+
+Use the endpoints already implemented in the backend.
+
+Gate: the admin flow can create a quiz, list quizzes, edit one, add a question,
+and publish it successfully against the local backend.
 ```
-gh pr create --draft --base develop --title "feat(mission-design): TriviaQuiz authoring — HU-11, HU-12, HU-13, HU-14A, HU-14B"
-```
 
-Then in Linear verify each HU's acceptance criteria against the running service, and move HU-11, HU-14A, HU-14B, HU-12, HU-13 → **Done**.
+Frontend commits should be feature-scoped:
+
+```text
+feat(frontend): trivia quiz authoring flow
+```
 
 ---
 
-## Cheatsheet
+## Close out
 
-| Step | What to type |
+Open or update the draft PR from the slice branch:
+
+```text
+gh pr create --draft --base develop --title "feat: trivia quiz authoring"
+```
+
+The PR description should include:
+
+- the HUs covered
+- the touched paths: `backend/services/mission-design-service` and `frontend/`
+- `Closes #<slice-issue>` where applicable
+
+Then verify each HU acceptance criterion end-to-end and move only the satisfied HUs to **Done**.
+
+---
+
+## Multi-service slice template
+
+If a slice touches multiple backend services, keep this structure:
+
+| Order | Area |
 |---|---|
-| Pre-flight | `Move HU-11, HU-14A, HU-14B, HU-12, HU-13 to In Progress in Linear.` |
-| Phase 2.1 | Prompt above → `dotnet build` → commit → `/debrief` |
-| Phase 2.2 | Prompt above → build + unit tests → commit per HU → `/debrief` |
-| Phase 2.3 | Prompt above → migration + integration test → commit → `/debrief` |
-| Phase 2.4 | Prompt above → HTTP test + coverage gate → commit per HU → `/debrief` |
-| Close | `gh pr create --draft` → verify HUs in Linear → Done |
+| 1 | backend service A phase X.1 |
+| 2 | backend service A phase X.2 |
+| 3 | backend service A phase X.3 |
+| 4 | backend service A phase X.4 |
+| 5 | backend service B phase Y.1 |
+| 6 | backend service B phase Y.2 |
+| 7 | backend service B phase Y.3 |
+| 8 | backend service B phase Y.4 |
+| 9 | frontend integration and end-to-end verification |
+
+Do not create a prompt that spans backend services or backend phases, even when the branch spans the full feature.

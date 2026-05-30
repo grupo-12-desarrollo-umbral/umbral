@@ -121,8 +121,9 @@ Team: **umbral-equipo-12** — workspace `desarrollo-equipo-12`
 Linear tracks only HU (user story) tickets and PRDs — no phase-level issues, no AFK slices.
 
 **State transitions:**
-- Phase 1.1 starts → query `svc:<service>` + `ready-for-agent` → move matched HU tickets to **In Progress**
-- Phases 1.2 and 1.3 → no state change; HU IDs appear in every commit's `Ref:` field
-- Phase 1.4 gate passes → verify each HU ticket's acceptance criteria are met → move only verified tickets to **Done**
+- Before phase 1.1 for a vertical slice → query `svc:<service>` + `ready-for-agent` and resolve only the HU ticket(s) selected for the current slice
+- Phase 1.1 starts → move only those resolved HU ticket(s) to **In Progress**
+- Phases 1.2 and 1.3 → no state change; only the resolved slice HU IDs appear in every commit's `Ref:` field
+- Phase 1.4 gate passes → verify each resolved HU ticket's acceptance criteria and move only the verified ticket(s) to **Done**
 
 **PRD local copies:** `docs/prd/DES-XX-<slug>.md` — authoritative local reference for the backend agent.
