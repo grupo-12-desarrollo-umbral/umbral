@@ -106,6 +106,47 @@ public sealed class IdentityAccessApiEndpointsTests : IClassFixture<PostgreSqlFi
         problem.Title.Should().Be("Forbidden.");
     }
 
+    [Fact]
+    public async Task Bootstrap_WithoutTrustedHeaders_ReturnsUnauthorized()
+    {
+        ClearTrustedHeaders(_client);
+
+        var response = await _client.PostAsJsonAsync(
+            "/api/users/authenticated",
+            new { displayName = "No Headers" });
+
+        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+
+        var problem = await response.Content.ReadFromJsonAsync<ProblemDetails>();
+        problem.Should().NotBeNull();
+        problem!.Status.Should().Be(StatusCodes.Status401Unauthorized);
+        problem.Title.Should().Be("Unauthorized.");
+    }
+
+    [Fact]
+    public async Task HealthEndpoint_WhenDatabaseAvailable_ReturnsHealthy()
+    {
+        var response = await _client.GetAsync("/health");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var payload = await response.Content.ReadFromJsonAsync<HealthStatusResponse>();
+        payload.Should().NotBeNull();
+        payload!.Status.Should().Be("Healthy");
+    }
+
+    [Fact]
+    public async Task AliveEndpoint_ReturnsAlive()
+    {
+        var response = await _client.GetAsync("/alive");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var payload = await response.Content.ReadFromJsonAsync<HealthStatusResponse>();
+        payload.Should().NotBeNull();
+        payload!.Status.Should().Be("Alive");
+    }
+
     private async Task SeedDeactivatedUserAsync()
     {
         await using var scope = _factory.Services.CreateAsyncScope();
@@ -124,13 +165,18 @@ public sealed class IdentityAccessApiEndpointsTests : IClassFixture<PostgreSqlFi
 
     private static void AddTrustedHeaders(HttpClient client, string userId, string role, string email)
     {
-        client.DefaultRequestHeaders.Remove("X-User-Id");
-        client.DefaultRequestHeaders.Remove("X-User-Role");
-        client.DefaultRequestHeaders.Remove("X-User-Email");
+        ClearTrustedHeaders(client);
 
         client.DefaultRequestHeaders.Add("X-User-Id", userId);
         client.DefaultRequestHeaders.Add("X-User-Role", role);
         client.DefaultRequestHeaders.Add("X-User-Email", email);
+    }
+
+    private static void ClearTrustedHeaders(HttpClient client)
+    {
+        client.DefaultRequestHeaders.Remove("X-User-Id");
+        client.DefaultRequestHeaders.Remove("X-User-Role");
+        client.DefaultRequestHeaders.Remove("X-User-Email");
     }
 
     private sealed record BootstrapResponse(
@@ -148,4 +194,6 @@ public sealed class IdentityAccessApiEndpointsTests : IClassFixture<PostgreSqlFi
         string Capability,
         bool IsAllowed,
         string Reason);
+
+    private sealed record HealthStatusResponse(string Status);
 }
