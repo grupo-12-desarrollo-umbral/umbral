@@ -23,3 +23,25 @@ No real `GET /api/missions/` endpoint exists yet — mission-design-service retu
 
 **Next session needs to know**
 Verify Phase 2 with a real endpoint to confirm the `CurrentUser.Id` → `X-User-Id` round-trip end-to-end. Nothing else blocking.
+
+---
+
+## [002] Phase 3 — Gateway integration test (auth path end-to-end)
+**Date:** 2026-05-29
+**Phase:** 3 — Gateway integration test
+**Commits:** uncommitted (api-gateway/tests/ untracked)
+**HU tickets advanced:** (testing decisions — no numbered HU story)
+
+**What was built**
+`api-gateway/tests/AuthPath.EndToEndTests/` — an xUnit+FluentAssertions test project with two scenarios: valid Keycloak-issued JWT is admitted and `X-User-Id`/`X-User-Role`/`X-User-Email` are present while `Authorization` is absent downstream; tampered JWT returns 401 and the downstream hit count stays zero. `ComposeStackFixture` brings the real Compose stack up (`docker-compose.yml` + `docker-compose.auth-tests.yml` override), obtains a token via Keycloak password grant, and tears the stack down on dispose. `api-gateway/tests/AuthProbe/` is a minimal ASP.NET Core echo service that records header state and a hit counter — it is the downstream target for auth assertions.
+
+**Why this approach**
+The plan prohibits mocking Keycloak or the gateway. An echo probe is the only way to assert "no downstream hit" for the tampered-token scenario without introducing a mock: the probe's hit counter is read directly by the test via a side-channel URL (`/probe/state`), bypassing the gateway entirely. The Compose override pattern (a second `-f` file) avoids polluting the main `docker-compose.yml` with test-only infrastructure while reusing all platform containers (postgres, keycloak, rabbitmq) and the real gateway image.
+
+Password grant (`grant_type=password`) was used instead of client credentials to obtain a token carrying a real user `sub` claim and realm role, which is what `TrustedHeadersTransform` maps to `X-User-Id` and `X-User-Role`. Client credentials tokens carry no user context and would produce empty trusted headers.
+
+**Deliberately skipped**
+Missing-token scenario (no `Authorization` header at all) is not a separate test; YARP's `AuthorizationPolicy: default` treats missing token the same as an invalid one — both produce 401 before the request reaches the probe. A missing-token test would be redundant given the tampered-token test already validates the 401 + no-hit path.
+
+**Next session needs to know**
+`AuthProbe/Program.cs` registers the inspect endpoint as `/api/test-auth-probe/inspect` (full path, no prefix strip). This is intentional: YARP in this project forwards the original path without any `PathRemovePrefix` transform, consistent with all other routes. Do not add a transform — fix the probe registration if the path ever changes. The test project is uncommitted; commit it before moving to Phase 4.

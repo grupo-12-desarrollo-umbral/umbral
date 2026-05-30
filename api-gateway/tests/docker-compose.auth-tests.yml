@@ -1,0 +1,16 @@
+services:
+  api-gateway:
+    environment:
+      ReverseProxy__Routes__auth-probe__ClusterId: auth-probe
+      ReverseProxy__Routes__auth-probe__Match__Path: /api/test-auth-probe/{**catch-all}
+      ReverseProxy__Routes__auth-probe__AuthorizationPolicy: default
+      ReverseProxy__Clusters__auth-probe__Destinations__d1__Address: http://auth-probe:8080/
+
+  auth-probe:
+    build:
+      context: ./api-gateway/tests/AuthProbe
+      dockerfile: Dockerfile
+    environment:
+      ASPNETCORE_URLS: http://+:8080
+    ports:
+      - "18081:8080"
