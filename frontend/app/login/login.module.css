@@ -1,0 +1,94 @@
+.page {
+  display: grid;
+  place-items: center;
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at top, color-mix(in oklab, var(--accent-soft) 32%, transparent) 0%, transparent 32%),
+    linear-gradient(180deg, var(--bg) 0%, var(--bg-muted) 100%);
+  color: var(--text-primary);
+  padding: 1rem;
+}
+
+.card {
+  display: grid;
+  place-items: center;
+  gap: 0.75rem;
+  width: min(24rem, 100%);
+  border: 1px solid var(--border-subtle);
+  border-radius: 1.4rem;
+  background: color-mix(in oklab, var(--panel) 92%, transparent);
+  box-shadow:
+    inset 0 1px 0 color-mix(in oklab, var(--text-primary) 5%, transparent),
+    0 10px 30px color-mix(in oklab, var(--accent-soft) 12%, transparent);
+  padding: 1.5rem;
+}
+
+.brandMark {
+  display: grid;
+  place-items: center;
+  width: 4rem;
+  height: 4rem;
+  border: 1px solid color-mix(in oklab, var(--accent) 24%, var(--border-subtle));
+  border-radius: 999px;
+  background: radial-gradient(circle at center, color-mix(in oklab, var(--accent-soft) 30%, transparent) 0%, transparent 56%), var(--surface);
+  color: var(--accent);
+}
+
+.title {
+  margin: 0;
+  font-size: clamp(1.85rem, 3vw, 2.3rem);
+  line-height: 1.05;
+  letter-spacing: -0.05em;
+  text-wrap: balance;
+}
+
+.subtitle {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 1rem;
+}
+
+.errorChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  width: 100%;
+  justify-content: center;
+  border: 1px solid color-mix(in oklab, var(--critical) 32%, var(--border-subtle));
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--critical) 12%, transparent);
+  color: color-mix(in oklab, var(--critical) 70%, var(--text-primary));
+  padding: 0.55rem 0.75rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+}
+
+.primaryButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  width: 100%;
+  min-height: 2.85rem;
+  border: 1px solid color-mix(in oklab, var(--accent) 30%, var(--border-subtle));
+  border-radius: 1rem;
+  background: linear-gradient(180deg, var(--accent-strong) 0%, var(--accent) 100%);
+  color: var(--accent-contrast);
+  padding: 0.7rem 0.95rem;
+  font: inherit;
+  font-weight: 600;
+  font-size: 0.95rem;
+  text-decoration: none;
+  transition:
+    filter 160ms var(--ease-out-quart),
+    transform 100ms var(--ease-out-quart);
+}
+
+.primaryButton:hover {
+  filter: brightness(1.03);
+}
+
+.primaryButton:active {
+  transform: translateY(1px);
+}

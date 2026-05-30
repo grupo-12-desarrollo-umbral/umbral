@@ -64,6 +64,17 @@ This is still a single backend service, but the branch name reflects the feature
 
 ---
 
+## Linear labeling before starting a slice
+
+Before running the step 3 fetch, confirm that the HU tickets for the slice carry both labels:
+
+- `svc:<service>` — identifies the owning service
+- `ready-for-agent` — signals the ticket is approved and unblocked
+
+The PRD ticket (DES-NN) may carry `ready-for-agent` as part of the PRD workflow, but that alone is not enough. The HU ticket must have the label too. If it is missing, apply it in Linear before the fetch — the agent will stop and refuse to start if the HU ticket does not appear in the results.
+
+---
+
 ## Pre-flight
 
 Create the slice branch:
