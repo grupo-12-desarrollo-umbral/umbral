@@ -28,7 +28,7 @@ Extract the HU ticket IDs from the `Ref:` field of the most recent commit(s) —
 
 ### 2. Determine the target file
 
-- Single service → `services/<svc>/decisions/untracked.md`
+- Single service → `docs/decisions/<svc>.md`
 - Cross-cutting (multiple services, shared infra, architecture decisions) → `docs/decisions.md`
 
 Read the last 3 entries of the target file to find the last entry number (for incrementing). Do not read the full file.
@@ -69,14 +69,14 @@ NNN is zero-padded to 3 digits (001, 002, …). Increment from the last entry in
 
 ### 5. Reading context at session start
 
-When asked to catch up or resume work on a service, read only the **last 3 entries** of `services/<svc>/decisions/untracked.md`. Do not read the full file unless explicitly asked. If uncertain which service, list the files in `services/` so the user can pick one.
+When asked to catch up or resume work on a service, read only the **last 3 entries** of `docs/decisions/<svc>.md`. Do not read the full file unless explicitly asked. If uncertain which service, list the files in `docs/decisions/` so the user can pick one.
 
 ### 6. Report back
 
 Output only:
 
 ```
-Debrief written → services/<svc>/decisions/untracked.md [NNN]
+Debrief written → docs/decisions/<svc>.md [NNN]
 HU tickets: HU-XX, HU-YY, ...
 ```
 

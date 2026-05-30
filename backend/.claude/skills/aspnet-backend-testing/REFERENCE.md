@@ -157,19 +157,26 @@ Use these to verify:
 
 ### End-to-end or system boundary
 
-Preferred tests:
+E2E tests are mandatory for every principal usage flow — the paths a real user must be able to complete for the feature to be considered working. Cover each one with at least one E2E test. Use judgment to avoid redundant permutations that belong in unit tests.
 
-- a very small number of high-value full-system tests
+There are two scopes of E2E in a stack with a Next.js frontend:
+
+**Backend E2E (lives in the backend test project)**
+
+Calls real HTTP endpoints against the running ASP.NET Core service with a real database (Testcontainers). No browser, no frontend. Verifies that the backend flows work end to end in isolation — for example: bootstrap a user, assert the correct role is assigned, call a protected endpoint, assert a deactivated user is rejected.
 
 Libraries:
 
 - `xUnit`
 - `FluentAssertions`
-- `Microsoft.Playwright.Xunit` when a browser UI exists
+- `Testcontainers` for the real database
+- `HttpClient` against `TestServer` or the running host
 
-For backend-only systems:
+Do not substitute any infrastructure dependency in this suite.
 
-- prefer API-level system tests against the running app and real dependencies
+**Full-stack E2E**
+
+Not a backend concern. Owned by the frontend project.
 
 ## Coverage Policy
 
@@ -192,5 +199,5 @@ What behavior am I proving?
 |- Use-case orchestration or validation flow            -> Application unit test with xUnit + Moq + FluentAssertions
 |- EF/query/repository/external adapter behavior        -> Infrastructure integration test with xUnit + Testcontainers + FluentAssertions
 |- Route/auth/model-binding/middleware/API contract     -> API integration test with xUnit + Mvc.Testing + FluentAssertions
-\- Full critical journey across deployed boundaries     -> End-to-end/system test with Playwright or black-box API tests + FluentAssertions
+\- Principal backend flow across all layers             -> Backend E2E with xUnit + HttpClient + Testcontainers + FluentAssertions
 ```

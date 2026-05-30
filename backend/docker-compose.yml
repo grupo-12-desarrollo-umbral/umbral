@@ -24,7 +24,7 @@ services:
     environment:
       KEYCLOAK_ADMIN: admin
       KEYCLOAK_ADMIN_PASSWORD: admin
-      KC_HOSTNAME: http://keycloak:8080
+      KC_HOSTNAME: http://localhost:8080
       KC_HEALTH_ENABLED: "true"
       KC_HTTP_MANAGEMENT_PORT: "9000"
     healthcheck:
@@ -56,12 +56,15 @@ services:
     depends_on:
       keycloak:
         condition: service_healthy
+      identity-access-service:
+        condition: service_started
     environment:
       ASPNETCORE_ENVIRONMENT: Development
       ASPNETCORE_URLS: http://+:8080
       Keycloak__Authority: http://keycloak:8080/realms/umbral
       Keycloak__Audience: umbral-web
       ReverseProxy__Clusters__mission-design__Destinations__d1__Address: http://mission-design-service:8080/
+      ReverseProxy__Clusters__identity__Destinations__d1__Address: http://identity-access-service:8080/
     ports:
       - "8000:8080"
 
@@ -78,6 +81,20 @@ services:
       ConnectionStrings__umbral_backendDb: Host=postgres;Port=5432;Database=mission_design;Username=postgres;Password=postgres
     ports:
       - "5001:8080"
+
+  identity-access-service:
+    build:
+      context: ./services/identity-access-service
+      dockerfile: Dockerfile
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: http://+:8080
+      ConnectionStrings__umbral_backendDb: Host=postgres;Port=5432;Database=identity_access;Username=postgres;Password=postgres
+    ports:
+      - "5002:8080"
 
 volumes:
   postgres-data:

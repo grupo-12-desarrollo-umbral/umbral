@@ -18,7 +18,8 @@ Build the test strategy around the solution's existing layers first, then place 
    - unit tests: `xUnit` + `Moq` + `FluentAssertions`
    - API integration tests: `xUnit` + `Microsoft.AspNetCore.Mvc.Testing` + `FluentAssertions`
    - infrastructure integration tests: `xUnit` + `Testcontainers` + `FluentAssertions`
-   - end-to-end tests: `xUnit` + `Microsoft.Playwright.Xunit` + `FluentAssertions` when a browser client exists
+   - backend E2E tests: `xUnit` + `HttpClient` + `Testcontainers` + `FluentAssertions`
+   - full-stack E2E tests: not a backend concern — owned by the frontend project
 3. Map tests to Clean Architecture:
    - Domain: unit tests for invariants and pure business rules
    - Application: unit tests for handlers, validators, and orchestration
@@ -40,8 +41,8 @@ Build the test strategy around the solution's existing layers first, then place 
   - use `Microsoft.AspNetCore.Mvc.Testing`, `WebApplicationFactory`, and `TestServer` for API-host testing
   - use `Testcontainers` for real databases, brokers, and other production-like dependencies
 - End-to-end tests:
-  - use `Microsoft.Playwright.Xunit` only when a web UI is part of the product
-  - for backend-only systems, prefer black-box system tests against the running API instead of inventing browser coverage
+  - backend E2E: drive real HTTP endpoints via `HttpClient` against the running host with a real database — no test doubles in the stack
+  - full-stack E2E: not a backend concern — owned by the frontend project
 
 ### 2. Respect layer ownership
 
@@ -65,4 +66,3 @@ Build the test strategy around the solution's existing layers first, then place 
 
 - Detailed guidance: [REFERENCE.md](REFERENCE.md)
 - Example library stacks and commands: [EXAMPLES.md](EXAMPLES.md)
-- Coverage threshold helper: [scripts/check_cobertura_threshold.py](scripts/check_cobertura_threshold.py)

@@ -56,23 +56,50 @@ Browser-based end-to-end tests:
 dotnet add tests/System.EndToEndTests package Microsoft.Playwright.Xunit
 dotnet add tests/System.EndToEndTests package FluentAssertions
 dotnet build tests/System.EndToEndTests
-pwsh tests/System.EndToEndTests/bin/Debug/net8.0/playwright.ps1 install
+pwsh tests/System.EndToEndTests/bin/Debug/net10.0/playwright.ps1 install
 ```
 
 ## Example Coverage Commands
 
-Using Microsoft.Testing.Platform coverage support:
+Use `coverlet.msbuild` (already present in test projects). Run test projects in
+order, chaining `/p:MergeWith` between runs. All runs except the last emit JSON;
+the final run enforces the 95% threshold — `dotnet test` exits non-zero on failure.
+
+Two-project service (Application.UnitTests + Infrastructure.IntegrationTests):
 
 ```bash
-dotnet test --coverage --coverage-output coverage.cobertura.xml --coverage-output-format cobertura
-python3 .agents/skills/aspnet-backend-testing/scripts/check_cobertura_threshold.py coverage.cobertura.xml 95
+TMP=/tmp/cov-$$
+mkdir -p $TMP
+
+dotnet test tests/UnitTests/Application.UnitTests.csproj \
+  /p:CollectCoverage=true \
+  /p:CoverletOutputFormat=json \
+  /p:CoverletOutput=$TMP/step1.json
+
+dotnet test tests/IntegrationTests/Infrastructure.IntegrationTests.csproj \
+  /p:CollectCoverage=true \
+  /p:CoverletOutputFormat=cobertura \
+  /p:CoverletOutput=$TMP/merged.xml \
+  /p:MergeWith=$TMP/step1.json \
+  /p:Threshold=95 \
+  /p:ThresholdType=line \
+  /p:ThresholdStat=total
 ```
 
-Using Coverlet where the repo already standardizes on it:
+Three-project service (add a middle step emitting JSON before the final run):
 
 ```bash
-dotnet test /p:CollectCoverage=true /p:CoverletOutputFormat=cobertura
-python3 .agents/skills/aspnet-backend-testing/scripts/check_cobertura_threshold.py path/to/coverage.cobertura.xml 95
+dotnet test tests/UnitTests/Application.UnitTests.csproj \
+  /p:CollectCoverage=true /p:CoverletOutputFormat=json /p:CoverletOutput=$TMP/step1.json
+
+dotnet test tests/Api.UnitTests/Api.UnitTests.csproj \
+  /p:CollectCoverage=true /p:CoverletOutputFormat=json \
+  /p:CoverletOutput=$TMP/step2.json /p:MergeWith=$TMP/step1.json
+
+dotnet test tests/IntegrationTests/Infrastructure.IntegrationTests.csproj \
+  /p:CollectCoverage=true /p:CoverletOutputFormat=cobertura \
+  /p:CoverletOutput=$TMP/merged.xml /p:MergeWith=$TMP/step2.json \
+  /p:Threshold=95 /p:ThresholdType=line /p:ThresholdStat=total
 ```
 
 ## Example Placement Calls
