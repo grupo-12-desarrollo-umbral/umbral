@@ -86,6 +86,7 @@ Scope:
 
 Gate:
 - Domain build passes
+- at least one unit test per public domain type (each aggregate/entity, each value object, each enum behavior) — no domain type may be left unexercised
 
 Do not touch other backend layers or frontend.
 ```
@@ -123,7 +124,8 @@ Scope:
 
 Gate:
 - clean build passes
-- handler and validator unit tests pass
+- every handler has unit tests covering all paths (valid path + every rejection/error branch)
+- every FluentValidation validator has tests for valid input and each invalid input — "at least one" is not enough
 - all handler tests use Moq for outbound ports — no real infrastructure anywhere in this suite
 
 Do not touch Infrastructure, Api, or frontend.

@@ -66,4 +66,3 @@ Build the test strategy around the solution's existing layers first, then place 
 
 - Detailed guidance: [REFERENCE.md](REFERENCE.md)
 - Example library stacks and commands: [EXAMPLES.md](EXAMPLES.md)
-- Coverage threshold helper: [scripts/check_cobertura_threshold.py](scripts/check_cobertura_threshold.py)
