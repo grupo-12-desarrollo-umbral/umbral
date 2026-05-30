@@ -7,6 +7,7 @@
     <RootNamespace>umbral_backend.Infrastructure.IntegrationTests</RootNamespace>
     <AssemblyName>umbral_backend.Infrastructure.IntegrationTests</AssemblyName>
     <RunSettingsFilePath>$(MSBuildProjectDirectory)\integration.runsettings</RunSettingsFilePath>
+    <ExcludeByFile>**/OpenApiXmlCommentSupport.generated.cs</ExcludeByFile>
   </PropertyGroup>
 
   <ItemGroup>

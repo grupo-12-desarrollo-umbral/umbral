@@ -6,6 +6,7 @@
     <Nullable>enable</Nullable>
     <RootNamespace>umbral_backend.Application.UnitTests</RootNamespace>
     <AssemblyName>umbral_backend.Application.UnitTests</AssemblyName>
+    <ExcludeByFile>**/OpenApiXmlCommentSupport.generated.cs</ExcludeByFile>
   </PropertyGroup>
 
   <ItemGroup>
