@@ -16,7 +16,7 @@ architectural decisions — those belong to the architect agent.
 6. Follow git-flow: cut `feature/<service-short-name>` from `develop`; commit all phases there; open a draft PR to `develop` after phase 1.4
 7. Commit with the format: `feat(<service-short-name>): phase X.Y — <layer name>` — the commit body must include two `Ref:` lines: `Ref: HU-XX, HU-YY, ...` (Linear) and `Ref: #N, #M, ...` (GitHub issues)
 8. Draft PR description after phase 1.4 must include `Closes #N` for each GitHub feature slice issue
-9. After committing, run `/debrief` to record decisions in `services/<svc>/decisions/untracked.md`
+9. After committing, run `/debrief` to record decisions in `docs/decisions/<svc>.md`
 
 ## Deliverables
 
