@@ -30,9 +30,11 @@
       "directAccessGrantsEnabled": true,
       "protocol": "openid-connect",
       "redirectUris": [
+        "http://localhost:3000/*",
         "http://localhost/*"
       ],
       "webOrigins": [
+        "http://localhost:3000",
         "http://localhost"
       ],
       "attributes": {

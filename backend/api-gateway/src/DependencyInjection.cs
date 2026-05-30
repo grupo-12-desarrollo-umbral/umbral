@@ -12,6 +12,19 @@ public static class DependencyInjection
                 options.Audience = builder.Configuration["Keycloak:Audience"];
                 options.RequireHttpsMetadata = !builder.Environment.IsDevelopment();
                 options.BackchannelTimeout = TimeSpan.FromSeconds(5);
+                options.BackchannelHttpHandler = new RewriteLocalhostBackchannelHandler(new SocketsHttpHandler());
+                options.MetadataAddress = $"{builder.Configuration["Keycloak:Authority"]}/.well-known/openid-configuration";
+                options.TokenValidationParameters = new Microsoft.IdentityModel.Tokens.TokenValidationParameters
+                {
+                    ValidateIssuer = true,
+                    ValidIssuers = new[]
+                    {
+                        "http://localhost:8080/realms/umbral",
+                        "http://keycloak:8080/realms/umbral"
+                    },
+                    ValidateAudience = true,
+                    ValidAudience = builder.Configuration["Keycloak:Audience"]
+                };
                 options.Events = new JwtBearerEvents
                 {
                     OnMessageReceived = WebSocketTokenExtractionTransform.OnMessageReceived,

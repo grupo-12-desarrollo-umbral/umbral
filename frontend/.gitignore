@@ -44,3 +44,11 @@ next-env.d.ts
 .impeccable/
 # next-agents-md
 .next-docs/
+
+# Playwright
+node_modules/
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+/playwright/.auth/
