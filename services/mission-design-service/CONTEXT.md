@@ -65,3 +65,13 @@ _Avoid_: runtime activation authority, live supervision
 **Structure Ownership**:
 The mission hierarchy and trivia composition belong entirely to `MissionDesign`; other services consume published source facts instead of mutating authoring structure directly.
 _Avoid_: runtime-owned content editing
+
+## Required Patterns
+
+**Composite**:
+`Mission` and `MissionNode` must be modeled as a structured tree so `Stage`, `Substage`, `Clue`, and extension targets remain part of one coherent authoring hierarchy.
+_Avoid_: flattening the hierarchy into unrelated records or scattering traversal logic through handlers
+
+**Template Method**:
+Mission and trivia validation flows should keep a stable sequence of checks while allowing mode-specific validation steps to vary underneath that sequence.
+_Avoid_: duplicating near-identical validation pipelines per use case

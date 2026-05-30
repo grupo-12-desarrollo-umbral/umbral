@@ -116,6 +116,28 @@ _Avoid_: identity-side join authority
 `SessionOperations` owns live progression, team participation, clue release, and evidence intake. Other services may provide source facts, access facts, or derived scoring views, but they do not control runtime state transitions here.
 _Avoid_: scoring-owned progression, authoring-owned participation
 
+## Required Patterns
+
+**Facade**:
+Session orchestration should be exposed through a narrow coordination service that executes session operations and triggers outbound event publication without leaking that coordination into endpoints or handlers.
+_Avoid_: endpoint-level orchestration or handlers that manually coordinate every side effect
+
+**State**:
+`LiveSession` lifecycle behavior must enforce valid transitions such as `Scheduled`, `Preparing`, `Active`, `Paused`, and `Finished`, with additional trivia-specific internal phases only when they remain subordinate to the same lifecycle model.
+_Avoid_: free-form status mutation or transition rules encoded as scattered conditionals
+
+**Chain of Responsibility**:
+QR-supported clue submission validation, trivia answer acceptance, and session-state change validation should be composed from ordered validators.
+_Avoid_: one oversized validator or handler that hardcodes every branch
+
+**Template Method**:
+Where validation follows one invariant flow with mode-specific checks, keep the shared sequence stable and vary only the specialized steps.
+_Avoid_: separate ad hoc workflows that drift apart over time
+
+**Proxy**:
+Restricted clues, operator dashboards, protected panels, protected session actions, clue release, and team-only resources should be guarded through role and policy-aware proxies before mutation or data exposure occurs.
+_Avoid_: repeating authorization checks inline across every endpoint and handler
+
 ## Example Dialogue
 
 Dev: "So if late join is closed or the team is full, Session Operations rejects the entry even when Identity says the actor is valid?"
