@@ -16,7 +16,7 @@ architectural decisions — those belong to the architect agent.
 6. Follow git-flow: cut `feature/<service-short-name>` from `develop`; commit all phases there; open a draft PR to `develop` after phase 1.4
 7. Commit with the format: `feat(<service-short-name>): phase X.Y — <layer name>` — the commit body must include two `Ref:` lines: `Ref: HU-XX, HU-YY, ...` (Linear) and `Ref: #N, #M, ...` (GitHub issues)
 8. Draft PR description after phase 1.4 must include `Closes #N` for each GitHub feature slice issue
-9. After committing, run `/debrief` to record decisions in `docs/decisions/<svc>.md`
+9. Commit phase code first. Then run `/debrief` — it writes to `services/<svc>/decisions/untracked.md`. Stage and commit that file before starting the next phase. Do not run `/debrief` before the phase commit succeeds.
 
 ## Deliverables
 
@@ -66,7 +66,7 @@ Build order: `mission-design-service` → `identity-access-service` → `scoring
 ## Layer rules
 
 ### Domain (Phase X.1)
-- Zero external dependencies — no MediatR, no EF, no ASP.NET
+- Zero external dependencies except `MediatR.Contracts` (required for `INotification` on `BaseEvent`) — no full MediatR, no EF, no ASP.NET
 - Aggregate roots inherit `BaseAuditableEntity`; child entities inherit `BaseEntity`
 - Domain events inherit `BaseEvent`; raise them via `AddDomainEvent()` on the aggregate
 - One exception class per invariant stated in `bd_umbral_entity_spec.md` Key Constraints
@@ -145,7 +145,7 @@ Linear tracks only HU (user story) tickets. Phase issues do not exist in Linear.
 | `session-operations-service` | `svc:session-operations-service` |
 
 **State transitions:**
-- Before phase 1.1 starts for a vertical slice → query the service backlog (`svc:<service>` + `ready-for-agent`) and resolve only the HU ticket(s) selected for the current slice plus the service PRD reference
+- Before phase 1.1 starts for a vertical slice → query the service backlog (`svc:<service>` + `ready-for-agent`) and resolve only the HU ticket(s) selected for the current slice plus the service PRD reference. If the HU ticket is missing from the results, stop — do not proceed until the `ready-for-agent` label is applied to the HU ticket in Linear.
 - Phase 1.1 starts → move only the resolved HU ticket(s) for the current slice to **In Progress**
 - Phases 1.2 and 1.3 → no Linear state change; include the same slice HU IDs in every commit's `Ref:` field
 - Phase 1.4 gate passes → verify the acceptance criteria for the current slice HU ticket(s) and move only the verified ticket(s) to **Done**
@@ -176,6 +176,8 @@ Use these skills for implementation decisions — do not reinvent what they enco
 4. Do not call the architect agent's write paths (`docs/adr/`, `ddd_solution_model.md`, `structure.md`)
 5. Do not combine phases even if both feel small
 6. If the gate fails, fix it in the same session before stopping
+7. Stop as soon as the gate passes — do not add refactors, extra invariants, or cleanup discovered during implementation; log them in the debrief instead
+8. If a `PackageReference` is missing a version, add the `PackageVersion` entry to the service's `Directory.Packages.props` — never use `VersionOverride` in individual project files
 
 ---
 

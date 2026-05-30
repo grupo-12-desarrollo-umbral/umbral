@@ -52,6 +52,8 @@ Do not hardcode the Linear ids; fetch them from the backlog.
 
 This fetch is slice-scoped: resolve the HU ticket(s) needed for the current vertical slice, not the entire service backlog.
 
+**If the HU ticket is not in the results**, stop. Apply the `ready-for-agent` label to the HU ticket in Linear before running step 4. The label must be on the HU ticket itself — not only on the PRD. Only the PRD carrying `ready-for-agent` is not sufficient to proceed.
+
 In the remaining examples below, `HU-01` and `DES-5` are illustrative resolved values from that fetch step, not prerequisites that should be assumed without querying Linear first.
 
 ---
@@ -70,6 +72,9 @@ Move the resolved HU ticket to In Progress and output the exact scope, branch na
 ## 5. Backend phase X.1 — Domain layer
 
 ```
+HU ticket resolved from step 3: <paste id — e.g. DES-5>
+DES reference resolved from step 3: <paste id — e.g. DES-67>
+
 Use @backend/.agents/backend-agent.md.
 Implement backend phase X.1 for HU-01 in identity-access-service.
 Use the service PRD and canonical docs.
