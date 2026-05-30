@@ -10,7 +10,23 @@ verified API contract.
 
 ---
 
-## 1. PRD for the service first
+## 1. Read the service backlog first
+
+```
+Use the Linear MCP to fetch the identity-access-service backlog items labeled
+svc:identity-access-service.
+
+Resolve:
+- the HU backlog relevant to identity-access-service
+- the current Linear state before PRD creation
+
+Output the candidate HU ids, titles, acceptance criteria, and labels that will
+inform the service PRD.
+```
+
+---
+
+## 2. PRD for the service
 
 ```
 $to-prd for identity-access-service covering HU-01 to HU-08.
@@ -19,7 +35,7 @@ Focus the first delivery slice on HU-01 general user login.
 
 ---
 
-## 2. Fetch the backlog item from Linear first
+## 3. Resolve the slice from Linear after the PRD exists
 
 ```
 Use the Linear MCP to fetch the identity-access-service backlog items labeled
@@ -40,7 +56,7 @@ In the remaining examples below, `HU-01` and `DES-5` are illustrative resolved v
 
 ---
 
-## 3. Start the slice
+## 4. Start the slice
 
 ```
 Prepare the general user login slice on branch feature/general-user-login.
@@ -51,7 +67,7 @@ Move the resolved HU ticket to In Progress and output the exact scope, branch na
 
 ---
 
-## 4. Backend phase X.1 — Domain layer
+## 5. Backend phase X.1 — Domain layer
 
 ```
 Use @backend/.agents/backend-agent.md.
@@ -82,7 +98,7 @@ Then run: `/debrief`
 
 ---
 
-## 5. Backend phase X.2 — Application layer
+## 6. Backend phase X.2 — Application layer
 
 ```
 Use @backend/.agents/backend-agent.md.
@@ -115,7 +131,7 @@ Then run: `/debrief`
 
 ---
 
-## 6. Backend phase X.3 — Infrastructure layer
+## 7. Backend phase X.3 — Infrastructure layer
 
 ```
 Use @backend/.agents/backend-agent.md.
@@ -148,7 +164,7 @@ Then run: `/debrief`
 
 ---
 
-## 7. Backend phase X.4 — API layer
+## 8. Backend phase X.4 — API layer
 
 ```
 Use @backend/.agents/backend-agent.md.
@@ -181,7 +197,7 @@ Then run: `/debrief`
 
 ---
 
-## 8. Frontend slice
+## 9. Frontend slice
 
 ```
 Use @frontend/AGENTS.md.
@@ -217,7 +233,7 @@ Then run: `/debrief`
 
 ---
 
-## 9. Close out
+## 10. Close out
 
 ```
 Verify HU-01 end to end for DES-5 on feature/general-user-login.
