@@ -223,6 +223,7 @@ Then run: `/debrief`
 
 NO FOR THIS SPRINT - 30th May 2026.
 
+<!--
 ## 9. Backend phase X.5 — E2E layer
 
 ```
@@ -260,6 +261,7 @@ Ref: DES-5
 ```
 
 Then run: `/debrief`
+-->
 
 ---
 
