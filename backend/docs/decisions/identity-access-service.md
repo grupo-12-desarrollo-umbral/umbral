@@ -66,3 +66,25 @@ Persistence was kept narrowly aligned to the current HU-01 scope: only applicati
 
 **Next session needs to know**
 Phase X.3 passed its gate: the `Init` migration was generated successfully and the PostgreSQL integration test is green. Phase X.4 should wire the API to the existing application handlers without changing the trusted-header boundary from the gateway.
+
+---
+
+## [004] Phase X.4 — Identity Access API Layer
+**Date:** 2026-05-30
+**Phase:** X.4 — API Layer
+**Commits:** 9a1d921, a2ac241, 1d815f2, ab04355
+**HU tickets advanced:** HU-01, DES-5, DES-67
+
+**What was built**
+The API transport layer for `identity-access-service`: minimal API host wiring, trusted-header `CurrentUser` resolution, `ProblemDetailsExceptionHandler`, `POST /api/users/authenticated` for post-Keycloak bootstrap/sync, `GET /api/users/me` for the authenticated actor profile, `GET /api/permissions/authenticated-platform-access` as the protected access proof, and `WebApplicationFactory` integration tests covering happy path, missing trusted headers, deactivated-user rejection, and health access.
+
+**Why this approach**
+The gateway remains the trust boundary, so the service only consumes `X-User-Id`, `X-User-Email`, and `X-User-Role` rather than re-validating tokens locally. That keeps HU-01 aligned with the DES-67 PRD and preserves a clean split: transport concerns stay in API, user provisioning stays in the existing application command/query handlers, and deactivated or unauthorized cases are surfaced through explicit exception-to-status mapping instead of duplicating authorization rules in each endpoint.
+
+**Deliberately skipped**
+- Frontend or gateway contract changes beyond consuming the existing trusted headers
+- Keycloak adapter work inside the service; the bootstrap endpoint assumes the gateway already authenticated the request
+- Final coverage gate signoff; coverage aggregation and extra tests were added, but the phase summary intentionally stops at the implementation boundary rather than re-stating verification status
+
+**Next session needs to know**
+The API shape for HU-01 is in place and the integration coverage path was added alongside the new endpoints. The next pass should focus on final verification and the 95% coverage gate for the full service.
