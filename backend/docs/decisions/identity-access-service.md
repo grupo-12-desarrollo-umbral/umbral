@@ -44,3 +44,25 @@ MediatR with pipeline behaviours isolates cross-cutting concerns (validation via
 
 **Next session needs to know**
 Phase X.2 builds clean. Phase X.3 — Infrastructure: implement IUserRepository with EF Core, configure DbContext, wire up the real ICurrentUser from HttpContext, and connect domain events to MediatR notifications.
+
+---
+
+## [003] Phase X.3 — Identity Access Infrastructure Layer
+**Date:** 2026-05-30
+**Phase:** X.3 — Infrastructure Layer
+**Commits:** 57b05b2
+**HU tickets advanced:** HU-01, DES-5
+
+**What was built**
+The infrastructure slice for `identity-access-service`: `Infrastructure.csproj`, EF Core `ApplicationDbContext`, entity configurations for `User` and `IdentityProviderSession`, `UserRepository`, auditable and domain-event dispatch interceptors, a design-time DbContext factory, an initial migration, and a PostgreSQL-backed integration test that provisions a user through `AuthenticateUser` and retrieves it through `GetAuthenticatedActorProfile`.
+
+**Why this approach**
+Persistence was kept narrowly aligned to the current HU-01 scope: only application-side user state and provider-session traceability were modeled, matching the PRD and canonical `Identity` ownership without pulling in `JoinToken` or API concerns early. The repository saves inside `AddAsync` and `UpdateAsync` because the current application contract does not expose a unit-of-work abstraction; that keeps the handler behavior compatible with the existing phase X.2 surface while still enabling migration-backed integration verification.
+
+**Deliberately skipped**
+- API wiring and `HttpContext`-backed current user resolution beyond a null-safe infrastructure default — phase X.4 owns the transport adapter
+- `IIdentityProviderSessionRepository`, `IJoinTokenRepository`, and Keycloak-specific adapters — not required yet for HU-01 persistence gate
+- Additional read models or cross-service messaging — deferred until later slices introduce them
+
+**Next session needs to know**
+Phase X.3 passed its gate: the `Init` migration was generated successfully and the PostgreSQL integration test is green. Phase X.4 should wire the API to the existing application handlers without changing the trusted-header boundary from the gateway.
