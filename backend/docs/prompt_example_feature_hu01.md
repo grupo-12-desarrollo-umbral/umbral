@@ -123,7 +123,8 @@ Scope:
 
 Gate:
 - clean build passes
-- handler unit tests pass
+- handler and validator unit tests pass
+- all handler tests use Moq for outbound ports — no real infrastructure anywhere in this suite
 
 Do not touch Infrastructure, Api, or frontend.
 ```
@@ -161,7 +162,7 @@ Scope:
 
 Gate:
 - migration succeeds
-- repository integration test passes
+- repository integration test passes against a real PostgreSQL instance via Testcontainers — not EF Core in-memory
 
 Do not touch Api or frontend.
 ```
@@ -190,6 +191,7 @@ If this is a new session, use the Linear MCP to resolve the active slice before 
 Use @backend/.agents/backend-agent.md.
 Implement backend phase X.4 for HU-01 in identity-access-service.
 Use the service PRD and canonical docs.
+Follow @backend/.claude/skills/aspnet-backend-testing/ for test type and layer placement.
 
 Scope:
 - endpoint to bootstrap/sync the authenticated user after Keycloak login
@@ -197,8 +199,8 @@ Scope:
 - protected endpoint or policy proof that rejects unauthenticated or deactivated users
 
 Gate:
-- endpoint tests pass
-- unauthorized and deactivated paths are rejected
+- endpoint integration tests run through WebApplicationFactory — not handler unit tests
+- unauthorized and deactivated paths are rejected with the correct status codes
 - service coverage reaches 95%
 
 Do not touch frontend.
@@ -217,7 +219,47 @@ Then run: `/debrief`
 
 ---
 
-## 9. Frontend slice
+## 9. Backend phase X.5 — E2E layer
+
+```
+If this is a new session, use the Linear MCP to resolve the active slice before starting:
+- fetch issues labeled svc:identity-access-service with state In Progress
+- confirm the HU ticket id and the DES PRD reference
+- output both ids before proceeding
+
+Use @backend/.agents/backend-agent.md.
+Implement backend phase X.5 for HU-01 in identity-access-service.
+Use the service PRD and canonical docs.
+Follow @backend/.claude/skills/aspnet-backend-testing/ for test type and layer placement.
+
+Scope:
+- black-box API system tests using HttpClient against TestServer with a real PostgreSQL database via Testcontainers
+- cover the principal usage flows end to end:
+  - valid user signs in and receives their role
+  - unauthenticated request is rejected
+  - deactivated user is rejected after login
+
+Gate:
+- all principal flow E2E tests pass against a real database
+- no test doubles replace infrastructure dependencies in this suite
+
+Do not touch frontend.
+```
+
+Commit:
+
+```
+feat(identity-access): phase X.5 — e2e layer
+
+Ref: HU-01
+Ref: DES-5
+```
+
+Then run: `/debrief`
+
+---
+
+## 11. Frontend slice
 
 ```
 Use @frontend/AGENTS.md.
@@ -253,7 +295,7 @@ Then run: `/debrief`
 
 ---
 
-## 10. Close out
+## 12. Close out
 
 ```
 Verify HU-01 end to end for DES-5 on feature/general-user-login.
