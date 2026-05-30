@@ -1,0 +1,1256 @@
+.page {
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at top, color-mix(in oklab, var(--accent-soft) 32%, transparent) 0%, transparent 32%),
+    linear-gradient(180deg, var(--bg) 0%, var(--bg-muted) 100%);
+  color: var(--text-primary);
+}
+
+.skipLink {
+  position: absolute;
+  left: 1rem;
+  top: 1rem;
+  z-index: 20;
+  border-radius: 999px;
+  padding: 0.75rem 1rem;
+  background: var(--accent-strong);
+  color: var(--bg);
+  transform: translateY(-200%);
+  transition: transform 160ms var(--ease-out-expo);
+}
+
+.skipLink:focus-visible {
+  transform: translateY(0);
+}
+
+.frame {
+  display: grid;
+  min-height: 100vh;
+  grid-template-columns: minmax(15rem, 17rem) minmax(0, 1fr);
+}
+
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  border-right: 1px solid var(--border-subtle);
+  background: color-mix(in oklab, var(--panel) 84%, transparent);
+  padding: 1.5rem 1rem 1rem;
+  backdrop-filter: blur(24px);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 0.875rem;
+  padding: 0 0.5rem;
+}
+
+.brandMark {
+  display: grid;
+  place-items: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--surface-raised) 84%, transparent);
+  color: var(--accent);
+  box-shadow: inset 0 1px 0 color-mix(in oklab, var(--text-primary) 8%, transparent);
+}
+
+.brandTitle {
+  font-size: 1.6rem;
+  line-height: 1;
+  letter-spacing: -0.04em;
+}
+
+.brandMeta {
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+}
+
+.rolePill {
+  width: fit-content;
+  margin-left: 0.5rem;
+  border: 1px solid color-mix(in oklab, var(--accent) 24%, var(--border-subtle));
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--accent-soft) 72%, var(--surface));
+  color: var(--accent-strong);
+  padding: 0.45rem 0.7rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.nav {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.navItem {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-height: 3rem;
+  border: 1px solid transparent;
+  border-radius: 1rem;
+  padding: 0.75rem 0.9rem;
+  background: transparent;
+  color: var(--text-secondary);
+  text-align: left;
+  transition:
+    border-color 160ms var(--ease-out-quart),
+    background-color 160ms var(--ease-out-quart),
+    color 160ms var(--ease-out-quart),
+    transform 100ms var(--ease-out-quart);
+}
+
+.navItem:hover {
+  border-color: var(--border-subtle);
+  background: color-mix(in oklab, var(--surface-raised) 88%, transparent);
+  color: var(--text-primary);
+}
+
+.navItem[data-active="true"] {
+  border-color: color-mix(in oklab, var(--accent) 28%, var(--border-subtle));
+  background: color-mix(in oklab, var(--surface-raised) 78%, var(--accent-soft));
+  color: var(--text-primary);
+  box-shadow: inset 0 1px 0 color-mix(in oklab, var(--text-primary) 5%, transparent);
+}
+
+.navMarker {
+  margin-left: auto;
+  width: 0.35rem;
+  height: 0.35rem;
+  border-radius: 999px;
+  background: var(--accent);
+  opacity: 0;
+}
+
+.navItem[data-active="true"] .navMarker {
+  opacity: 1;
+}
+
+.sidebarFooter {
+  margin-top: auto;
+  display: grid;
+  gap: 0.875rem;
+}
+
+.healthCard,
+.collapseButton {
+  border: 1px solid var(--border-subtle);
+  border-radius: 1.1rem;
+  background: color-mix(in oklab, var(--panel) 92%, transparent);
+}
+
+.healthCard {
+  padding: 1rem;
+}
+
+.eyebrow {
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.healthStatus {
+  margin-top: 0.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 600;
+}
+
+.statusDot {
+  width: 0.6rem;
+  height: 0.6rem;
+  border-radius: 999px;
+  background: var(--success);
+  box-shadow: 0 0 0 0.3rem color-mix(in oklab, var(--success) 16%, transparent);
+}
+
+.statusDot[data-tone="critical"] {
+  background: var(--critical);
+  box-shadow: 0 0 0 0.3rem color-mix(in oklab, var(--critical) 16%, transparent);
+}
+
+.healthText,
+.collapseButton {
+  color: var(--text-secondary);
+}
+
+.eventTime {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.clock {
+  margin-top: 0.35rem;
+  font-size: 1.45rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.collapseButton {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  min-height: 2.9rem;
+  padding: 0.8rem 1rem;
+}
+
+.main {
+  display: grid;
+  gap: 1rem;
+  padding: 1rem;
+}
+
+.topbar,
+.hero,
+.panel,
+.controlTile,
+.emptyState,
+.detailDrawer,
+.toast,
+.metricCard,
+.assignmentCard {
+  border: 1px solid var(--border-subtle);
+  background: color-mix(in oklab, var(--panel) 92%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in oklab, var(--text-primary) 5%, transparent);
+}
+
+.topbar,
+.hero,
+.panel,
+.emptyState,
+.detailDrawer,
+.metricCard,
+.assignmentCard {
+  border-radius: 1.4rem;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.8rem 1rem;
+}
+
+.topbarLeft,
+.topbarRight,
+.heroMetrics,
+.sessionMeta,
+.heroActions,
+.headerButtons,
+.panelActions,
+.controlGrid,
+.adminMetrics,
+.adminPanels,
+.activityList,
+.queueList,
+.queueMeta,
+.clueActions,
+.historyList,
+.sessionList,
+.sessionCards,
+.drawerBody,
+.drawerTimeline {
+  display: flex;
+}
+
+.topbarLeft,
+.topbarRight,
+.heroMetrics,
+.sessionMeta,
+.heroActions,
+.headerButtons,
+.panelActions,
+.queueMeta,
+.clueActions {
+  align-items: center;
+}
+
+.topbarLeft,
+.topbarRight,
+.heroMetrics,
+.sessionMeta,
+.heroActions,
+.headerButtons,
+.panelActions,
+.queueMeta,
+.clueActions,
+.activityList,
+.historyList {
+  gap: 0.75rem;
+}
+
+.sessionSelect,
+.roleSelect,
+.themeButton,
+.smallButton,
+.primaryButton,
+.secondaryButton,
+.sessionButton,
+.inlineButton,
+.chip,
+.controlTile,
+.drawerClose,
+.statusToggle,
+.metricPill {
+  border: 1px solid var(--border-subtle);
+  border-radius: 1rem;
+  background: var(--surface);
+  color: var(--text-primary);
+}
+
+.sessionSelect,
+.roleSelect,
+.themeButton,
+.smallButton,
+.primaryButton,
+.secondaryButton,
+.drawerClose,
+.statusToggle {
+  min-height: 2.85rem;
+  padding: 0.7rem 0.95rem;
+}
+
+.sessionSelect,
+.roleSelect {
+  min-width: 12rem;
+}
+
+.themeButton,
+.smallButton,
+.drawerClose,
+.statusToggle {
+  min-width: 2.85rem;
+}
+
+.primaryButton {
+  border-color: color-mix(in oklab, var(--accent) 30%, var(--border-subtle));
+  background: linear-gradient(180deg, var(--accent-strong) 0%, var(--accent) 100%);
+  color: var(--accent-contrast);
+}
+
+.secondaryButton,
+.smallButton,
+.themeButton,
+.statusToggle,
+.drawerClose {
+  background: color-mix(in oklab, var(--surface-raised) 92%, transparent);
+}
+
+.themeButton:hover,
+.smallButton:hover,
+.secondaryButton:hover,
+.sessionButton:hover,
+.inlineButton:hover,
+.drawerClose:hover,
+.statusToggle:hover {
+  background: color-mix(in oklab, var(--surface-raised) 82%, var(--accent-soft));
+}
+
+.primaryButton:hover {
+  filter: brightness(1.03);
+}
+
+.primaryButton:disabled,
+.secondaryButton:disabled,
+.inlineButton:disabled {
+  cursor: not-allowed;
+  filter: saturate(0.55);
+  opacity: 0.58;
+}
+
+.primaryButton:active,
+.secondaryButton:active,
+.smallButton:active,
+.sessionButton:active,
+.inlineButton:active,
+.themeButton:active,
+.drawerClose:active,
+.statusToggle:active,
+.navItem:active {
+  transform: translateY(1px);
+}
+
+.hero {
+  padding: 1.25rem 1.35rem;
+}
+
+.heroHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.heroTitleWrap {
+  display: flex;
+  gap: 1rem;
+}
+
+.heroMark {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 4.8rem;
+  height: 4.8rem;
+  border-radius: 999px;
+  border: 1px solid color-mix(in oklab, var(--accent) 24%, var(--border-subtle));
+  background: radial-gradient(circle at center, color-mix(in oklab, var(--accent-soft) 30%, transparent) 0%, transparent 56%), var(--surface);
+  color: var(--accent);
+}
+
+.heroHeading {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.heroHeading h1,
+.emptyState h1 {
+  margin: 0;
+  font-size: clamp(1.85rem, 3vw, 2.3rem);
+  line-height: 1.05;
+  letter-spacing: -0.05em;
+  text-wrap: balance;
+}
+
+.sessionMeta {
+  flex-wrap: wrap;
+  color: var(--text-secondary);
+}
+
+.heroMetrics {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.metricBlock {
+  min-width: 7.5rem;
+  text-align: center;
+}
+
+.metricValue {
+  display: block;
+  font-size: 2rem;
+  line-height: 1;
+  letter-spacing: -0.06em;
+  font-variant-numeric: tabular-nums;
+}
+
+.metricLabel {
+  margin-top: 0.45rem;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.heroActions {
+  margin-top: 1rem;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+.contentGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(0, 0.9fr) minmax(0, 1fr);
+  gap: 1rem;
+}
+
+.stack,
+.missionProgress,
+.sessionControls,
+.sessionListCard,
+.activityFeed,
+.leaderboard,
+.qrQueue,
+.cluePanel,
+.historyPanel,
+.adminPanel {
+  display: grid;
+  gap: 1rem;
+}
+
+.panel {
+  padding: 1rem;
+}
+
+.panelHeader,
+.subsectionHeader,
+.queueItemHeader,
+.drawerHeader,
+.sessionCardHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.panelHeader h2,
+.subsectionHeader h3,
+.sessionCardHeader h3,
+.emptyState h2,
+.drawerHeader h2 {
+  margin: 0;
+  font-size: 1.08rem;
+  line-height: 1.2;
+  letter-spacing: -0.03em;
+}
+
+.subsectionHeader h3 {
+  font-size: 0.95rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.panelMeta,
+.queueDescription,
+.drawerMeta,
+.metricHint,
+.sessionCardMeta,
+.activityText,
+.mutedText,
+.clueMeta {
+  color: var(--text-secondary);
+}
+
+.liveChip,
+.chip,
+.metricPill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  width: fit-content;
+  padding: 0.3rem 0.55rem;
+  font-size: 0.74rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.liveChip {
+  border: 1px solid color-mix(in oklab, var(--success) 36%, var(--border-subtle));
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--success) 14%, transparent);
+  color: color-mix(in oklab, var(--success) 70%, var(--text-primary));
+}
+
+.liveChip::before {
+  content: "";
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 999px;
+  background: currentColor;
+  box-shadow: 0 0 0 0.25rem color-mix(in oklab, currentColor 16%, transparent);
+}
+
+.chip[data-tone="warning"] {
+  color: color-mix(in oklab, var(--warning) 66%, var(--text-primary));
+  border-color: color-mix(in oklab, var(--warning) 32%, var(--border-subtle));
+  background: color-mix(in oklab, var(--warning) 12%, transparent);
+}
+
+.chip[data-tone="success"] {
+  color: color-mix(in oklab, var(--success) 70%, var(--text-primary));
+  border-color: color-mix(in oklab, var(--success) 32%, var(--border-subtle));
+  background: color-mix(in oklab, var(--success) 12%, transparent);
+}
+
+.chip[data-tone="critical"] {
+  color: color-mix(in oklab, var(--critical) 70%, var(--text-primary));
+  border-color: color-mix(in oklab, var(--critical) 32%, var(--border-subtle));
+  background: color-mix(in oklab, var(--critical) 12%, transparent);
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+
+.table thead th {
+  padding: 0 0 0.8rem;
+  color: var(--text-muted);
+  font-size: 0.73rem;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  text-align: left;
+}
+
+.table tbody td {
+  padding: 0.75rem 0;
+  border-top: 1px solid var(--border-subtle);
+  vertical-align: middle;
+}
+
+.tableRowAccent td:first-child {
+  position: relative;
+}
+
+.tableRowAccent td:first-child::before {
+  content: "";
+  position: absolute;
+  left: -0.75rem;
+  top: 0.6rem;
+  bottom: 0.6rem;
+  width: 2px;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--accent) 70%, transparent);
+}
+
+.teamCell {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.teamBadge,
+.tinyBadge {
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  font-weight: 700;
+}
+
+.teamBadge {
+  width: 1.7rem;
+  height: 1.7rem;
+  background: color-mix(in oklab, var(--accent-soft) 78%, var(--surface-raised));
+  color: var(--accent-strong);
+}
+
+.tinyBadge {
+  width: 1.2rem;
+  height: 1.2rem;
+  background: color-mix(in oklab, var(--surface-raised) 86%, var(--border-subtle));
+  color: var(--text-secondary);
+  font-size: 0.72rem;
+}
+
+.delta {
+  font-size: 0.82rem;
+}
+
+.deltaUp {
+  color: var(--success);
+}
+
+.deltaDown {
+  color: var(--critical);
+}
+
+.queueList,
+.historyList,
+.activityList,
+.drawerTimeline,
+.sessionCards {
+  flex-direction: column;
+}
+
+.queueList,
+.historyList,
+.activityList,
+.sessionCards {
+  gap: 0.85rem;
+}
+
+.queueItem,
+.historyItem,
+.activityItem,
+.timelineItem,
+.sessionCard {
+  border-top: 1px solid var(--border-subtle);
+  padding-top: 0.85rem;
+}
+
+.queueItem:first-child,
+.historyItem:first-child,
+.activityItem:first-child,
+.timelineItem:first-child,
+.sessionCard:first-child {
+  border-top: none;
+  padding-top: 0;
+}
+
+.queueItem {
+  display: grid;
+  grid-template-columns: 4.25rem minmax(0, 1fr);
+  gap: 0.9rem;
+}
+
+.evidenceThumb {
+  display: grid;
+  place-items: center;
+  min-height: 4.25rem;
+  border: 1px solid color-mix(in oklab, var(--accent) 18%, var(--border-subtle));
+  border-radius: 0.9rem;
+  background:
+    linear-gradient(135deg, color-mix(in oklab, var(--surface-raised) 88%, var(--accent-soft)) 0%, color-mix(in oklab, var(--surface) 84%, var(--bg-muted)) 100%);
+  color: var(--accent-strong);
+  font-size: 0.78rem;
+  text-align: center;
+  padding: 0.4rem;
+}
+
+.queueSummary {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.queueItemHeader {
+  align-items: center;
+}
+
+.queueTitle {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.queueContext {
+  display: grid;
+  gap: 0.25rem;
+  color: var(--text-secondary);
+}
+
+.inlineButton {
+  min-height: 2.5rem;
+  padding: 0.65rem 0.85rem;
+}
+
+.clueCard {
+  display: grid;
+  gap: 0.9rem;
+}
+
+.cluePreview {
+  position: relative;
+  border: 1px solid color-mix(in oklab, var(--accent) 16%, var(--border-subtle));
+  border-radius: 1rem;
+  padding: 1rem;
+  background:
+    radial-gradient(circle at top left, color-mix(in oklab, var(--accent-soft) 62%, white) 0%, transparent 42%),
+    linear-gradient(180deg, color-mix(in oklab, white 58%, var(--surface)) 0%, color-mix(in oklab, var(--surface) 88%, var(--accent-soft)) 32%, color-mix(in oklab, var(--surface-raised) 94%, var(--accent-soft)) 100%);
+  color: var(--ink);
+  box-shadow:
+    inset 0 1px 0 color-mix(in oklab, white 52%, transparent),
+    inset 0 -1px 0 color-mix(in oklab, var(--ink) 8%, transparent),
+    0 12px 28px color-mix(in oklab, var(--accent-soft) 14%, transparent);
+}
+
+.cluePreview::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background:
+    linear-gradient(145deg, color-mix(in oklab, white 20%, transparent) 0%, transparent 36%, color-mix(in oklab, var(--ink) 4%, transparent) 100%),
+    linear-gradient(180deg, color-mix(in oklab, var(--accent) 10%, transparent) 0%, transparent 20%);
+  pointer-events: none;
+}
+
+html[data-theme="dark"] .cluePreview {
+  border-color: color-mix(in oklab, var(--accent) 24%, var(--border-subtle));
+  background:
+    radial-gradient(circle at top left, color-mix(in oklab, var(--accent) 22%, transparent) 0%, transparent 40%),
+    linear-gradient(180deg, color-mix(in oklab, var(--surface-raised) 92%, var(--accent-soft)) 0%, color-mix(in oklab, var(--surface) 94%, var(--panel)) 100%);
+  color: var(--text-primary);
+  box-shadow:
+    inset 0 1px 0 color-mix(in oklab, white 8%, transparent),
+    inset 0 -1px 0 color-mix(in oklab, black 18%, transparent),
+    0 12px 28px color-mix(in oklab, black 18%, transparent);
+}
+
+html[data-theme="dark"] .cluePreview::after {
+  background:
+    linear-gradient(145deg, color-mix(in oklab, white 7%, transparent) 0%, transparent 34%, color-mix(in oklab, black 12%, transparent) 100%),
+    linear-gradient(180deg, color-mix(in oklab, var(--accent) 12%, transparent) 0%, transparent 18%);
+}
+
+.clueText {
+  margin: 0;
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.96rem;
+  line-height: 1.72;
+}
+
+.recipientPicker {
+  display: grid;
+  gap: 0.75rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: 1rem;
+  background: color-mix(in oklab, var(--surface-raised) 78%, transparent);
+  padding: 0.85rem;
+}
+
+.recipientHeader,
+.recipientShortcuts {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.recipientHeader {
+  justify-content: space-between;
+}
+
+.fieldLabel {
+  display: block;
+  margin-bottom: 0.25rem;
+  color: var(--text-muted);
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.recipientSummary {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.teamDropdown {
+  position: relative;
+}
+
+.teamDropdownButton {
+  width: 100%;
+  min-height: 2.85rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: 1rem;
+  background: var(--surface);
+  color: var(--text-primary);
+  cursor: pointer;
+  padding: 0.75rem 2.4rem 0.75rem 0.95rem;
+  text-align: left;
+}
+
+.teamDropdownButton::after {
+  content: "v";
+  position: absolute;
+  right: 0.95rem;
+  top: 0.78rem;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+.teamDropdownButton[aria-expanded="true"] {
+  border-color: color-mix(in oklab, var(--accent) 32%, var(--border-subtle));
+  outline: 2px solid color-mix(in oklab, var(--accent-soft) 72%, transparent);
+}
+
+.teamMenu {
+  position: absolute;
+  z-index: 5;
+  inset-inline: 0;
+  top: calc(100% + 0.4rem);
+  display: grid;
+  max-height: 18rem;
+  overflow: auto;
+  border: 1px solid var(--border-subtle);
+  border-radius: 1rem;
+  background: var(--surface);
+  padding: 0.35rem;
+  box-shadow: 0 16px 36px color-mix(in oklab, var(--ink) 16%, transparent);
+}
+
+.teamOption {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  border-radius: 0.75rem;
+  cursor: pointer;
+  padding: 0.62rem 0.7rem;
+}
+
+.teamOption:hover {
+  background: color-mix(in oklab, var(--surface-raised) 82%, var(--accent-soft));
+}
+
+.teamOption input {
+  accent-color: var(--accent-strong);
+}
+
+.historyItem,
+.activityItem,
+.timelineItem,
+.sessionCard {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+
+.historyItem {
+  justify-content: space-between;
+}
+
+.historyMain,
+.activityMain,
+.timelineMain,
+.metricContent,
+.assignmentContent {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.activityTime,
+.historyTime,
+.timelineTime {
+  flex: 0 0 auto;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.bottomGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(19rem, 0.8fr);
+  gap: 1rem;
+}
+
+.missionTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+
+.missionTable th,
+.missionTable td {
+  padding: 0.8rem 0;
+  border-top: 1px solid var(--border-subtle);
+  text-align: left;
+}
+
+.missionTable th {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.missionTable td[data-align="center"],
+.missionTable th[data-align="center"] {
+  text-align: center;
+}
+
+.progressIcon {
+  display: inline-grid;
+  place-items: center;
+  width: 1.8rem;
+  height: 1.8rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: 999px;
+  background: var(--surface);
+}
+
+.progressDone {
+  border-color: color-mix(in oklab, var(--success) 38%, var(--border-subtle));
+  color: var(--success);
+}
+
+.progressCurrent {
+  border-color: color-mix(in oklab, var(--accent) 36%, var(--border-subtle));
+  color: var(--accent-strong);
+  background: color-mix(in oklab, var(--accent-soft) 70%, var(--surface-raised));
+}
+
+.progressPending {
+  color: var(--text-muted);
+}
+
+.controlGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.9rem;
+}
+
+.controlTile {
+  min-height: 7.2rem;
+  padding: 1rem;
+  text-align: left;
+  transition:
+    transform 160ms var(--ease-out-quart),
+    background-color 160ms var(--ease-out-quart),
+    border-color 160ms var(--ease-out-quart);
+}
+
+.controlTile:hover {
+  transform: translateY(-2px);
+}
+
+.controlTile[data-tone="success"] {
+  border-color: color-mix(in oklab, var(--success) 28%, var(--border-subtle));
+}
+
+.controlTile[data-tone="critical"] {
+  border-color: color-mix(in oklab, var(--critical) 28%, var(--border-subtle));
+}
+
+.controlTile[data-tone="accent"] {
+  border-color: color-mix(in oklab, var(--accent) 28%, var(--border-subtle));
+}
+
+.controlKicker {
+  color: var(--text-muted);
+  font-size: 1.25rem;
+}
+
+.controlTitle {
+  display: block;
+  margin-top: 1rem;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.controlCopy {
+  display: block;
+  margin-top: 0.35rem;
+  color: var(--text-secondary);
+}
+
+.adminMetrics,
+.adminPanels {
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.metricCard,
+.assignmentCard {
+  flex: 1 1 15rem;
+  padding: 1rem;
+}
+
+.metricCard {
+  display: flex;
+  gap: 1rem;
+  align-items: flex-start;
+}
+
+.metricNumber {
+  font-size: 2rem;
+  line-height: 1;
+  letter-spacing: -0.05em;
+  font-variant-numeric: tabular-nums;
+}
+
+.metricPill {
+  margin-top: 0.4rem;
+}
+
+.adminPanel {
+  flex: 1 1 23rem;
+}
+
+.assignmentContent ul,
+.emptyList {
+  margin: 0;
+  padding-left: 1rem;
+  color: var(--text-secondary);
+}
+
+.sessionList {
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+.sessionButton {
+  width: 100%;
+  padding: 0.95rem 1rem;
+  text-align: left;
+}
+
+.sessionButton[data-current="true"] {
+  border-color: color-mix(in oklab, var(--accent) 28%, var(--border-subtle));
+  background: color-mix(in oklab, var(--surface-raised) 78%, var(--accent-soft));
+}
+
+.emptyState {
+  display: grid;
+  gap: 1.25rem;
+  padding: 1.4rem;
+}
+
+.emptyStateCopy {
+  max-width: 62ch;
+  color: var(--text-secondary);
+}
+
+.emptyActions,
+.drawerActions {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.detailDrawer {
+  position: fixed;
+  right: 1rem;
+  top: 1rem;
+  bottom: 1rem;
+  z-index: 15;
+  width: min(26rem, calc(100vw - 2rem));
+  padding: 1rem;
+  overflow: auto;
+  backdrop-filter: blur(22px);
+}
+
+.drawerBody,
+.drawerTimeline {
+  flex-direction: column;
+}
+
+.drawerBody {
+  gap: 1rem;
+}
+
+.drawerActions {
+  margin-top: 1rem;
+}
+
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: 1rem;
+  z-index: 20;
+  min-width: min(26rem, calc(100vw - 2rem));
+  transform: translateX(-50%);
+  border-radius: 1rem;
+  padding: 0.9rem 1rem;
+}
+
+.toastTitle {
+  font-weight: 600;
+}
+
+.toastBody {
+  color: var(--text-secondary);
+}
+
+.statusRow {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 1180px) {
+  .contentGrid,
+  .bottomGrid,
+  .frame {
+    grid-template-columns: 1fr;
+  }
+
+  .sidebar {
+    border-right: none;
+    border-bottom: 1px solid var(--border-subtle);
+  }
+
+  .detailDrawer {
+    left: 1rem;
+    width: auto;
+  }
+}
+
+@media (max-width: 900px) {
+  .topbar,
+  .heroHeader {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .heroActions,
+  .heroMetrics {
+    justify-content: flex-start;
+  }
+
+  .controlGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 720px) {
+  .main,
+  .sidebar {
+    padding: 0.85rem;
+  }
+
+  .topbarLeft,
+  .topbarRight,
+  .heroMetrics,
+  .heroActions,
+  .headerButtons,
+  .recipientHeader,
+  .recipientShortcuts {
+    flex-wrap: wrap;
+  }
+
+  .recipientHeader {
+    align-items: flex-start;
+  }
+
+  .sessionSelect,
+  .roleSelect,
+  .primaryButton,
+  .secondaryButton,
+  .smallButton {
+    width: 100%;
+  }
+
+  .queueItem {
+    grid-template-columns: 1fr;
+  }
+
+  .controlGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .table thead,
+  .missionTable thead {
+    display: none;
+  }
+
+  .table tbody,
+  .missionTable tbody,
+  .table tr,
+  .missionTable tr,
+  .table td,
+  .missionTable td {
+    display: block;
+    width: 100%;
+  }
+
+  .table tr,
+  .missionTable tr {
+    border-top: 1px solid var(--border-subtle);
+    padding: 0.75rem 0;
+  }
+
+  .table td,
+  .missionTable td {
+    border-top: none;
+    padding: 0.2rem 0;
+    text-align: left !important;
+  }
+
+  .table td::before,
+  .missionTable td::before {
+    content: attr(data-label);
+    display: block;
+    color: var(--text-muted);
+    font-size: 0.72rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-bottom: 0.18rem;
+  }
+
+  .tableRowAccent::before {
+    display: none;
+  }
+}

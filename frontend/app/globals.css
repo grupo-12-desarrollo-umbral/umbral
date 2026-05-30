@@ -1,0 +1,140 @@
+@import "tailwindcss";
+
+:root {
+  --bg: oklch(98.4% 0.013 76);
+  --bg-muted: oklch(96.2% 0.018 76);
+  --panel: oklch(98.8% 0.012 76);
+  --surface: oklch(99.4% 0.008 76);
+  --surface-raised: oklch(96.9% 0.015 76);
+  --border-subtle: oklch(89.8% 0.018 76);
+  --border-strong: oklch(82.5% 0.028 76);
+  --text-primary: oklch(28% 0.03 54);
+  --text-secondary: oklch(47% 0.022 54);
+  --text-muted: oklch(61% 0.018 60);
+  --accent-soft: oklch(90% 0.05 54);
+  --accent: oklch(72% 0.16 48);
+  --accent-strong: oklch(66% 0.18 44);
+  --accent-contrast: oklch(98.5% 0.01 82);
+  --success: oklch(66% 0.14 148);
+  --warning: oklch(77% 0.12 74);
+  --critical: oklch(64% 0.18 27);
+  --parchment: oklch(92.4% 0.04 84);
+  --parchment-deep: oklch(86.6% 0.05 76);
+  --ink: oklch(29% 0.03 52);
+  --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@theme inline {
+  --color-background: var(--bg);
+  --color-foreground: var(--text-primary);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+html[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: oklch(18.5% 0.016 58);
+  --bg-muted: oklch(16.8% 0.017 58);
+  --panel: oklch(22.5% 0.018 58);
+  --surface: oklch(25.2% 0.018 58);
+  --surface-raised: oklch(28.2% 0.021 58);
+  --border-subtle: oklch(34% 0.016 58);
+  --border-strong: oklch(45% 0.022 58);
+  --text-primary: oklch(90.5% 0.018 72);
+  --text-secondary: oklch(74% 0.016 70);
+  --text-muted: oklch(60% 0.014 66);
+  --accent-soft: oklch(30% 0.04 48);
+  --accent: oklch(70% 0.15 46);
+  --accent-strong: oklch(77% 0.15 52);
+  --accent-contrast: oklch(19% 0.02 58);
+  --success: oklch(73% 0.15 148);
+  --warning: oklch(79% 0.12 74);
+  --critical: oklch(72% 0.18 27);
+  --parchment: oklch(82% 0.045 80);
+  --parchment-deep: oklch(76% 0.05 76);
+  --ink: oklch(28% 0.03 56);
+}
+
+body {
+  background: var(--bg);
+  color: var(--text-primary);
+  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+  font-optical-sizing: auto;
+  text-rendering: optimizeLegibility;
+}
+
+html {
+  color-scheme: light;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body,
+h1,
+h2,
+h3,
+p,
+ul,
+ol {
+  margin: 0;
+}
+
+button,
+select {
+  font: inherit;
+}
+
+button,
+select,
+a {
+  transition:
+    background-color 160ms var(--ease-out-quart),
+    border-color 160ms var(--ease-out-quart),
+    color 160ms var(--ease-out-quart),
+    transform 100ms var(--ease-out-quart),
+    box-shadow 160ms var(--ease-out-quart);
+}
+
+button,
+select {
+  cursor: pointer;
+}
+
+button:focus,
+select:focus,
+a:focus {
+  outline: none;
+}
+
+button:focus-visible,
+select:focus-visible,
+a:focus-visible {
+  outline: 2px solid var(--accent-strong);
+  outline-offset: 2px;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+}
