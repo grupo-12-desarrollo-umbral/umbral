@@ -7,7 +7,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="MediatR.Contracts" VersionOverride="2.0.1" />
+    <PackageReference Include="MediatR.Contracts" />
   </ItemGroup>
 
 </Project>
