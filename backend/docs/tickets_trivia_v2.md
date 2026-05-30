@@ -5,7 +5,7 @@ Excluye todo lo relacionado con TreasureHunt/misión.
 
 ---
 
-## `identity-access-service` — 8 tickets
+## `identity-access-service` — 12 tickets
 
 | Ticket | Título | Bloqueado por |
 |---|---|---|
@@ -17,6 +17,10 @@ Excluye todo lo relacionado con TreasureHunt/misión.
 | HU-06 | Inicio de sesión de participantes | — |
 | HU-07A | Validación de membresía del participante en sesión | — |
 | HU-07B | Reconexión autorizada del participante | — |
+| HU-08 | Sincronización multi-dispositivo del equipo | HU-07A, HU-07B |
+| HU-18 | Asociación de equipos a sesiones | HU-04, HU-16 |
+| HU-19 | Asignación de operador a sesión | HU-03, HU-16 |
+| HU-20 | Consulta de sesiones asignadas | HU-18, HU-19 |
 
 ---
 
@@ -40,7 +44,7 @@ Excluye todo lo relacionado con TreasureHunt/misión.
 | HU-21A | Transiciones válidas de estado de sesión | — |
 | HU-21B | Auditoría de cambios de estado de sesión | HU-21A |
 | HU-22 | Temporizador autoritativo de sesión | HU-21A |
-| HU-33A | Orquestación automatizada de trivia por rondas | HU-16, HU-21A, HU-22 |
+| HU-33A | Orquestación automatizada de trivia por rondas | HU-16, HU-18, HU-19, HU-21A, HU-22 |
 | HU-33B | Cierre automático de preguntas y resultados finales | HU-33A |
 | HU-34A | Registro de primera respuesta válida por equipo | HU-33A |
 | HU-34B | Rechazo de respuestas tardías o repetidas | HU-34A |
@@ -80,9 +84,12 @@ Excluye todo lo relacionado con TreasureHunt/misión.
 ## Ruta crítica
 
 ```
-HU-11 → HU-12 → HU-16 → HU-21A → HU-22 → HU-33A → HU-33B → HU-39B
-                                                 ↓
-                                           HU-34A → HU-34B → HU-35
+HU-11 → HU-12 → HU-16 → HU-18 ┐
+                  ↓             ├→ HU-33A → HU-33B → HU-39B
+               HU-19 ───────────┘     ↓
+                                 HU-34A → HU-34B → HU-35
+HU-21A → HU-22 ─────────────────┘
 ```
 
-Auth (HU-01 a HU-07B) corre en paralelo — servicio independiente.
+Auth (HU-01 a HU-07B) y sincronización (HU-08) corren en paralelo — servicio independiente.
+HU-18 y HU-19 dependen de HU-16 (la sesión debe existir antes de asignarle equipos u operador).
