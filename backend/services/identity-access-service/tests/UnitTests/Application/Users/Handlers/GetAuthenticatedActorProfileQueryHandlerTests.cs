@@ -17,7 +17,7 @@ public sealed class GetAuthenticatedActorProfileQueryHandlerTests
         var repository = new Mock<IUserRepository>();
         repository
             .Setup(repo => repo.GetByExternalIdentityIdAsync("kc-010", It.IsAny<CancellationToken>()))
-            .ReturnsAsync(User.Provision("kc-010", "Jane Doe", "jane@example.com", Domain.Enums.Role.Operator));
+            .ReturnsAsync(User.Provision("kc-010", "Jane Doe", "jane@example.com", global::umbral_backend.Domain.Enums.Role.Operator));
 
         var handler = new GetAuthenticatedActorProfileQueryHandler(repository.Object, currentUser.Object);
 

@@ -15,7 +15,7 @@
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
-    <PackageReference Include="coverlet.collector" Version="6.0.4">
+    <PackageReference Include="coverlet.msbuild" Version="6.0.4">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
@@ -25,6 +25,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Application\Application.csproj" SkipGetTargetFrameworkProperties="true" />
+    <ProjectReference Include="..\..\src\Api\Api.csproj" SkipGetTargetFrameworkProperties="true" />
+    <ProjectReference Include="..\..\src\Infrastructure\Infrastructure.csproj" SkipGetTargetFrameworkProperties="true" />
   </ItemGroup>
 
 </Project>

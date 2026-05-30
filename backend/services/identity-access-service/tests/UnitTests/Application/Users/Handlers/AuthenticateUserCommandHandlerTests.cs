@@ -44,7 +44,7 @@ public sealed class AuthenticateUserCommandHandlerTests
     [Fact]
     public async Task Handle_SynchronizesExistingUserAndPersistsUpdate()
     {
-        var existingUser = User.Provision("kc-002", "Initial Name", "initial@example.com", Domain.Enums.Role.Operator);
+        var existingUser = User.Provision("kc-002", "Initial Name", "initial@example.com", global::umbral_backend.Domain.Enums.Role.Operator);
 
         var repository = new Mock<IUserRepository>();
         repository
@@ -70,7 +70,7 @@ public sealed class AuthenticateUserCommandHandlerTests
     [Fact]
     public async Task Handle_RejectsDeactivatedUser()
     {
-        var existingUser = User.Provision("kc-003", "Deactivated User", "deactivated@example.com", Domain.Enums.Role.Operator);
+        var existingUser = User.Provision("kc-003", "Deactivated User", "deactivated@example.com", global::umbral_backend.Domain.Enums.Role.Operator);
         existingUser.DeactivateAccess();
 
         var repository = new Mock<IUserRepository>();
