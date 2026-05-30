@@ -25,8 +25,11 @@ public sealed class AccessPolicyTests
     [InlineData(Role.Operator, ProtectedCapability.OperatorPanel, true)]
     [InlineData(Role.Administrator, ProtectedCapability.OperatorPanel, true)]
     [InlineData(Role.Participant, ProtectedCapability.ParticipantExperience, true)]
+    [InlineData(Role.Administrator, ProtectedCapability.UserAccessCatalog, true)]
+    [InlineData(Role.Operator, ProtectedCapability.UserAccessCatalog, true)]
     [InlineData(Role.Operator, ProtectedCapability.AdministratorPanel, false)]
     [InlineData(Role.Operator, ProtectedCapability.ParticipantExperience, false)]
+    [InlineData(Role.Participant, ProtectedCapability.UserAccessCatalog, false)]
     public void Evaluate_ResolvesRoleCapabilityMatrix(Role role, ProtectedCapability capability, bool expected)
     {
         var user = User.Provision("kc-matrix", "Matrix", "matrix@example.com", role);
@@ -51,7 +54,7 @@ public sealed class AccessPolicyTests
     {
         var user = User.Provision("kc-03", "Participant", "participant@example.com", Role.Participant);
 
-        FluentActions.Invoking(() => _policy.EnsureCanAccess(user, ProtectedCapability.OperatorPanel))
+        FluentActions.Invoking(() => _policy.EnsureCanAccess(user, ProtectedCapability.UserAccessCatalog))
             .Should().Throw<UserRoleNotAuthorizedException>();
     }
 }

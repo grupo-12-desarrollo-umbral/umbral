@@ -88,3 +88,25 @@ The gateway remains the trust boundary, so the service only consumes `X-User-Id`
 
 **Next session needs to know**
 The API shape for HU-01 is in place and the integration coverage path was added alongside the new endpoints. The next pass should focus on final verification and the 95% coverage gate for the full service.
+
+---
+
+## [005] HU-02 Phase X.1 — UserAccessCatalog Authorization Concept
+**Date:** 2026-05-30
+**Phase:** X.1 — Domain Layer (HU-02 addition)
+**Commits:** (uncommitted — see diff below)
+**HU tickets advanced:** HU-02, DES-67
+
+**What was built**
+Added `ProtectedCapability.UserAccessCatalog` enum member (value 5) and authorized it in `AccessPolicy` for `Administrator` and `Operator` roles. Extended `AccessPolicyTests` with matrix coverage for the new capability and strengthened `UserTests.DeactivateAccess` assertions. Domain builds clean; all 59 existing unit tests pass.
+
+**Why this approach**
+UserAccessCatalog is the domain capability behind the future `GET /api/users` listing (HU-02). Modeling it as a `ProtectedCapability` keeps authorization uniform with existing HU-01 patterns: the `AccessPolicy` switch-expression already guards all protected operations, so adding a new capability is a single-line append. Only admins and operators may list users; participants are excluded, matching the PRD's access-management intent.
+
+**Deliberately skipped**
+- The actual query/read model for the user listing — not part of phase X.1 scope; belongs to a future backend phase
+- `GET /api/users` endpoint, handler, or DTO — deferred until the application layer phase
+- Any frontend work
+
+**Next session needs to know**
+"In this slice, 'catalog' means the registered-user listing for access management." — `UserAccessCatalog` is the authorization concept only; the read model and API surface come in later phases. Phase X.2 (Application layer for HU-02) should add the `GetUsersListingQuery` handler and extend the existing `IUserRepository` with a paginated search method.
