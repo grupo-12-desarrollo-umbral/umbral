@@ -26,7 +26,7 @@ public sealed class AuthenticateUserCommandHandlerTests
         var handler = CreateHandler(repository);
 
         var result = await handler.Handle(
-            new AuthenticateUserCommand("kc-001", "Ada Lovelace", "ada@example.com", "Administrador"),
+            new AuthenticateUserCommand("kc-001", "Ada Lovelace", "ada@example.com", "Administrator"),
             CancellationToken.None);
 
         result.Actor.ExternalIdentityId.Should().Be("kc-001");
@@ -57,7 +57,7 @@ public sealed class AuthenticateUserCommandHandlerTests
         var handler = CreateHandler(repository);
 
         var result = await handler.Handle(
-            new AuthenticateUserCommand("kc-002", "Grace Hopper", "grace@example.com", "Administrador"),
+            new AuthenticateUserCommand("kc-002", "Grace Hopper", "grace@example.com", "Administrator"),
             CancellationToken.None);
 
         result.Actor.DisplayName.Should().Be("Grace Hopper");
@@ -81,7 +81,7 @@ public sealed class AuthenticateUserCommandHandlerTests
         var handler = CreateHandler(repository);
 
         var act = async () => await handler.Handle(
-            new AuthenticateUserCommand("kc-003", "Deactivated User", "deactivated@example.com", "Operador"),
+            new AuthenticateUserCommand("kc-003", "Deactivated User", "deactivated@example.com", "Operator"),
             CancellationToken.None);
 
         await act.Should().ThrowAsync<DeactivatedUserAccessDeniedException>();

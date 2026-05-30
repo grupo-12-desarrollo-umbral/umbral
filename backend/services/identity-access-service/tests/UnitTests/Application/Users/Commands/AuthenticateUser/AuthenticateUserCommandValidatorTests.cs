@@ -13,7 +13,7 @@ public sealed class AuthenticateUserCommandValidatorTests
             "user-123",
             "Ada Lovelace",
             "ada@example.com",
-            "Administrador");
+            "Administrator");
 
         var result = _validator.Validate(command);
 

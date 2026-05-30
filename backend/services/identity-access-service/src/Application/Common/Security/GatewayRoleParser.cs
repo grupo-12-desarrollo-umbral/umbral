@@ -15,9 +15,9 @@ public static class GatewayRoleParser
 
         return value.Trim() switch
         {
-            "Administrator" or "Administrador" => Assign(Role.Administrator, out role),
-            "Operator" or "Operador" => Assign(Role.Operator, out role),
-            "Participant" or "Participante" => Assign(Role.Participant, out role),
+            "Administrator" => Assign(Role.Administrator, out role),
+            "Operator" => Assign(Role.Operator, out role),
+            "Participant" => Assign(Role.Participant, out role),
             _ => false
         };
     }

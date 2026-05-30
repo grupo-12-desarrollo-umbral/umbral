@@ -7,15 +7,15 @@
   "roles": {
     "realm": [
       {
-        "name": "Administrador",
+        "name": "Administrator",
         "description": "Administrative platform access"
       },
       {
-        "name": "Operador",
+        "name": "Operator",
         "description": "Operational platform access"
       },
       {
-        "name": "Participante",
+        "name": "Participant",
         "description": "Participant platform access"
       }
     ]
@@ -128,7 +128,7 @@
         }
       ],
       "realmRoles": [
-        "Administrador"
+        "Administrator"
       ]
     },
     {
@@ -146,7 +146,7 @@
         }
       ],
       "realmRoles": [
-        "Operador"
+        "Operator"
       ]
     },
     {
@@ -164,7 +164,7 @@
         }
       ],
       "realmRoles": [
-        "Participante"
+        "Participant"
       ]
     }
   ]
