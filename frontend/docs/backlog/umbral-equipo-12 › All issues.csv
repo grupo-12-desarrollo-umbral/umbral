@@ -1,0 +1,800 @@
+"ID","Team","Title","Description","Status","Estimate","Priority","Project ID","Project","Creator","Assignee","Labels","Cycle Number","Cycle Name","Cycle Start","Cycle End","Created","Updated","Started","Triaged","Completed","Canceled","Archived","Due Date","Parent issue","Initiatives","Project Milestone ID","Project Milestone","SLA Status","UUID","Time in status (minutes)","Related to","Blocked by","Duplicate of"
+"DES-59","umbral-equipo-12","ENABLER - Sincronización multi-dispositivo por equipo","## What to build
+
+Garantizar sincronización de estado compartido entre varios dispositivos participantes del mismo equipo, con reconexión y recuperación de estado.
+
+## Acceptance criteria
+
+- [ ] Los cambios relevantes del equipo se propagan a todos los dispositivos autorizados en tiempo real.
+- [ ] Un participante reconectado recupera el estado vigente del equipo sin mezclar contexto de otros equipos.
+- [ ] La solución contempla manejo de desconexiones temporales y reanudación de sesión.
+- [ ] La sincronización conserva consistencia entre puntaje, progreso y eventos visibles del equipo.
+
+## Blocked by
+
+HU-07B, HU-08, HU-22, HU-23","Backlog",,"High","fb419a0e-c700-4169-8801-21490db42f94","Umbral Proyecto Desarrollo - Equipo 12","samuelpl0888@gmail.com",,"Improvement, svc:cross-service",,,,,"2026-05-23T21:28:02.750Z","2026-05-23T21:35:22.447Z",,,,,,,,"",,,,"ca211997-3810-4117-af86-4e201697a9d3",1052,"","DES-31, DES-30, DES-13, DES-12",
+"DES-58","umbral-equipo-12","ENABLER - Cliente móvil de participantes en React Native","## What to build
+
+Implementar el cliente móvil multiplataforma de participantes en React Native/Expo conectado al mismo backend y backbone en tiempo real que la web operativa.
+
+## Acceptance criteria
+
+- [ ] El cliente móvil permite autenticación individual mediante el flujo definido por la plataforma.
+- [ ] El cliente se integra con los mismos servicios backend y canales en tiempo real que usa la operación web.
+- [ ] La implementación se defiende como una extensión React Native, no como apps nativas separadas.
+- [ ] El cliente cubre los flujos comprometidos de participación para TreasureHunt y Trivia.
+
+## Blocked by
+
+HU-06, HU-08, HU-23, HU-25B, HU-35","Backlog",,"High","fb419a0e-c700-4169-8801-21490db42f94","Umbral Proyecto Desarrollo - Equipo 12","samuelpl0888@gmail.com",,"Improvement, svc:cross-service",,,,,"2026-05-23T21:28:01.661Z","2026-05-23T21:35:19.485Z",,,,,,,,"",,,,"13ab3101-a7eb-4a95-a458-ccdc580e1a0a",1052,"","DES-48, DES-13, DES-10, DES-31, DES-35",
+"DES-57","umbral-equipo-12","HU-40B - Historial de puntaje, ranking y revisión post sesión","## What to build
+
+Extender la revisión histórica de sesión para incluir cambios de puntaje, eventos de ranking y visibilidad de sesiones finalizadas o canceladas.
+
+## Acceptance criteria
+
+- [ ] El historial muestra cambios de puntaje relevantes.
+- [ ] El historial muestra eventos de ranking cuando aplique.
+- [ ] Las sesiones finalizadas o canceladas siguen visibles para revisión histórica.
+- [ ] La vista histórica conserva el contexto suficiente para revisar decisiones posteriores.
+
+## Blocked by
+
+HU-40A, HU-37A, HU-39A, HU-39B","Backlog",,"High","fb419a0e-c700-4169-8801-21490db42f94","Umbral Proyecto Desarrollo - Equipo 12","samuelpl0888@gmail.com",,"Feature, svc:scoring-monitoring-service",,,,,"2026-05-23T21:28:00.478Z","2026-05-23T21:35:17.459Z",,,,,,,,"",,,,"dcba9d87-d9cd-4b1d-87e1-3c06bc8ef043",1052,"","DES-56, DES-55, DES-54, DES-51",
+"DES-56","umbral-equipo-12","HU-40A - Historial de eventos de sesión","## What to build
+
+Permitir consultar el historial de una sesión con cambios de estado, liberación de pistas, envíos de evidencia y penalizaciones.
+
+## Acceptance criteria
+
+- [ ] El operador puede consultar el historial de eventos por sesión.
+- [ ] El historial muestra cambios de estado.
+- [ ] El historial muestra liberación de pistas, evidencias o envíos y penalizaciones.
+- [ ] El historial conserva la secuencia de eventos relevante para auditoría.
+
+## Blocked by
+
+HU-21B, HU-26, HU-29, HU-38","Backlog",,"High","fb419a0e-c700-4169-8801-21490db42f94","Umbral Proyecto Desarrollo - Equipo 12","samuelpl0888@gmail.com",,"Feature, svc:scoring-monitoring-service, svc:session-operations-service",,,,,"2026-05-23T21:27:59.039Z","2026-05-23T21:35:15.611Z",,,,,,,,"",,,,"5c4ce552-ce3f-4d5f-89d5-c4e2059f1e81",1052,"","DES-29, DES-39, DES-36, DES-53",
+"DES-55","umbral-equipo-12","HU-39B - Ranking en tiempo real para sesiones de trivia","## What to build
+
+Mostrar la posición del equipo en el ranking de sesiones de trivia y actualizarla al cierre de cada pregunta.
+
+## Acceptance criteria
+
+- [ ] El sistema muestra el ranking ordenado de mayor a menor puntaje.
+- [ ] Cuando existe empate, el sistema aplica el criterio de tiempo de resolución definido.
+- [ ] En sesiones de trivia, el ranking se actualiza después del cierre de cada pregunta.
+- [ ] El ranking queda disponible para participantes y operación en tiempo real.
+
+## Blocked by
+
+HU-33B, HU-37A, HU-37B","Backlog",,"High","fb419a0e-c700-4169-8801-21490db42f94","Umbral Proyecto Desarrollo - Equipo 12","samuelpl0888@gmail.com",,"Feature, svc:scoring-monitoring-service",,,,,"2026-05-23T21:27:58.022Z","2026-05-23T21:35:13.508Z",,,,,,,,"",,,,"b490bd01-dd28-4473-87b0-df54235a5f73",1052,"","DES-52, DES-45, DES-51",
+"DES-54","umbral-equipo-12","HU-39A - Ranking en tiempo real para sesiones de misión","## What to build
+
+Mostrar la posición del equipo en el ranking de sesiones de misión y actualizarla cuando cambien puntajes, penalizaciones o progreso relevante.
+
+## Acceptance criteria
+
+- [ ] El sistema muestra el ranking ordenado de mayor a menor puntaje.
+- [ ] Cuando existe empate, el sistema aplica el criterio de tiempo de resolución definido.
+- [ ] En sesiones de misión, el ranking se actualiza cuando cambian puntajes, penalizaciones o progreso relevante.
+- [ ] El ranking queda disponible para participantes y operación en tiempo real.
+
+## Blocked by
+
+HU-37A, HU-37B","Backlog",,"High","fb419a0e-c700-4169-8801-21490db42f94","Umbral Proyecto Desarrollo - Equipo 12","samuelpl0888@gmail.com",,"Feature, svc:scoring-monitoring-service",,,,,"2026-05-23T21:27:56.814Z","2026-05-23T21:35:11.918Z",,,,,,,,"",,,,"02a4aa28-0296-443d-a9a9-ea28de7fa412",1052,"","DES-52, DES-51",
+"DES-53","umbral-equipo-12","HU-38 - Aplicación de penalizaciones justificadas","## What to build
+
+Permitir al operador registrar penalizaciones sobre un equipo con motivo explícito y momento de aplicación.
+
+## Acceptance criteria
+
+- [ ] El operador puede registrar una penalización sobre un equipo de una sesión asignada.
+- [ ] Toda penalización exige un motivo explícito.
+- [ ] El sistema registra el momento de aplicación de la penalización.
+- [ ] La penalización impacta el puntaje del equipo de acuerdo con las reglas vigentes.
+
+## Blocked by
+
+HU-19, HU-21A","Backlog",,"High","fb419a0e-c700-4169-8801-21490db42f94","Umbral Proyecto Desarrollo - Equipo 12","samuelpl0888@gmail.com",,"Feature, svc:scoring-monitoring-service, svc:session-operations-service",,,,,"2026-05-23T21:27:18.539Z","2026-05-23T21:35:10.477Z",,,,,,,,"",,,,"f9608ba3-7e6d-49ea-847a-cdeba02aee8c",1053,"","DES-26, DES-28",
+"DES-52","umbral-equipo-12","HU-37B - Actualización de ranking tras cambios de puntaje","## What to build
+
+Actualizar el ranking después de cambios que afecten el puntaje de un equipo.
+
+## Acceptance criteria
+
+- [ ] El ranking se actualiza después de cambios que afecten el puntaje.
+- [ ] La proyección de ranking toma como fuente el ledger de puntaje.
+- [ ] La actualización ocurre tanto para validaciones como para penalizaciones o respuestas correctas.
+- [ ] El ranking actualizado queda disponible para consumo en tiempo real.
+
+## Blocked by
+
+HU-37A","Backlog",,"High","fb419a0e-c700-4169-8801-21490db42f94","Umbral Proyecto Desarrollo - Equipo 12","samuelpl0888@gmail.com",,"Feature, svc:scoring-monitoring-service",,,,,"2026-05-23T21:27:16.977Z","2026-05-23T21:35:08.737Z",,,,,,,,"",,,,"81796c99-053d-4616-8978-fc513bcbf4d1",1053,"","DES-51",
+"DES-51","umbral-equipo-12","HU-37A - Ledger de puntaje por validaciones, respuestas y penalizaciones","## What to build
+
+Mantener el puntaje total de cada equipo como derivado de registros de puntaje originados por validaciones, respuestas correctas o penalizaciones.
+
+## Acceptance criteria
+
+- [ ] Cuando una evidencia válida, respuesta correcta o penalización impacta el puntaje, se genera un registro de puntaje.
+- [ ] Cada cambio de puntaje genera un registro con su origen.
+- [ ] El puntaje total del equipo se obtiene a partir de los registros existentes.
+- [ ] El modelo de puntaje permite rastrear el origen de cada cambio.
+
+## Blocked by
+
+HU-30A, HU-34A, HU-38","Backlog",,"High","fb419a0e-c700-4169-8801-21490db42f94","Umbral Proyecto Desarrollo - Equipo 12","samuelpl0888@gmail.com",,"Feature, svc:scoring-monitoring-service",,,,,"2026-05-23T21:27:15.186Z","2026-05-23T21:34:55.104Z",,,,,,,,"",,,,"855ab8e2-7ff8-4cdf-bd6b-5d695097435c",1053,"","DES-53, DES-46, DES-40",
+"DES-47","umbral-equipo-12","HU-34B - Rechazo de respuestas tardías o repetidas en trivia","## What to build
+
+Rechazar respuestas enviadas fuera de tiempo o nuevos intentos para la misma pregunta y equipo en trivia.
+
+## Acceptance criteria
+
+- [ ] El sistema rechaza respuestas tardías.
+- [ ] El sistema rechaza nuevos intentos para la misma pregunta y equipo.
+- [ ] La respuesta final registrada no puede sobrescribirse.
+- [ ] El rechazo informa el motivo de forma consistente.
+
+## Blocked by
+
+HU-34A","Backlog",,"High","fb419a0e-c700-4169-8801-21490db42f94","Umbral Proyecto Desarrollo - Equipo 12","samuelpl0888@gmail.com",,"Feature, svc:session-operations-service",,,,,"2026-05-23T21:27:09.920Z","2026-05-23T21:34:48.978Z",,,,,,,,"",,,,"ba0416bb-5751-428f-a393-8bf34a788c6b",1053,"","DES-46",
+"DES-46","umbral-equipo-12","HU-34A - Registro de primera respuesta válida por equipo en trivia","## What to build
+
+Aceptar la primera respuesta válida enviada por cualquier integrante autenticado del equipo para la pregunta activa.
+
+## Acceptance criteria
+
+- [ ] Cualquier integrante autenticado del equipo puede enviar la respuesta de la pregunta activa.
+- [ ] La primera respuesta enviada válidamente dentro del tiempo queda registrada como respuesta final del equipo.
+- [ ] La respuesta aceptada queda asociada a equipo, sesión, pregunta y momento de envío.
+- [ ] El registro de respuesta respeta el contexto de la sesión activa.
+
+## Blocked by
+
+HU-33A, HU-07A","Backlog",,"High","fb419a0e-c700-4169-8801-21490db42f94","Umbral Proyecto Desarrollo - Equipo 12","samuelpl0888@gmail.com",,"Feature, svc:session-operations-service",,,,,"2026-05-23T21:27:08.414Z","2026-05-23T21:34:47.353Z",,,,,,,,"",,,,"6193f10e-0261-4430-a1bf-0bcf16f9b76f",1053,"","DES-44, DES-11",
+"DES-45","umbral-equipo-12","HU-33B - Cierre automático de preguntas y resultados finales de trivia","## What to build
+
+Cerrar automáticamente cada pregunta de trivia, calcular el resultado de la ronda y llevar la sesión a resultados finales tras la última pregunta.
+
+## Acceptance criteria
+
+- [ ] Al cerrar cada pregunta, el sistema calcula puntaje y ranking.
+- [ ] Cada pregunta se cierra según su temporizador.
+- [ ] Después de la última pregunta, la sesión pasa a resultados finales.
+- [ ] El cierre de ronda deja listo el contexto para la siguiente fase visible.
+
+## Blocked by
+
+HU-33A, HU-37A, HU-39B","Backlog",,"High","fb419a0e-c700-4169-8801-21490db42f94","Umbral Proyecto Desarrollo - Equipo 12","samuelpl0888@gmail.com",,"Feature, svc:scoring-monitoring-service, svc:session-operations-service",,,,,"2026-05-23T21:27:07.048Z","2026-05-23T21:35:13.478Z",,,,,,,,"",,,,"c8386833-b487-4f5c-b243-9efda5fb8a7d",1053,"","DES-44, DES-51",
+"DES-44","umbral-equipo-12","HU-33A - Orquestación automatizada de trivia por rondas","## What to build
+
+Ejecutar sesiones de trivia con una secuencia automatizada de cuenta regresiva, activación y cierre de preguntas.
+
+## Acceptance criteria
+
+- [ ] Al iniciar la sesión, el sistema ejecuta una cuenta regresiva previa al juego.
+- [ ] El sistema activa cada pregunta según su temporizador.
+- [ ] El operador supervisa la partida sin controlar manualmente cada cambio.
+- [ ] La secuencia avanza de forma consistente entre preguntas.
+
+## Blocked by
+
+HU-16, HU-21A, HU-22","Backlog",,"High","fb419a0e-c700-4169-8801-21490db42f94","Umbral Proyecto Desarrollo - Equipo 12","samuelpl0888@gmail.com",,"Feature, svc:session-operations-service",,,,,"2026-05-23T21:27:04.146Z","2026-05-23T21:34:44.033Z",,,,,,,,"",,,,"407be427-9217-4d0d-aac3-609322d7cc11",1053,"","DES-23, DES-28, DES-30",
+"DES-43","umbral-equipo-12","HU-32 - Trazabilidad de evidencias","## What to build
+
+Permitir al operador revisar el detalle de cada evidencia enviada con su estado de validación y motivo de rechazo cuando aplique.
+
+## Acceptance criteria
+
+- [ ] Cada evidencia registrada conserva fecha y hora del envío.
+- [ ] Cada evidencia identifica equipo, sesión y nodo o etapa de origen.
+- [ ] El sistema muestra el estado de validación de la evidencia.
+- [ ] Si la evidencia fue rechazada, el sistema conserva el motivo del rechazo.
+
+## Blocked by
+
+HU-29, HU-30A, HU-30B","Backlog",,"High","fb419a0e-c700-4169-8801-21490db42f94","Umbral Proyecto Desarrollo - Equipo 12","samuelpl0888@gmail.com",,"Feature, svc:scoring-monitoring-service, svc:session-operations-service",,,,,"2026-05-23T21:26:24.152Z","2026-05-23T21:34:41.666Z",,,,,,,,"",,,,"072d6f03-a5b7-4b7c-aaa6-518d57d65df8",1054,"","DES-41, DES-40, DES-39",
+"DES-42","umbral-equipo-12","HU-31 - Validación server-side de objetivo QR","## What to build
+
+Permitir escanear un QR o token para que el backend valide si el objetivo pertenece a la pista activa y registrar el resultado para el equipo.
+
+## Acceptance criteria
+
+- [ ] El sistema recibe el QR o token escaneado por el participante.
+- [ ] Cuando la pista activa define un Target, el backend valida que el objetivo pertenezca a esa pista dentro de la sesión.
+- [ ] El sistema rechaza códigos inválidos, duplicados o fuera de contexto.
+- [ ] Si la validación es correcta, el objetivo queda resuelto para el equipo y el resultado queda registrado.
+
+## Blocked by
+
+HU-29, HU-30A","Backlog",,"High","fb419a0e-c700-4169-8801-21490db42f94","Umbral Proyecto Desarrollo - Equipo 12","samuelpl0888@gmail.com",,"Feature, svc:session-operations-service",,,,,"2026-05-23T21:26:22.517Z","2026-05-23T21:34:40.063Z",,,,,,,,"",,,,"dcda3246-b0d2-4968-ab42-2106ab4e4a9f",1054,"","DES-39, DES-40",
+"DES-41","umbral-equipo-12","HU-30B - Rechazo explicado de evidencias inválidas","## What to build
+
+Rechazar evidencias fuera de contexto o inconsistentes indicando el motivo de rechazo de forma explícita.
+
+## Acceptance criteria
+
+- [ ] Si la evidencia incumple una regla de negocio, el sistema la rechaza.
+- [ ] El rechazo indica el motivo de forma explícita.
+- [ ] El rechazo conserva trazabilidad sobre sesión, equipo y nodo asociado.
+- [ ] El resultado queda disponible para revisión posterior.
+
+## Blocked by
+
+HU-30A","Backlog",,"High","fb419a0e-c700-4169-8801-21490db42f94","Umbral Proyecto Desarrollo - Equipo 12","samuelpl0888@gmail.com",,"Feature, svc:session-operations-service",,,,,"2026-05-23T21:26:19.520Z","2026-05-23T21:34:21.597Z",,,,,,,,"",,,,"31094259-ca54-45ac-b63b-5e00096ccd7c",1054,"","DES-40",
+"DES-40","umbral-equipo-12","HU-30A - Validaciones de contexto para aceptación de evidencias","## What to build
+
+Validar sesión, equipo y contexto de misión antes de aceptar una evidencia enviada por un participante.
+
+## Acceptance criteria
+
+- [ ] El sistema valida la sesión, el equipo y el contexto de la evidencia antes de aceptarla.
+- [ ] El sistema valida que la evidencia esté asociada a una etapa, subetapa o pista válida de la misión.
+- [ ] El sistema no acepta evidencias cuando la sesión está pausada, finalizada o cancelada.
+- [ ] La aceptación solo ocurre cuando se cumplen las reglas de negocio del contexto.
+
+## Blocked by
+
+HU-29","Backlog",,"High","fb419a0e-c700-4169-8801-21490db42f94","Umbral Proyecto Desarrollo - Equipo 12","samuelpl0888@gmail.com",,"Feature, svc:session-operations-service",,,,,"2026-05-23T21:26:18.127Z","2026-05-23T21:34:19.591Z",,,,,,,,"",,,,"ed8f43f0-6fc2-4a37-869d-36ce1f8fe3f3",1054,"","DES-39",
+"DES-39","umbral-equipo-12","HU-29 - Envío de evidencias por parte del equipo","## What to build
+
+Permitir al participante enviar respuestas o evidencias asociadas a un nodo válido de la misión durante una sesión habilitada.
+
+## Acceptance criteria
+
+- [ ] El participante puede registrar un envío vinculado a un nodo válido de la misión.
+- [ ] Cada envío queda asociado exactamente a un equipo, una sesión y un nodo válido, resolviendo su etapa académica de origen.
+- [ ] El sistema bloquea envíos cuando la sesión está pausada, finalizada o cancelada.
+- [ ] El envío queda registrado con la información necesaria para su revisión posterior.
+
+## Blocked by
+
+HU-21A, HU-22, HU-23","Backlog",,"High","fb419a0e-c700-4169-8801-21490db42f94","Umbral Proyecto Desarrollo - Equipo 12","samuelpl0888@gmail.com",,"Feature, svc:session-operations-service",,,,,"2026-05-23T21:26:16.868Z","2026-05-23T21:34:17.838Z",,,,,,,,"",,,,"0fb9ddb5-799d-423f-97b7-12dc98d8edcf",1054,"","DES-31, DES-28, DES-30",
+"DES-36","umbral-equipo-12","HU-26 - Liberación manual de pistas","## What to build
+
+Permitir al operador liberar pistas a un equipo durante una sesión válida sin afectar a otros equipos y con trazabilidad completa.
+
+## Acceptance criteria
+
+- [ ] El operador puede liberar una pista a un equipo durante una sesión válida.
+- [ ] La liberación de una pista a un equipo no implica liberarla a otros equipos.
+- [ ] Una misma pista no puede liberarse dos veces al mismo equipo para la misma etapa.
+- [ ] La liberación queda registrada en el historial de la sesión.
+
+## Blocked by
+
+HU-21A, HU-22, HU-23","Backlog",,"High","fb419a0e-c700-4169-8801-21490db42f94","Umbral Proyecto Desarrollo - Equipo 12","samuelpl0888@gmail.com",,"Feature, svc:session-operations-service",,,,,"2026-05-23T21:26:13.094Z","2026-05-23T21:34:04.176Z",,,,,,,,"",,,,"2ec7841b-7c4c-4c69-8fb7-0e290a5f7a0e",1054,"","DES-28, DES-31, DES-30",
+"DES-35","umbral-equipo-12","HU-25B - Consulta de tablero y ranking para participante","## What to build
+
+Permitir al participante consultar su tablero y el ranking habilitado sin modificar datos y respetando su contexto de autorización.
+
+## Acceptance criteria
+
+- [ ] El participante puede consultar su tablero permitido.
+- [ ] El participante puede consultar el ranking permitido.
+- [ ] La información mostrada respeta el rol y el equipo del usuario autenticado.
+- [ ] Las consultas son de solo lectura.
+
+## Blocked by
+
+HU-23, HU-39A, HU-39B","Backlog",,"High","fb419a0e-c700-4169-8801-21490db42f94","Umbral Proyecto Desarrollo - Equipo 12","samuelpl0888@gmail.com",,"Feature, svc:cross-service",,,,,"2026-05-23T21:26:11.777Z","2026-05-23T21:34:02.687Z",,,,,,,,"",,,,"8d3b8ea3-cf40-47e1-9ac7-9f6bd7b50850",1054,"","DES-54, DES-31, DES-55",
+"DES-34","umbral-equipo-12","HU-25A - Consultas operativas para administrador y operador","## What to build
+
+Permitir consultas de solo lectura sobre misiones, sesiones, equipos y ranking para administrador y operador respetando permisos.
+
+## Acceptance criteria
+
+- [ ] El administrador puede consultar misiones y sesiones.
+- [ ] El operador puede consultar sesiones asignadas, equipos asociados y ranking.
+- [ ] La información mostrada respeta el rol y permisos del usuario autenticado.
+- [ ] Las consultas no ejecutan comandos de modificación.
+
+## Blocked by
+
+HU-20, HU-39A, HU-39B","Backlog",,"High","fb419a0e-c700-4169-8801-21490db42f94","Umbral Proyecto Desarrollo - Equipo 12","samuelpl0888@gmail.com",,"Feature, svc:cross-service",,,,,"2026-05-23T21:25:35.091Z","2026-05-23T21:34:00.566Z",,,,,,,,"",,,,"8bff9304-973e-4805-9916-4799fabd5c3d",1055,"","DES-54, DES-55, DES-27",
+"DES-33","umbral-equipo-12","HU-24B - Panel del operador en tiempo real de eventos, evidencias y ranking","## What to build
+
+Ampliar el panel del operador para mostrar eventos relevantes, evidencias o envíos y ranking durante la operación.
+
+## Acceptance criteria
+
+- [ ] El panel refleja eventos relevantes sin recarga manual.
+- [ ] El operador puede monitorear evidencias o envíos durante la sesión.
+- [ ] El operador puede ver ranking actualizado cuando aplique.
+- [ ] La vista permanece restringida a sesiones autorizadas.
+
+## Blocked by
+
+HU-24A, HU-32, HU-39A, HU-39B","Backlog",,"High","fb419a0e-c700-4169-8801-21490db42f94","Umbral Proyecto Desarrollo - Equipo 12","samuelpl0888@gmail.com",,"Feature, svc:scoring-monitoring-service, svc:session-operations-service",,,,,"2026-05-23T21:25:33.921Z","2026-05-23T21:33:58.548Z",,,,,,,,"",,,,"fe2fe933-3b41-47da-8307-010c556d66bc",1055,"","DES-32, DES-54, DES-43, DES-55",
+"DES-32","umbral-equipo-12","HU-24A - Panel del operador en tiempo real de estado y progreso","## What to build
+
+Exponer un panel en tiempo real para el operador con el estado de la sesión y el progreso de los equipos dentro de sus sesiones autorizadas.
+
+## Acceptance criteria
+
+- [ ] El operador solo puede ver sesiones asignadas o autorizadas según la política definida.
+- [ ] El panel refleja cambios de estado sin recarga manual.
+- [ ] El operador puede monitorear el progreso de equipos en tiempo real.
+- [ ] El sistema bloquea acciones sobre sesiones no autorizadas.
+
+## Blocked by
+
+HU-20, HU-21A","Backlog",,"High","fb419a0e-c700-4169-8801-21490db42f94","Umbral Proyecto Desarrollo - Equipo 12","samuelpl0888@gmail.com",,"Feature, svc:scoring-monitoring-service, svc:session-operations-service",,,,,"2026-05-23T21:25:31.965Z","2026-05-23T21:33:55.092Z",,,,,,,,"",,,,"9bf385ed-163d-4fa4-9821-2dab4e861623",1055,"","DES-28, DES-27",
+"DES-31","umbral-equipo-12","HU-23 - Tablero de equipo en vivo","## What to build
+
+Mostrar al participante el tablero en vivo de su equipo con puntaje, temporizador y pistas disponibles durante la sesión.
+
+## Acceptance criteria
+
+- [ ] El participante puede ver el puntaje acumulado de su equipo.
+- [ ] El participante puede ver las pistas habilitadas para su progreso actual.
+- [ ] El participante puede ver el temporizador correspondiente a su sesión.
+- [ ] La información se actualiza durante la sesión sin recarga manual.
+
+## Blocked by
+
+HU-22, HU-37A","Backlog",,"High","fb419a0e-c700-4169-8801-21490db42f94","Umbral Proyecto Desarrollo - Equipo 12","samuelpl0888@gmail.com",,"Feature, svc:scoring-monitoring-service, svc:session-operations-service",,,,,"2026-05-23T21:25:30.690Z","2026-05-23T21:33:43.247Z",,,,,,,,"",,,,"92f3ce07-2a75-43e4-be49-9d5eb910046c",1055,"","DES-51, DES-30",
+"DES-30","umbral-equipo-12","HU-22 - Temporizador autoritativo de sesión","## What to build
+
+Exponer al participante el tiempo restante de la sesión o ronda activa usando un temporizador autoritativo del backend.
+
+## Acceptance criteria
+
+- [ ] En sesiones de misión, el sistema muestra el tiempo restante de la sesión.
+- [ ] En sesiones de trivia, el sistema muestra el tiempo restante de la pregunta activa.
+- [ ] Cuando la sesión se pausa, el temporizador se congela.
+- [ ] Al reanudar o reconectar, el sistema muestra el tiempo vigente correcto.
+
+## Blocked by
+
+HU-21A","Backlog",,"High","fb419a0e-c700-4169-8801-21490db42f94","Umbral Proyecto Desarrollo - Equipo 12","samuelpl0888@gmail.com",,"Feature, svc:session-operations-service",,,,,"2026-05-23T21:25:26.372Z","2026-05-23T21:33:41.637Z",,,,,,,,"",,,,"f2d6f6aa-6865-4b14-9c55-25ef58145e22",1055,"","DES-28",
+"DES-29","umbral-equipo-12","HU-21B - Auditoría de cambios de estado de sesión","## What to build
+
+Registrar cada cambio de estado de una sesión con fecha, usuario responsable y motivo cuando aplique.
+
+## Acceptance criteria
+
+- [ ] Cada cambio de estado queda registrado con fecha y hora.
+- [ ] Cada cambio registra el usuario responsable.
+- [ ] Cuando aplique, el cambio conserva el motivo asociado.
+- [ ] El historial de cambios puede consultarse posteriormente.
+
+## Blocked by
+
+HU-21A","Backlog",,"High","fb419a0e-c700-4169-8801-21490db42f94","Umbral Proyecto Desarrollo - Equipo 12","samuelpl0888@gmail.com",,"Feature, svc:scoring-monitoring-service, svc:session-operations-service",,,,,"2026-05-23T21:25:23.098Z","2026-05-23T21:33:40.197Z",,,,,,,,"",,,,"f5259561-6696-4dc3-8778-1d346e849374",1055,"","DES-28",
+"DES-28","umbral-equipo-12","HU-21A - Transiciones válidas de estado de sesión","## What to build
+
+Implementar la máquina de estados de sesión con transiciones permitidas para programada, en preparación, activa, pausada, finalizada y cancelada.
+
+## Acceptance criteria
+
+- [ ] La sesión expone al menos los estados programada, en preparación, activa, pausada, finalizada y cancelada.
+- [ ] El operador solo puede ejecutar cambios de estado permitidos.
+- [ ] El sistema rechaza transiciones inválidas e informa el motivo.
+- [ ] Las reglas de transición aplican de forma consistente en toda la operación.
+
+## Blocked by
+
+HU-15, HU-16, HU-18, HU-19","Backlog",,"High","fb419a0e-c700-4169-8801-21490db42f94","Umbral Proyecto Desarrollo - Equipo 12","samuelpl0888@gmail.com",,"Feature, svc:session-operations-service",,,,,"2026-05-23T21:25:21.472Z","2026-05-23T21:33:38.639Z",,,,,,,,"",,,,"692065ce-6115-47c4-99e9-9872b2fd2db1",1055,"","DES-22, DES-23, DES-26, DES-25",
+"DES-27","umbral-equipo-12","HU-20 - Consulta de sesiones asignadas","## What to build
+
+Permitir al operador consultar la lista de sesiones que tiene asignadas con su contexto operativo relevante.
+
+## Acceptance criteria
+
+- [ ] El operador puede consultar la lista de sesiones asignadas.
+- [ ] El operador no puede administrar sesiones fuera de su autorización.
+- [ ] Cada sesión muestra estado, fuente de contenido, equipos asociados y contexto operativo.
+- [ ] Las sesiones finalizadas o canceladas pueden consultarse en modo lectura si la política lo permite.
+
+## Blocked by
+
+HU-19","Backlog",,"High","fb419a0e-c700-4169-8801-21490db42f94","Umbral Proyecto Desarrollo - Equipo 12","samuelpl0888@gmail.com",,"Feature, svc:identity-access-service, svc:session-operations-service",,,,,"2026-05-23T21:25:19.359Z","2026-05-23T21:33:36.904Z",,,,,,,,"",,,,"7d667b13-f0b8-4c67-92c9-22e1aea7e873",1055,"","DES-26",
+"DES-26","umbral-equipo-12","HU-19 - Asignación de operador a sesión","## What to build
+
+Permitir al administrador asignar o cambiar el operador responsable de una sesión y registrar esa responsabilidad para auditoría.
+
+## Acceptance criteria
+
+- [ ] El administrador puede asignar o cambiar el operador responsable de una sesión.
+- [ ] Una sesión puede quedar asociada a un operador responsable.
+- [ ] El operador solo puede administrar sesiones asignadas o visibles según la política definida.
+- [ ] La asignación queda registrada para auditoría.
+
+## Blocked by
+
+HU-03, HU-15, HU-16","Backlog",,"High","fb419a0e-c700-4169-8801-21490db42f94","Umbral Proyecto Desarrollo - Equipo 12","samuelpl0888@gmail.com",,"Feature, svc:identity-access-service, svc:session-operations-service",,,,,"2026-05-23T21:25:18.070Z","2026-05-23T21:33:35.550Z",,,,,,,,"",,,,"3a7445a7-5b9b-462f-8a60-0523f0425f45",1055,"","DES-22, DES-7, DES-23",
+"DES-25","umbral-equipo-12","HU-18 - Asociación de equipos a sesiones","## What to build
+
+Permitir al operador agregar equipos registrados y activos a una sesión programada antes de su inicio.
+
+## Acceptance criteria
+
+- [ ] El operador puede agregar equipos registrados y activos a una sesión programada.
+- [ ] El sistema permite consultar qué equipos están asociados a cada sesión.
+- [ ] Una sesión no puede iniciar si no tiene al menos un equipo asociado.
+- [ ] La asignación de equipos queda persistida antes del inicio de la sesión.
+
+## Blocked by
+
+HU-04, HU-15, HU-16","Backlog",,"High","fb419a0e-c700-4169-8801-21490db42f94","Umbral Proyecto Desarrollo - Equipo 12","samuelpl0888@gmail.com",,"Feature, svc:identity-access-service, svc:session-operations-service",,,,,"2026-05-23T21:25:16.885Z","2026-05-23T21:33:33.914Z",,,,,,,,"",,,,"145ff379-12ff-4870-8520-c27e82eccb1c",1055,"","DES-8, DES-23, DES-22",
+"DES-24","umbral-equipo-12","HU-17 - Creación de sesión desde una única fuente","## What to build
+
+Asegurar que cada sesión se cree desde exactamente una única fuente de contenido, ya sea misión o quiz publicado.
+
+## Acceptance criteria
+
+- [ ] El sistema permite crear una sesión desde exactamente una fuente de contenido.
+- [ ] Una sesión de misión solo puede originarse desde una misión activa.
+- [ ] Una sesión de trivia solo puede originarse desde un quiz publicado.
+- [ ] El sistema impide crear una sesión mezclando misión y quiz.
+
+## Blocked by
+
+HU-15, HU-16","Backlog",,"High","fb419a0e-c700-4169-8801-21490db42f94","Umbral Proyecto Desarrollo - Equipo 12","samuelpl0888@gmail.com",,"Feature, svc:mission-design-service, svc:session-operations-service",,,,,"2026-05-23T21:24:36.926Z","2026-05-23T21:33:31.623Z",,,,,,,,"",,,,"7a5fdc27-78a5-488f-bb24-72c9c89f83c1",1056,"","DES-23, DES-22",
+"DES-23","umbral-equipo-12","HU-16 - Creación de sesiones trivia","## What to build
+
+Permitir crear sesiones de trivia usando únicamente quizzes publicados y generando una copia fija del quiz al crear la sesión.
+
+## Acceptance criteria
+
+- [ ] El operador solo puede seleccionar quizzes publicados al crear una sesión trivia.
+- [ ] El sistema genera una copia fija del quiz al crear la sesión.
+- [ ] La sesión queda asociada a un único quiz fuente.
+- [ ] El sistema impide crear sesiones trivia desde quizzes en borrador o archivados.
+
+## Blocked by
+
+HU-11, HU-12, HU-14A, HU-14B","Backlog",,"High","fb419a0e-c700-4169-8801-21490db42f94","Umbral Proyecto Desarrollo - Equipo 12","samuelpl0888@gmail.com",,"Feature, svc:mission-design-service, svc:session-operations-service",,,,,"2026-05-23T21:24:35.847Z","2026-05-23T21:33:30.269Z",,,,,,,,"",,,,"7ca57c72-b9d1-4ca9-b08d-a4dfb92bfe25",1056,"","DES-18, DES-21, DES-17, DES-20",
+"DES-22","umbral-equipo-12","HU-15 - Creación de sesión de misión desde misión activa","## What to build
+
+Permitir crear una sesión de misión seleccionando únicamente misiones activas y guardando una copia base del contenido al momento de la creación.
+
+## Acceptance criteria
+
+- [ ] El operador solo puede seleccionar misiones activas para crear una sesión.
+- [ ] El sistema rechaza la creación desde misiones desactivadas.
+- [ ] La sesión creada queda asociada a una única misión fuente.
+- [ ] La sesión conserva una copia base de la misión al momento de su creación.
+
+## Blocked by
+
+HU-09, HU-10A, HU-10B","Backlog",,"High","fb419a0e-c700-4169-8801-21490db42f94","Umbral Proyecto Desarrollo - Equipo 12","samuelpl0888@gmail.com",,"Feature, svc:mission-design-service, svc:session-operations-service",,,,,"2026-05-23T21:24:32.019Z","2026-05-23T21:33:28.250Z",,,,,,,,"",,,,"120772e2-2640-486f-9a4a-803c6d22a271",1056,"","DES-16, DES-14, DES-15",
+"DES-21","umbral-equipo-12","HU-14B - Reglas de validación de preguntas de trivia","## What to build
+
+Validar que cada pregunta de trivia cumpla los rangos permitidos de opciones, puntaje y tiempo antes de considerarse jugable.
+
+## Acceptance criteria
+
+- [ ] Cada pregunta debe tener entre 2 y 4 opciones de respuesta.
+- [ ] Cada pregunta debe tener exactamente una opción correcta.
+- [ ] Cada pregunta debe tener puntaje dentro del rango permitido.
+- [ ] Cada pregunta debe tener temporizador dentro del rango permitido.
+
+## Blocked by
+
+HU-14A","Backlog",,"High","fb419a0e-c700-4169-8801-21490db42f94","Umbral Proyecto Desarrollo - Equipo 12","samuelpl0888@gmail.com",,"Feature, svc:mission-design-service",,,,,"2026-05-23T21:24:30.339Z","2026-05-23T21:33:17.440Z",,,,,,,,"",,,,"7b34a20a-a59e-4ea2-a868-0f857a2f7f64",1056,"","DES-20",
+"DES-20","umbral-equipo-12","HU-14A - Gestión de preguntas y opciones de trivia","## What to build
+
+Permitir cargar preguntas de trivia con opciones, respuesta correcta, puntaje, temporizador y explicación opcional.
+
+## Acceptance criteria
+
+- [ ] El administrador puede crear preguntas asociadas a un quiz.
+- [ ] Cada pregunta puede registrar entre 2 y 4 opciones de respuesta.
+- [ ] Cada pregunta define exactamente una opción correcta.
+- [ ] La explicación es opcional y se almacena junto a la pregunta.
+
+## Blocked by
+
+HU-11","Backlog",,"High","fb419a0e-c700-4169-8801-21490db42f94","Umbral Proyecto Desarrollo - Equipo 12","samuelpl0888@gmail.com",,"Feature, svc:mission-design-service",,,,,"2026-05-23T21:24:29.250Z","2026-05-23T21:33:15.564Z",,,,,,,,"",,,,"22adcd0a-9ab0-4af6-9669-321717443631",1056,"","DES-17",
+"DES-18","umbral-equipo-12","HU-12 - Publicación y archivado de quizzes de trivia","## What to build
+
+Controlar el ciclo de vida de quizzes para que solo el contenido válido y publicado pueda usarse en sesiones de trivia.
+
+## Acceptance criteria
+
+- [ ] El sistema solo permite publicar quizzes que cumplan las reglas de validez definidas.
+- [ ] Solo quizzes publicados pueden usarse para crear sesiones de trivia.
+- [ ] Quizzes en borrador o archivados no pueden usarse para crear sesiones.
+- [ ] El estado del quiz se refleja correctamente en las vistas de administración y operación.
+
+## Blocked by
+
+HU-11, HU-14A, HU-14B","Backlog",,"High","fb419a0e-c700-4169-8801-21490db42f94","Umbral Proyecto Desarrollo - Equipo 12","samuelpl0888@gmail.com",,"Feature, svc:mission-design-service",,,,,"2026-05-23T21:24:25.295Z","2026-05-23T21:33:12.565Z",,,,,,,,"",,,,"470e8be9-fee8-4269-8383-bd8fc54df46e",1056,"","DES-21, DES-17, DES-20",
+"DES-17","umbral-equipo-12","HU-11 - Creación y edición de quizzes de trivia","## What to build
+
+Permitir crear y editar quizzes de trivia mientras su estado lo permita, conservando la información base y sus preguntas.
+
+## Acceptance criteria
+
+- [ ] El administrador puede crear un nuevo quiz de trivia.
+- [ ] El sistema permite editar un quiz mientras su estado lo permita.
+- [ ] El quiz conserva su información básica y sus preguntas asociadas.
+- [ ] Los cambios quedan disponibles para consulta antes de su publicación.
+
+## Blocked by
+
+None - can start immediately","Backlog",,"High","fb419a0e-c700-4169-8801-21490db42f94","Umbral Proyecto Desarrollo - Equipo 12","samuelpl0888@gmail.com",,"Feature, svc:mission-design-service",,,,,"2026-05-23T21:24:23.760Z","2026-05-23T21:24:23.760Z",,,,,,,,"",,,,"5e87b16b-fc38-41a6-b65a-1aa2ce68c407",1056,"","",
+"DES-16","umbral-equipo-12","HU-10B - Validaciones estructurales de misión","## What to build
+
+Validar que la estructura de una misión rechace combinaciones inválidas y preserve la jerarquía permitida.
+
+## Acceptance criteria
+
+- [ ] El sistema impide pistas directas dentro de etapas.
+- [ ] El sistema impide subetapas dentro de subetapas.
+- [ ] El sistema impide pistas con nodos hijos.
+- [ ] El rechazo informa que la estructura propuesta es inválida.
+
+## Blocked by
+
+HU-10A","Backlog",,"High","fb419a0e-c700-4169-8801-21490db42f94","Umbral Proyecto Desarrollo - Equipo 12","samuelpl0888@gmail.com",,"Feature, svc:mission-design-service",,,,,"2026-05-23T21:24:22.541Z","2026-05-23T21:33:10.825Z",,,,,,,,"",,,,"e5b237e9-2d75-41fb-90ce-a5b884985e11",1056,"","DES-15",
+"DES-15","umbral-equipo-12","HU-10A - Estructura jerárquica de misiones","## What to build
+
+Permitir modelar misiones con nodos de tipo etapa, subetapa y pista dentro de una jerarquía acotada del dominio.
+
+## Acceptance criteria
+
+- [ ] La misión permite registrar nodos de tipo etapa, subetapa y pista.
+- [ ] Cada etapa contiene al menos una subetapa.
+- [ ] Una subetapa puede contener pistas.
+- [ ] Una pista no puede contener otros nodos.
+
+## Blocked by
+
+HU-09","Backlog",,"High","fb419a0e-c700-4169-8801-21490db42f94","Umbral Proyecto Desarrollo - Equipo 12","samuelpl0888@gmail.com",,"Feature, svc:mission-design-service",,,,,"2026-05-23T21:24:21.083Z","2026-05-23T21:33:08.400Z",,,,,,,,"",,,,"330fe237-c4e3-4802-9781-dfc269135541",1056,"","DES-14",
+"DES-14","umbral-equipo-12","HU-09 - Gestión de misiones","## What to build
+
+Permitir al administrador crear, consultar, editar y desactivar misiones que sirven como contenido base para sesiones.
+
+## Acceptance criteria
+
+- [ ] El administrador puede crear una misión con sus datos básicos.
+- [ ] El administrador puede consultar y editar misiones existentes.
+- [ ] El administrador puede desactivar una misión sin eliminar su historial de uso.
+- [ ] Una misión desactivada no puede usarse para crear nuevas sesiones de misión.
+
+## Blocked by
+
+None - can start immediately","Backlog",,"High","fb419a0e-c700-4169-8801-21490db42f94","Umbral Proyecto Desarrollo - Equipo 12","samuelpl0888@gmail.com",,"Feature, svc:mission-design-service",,,,,"2026-05-23T21:23:43.025Z","2026-05-23T21:23:43.025Z",,,,,,,,"",,,,"33b83a8a-efbb-42fc-9184-9c4a21cbe08c",1056,"","",
+"DES-13","umbral-equipo-12","HU-08 - Sincronización multi-dispositivo del equipo","## What to build
+
+Sincronizar progreso, puntaje y estado de juego entre los dispositivos autorizados de un mismo equipo.
+
+## Acceptance criteria
+
+- [ ] El sistema sincroniza progreso, puntaje y estado de juego entre dispositivos del mismo equipo.
+- [ ] Un cambio relevante hecho por un integrante se refleja en los demás dispositivos autorizados.
+- [ ] La reconexión restituye el estado vigente del equipo.
+- [ ] La sincronización no mezcla el estado entre equipos distintos.
+
+## Blocked by
+
+HU-07A, HU-07B","Backlog",,"High","fb419a0e-c700-4169-8801-21490db42f94","Umbral Proyecto Desarrollo - Equipo 12","samuelpl0888@gmail.com",,"Feature, svc:identity-access-service, svc:session-operations-service",,,,,"2026-05-23T21:23:41.661Z","2026-05-23T21:33:06.924Z",,,,,,,,"",,,,"2cf9fcc3-3886-4fbd-9923-1b162a0a64a4",1057,"","DES-12, DES-11",
+"DES-12","umbral-equipo-12","HU-07B - Reconexión autorizada del participante","## What to build
+
+Permitir que un participante ya autorizado retome la sesión y recupere el estado vigente de su equipo tras una desconexión.
+
+## Acceptance criteria
+
+- [ ] Un participante autorizado puede reconectarse a una sesión activa.
+- [ ] Al reconectar, el participante recupera el estado vigente del equipo.
+- [ ] En trivia, no se permite late join después del inicio salvo reconexión de participantes ya autorizados.
+- [ ] La reconexión no expone contexto de otros equipos.
+
+## Blocked by
+
+HU-07A","Backlog",,"High","fb419a0e-c700-4169-8801-21490db42f94","Umbral Proyecto Desarrollo - Equipo 12","samuelpl0888@gmail.com",,"Feature, svc:identity-access-service, svc:session-operations-service",,,,,"2026-05-23T21:23:40.450Z","2026-05-23T21:33:05.376Z",,,,,,,,"",,,,"38019356-cdc6-4cf6-9cb6-3b6d946a9311",1057,"","DES-11",
+"DES-11","umbral-equipo-12","HU-07A - Validación de membresía del participante en sesión","## What to build
+
+Validar que un participante autenticado solo pueda entrar al equipo que le corresponde dentro de una sesión activa.
+
+## Acceptance criteria
+
+- [ ] El sistema valida que el participante autenticado pertenezca al equipo correspondiente.
+- [ ] El participante solo puede acceder al contexto de su propio equipo.
+- [ ] El sistema impide el acceso a equipos o sesiones fuera de autorización.
+- [ ] La validación aplica antes de exponer estado compartido del equipo.
+
+## Blocked by
+
+HU-05, HU-06","Backlog",,"High","fb419a0e-c700-4169-8801-21490db42f94","Umbral Proyecto Desarrollo - Equipo 12","samuelpl0888@gmail.com",,"Feature, svc:identity-access-service, svc:session-operations-service",,,,,"2026-05-23T21:23:38.920Z","2026-05-23T21:33:03.942Z",,,,,,,,"",,,,"eeb78b96-eace-420b-84bf-b1a4b85dcda9",1057,"","DES-10, DES-9",
+"DES-10","umbral-equipo-12","HU-06 - Inicio de sesión de participantes","## What to build
+
+Permitir el inicio de sesión de participantes desde el cliente móvil, restringiendo el acceso a usuarios con rol participante.
+
+## Acceptance criteria
+
+- [ ] Cada participante debe iniciar sesión antes de acceder al flujo de juego.
+- [ ] El acceso al cliente móvil queda restringido a usuarios con rol participante.
+- [ ] Un participante autenticado accede solo a funcionalidades permitidas para su rol.
+- [ ] El sistema impide el acceso a usuarios no autenticados o desactivados.
+
+## Blocked by
+
+HU-01","Backlog",,"High","fb419a0e-c700-4169-8801-21490db42f94","Umbral Proyecto Desarrollo - Equipo 12","samuelpl0888@gmail.com",,"Feature, svc:identity-access-service",,,,,"2026-05-23T21:23:37.756Z","2026-05-23T21:33:00.084Z",,,,,,,,"",,,,"34b59fed-f464-4aac-aba1-8b1b283b841c",1057,"","DES-5",
+"DES-9","umbral-equipo-12","HU-05 - Asignación de participantes a equipos","## What to build
+
+Permitir al administrador asociar participantes registrados a equipos activos y consultar la membresía de cada equipo.
+
+## Acceptance criteria
+
+- [ ] El administrador puede asociar participantes registrados a un equipo activo.
+- [ ] Un participante asignado queda vinculado al equipo correspondiente.
+- [ ] El sistema permite consultar los participantes asociados a cada equipo.
+- [ ] El sistema impide que participantes accedan al contexto de un equipo que no les corresponde.
+
+## Blocked by
+
+None - can start immediately","Backlog",,"High","fb419a0e-c700-4169-8801-21490db42f94","Umbral Proyecto Desarrollo - Equipo 12","samuelpl0888@gmail.com",,"Feature, svc:identity-access-service",,,,,"2026-05-23T21:23:36.284Z","2026-05-23T21:23:36.284Z",,,,,,,,"",,,,"22d9f7cd-6b55-4d02-a163-3457546c54d6",1057,"","",
+"DES-8","umbral-equipo-12","HU-04 - Registro y mantenimiento de equipos","## What to build
+
+Permitir al administrador crear, consultar, editar y desactivar equipos participantes disponibles para sesiones.
+
+## Acceptance criteria
+
+- [ ] El administrador puede crear, consultar y editar equipos.
+- [ ] Cada equipo mantiene un identificador y datos básicos visibles para operación.
+- [ ] El administrador puede desactivar equipos sin eliminar su trazabilidad histórica.
+- [ ] Solo equipos activos pueden asociarse a nuevas sesiones.
+
+## Blocked by
+
+None - can start immediately","Backlog",,"High","fb419a0e-c700-4169-8801-21490db42f94","Umbral Proyecto Desarrollo - Equipo 12","samuelpl0888@gmail.com",,"Feature, svc:identity-access-service",,,,,"2026-05-23T21:23:34.393Z","2026-05-23T21:23:34.393Z",,,,,,,,"",,,,"82cf8644-153b-4a31-a791-707b72e471ed",1057,"","",
+"DES-7","umbral-equipo-12","HU-03 - Asignación de roles y permisos","## What to build
+
+Permitir al administrador asignar o cambiar roles de usuarios autorizados y aplicar permisos base por rol en toda la plataforma.
+
+## Acceptance criteria
+
+- [ ] El administrador puede asignar o cambiar el rol de un usuario autorizado.
+- [ ] Cada rol posee permisos base asociados según la matriz definida.
+- [ ] El sistema muestra funcionalidades según el rol autenticado.
+- [ ] El sistema bloquea acciones no permitidas incluso ante acceso directo a rutas o endpoints.
+
+## Blocked by
+
+None - can start immediately","Backlog",,"High","fb419a0e-c700-4169-8801-21490db42f94","Umbral Proyecto Desarrollo - Equipo 12","samuelpl0888@gmail.com",,"Feature, svc:identity-access-service",,,,,"2026-05-23T21:23:32.964Z","2026-05-23T21:23:32.964Z",,,,,,,,"",,,,"43f6e31e-d69c-4b0f-9617-ecb9da203814",1057,"","",
+"DES-6","umbral-equipo-12","HU-02 - Gestión de acceso de usuarios","## What to build
+
+Permitir al administrador consultar usuarios registrados y desactivar su acceso sin perder trazabilidad histórica.
+
+## Acceptance criteria
+
+- [ ] El administrador puede consultar información de usuarios registrados.
+- [ ] El administrador puede desactivar el acceso de un usuario sin eliminar su historial.
+- [ ] Un usuario desactivado no puede iniciar sesión.
+- [ ] Un usuario desactivado no puede acceder a funcionalidades protegidas.
+
+## Blocked by
+
+None - can start immediately","Backlog",,"High","fb419a0e-c700-4169-8801-21490db42f94","Umbral Proyecto Desarrollo - Equipo 12","samuelpl0888@gmail.com",,"Feature, svc:identity-access-service",,,,,"2026-05-23T21:23:28.833Z","2026-05-23T21:23:28.833Z",,,,,,,,"",,,,"666f9967-c052-4921-9460-bc34159f0729",1057,"","",
+"DES-5","umbral-equipo-12","HU-01 - Inicio de sesión general de usuarios","## What to build
+
+Implementar el inicio de sesión para usuarios registrados y el control de acceso a funcionalidades protegidas según el rol autenticado.
+
+## Acceptance criteria
+
+- [ ] Un usuario registrado puede iniciar sesión con credenciales válidas.
+- [ ] El sistema identifica el rol del usuario autenticado.
+- [ ] El sistema bloquea usuarios no autenticados o desactivados.
+- [ ] El usuario autenticado solo puede acceder a funcionalidades permitidas por su rol.
+
+## Blocked by
+
+None - can start immediately","Backlog",,"High","fb419a0e-c700-4169-8801-21490db42f94","Umbral Proyecto Desarrollo - Equipo 12","samuelpl0888@gmail.com",,"Feature, svc:identity-access-service",,,,,"2026-05-23T21:23:26.263Z","2026-05-23T21:23:26.263Z",,,,,,,,"",,,,"3ccbf0de-3bb6-47e9-b7a1-5bba42d5bd34",1057,"","",
+"DES-61","umbral-equipo-12","ENABLER - Consultas separadas de comandos","## What to build
+
+Implementar consultas de misiones, sesiones, equipos y ranking separadas de los flujos de escritura siguiendo el enfoque CQRS requerido.
+
+## Acceptance criteria
+
+- [ ] El sistema permite consultar misiones sin ejecutar comandos de modificación.
+- [ ] El sistema permite consultar sesiones y equipos desde flujos de lectura dedicados.
+- [ ] El ranking puede recuperarse mediante una consulta específica.
+- [ ] Las consultas exponen información coherente con el estado persistido del sistema.
+
+## Blocked by
+
+HU-25A, HU-25B, HU-39A, HU-39B","Backlog",,"Medium","fb419a0e-c700-4169-8801-21490db42f94","Umbral Proyecto Desarrollo - Equipo 12","samuelpl0888@gmail.com",,"Improvement, svc:cross-service",,,,,"2026-05-23T21:28:05.173Z","2026-05-23T21:35:26.185Z",,,,,,,,"",,,,"4d38356d-d1eb-4664-88dc-613bc0994995",1052,"","DES-34, DES-35, DES-54, DES-55",
+"DES-60","umbral-equipo-12","ENABLER - Publicación de eventos de dominio a RabbitMQ","## What to build
+
+Desacoplar procesos secundarios mediante eventos publicados cuando ocurren evidencias o cambios significativos de sesión, demostrando al menos un workflow end-to-end.
+
+## Acceptance criteria
+
+- [ ] Al registrarse una evidencia, el sistema publica un evento de dominio correspondiente.
+- [ ] Al ocurrir cambios significativos de sesión, el sistema publica eventos asociados.
+- [ ] La publicación de eventos no reemplaza la persistencia principal del negocio.
+- [ ] Los eventos publicados pueden ser consumidos por flujos secundarios de auditoría, notificación y recálculo secundario o soporte de proyecciones.
+- [ ] Se demuestra al menos un workflow relevante, por ejemplo EvidenceSubmissionRegistered publicado tras éxito transaccional y consumido por audit/history, notification y secondary recalculation/projection.
+
+## Blocked by
+
+HU-29, HU-30A, HU-37A, HU-40A","Backlog",,"Medium","fb419a0e-c700-4169-8801-21490db42f94","Umbral Proyecto Desarrollo - Equipo 12","samuelpl0888@gmail.com",,"Improvement, svc:cross-service, svc:scoring-monitoring-service, svc:session-operations-service",,,,,"2026-05-23T21:28:03.976Z","2026-05-23T21:35:24.515Z",,,,,,,,"",,,,"98cf41f0-14d6-44e5-ad60-1fc5a6992ca3",1052,"","DES-40, DES-39, DES-56, DES-51",
+"DES-50","umbral-equipo-12","HU-36B - Revisión post-cierre de respuestas y puntos en trivia","## What to build
+
+Permitir al operador revisar la respuesta enviada por cada equipo, su corrección y los puntos otorgados después del cierre de la pregunta.
+
+## Acceptance criteria
+
+- [ ] Después del cierre, el operador puede ver la respuesta enviada por cada equipo.
+- [ ] Después del cierre, el operador puede ver si la respuesta fue correcta.
+- [ ] Después del cierre, el operador puede ver los puntos otorgados.
+- [ ] La vista se actualiza durante la sesión sin recarga manual.
+
+## Blocked by
+
+HU-33B, HU-37A","Backlog",,"Medium","fb419a0e-c700-4169-8801-21490db42f94","Umbral Proyecto Desarrollo - Equipo 12","samuelpl0888@gmail.com",,"Feature, svc:scoring-monitoring-service, svc:session-operations-service",,,,,"2026-05-23T21:27:13.839Z","2026-05-23T21:34:53.722Z",,,,,,,,"",,,,"adf62e59-9d31-4829-8a06-7ad1dc5c688b",1053,"","DES-45, DES-51",
+"DES-49","umbral-equipo-12","HU-36A - Monitoreo restringido de respondido/no respondido en trivia","## What to build
+
+Permitir al operador ver durante la pregunta activa únicamente si cada equipo respondió o no respondió.
+
+## Acceptance criteria
+
+- [ ] Durante la pregunta activa, el operador ve únicamente si cada equipo respondió o no respondió.
+- [ ] Antes del cierre, el operador no puede ver la opción elegida por el equipo.
+- [ ] La vista de monitoreo se actualiza durante la sesión sin recarga manual.
+- [ ] El monitoreo respeta las sesiones autorizadas del operador.
+
+## Blocked by
+
+HU-33A, HU-34A","Backlog",,"Medium","fb419a0e-c700-4169-8801-21490db42f94","Umbral Proyecto Desarrollo - Equipo 12","samuelpl0888@gmail.com",,"Feature, svc:session-operations-service",,,,,"2026-05-23T21:27:12.457Z","2026-05-23T21:34:52.364Z",,,,,,,,"",,,,"ea1d3918-33fd-4ba2-9cd9-0730e3482896",1053,"","DES-44, DES-46",
+"DES-48","umbral-equipo-12","HU-35 - Revelación de resultado y explicación en trivia","## What to build
+
+Mostrar al participante el resultado de cada ronda de trivia, incluyendo respuesta correcta, explicación opcional y estado de acierto del equipo.
+
+## Acceptance criteria
+
+- [ ] Al cerrarse la pregunta, el sistema revela cuál era la opción correcta.
+- [ ] Si existe explicación configurada, el participante puede verla tras el cierre.
+- [ ] El sistema informa si la respuesta del equipo fue correcta o incorrecta.
+- [ ] Después del cierre, el equipo puede ver el ranking actualizado.
+
+## Blocked by
+
+HU-33B, HU-39B","Backlog",,"Medium","fb419a0e-c700-4169-8801-21490db42f94","Umbral Proyecto Desarrollo - Equipo 12","samuelpl0888@gmail.com",,"Feature, svc:scoring-monitoring-service, svc:session-operations-service",,,,,"2026-05-23T21:27:11.249Z","2026-05-23T21:34:50.856Z",,,,,,,,"",,,,"2168260e-dcac-4515-bad5-6590cca592a3",1053,"","DES-45, DES-55",
+"DES-38","umbral-equipo-12","HU-28 - Agregar pistas operativas durante sesión en vivo","## What to build
+
+Permitir al operador agregar pistas operativas durante una sesión de misión activa o pausada sin modificar la misión original.
+
+## Acceptance criteria
+
+- [ ] El operador puede agregar una pista operativa durante una sesión de misión activa o pausada.
+- [ ] La pista agregada queda asociada solo a la sesión en curso.
+- [ ] La pista agregada puede asignarse a uno o varios equipos según corresponda.
+- [ ] La creación de la pista queda registrada en el historial de la sesión.
+
+## Blocked by
+
+HU-21A, HU-22, HU-23","Backlog",,"Medium","fb419a0e-c700-4169-8801-21490db42f94","Umbral Proyecto Desarrollo - Equipo 12","samuelpl0888@gmail.com",,"Feature, svc:session-operations-service",,,,,"2026-05-23T21:26:15.581Z","2026-05-23T21:34:11.108Z",,,,,,,,"",,,,"e816eff4-a14b-4145-9b08-3d4ce162fc21",1054,"","DES-28, DES-31, DES-30",
+"DES-37","umbral-equipo-12","HU-27 - Liberación condicionada por reglas de avance","## What to build
+
+Permitir que algunas pistas se habiliten automáticamente cuando se cumplan condiciones de avance definidas para el equipo dentro de la sesión.
+
+## Acceptance criteria
+
+- [ ] El sistema puede habilitar una pista cuando se cumple una condición de avance definida.
+- [ ] La habilitación automática respeta el contexto del equipo dentro de la sesión.
+- [ ] Si la pista ya fue completada, el sistema no la libera nuevamente.
+- [ ] Toda habilitación automática queda registrada con su contexto de origen.
+
+## Blocked by
+
+HU-21A, HU-23, HU-26","Backlog",,"Medium","fb419a0e-c700-4169-8801-21490db42f94","Umbral Proyecto Desarrollo - Equipo 12","samuelpl0888@gmail.com",,"Feature, svc:session-operations-service",,,,,"2026-05-23T21:26:14.282Z","2026-05-23T21:34:07.915Z",,,,,,,,"",,,,"3aedfdcc-15a0-4df2-ba21-4d7e3d16acd5",1054,"","DES-31, DES-28, DES-36",
+"DES-19","umbral-equipo-12","HU-13 - Duplicación y retiro de quizzes usados","## What to build
+
+Permitir duplicar quizzes existentes y retirar de uso quizzes ya utilizados sin perder su trazabilidad histórica.
+
+## Acceptance criteria
+
+- [ ] El administrador puede duplicar un quiz existente para reutilizar su estructura.
+- [ ] Un quiz usado en una sesión no puede eliminarse del sistema.
+- [ ] Los quizzes usados pueden retirarse mediante archivado o desactivación.
+- [ ] La trazabilidad histórica del quiz original se conserva.
+
+## Blocked by
+
+HU-11, HU-12","Backlog",,"Medium","fb419a0e-c700-4169-8801-21490db42f94","Umbral Proyecto Desarrollo - Equipo 12","samuelpl0888@gmail.com",,"Feature, svc:mission-design-service",,,,,"2026-05-23T21:24:26.758Z","2026-05-23T21:33:14.123Z",,,,,,,,"",,,,"433fa4b2-e352-4c36-8ccb-47471c18cc4d",1056,"","DES-18, DES-17",
