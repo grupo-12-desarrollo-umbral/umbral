@@ -110,3 +110,26 @@ UserAccessCatalog is the domain capability behind the future `GET /api/users` li
 
 **Next session needs to know**
 "In this slice, 'catalog' means the registered-user listing for access management." — `UserAccessCatalog` is the authorization concept only; the read model and API surface come in later phases. Phase X.2 (Application layer for HU-02) should add the `GetUsersListingQuery` handler and extend the existing `IUserRepository` with a paginated search method.
+
+---
+
+## [006] HU-02 Phase X.2 — User Management Application Layer
+**Date:** 2026-05-30
+**Phase:** X.2 — Application Layer (HU-02)
+**Commits:** 5913c88
+**HU tickets advanced:** HU-02, DES-67
+
+**What was built**
+Application-layer handlers for HU-02 user management: `DeactivateUserCommandHandler` (soft deactivation with idempotency guard), `GetUsersQueryHandler` (paginated user listing with role-based filtering for admins/operators), their FluentValidation validators, and 4 unit test files covering: successful deactivation, idempotent re-deactivation, user listing by admin/operator, and deactivated-user rejection at authentication and protected operation. The `IUserRepository` contract was extended with `GetByIdAsync`, `GetAllAsync`, and `GetCountAsync`.
+
+**Why this approach**
+Deactivation is a soft-tombstone (IsActive = false) rather than a delete — history is preserved, and the domain entity already guards against duplicate deactivation (see Domain layer). The listing query uses pagination from the start (`PagedResult<T>`, offset/limit) rather than returning unbounded results, which avoids a breaking change later. Role-based filtering (`administrator` sees all, `operator` sees all except other operators/admins) was kept simple: operators only see participants, matching the PRD's access-management intent without adding a full RBAC query engine.
+
+**Deliberately skipped**
+- `PUT /api/users` or profile-editing endpoints — not in HU-02 scope
+- Hard deletion or GDPR cleanup — deactivation is reversible; permanent removal is a separate concern
+- API/gateway wiring for the new endpoints — belongs to a future Phase X.4+
+- Frontend work — entirely out of scope
+
+**Next session needs to know**
+The application-layer gate passes: clean build, 67/67 unit tests green. The next slice should wire the `GET /api/users` and `PATCH /api/users/{id}/deactivate` endpoints in the API layer and extend integration tests. If Keycloak admin API integration is needed for true deactivation, that's a separate infrastructure concern.
