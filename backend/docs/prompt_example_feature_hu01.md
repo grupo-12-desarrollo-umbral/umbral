@@ -106,6 +106,11 @@ Then run: `/debrief`
 ## 6. Backend phase X.2 — Application layer
 
 ```
+If this is a new session, use the Linear MCP to resolve the active slice before starting:
+- fetch issues labeled svc:identity-access-service with state In Progress
+- confirm the HU ticket id and the DES PRD reference
+- output both ids before proceeding
+
 Use @backend/.agents/backend-agent.md.
 Implement backend phase X.2 for HU-01 in identity-access-service.
 Use the service PRD and canonical docs.
@@ -139,6 +144,11 @@ Then run: `/debrief`
 ## 7. Backend phase X.3 — Infrastructure layer
 
 ```
+If this is a new session, use the Linear MCP to resolve the active slice before starting:
+- fetch issues labeled svc:identity-access-service with state In Progress
+- confirm the HU ticket id and the DES PRD reference
+- output both ids before proceeding
+
 Use @backend/.agents/backend-agent.md.
 Implement backend phase X.3 for HU-01 in identity-access-service.
 Use the service PRD and canonical docs.
@@ -172,6 +182,11 @@ Then run: `/debrief`
 ## 8. Backend phase X.4 — API layer
 
 ```
+If this is a new session, use the Linear MCP to resolve the active slice before starting:
+- fetch issues labeled svc:identity-access-service with state In Progress
+- confirm the HU ticket id and the DES PRD reference
+- output both ids before proceeding
+
 Use @backend/.agents/backend-agent.md.
 Implement backend phase X.4 for HU-01 in identity-access-service.
 Use the service PRD and canonical docs.

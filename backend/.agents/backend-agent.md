@@ -152,6 +152,8 @@ Linear tracks only HU (user story) tickets. Phase issues do not exist in Linear.
 
 **Commit `Ref:` field:** list only the HU ticket IDs resolved for the current slice. Never hardcode issue IDs — query Linear before phase 1.1 and carry the resolved slice HU list through all four phases.
 
+**Resuming in a new session (phases 1.2–1.4):** if the session has no memory of the resolved HU ids, fetch issues labeled `svc:<service>` with state `In Progress` from Linear to recover the active slice ids before writing any code.
+
 ---
 
 ## Skills available
