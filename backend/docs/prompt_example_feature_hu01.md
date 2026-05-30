@@ -265,7 +265,7 @@ Then run: `/debrief`
 
 ---
 
-## 11. Frontend slice
+## 11. Frontend slice (OpenCode)
 
 ```
 Use @frontend/AGENTS.md.
