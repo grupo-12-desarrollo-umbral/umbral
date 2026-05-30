@@ -14,6 +14,7 @@ Read it together with:
 - `docs/adr/001_platform_shape_adr.md`
 - `docs/adr/0001-gateway-central-jwt-validation.md`
 - `docs/adr/0002-websocket-token-extraction-at-gateway.md`
+- `docs/adr/0004-required-domain-patterns.md`
 - `CONTEXT-MAP.md`
 - `mission-design-service/CONTEXT.md`
 - `session-operations-service/CONTEXT.md`
@@ -363,6 +364,18 @@ Repository interfaces are defined around aggregate roots and clearly owned proje
 
 These are domain-level rules that should not be diluted into controllers or infrastructure adapters.
 
+Required implementation patterns from ADR-0004 apply here:
+
+- `Strategy` for difficulty-based and mode-specific scoring policies instead of handler branching
+- `Composite` for hierarchical mission authoring structures
+- `Facade` for a narrow application-level coordination service that orchestrates session operations and outbound event publication
+- `Proxy` for service-side and presentation-side access guards
+- `Template Method` for stable validation flows with mode-specific extension points
+- `State` for `LiveSession` lifecycle enforcement
+- `Chain of Responsibility` for composed validation pipelines around submissions and transitions
+
+`Facade` and `Proxy` are not domain services by themselves. They are required implementation patterns around application coordination and access control that must preserve these domain rules without moving orchestration or authorization branching into handlers and endpoints.
+
 ### `MissionDesign`
 
 - `MissionActivationPolicy`
@@ -371,6 +384,14 @@ These are domain-level rules that should not be diluted into controllers or infr
   - protects mission hierarchy invariants
 - `TriviaPublicationPolicy`
   - decides whether a trivia quiz is publishable
+  - should keep a stable validation workflow and delegate variant steps through `Template Method` where mode-specific checks differ
+
+Pattern mapping:
+
+- `Composite`
+  - `Mission` owns a tree of `MissionNode` elements representing `Stage`, `Substage`, and `Clue`
+- `Template Method`
+  - structural and publication validation should keep one stable flow while allowing specialized checks
 
 ### `SessionOperations`
 
@@ -387,6 +408,19 @@ These are domain-level rules that should not be diluted into controllers or infr
 - `TargetResolutionPolicy`
   - prevents duplicate or invalid target resolution
 
+Pattern mapping:
+
+- `Facade`
+  - application-facing orchestration should be exposed through a narrow coordination service that executes session operations and triggers outbound event publication without leaking that coordination into handlers or endpoints
+- `State`
+  - `LiveSession` lifecycle transitions must be modeled explicitly through state-aware behavior
+- `Chain of Responsibility`
+  - QR submissions, trivia answers, and transition guards should compose validators instead of centralizing all branching in one handler
+- `Template Method`
+  - validation flows may keep one invariant sequence while delegating mode-specific checks
+- `Proxy`
+  - access to restricted clues, operator dashboards, protected panels, and other sensitive runtime operations should be enforced through guards before mutation paths execute or protected data is exposed
+
 ### `ScoringMonitoring`
 
 - `ScorePolicy`
@@ -396,6 +430,11 @@ These are domain-level rules that should not be diluted into controllers or infr
 - `PenaltyPolicy`
   - validates penalty eligibility and justification requirements
 
+Pattern mapping:
+
+- `Strategy`
+  - score calculation, difficulty weighting, and normalization rules should be implemented as swappable strategies instead of proliferating conditional branches
+
 ### `Identity`
 
 - `AccessPolicy`
@@ -404,6 +443,11 @@ These are domain-level rules that should not be diluted into controllers or infr
   - validates issuance, expiration, consumption, and replay constraints for join tokens
 - `IdentityProvisioningPolicy`
   - keeps application-side user/role state aligned with externalized authentication
+
+Pattern mapping:
+
+- `Proxy`
+  - service and presentation layer guards should restrict protected capabilities, restricted panels, and other sensitive resources based on role and policy facts before downstream execution
 
 ## 9. Application services derived from the backlog
 
