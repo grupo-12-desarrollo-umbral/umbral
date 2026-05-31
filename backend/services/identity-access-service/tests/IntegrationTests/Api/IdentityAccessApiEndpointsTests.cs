@@ -133,6 +133,130 @@ public sealed class IdentityAccessApiEndpointsTests : IClassFixture<PostgreSqlFi
         payload.HasNextPage.Should().BeTrue();
         payload.Items.Should().HaveCount(2);
         payload.Items.Select(user => user.DisplayName).Should().ContainInOrder("Admin User", "Catalog Operator");
+        payload.Items.Select(user => user.Role).Should().Contain(new[] { "Administrator", "Operator" });
+    }
+
+    [Fact]
+    public async Task AssignUserRole_WithAdministratorHeaders_ReturnsNoContentAndPersistsRoleChange()
+    {
+        await SeedUserAsync("kc-admin-01", "Admin User", "admin@example.com", Role.Administrator);
+        var targetUser = await SeedUserAsync("kc-target-01", "Target User", "target@example.com", Role.Operator);
+
+        AddTrustedHeaders(
+            _client,
+            userId: "kc-admin-01",
+            role: "Administrator",
+            email: "admin@example.com");
+
+        var response = await _client.PatchAsJsonAsync(
+            $"/api/users/{targetUser.Id}/role",
+            new { role = "Participant" });
+
+        response.StatusCode.Should().Be(HttpStatusCode.NoContent);
+
+        await using (var scope = _factory.Services.CreateAsyncScope())
+        {
+            var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var persistedUser = await dbContext.Users.SingleAsync(u => u.Id == targetUser.Id);
+            persistedUser.Role.Should().Be(Role.Participant);
+        }
+
+        var catalogResponse = await _client.GetAsync("/api/users?page=1&pageSize=20");
+        catalogResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var catalog = await catalogResponse.Content.ReadFromJsonAsync<PagedResponse<UserAccessCatalogItemResponse>>();
+        catalog.Should().NotBeNull();
+        catalog!.Items.Should().ContainSingle(user => user.Id == targetUser.Id && user.Role == "Participant");
+
+        AddTrustedHeaders(
+            _client,
+            userId: "kc-target-01",
+            role: "Operator",
+            email: "target@example.com");
+
+        var permissionsResponse = await _client.GetAsync("/api/permissions/authenticated-platform-access");
+
+        permissionsResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var permissionsPayload = await permissionsResponse.Content.ReadFromJsonAsync<ProtectedAccessDecisionResponse>();
+        permissionsPayload.Should().NotBeNull();
+        permissionsPayload!.Capability.Should().Be("AuthenticatedPlatformAccess");
+        permissionsPayload.IsAllowed.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task AssignUserRole_WithNonAdministratorHeaders_ReturnsForbidden()
+    {
+        await SeedUserAsync("kc-operator-01", "Operator User", "operator@example.com", Role.Operator);
+        var targetUser = await SeedUserAsync("kc-target-01", "Target User", "target@example.com", Role.Participant);
+
+        AddTrustedHeaders(
+            _client,
+            userId: "kc-operator-01",
+            role: "Operator",
+            email: "operator@example.com");
+
+        var response = await _client.PatchAsJsonAsync(
+            $"/api/users/{targetUser.Id}/role",
+            new { role = "Administrator" });
+
+        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+
+        var problem = await response.Content.ReadFromJsonAsync<ProblemDetails>();
+        problem.Should().NotBeNull();
+        problem!.Status.Should().Be(StatusCodes.Status403Forbidden);
+        problem.Title.Should().Be("Forbidden.");
+    }
+
+    [Fact]
+    public async Task AssignUserRole_WithUnknownRoleValue_ReturnsBadRequest()
+    {
+        await SeedUserAsync("kc-admin-01", "Admin User", "admin@example.com", Role.Administrator);
+        var targetUser = await SeedUserAsync("kc-target-01", "Target User", "target@example.com", Role.Operator);
+
+        AddTrustedHeaders(
+            _client,
+            userId: "kc-admin-01",
+            role: "Administrator",
+            email: "admin@example.com");
+
+        var response = await _client.PatchAsJsonAsync(
+            $"/api/users/{targetUser.Id}/role",
+            new { role = "SuperAdmin" });
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+
+        var problem = await response.Content.ReadFromJsonAsync<ProblemDetails>();
+        problem.Should().NotBeNull();
+        problem!.Status.Should().Be(StatusCodes.Status400BadRequest);
+        problem.Title.Should().Be("Validation failed.");
+        problem.Detail.Should().Contain("Role must be a known Role value.");
+    }
+
+    [Fact]
+    public async Task AssignUserRole_ForDeactivatedTarget_ReturnsUnprocessableEntity()
+    {
+        await SeedUserAsync("kc-admin-01", "Admin User", "admin@example.com", Role.Administrator);
+        var targetUser = await SeedUserAsync("kc-target-01", "Target User", "target@example.com", Role.Operator);
+        await DeactivateUserAsync(targetUser.Id);
+
+        AddTrustedHeaders(
+            _client,
+            userId: "kc-admin-01",
+            role: "Administrator",
+            email: "admin@example.com");
+
+        var response = await _client.PatchAsJsonAsync(
+            $"/api/users/{targetUser.Id}/role",
+            new { role = "Participant" });
+
+        response.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
+
+        var problem = await response.Content.ReadFromJsonAsync<ProblemDetails>();
+        problem.Should().NotBeNull();
+        problem!.Status.Should().Be(StatusCodes.Status422UnprocessableEntity);
+        problem.Title.Should().Be("Unprocessable entity.");
+        problem.Detail.Should().Contain("Target user must be active.");
     }
 
     [Fact]
@@ -229,11 +353,7 @@ public sealed class IdentityAccessApiEndpointsTests : IClassFixture<PostgreSqlFi
             "Deactivated Operator",
             "deactivated@example.com",
             Role.Operator);
-        user.DeactivateAccess();
-        await using var scope = _factory.Services.CreateAsyncScope();
-        var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        dbContext.Users.Update(user);
-        await dbContext.SaveChangesAsync();
+        await DeactivateUserAsync(user.Id);
     }
 
     private async Task<User> SeedUserAsync(string externalIdentityId, string displayName, string email, Role role)
@@ -249,6 +369,15 @@ public sealed class IdentityAccessApiEndpointsTests : IClassFixture<PostgreSqlFi
         dbContext.Users.Add(user);
         await dbContext.SaveChangesAsync();
         return user;
+    }
+
+    private async Task DeactivateUserAsync(int userId)
+    {
+        await using var scope = _factory.Services.CreateAsyncScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var user = await dbContext.Users.SingleAsync(u => u.Id == userId);
+        user.DeactivateAccess();
+        await dbContext.SaveChangesAsync();
     }
 
     private static void AddTrustedHeaders(HttpClient client, string userId, string role, string email)

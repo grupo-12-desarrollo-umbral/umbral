@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Http.HttpResults;
 using umbral_backend.Application.Common.Models;
 using umbral_backend.Application.Common.Interfaces;
+using umbral_backend.Application.Users.Commands.AssignUserRole;
 using umbral_backend.Application.Users.Commands.AuthenticateUser;
 using umbral_backend.Application.Users.Commands.DeactivateUser;
 using umbral_backend.Application.Users.DTOs;
@@ -18,6 +19,7 @@ public sealed class UsersEndpoints : IEndpointGroup
         users.MapPost("/authenticated", BootstrapAuthenticatedUserAsync);
         users.MapGet("/me", GetCurrentAuthenticatedUserAsync);
         users.MapGet(string.Empty, GetUsersAsync);
+        users.MapPatch("/{id:int}/role", AssignUserRoleAsync);
         users.MapDelete("/{id:int}/access", DeactivateUserAccessAsync);
     }
 
@@ -69,6 +71,16 @@ public sealed class UsersEndpoints : IEndpointGroup
         return TypedResults.NoContent();
     }
 
+    private static async Task<NoContent> AssignUserRoleAsync(
+        int id,
+        AssignUserRoleRequest request,
+        ISender sender,
+        CancellationToken cancellationToken)
+    {
+        await sender.Send(new AssignUserRoleCommand(id, request.Role), cancellationToken);
+        return TypedResults.NoContent();
+    }
+
     private static void EnsureTrustedIdentity(ICurrentUser currentUser)
     {
         if (string.IsNullOrWhiteSpace(currentUser.Id) ||
@@ -82,4 +94,6 @@ public sealed class UsersEndpoints : IEndpointGroup
     public sealed record BootstrapAuthenticatedUserRequest(string DisplayName);
 
     public sealed record GetUsersRequest(int Page = 1, int PageSize = 20);
+
+    public sealed record AssignUserRoleRequest(string Role);
 }
