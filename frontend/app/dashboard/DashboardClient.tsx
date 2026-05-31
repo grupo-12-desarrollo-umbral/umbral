@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useTransition } from 'react';
 import { logout } from '@/app/actions/auth';
 import { refreshSession } from '@/app/actions/session';
 import { getUsersPage, deactivateUser, assignUserRole } from '@/app/actions/users';
+import { TeamsPanel } from './TeamsPanel'
 import type { PagedResult, UserAccessCatalogItemDto } from '@/app/lib/definitions';
 import styles from './dashboard.module.css';
 
@@ -559,6 +560,8 @@ export default function DashboardClient({
             </section>
           ) : activeNav === 'users' ? (
             <UsersPanel role={role} />
+          ) : activeNav === 'teams' ? (
+            <TeamsPanel role={role} />
           ) : role === 'operator' && selectedSessionId === 'assigned-list' ? (
             <section className={styles.emptyState} aria-labelledby="assigned-sessions-title" data-testid="operator-panel">
               <div>
