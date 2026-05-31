@@ -155,3 +155,25 @@ The repository methods align one-to-one with the `IUserRepository` contract alre
 
 **Next session needs to know**
 Phase X.3 passes its gate: `dotnet build` succeeds clean, and both integration tests confirm the deactivation lifecycle (active → inactive) and paginated read behavior. The next session should wire `GET /api/users` and `PATCH /api/users/{id}/deactivate` in the API layer (Phase X.4+) and extend integration coverage to the endpoint level.
+
+---
+
+## [008] HU-02 Phase X.4 — API layer for user catalog listing and deactivation
+**Date:** 2026-05-30
+**Phase:** X.4 — API Layer (HU-02)
+**Commits:** (uncommitted)
+**HU tickets advanced:** HU-02, DES-67
+
+**What was built**
+Two new API endpoints on `UsersEndpoints`: `GET /api/users` (paginated user catalog, operator+ role) and `DELETE /api/users/{id:int}/access` (deactivate user, administrator role). Integration tests cover happy-path paging, deactivation persistence, and deactivated-user bootstrap rejection. Unit test added for `AccessPolicy.Evaluate` returning denied for unknown capability. Refactored `SeedDeactivatedUserAsync` to use extracted `SeedUserAsync` helper.
+
+**Why this approach**
+Endpoints delegate to existing application-layer commands/queries from Phase X.2 (`GetUsersQuery`, `DeactivateUserCommand`), keeping the API layer thin. The `EnsureTrustedIdentity` gate from Phase X.1 is reused. `GetUsersRequest` defaults to page=1, pageSize=20 to match the application-layer default. The DELETE endpoint uses `TypedResults.NoContent()` (204) as the standard for void mutations. Integration tests verify the full round-trip through the real pipeline (auth middleware → endpoint → mediator → handler → repository → PostgreSQL).
+
+**Deliberately skipped**
+- `PATCH /api/users/{id}/deactivate` — the spec calls for a `DELETE` verb on `/access` as a resource-oriented design; no PATCH route was needed
+- API documentation / OpenAPI metadata — deferred; schema annotations can be added in a later pass
+- Role-filtering in the GET endpoint — the application-layer `GetUsersHandler` already applies role-based filtering; the endpoint is a passthrough
+
+**Next session needs to know**
+Phase X.4 builds clean. All existing and new integration tests pass. The next session should wire the gateway routes to these endpoints and advance to Phase X.5 (presentation/frontend integration) or address DES tickets as prioritized.
