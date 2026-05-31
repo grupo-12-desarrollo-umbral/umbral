@@ -7,9 +7,11 @@ import {
   createTeam as createTeamLib,
   updateTeam as updateTeamLib,
   deactivateTeam as deactivateTeamLib,
+  listTeamParticipants,
+  assignParticipant as assignParticipantLib,
 } from '@/app/lib/teams'
 import { revalidatePath } from 'next/cache'
-import type { PagedResult, TeamDto, CreateTeamResultDto } from '@/app/lib/definitions'
+import type { PagedResult, TeamDto, CreateTeamResultDto, TeamMembershipDto } from '@/app/lib/definitions'
 
 export async function getTeamsPage(
   page: number,
@@ -64,4 +66,26 @@ export async function deactivateTeam(id: string): Promise<TeamDto> {
   const result = await deactivateTeamLib(id)
   revalidatePath('/dashboard')
   return result
+}
+
+export async function getTeamParticipants(
+  teamId: string,
+): Promise<TeamMembershipDto[]> {
+  const session = await verifySession()
+  if (session.role !== 'Administrator' && session.role !== 'Operator') {
+    throw new Error('Forbidden')
+  }
+  return listTeamParticipants(teamId)
+}
+
+export async function assignParticipantToTeam(
+  teamId: string,
+  userId: number,
+): Promise<void> {
+  const session = await verifySession()
+  if (session.role !== 'Administrator') {
+    throw new Error('Forbidden')
+  }
+  await assignParticipantLib(teamId, userId)
+  revalidatePath('/dashboard')
 }
