@@ -15,22 +15,23 @@ You type               Agent runs              You decide
                        + prompt file          say "proceed"
                             │
                             ▼
-                       driver creates
-                       worktree + branch
+                       driver creates           Phase menu:
+                       worktree + branch  →  [ ] X.1 Domain
+                            │               [ ] X.2 Application
+                            │               [ ] X.3 Infrastructure
+                            │               [ ] X.4 Api
+                            │                   ↑ you pick one
                             │
                     ┌───────┴────────────────────┐
-                    │  phase X.1 subagent         │
-                    │  gate → commit → /debrief   │
-                    │  phase X.2 subagent         │
-                    │  gate → commit → /debrief   │
-                    │  phase X.3 subagent         │
-                    │  gate → commit → /debrief   │
-                    │  phase X.4 subagent         │
-                    │  coverage gate → cover.sh   │
-                    │  docker rebuild + curl      │
+                    │  subagent implements phase  │  ← repeats
+                    │  driver runs gate + commit  │     until all
+                    │  menu updates [✓] status    │     four [✓]
                     └───────────────────────────┘
                             │
-                            ▼                    Stop 2:
+                            ▼
+                       docker rebuild + curl      (optional: /debrief
+                            │                      any time after
+                            ▼                    Stop 2:  all phases)
                        driver reports  →   review API contract
                        + close-out         say "run commands"
                          commands           (or not yet)
@@ -109,7 +110,8 @@ Read @backend/.agents/driver-agent.md.
 Run driver-agent for backend/docs/prompt_example_feature_hu06.md.
 ```
 
-The driver runs unattended from here until Stop 2:
+After pre-flight the driver shows a phase menu and waits for you to pick a
+phase. You select one at a time; the driver runs it and updates the status.
 
 ### Pre-flight (driver, not you)
 
@@ -121,7 +123,24 @@ git worktree add ../umbral-hu-06 -b feature/hu-06-<slug> develop
 # Verifies dotnet build is green on the base
 ```
 
-### Phase X.1 — Domain layer (driver delegates, you do nothing)
+### Phase menu (you pick, driver runs)
+
+```
+─── HU-06 — phase selection ────────────────────────────────────
+[ ] X.1  Domain layer
+[ ] X.2  Application layer
+[ ] X.3  Infrastructure layer
+[ ] X.4  API layer + coverage gate
+
+Select a phase to implement (X.1 / X.2 / X.3 / X.4):
+────────────────────────────────────────────────────────────────
+```
+
+You type e.g. `X.1`. The driver delegates to a subagent, runs the gate,
+commits on green, then re-shows the menu with `[✓]` for the completed phase.
+Repeat until all four are checked.
+
+### Example — X.1 cycle
 
 ```
 driver → subagent (backend-agent.md):
@@ -136,8 +155,7 @@ driver commits:
   feat(identity-access): phase X.1 — domain layer (HU-06)
   Ref: HU-06 / Ref: DES-13 / Ref: DES-67
 
-driver runs /debrief → commits debrief file
-→ moves to X.2
+→ menu re-displayed: [✓] X.1  [ ] X.2  [ ] X.3  [ ] X.4
 ```
 
 ### Gate failure example (driver retries once, then stops)
@@ -147,7 +165,7 @@ driver runs X.2 gate → dotnet build fails
 driver → same subagent:
   "Gate failed: <exact error output>. Fix without touching the gate."
 subagent fixes → driver reruns gate → passes ✓
-driver commits phase X.2 → continues
+driver commits phase X.2 → menu re-displayed
 
 (If gate failed again: hard stop, driver reports both failures, waits for you)
 ```
@@ -167,8 +185,8 @@ driver runs cover.sh (report only, coverage already enforced):
   → Summary.txt: Line coverage: 96.2%
 
 driver commits phase X.4
-driver runs /debrief → commits debrief file
-→ moves to docker rebuild
+→ all four [✓] — driver proceeds to docker rebuild
+  (you may run /debrief any time if you want a decision log)
 ```
 
 ### Docker rebuild + curl smoke (driver, not you)
@@ -278,11 +296,12 @@ cleanup. It confirms each one succeeded and gives you the PR URL.
 | Session 1 | `Read @backend/.agents/generator-agent.md. Run generator-agent for HU-06 DES-13.` |
 | Stop 1 | Review files, fix anything wrong, then open Session 2 |
 | Session 2 | `Read @backend/.agents/driver-agent.md. Run driver-agent for backend/docs/prompt_example_feature_hu06.md.` |
+| Phase menu × 4 | `X.1` → `X.2` → `X.3` → `X.4` (one reply per phase) |
 | Stop 2 | Review API contract report |
 | Frontend session | Paste Step 9 from the prompt file into a new session with `@frontend/AGENTS.md` |
 | Close-out | `Run the close-out commands.` in the driver session |
 
-Five interactions for a full HU. Everything else runs unattended.
+Eight interactions for a full HU. `/debrief` is optional and can be run any time after all phases are done.
 
 ---
 
