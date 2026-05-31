@@ -24,7 +24,6 @@ public sealed class IdentityProvisioningPolicy
         }
 
         existingUser.SynchronizeProfile(displayName, email);
-        existingUser.AssignRole(role);
 
         return existingUser;
     }
