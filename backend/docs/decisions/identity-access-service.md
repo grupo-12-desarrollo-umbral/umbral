@@ -222,3 +222,26 @@ Two-step authorization: `[Authorize(Roles = "Administrator")]` on the command fo
 
 **Next session needs to know**
 Build passes clean; all 70 unit tests green. Proceed to Phase X.3: implement `IUserRepository.UpdateAsync` in the infrastructure layer and write integration tests for the role-assignment round-trip against PostgreSQL via Testcontainers.
+
+---
+
+## [011] HU-03 Phase X.3 — Infrastructure integration tests for role assignment
+**Date:** 2026-05-30
+**Phase:** X.3 — Infrastructure Layer (HU-03)
+**Commits:** (uncommitted)
+**HU tickets advanced:** HU-03, DES-7, DES-67
+
+**What was built**
+Three PostgreSQL-backed integration tests in `UserProvisioningRepositoryIntegrationTests` that exercise the role-assignment round-trip through the real infrastructure pipeline: successful role change with domain event emission (`UserRoleAssignedEvent`), rejection of deactivated-user assignment (`DeactivatedUserRoleAssignmentNotAllowedException`), and idempotent same-role assignment (no events emitted). Support infrastructure: `CapturingMediator` (records published `INotification` instances), `NoOpMediator`, and `BuildContext` extended to accept an optional `IMediator` and wire in `DispatchDomainEventsInterceptor`.
+
+**Why this approach**
+No new repository methods, schema changes, or migrations were needed — `IUserRepository.UpdateAsync` was already implemented in HU-01 phase X.3 and the `Users` table already carries the `Role` column. The integration tests use the existing Testcontainers PostgreSQL and database-reset pattern (`ExecuteDeleteAsync`) established in prior phases. `CapturingMediator` provides a lightweight notification spy instead of mocking — it captures published domain events so tests can assert on `UserRoleAssignedEvent` and `UserRoleRevokedEvent` without a full message bus. The `DispatchDomainEventsInterceptor` is wired into `BuildContext` only when a mediator is provided, keeping existing tests unaffected (they use `NoOpMediator` by default).
+
+**Deliberately skipped**
+- New repository or DbContext methods — none needed; `UpdateAsync` already exists
+- Migration — `Role` column is unchanged from the Init migration
+- API endpoint wiring — deferred to phase X.4
+- Frontend work — entirely out of scope
+
+**Next session needs to know**
+Build succeeds clean; the integration tests pass against a real PostgreSQL via Testcontainers. Proceed to Phase X.4: wire `PATCH /api/users/{id}/role` in the API layer, adding the endpoint and extending `WebApplicationFactory` integration tests to cover the full round-trip.
