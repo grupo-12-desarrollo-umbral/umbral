@@ -21,6 +21,12 @@ public sealed class ProblemDetailsExceptionHandler : IExceptionHandler
                 Detail = exception.Message,
                 Status = StatusCodes.Status404NotFound
             },
+            ValidationException validationException when IsUnprocessableRoleAssignment(validationException) => new ProblemDetails
+            {
+                Title = "Unprocessable entity.",
+                Detail = string.Join(" ", validationException.Errors.SelectMany(entry => entry.Value)),
+                Status = StatusCodes.Status422UnprocessableEntity
+            },
             ValidationException validationException => new ProblemDetails
             {
                 Title = "Validation failed.",
@@ -39,6 +45,12 @@ public sealed class ProblemDetailsExceptionHandler : IExceptionHandler
                 Detail = exception.Message,
                 Status = StatusCodes.Status403Forbidden
             },
+            DeactivatedUserRoleAssignmentNotAllowedException => new ProblemDetails
+            {
+                Title = "Unprocessable entity.",
+                Detail = exception.Message,
+                Status = StatusCodes.Status422UnprocessableEntity
+            },
             _ => new ProblemDetails
             {
                 Title = "An unexpected error occurred.",
@@ -50,5 +62,12 @@ public sealed class ProblemDetailsExceptionHandler : IExceptionHandler
         httpContext.Response.StatusCode = problemDetails.Status ?? StatusCodes.Status500InternalServerError;
         await httpContext.Response.WriteAsJsonAsync(problemDetails, cancellationToken);
         return true;
+    }
+
+    private static bool IsUnprocessableRoleAssignment(ValidationException validationException)
+    {
+        return validationException.Errors
+            .SelectMany(entry => entry.Value)
+            .Any(message => string.Equals(message, "Target user must be active.", StringComparison.Ordinal));
     }
 }

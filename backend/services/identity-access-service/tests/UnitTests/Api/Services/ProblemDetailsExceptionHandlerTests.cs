@@ -23,6 +23,11 @@ public sealed class ProblemDetailsExceptionHandlerTests
             new DeactivatedUserAccessDeniedException(10),
             StatusCodes.Status403Forbidden,
             "Forbidden.");
+        await AssertHandledAsync(
+            handler,
+            new DeactivatedUserRoleAssignmentNotAllowedException(12),
+            StatusCodes.Status422UnprocessableEntity,
+            "Unprocessable entity.");
     }
 
     [Fact]
@@ -46,6 +51,27 @@ public sealed class ProblemDetailsExceptionHandlerTests
         problem.Title.Should().Be("Validation failed.");
         problem.Detail.Should().Contain("Email is required.");
         problem.Detail.Should().Contain("Role is required.");
+    }
+
+    [Fact]
+    public async Task TryHandleAsync_ForRoleAssignmentInvariantValidation_ReturnsUnprocessableEntity()
+    {
+        var handler = new ProblemDetailsExceptionHandler();
+        var httpContext = CreateHttpContext();
+        var exception = new ValidationException(
+        [
+            new ValidationFailure("UserId", "Target user must be active.")
+        ]);
+
+        var handled = await handler.TryHandleAsync(httpContext, exception, CancellationToken.None);
+
+        handled.Should().BeTrue();
+        httpContext.Response.StatusCode.Should().Be(StatusCodes.Status422UnprocessableEntity);
+
+        var problem = await ReadProblemDetailsAsync(httpContext);
+        problem.Status.Should().Be(StatusCodes.Status422UnprocessableEntity);
+        problem.Title.Should().Be("Unprocessable entity.");
+        problem.Detail.Should().Contain("Target user must be active.");
     }
 
     [Fact]
