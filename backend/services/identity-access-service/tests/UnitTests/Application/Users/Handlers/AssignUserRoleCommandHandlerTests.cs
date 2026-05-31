@@ -116,7 +116,10 @@ public sealed class AssignUserRoleCommandHandlerTests
         var currentUser = new Mock<ICurrentUser>();
         currentUser.SetupGet(user => user.Id).Returns(currentUserId);
 
-        return new AssignUserRoleCommandHandler(repository.Object, currentUser.Object, new AccessPolicy());
+        var keycloakAdmin = new Mock<IKeycloakAdminService>();
+
+        return new AssignUserRoleCommandHandler(
+            repository.Object, currentUser.Object, new AccessPolicy(), keycloakAdmin.Object);
     }
 
     private static Mock<IUserRepository> CreateRepository(User actor, User target)

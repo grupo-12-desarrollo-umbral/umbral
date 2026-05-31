@@ -16,15 +16,18 @@ public sealed class AssignUserRoleCommandHandler : IRequestHandler<AssignUserRol
     private readonly IUserRepository _userRepository;
     private readonly ICurrentUser _currentUser;
     private readonly AccessPolicy _accessPolicy;
+    private readonly IKeycloakAdminService _keycloakAdminService;
 
     public AssignUserRoleCommandHandler(
         IUserRepository userRepository,
         ICurrentUser currentUser,
-        AccessPolicy accessPolicy)
+        AccessPolicy accessPolicy,
+        IKeycloakAdminService keycloakAdminService)
     {
         _userRepository = userRepository;
         _currentUser = currentUser;
         _accessPolicy = accessPolicy;
+        _keycloakAdminService = keycloakAdminService;
     }
 
     public async Task Handle(AssignUserRoleCommand request, CancellationToken cancellationToken)
@@ -50,6 +53,8 @@ public sealed class AssignUserRoleCommandHandler : IRequestHandler<AssignUserRol
         user.AssignRole(newRole);
 
         await _userRepository.UpdateAsync(user, cancellationToken);
+
+        await _keycloakAdminService.SyncUserRoleAsync(user.ExternalIdentityId, newRole, cancellationToken);
     }
 
     private void EnsureActorCanAssignRole(User actor)
