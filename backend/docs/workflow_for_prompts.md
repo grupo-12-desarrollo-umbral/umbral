@@ -92,7 +92,29 @@ Move HU-11, HU-14A, HU-14B, HU-12, and HU-13 to In Progress in Linear.
 
 If a GitHub issue exists for the slice, keep its number available for commit `Ref:` lines and the final PR description.
 
+### Pre-flight checks before any backend phase
+
+Before starting a phase, ensure the environment is ready:
+
+```text
+# 1. EF tooling available (local install, not global)
+#    After install, verify it resolves on PATH — the agent's shell
+#    may not include the install directory.
+export PATH="/tmp/dotnet-tools:$PATH"
+command -v dotnet-ef >/dev/null || \
+  dotnet tool install --tool-path /tmp/dotnet-tools dotnet-ef --version 10.0.0
+command -v dotnet-ef >/dev/null  # must succeed, or stop
+
+# 2. Read auditable base class to avoid audit-column leaks in EF config
+sed -n '1,200p' backend/services/<service>/src/Domain/Common/BaseAuditableEntity.cs
+
+# 3. Docker daemon reachable (needed for X.3 integration tests)
+docker ps --format '{{.Names}}'
+```
+
 ---
+
+
 
 ## Backend Phase 2.1 — Domain layer
 
@@ -209,7 +231,17 @@ backend/services/mission-design-service/src/Infrastructure/:
 - TriviaQuizRepository implementing ITriviaQuizRepository
 - TriviaQuizReadModelRepository implementing ITriviaQuizReadModelRepository
 - Register both repositories in Infrastructure/DependencyInjection.cs
-- Run: dotnet ef migrations add AddTriviaQuiz -p Infrastructure -s Api
+- Run migration (preferred):
+  ```text
+  dotnet ef migrations add AddTriviaQuiz --startup-project src/Api --project src/Infrastructure
+  ```
+  Fallback (if API project lacks EF Design reference):
+  ```text
+  dotnet ef migrations add AddTriviaQuiz --startup-project src/Infrastructure --project src/Infrastructure --no-build
+  ```
+- **Review the generated migration** for unwanted audit columns
+  (`created_by`, `updated_by`) that leak from base entities. If present, add
+  `builder.Ignore(...)` in the EF config and regenerate the migration.
 
 Gate: migration succeeds + at least one repository integration test green
 (persist a TriviaQuiz, retrieve it, assert fields match).
