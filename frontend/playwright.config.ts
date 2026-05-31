@@ -5,6 +5,7 @@ const TEST_SESSION_SECRET = 'test-secret-for-playwright'
 process.env.SESSION_SECRET = TEST_SESSION_SECRET
 
 export default defineConfig({
+  globalSetup: './tests/setup/global-setup.ts',
   testDir: './tests/e2e',
   fullyParallel: true,
   forbidOnly: !!process.env.CI,

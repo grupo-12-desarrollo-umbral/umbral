@@ -8,6 +8,7 @@ export const test = base.extend<{
   operatorPage: Page
   adminPage: Page
   deactivatedPage: Page
+  participantPage: Page
 }>({
   operatorPage: async ({ browser }, runPageFixture) => {
     const ctx = await browser.newContext()
@@ -51,6 +52,23 @@ export const test = base.extend<{
       email: 'deactivated@umbral.local',
       role: 'Operator',
       isActive: false,
+      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+    }
+    const session = await encryptForTest(payload)
+    await ctx.addCookies([{ name: 'session', value: session, url: 'http://localhost:3000' }])
+    const page = await ctx.newPage()
+    await runPageFixture(page)
+    await ctx.close()
+  },
+
+  participantPage: async ({ browser }, runPageFixture) => {
+    const ctx = await browser.newContext()
+    const payload: SessionPayload = {
+      externalIdentityId: 'participant-1',
+      displayName: 'Participant One',
+      email: 'participant@umbral.local',
+      role: 'Participant',
+      isActive: true,
       expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
     }
     const session = await encryptForTest(payload)
