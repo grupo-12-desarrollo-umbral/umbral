@@ -133,3 +133,25 @@ Deactivation is a soft-tombstone (IsActive = false) rather than a delete — his
 
 **Next session needs to know**
 The application-layer gate passes: clean build, 67/67 unit tests green. The next slice should wire the `GET /api/users` and `PATCH /api/users/{id}/deactivate` endpoints in the API layer and extend integration tests. If Keycloak admin API integration is needed for true deactivation, that's a separate infrastructure concern.
+
+---
+
+## [007] HU-02 Phase X.3 — Infrastructure persistence for deactivation and user listing
+**Date:** 2026-05-30
+**Phase:** X.3 — Infrastructure Layer (HU-02)
+**Commits:** (uncommitted — see diff below)
+**HU tickets advanced:** HU-02, DES-67
+
+**What was built**
+Repository implementation for deactivation (`GetByIdAsync`) and paginated user listing (`ListAsync` with `PagedResult<User>`) on `UserRepository`, plus two integration tests: `DeactivateUser_PersistsInactiveStateAndPreservesHistory` (deactivates a user via domain entity, confirms active query returns null, confirms record still exists with `IsActive == false` and session history intact) and `ListUsers_ReturnsStablePagedCatalog` (inserts 3 users, reads page 2 with size 2, verifies total count and ordering). No new migration was needed — `IsActive` was already in the domain entity and covered by the existing Init migration.
+
+**Why this approach**
+The repository methods align one-to-one with the `IUserRepository` contract already defined in phase X.2. `GetByIdAsync` includes `IdentityProviderSessions` so deactivation audit history is loaded alongside the user. `ListAsync` uses `AsNoTracking()` for read-only performance and stable sort by `DisplayName` then `Id` to guarantee deterministic pagination. The integration tests exercise the real PostgreSQL via `Testcontainers`, cleaning the database between runs via `ExecuteDeleteAsync`. No new columns or indexes were required — the schema from HU-01 already supported soft-deactivation.
+
+**Deliberately skipped**
+- Migration — not needed; `IsActive` column already exists from the Init migration
+- API/gateway wiring — deferred; the phase scope was repository + integration test only, per the prompt gate
+- Aggregation or filtering in `ListAsync` beyond pagination — the application-layer handler owns role filtering; the repository stays a simple offset/limit provider
+
+**Next session needs to know**
+Phase X.3 passes its gate: `dotnet build` succeeds clean, and both integration tests confirm the deactivation lifecycle (active → inactive) and paginated read behavior. The next session should wire `GET /api/users` and `PATCH /api/users/{id}/deactivate` in the API layer (Phase X.4+) and extend integration coverage to the endpoint level.
