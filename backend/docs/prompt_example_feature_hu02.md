@@ -222,14 +222,30 @@ Implement backend phase X.3 for HU-02 in identity-access-service.
 Use the service PRD (DES-67) and canonical docs.
 
 Scope:
-- repository implementation for deactivation (persist the soft-deactivate state)
-- repository implementation for user listing (paginated read)
-- migration if the schema requires new columns or indexes for the deactivation slice
+- repository implementation for deactivation: `GetByIdAsync` — loads the user
+  by primary key including `IdentityProviderSessions` so history is preserved
+- repository implementation for user listing: `ListAsync(int page, int pageSize)`
+  returning `PagedResult<User>` — stable sort by DisplayName then Id,
+  AsNoTracking for read performance
+- check the current `ApplicationDbContextModelSnapshot` for `IsActive` and any
+  needed indexes; if they already exist, explicitly note that no new migration
+  is required
 - integration test: deactivate a user, confirm they cannot be retrieved as active,
   confirm history is preserved
+- integration test: verify paginated listing returns correct total count,
+  page offset, and ordering
+
+Before writing tests, verify that the test file's `using` statements cover
+`Domain.Entities` and `Domain.Enums` — these are often missing when the file
+only imports Application-layer namespaces.
+
+Database isolation: each integration test must clean shared state before
+its scenario (e.g. `ExecuteDeleteAsync` on `IdentityProviderSessions` and
+`Users`) to avoid cross-test pollution.
 
 Gate:
-- migration succeeds
+- `dotnet build` passes on the solution
+- migration succeeds (or confirmed no-op against current snapshot)
 - repository integration tests pass
 - a deactivated user's record still exists (history check)
 
