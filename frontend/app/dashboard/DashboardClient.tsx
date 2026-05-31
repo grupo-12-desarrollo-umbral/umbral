@@ -2,11 +2,12 @@
 
 import { useEffect, useRef, useState, useTransition } from 'react';
 import { logout } from '@/app/actions/auth';
-import { getUsersPage, deactivateUser } from '@/app/actions/users';
+import { refreshSession } from '@/app/actions/session';
+import { getUsersPage, deactivateUser, assignUserRole } from '@/app/actions/users';
 import type { PagedResult, UserAccessCatalogItemDto } from '@/app/lib/definitions';
 import styles from './dashboard.module.css';
 
-type DashboardRole = 'operator' | 'admin';
+type DashboardRole = 'operator' | 'admin' | 'participant';
 type Theme = 'dark' | 'light';
 type SessionState = 'live' | 'paused' | 'draft';
 type ReviewStatus = 'verified' | 'rejected' | 'pending';
@@ -272,13 +273,28 @@ function getOperatorDefaultSession() {
 }
 
 export default function DashboardClient({
-  role,
+  role: initialRole,
   displayName,
 }: {
   role: DashboardRole;
   displayName: string;
 }) {
+  const [role, setRole] = useState<DashboardRole>(initialRole);
   const [theme, setTheme] = useState<Theme>(() => getPreferredTheme());
+
+  useEffect(() => {
+    refreshSession().then((result) => {
+      if (result) {
+        const mapped: DashboardRole =
+          result.role === 'Administrator' ? 'admin'
+          : result.role === 'Operator' ? 'operator'
+          : 'participant';
+        if (mapped !== role) {
+          setRole(mapped);
+        }
+      }
+    })
+  }, []);
   const [selectedSessionId, setSelectedSessionId] = useState(() =>
     role === 'operator' ? getOperatorDefaultSession() : 'verdant-keys'
   );
@@ -412,6 +428,11 @@ export default function DashboardClient({
 
   const statusTone = !isConnected ? 'critical' : derivedSession?.state === 'paused' ? 'warning' : 'success';
 
+  const visibleNavigation = navigation.filter((item) => {
+    if (role === 'participant') return item.key === 'overview'
+    return true
+  })
+
   return (
     <div className={styles.page}>
       <a className={styles.skipLink} href="#main-content">
@@ -433,7 +454,7 @@ export default function DashboardClient({
           <div className={styles.rolePill} data-testid="role-chip">{role}</div>
 
           <nav className={styles.nav}>
-            {navigation.map((item) => (
+            {visibleNavigation.map((item) => (
               <button
                 key={item.key}
                 className={styles.navItem}
@@ -526,7 +547,17 @@ export default function DashboardClient({
             </div>
           </section>
 
-          {activeNav === 'users' ? (
+          {role === 'participant' ? (
+            <section className={styles.emptyState} aria-labelledby="participant-title" data-testid="participant-panel">
+              <div>
+                <h1 id="participant-title">Welcome, {displayName}</h1>
+                <p className={styles.emptyStateCopy}>
+                  You are logged in as a participant. Operator and admin controls are not available
+                  in this view.
+                </p>
+              </div>
+            </section>
+          ) : activeNav === 'users' ? (
             <UsersPanel role={role} />
           ) : role === 'operator' && selectedSessionId === 'assigned-list' ? (
             <section className={styles.emptyState} aria-labelledby="assigned-sessions-title" data-testid="operator-panel">
@@ -1121,6 +1152,9 @@ function UsersPanel({ role }: { role: DashboardRole }) {
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
   const [confirmId, setConfirmId] = useState<number | null>(null)
+  const [roleEditId, setRoleEditId] = useState<number | null>(null)
+  const [pendingRole, setPendingRole] = useState<string>('')
+  const [roleError, setRoleError] = useState<string | null>(null)
 
   // Fetch on mount and page change
   useEffect(() => {
@@ -1159,6 +1193,30 @@ function UsersPanel({ role }: { role: DashboardRole }) {
     })
   }
 
+  async function handleRoleChange(id: number, previousRole: string) {
+    startTransition(async () => {
+      setRoleError(null)
+      try {
+        await assignUserRole(id, pendingRole)
+        setData((prev) =>
+          prev
+            ? {
+                ...prev,
+                items: prev.items.map((u) =>
+                  u.id === id ? { ...u, role: pendingRole } : u
+                ),
+              }
+            : prev
+        )
+        setRoleEditId(null)
+      } catch {
+        setRoleError('Role change failed. Try again.')
+        setPendingRole(previousRole)
+        setRoleEditId(null)
+      }
+    })
+  }
+
   return (
     <section
       className={styles.panel}
@@ -1183,6 +1241,12 @@ function UsersPanel({ role }: { role: DashboardRole }) {
         </div>
       )}
 
+      {roleError && (
+        <div className={styles.chip} data-tone="critical">
+          {roleError}
+        </div>
+      )}
+
       {data && (
         <>
           <table className={styles.table}>
@@ -1200,7 +1264,22 @@ function UsersPanel({ role }: { role: DashboardRole }) {
                 <tr key={user.id}>
                   <td>{user.displayName}</td>
                   <td>{user.email}</td>
-                  <td>{user.role}</td>
+                  <td>
+                    {role === 'admin' && roleEditId === user.id ? (
+                      <select
+                        className={styles.inlineSelect}
+                        data-testid={`role-select-${user.id}`}
+                        value={pendingRole}
+                        onChange={(e) => setPendingRole(e.target.value)}
+                      >
+                        <option value="Administrator">Administrator</option>
+                        <option value="Operator">Operator</option>
+                        <option value="Participant">Participant</option>
+                      </select>
+                    ) : (
+                      user.role
+                    )}
+                  </td>
                   <td>
                     <span
                       className={styles.chip}
@@ -1211,7 +1290,7 @@ function UsersPanel({ role }: { role: DashboardRole }) {
                   </td>
                   {role === 'admin' && (
                     <td>
-                      {user.isActive && confirmId !== user.id && (
+                      {user.isActive && confirmId !== user.id && roleEditId !== user.id && (
                         <button
                           className={styles.inlineButton}
                           data-testid={`deactivate-btn-${user.id}`}
@@ -1238,6 +1317,40 @@ function UsersPanel({ role }: { role: DashboardRole }) {
                             className={styles.inlineButton}
                             disabled={isPending}
                             onClick={() => setConfirmId(null)}
+                            type="button"
+                          >
+                            Cancel
+                          </button>
+                        </span>
+                      )}
+                      {/* Role edit trigger — only shown when not already in deactivate confirm mode */}
+                      {user.isActive && confirmId !== user.id && roleEditId !== user.id && (
+                        <button
+                          className={styles.inlineButton}
+                          data-testid={`change-role-btn-${user.id}`}
+                          disabled={isPending}
+                          onClick={() => { setRoleEditId(user.id); setPendingRole(user.role) }}
+                          type="button"
+                        >
+                          Change role
+                        </button>
+                      )}
+                      {/* Role save/cancel — only shown when this row is in role-edit mode */}
+                      {roleEditId === user.id && (
+                        <span className={styles.confirmRow}>
+                          <button
+                            className={styles.smallButton}
+                            data-testid={`save-role-btn-${user.id}`}
+                            disabled={isPending || pendingRole === user.role}
+                            onClick={() => handleRoleChange(user.id, user.role)}
+                            type="button"
+                          >
+                            Save
+                          </button>
+                          <button
+                            className={styles.inlineButton}
+                            disabled={isPending}
+                            onClick={() => { setRoleEditId(null); setRoleError(null) }}
                             type="button"
                           >
                             Cancel
