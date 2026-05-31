@@ -38,8 +38,10 @@ test('admin sees assign button only on active teams', async ({ adminPage: page }
   await page.click('[data-testid="nav-teams"]')
   // Open first active team
   await page.locator('[data-testid^="team-row-"]').first().click()
-  const statusText = await page.locator('[data-testid="detail-status"]').innerText()
-  if (statusText.includes('Active')) {
+  // Wait for detail panel to fully render before reading status
+  await expect(page.locator('[data-testid="detail-status"]')).toHaveText(/(Active|Inactive)/)
+  const statusText = await page.locator('[data-testid="detail-status"]').textContent()
+  if (statusText?.includes('Active')) {
     await expect(page.locator('[data-testid="assign-participant-btn"]')).toBeVisible()
   } else {
     await expect(page.locator('[data-testid="assign-participant-btn"]')).toHaveCount(0)

@@ -1,6 +1,6 @@
 import { defineConfig, devices } from '@playwright/test';
 
-const TEST_SESSION_SECRET = 'test-secret-for-playwright'
+const TEST_SESSION_SECRET = 'dev-session-secret-change-in-production'
 
 process.env.SESSION_SECRET = TEST_SESSION_SECRET
 
