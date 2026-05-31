@@ -107,6 +107,59 @@ public sealed class IdentityAccessApiEndpointsTests : IClassFixture<PostgreSqlFi
     }
 
     [Fact]
+    public async Task GetUsers_WithOperatorHeaders_ReturnsPagedCatalog()
+    {
+        await SeedUserAsync("kc-operator-01", "Catalog Operator", "operator@example.com", Role.Operator);
+        await SeedUserAsync("kc-admin-01", "Admin User", "admin@example.com", Role.Administrator);
+        await SeedUserAsync("kc-participant-01", "Participant User", "participant@example.com", Role.Participant);
+
+        AddTrustedHeaders(
+            _client,
+            userId: "kc-operator-01",
+            role: "Operator",
+            email: "operator@example.com");
+
+        var response = await _client.GetAsync("/api/users?page=1&pageSize=2");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var payload = await response.Content.ReadFromJsonAsync<PagedResponse<UserAccessCatalogItemResponse>>();
+        payload.Should().NotBeNull();
+        payload!.TotalCount.Should().Be(3);
+        payload.Page.Should().Be(1);
+        payload.PageSize.Should().Be(2);
+        payload.TotalPages.Should().Be(2);
+        payload.HasPreviousPage.Should().BeFalse();
+        payload.HasNextPage.Should().BeTrue();
+        payload.Items.Should().HaveCount(2);
+        payload.Items.Select(user => user.DisplayName).Should().ContainInOrder("Admin User", "Catalog Operator");
+    }
+
+    [Fact]
+    public async Task DeactivateUserAccess_WithAdministratorHeaders_ReturnsNoContentAndPersistsInactiveState()
+    {
+        await SeedUserAsync("kc-admin-01", "Admin User", "admin@example.com", Role.Administrator);
+        var targetUser = await SeedUserAsync("kc-target-01", "Target User", "target@example.com", Role.Operator);
+
+        AddTrustedHeaders(
+            _client,
+            userId: "kc-admin-01",
+            role: "Administrator",
+            email: "admin@example.com");
+
+        var response = await _client.DeleteAsync($"/api/users/{targetUser.Id}/access");
+
+        response.StatusCode.Should().Be(HttpStatusCode.NoContent);
+
+        await using var scope = _factory.Services.CreateAsyncScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var persistedUser = await dbContext.Users.SingleAsync(u => u.Id == targetUser.Id);
+
+        persistedUser.IsActive.Should().BeFalse();
+        persistedUser.ExternalIdentityId.Should().Be("kc-target-01");
+    }
+
+    [Fact]
     public async Task Bootstrap_WithoutTrustedHeaders_ReturnsUnauthorized()
     {
         ClearTrustedHeaders(_client);
@@ -121,6 +174,28 @@ public sealed class IdentityAccessApiEndpointsTests : IClassFixture<PostgreSqlFi
         problem.Should().NotBeNull();
         problem!.Status.Should().Be(StatusCodes.Status401Unauthorized);
         problem.Title.Should().Be("Unauthorized.");
+    }
+
+    [Fact]
+    public async Task Bootstrap_WithDeactivatedUser_ReturnsForbidden()
+    {
+        await SeedDeactivatedUserAsync();
+        AddTrustedHeaders(
+            _client,
+            userId: "kc-deactivated-01",
+            role: "Operator",
+            email: "deactivated@example.com");
+
+        var response = await _client.PostAsJsonAsync(
+            "/api/users/authenticated",
+            new { displayName = "Deactivated Operator" });
+
+        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+
+        var problem = await response.Content.ReadFromJsonAsync<ProblemDetails>();
+        problem.Should().NotBeNull();
+        problem!.Status.Should().Be(StatusCodes.Status403Forbidden);
+        problem.Title.Should().Be("Forbidden.");
     }
 
     [Fact]
@@ -149,18 +224,31 @@ public sealed class IdentityAccessApiEndpointsTests : IClassFixture<PostgreSqlFi
 
     private async Task SeedDeactivatedUserAsync()
     {
+        var user = await SeedUserAsync(
+            "kc-deactivated-01",
+            "Deactivated Operator",
+            "deactivated@example.com",
+            Role.Operator);
+        user.DeactivateAccess();
+        await using var scope = _factory.Services.CreateAsyncScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        dbContext.Users.Update(user);
+        await dbContext.SaveChangesAsync();
+    }
+
+    private async Task<User> SeedUserAsync(string externalIdentityId, string displayName, string email, Role role)
+    {
         await using var scope = _factory.Services.CreateAsyncScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         var user = User.Provision(
-            externalIdentityId: "kc-deactivated-01",
-            displayName: "Deactivated Operator",
-            email: "deactivated@example.com",
-            role: Role.Operator);
-
-        user.DeactivateAccess();
+            externalIdentityId: externalIdentityId,
+            displayName: displayName,
+            email: email,
+            role: role);
 
         dbContext.Users.Add(user);
         await dbContext.SaveChangesAsync();
+        return user;
     }
 
     private static void AddTrustedHeaders(HttpClient client, string userId, string role, string email)
@@ -194,6 +282,23 @@ public sealed class IdentityAccessApiEndpointsTests : IClassFixture<PostgreSqlFi
         string Capability,
         bool IsAllowed,
         string Reason);
+
+    private sealed record UserAccessCatalogItemResponse(
+        int Id,
+        string ExternalIdentityId,
+        string DisplayName,
+        string Email,
+        string Role,
+        bool IsActive);
+
+    private sealed record PagedResponse<T>(
+        IReadOnlyCollection<T> Items,
+        int TotalCount,
+        int Page,
+        int PageSize,
+        int TotalPages,
+        bool HasPreviousPage,
+        bool HasNextPage);
 
     private sealed record HealthStatusResponse(string Status);
 }
