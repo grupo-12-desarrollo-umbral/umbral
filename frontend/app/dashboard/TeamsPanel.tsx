@@ -7,8 +7,11 @@ import {
   createTeam,
   updateTeam,
   deactivateTeam,
+  getTeamParticipants,
+  assignParticipantToTeam,
 } from '@/app/actions/teams'
-import type { PagedResult, TeamDto } from '@/app/lib/definitions'
+import { getUsersPage } from '@/app/actions/users'
+import type { PagedResult, TeamDto, TeamMembershipDto, UserAccessCatalogItemDto } from '@/app/lib/definitions'
 import styles from './dashboard.module.css'
 
 type DashboardRole = 'operator' | 'admin' | 'participant'
@@ -25,6 +28,13 @@ export function TeamsPanel({ role }: { role: DashboardRole }) {
   const [deactivateError, setDeactivateError] = useState<string | null>(null)
   const [confirmDeactivate, setConfirmDeactivate] = useState(false)
   const [refreshKey, setRefreshKey] = useState(0)
+  const [participants, setParticipants] = useState<TeamMembershipDto[]>([])
+  const [participantsError, setParticipantsError] = useState<string | null>(null)
+  const [isAssignPending, startAssignTransition] = useTransition()
+  const [showAssignForm, setShowAssignForm] = useState(false)
+  const [participantUsers, setParticipantUsers] = useState<UserAccessCatalogItemDto[]>([])
+  const [selectedUserId, setSelectedUserId] = useState<number>(0)
+  const [assignError, setAssignError] = useState<string | null>(null)
 
   useEffect(() => {
     startTransition(async () => {
@@ -37,6 +47,19 @@ export function TeamsPanel({ role }: { role: DashboardRole }) {
       }
     })
   }, [page, refreshKey])
+
+  useEffect(() => {
+    if (view !== 'detail' || !selectedTeam) return
+    startAssignTransition(async () => {
+      setParticipantsError(null)
+      try {
+        const result = await getTeamParticipants(selectedTeam.teamId)
+        setParticipants(result)
+      } catch {
+        setParticipantsError('Failed to load participants.')
+      }
+    })
+  }, [view, selectedTeam?.teamId])
 
   async function handleDeactivate(id: string) {
     startTransition(async () => {
@@ -103,6 +126,52 @@ export function TeamsPanel({ role }: { role: DashboardRole }) {
     })
   }
 
+  function loadParticipantUsers() {
+    startAssignTransition(async () => {
+      try {
+        const result = await getUsersPage(1, 100)
+        setParticipantUsers(
+          result.items.filter((u) => u.role === 'Participant' && u.isActive),
+        )
+      } catch {
+        // Selector will be empty; user can still try to submit if they know the id
+      }
+    })
+  }
+
+  async function handleAssign() {
+    if (!selectedTeam || !selectedUserId) return
+    startAssignTransition(async () => {
+      setAssignError(null)
+      try {
+        await assignParticipantToTeam(selectedTeam.teamId, selectedUserId)
+        // Optimistic update — append synthetic membership entry
+        setParticipants((prev) => [
+          ...prev,
+          {
+            teamMembershipId: 'optimistic-' + Date.now(),
+            teamId: selectedTeam.teamId,
+            userId: selectedUserId,
+            assignedAt: new Date().toISOString(),
+          },
+        ])
+        setShowAssignForm(false)
+        setSelectedUserId(0)
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : ''
+        if (msg === 'team_not_active') {
+          setAssignError('This team is inactive and cannot accept new members.')
+        } else if (msg === 'participant_already_assigned') {
+          setAssignError('This user is already assigned to the team.')
+        } else if (msg === 'user_not_participant_role') {
+          setAssignError('The selected user does not have the Participant role.')
+        } else {
+          setAssignError('Assignment failed. Try again.')
+        }
+      }
+    })
+  }
+
   if (view === 'detail' && selectedTeam !== null) {
     return (
       <section
@@ -115,7 +184,16 @@ export function TeamsPanel({ role }: { role: DashboardRole }) {
             <button
               className={styles.inlineButton}
               data-testid="teams-back-btn"
-              onClick={() => { setView('list'); setConfirmDeactivate(false); setDeactivateError(null) }}
+              onClick={() => {
+                setView('list')
+                setConfirmDeactivate(false)
+                setDeactivateError(null)
+                setParticipants([])
+                setParticipantsError(null)
+                setShowAssignForm(false)
+                setAssignError(null)
+                setSelectedUserId(0)
+              }}
               type="button"
             >
               ← Teams
@@ -131,7 +209,15 @@ export function TeamsPanel({ role }: { role: DashboardRole }) {
                   className={styles.inlineButton}
                   data-testid="edit-team-btn"
                   disabled={isPending}
-                  onClick={() => { setFormError(null); setView('edit') }}
+                  onClick={() => {
+                    setFormError(null)
+                    setParticipants([])
+                    setParticipantsError(null)
+                    setShowAssignForm(false)
+                    setAssignError(null)
+                    setSelectedUserId(0)
+                    setView('edit')
+                  }}
                   type="button"
                 >
                   Edit
@@ -199,6 +285,116 @@ export function TeamsPanel({ role }: { role: DashboardRole }) {
           <dt>Last updated</dt>
           <dd>{new Date(selectedTeam.updatedAt).toLocaleDateString()}</dd>
         </dl>
+
+        <section
+          aria-labelledby="participants-section-title"
+          data-testid="participants-section"
+        >
+          <div className={styles.subsectionHeader}>
+            <h3 id="participants-section-title">Participants</h3>
+            {role === 'admin' && selectedTeam.isActive && (
+              <button
+                className={styles.inlineButton}
+                data-testid="assign-participant-btn"
+                disabled={isAssignPending || showAssignForm}
+                onClick={() => {
+                  setAssignError(null)
+                  setShowAssignForm(true)
+                  loadParticipantUsers()
+                }}
+                type="button"
+              >
+                + Assign participant
+              </button>
+            )}
+          </div>
+
+          {showAssignForm && role === 'admin' && (
+            <div className={styles.formGroup} data-testid="assign-form">
+              <label htmlFor="participant-select">Select participant</label>
+              <select
+                id="participant-select"
+                className={styles.inlineSelect}
+                data-testid="participant-select"
+                value={selectedUserId}
+                onChange={(e) => setSelectedUserId(Number(e.target.value))}
+                disabled={isAssignPending}
+              >
+                <option value={0}>— Select a participant —</option>
+                {participantUsers.map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {u.displayName} ({u.email})
+                  </option>
+                ))}
+              </select>
+
+              {assignError && (
+                <span className={styles.fieldError} data-testid="assign-error">
+                  {assignError}
+                </span>
+              )}
+
+              <div className={styles.panelActions}>
+                <button
+                  className={styles.primaryButton}
+                  data-testid="confirm-assign-btn"
+                  disabled={!selectedUserId || isAssignPending}
+                  onClick={handleAssign}
+                  type="button"
+                >
+                  Assign
+                </button>
+                <button
+                  className={styles.inlineButton}
+                  disabled={isAssignPending}
+                  onClick={() => {
+                    setShowAssignForm(false)
+                    setAssignError(null)
+                    setSelectedUserId(0)
+                  }}
+                  type="button"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+
+          {participantsError && (
+            <div className={styles.chip} data-tone="critical">
+              {participantsError}
+            </div>
+          )}
+
+          {isAssignPending && !participants.length && (
+            <span className={styles.chip}>Loading…</span>
+          )}
+
+          {!participantsError && !isAssignPending && participants.length === 0 && (
+            <p className={styles.panelMeta} data-testid="no-participants-message">
+              No participants assigned yet.
+            </p>
+          )}
+
+          {participants.length > 0 && (
+            <table className={styles.table} data-testid="participants-table">
+              <thead>
+                <tr>
+                  <th>User</th>
+                  <th>Assigned</th>
+                </tr>
+              </thead>
+              <tbody>
+                {participants.map((m) => (
+                  <tr key={m.teamMembershipId} data-testid={`participant-row-${m.teamMembershipId}`}>
+                    <td data-testid={`participant-user-${m.userId}`}>{m.userId}</td>
+                    <td>{new Date(m.assignedAt).toLocaleDateString()}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </section>
       </section>
     )
   }

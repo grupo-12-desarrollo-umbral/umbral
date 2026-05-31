@@ -70,6 +70,13 @@ export type CreateTeamResultDto = {
   teamId: string
 }
 
+export type TeamMembershipDto = {
+  teamMembershipId: string
+  teamId: string
+  userId: number       // database integer id of the assigned user
+  assignedAt: string   // ISO 8601
+}
+
 export class IdentityError extends Error {
   constructor(
     public code: 'deactivated' | 'unauthorized' | 'network' | 'unknown',
