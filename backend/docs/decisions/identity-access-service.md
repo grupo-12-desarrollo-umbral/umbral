@@ -88,3 +88,92 @@ The gateway remains the trust boundary, so the service only consumes `X-User-Id`
 
 **Next session needs to know**
 The API shape for HU-01 is in place and the integration coverage path was added alongside the new endpoints. The next pass should focus on final verification and the 95% coverage gate for the full service.
+
+---
+
+## [005] HU-02 Phase X.1 — UserAccessCatalog Authorization Concept
+**Date:** 2026-05-30
+**Phase:** X.1 — Domain Layer (HU-02 addition)
+**Commits:** (uncommitted — see diff below)
+**HU tickets advanced:** HU-02, DES-67
+
+**What was built**
+Added `ProtectedCapability.UserAccessCatalog` enum member (value 5) and authorized it in `AccessPolicy` for `Administrator` and `Operator` roles. Extended `AccessPolicyTests` with matrix coverage for the new capability and strengthened `UserTests.DeactivateAccess` assertions. Domain builds clean; all 59 existing unit tests pass.
+
+**Why this approach**
+UserAccessCatalog is the domain capability behind the future `GET /api/users` listing (HU-02). Modeling it as a `ProtectedCapability` keeps authorization uniform with existing HU-01 patterns: the `AccessPolicy` switch-expression already guards all protected operations, so adding a new capability is a single-line append. Only admins and operators may list users; participants are excluded, matching the PRD's access-management intent.
+
+**Deliberately skipped**
+- The actual query/read model for the user listing — not part of phase X.1 scope; belongs to a future backend phase
+- `GET /api/users` endpoint, handler, or DTO — deferred until the application layer phase
+- Any frontend work
+
+**Next session needs to know**
+"In this slice, 'catalog' means the registered-user listing for access management." — `UserAccessCatalog` is the authorization concept only; the read model and API surface come in later phases. Phase X.2 (Application layer for HU-02) should add the `GetUsersListingQuery` handler and extend the existing `IUserRepository` with a paginated search method.
+
+---
+
+## [006] HU-02 Phase X.2 — User Management Application Layer
+**Date:** 2026-05-30
+**Phase:** X.2 — Application Layer (HU-02)
+**Commits:** 5913c88
+**HU tickets advanced:** HU-02, DES-67
+
+**What was built**
+Application-layer handlers for HU-02 user management: `DeactivateUserCommandHandler` (soft deactivation with idempotency guard), `GetUsersQueryHandler` (paginated user listing with role-based filtering for admins/operators), their FluentValidation validators, and 4 unit test files covering: successful deactivation, idempotent re-deactivation, user listing by admin/operator, and deactivated-user rejection at authentication and protected operation. The `IUserRepository` contract was extended with `GetByIdAsync`, `GetAllAsync`, and `GetCountAsync`.
+
+**Why this approach**
+Deactivation is a soft-tombstone (IsActive = false) rather than a delete — history is preserved, and the domain entity already guards against duplicate deactivation (see Domain layer). The listing query uses pagination from the start (`PagedResult<T>`, offset/limit) rather than returning unbounded results, which avoids a breaking change later. Role-based filtering (`administrator` sees all, `operator` sees all except other operators/admins) was kept simple: operators only see participants, matching the PRD's access-management intent without adding a full RBAC query engine.
+
+**Deliberately skipped**
+- `PUT /api/users` or profile-editing endpoints — not in HU-02 scope
+- Hard deletion or GDPR cleanup — deactivation is reversible; permanent removal is a separate concern
+- API/gateway wiring for the new endpoints — belongs to a future Phase X.4+
+- Frontend work — entirely out of scope
+
+**Next session needs to know**
+The application-layer gate passes: clean build, 67/67 unit tests green. The next slice should wire the `GET /api/users` and `PATCH /api/users/{id}/deactivate` endpoints in the API layer and extend integration tests. If Keycloak admin API integration is needed for true deactivation, that's a separate infrastructure concern.
+
+---
+
+## [007] HU-02 Phase X.3 — Infrastructure persistence for deactivation and user listing
+**Date:** 2026-05-30
+**Phase:** X.3 — Infrastructure Layer (HU-02)
+**Commits:** (uncommitted — see diff below)
+**HU tickets advanced:** HU-02, DES-67
+
+**What was built**
+Repository implementation for deactivation (`GetByIdAsync`) and paginated user listing (`ListAsync` with `PagedResult<User>`) on `UserRepository`, plus two integration tests: `DeactivateUser_PersistsInactiveStateAndPreservesHistory` (deactivates a user via domain entity, confirms active query returns null, confirms record still exists with `IsActive == false` and session history intact) and `ListUsers_ReturnsStablePagedCatalog` (inserts 3 users, reads page 2 with size 2, verifies total count and ordering). No new migration was needed — `IsActive` was already in the domain entity and covered by the existing Init migration.
+
+**Why this approach**
+The repository methods align one-to-one with the `IUserRepository` contract already defined in phase X.2. `GetByIdAsync` includes `IdentityProviderSessions` so deactivation audit history is loaded alongside the user. `ListAsync` uses `AsNoTracking()` for read-only performance and stable sort by `DisplayName` then `Id` to guarantee deterministic pagination. The integration tests exercise the real PostgreSQL via `Testcontainers`, cleaning the database between runs via `ExecuteDeleteAsync`. No new columns or indexes were required — the schema from HU-01 already supported soft-deactivation.
+
+**Deliberately skipped**
+- Migration — not needed; `IsActive` column already exists from the Init migration
+- API/gateway wiring — deferred; the phase scope was repository + integration test only, per the prompt gate
+- Aggregation or filtering in `ListAsync` beyond pagination — the application-layer handler owns role filtering; the repository stays a simple offset/limit provider
+
+**Next session needs to know**
+Phase X.3 passes its gate: `dotnet build` succeeds clean, and both integration tests confirm the deactivation lifecycle (active → inactive) and paginated read behavior. The next session should wire `GET /api/users` and `PATCH /api/users/{id}/deactivate` in the API layer (Phase X.4+) and extend integration coverage to the endpoint level.
+
+---
+
+## [008] HU-02 Phase X.4 — API layer for user catalog listing and deactivation
+**Date:** 2026-05-30
+**Phase:** X.4 — API Layer (HU-02)
+**Commits:** (uncommitted)
+**HU tickets advanced:** HU-02, DES-67
+
+**What was built**
+Two new API endpoints on `UsersEndpoints`: `GET /api/users` (paginated user catalog, operator+ role) and `DELETE /api/users/{id:int}/access` (deactivate user, administrator role). Integration tests cover happy-path paging, deactivation persistence, and deactivated-user bootstrap rejection. Unit test added for `AccessPolicy.Evaluate` returning denied for unknown capability. Refactored `SeedDeactivatedUserAsync` to use extracted `SeedUserAsync` helper.
+
+**Why this approach**
+Endpoints delegate to existing application-layer commands/queries from Phase X.2 (`GetUsersQuery`, `DeactivateUserCommand`), keeping the API layer thin. The `EnsureTrustedIdentity` gate from Phase X.1 is reused. `GetUsersRequest` defaults to page=1, pageSize=20 to match the application-layer default. The DELETE endpoint uses `TypedResults.NoContent()` (204) as the standard for void mutations. Integration tests verify the full round-trip through the real pipeline (auth middleware → endpoint → mediator → handler → repository → PostgreSQL).
+
+**Deliberately skipped**
+- `PATCH /api/users/{id}/deactivate` — the spec calls for a `DELETE` verb on `/access` as a resource-oriented design; no PATCH route was needed
+- API documentation / OpenAPI metadata — deferred; schema annotations can be added in a later pass
+- Role-filtering in the GET endpoint — the application-layer `GetUsersHandler` already applies role-based filtering; the endpoint is a passthrough
+
+**Next session needs to know**
+Phase X.4 builds clean. All existing and new integration tests pass. The next session should wire the gateway routes to these endpoints and advance to Phase X.5 (presentation/frontend integration) or address DES tickets as prioritized.
