@@ -57,4 +57,15 @@ public sealed class AccessPolicyTests
         FluentActions.Invoking(() => _policy.EnsureCanAccess(user, ProtectedCapability.UserAccessCatalog))
             .Should().Throw<UserRoleNotAuthorizedException>();
     }
+
+    [Fact]
+    public void Evaluate_WhenCapabilityIsUnknown_DeniesAccess()
+    {
+        var user = User.Provision("kc-04", "Fallback", "fallback@example.com", Role.Administrator);
+
+        var decision = _policy.Evaluate(user, (ProtectedCapability)999);
+
+        decision.IsAllowed.Should().BeFalse();
+        decision.Reason.Should().Be("Role is not authorized for capability.");
+    }
 }
