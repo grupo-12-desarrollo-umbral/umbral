@@ -484,6 +484,20 @@ Coverage is collected per ADR-0005: `coverlet.msbuild` with `/p:CollectCoverage=
 | API Endpoints | Bootstrap + read-back cycle (provision user via POST, GET /me, verify DB), no-headers → 401, deactivated user → 403, bootstrap without headers → 401, list users → paginated results, deactivate user → 204, deactivate already-deactivated → 400, health → 200, alive → 200 | Api/infra |
 | Persistence | Full authenticate + retrieve profile through real `UserRepository` + PostgreSQL | Infra |
 
+## Seeding Teams (Development)
+
+Once the stack is running, seed test teams by running the script from the repo root:
+
+```bash
+./backend/scripts/seed-teams.sh
+```
+
+The script authenticates as the `admin` Keycloak user, obtains a token, and calls `POST /api/teams` through the gateway (`localhost:8000`). It is idempotent — teams that already exist (409) are skipped. To target a different base URL or Keycloak instance, pass them as arguments:
+
+```bash
+./backend/scripts/seed-teams.sh http://localhost:8000 http://localhost:8080
+```
+
 ## Running the Service
 
 ```bash
