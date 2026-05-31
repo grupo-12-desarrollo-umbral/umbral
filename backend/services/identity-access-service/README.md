@@ -434,7 +434,7 @@ Failures are logged but do not roll back the DB update — the application DB is
 ```
 tests/
   UnitTests/          — Pure logic, Moq for dependencies
-  IntegrationTests/   — WebApplicationFactory + real PostgreSQL via Testcontainers
+  IntegrationTests/   — WebApplicationFactory + real PostgreSQL via Testcontainers (`postgres:16`)
   EndToEndTests/      — Empty (not in current sprint)
 ```
 
@@ -497,7 +497,7 @@ IDENTITY_ACCESS_SERVICE_CONNECTION_STRING="Host=localhost;Database=umbral;Userna
 # Tests - Unit
 dotnet test tests/UnitTests/Application.UnitTests.csproj -c Release
 
-# Tests - Integration (requires Docker for Testcontainers)
+# Tests - Integration (requires Docker for Testcontainers; fixture disables Ryuk and waits up to 2 minutes for PostgreSQL startup)
 dotnet test tests/IntegrationTests/Infrastructure.IntegrationTests.csproj -c Release
 
 # Tests - Full coverage (merge chain)

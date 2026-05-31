@@ -7,7 +7,7 @@ namespace umbral_backend.Infrastructure.IntegrationTests;
 public sealed class PostgreSqlFixture : IAsyncLifetime
 {
     private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder()
-        .WithImage("postgres:16-alpine")
+        .WithImage("postgres:16")
         .Build();
 
     public string ConnectionString => _postgres.GetConnectionString();
