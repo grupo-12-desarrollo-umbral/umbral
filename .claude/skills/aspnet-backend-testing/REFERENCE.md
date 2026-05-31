@@ -26,6 +26,7 @@ These defaults are good choices for this workspace:
 
 - Unit tests:
   - `xUnit` is a strong default in .NET and is used throughout Microsoft Learn examples.
+  - `FluentAssertions` is the standard assertion library — use it across all test projects; never use raw `Assert.*` calls.
   - `Moq` is an acceptable mocking library for Application-layer unit tests.
   - Keep `Moq` focused on outbound ports and collaborators; most Domain tests should not need mocking.
 - API integration tests:
@@ -49,6 +50,7 @@ Preferred tests:
 Libraries:
 
 - `xUnit`
+- `FluentAssertions`
 
 Verify:
 
@@ -75,6 +77,7 @@ Preferred tests:
 Libraries:
 
 - `xUnit`
+- `FluentAssertions`
 - `Moq`
 
 Use `Moq` for:
@@ -96,6 +99,7 @@ Preferred tests:
 Libraries:
 
 - `xUnit`
+- `FluentAssertions`
 - `Testcontainers`
 
 Use these to verify:
@@ -107,6 +111,28 @@ Use these to verify:
 
 Do not treat EF Core in-memory behavior as proof that the production database works.
 
+**Testcontainers fixture sharing** — never create a container inside a `[Fact]` body. Container startup takes 4–8 s each time. Instead use `IClassFixture<T>` to share one container across all tests in a class, or `ICollectionFixture<T>` to share across multiple test classes:
+
+```csharp
+public class PostgreSqlFixture : IAsyncLifetime
+{
+    private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder()
+        .WithImage("postgres:16-alpine").Build();
+
+    public string ConnectionString => _postgres.GetConnectionString();
+    public Task InitializeAsync() => _postgres.StartAsync();
+    public Task DisposeAsync() => _postgres.DisposeAsync().AsTask();
+}
+
+public class MyTests : IClassFixture<PostgreSqlFixture>
+{
+    private readonly PostgreSqlFixture _fixture;
+    public MyTests(PostgreSqlFixture fixture) => _fixture = fixture;
+}
+```
+
+**Handler dependencies** — Application-layer handlers must depend on repository interfaces (e.g., `IMissionRepository`), not on `DbContext` directly. Depending on `DbContext` makes the handler impossible to unit test and forces it into the integration test suite. The integration test then verifies that the real repository implements the interface correctly; the handler behavior is verified separately with a mocked interface.
+
 ### Presentation/API layer
 
 Preferred tests:
@@ -116,6 +142,7 @@ Preferred tests:
 Libraries:
 
 - `xUnit`
+- `FluentAssertions`
 - `Microsoft.AspNetCore.Mvc.Testing`
 - `WebApplicationFactory`
 - `TestServer`
@@ -137,6 +164,7 @@ Preferred tests:
 Libraries:
 
 - `xUnit`
+- `FluentAssertions`
 - `Microsoft.Playwright.Xunit` when a browser UI exists
 
 For backend-only systems:
@@ -160,9 +188,9 @@ Coverage is a guardrail, not proof of correctness.
 
 ```text
 What behavior am I proving?
-|- Pure business rule or invariant                      -> Domain unit test with xUnit
-|- Use-case orchestration or validation flow            -> Application unit test with xUnit + Moq
-|- EF/query/repository/external adapter behavior        -> Infrastructure integration test with xUnit + Testcontainers
-|- Route/auth/model-binding/middleware/API contract     -> API integration test with xUnit + Mvc.Testing
-\- Full critical journey across deployed boundaries     -> End-to-end/system test with Playwright or black-box API tests
+|- Pure business rule or invariant                      -> Domain unit test with xUnit + FluentAssertions
+|- Use-case orchestration or validation flow            -> Application unit test with xUnit + Moq + FluentAssertions
+|- EF/query/repository/external adapter behavior        -> Infrastructure integration test with xUnit + Testcontainers + FluentAssertions
+|- Route/auth/model-binding/middleware/API contract     -> API integration test with xUnit + Mvc.Testing + FluentAssertions
+\- Full critical journey across deployed boundaries     -> End-to-end/system test with Playwright or black-box API tests + FluentAssertions
 ```

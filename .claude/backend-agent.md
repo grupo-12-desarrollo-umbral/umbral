@@ -106,7 +106,26 @@ Build order: `mission-design-service` → `identity-access-service` → `scoring
 | X.1 Domain | `dotnet build` on Domain project exits 0 |
 | X.2 Application | `dotnet build` clean; at least one handler unit test green |
 | X.3 Infrastructure | `dotnet ef migrations add Init` succeeds; repository integration test green |
-| X.4 Api | At least one endpoint returns expected response via HTTP test or `curl` |
+| X.4 Api | At least one endpoint returns expected response via HTTP test or `curl`; **aggregate coverage gate passes (see below)** |
+
+### Coverage gate (part of the Phase X.4 gate — do not commit Phase X.4 until it passes)
+
+Academic requirement: **≥95% line coverage for the backend**, measured as an
+**aggregate across all of the service's test projects combined** — not per layer.
+A service is one round of four phases (1.1→1.4, per `docs/current_workflow.md`),
+so this fires exactly once, at Phase X.4 (Api), the service's final phase.
+
+1. Collect coverage from every test project:
+   `dotnet test --coverage --coverage-output-format cobertura`
+2. Merge the per-project cobertura reports into one (`merged.cobertura.xml`).
+3. Enforce the threshold — must exit 0:
+   `python3 .claude/skills/aspnet-backend-testing/scripts/check_cobertura_threshold.py merged.cobertura.xml 95`
+4. If it reports below 95%, add tests in the same session until it passes.
+
+Keep the 95% honest, not busywork: exclude true non-logic from the denominator
+with `[ExcludeFromCodeCoverage]` — `Program.cs`, DI extension methods
+(`DependencyInjection`), and generated EF migrations. Never exclude Domain or
+Application code to make the number pass; earn most coverage there.
 
 ---
 
@@ -140,7 +159,7 @@ Use these skills for implementation decisions — do not reinvent what they enco
 |---|---|
 | `cqrs-mediatr-aspnetcore` | Structuring commands, queries, handlers, pipeline behaviours |
 | `ef-core-postgresql` | EF Core configurations, migrations, DbContext setup |
-| `aspnet-backend-testing` | Writing unit and integration tests for handlers and repositories |
+| `aspnet-backend-testing` | Writing unit/integration tests and enforcing the ≥95% aggregate coverage gate |
 | `rabbitmq-events-dotnet` | Outbound event publishing and consumer wiring |
 | `signalr-websockets-aspnetcore` | Hub setup, group management, real-time notifier implementation |
 

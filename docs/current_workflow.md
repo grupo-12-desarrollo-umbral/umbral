@@ -88,8 +88,9 @@ Commit:
 
 ### After phase 1.4 only
 
-1. Open a **draft PR** from the feature branch to `develop`. PR description must include `Closes #1, Closes #2, Closes #3` — GitHub auto-closes the feature slice issues on merge.
-2. Before moving any Linear HU ticket to **Done**, verify its acceptance criteria are met by the phase 1.4 gate. Phase 1.4 passing is necessary but not sufficient — every HU ticket's criteria must be independently confirmed. Only move tickets whose criteria are actually covered.
+1. Run the **coverage gate**: collect coverage from all test projects, merge into one cobertura report, and enforce ≥95% aggregate line coverage (`check_cobertura_threshold.py merged.cobertura.xml 95` must exit 0). This is a hard gate — do not open the PR below 95%.
+2. Open a **draft PR** from the feature branch to `develop`. PR description must include `Closes #1, Closes #2, Closes #3` — GitHub auto-closes the feature slice issues on merge.
+3. Before moving any Linear HU ticket to **Done**, verify its acceptance criteria are met by the phase 1.4 gate. Phase 1.4 passing is necessary but not sufficient — every HU ticket's criteria must be independently confirmed. Only move tickets whose criteria are actually covered.
 
 ### Verification gates
 
@@ -98,7 +99,17 @@ Commit:
 | X.1 Domain | `dotnet build` on Domain project exits 0 |
 | X.2 Application | `dotnet build` clean; at least one handler unit test green |
 | X.3 Infrastructure | `dotnet ef migrations add Init` succeeds; repository integration test green |
-| X.4 Api | At least one endpoint returns expected response via HTTP test or `curl` |
+| X.4 Api | At least one endpoint returns expected response via HTTP test or `curl`; **aggregate coverage ≥95% (see below)** |
+
+**Coverage gate (academic requirement, part of Phase X.4):** the backend must reach
+**≥95% line coverage**, measured as an aggregate across all of the service's test
+projects combined — not per layer. Since a service is one round of four phases
+(1.1→1.4), this fires once, at Phase X.4. Collect coverage
+(`dotnet test --coverage --coverage-output-format cobertura`), merge the reports, and
+run `.agents/skills/aspnet-backend-testing/scripts/check_cobertura_threshold.py merged.cobertura.xml 95`
+— must exit 0 before the draft PR is opened. Exclude pure wiring (`Program.cs`, DI
+extension methods, generated EF migrations) with `[ExcludeFromCodeCoverage]`; never
+exclude Domain or Application code.
 
 ---
 

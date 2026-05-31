@@ -26,6 +26,7 @@ These defaults are good choices for this workspace:
 
 - Unit tests:
   - `xUnit` is a strong default in .NET and is used throughout Microsoft Learn examples.
+  - `FluentAssertions` is the standard assertion library — use it across all test projects; never use raw `Assert.*` calls.
   - `Moq` is an acceptable mocking library for Application-layer unit tests.
   - Keep `Moq` focused on outbound ports and collaborators; most Domain tests should not need mocking.
 - API integration tests:
@@ -49,6 +50,7 @@ Preferred tests:
 Libraries:
 
 - `xUnit`
+- `FluentAssertions`
 
 Verify:
 
@@ -75,6 +77,7 @@ Preferred tests:
 Libraries:
 
 - `xUnit`
+- `FluentAssertions`
 - `Moq`
 
 Use `Moq` for:
@@ -96,6 +99,7 @@ Preferred tests:
 Libraries:
 
 - `xUnit`
+- `FluentAssertions`
 - `Testcontainers`
 
 Use these to verify:
@@ -116,6 +120,7 @@ Preferred tests:
 Libraries:
 
 - `xUnit`
+- `FluentAssertions`
 - `Microsoft.AspNetCore.Mvc.Testing`
 - `WebApplicationFactory`
 - `TestServer`
@@ -137,6 +142,7 @@ Preferred tests:
 Libraries:
 
 - `xUnit`
+- `FluentAssertions`
 - `Microsoft.Playwright.Xunit` when a browser UI exists
 
 For backend-only systems:
@@ -160,9 +166,9 @@ Coverage is a guardrail, not proof of correctness.
 
 ```text
 What behavior am I proving?
-|- Pure business rule or invariant                      -> Domain unit test with xUnit
-|- Use-case orchestration or validation flow            -> Application unit test with xUnit + Moq
-|- EF/query/repository/external adapter behavior        -> Infrastructure integration test with xUnit + Testcontainers
-|- Route/auth/model-binding/middleware/API contract     -> API integration test with xUnit + Mvc.Testing
-\- Full critical journey across deployed boundaries     -> End-to-end/system test with Playwright or black-box API tests
+|- Pure business rule or invariant                      -> Domain unit test with xUnit + FluentAssertions
+|- Use-case orchestration or validation flow            -> Application unit test with xUnit + Moq + FluentAssertions
+|- EF/query/repository/external adapter behavior        -> Infrastructure integration test with xUnit + Testcontainers + FluentAssertions
+|- Route/auth/model-binding/middleware/API contract     -> API integration test with xUnit + Mvc.Testing + FluentAssertions
+\- Full critical journey across deployed boundaries     -> End-to-end/system test with Playwright or black-box API tests + FluentAssertions
 ```

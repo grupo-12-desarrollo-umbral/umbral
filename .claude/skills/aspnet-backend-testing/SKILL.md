@@ -15,10 +15,10 @@ Build the test strategy around the solution's existing layers first, then place 
    - runtime dependencies: database, broker, cache, HTTP services
    - whether the system is API-only or includes a web UI
 2. Default library choices:
-   - unit tests: `xUnit` + `Moq`
-   - API integration tests: `xUnit` + `Microsoft.AspNetCore.Mvc.Testing`
-   - infrastructure integration tests: `xUnit` + `Testcontainers`
-   - end-to-end tests: `xUnit` + `Microsoft.Playwright.Xunit` when a browser client exists
+   - unit tests: `xUnit` + `Moq` + `FluentAssertions`
+   - API integration tests: `xUnit` + `Microsoft.AspNetCore.Mvc.Testing` + `FluentAssertions`
+   - infrastructure integration tests: `xUnit` + `Testcontainers` + `FluentAssertions`
+   - end-to-end tests: `xUnit` + `Microsoft.Playwright.Xunit` + `FluentAssertions` when a browser client exists
 3. Map tests to Clean Architecture:
    - Domain: unit tests for invariants and pure business rules
    - Application: unit tests for handlers, validators, and orchestration
@@ -33,6 +33,7 @@ Build the test strategy around the solution's existing layers first, then place 
 
 - Unit tests:
   - use `xUnit` by default
+  - use `FluentAssertions` for all assertions — never use raw xUnit `Assert.*` calls
   - use `Moq` only for outbound ports and collaborators that should stay outside the test
   - keep Domain and Application tests free of real infrastructure
 - Integration tests:
