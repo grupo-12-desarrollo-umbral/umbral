@@ -7,13 +7,18 @@ const DB_CONTAINER = 'backend-postgres-1'
 const DB_NAME = 'identity_access'
 
 function seedViaDocker(): void {
-  const sql = `INSERT INTO users ("ExternalIdentityId", "DisplayName", "Email", "Role", "IsActive", "Created", "LastModified")
+  const sql = `DELETE FROM team_memberships;
+DELETE FROM teams;
+INSERT INTO users ("ExternalIdentityId", "DisplayName", "Email", "Role", "IsActive", "Created", "LastModified")
 VALUES
   ('admin-1',        'Administrator One', 'admin@umbral.local',        'Administrator', true,  NOW(), NOW()),
   ('op-1',           'Operator One',      'op@umbral.local',           'Operator',      true,  NOW(), NOW()),
   ('participant-1',  'Participant One',   'participant@umbral.local',  'Participant',   true,  NOW(), NOW()),
   ('deactivated-1',  'Deactivated User',  'deactivated@umbral.local',  'Operator',      false, NOW(), NOW())
 ON CONFLICT ("ExternalIdentityId") DO UPDATE SET
+  "DisplayName" = EXCLUDED."DisplayName",
+  "Email" = EXCLUDED."Email",
+  "Role" = EXCLUDED."Role",
   "IsActive" = EXCLUDED."IsActive",
   "LastModified" = NOW();
 
