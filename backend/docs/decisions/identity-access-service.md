@@ -177,3 +177,48 @@ Endpoints delegate to existing application-layer commands/queries from Phase X.2
 
 **Next session needs to know**
 Phase X.4 builds clean. All existing and new integration tests pass. The next session should wire the gateway routes to these endpoints and advance to Phase X.5 (presentation/frontend integration) or address DES tickets as prioritized.
+
+---
+
+## [009] HU-03 Phase X.1 — Domain layer for role and permission assignment
+**Date:** 2026-05-30
+**Phase:** X.1 — Domain Layer (HU-03)
+**Commits:** cd06f2d
+**HU tickets advanced:** HU-03, DES-7
+
+**What was built**
+Added `AssignRole(Role newRole)` to the `User` aggregate with two invariants: deactivated users are refused (throws `DeactivatedUserRoleAssignmentNotAllowedException`), and same-role assignment is a no-op. The method emits both `UserRoleRevokedEvent` (new event class) and `UserRoleAssignedEvent` when a role is displaced. Hardened the `AccessPolicyTests` into an exhaustive matrix loop covering all `ProtectedCapability × Role` combinations, with a `CapabilityMatrix` dictionary as the single source of truth for role-to-capability mapping.
+
+**Why this approach**
+Role assignment is a domain operation on the existing `User` aggregate — no new aggregate or value object was needed. The deactivated-user guard keeps the invariant near the data it protects (the `User.IsActive` field), consistent with the DDD rich-domain pattern established in HU-01. The `UserRoleRevokedEvent` preserves a complete audit trail alongside the existing `UserRoleAssignedEvent`. The matrix-based test restructure replaces a partial Theory with exhaustive coverage, ensuring no capability is accidentally left unguarded.
+
+**Deliberately skipped**
+- Application layer (`AssignUserRoleCommand`, handler, validator) — deferred to phase X.2
+- Infrastructure/persistence layer — deferred to phase Y.3
+- API endpoint (`PATCH /api/users/{id}/role`) — deferred to phase Y.4
+- Frontend work — entirely out of scope for this phase
+
+**Next session needs to know**
+Phase X.1 is committed to `feature/hu-03-role-permission-assignment`. Build succeeds with `dotnet build --force` (the `--force` flag works around a .NET 10 SDK incremental-build tracking issue after clean — no code issues). Start phase X.2: `AssignUserRoleCommand` + handler with validator, enforcing administrator-only access via the existing `AuthorizationBehaviour` or explicit actor-role check.
+
+---
+
+## [010] HU-03 Phase X.2 — Role Assignment Application Layer
+**Date:** 2026-05-30
+**Phase:** X.2 — Application Layer (HU-03)
+**Commits:** 2f5d6b5
+**HU tickets advanced:** HU-03, DES-7, DES-67
+
+**What was built**
+Application-layer command, handler, and validator for role assignment: `AssignUserRoleCommand` (record with `[Authorize(Roles = "Administrator")]`), `AssignUserRoleCommandValidator` (checks UserId > 0, role is a known enum, target user exists and is active), and `AssignUserRoleCommandHandler` (resolves actor via `ICurrentUser`, enforces administrator access via `AccessPolicy.Evaluate`, delegates to `user.AssignRole(newRole)`, persists via `IUserRepository.UpdateAsync`). Unit tests (9 new, 70 total) cover successful assignment with event emission, idempotent same-role, deactivated-target rejection, non-administrator caller rejection, and unknown-role rejection.
+
+**Why this approach**
+Two-step authorization: `[Authorize(Roles = "Administrator")]` on the command for coarse-grained gatekeeping at the pipeline level, plus explicit `AccessPolicy.Evaluate(actor, ProtectedCapability.AdministratorPanel)` in the handler for fine-grained enforcement — matching the existing HU-01/HU-02 pattern. The validator performs the target-user existence check separately so the handler can assume the user is valid by the time it runs, avoiding redundant lookups. Unknown roles are validated both in the validator and handler as defense-in-depth. Deactivated-target rejection is covered in both layers: the validator for early feedback, the handler for the authoritative domain-level guard.
+
+**Deliberately skipped**
+- Infrastructure/persistence layer (`UserRepository.UpdateAsync`) — deferred to phase X.3
+- API endpoint (`PATCH /api/users/{id}/role`) — deferred to phase X.4
+- Frontend work — entirely out of scope
+
+**Next session needs to know**
+Build passes clean; all 70 unit tests green. Proceed to Phase X.3: implement `IUserRepository.UpdateAsync` in the infrastructure layer and write integration tests for the role-assignment round-trip against PostgreSQL via Testcontainers.
