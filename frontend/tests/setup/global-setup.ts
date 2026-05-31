@@ -9,12 +9,23 @@ const DB_NAME = 'identity_access'
 function seedViaDocker(): void {
   const sql = `INSERT INTO users ("ExternalIdentityId", "DisplayName", "Email", "Role", "IsActive", "Created", "LastModified")
 VALUES
-  ('op-1',           'Operator One',     'op@umbral.local',           'Operator',      true,  NOW(), NOW()),
-  ('participant-1',  'Participant One',  'participant@umbral.local',  'Participant',   true,  NOW(), NOW()),
-  ('deactivated-1',  'Deactivated User', 'deactivated@umbral.local',  'Operator',      false, NOW(), NOW())
+  ('admin-1',        'Administrator One', 'admin@umbral.local',        'Administrator', true,  NOW(), NOW()),
+  ('op-1',           'Operator One',      'op@umbral.local',           'Operator',      true,  NOW(), NOW()),
+  ('participant-1',  'Participant One',   'participant@umbral.local',  'Participant',   true,  NOW(), NOW()),
+  ('deactivated-1',  'Deactivated User',  'deactivated@umbral.local',  'Operator',      false, NOW(), NOW())
 ON CONFLICT ("ExternalIdentityId") DO UPDATE SET
   "IsActive" = EXCLUDED."IsActive",
-  "LastModified" = NOW();`
+  "LastModified" = NOW();
+
+INSERT INTO teams (id, display_name, team_code, is_active, created_at, updated_at)
+VALUES
+  ('a0000000-0000-0000-0000-000000000001', 'Gilded Owls',    'OWLS',  true,  NOW(), NOW()),
+  ('a0000000-0000-0000-0000-000000000002', 'Maple Runners',  'MAPLE', true,  NOW(), NOW()),
+  ('a0000000-0000-0000-0000-000000000003', 'Brass Lanterns', 'BRASS', true,  NOW(), NOW()),
+  ('a0000000-0000-0000-0000-000000000004', 'Iron Magnolias', 'IRON',  true,  NOW(), NOW())
+ON CONFLICT (id) DO UPDATE SET
+  is_active = EXCLUDED.is_active,
+  updated_at = NOW();`
 
   const tmpDir = mkdtempSync(join(tmpdir(), 'umbral-e2e-seed-'))
   const tmpFile = join(tmpDir, 'seed.sql')

@@ -14,6 +14,8 @@ public sealed class ApplicationDbContext : DbContext
 
     public DbSet<IdentityProviderSession> IdentityProviderSessions => Set<IdentityProviderSession>();
 
+    public DbSet<Team> Teams => Set<Team>();
+
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);

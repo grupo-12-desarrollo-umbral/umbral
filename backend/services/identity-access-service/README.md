@@ -99,28 +99,273 @@ Application-side User, Role, Access Facts
 
 ## API Endpoints
 
-### User Endpoints (`/api/users`)
+---
 
-| Method | Path | Description | Auth |
-|--------|------|-------------|------|
-| `POST` | `/api/users/authenticated` | Bootstrap/sync user after Keycloak login. Body: `{ "displayName": "..." }`. Requires trusted gateway headers. | Headers |
-| `GET` | `/api/users/me` | Get current authenticated user profile. | Headers |
-| `GET` | `/api/users` | Paginated user catalog. Query: `page` (default 1), `pageSize` (default 20). All roles returned. | `Administrator`, `Operator` |
-| `PATCH` | `/api/users/{id}/role` | Change a user's role. Body: `{ "role": "Administrator" }`. Updates the DB and syncs the realm role to Keycloak. Returns `204`. | `Administrator` only |
-| `DELETE` | `/api/users/{id}/access` | Soft-deactivate a user by internal numeric id. Returns `204`. | `Administrator` only |
+### `POST /api/users/authenticated`
 
-### Permission Endpoints (`/api/permissions`)
+Bootstrap or sync the application-side `User` record after a successful Keycloak login. New users are provisioned with the role from the Keycloak JWT. Existing users get their profile (display name, email) synced — the application-side role is preserved so dashboard changes are not overwritten.
 
-| Method | Path | Description | Auth |
-|--------|------|-------------|------|
-| `GET` | `/api/permissions/authenticated-platform-access` | Check if current user can access the platform. | Headers |
+Requires trusted gateway headers (`X-User-Id`, `X-User-Role`, `X-User-Email`). No additional auth.
+
+**Request:**
+```json
+{
+  "displayName": "string"
+}
+```
+
+**Response `200`**
+```json
+{
+  "userId": 0,
+  "externalIdentityId": "string",
+  "displayName": "string",
+  "email": "string",
+  "role": "Administrator | Operator | Participant",
+  "accessDecision": {
+    "capability": "AuthenticatedPlatformAccess",
+    "isAllowed": true,
+    "reason": "string"
+  }
+}
+```
+
+---
+
+### `GET /api/users/me`
+
+Returns the profile of the currently authenticated user based on the trusted gateway headers.
+
+Requires trusted gateway headers.
+
+**Response `200`**
+```json
+{
+  "userId": 0,
+  "externalIdentityId": "string",
+  "displayName": "string",
+  "email": "string",
+  "role": "Administrator | Operator | Participant"
+}
+```
+
+---
+
+### `GET /api/users`
+
+Paginated catalog of all users. Returns every role — authorization gates what the caller can do with the data, not what they can see.
+
+**Auth:** `Administrator`, `Operator`
+
+**Query parameters:** `page` (default 1), `pageSize` (default 20)
+
+**Response `200`**
+```json
+{
+  "items": [ { "userId": 0, "displayName": "string", "email": "string", "role": "...", "isActive": true, "createdAt": "...", "updatedAt": "..." } ],
+  "totalCount": 0,
+  "page": 1,
+  "pageSize": 20,
+  "totalPages": 0,
+  "hasPreviousPage": false,
+  "hasNextPage": false
+}
+```
+
+---
+
+### `PATCH /api/users/{id}/role`
+
+Change a user's role. Persists the change to the application database, then syncs the new realm role to Keycloak via the Admin API. Idempotent: assigning the same role again succeeds without error.
+
+**Auth:** `Administrator` only
+
+**Request:**
+```json
+{
+  "role": "Administrator"
+}
+```
+
+**Response `204`** — no body
+
+---
+
+### `DELETE /api/users/{id}/access`
+
+Soft-deactivate a user by their internal numeric ID. Sets `IsActive = false`, emits a `UserAccessDeactivated` domain event. Preserves history — the user record is not removed.
+
+**Auth:** `Administrator` only
+
+**Response `204`** — no body
+
+---
+
+### `GET /api/permissions/authenticated-platform-access`
+
+Evaluates whether the currently authenticated user may access the platform. Returns the access decision from the `AccessPolicy`.
+
+Requires trusted gateway headers.
+
+**Response `200`**
+```json
+{
+  "capability": "AuthenticatedPlatformAccess",
+  "isAllowed": true,
+  "reason": "string"
+}
+```
+
+---
+
+### Team Endpoints (`/api/teams`)
+
+---
+
+### `POST /api/teams`
+
+Creates a new team with the given display name and unique team code. The team code must not already exist — a `TeamCodeAlreadyExistsException` is raised otherwise.
+
+**Auth:** `Administrator` only
+
+**Request:**
+```json
+{
+  "displayName": "Alpha Squad",
+  "teamCode": "ALPHA-01"
+}
+```
+
+**Response `201`**
+```json
+{
+  "teamId": "guid-code-here"
+}
+```
+
+---
+
+### `GET /api/teams`
+
+Paginated list of all teams, including both active and deactivated ones.
+
+**Auth:** `Administrator`, `Operator`
+
+**Query parameters:** `page` (default 1), `pageSize` (default 20)
+
+**Response `200`**
+```json
+{
+  "items": [
+    {
+      "teamId": "guid-code-here",
+      "displayName": "Alpha Squad",
+      "teamCode": "ALPHA-01",
+      "isActive": true,
+      "createdAt": "2026-05-31T00:00:00Z",
+      "updatedAt": "2026-05-31T00:00:00Z"
+    }
+  ],
+  "totalCount": 1,
+  "page": 1,
+  "pageSize": 20,
+  "totalPages": 1,
+  "hasPreviousPage": false,
+  "hasNextPage": false
+}
+```
+
+---
+
+### `GET /api/teams/{id}`
+
+Returns a single team by its GUID identifier. Returns `404 NotFound` if the team does not exist.
+
+**Auth:** `Administrator`, `Operator`
+
+**Response `200`**
+```json
+{
+  "teamId": "guid-code-here",
+  "displayName": "Alpha Squad",
+  "teamCode": "ALPHA-01",
+  "isActive": true,
+  "createdAt": "2026-05-31T00:00:00Z",
+  "updatedAt": "2026-05-31T00:00:00Z"
+}
+```
+
+---
+
+### `PATCH /api/teams/{id}`
+
+Updates the display name and/or team code of an existing team. The new team code must not already be in use by another team. Returns `204 No Content` on success.
+
+**Auth:** `Administrator` only
+
+**Request:**
+```json
+{
+  "displayName": "Bravo Squad",
+  "teamCode": "BRAVO-01"
+}
+```
+
+**Response `204`** — no body
+
+---
+
+### `DELETE /api/teams/{id}/status`
+
+Deactivates a team, setting its `IsActive` flag to `false`. Returns the updated team state. Raises `TeamAlreadyDeactivatedException` if the team is already deactivated.
+
+**Auth:** `Administrator` only
+
+**Response `200`**
+```json
+{
+  "teamId": "guid-code-here",
+  "displayName": "Alpha Squad",
+  "teamCode": "ALPHA-01",
+  "isActive": false,
+  "createdAt": "2026-05-31T00:00:00Z",
+  "updatedAt": "2026-05-31T00:00:00Z"
+}
+```
+
+---
 
 ### Health Endpoints
 
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET` | `/health` | Database connectivity check. Returns `200 { "Status": "Healthy" }` or `503`. |
-| `GET` | `/alive` | Liveness check. Always returns `200 { "Status": "Alive" }`. |
+---
+
+### `GET /health`
+
+Database connectivity check. Returns healthy when the database is reachable.
+
+**Response `200`**
+```json
+{
+  "status": "Healthy"
+}
+```
+
+**Response `503`** — when the database is unreachable
+
+---
+
+### `GET /alive`
+
+Liveness check. Always returns `200 OK` regardless of database state.
+
+**Response `200`**
+```json
+{
+  "status": "Alive"
+}
+```
+
+---
 
 ### Trusted Gateway Headers
 
@@ -146,6 +391,11 @@ All exceptions are mapped to RFC 7807 `ProblemDetails`:
 | `ForbiddenAccessException` | 403 |
 | `DeactivatedUserAccessDeniedException` | 403 |
 | `UserRoleNotAuthorizedException` | 403 |
+| `TeamCodeAlreadyExistsException` | 409 |
+| `TeamAlreadyDeactivatedException` | 409 |
+| `TeamCodeRequiredException` | 400 |
+| `TeamDisplayNameRequiredException` | 400 |
+| `DeactivatedUserRoleAssignmentNotAllowedException` | 422 |
 | Everything else | 500 |
 
 ### Keycloak Admin Role Sync

@@ -28,6 +28,21 @@ public sealed class ProblemDetailsExceptionHandlerTests
             new DeactivatedUserRoleAssignmentNotAllowedException(12),
             StatusCodes.Status422UnprocessableEntity,
             "Unprocessable entity.");
+        await AssertHandledAsync(
+            handler,
+            new TeamCodeAlreadyExistsException("RED-01"),
+            StatusCodes.Status409Conflict,
+            "Conflict.");
+        await AssertHandledAsync(
+            handler,
+            new TeamAlreadyDeactivatedException(Guid.NewGuid()),
+            StatusCodes.Status409Conflict,
+            "Conflict.");
+        await AssertHandledAsync(
+            handler,
+            new TeamDisplayNameRequiredException(),
+            StatusCodes.Status400BadRequest,
+            "Validation failed.");
     }
 
     [Fact]

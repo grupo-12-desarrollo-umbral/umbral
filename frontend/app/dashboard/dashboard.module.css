@@ -1156,6 +1156,63 @@ html[data-theme="dark"] .cluePreview::after {
   gap: 0.5rem;
 }
 
+.detailList {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.5rem 1.5rem;
+  padding: 0.5rem 0;
+}
+
+.detailList dt {
+  color: var(--text-secondary);
+  font-size: 0.82rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  padding-top: 0.15rem;
+}
+
+.detailList dd {
+  margin: 0;
+}
+
+.formGroup {
+  display: grid;
+  gap: 0.35rem;
+  margin-bottom: 1rem;
+}
+
+.formGroup label {
+  color: var(--text-secondary);
+  font-size: 0.82rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.formInput {
+  min-height: 2.85rem;
+  padding: 0.7rem 0.95rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: 1rem;
+  background: var(--surface);
+  color: var(--text-primary);
+  font-size: 1rem;
+}
+
+.formInput:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.formInput:disabled {
+  opacity: 0.58;
+  cursor: not-allowed;
+}
+
+.fieldError {
+  color: var(--critical);
+  font-size: 0.82rem;
+}
+
 .confirmRow {
   display: inline-flex;
   align-items: center;
