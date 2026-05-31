@@ -8,6 +8,15 @@ namespace umbral_backend.Application.UnitTests.Domain.Services;
 public sealed class AccessPolicyTests
 {
     private readonly AccessPolicy _policy = new();
+    private static readonly IReadOnlyDictionary<ProtectedCapability, Role[]> CapabilityMatrix =
+        new Dictionary<ProtectedCapability, Role[]>
+        {
+            [ProtectedCapability.AuthenticatedPlatformAccess] = Enum.GetValues<Role>(),
+            [ProtectedCapability.AdministratorPanel] = new[] { Role.Administrator },
+            [ProtectedCapability.OperatorPanel] = new[] { Role.Administrator, Role.Operator },
+            [ProtectedCapability.ParticipantExperience] = new[] { Role.Participant },
+            [ProtectedCapability.UserAccessCatalog] = new[] { Role.Administrator, Role.Operator }
+        };
 
     [Fact]
     public void Evaluate_ReturnsAllowedForAuthenticatedPlatformAccess()
@@ -20,23 +29,24 @@ public sealed class AccessPolicyTests
         decision.Reason.Should().Be("Access granted for role.");
     }
 
-    [Theory]
-    [InlineData(Role.Administrator, ProtectedCapability.AdministratorPanel, true)]
-    [InlineData(Role.Operator, ProtectedCapability.OperatorPanel, true)]
-    [InlineData(Role.Administrator, ProtectedCapability.OperatorPanel, true)]
-    [InlineData(Role.Participant, ProtectedCapability.ParticipantExperience, true)]
-    [InlineData(Role.Administrator, ProtectedCapability.UserAccessCatalog, true)]
-    [InlineData(Role.Operator, ProtectedCapability.UserAccessCatalog, true)]
-    [InlineData(Role.Operator, ProtectedCapability.AdministratorPanel, false)]
-    [InlineData(Role.Operator, ProtectedCapability.ParticipantExperience, false)]
-    [InlineData(Role.Participant, ProtectedCapability.UserAccessCatalog, false)]
-    public void Evaluate_ResolvesRoleCapabilityMatrix(Role role, ProtectedCapability capability, bool expected)
+    [Fact]
+    public void Evaluate_ResolvesRoleCapabilityMatrix()
     {
-        var user = User.Provision("kc-matrix", "Matrix", "matrix@example.com", role);
+        CapabilityMatrix.Keys.Should().BeEquivalentTo(Enum.GetValues<ProtectedCapability>());
 
-        var decision = _policy.Evaluate(user, capability);
+        foreach (var capability in Enum.GetValues<ProtectedCapability>())
+        {
+            foreach (var role in Enum.GetValues<Role>())
+            {
+                var user = User.Provision($"kc-{capability}-{role}", "Matrix", "matrix@example.com", role);
 
-        decision.IsAllowed.Should().Be(expected);
+                var decision = _policy.Evaluate(user, capability);
+
+                decision.IsAllowed.Should().Be(
+                    CapabilityMatrix[capability].Contains(role),
+                    $"role '{role}' should match the defined matrix for capability '{capability}'");
+            }
+        }
     }
 
     [Fact]
