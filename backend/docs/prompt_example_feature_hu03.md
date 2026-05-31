@@ -256,9 +256,20 @@ Scope:
 Database isolation: each integration test must clean shared state before its scenario
 (ExecuteDeleteAsync on IdentityProviderSessions and Users) to avoid cross-test pollution.
 
+Test infrastructure: the test class's BuildContext factory must accept an optional
+IMediator? parameter and wire DispatchDomainEventsInterceptor into DbContextOptions
+so domain events are dispatched during SaveChangesAsync. Use a CapturingMediator
+stub (collects published notifications via IMediator.Publish) for tests that assert
+events, and a NoOpMediator for tests that don't. Without this wiring, domain events
+will never appear in the captured mediator and assertions will silently pass or fail
+incorrectly.
+
 Before writing tests, verify that the test file's using statements cover
-Domain.Entities and Domain.Enums — these are often missing when the file only imports
-Application-layer namespaces.
+Domain.Entities, Domain.Enums, Domain.Events, Domain.Exceptions, MediatR,
+and Infrastructure.Persistence.Interceptors — these are often missing when the file
+only imports Application-layer namespaces. Domain events and exceptions are always
+asserted in integration tests, and the DispatchDomainEventsInterceptor must be
+wired into the DbContext.
 
 Gate:
 - dotnet build passes on the solution
