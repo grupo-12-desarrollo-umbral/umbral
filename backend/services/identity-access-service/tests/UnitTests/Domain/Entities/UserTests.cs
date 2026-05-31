@@ -32,7 +32,11 @@ public sealed class UserTests
         user.DisplayName.Should().Be("Grace Hopper");
         user.Email.Should().Be("grace@example.com");
         user.Role.Should().Be(Role.Administrator);
-        user.DomainEvents.Should().ContainSingle().Which.Should().BeOfType<UserRoleAssignedEvent>();
+        var domainEvents = user.DomainEvents.ToArray();
+
+        domainEvents.Should().HaveCount(2);
+        domainEvents[0].Should().BeOfType<UserRoleRevokedEvent>();
+        domainEvents[1].Should().BeOfType<UserRoleAssignedEvent>();
     }
 
     [Fact]
@@ -43,6 +47,20 @@ public sealed class UserTests
 
         user.AssignRole(Role.Operator);
 
+        user.DomainEvents.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void AssignRole_WhenUserIsDeactivated_ThrowsException()
+    {
+        var user = User.Provision("kc-08", "Inactive", "inactive@example.com", Role.Operator);
+        user.DeactivateAccess();
+        user.ClearDomainEvents();
+
+        FluentActions.Invoking(() => user.AssignRole(Role.Administrator))
+            .Should().Throw<DeactivatedUserRoleAssignmentNotAllowedException>();
+
+        user.Role.Should().Be(Role.Operator);
         user.DomainEvents.Should().BeEmpty();
     }
 

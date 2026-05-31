@@ -1,4 +1,4 @@
-export type Role = 'Administrator' | 'Operator'
+export type Role = 'Administrator' | 'Operator' | 'Participant'
 
 export type SessionPayload = {
   externalIdentityId: string
@@ -7,6 +7,14 @@ export type SessionPayload = {
   role: Role
   isActive: boolean
   expiresAt: Date
+}
+
+export type AuthenticatedActorProfileDto = {
+  externalIdentityId: string
+  displayName: string
+  email: string
+  role: string
+  isActive: boolean
 }
 
 export type AuthenticateUserResultDto = {

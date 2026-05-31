@@ -58,8 +58,14 @@ public sealed class User : BaseAuditableEntity
             return;
         }
 
+        if (!IsActive)
+        {
+            throw new DeactivatedUserRoleAssignmentNotAllowedException(Id);
+        }
+
         var previousRole = Role;
         Role = role;
+        AddDomainEvent(new UserRoleRevokedEvent(this, previousRole, role));
         AddDomainEvent(new UserRoleAssignedEvent(this, previousRole, role));
     }
 
