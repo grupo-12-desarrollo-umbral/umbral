@@ -1,7 +1,9 @@
 using MediatR;
 using umbral_backend.Application.Common.Interfaces;
+using umbral_backend.Application.Teams.Commands.AssignParticipantToTeam;
 using umbral_backend.Application.Teams.Commands.RegisterTeam;
 using umbral_backend.Application.Teams.Handlers;
+using umbral_backend.Application.Teams.Queries.GetTeamParticipants;
 using umbral_backend.Domain.Entities;
 using umbral_backend.Domain.Enums;
 using umbral_backend.Domain.Events;
@@ -187,9 +189,182 @@ public sealed class TeamRepositoryIntegrationTests : IClassFixture<PostgreSqlFix
         secondPage.Items.Select(team => team.DisplayName).Should().Equal("Charlie Crew");
     }
 
+    [Fact]
+    public async Task AssignParticipantToActiveTeam_PersistsMembershipAndPublishesAssignedEvent()
+    {
+        await using var setupContext = BuildContext();
+        await ResetDatabaseAsync(setupContext);
+
+        var administrator = User.Provision("kc-admin", "Admin User", "admin@example.com", Role.Administrator);
+        var participant = User.Provision("kc-participant-01", "Pat Participant", "participant@example.com", Role.Participant);
+        var team = Team.Register("Red Foxes", "RED-01");
+
+        setupContext.Users.AddRange(administrator, participant);
+        setupContext.Teams.Add(team);
+        await setupContext.SaveChangesAsync();
+
+        var mediator = new CapturingMediator();
+        var currentUser = new StubCurrentUser("kc-admin");
+
+        await using var actContext = BuildContext(mediator, currentUser);
+        var handler = new AssignParticipantToTeamCommandHandler(
+            new TeamRepository(actContext),
+            new UserRepository(actContext),
+            currentUser,
+            new AccessPolicy());
+
+        var membershipId = await handler.Handle(
+            new AssignParticipantToTeamCommand(team.TeamId, participant.Id),
+            CancellationToken.None);
+
+        membershipId.Should().NotBe(Guid.Empty);
+
+        mediator.PublishedNotifications
+            .OfType<ParticipantAssignedToTeamEvent>()
+            .Should()
+            .ContainSingle(@event => @event.TeamId == team.TeamId && @event.UserId == participant.Id);
+
+        await using var assertContext = BuildContext();
+        var reloadedTeam = await new TeamRepository(assertContext)
+            .GetByIdWithMembershipsAsync(team.TeamId, CancellationToken.None);
+
+        reloadedTeam.Should().NotBeNull();
+        reloadedTeam!.Memberships.Should().ContainSingle();
+
+        var membership = reloadedTeam.Memberships.Single();
+        membership.TeamMembershipId.Should().Be(membershipId);
+        membership.TeamId.Should().Be(team.TeamId);
+        membership.UserId.Should().Be(participant.Id);
+        membership.AssignedAt.Should().NotBe(default);
+    }
+
+    [Fact]
+    public async Task AssignParticipantTwice_ThrowsAndLeavesSingleMembershipRow()
+    {
+        await using var setupContext = BuildContext();
+        await ResetDatabaseAsync(setupContext);
+
+        var administrator = User.Provision("kc-admin", "Admin User", "admin@example.com", Role.Administrator);
+        var participant = User.Provision("kc-participant-02", "Pat Participant", "participant2@example.com", Role.Participant);
+        var team = Team.Register("Blue Owls", "BLUE-02");
+
+        setupContext.Users.AddRange(administrator, participant);
+        setupContext.Teams.Add(team);
+        await setupContext.SaveChangesAsync();
+
+        var currentUser = new StubCurrentUser("kc-admin");
+
+        await using var firstContext = BuildContext(new NoOpMediator(), currentUser);
+        var firstHandler = new AssignParticipantToTeamCommandHandler(
+            new TeamRepository(firstContext),
+            new UserRepository(firstContext),
+            currentUser,
+            new AccessPolicy());
+
+        await firstHandler.Handle(
+            new AssignParticipantToTeamCommand(team.TeamId, participant.Id),
+            CancellationToken.None);
+
+        await using var secondContext = BuildContext(new NoOpMediator(), currentUser);
+        var secondHandler = new AssignParticipantToTeamCommandHandler(
+            new TeamRepository(secondContext),
+            new UserRepository(secondContext),
+            currentUser,
+            new AccessPolicy());
+
+        await FluentActions.Invoking(() => secondHandler.Handle(
+                new AssignParticipantToTeamCommand(team.TeamId, participant.Id),
+                CancellationToken.None))
+            .Should().ThrowAsync<ParticipantAlreadyAssignedToTeamException>();
+
+        await using var assertContext = BuildContext();
+        var membershipRows = await assertContext.TeamMemberships
+            .Where(membership => membership.TeamId == team.TeamId && membership.UserId == participant.Id)
+            .CountAsync();
+
+        membershipRows.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task AssignParticipantToInactiveTeam_ThrowsAndCreatesNoMembershipRow()
+    {
+        await using var setupContext = BuildContext();
+        await ResetDatabaseAsync(setupContext);
+
+        var administrator = User.Provision("kc-admin", "Admin User", "admin@example.com", Role.Administrator);
+        var participant = User.Provision("kc-participant-03", "Pat Participant", "participant3@example.com", Role.Participant);
+        var team = Team.Register("Green Turtles", "GREEN-03");
+        team.Deactivate();
+
+        setupContext.Users.AddRange(administrator, participant);
+        setupContext.Teams.Add(team);
+        await setupContext.SaveChangesAsync();
+
+        var currentUser = new StubCurrentUser("kc-admin");
+
+        await using var actContext = BuildContext(new NoOpMediator(), currentUser);
+        var handler = new AssignParticipantToTeamCommandHandler(
+            new TeamRepository(actContext),
+            new UserRepository(actContext),
+            currentUser,
+            new AccessPolicy());
+
+        await FluentActions.Invoking(() => handler.Handle(
+                new AssignParticipantToTeamCommand(team.TeamId, participant.Id),
+                CancellationToken.None))
+            .Should().ThrowAsync<TeamNotActiveException>();
+
+        await using var assertContext = BuildContext();
+        var membershipRows = await assertContext.TeamMemberships
+            .Where(membership => membership.TeamId == team.TeamId)
+            .CountAsync();
+
+        membershipRows.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task GetTeamParticipants_ReturnsPersistedMembershipProjections()
+    {
+        await using var setupContext = BuildContext();
+        await ResetDatabaseAsync(setupContext);
+
+        var administrator = User.Provision("kc-admin", "Admin User", "admin@example.com", Role.Administrator);
+        var firstParticipant = User.Provision("kc-participant-04", "First Participant", "participant4@example.com", Role.Participant);
+        var secondParticipant = User.Provision("kc-participant-05", "Second Participant", "participant5@example.com", Role.Participant);
+        var team = Team.Register("Silver Sharks", "SILVER-04");
+
+        setupContext.Users.AddRange(administrator, firstParticipant, secondParticipant);
+        setupContext.Teams.Add(team);
+        await setupContext.SaveChangesAsync();
+
+        team.AssignParticipant(firstParticipant.Id);
+        team.AssignParticipant(secondParticipant.Id);
+        await setupContext.SaveChangesAsync();
+
+        var currentUser = new StubCurrentUser("kc-admin");
+
+        await using var actContext = BuildContext(new NoOpMediator(), currentUser);
+        var handler = new GetTeamParticipantsQueryHandler(
+            new TeamRepository(actContext),
+            new UserRepository(actContext),
+            currentUser,
+            new AccessPolicy());
+
+        var result = await handler.Handle(
+            new GetTeamParticipantsQuery(team.TeamId),
+            CancellationToken.None);
+
+        result.Should().HaveCount(2);
+        result.Should().Contain(item => item.TeamId == team.TeamId && item.UserId == firstParticipant.Id);
+        result.Should().Contain(item => item.TeamId == team.TeamId && item.UserId == secondParticipant.Id);
+        result.All(item => item.TeamMembershipId != Guid.Empty).Should().BeTrue();
+        result.All(item => item.AssignedAt != default).Should().BeTrue();
+    }
+
     private static async Task ResetDatabaseAsync(ApplicationDbContext context)
     {
         await context.IdentityProviderSessions.ExecuteDeleteAsync();
+        await context.TeamMemberships.ExecuteDeleteAsync();
         await context.Teams.ExecuteDeleteAsync();
         await context.Users.ExecuteDeleteAsync();
     }

@@ -45,7 +45,10 @@ public sealed class ProblemDetailsExceptionHandler : IExceptionHandler
                 Detail = exception.Message,
                 Status = StatusCodes.Status403Forbidden
             },
-            TeamCodeAlreadyExistsException or TeamAlreadyDeactivatedException => new ProblemDetails
+            TeamCodeAlreadyExistsException
+                or TeamAlreadyDeactivatedException
+                or TeamNotActiveException
+                or ParticipantAlreadyAssignedToTeamException => new ProblemDetails
             {
                 Title = "Conflict.",
                 Detail = exception.Message,
@@ -57,7 +60,7 @@ public sealed class ProblemDetailsExceptionHandler : IExceptionHandler
                 Detail = exception.Message,
                 Status = StatusCodes.Status400BadRequest
             },
-            DeactivatedUserRoleAssignmentNotAllowedException => new ProblemDetails
+            DeactivatedUserRoleAssignmentNotAllowedException or UserNotParticipantRoleException => new ProblemDetails
             {
                 Title = "Unprocessable entity.",
                 Detail = exception.Message,
