@@ -22,6 +22,40 @@ public sealed class UserRepository : IUserRepository
                 cancellationToken);
     }
 
+    public Task<User?> GetByIdAsync(int userId, CancellationToken cancellationToken)
+    {
+        return _context.Users
+            .Include(user => user.IdentityProviderSessions)
+            .SingleOrDefaultAsync(
+                user => user.Id == userId,
+                cancellationToken);
+    }
+
+    public async Task<Application.Common.Models.PagedResult<User>> ListAsync(
+        int page,
+        int pageSize,
+        CancellationToken cancellationToken)
+    {
+        var query = _context.Users
+            .AsNoTracking()
+            .OrderBy(user => user.DisplayName)
+            .ThenBy(user => user.Id);
+
+        var totalCount = await query.CountAsync(cancellationToken);
+        var items = await query
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToArrayAsync(cancellationToken);
+
+        return new Application.Common.Models.PagedResult<User>
+        {
+            Items = items,
+            TotalCount = totalCount,
+            Page = page,
+            PageSize = pageSize
+        };
+    }
+
     public async Task AddAsync(User user, CancellationToken cancellationToken)
     {
         await _context.Users.AddAsync(user, cancellationToken);
