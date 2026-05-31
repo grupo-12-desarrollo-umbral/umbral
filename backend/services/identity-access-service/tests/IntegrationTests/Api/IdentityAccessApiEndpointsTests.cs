@@ -470,6 +470,262 @@ public sealed class IdentityAccessApiEndpointsTests : IClassFixture<PostgreSqlFi
     }
 
     [Fact]
+    public async Task AssignParticipantToTeam_WithAdministratorHeaders_ReturnsCreatedAndPersistsMembership()
+    {
+        await SeedUserAsync("kc-admin-01", "Admin User", "admin@example.com", Role.Administrator);
+        var participant = await SeedUserAsync("kc-participant-01", "Participant User", "participant@example.com", Role.Participant);
+        var team = await SeedTeamAsync("Red Foxes", "RED-01");
+
+        AddTrustedHeaders(
+            _client,
+            userId: "kc-admin-01",
+            role: "Administrator",
+            email: "admin@example.com");
+
+        var response = await _client.PostAsJsonAsync(
+            $"/api/teams/{team.TeamId}/participants",
+            new { userId = participant.Id });
+
+        response.StatusCode.Should().Be(HttpStatusCode.Created);
+
+        var payload = await response.Content.ReadFromJsonAsync<AssignParticipantToTeamResponse>();
+        payload.Should().NotBeNull();
+        payload!.TeamMembershipId.Should().NotBe(Guid.Empty);
+
+        var participantsResponse = await _client.GetAsync($"/api/teams/{team.TeamId}/participants");
+        participantsResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var participants = await participantsResponse.Content.ReadFromJsonAsync<IReadOnlyList<TeamMembershipResponse>>();
+        participants.Should().NotBeNull();
+        participants!.Should().ContainSingle();
+        participants[0].TeamMembershipId.Should().Be(payload.TeamMembershipId);
+        participants[0].TeamId.Should().Be(team.TeamId);
+        participants[0].UserId.Should().Be(participant.Id);
+
+        await using var scope = _factory.Services.CreateAsyncScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var persistedMembership = await dbContext.TeamMemberships.SingleAsync();
+        persistedMembership.TeamMembershipId.Should().Be(payload.TeamMembershipId);
+        persistedMembership.TeamId.Should().Be(team.TeamId);
+        persistedMembership.UserId.Should().Be(participant.Id);
+    }
+
+    [Fact]
+    public async Task AssignParticipantToTeam_WhenTeamDoesNotExist_ReturnsNotFound()
+    {
+        await SeedUserAsync("kc-admin-01", "Admin User", "admin@example.com", Role.Administrator);
+        var participant = await SeedUserAsync("kc-participant-01", "Participant User", "participant@example.com", Role.Participant);
+
+        AddTrustedHeaders(
+            _client,
+            userId: "kc-admin-01",
+            role: "Administrator",
+            email: "admin@example.com");
+
+        var response = await _client.PostAsJsonAsync(
+            $"/api/teams/{Guid.NewGuid()}/participants",
+            new { userId = participant.Id });
+
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    [Fact]
+    public async Task AssignParticipantToTeam_WhenUserDoesNotExist_ReturnsNotFound()
+    {
+        await SeedUserAsync("kc-admin-01", "Admin User", "admin@example.com", Role.Administrator);
+        var team = await SeedTeamAsync("Red Foxes", "RED-01");
+
+        AddTrustedHeaders(
+            _client,
+            userId: "kc-admin-01",
+            role: "Administrator",
+            email: "admin@example.com");
+
+        var response = await _client.PostAsJsonAsync(
+            $"/api/teams/{team.TeamId}/participants",
+            new { userId = 99999 });
+
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    [Theory]
+    [InlineData(Role.Operator)]
+    [InlineData(Role.Administrator)]
+    public async Task AssignParticipantToTeam_WhenUserIsNotParticipant_ReturnsUnprocessableEntity(Role targetRole)
+    {
+        await SeedUserAsync("kc-admin-01", "Admin User", "admin@example.com", Role.Administrator);
+        var targetUser = await SeedUserAsync($"kc-{targetRole}-01", $"{targetRole} User", $"{targetRole.ToString().ToLowerInvariant()}@example.com", targetRole);
+        var team = await SeedTeamAsync("Red Foxes", "RED-01");
+
+        AddTrustedHeaders(
+            _client,
+            userId: "kc-admin-01",
+            role: "Administrator",
+            email: "admin@example.com");
+
+        var response = await _client.PostAsJsonAsync(
+            $"/api/teams/{team.TeamId}/participants",
+            new { userId = targetUser.Id });
+
+        response.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
+
+        var problem = await response.Content.ReadFromJsonAsync<ProblemDetails>();
+        problem.Should().NotBeNull();
+        problem!.Status.Should().Be(StatusCodes.Status422UnprocessableEntity);
+        problem.Title.Should().Be("Unprocessable entity.");
+    }
+
+    [Fact]
+    public async Task AssignParticipantToTeam_WhenTeamIsInactive_ReturnsConflict()
+    {
+        await SeedUserAsync("kc-admin-01", "Admin User", "admin@example.com", Role.Administrator);
+        var participant = await SeedUserAsync("kc-participant-01", "Participant User", "participant@example.com", Role.Participant);
+        var team = await SeedTeamAsync("Red Foxes", "RED-01");
+        await DeactivateTeamAsync(team.TeamId);
+
+        AddTrustedHeaders(
+            _client,
+            userId: "kc-admin-01",
+            role: "Administrator",
+            email: "admin@example.com");
+
+        var response = await _client.PostAsJsonAsync(
+            $"/api/teams/{team.TeamId}/participants",
+            new { userId = participant.Id });
+
+        response.StatusCode.Should().Be(HttpStatusCode.Conflict);
+    }
+
+    [Fact]
+    public async Task AssignParticipantToTeam_WhenDuplicateAssignment_ReturnsConflict()
+    {
+        await SeedUserAsync("kc-admin-01", "Admin User", "admin@example.com", Role.Administrator);
+        var participant = await SeedUserAsync("kc-participant-01", "Participant User", "participant@example.com", Role.Participant);
+        var team = await SeedTeamAsync("Red Foxes", "RED-01");
+
+        AddTrustedHeaders(
+            _client,
+            userId: "kc-admin-01",
+            role: "Administrator",
+            email: "admin@example.com");
+
+        var firstResponse = await _client.PostAsJsonAsync(
+            $"/api/teams/{team.TeamId}/participants",
+            new { userId = participant.Id });
+        firstResponse.StatusCode.Should().Be(HttpStatusCode.Created);
+
+        var secondResponse = await _client.PostAsJsonAsync(
+            $"/api/teams/{team.TeamId}/participants",
+            new { userId = participant.Id });
+
+        secondResponse.StatusCode.Should().Be(HttpStatusCode.Conflict);
+    }
+
+    [Fact]
+    public async Task AssignParticipantToTeam_WithNonAdministratorHeaders_ReturnsForbidden()
+    {
+        await SeedUserAsync("kc-operator-01", "Operator User", "operator@example.com", Role.Operator);
+        var participant = await SeedUserAsync("kc-participant-01", "Participant User", "participant@example.com", Role.Participant);
+        var team = await SeedTeamAsync("Red Foxes", "RED-01");
+
+        AddTrustedHeaders(
+            _client,
+            userId: "kc-operator-01",
+            role: "Operator",
+            email: "operator@example.com");
+
+        var response = await _client.PostAsJsonAsync(
+            $"/api/teams/{team.TeamId}/participants",
+            new { userId = participant.Id });
+
+        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+    }
+
+    [Theory]
+    [InlineData(Role.Administrator)]
+    [InlineData(Role.Operator)]
+    public async Task GetTeamParticipants_WithAuthorizedHeaders_ReturnsMembershipList(Role actorRole)
+    {
+        var actorEmail = actorRole == Role.Administrator ? "admin@example.com" : "operator@example.com";
+        await SeedUserAsync($"kc-{actorRole}", $"{actorRole} User", actorEmail, actorRole);
+        var participantOne = await SeedUserAsync("kc-participant-01", "Participant One", "participant1@example.com", Role.Participant);
+        var participantTwo = await SeedUserAsync("kc-participant-02", "Participant Two", "participant2@example.com", Role.Participant);
+        var team = await SeedTeamAsync("Red Foxes", "RED-01");
+
+        await AddMembershipAsync(team.TeamId, participantOne.Id);
+        await AddMembershipAsync(team.TeamId, participantTwo.Id);
+
+        AddTrustedHeaders(
+            _client,
+            userId: $"kc-{actorRole}",
+            role: actorRole.ToString(),
+            email: actorEmail);
+
+        var response = await _client.GetAsync($"/api/teams/{team.TeamId}/participants");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var payload = await response.Content.ReadFromJsonAsync<IReadOnlyList<TeamMembershipResponse>>();
+        payload.Should().NotBeNull();
+        payload!.Should().HaveCount(2);
+        payload.Select(item => item.UserId).Should().Contain(new[] { participantOne.Id, participantTwo.Id });
+    }
+
+    [Fact]
+    public async Task GetTeamParticipants_WithParticipantHeaders_ReturnsForbidden()
+    {
+        await SeedUserAsync("kc-participant-actor-01", "Participant Actor", "participant.actor@example.com", Role.Participant);
+        var team = await SeedTeamAsync("Red Foxes", "RED-01");
+
+        AddTrustedHeaders(
+            _client,
+            userId: "kc-participant-actor-01",
+            role: "Participant",
+            email: "participant.actor@example.com");
+
+        var response = await _client.GetAsync($"/api/teams/{team.TeamId}/participants");
+
+        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+    }
+
+    [Fact]
+    public async Task GetTeamParticipants_WhenTeamDoesNotExist_ReturnsNotFound()
+    {
+        await SeedUserAsync("kc-admin-01", "Admin User", "admin@example.com", Role.Administrator);
+
+        AddTrustedHeaders(
+            _client,
+            userId: "kc-admin-01",
+            role: "Administrator",
+            email: "admin@example.com");
+
+        var response = await _client.GetAsync($"/api/teams/{Guid.NewGuid()}/participants");
+
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    [Fact]
+    public async Task GetTeamParticipants_WhenTeamHasNoParticipants_ReturnsEmptyList()
+    {
+        await SeedUserAsync("kc-admin-01", "Admin User", "admin@example.com", Role.Administrator);
+        var team = await SeedTeamAsync("Red Foxes", "RED-01");
+
+        AddTrustedHeaders(
+            _client,
+            userId: "kc-admin-01",
+            role: "Administrator",
+            email: "admin@example.com");
+
+        var response = await _client.GetAsync($"/api/teams/{team.TeamId}/participants");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var payload = await response.Content.ReadFromJsonAsync<IReadOnlyList<TeamMembershipResponse>>();
+        payload.Should().NotBeNull();
+        payload.Should().BeEmpty();
+    }
+
+    [Fact]
     public async Task AssignUserRole_WithAdministratorHeaders_ReturnsNoContentAndPersistsRoleChange()
     {
         await SeedUserAsync("kc-admin-01", "Admin User", "admin@example.com", Role.Administrator);
@@ -733,6 +989,18 @@ public sealed class IdentityAccessApiEndpointsTests : IClassFixture<PostgreSqlFi
         await dbContext.SaveChangesAsync();
     }
 
+    private async Task AddMembershipAsync(Guid teamId, int userId)
+    {
+        await using var scope = _factory.Services.CreateAsyncScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var team = await dbContext.Teams
+            .Include(item => item.Memberships)
+            .SingleAsync(item => item.TeamId == teamId);
+
+        team.AssignParticipant(userId);
+        await dbContext.SaveChangesAsync();
+    }
+
     private static void AddTrustedHeaders(HttpClient client, string userId, string role, string email)
     {
         ClearTrustedHeaders(client);
@@ -775,6 +1043,8 @@ public sealed class IdentityAccessApiEndpointsTests : IClassFixture<PostgreSqlFi
 
     private sealed record RegisterTeamResponse(Guid TeamId);
 
+    private sealed record AssignParticipantToTeamResponse(Guid TeamMembershipId);
+
     private sealed record TeamResponse(
         Guid TeamId,
         string DisplayName,
@@ -782,6 +1052,12 @@ public sealed class IdentityAccessApiEndpointsTests : IClassFixture<PostgreSqlFi
         bool IsActive,
         DateTimeOffset CreatedAt,
         DateTimeOffset UpdatedAt);
+
+    private sealed record TeamMembershipResponse(
+        Guid TeamMembershipId,
+        Guid TeamId,
+        int UserId,
+        DateTimeOffset AssignedAt);
 
     private sealed record PagedResponse<T>(
         IReadOnlyCollection<T> Items,

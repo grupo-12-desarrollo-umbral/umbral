@@ -20,6 +20,13 @@ public sealed class TeamRepository : ITeamRepository
             .SingleOrDefaultAsync(team => team.TeamId == teamId, cancellationToken);
     }
 
+    public Task<Team?> GetByIdWithMembershipsAsync(Guid teamId, CancellationToken cancellationToken)
+    {
+        return _context.Teams
+            .Include(team => team.Memberships)
+            .SingleOrDefaultAsync(team => team.TeamId == teamId, cancellationToken);
+    }
+
     public async Task<PagedResult<Team>> ListAsync(int page, int pageSize, CancellationToken cancellationToken)
     {
         var query = _context.Teams

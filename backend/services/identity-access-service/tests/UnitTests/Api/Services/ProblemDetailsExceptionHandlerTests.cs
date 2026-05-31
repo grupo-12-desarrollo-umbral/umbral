@@ -40,9 +40,24 @@ public sealed class ProblemDetailsExceptionHandlerTests
             "Conflict.");
         await AssertHandledAsync(
             handler,
+            new TeamNotActiveException(Guid.NewGuid()),
+            StatusCodes.Status409Conflict,
+            "Conflict.");
+        await AssertHandledAsync(
+            handler,
+            new ParticipantAlreadyAssignedToTeamException(Guid.NewGuid(), 42),
+            StatusCodes.Status409Conflict,
+            "Conflict.");
+        await AssertHandledAsync(
+            handler,
             new TeamDisplayNameRequiredException(),
             StatusCodes.Status400BadRequest,
             "Validation failed.");
+        await AssertHandledAsync(
+            handler,
+            new UserNotParticipantRoleException(12, global::umbral_backend.Domain.Enums.Role.Operator),
+            StatusCodes.Status422UnprocessableEntity,
+            "Unprocessable entity.");
     }
 
     [Fact]

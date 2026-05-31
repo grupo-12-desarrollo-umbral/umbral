@@ -5,6 +5,8 @@ namespace umbral_backend.Domain.Entities;
 
 public sealed class Team : BaseAuditableEntity
 {
+    private readonly List<TeamMembership> _memberships = new();
+
     private Team()
     {
         TeamId = Guid.Empty;
@@ -27,6 +29,8 @@ public sealed class Team : BaseAuditableEntity
     public string TeamCode { get; private set; }
 
     public bool IsActive { get; private set; }
+
+    public IReadOnlyCollection<TeamMembership> Memberships => _memberships.AsReadOnly();
 
     public static Team Register(string displayName, string teamCode)
     {
@@ -52,6 +56,25 @@ public sealed class Team : BaseAuditableEntity
 
         IsActive = false;
         AddDomainEvent(new TeamDeactivatedEvent(TeamId));
+    }
+
+    public TeamMembership AssignParticipant(int userId)
+    {
+        if (!IsActive)
+        {
+            throw new TeamNotActiveException(TeamId);
+        }
+
+        if (_memberships.Any(membership => membership.UserId == userId))
+        {
+            throw new ParticipantAlreadyAssignedToTeamException(TeamId, userId);
+        }
+
+        var membership = TeamMembership.Assign(TeamId, userId, DateTimeOffset.UtcNow);
+        _memberships.Add(membership);
+        AddDomainEvent(new ParticipantAssignedToTeamEvent(TeamId, userId));
+
+        return membership;
     }
 
     private static string RequireDisplayName(string displayName)
