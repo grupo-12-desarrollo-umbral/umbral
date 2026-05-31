@@ -1,16 +1,29 @@
-# Context Map
+# Monorepo Context Map
 
-## Contexts
+## Workloads
 
-- [Identity Access](./services/identity-access-service/CONTEXT.md) — handles authentication and access-related flows for administrators, operators, and participants
-- [Mission Design](./services/mission-design-service/CONTEXT.md) — manages mission and trivia authoring and prepares content for live use
-- [Session Operations](./services/session-operations-service/CONTEXT.md) — runs live sessions, team participation, clue progression, and evidence intake
-- [Scoring Monitoring](./services/scoring-monitoring-service/CONTEXT.md) — calculates scoring outcomes and exposes ranking, audit, and monitoring views
+| Workload | Path | Role |
+|----------|------|------|
+| Backend | `backend/` | Microservices exposing REST + WebSocket APIs via an api-gateway |
+| Frontend | `frontend/` | Next.js app consumed by operators, administrators, and participants |
 
-## Relationships
+For the backend's internal bounded-context map, see `backend/CONTEXT-MAP.md`.
 
-- **Mission Design → Session Operations**: Mission Design provides active missions; Session Operations uses them to create live sessions.
-- **Identity Access → Mission Design**: Identity Access provides authenticated actor identity and access facts for authorizing mission permissions.
-- **Identity Access → Session Operations**: Identity Access provides authenticated actor identity and access facts for authorizing live session entry.
-- **Session Operations → Scoring Monitoring**: Session Operations emits runtime outcomes; Scoring Monitoring uses them to update scores, rankings, and audit history
-- **Scoring Monitoring → Session Operations**: Scoring Monitoring provides derived ranking and monitoring views for live supervision
+## Integration Boundary
+
+The frontend communicates exclusively through the `api-gateway`. It has no direct access to individual backend services.
+
+### Backend → Frontend (what the backend exposes)
+
+- **REST API** — resource and command endpoints for mission management, session control, identity, and scoring.
+- **WebSocket / real-time** — live session events (clue progression, team updates, score changes) pushed to connected participants and operators.
+
+### Frontend → Backend (what the frontend drives)
+
+- Operator flows: create/manage missions, launch and supervise live sessions.
+- Participant flows: join sessions, submit evidence, track clue progression.
+- Admin flows: user and access management.
+
+## Ownership
+
+Changes to API contracts (routes, request/response shapes, event payloads) affect both workloads and must be coordinated. Neither side should silently diverge from the agreed contract.
