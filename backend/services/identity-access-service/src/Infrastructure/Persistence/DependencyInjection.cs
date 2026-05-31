@@ -28,5 +28,6 @@ public static class PersistenceServiceExtensions
         });
 
         builder.Services.AddScoped<IUserRepository, UserRepository>();
+        builder.Services.AddScoped<ITeamRepository, TeamRepository>();
     }
 }

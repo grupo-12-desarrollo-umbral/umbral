@@ -45,6 +45,18 @@ public sealed class ProblemDetailsExceptionHandler : IExceptionHandler
                 Detail = exception.Message,
                 Status = StatusCodes.Status403Forbidden
             },
+            TeamCodeAlreadyExistsException or TeamAlreadyDeactivatedException => new ProblemDetails
+            {
+                Title = "Conflict.",
+                Detail = exception.Message,
+                Status = StatusCodes.Status409Conflict
+            },
+            TeamDisplayNameRequiredException or TeamCodeRequiredException => new ProblemDetails
+            {
+                Title = "Validation failed.",
+                Detail = exception.Message,
+                Status = StatusCodes.Status400BadRequest
+            },
             DeactivatedUserRoleAssignmentNotAllowedException => new ProblemDetails
             {
                 Title = "Unprocessable entity.",

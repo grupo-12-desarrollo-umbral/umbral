@@ -57,6 +57,19 @@ export type PagedResult<T> = {
   hasNextPage: boolean
 }
 
+export type TeamDto = {
+  teamId: string
+  displayName: string
+  teamCode: string
+  isActive: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+export type CreateTeamResultDto = {
+  teamId: string
+}
+
 export class IdentityError extends Error {
   constructor(
     public code: 'deactivated' | 'unauthorized' | 'network' | 'unknown',
