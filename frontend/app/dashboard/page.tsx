@@ -1,4 +1,5 @@
 import { verifySession, enforceActivePlatformAccess } from '@/app/lib/dal'
+import { getCurrentUserProfile } from '@/app/lib/identity'
 import { redirect } from 'next/navigation'
 import DashboardClient from './DashboardClient'
 import type { Role } from '@/app/lib/definitions'
@@ -17,10 +18,17 @@ export default async function DashboardPage() {
   const session = await verifySession()
   await enforceActivePlatformAccess()
 
+  const profile = await getCurrentUserProfile(
+    session.externalIdentityId,
+    session.role,
+    session.email,
+  )
+  const role = toDashboardRole(profile.role as Role)
+
   return (
     <DashboardClient
-      role={toDashboardRole(session.role)}
-      displayName={session.displayName}
+      role={role}
+      displayName={profile.displayName}
     />
   )
 }
