@@ -1,4 +1,4 @@
-import { verifySession } from '@/app/lib/dal'
+import { verifySession, enforceActivePlatformAccess } from '@/app/lib/dal'
 import DashboardClient from './DashboardClient'
 
 function toDashboardRole(role: 'Administrator' | 'Operator'): 'admin' | 'operator' {
@@ -7,6 +7,7 @@ function toDashboardRole(role: 'Administrator' | 'Operator'): 'admin' | 'operato
 
 export default async function DashboardPage() {
   const session = await verifySession()
+  await enforceActivePlatformAccess()
 
   return (
     <DashboardClient
