@@ -401,7 +401,66 @@ curl -s http://localhost:5002/api/teams \
 
 ---
 
-## 8. Close out
+## 8. Frontend slice
+
+```
+Use @frontend/AGENTS.md.
+Implement the frontend part of HU-04.
+Use the verified backend contract.
+
+Scope:
+- team list view: an admin or operator can browse all teams (active and inactive)
+  via GET /api/teams with pagination; show DisplayName, TeamCode, IsActive status,
+  and CreatedAt for each team
+- team detail view: clicking a team row navigates to a detail page that fetches
+  GET /api/teams/{id} and displays all fields; an admin sees action buttons
+  (edit, deactivate) while an operator sees a read-only view
+- team create form: an admin can register a new team via POST /api/teams with
+  DisplayName and TeamCode fields; show inline validation for blank fields and
+  a user-friendly error for duplicate TeamCode (409); redirect to the new team's
+  detail page on success (201)
+- team edit form: an admin can update DisplayName and TeamCode via PATCH /api/teams/{id};
+  show the same validation rules; handle 404 (team deleted between navigation and
+  submission) and 409 (duplicate TeamCode) errors gracefully
+- team deactivation action: an admin can deactivate a team via DELETE /api/teams/{id}/status
+  with a confirmation dialog (similar to the user deactivation pattern from HU-02);
+  update the UI to reflect IsActive=false without a full page reload; handle
+  409/422 for already-inactive teams
+- navigation: add a "Teams" link in the main navigation, visible only to
+  Administrators and Operators (derive visibility from GET /api/permissions/
+  authenticated-platform-access or the role from GET /api/users/me);
+  hide the link from Participants
+- route and component guards: team management routes must be accessible only to
+  Administrators and Operators; a Participant accessing a team URL directly must
+  be redirected or shown an error — never silent partial rendering
+- keep one shared app, not separate admin/operator apps
+- do not regress HU-01, HU-02, or HU-03 flows (login, deactivation, user list,
+  role assignment)
+
+Gate:
+- admin can create, view, edit, and deactivate teams from the UI
+- operator can view teams (list and detail) but not create, edit, or deactivate
+- participant cannot access team routes and is redirected or shown an error
+- direct URL access to a protected team route by an unauthorized role results
+  in a redirect or error
+- existing HU-01 through HU-03 frontend flows are not regressed
+```
+
+Commit:
+
+```
+feat(frontend): team registration and maintenance — HU-04
+
+Ref: HU-04
+Ref: DES-8
+Ref: DES-67
+```
+
+Then run: `/debrief`
+
+---
+
+## 9. Close out
 
 ```
 Verify HU-04 end to end for DES-8 on feature/hu-04-team-registration.
@@ -438,6 +497,6 @@ gh pr create --draft --base develop --title "feat: team registration and mainten
 
 **DELETE /api/teams/{id}/status returns the updated record.** The acceptance criterion requires a client to observe `IsActive=false` after calling the endpoint. Returning the updated team in the response body avoids a mandatory follow-up GET, making the acceptance test simpler and the API easier to use.
 
-**No frontend scope.** HU-04's acceptance criteria are entirely administrative API surface. The frontend will consume the team registry in a later slice; do not add UI work here.
+**Frontend covers full team CRUD with role-scoped visibility.** Administrators create, edit, and deactivate teams from the UI; Operators browse teams read-only; Participants cannot access team routes at all. Role-based route guards and navigation visibility follow the same pattern established in HU-03.
 
 **Three DES refs per commit.** HU-04 commits reference DES-8 (HU ticket) and DES-67 (PRD), matching the pattern used in HU-01 through HU-03.

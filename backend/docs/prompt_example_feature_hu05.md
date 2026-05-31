@@ -2,7 +2,7 @@
 
 Concrete prompt sequence for driving HU-05 through a full feature slice on `feature/hu-05-participant-team-assignment`. Follows the pattern in [workflow_for_prompts.md](./workflow_for_prompts.md).
 
-**Key difference from HU-04:** HU-04 introduced the `Team` aggregate as a team registry. HU-05 adds membership records that bind a `Participant`-role user to a team. This slice bridges two existing aggregates (`Team` from HU-04 and `User` from HU-01) without claiming runtime session authority — that belongs to HU-07 and `session-operations-service`. The scope is backend-only: no frontend surface is touched.
+**Key difference from HU-04:** HU-04 introduced the `Team` aggregate as a team registry. HU-05 adds membership records that bind a `Participant`-role user to a team. This slice bridges two existing aggregates (`Team` from HU-04 and `User` from HU-01) without claiming runtime session authority — that belongs to HU-07 and `session-operations-service`. The frontend extends the HU-04 team detail view with a participants section and assign action.
 
 **Critical branching constraint:** `feature/hu-05-participant-team-assignment` must branch from
 `feature/hu-04-team-registration`, not from `develop`. HU-05 depends on HU-04's `Team`
@@ -10,7 +10,10 @@ aggregate, `ITeamRepository`, and `AddTeams` migration. Do not start the infrast
 phase until HU-04's `AddTeams` migration is committed and gated on the source branch.
 
 When working from the monorepo root, make the target workload explicit in each prompt.
-For backend steps, point to `@backend/.agents/backend-agent.md`. HU-05 has no frontend scope.
+For backend steps, point to `@backend/.agents/backend-agent.md`. For frontend steps,
+point to `@frontend/AGENTS.md`. Do not ask for backend and frontend implementation in
+the same phase prompt; coordinate them as separate scoped steps tied together by the
+verified API contract.
 
 ---
 
@@ -150,7 +153,7 @@ In the remaining examples below, `HU-05` and `DES-9` are the resolved values for
 ```
 Prepare the participant-to-team assignment slice on branch feature/hu-05-participant-team-assignment.
 Use the HU id and DES id resolved from Linear in the previous step.
-This slice affects backend identity-access-service only — no frontend scope.
+This slice affects backend identity-access-service and frontend.
 
 The pre-resolved orient at the top of this document lists what HU-01 through HU-04 have
 already landed and what HU-05 adds. Do not re-read the README or PRD for scoping.
@@ -441,7 +444,61 @@ curl -s http://localhost:5002/api/teams/<team-id>/participants \
 
 ---
 
-## 9. Close out
+## 9. Frontend slice
+
+```
+Use @frontend/AGENTS.md.
+Implement the frontend part of HU-05.
+Use the verified backend contract.
+
+Scope:
+- team detail view (enhanced): extend the team detail page from HU-04 to show
+  a "Participants" section listing all assigned members via GET /api/teams/{id}/participants;
+  display each participant's UserId and AssignedAt; if the backend later returns
+  user display info, show that instead of a raw id
+- assign participant action: an admin can assign a Participant-role user to the team
+  via POST /api/teams/{id}/participants with a userId; provide a user selector
+  (dropdown or searchable field) that fetches from GET /api/users filtered to
+  Participant-role users; validate selection before submission
+- error handling for assignment failures: show user-friendly messages for
+  TeamNotActiveException → "This team is inactive and cannot accept new members",
+  UserNotParticipantRoleException → "The selected user does not have the Participant role",
+  ParticipantAlreadyAssignedToTeamException → "This user is already assigned to the team"
+- optimistic UI update: after a successful assignment, add the new participant to the
+  visible list without a full page reload; handle 409 and 422 responses gracefully
+- participant-only route view: the team detail participants section is read-only
+  for Operators (they see the list but no assign action) and hidden entirely for
+  Participants (they cannot access the participants section at all)
+- navigation and route guards: the participants section is accessible only to
+  Administrators and Operators; direct URL access by a Participant must redirect
+  or show an error — never silent partial rendering of participant data
+- keep one shared app, not separate admin/operator apps
+- do not regress HU-01 through HU-04 flows (login, deactivation, user list,
+  role assignment, team CRUD)
+
+Gate:
+- admin can view the participant list and assign a user to a team from the UI
+- operator can view the participant list but cannot assign users
+- participant cannot access the participants section and is redirected or shown an error
+- assignment errors (inactive team, wrong role, duplicate) are shown as user-friendly messages
+- existing HU-01 through HU-04 frontend flows are not regressed
+```
+
+Commit:
+
+```
+feat(frontend): participant-to-team assignment — HU-05
+
+Ref: HU-05
+Ref: DES-9
+Ref: DES-67
+```
+
+Then run: `/debrief`
+
+---
+
+## 10. Close out
 
 ```
 Verify HU-05 end to end for DES-9 on feature/hu-05-participant-team-assignment.
@@ -453,6 +510,9 @@ Acceptance criteria:
 - duplicate assignments are rejected (ParticipantAlreadyAssignedToTeamException → 409)
 - administrators and operators can list participants assigned to a team
 - deactivating a team preserves existing membership rows; new assignments to the deactivated team fail
+- frontend: admin can view and assign participants from the team detail view
+- frontend: operator sees a read-only participant list with no assign action
+- frontend: participant is blocked from the participants section entirely
 - aggregate line coverage is ≥ 95% after the merged test suite runs
 
 Then:
