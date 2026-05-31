@@ -7,6 +7,11 @@ public interface ITeamRepository
 {
     Task<Team?> GetByIdAsync(Guid teamId, CancellationToken cancellationToken);
 
+    Task<Team?> GetByIdWithMembershipsAsync(Guid teamId, CancellationToken cancellationToken)
+    {
+        throw new NotSupportedException();
+    }
+
     Task<PagedResult<Team>> ListAsync(int page, int pageSize, CancellationToken cancellationToken);
 
     Task<bool> TeamCodeExistsAsync(string teamCode, Guid? excludeTeamId, CancellationToken cancellationToken)

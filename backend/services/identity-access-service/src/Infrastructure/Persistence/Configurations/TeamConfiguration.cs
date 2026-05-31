@@ -42,5 +42,8 @@ public sealed class TeamConfiguration : IEntityTypeConfiguration<Team>
 
         builder.HasIndex(team => team.TeamCode)
             .IsUnique();
+
+        builder.Navigation(team => team.Memberships)
+            .UsePropertyAccessMode(PropertyAccessMode.Field);
     }
 }
