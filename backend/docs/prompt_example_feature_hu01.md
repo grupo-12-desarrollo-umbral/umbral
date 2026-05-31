@@ -52,6 +52,8 @@ Do not hardcode the Linear ids; fetch them from the backlog.
 
 This fetch is slice-scoped: resolve the HU ticket(s) needed for the current vertical slice, not the entire service backlog.
 
+**If the HU ticket is not in the results**, stop. Apply the `ready-for-agent` label to the HU ticket in Linear before running step 4. The label must be on the HU ticket itself — not only on the PRD. Only the PRD carrying `ready-for-agent` is not sufficient to proceed.
+
 In the remaining examples below, `HU-01` and `DES-5` are illustrative resolved values from that fetch step, not prerequisites that should be assumed without querying Linear first.
 
 ---
@@ -70,6 +72,9 @@ Move the resolved HU ticket to In Progress and output the exact scope, branch na
 ## 5. Backend phase X.1 — Domain layer
 
 ```
+HU ticket resolved from step 3: <paste id — e.g. DES-5>
+DES reference resolved from step 3: <paste id — e.g. DES-67>
+
 Use @backend/.agents/backend-agent.md.
 Implement backend phase X.1 for HU-01 in identity-access-service.
 Use the service PRD and canonical docs.
@@ -81,6 +86,7 @@ Scope:
 
 Gate:
 - Domain build passes
+- at least one unit test per public domain type (each aggregate/entity, each value object, each enum behavior) — no domain type may be left unexercised
 
 Do not touch other backend layers or frontend.
 ```
@@ -101,6 +107,11 @@ Then run: `/debrief`
 ## 6. Backend phase X.2 — Application layer
 
 ```
+If this is a new session, use the Linear MCP to resolve the active slice before starting:
+- fetch issues labeled svc:identity-access-service with state In Progress
+- confirm the HU ticket id and the DES PRD reference
+- output both ids before proceeding
+
 Use @backend/.agents/backend-agent.md.
 Implement backend phase X.2 for HU-01 in identity-access-service.
 Use the service PRD and canonical docs.
@@ -113,7 +124,9 @@ Scope:
 
 Gate:
 - clean build passes
-- handler unit tests pass
+- every handler has unit tests covering all paths (valid path + every rejection/error branch)
+- every FluentValidation validator has tests for valid input and each invalid input — "at least one" is not enough
+- all handler tests use Moq for outbound ports — no real infrastructure anywhere in this suite
 
 Do not touch Infrastructure, Api, or frontend.
 ```
@@ -134,6 +147,11 @@ Then run: `/debrief`
 ## 7. Backend phase X.3 — Infrastructure layer
 
 ```
+If this is a new session, use the Linear MCP to resolve the active slice before starting:
+- fetch issues labeled svc:identity-access-service with state In Progress
+- confirm the HU ticket id and the DES PRD reference
+- output both ids before proceeding
+
 Use @backend/.agents/backend-agent.md.
 Implement backend phase X.3 for HU-01 in identity-access-service.
 Use the service PRD and canonical docs.
@@ -146,7 +164,7 @@ Scope:
 
 Gate:
 - migration succeeds
-- repository integration test passes
+- repository integration test passes against a real PostgreSQL instance via Testcontainers — not EF Core in-memory
 
 Do not touch Api or frontend.
 ```
@@ -167,9 +185,15 @@ Then run: `/debrief`
 ## 8. Backend phase X.4 — API layer
 
 ```
+If this is a new session, use the Linear MCP to resolve the active slice before starting:
+- fetch issues labeled svc:identity-access-service with state In Progress
+- confirm the HU ticket id and the DES PRD reference
+- output both ids before proceeding
+
 Use @backend/.agents/backend-agent.md.
 Implement backend phase X.4 for HU-01 in identity-access-service.
 Use the service PRD and canonical docs.
+Follow @backend/.claude/skills/aspnet-backend-testing/ for test type and layer placement.
 
 Scope:
 - endpoint to bootstrap/sync the authenticated user after Keycloak login
@@ -177,8 +201,8 @@ Scope:
 - protected endpoint or policy proof that rejects unauthenticated or deactivated users
 
 Gate:
-- endpoint tests pass
-- unauthorized and deactivated paths are rejected
+- endpoint integration tests run through WebApplicationFactory — not handler unit tests
+- unauthorized and deactivated paths are rejected with the correct status codes
 - service coverage reaches 95%
 
 Do not touch frontend.
@@ -197,11 +221,55 @@ Then run: `/debrief`
 
 ---
 
-## 9. Frontend slice
+NO FOR THIS SPRINT - 30th May 2026.
+
+<!--
+## 9. Backend phase X.5 — E2E layer
+
+```
+If this is a new session, use the Linear MCP to resolve the active slice before starting:
+- fetch issues labeled svc:identity-access-service with state In Progress
+- confirm the HU ticket id and the DES PRD reference
+- output both ids before proceeding
+
+Use @backend/.agents/backend-agent.md.
+Implement backend phase X.5 for HU-01 in identity-access-service.
+Use the service PRD and canonical docs.
+Follow @backend/.claude/skills/aspnet-backend-testing/ for test type and layer placement.
+
+Scope:
+- black-box API system tests using HttpClient against TestServer with a real PostgreSQL database via Testcontainers
+- cover the principal usage flows end to end:
+  - valid user signs in and receives their role
+  - unauthenticated request is rejected
+  - deactivated user is rejected after login
+
+Gate:
+- all principal flow E2E tests pass against a real database
+- no test doubles replace infrastructure dependencies in this suite
+
+Do not touch frontend.
+```
+
+Commit:
+
+```
+feat(identity-access): phase X.5 — e2e layer
+
+Ref: HU-01
+Ref: DES-5
+```
+
+Then run: `/debrief`
+-->
+
+---
+
+## 11. Frontend slice (OpenCode)
 
 ```
 Use @frontend/AGENTS.md.
-Implement the frontend part of HU-01.
+Implement the frontend part of HU-01 in.
 Use the verified backend contract.
 
 Scope:
@@ -233,7 +301,7 @@ Then run: `/debrief`
 
 ---
 
-## 10. Close out
+## 12. Close out
 
 ```
 Verify HU-01 end to end for DES-5 on feature/general-user-login.
