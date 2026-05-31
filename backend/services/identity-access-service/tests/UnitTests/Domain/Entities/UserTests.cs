@@ -54,6 +54,10 @@ public sealed class UserTests
         user.DeactivateAccess();
 
         user.IsActive.Should().BeFalse();
+        user.ExternalIdentityId.Should().Be("kc-04");
+        user.DisplayName.Should().Be("Deactivate Me");
+        user.Email.Should().Be("deactivate@example.com");
+        user.Role.Should().Be(Role.Operator);
         user.DomainEvents.Should().ContainSingle(eventItem => eventItem is UserAccessDeactivatedEvent);
 
         FluentActions.Invoking(user.DeactivateAccess)

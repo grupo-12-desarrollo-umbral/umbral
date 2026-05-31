@@ -1,7 +1,9 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useTransition } from 'react';
 import { logout } from '@/app/actions/auth';
+import { getUsersPage, deactivateUser } from '@/app/actions/users';
+import type { PagedResult, UserAccessCatalogItemDto } from '@/app/lib/definitions';
 import styles from './dashboard.module.css';
 
 type DashboardRole = 'operator' | 'admin';
@@ -80,6 +82,7 @@ const navigation = [
   { key: 'teams', label: 'Teams', icon: '◫' },
   { key: 'missions', label: 'Missions', icon: '▤' },
   { key: 'rules', label: 'Rules', icon: '⚑' },
+  { key: 'users', label: 'Users', icon: '⊞' },
   { key: 'settings', label: 'Settings', icon: '⚙' },
 ];
 
@@ -435,6 +438,7 @@ export default function DashboardClient({
                 key={item.key}
                 className={styles.navItem}
                 data-active={activeNav === item.key}
+                data-testid={`nav-${item.key}`}
                 onClick={() => setActiveNav(item.key)}
                 type="button"
               >
@@ -522,7 +526,9 @@ export default function DashboardClient({
             </div>
           </section>
 
-          {role === 'operator' && selectedSessionId === 'assigned-list' ? (
+          {activeNav === 'users' ? (
+            <UsersPanel role={role} />
+          ) : role === 'operator' && selectedSessionId === 'assigned-list' ? (
             <section className={styles.emptyState} aria-labelledby="assigned-sessions-title" data-testid="operator-panel">
               <div>
                 <h1 id="assigned-sessions-title">Assigned sessions</h1>
@@ -1107,6 +1113,174 @@ export default function DashboardClient({
       )}
     </div>
   );
+}
+
+function UsersPanel({ role }: { role: DashboardRole }) {
+  const [data, setData] = useState<PagedResult<UserAccessCatalogItemDto> | null>(null)
+  const [page, setPage] = useState(1)
+  const [isPending, startTransition] = useTransition()
+  const [error, setError] = useState<string | null>(null)
+  const [confirmId, setConfirmId] = useState<number | null>(null)
+
+  // Fetch on mount and page change
+  useEffect(() => {
+    startTransition(async () => {
+      setError(null)
+      try {
+        const result = await getUsersPage(page)
+        setData(result)
+      } catch {
+        setError('Failed to load users.')
+      }
+    })
+  }, [page])
+
+  async function handleDeactivate(id: number) {
+    startTransition(async () => {
+      setError(null)
+      try {
+        await deactivateUser(id)
+        // Optimistic update: mark row inactive
+        setData((prev) =>
+          prev
+            ? {
+                ...prev,
+                items: prev.items.map((u) =>
+                  u.id === id ? { ...u, isActive: false } : u
+                ),
+              }
+            : prev
+        )
+        setConfirmId(null)
+      } catch {
+        setError('Deactivation failed. Try again.')
+        setConfirmId(null)
+      }
+    })
+  }
+
+  return (
+    <section
+      className={styles.panel}
+      aria-labelledby="users-panel-title"
+      data-testid="users-panel"
+    >
+      <div className={styles.panelHeader}>
+        <div>
+          <h2 id="users-panel-title">Registered users</h2>
+          <div className={styles.panelMeta}>
+            {role === 'admin'
+              ? 'Admin and operator accounts. Deactivated users cannot log in.'
+              : 'Registered accounts visible to operators.'}
+          </div>
+        </div>
+        {isPending && <span className={styles.chip}>Loading…</span>}
+      </div>
+
+      {error && (
+        <div className={styles.chip} data-tone="critical">
+          {error}
+        </div>
+      )}
+
+      {data && (
+        <>
+          <table className={styles.table}>
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Email</th>
+                <th>Role</th>
+                <th>Status</th>
+                {role === 'admin' && <th>Actions</th>}
+              </tr>
+            </thead>
+            <tbody>
+              {data.items.map((user) => (
+                <tr key={user.id}>
+                  <td>{user.displayName}</td>
+                  <td>{user.email}</td>
+                  <td>{user.role}</td>
+                  <td>
+                    <span
+                      className={styles.chip}
+                      data-tone={user.isActive ? 'success' : 'critical'}
+                    >
+                      {user.isActive ? 'Active' : 'Deactivated'}
+                    </span>
+                  </td>
+                  {role === 'admin' && (
+                    <td>
+                      {user.isActive && confirmId !== user.id && (
+                        <button
+                          className={styles.inlineButton}
+                          data-testid={`deactivate-btn-${user.id}`}
+                          disabled={isPending}
+                          onClick={() => setConfirmId(user.id)}
+                          type="button"
+                        >
+                          Deactivate
+                        </button>
+                      )}
+                      {user.isActive && confirmId === user.id && (
+                        <span className={styles.confirmRow}>
+                          <button
+                            className={styles.smallButton}
+                            data-testid={`confirm-deactivate-btn-${user.id}`}
+                            data-tone="critical"
+                            disabled={isPending}
+                            onClick={() => handleDeactivate(user.id)}
+                            type="button"
+                          >
+                            Confirm
+                          </button>
+                          <button
+                            className={styles.inlineButton}
+                            disabled={isPending}
+                            onClick={() => setConfirmId(null)}
+                            type="button"
+                          >
+                            Cancel
+                          </button>
+                        </span>
+                      )}
+                      {!user.isActive && (
+                        <span className={styles.mutedText}>—</span>
+                      )}
+                    </td>
+                  )}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+
+          <div className={styles.pagination} data-testid="users-pagination">
+            <span className={styles.panelMeta}>
+              Page {data.page} of {data.totalPages} ({data.totalCount} users)
+            </span>
+            <span className={styles.paginationButtons}>
+              <button
+                className={styles.inlineButton}
+                disabled={!data.hasPreviousPage || isPending}
+                onClick={() => setPage((p) => p - 1)}
+                type="button"
+              >
+                ← Previous
+              </button>
+              <button
+                className={styles.inlineButton}
+                disabled={!data.hasNextPage || isPending}
+                onClick={() => setPage((p) => p + 1)}
+                type="button"
+              >
+                Next →
+              </button>
+            </span>
+          </div>
+        </>
+      )}
+    </section>
+  )
 }
 
 function CompassMark() {
