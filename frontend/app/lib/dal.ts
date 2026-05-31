@@ -2,7 +2,7 @@ import 'server-only'
 import { cache } from 'react'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
-import { decrypt, deleteSession } from './session'
+import { decrypt } from './session'
 import { checkPlatformAccess } from './identity'
 import { IdentityError } from './definitions'
 import type { SessionPayload } from './definitions'
@@ -23,7 +23,6 @@ export const enforceActivePlatformAccess = cache(async (): Promise<void> => {
     await checkPlatformAccess(session.externalIdentityId, session.role, session.email)
   } catch (err) {
     if (err instanceof IdentityError && err.code === 'deactivated') {
-      await deleteSession()
       redirect('/login?error=deactivated')
     }
     throw err

@@ -12,6 +12,7 @@ Keycloak authenticates users and issues tokens, but it does not own Umbral's app
 | Issues JWTs with realm roles | **Access Policy** — evaluates which `ProtectedCapability` a given `User`+`Role` may access, independent of token structure |
 | Manages OIDC sessions | **IdentityProviderSession** — persists a subset of IDP session state for Umbral's traceability, revocation, and correlation needs |
 | Revokes tokens | **User Deactivation** — marks a `User` as inactive in the application domain, blocking access regardless of token validity |
+| Manages realm roles via the admin UI | **Keycloak Role Sync** — when an admin changes a user's role via the dashboard, propagates the change to Keycloak's realm roles via the Admin API, keeping both in sync |
 | — | **Domain Events** — publishes `UserProvisioned`, `UserAccessDeactivated`, `UserRoleAssigned`, etc. for other bounded contexts to react to |
 | — | **JoinToken** — owns and validates application-level tokens that gate entry into specific `LiveSession`/`Team` pairs |
 
@@ -62,7 +63,7 @@ Application-side User, Role, Access Facts
 ### Domain Services
 
 - **`AccessPolicy`** — Evaluates whether a `User` can access a `ProtectedCapability`. Returns `AccessDecision` (allowed/denied + reason). `EnsureCanAccess()` throws on denial.
-- **`IdentityProvisioningPolicy`** — Synchronizes or creates a `User` from Keycloak claims ("Post-Login Provisioning"). Validates that existing users' `ExternalIdentityId` matches.
+- **`IdentityProvisioningPolicy`** — Synchronizes or creates a `User` from Keycloak claims ("Post-Login Provisioning"). For new users, provisions with the Keycloak-provided role. For existing users, synchronizes only the profile (display name, email) — the application-side role is left intact so admin dashboard changes are not overwritten on re-login. Validates that existing users' `ExternalIdentityId` matches.
 - **`AccessDecision`** — Value object: `Capability`, `IsAllowed`, `Reason`.
 
 ### Domain Events (6)
@@ -76,6 +77,7 @@ Application-side User, Role, Access Facts
 | Command | Handler | Purpose |
 |---------|---------|---------|
 | `AuthenticateUserCommand` | `AuthenticateUserCommandHandler` | Post-login provisioning: synchronize or create `User`, return actor profile + access decision. |
+| `AssignUserRoleCommand` | `AssignUserRoleCommandHandler` | Change a user's role. Updates the application DB and syncs the new realm role to Keycloak via `IKeycloakAdminService`. Only `Administrator` may call this. |
 | `DeactivateUserCommand` | `DeactivateUserCommandHandler` | Soft-deactivate a user (`IsActive = false`), preserving history. Emits `UserAccessDeactivated`. Only `Administrator` may call this. |
 
 ### Queries
@@ -104,6 +106,7 @@ Application-side User, Role, Access Facts
 | `POST` | `/api/users/authenticated` | Bootstrap/sync user after Keycloak login. Body: `{ "displayName": "..." }`. Requires trusted gateway headers. | Headers |
 | `GET` | `/api/users/me` | Get current authenticated user profile. | Headers |
 | `GET` | `/api/users` | Paginated user catalog. Query: `page` (default 1), `pageSize` (default 20). All roles returned. | `Administrator`, `Operator` |
+| `PATCH` | `/api/users/{id}/role` | Change a user's role. Body: `{ "role": "Administrator" }`. Updates the DB and syncs the realm role to Keycloak. Returns `204`. | `Administrator` only |
 | `DELETE` | `/api/users/{id}/access` | Soft-deactivate a user by internal numeric id. Returns `204`. | `Administrator` only |
 
 ### Permission Endpoints (`/api/permissions`)
@@ -145,6 +148,26 @@ All exceptions are mapped to RFC 7807 `ProblemDetails`:
 | `UserRoleNotAuthorizedException` | 403 |
 | Everything else | 500 |
 
+### Keycloak Admin Role Sync
+
+When an admin changes a user's role via `PATCH /api/users/{id}/role`, the handler persists the change to the application DB and then calls `KeycloakAdminService.SyncUserRoleAsync()`. This service:
+
+1. Authenticates with the Keycloak master realm using the `admin-cli` client via `KEYCLOAK_ADMIN` / `KEYCLOAK_ADMIN_PASSWORD` (configured in docker-compose).
+2. Fetches available realm roles from Keycloak.
+3. Retrieves the user's current realm role mappings.
+4. Removes existing roles (except the one being assigned) and adds the target role.
+
+Failures are logged but do not roll back the DB update — the application DB is the source of truth. Configuration lives in the `Keycloak` section of `appsettings.json`:
+
+```json
+"Keycloak": {
+  "AdminAuthority": "http://keycloak:8080",
+  "Realm": "umbral",
+  "AdminUsername": "admin",
+  "AdminPassword": "admin"
+}
+```
+
 ## Infrastructure (EF Core + PostgreSQL)
 
 - **Database**: PostgreSQL via Npgsql.
@@ -177,7 +200,7 @@ tests/
 
 Coverage is collected per ADR-0005: `coverlet.msbuild` with `/p:CollectCoverage=true /p:CoverletOutputFormat=json` and `MergeWith` chaining. Threshold is 95% line coverage (total: 94.95%).
 
-### Unit Tests (64 tests, ~712ms)
+### Unit Tests (71 tests, ~762ms)
 
 | Area | Tests | What |
 |------|-------|------|
@@ -185,13 +208,14 @@ Coverage is collected per ADR-0005: `coverlet.msbuild` with `/p:CollectCoverage=
 | `IdentityProviderSession` entity | Start, end, idempotent end, validation (blank fields, invalid expiry) | Domain |
 | `ValueObject` base | Equality, null handling | Domain |
 | `BaseEntity` | Add/remove/clear domain events | Domain |
-| `IdentityProvisioningPolicy` | Provision new, synchronize existing, identity mismatch → exception | Domain |
+| `IdentityProvisioningPolicy` | Provision new, synchronize existing (profile only, role left intact), identity mismatch → exception | Domain |
 | `AccessPolicy` | Role/capability matrix (6 Theory rows), deactivated user → exception, wrong role → exception | Domain |
 | `GatewayRoleParser` | Parse/TryParse supported roles, unsupported role → exception | Application |
 | `AuthorizationBehaviour` | Anonymous → 401, wrong role → 403, correct role → pass, open request (no `[Authorize]`) | Application |
 | `PerformanceBehaviour` | Fast request → no log, slow request (550ms) → warning logged | Application |
 | `ValidationException` | Default ctor, errors grouping | Application |
-| `AuthenticateUserCommandHandler` | Provision new, synchronize existing, deactivated → exception | Application |
+| `AssignUserRoleCommandHandler` | Assign role, idempotent same-role, deactivated target → exception, non-admin caller → exception, unknown role → exception | Application |
+| `AuthenticateUserCommandHandler` | Provision new, synchronize existing (profile only, role preserved), deactivated → exception | Application |
 | `DeactivateUserCommandHandler` | Deactivate user, already deactivated → exception | Application |
 | `GetUsersQueryHandler` | List users as admin, participant forbidden → exception | Application |
 | `GetAuthenticatedActorProfileQueryHandler` | Return profile, missing identity → 401, user not found | Application |
@@ -244,6 +268,8 @@ dotnet test tests/IntegrationTests/Infrastructure.IntegrationTests.csproj -c Rel
    a. Parses headers via ICurrentUser
    b. Looks up User by ExternalIdentityId
    c. IdentityProvisioningPolicy.SynchronizeOrCreate()
+      - New user: provisions with Keycloak-provided role
+      - Existing user: syncs display name + email only, preserves existing role
    d. AccessPolicy.Evaluate(user, AuthenticatedPlatformAccess)
    e. Persists (AddAsync or UpdateAsync)
    f. Returns actor profile + access decision
@@ -258,6 +284,7 @@ dotnet test tests/IntegrationTests/Infrastructure.IntegrationTests.csproj -c Rel
 - [ADR-0004](backend/docs/adr/0004-required-domain-patterns.md): Proxy pattern for role/policy-based guards.
 - [ADR-0005](backend/docs/adr/0005-coverlet-msbuild-for-aggregate-coverage.md): coverlet.msbuild with MergeWith chaining, 95% threshold.
 - [ADR-0006](backend/docs/adr/0006-hu02-user-management-architecture.md): Authorization on operation, not data visibility — GET /api/users returns all roles; DELETE is resource-oriented on the access sub-resource.
+- [ADR-0007](../frontend/docs/adr/0007-role-authority-app-database.md): Application database is the source of truth for user roles; login no longer overwrites from the Keycloak JWT; role changes sync outward to Keycloak via the Admin API.
 
 ## Boundary Rules
 

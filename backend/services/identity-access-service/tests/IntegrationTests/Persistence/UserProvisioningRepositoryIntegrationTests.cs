@@ -1,11 +1,15 @@
+using MediatR;
 using umbral_backend.Application.Common.Interfaces;
 using umbral_backend.Application.Users.Commands.AuthenticateUser;
 using umbral_backend.Application.Users.Handlers;
 using umbral_backend.Application.Users.Queries.GetAuthenticatedActorProfile;
 using umbral_backend.Domain.Entities;
 using umbral_backend.Domain.Enums;
+using umbral_backend.Domain.Events;
+using umbral_backend.Domain.Exceptions;
 using umbral_backend.Domain.Services;
 using umbral_backend.Infrastructure.Persistence;
+using umbral_backend.Infrastructure.Persistence.Interceptors;
 using umbral_backend.Infrastructure.Persistence.Repositories;
 
 namespace umbral_backend.Infrastructure.IntegrationTests.Persistence;
@@ -124,20 +128,199 @@ public sealed class UserProvisioningRepositoryIntegrationTests : IClassFixture<P
         page.Items.Single().DisplayName.Should().Be("Charlie");
     }
 
+    [Fact]
+    public async Task AssignRole_PersistsRoleChangeAndPublishesAssignedEvent()
+    {
+        await using var setupContext = BuildContext();
+        await ResetDatabaseAsync(setupContext);
+        IUserRepository setupRepository = new UserRepository(setupContext);
+
+        var user = User.Provision("kc-role-01", "Role User", "role.user@example.com", Role.Operator);
+        await setupRepository.AddAsync(user, CancellationToken.None);
+
+        var mediator = new CapturingMediator();
+        await using var actContext = BuildContext(mediator);
+        IUserRepository repository = new UserRepository(actContext);
+
+        var persistedUser = await repository.GetByIdAsync(user.Id, CancellationToken.None);
+        persistedUser.Should().NotBeNull();
+
+        persistedUser!.AssignRole(Role.Administrator);
+        await repository.UpdateAsync(persistedUser, CancellationToken.None);
+
+        await using var assertContext = BuildContext();
+        var reloadedUser = await assertContext.Users.SingleAsync(storedUser => storedUser.Id == user.Id);
+
+        reloadedUser.Role.Should().Be(Role.Administrator);
+        mediator.PublishedNotifications
+            .OfType<UserRoleAssignedEvent>()
+            .Should()
+            .ContainSingle(assignedEvent =>
+                assignedEvent.User.Id == user.Id
+                && assignedEvent.PreviousRole == Role.Operator
+                && assignedEvent.CurrentRole == Role.Administrator);
+    }
+
+    [Fact]
+    public async Task AssignRole_OnDeactivatedUser_ThrowsAndKeepsPersistedRoleUnchanged()
+    {
+        await using var setupContext = BuildContext();
+        await ResetDatabaseAsync(setupContext);
+        IUserRepository setupRepository = new UserRepository(setupContext);
+
+        var user = User.Provision("kc-role-02", "Inactive User", "inactive.user@example.com", Role.Participant);
+        user.DeactivateAccess();
+        await setupRepository.AddAsync(user, CancellationToken.None);
+
+        var mediator = new CapturingMediator();
+        await using var actContext = BuildContext(mediator);
+        IUserRepository repository = new UserRepository(actContext);
+
+        var persistedUser = await repository.GetByIdAsync(user.Id, CancellationToken.None);
+        persistedUser.Should().NotBeNull();
+
+        var act = () => persistedUser!.AssignRole(Role.Operator);
+
+        act.Should().Throw<DeactivatedUserRoleAssignmentNotAllowedException>();
+
+        await using var assertContext = BuildContext();
+        var reloadedUser = await assertContext.Users.SingleAsync(storedUser => storedUser.Id == user.Id);
+
+        reloadedUser.Role.Should().Be(Role.Participant);
+        mediator.PublishedNotifications.Should().NotContain(notification => notification is UserRoleAssignedEvent);
+    }
+
+    [Fact]
+    public async Task AssignRole_WithSameRole_IsIdempotentAndDoesNotPublishAssignedEvent()
+    {
+        await using var setupContext = BuildContext();
+        await ResetDatabaseAsync(setupContext);
+        IUserRepository setupRepository = new UserRepository(setupContext);
+
+        var user = User.Provision("kc-role-03", "Idempotent User", "idempotent.user@example.com", Role.Operator);
+        await setupRepository.AddAsync(user, CancellationToken.None);
+
+        var mediator = new CapturingMediator();
+        await using var actContext = BuildContext(mediator);
+        IUserRepository repository = new UserRepository(actContext);
+
+        var persistedUser = await repository.GetByIdAsync(user.Id, CancellationToken.None);
+        persistedUser.Should().NotBeNull();
+
+        persistedUser!.AssignRole(Role.Operator);
+        await repository.UpdateAsync(persistedUser, CancellationToken.None);
+
+        await using var assertContext = BuildContext();
+        var reloadedUser = await assertContext.Users.SingleAsync(storedUser => storedUser.Id == user.Id);
+
+        reloadedUser.Role.Should().Be(Role.Operator);
+        mediator.PublishedNotifications.Should().NotContain(notification => notification is UserRoleAssignedEvent);
+        mediator.PublishedNotifications.Should().NotContain(notification => notification is UserRoleRevokedEvent);
+    }
+
     private static async Task ResetDatabaseAsync(ApplicationDbContext context)
     {
         await context.IdentityProviderSessions.ExecuteDeleteAsync();
         await context.Users.ExecuteDeleteAsync();
     }
 
-    private ApplicationDbContext BuildContext()
+    private ApplicationDbContext BuildContext(IMediator? mediator = null)
     {
-        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
-            .UseNpgsql(_fixture.ConnectionString)
-            .Options;
+        var optionsBuilder = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseNpgsql(_fixture.ConnectionString);
 
-        return new ApplicationDbContext(options);
+        optionsBuilder.AddInterceptors(new DispatchDomainEventsInterceptor(mediator ?? new NoOpMediator()));
+
+        return new ApplicationDbContext(optionsBuilder.Options);
     }
 
     private sealed record StubCurrentUser(string? Id, string? Email, string? Role) : ICurrentUser;
+
+    private sealed class CapturingMediator : IMediator
+    {
+        public List<object> PublishedNotifications { get; } = new();
+
+        public Task Publish(object notification, CancellationToken cancellationToken = default)
+        {
+            PublishedNotifications.Add(notification);
+            return Task.CompletedTask;
+        }
+
+        public Task Publish<TNotification>(TNotification notification, CancellationToken cancellationToken = default)
+            where TNotification : INotification
+        {
+            PublishedNotifications.Add(notification);
+            return Task.CompletedTask;
+        }
+
+        public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
+        {
+            throw new NotSupportedException();
+        }
+
+        public Task Send<TRequest>(TRequest request, CancellationToken cancellationToken = default)
+            where TRequest : IRequest
+        {
+            throw new NotSupportedException();
+        }
+
+        public Task<object?> Send(object request, CancellationToken cancellationToken = default)
+        {
+            throw new NotSupportedException();
+        }
+
+        public IAsyncEnumerable<TResponse> CreateStream<TResponse>(
+            IStreamRequest<TResponse> request,
+            CancellationToken cancellationToken = default)
+        {
+            throw new NotSupportedException();
+        }
+
+        public IAsyncEnumerable<object?> CreateStream(object request, CancellationToken cancellationToken = default)
+        {
+            throw new NotSupportedException();
+        }
+    }
+
+    private sealed class NoOpMediator : IMediator
+    {
+        public Task Publish(object notification, CancellationToken cancellationToken = default)
+        {
+            return Task.CompletedTask;
+        }
+
+        public Task Publish<TNotification>(TNotification notification, CancellationToken cancellationToken = default)
+            where TNotification : INotification
+        {
+            return Task.CompletedTask;
+        }
+
+        public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
+        {
+            throw new NotSupportedException();
+        }
+
+        public Task Send<TRequest>(TRequest request, CancellationToken cancellationToken = default)
+            where TRequest : IRequest
+        {
+            throw new NotSupportedException();
+        }
+
+        public Task<object?> Send(object request, CancellationToken cancellationToken = default)
+        {
+            throw new NotSupportedException();
+        }
+
+        public IAsyncEnumerable<TResponse> CreateStream<TResponse>(
+            IStreamRequest<TResponse> request,
+            CancellationToken cancellationToken = default)
+        {
+            throw new NotSupportedException();
+        }
+
+        public IAsyncEnumerable<object?> CreateStream(object request, CancellationToken cancellationToken = default)
+        {
+            throw new NotSupportedException();
+        }
+    }
 }

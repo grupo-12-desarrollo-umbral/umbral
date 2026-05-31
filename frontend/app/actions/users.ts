@@ -1,7 +1,7 @@
 'use server'
 
 import { verifySession } from '@/app/lib/dal'
-import { listUsers, deactivateUserAccess } from '@/app/lib/users'
+import { listUsers, deactivateUserAccess, assignUserRole as assignUserRoleLib } from '@/app/lib/users'
 import { revalidatePath } from 'next/cache'
 import type { PagedResult, UserAccessCatalogItemDto } from '@/app/lib/definitions'
 
@@ -25,4 +25,13 @@ export async function deactivateUser(id: number): Promise<void> {
   }
   await deactivateUserAccess(id)
   revalidatePath('/dashboard') // invalidates any cached users data
+}
+
+export async function assignUserRole(id: number, role: string): Promise<void> {
+  const session = await verifySession()
+  if (session.role !== 'Administrator') {
+    throw new Error('Forbidden')
+  }
+  await assignUserRoleLib(id, role)
+  revalidatePath('/dashboard')
 }
