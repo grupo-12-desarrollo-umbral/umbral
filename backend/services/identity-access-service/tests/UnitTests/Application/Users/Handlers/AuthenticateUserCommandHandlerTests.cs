@@ -62,7 +62,7 @@ public sealed class AuthenticateUserCommandHandlerTests
 
         result.Actor.DisplayName.Should().Be("Grace Hopper");
         result.Actor.Email.Should().Be("grace@example.com");
-        result.Actor.Role.Should().Be("Administrator");
+        result.Actor.Role.Should().Be("Operator");
         repository.Verify(repo => repo.UpdateAsync(existingUser, It.IsAny<CancellationToken>()), Times.Once);
         repository.Verify(repo => repo.AddAsync(It.IsAny<User>(), It.IsAny<CancellationToken>()), Times.Never);
     }

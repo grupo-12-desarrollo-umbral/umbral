@@ -25,7 +25,7 @@ public sealed class IdentityProvisioningPolicyTests
     }
 
     [Fact]
-    public void SynchronizeOrCreate_WhenUserExists_SynchronizesProfileAndRole()
+    public void SynchronizeOrCreate_WhenUserExists_SynchronizesProfileOnly()
     {
         var existingUser = User.Provision("kc-02", "Initial", "initial@example.com", Role.Operator);
         existingUser.ClearDomainEvents();
@@ -40,7 +40,7 @@ public sealed class IdentityProvisioningPolicyTests
         user.Should().BeSameAs(existingUser);
         user.DisplayName.Should().Be("Grace");
         user.Email.Should().Be("grace@example.com");
-        user.Role.Should().Be(Role.Administrator);
+        user.Role.Should().Be(Role.Operator);
     }
 
     [Fact]
