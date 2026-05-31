@@ -91,10 +91,15 @@ Main use-case focus:
 
 ### `SessionOperations`
 
+> **Note:** The `Team` here is the **runtime** entity that exists inside a `LiveSession`
+> (carries `currentScore`, `joinStatus`, `progressNodeId`, etc.). HU-04 creates a separate
+> **reference-data** Team in the Identity bounded context for the pre-session team catalog.
+> See [`Identity`](#identity) below.
+
 Owns:
 
 - `LiveSession`
-- `Team`
+- `Team` (runtime — see note above)
 - `SessionParticipant`
 - `TeamMember`
 - `JoinContext`
@@ -108,7 +113,7 @@ Owns:
 Main use-case focus:
 
 - session creation and lifecycle
-- team registration and assignment
+- team assignment to live sessions (runtime)
 - participant join and reconnection
 - clue release and runtime progression
 - evidence intake and runtime control
@@ -140,6 +145,7 @@ Rules:
 - authentication is externalized to `Keycloak`
 - authorization decisions remain explicit through the `Identity` contracts and the owning application services
 - this context does not replace `SessionOperations` ownership of live-session participation rules, but it does own identity and access language
+- HU-04 introduces a **reference-data `Team`** in Identity (id, name, code, active status) — distinct from `SessionOperations`' runtime `Team` (score, progress, live state)
 
 Owns:
 
@@ -147,6 +153,8 @@ Owns:
 - `Role`
 - `IdentityProviderSession`
 - `JoinToken`
+- `Team` reference data (HU-04)
+- `TeamMembership` record (HU-05)
 - actor-access validation facts
 
 Main use-case focus:
@@ -155,6 +163,7 @@ Main use-case focus:
 - manage identity-provider session state relevant to the platform
 - enforce role/access policies
 - validate whether an authenticated actor may enter a requested team/session context
+- maintain team reference data and membership records (HU-04/HU-05)
 
 ## 4. Context-to-deployable map
 
