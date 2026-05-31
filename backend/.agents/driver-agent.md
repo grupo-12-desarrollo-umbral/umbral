@@ -72,11 +72,87 @@ Phase subagents write code only. They do not commit, touch Linear, or run gates.
    ```
    If it fails, stop — do not start phases on a broken base.
 
+6. **Ensure EF tooling exists** — install locally (not globally) so the version
+   is reproducible across environments. After install, prepend the tool path so
+   `dotnet ef` resolves regardless of the shell's default PATH:
+   ```bash
+   export PATH="/tmp/dotnet-tools:$PATH"
+   command -v dotnet-ef >/dev/null || \
+     dotnet tool install --tool-path /tmp/dotnet-tools dotnet-ef --version 10.0.0
+   command -v dotnet-ef >/dev/null
+   ```
+   If the last `command -v` fails, the tool path is not on PATH — stop and
+   investigate before proceeding.
+
+7. **Check auditable base conventions** — audit-column leaks from the base class
+   are the most common EF mapping mistake. Read the base before writing any
+   entity config:
+   ```bash
+   sed -n '1,200p' backend/services/<service>/src/Domain/Common/BaseAuditableEntity.cs
+   ```
+
+8. **Check Docker availability** — required for X.3 integration tests via
+   Testcontainers. Docker daemon must be reachable:
+   ```bash
+   docker ps --format '{{.Names}}'
+   ```
+   If this fails, integration tests will hang or crash.
+
+9. **Migration rule (X.3)** — the generated `Add*` migration must be reviewed
+   for unwanted audit columns (e.g. `created_by`, `updated_by`) before commit.
+   These leak from `BaseAuditableEntity` unless the EF configuration explicitly
+   ignores or excludes them. The fastest fix is `builder.Ignore(...)` in the
+   entity configuration class.
+
+   Startup-project precedence for `dotnet ef migrations add`:
+   - Preferred: `--startup-project src/Api --project src/Infrastructure`
+     (requires `src/Api` to reference `Microsoft.EntityFrameworkCore.Design`)
+   - Fallback: `--startup-project src/Infrastructure --project src/Infrastructure --no-build`
+     (use when the API project is not a valid EF startup project)
+
 ---
 
-## Per-phase loop (X.1 → X.4)
+## Phase menu
 
-Repeat for each phase in order. Do not pause between phases unless a gate fails.
+After pre-flight, do **not** run phases automatically. Instead, show the phase
+menu and wait for the human to select a phase.
+
+### Detect completed phases
+
+Run once before showing the menu (and again after each phase commit):
+
+```bash
+git -C ../umbral-hu-NN log --oneline
+```
+
+A phase is **done** if its commit message contains `phase X.N` (e.g.
+`phase X.1`, `phase X.2`). Mark it `[✓]`; otherwise `[ ]`.
+
+### Show the menu
+
+```
+─── HU-NN — phase selection ────────────────────────────────────
+[✓] X.1  Domain layer
+[ ] X.2  Application layer
+[ ] X.3  Infrastructure layer
+[ ] X.4  API layer + coverage gate
+
+Select a phase to implement (X.1 / X.2 / X.3 / X.4):
+────────────────────────────────────────────────────────────────
+```
+
+Wait for the human to reply. Do not proceed until a phase is chosen.
+
+When all four phases are `[✓]`, note that the human may run `/debrief` at any
+point if they want a decision log, then proceed automatically to the docker
+rebuild + curl smoke step below.
+
+---
+
+## Per-phase execution (one phase at a time)
+
+Run **only** the phase the human selected. After it completes, re-display the
+menu and wait again.
 
 ### Step A — Assert worktree context
 
@@ -126,9 +202,9 @@ Ref: DES-N
 Ref: DES-PRD"
 ```
 
-### Step F — Debrief
+### Step F — After commit
 
-Run `/debrief`. Commit the debrief file before starting the next phase.
+Re-display the phase menu and wait for the next selection.
 
 ---
 
