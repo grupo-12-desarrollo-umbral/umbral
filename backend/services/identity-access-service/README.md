@@ -76,6 +76,7 @@ Application-side User, Role, Access Facts
 | Command | Handler | Purpose |
 |---------|---------|---------|
 | `AuthenticateUserCommand` | `AuthenticateUserCommandHandler` | Post-login provisioning: synchronize or create `User`, return actor profile + access decision. |
+| `DeactivateUserCommand` | `DeactivateUserCommandHandler` | Soft-deactivate a user (`IsActive = false`), preserving history. Emits `UserAccessDeactivated`. Only `Administrator` may call this. |
 
 ### Queries
 
@@ -83,6 +84,7 @@ Application-side User, Role, Access Facts
 |-------|---------|---------|
 | `GetAuthenticatedActorProfileQuery` | `GetAuthenticatedActorProfileQueryHandler` | Return the current user's profile from `ICurrentUser`. |
 | `CheckProtectedCapabilityAccessQuery` | `CheckProtectedCapabilityAccessQueryHandler` | Evaluate whether current user can access a capability. |
+| `GetUsersQuery` | `GetUsersQueryHandler` | Paginated user catalog. Returns all roles; `Administrator` or `Operator` may call it. |
 
 ### Pipeline Behaviours (4)
 
@@ -101,6 +103,8 @@ Application-side User, Role, Access Facts
 |--------|------|-------------|------|
 | `POST` | `/api/users/authenticated` | Bootstrap/sync user after Keycloak login. Body: `{ "displayName": "..." }`. Requires trusted gateway headers. | Headers |
 | `GET` | `/api/users/me` | Get current authenticated user profile. | Headers |
+| `GET` | `/api/users` | Paginated user catalog. Query: `page` (default 1), `pageSize` (default 20). All roles returned. | `Administrator`, `Operator` |
+| `DELETE` | `/api/users/{id}/access` | Soft-deactivate a user by internal numeric id. Returns `204`. | `Administrator` only |
 
 ### Permission Endpoints (`/api/permissions`)
 
@@ -173,7 +177,7 @@ tests/
 
 Coverage is collected per ADR-0005: `coverlet.msbuild` with `/p:CollectCoverage=true /p:CoverletOutputFormat=json` and `MergeWith` chaining. Threshold is 95% line coverage (total: 94.95%).
 
-### Unit Tests (56 tests, ~712ms)
+### Unit Tests (64 tests, ~712ms)
 
 | Area | Tests | What |
 |------|-------|------|
@@ -188,18 +192,22 @@ Coverage is collected per ADR-0005: `coverlet.msbuild` with `/p:CollectCoverage=
 | `PerformanceBehaviour` | Fast request → no log, slow request (550ms) → warning logged | Application |
 | `ValidationException` | Default ctor, errors grouping | Application |
 | `AuthenticateUserCommandHandler` | Provision new, synchronize existing, deactivated → exception | Application |
+| `DeactivateUserCommandHandler` | Deactivate user, already deactivated → exception | Application |
+| `GetUsersQueryHandler` | List users as admin, participant forbidden → exception | Application |
 | `GetAuthenticatedActorProfileQueryHandler` | Return profile, missing identity → 401, user not found | Application |
 | `CheckProtectedCapabilityAccessQueryHandler` | Authorized → allowed, unauthorized → exception, deactivated → exception | Application |
 | `AuthenticateUserCommandValidator` | Valid command, invalid command (4 field errors) | Application |
+| `DeactivateUserCommandValidator` | Valid command, invalid id → error | Application |
+| `GetUsersQueryValidator` | Valid query, out-of-range page → error | Application |
 | `CheckProtectedCapabilityAccessQueryValidator` | Known capability, out-of-range enum → error | Application |
 | `ProblemDetailsExceptionHandler` | Known exceptions → correct status codes (Theory), validation → 400 + combined detail, unknown → 500 | Api |
 | `ApplicationDbContextFactory` | Connection string from env var | Infrastructure |
 
-### Integration Tests (7 tests, ~749ms)
+### Integration Tests (11 tests, ~749ms)
 
 | Area | Tests | What |
 |------|-------|------|
-| API Endpoints | Bootstrap + read-back cycle (provision user via POST, GET /me, verify DB), no-headers → 401, deactivated user → 403, bootstrap without headers → 401, health → 200, alive → 200 | Api/infra |
+| API Endpoints | Bootstrap + read-back cycle (provision user via POST, GET /me, verify DB), no-headers → 401, deactivated user → 403, bootstrap without headers → 401, list users → paginated results, deactivate user → 204, deactivate already-deactivated → 400, health → 200, alive → 200 | Api/infra |
 | Persistence | Full authenticate + retrieve profile through real `UserRepository` + PostgreSQL | Infra |
 
 ## Running the Service
@@ -249,6 +257,7 @@ dotnet test tests/IntegrationTests/Infrastructure.IntegrationTests.csproj -c Rel
 - [ADR-0003](backend/docs/adr/0003-api-gateway-keycloak-design-summary.md): Keycloak realm design, trusted header contract, JoinToken is post-auth guard.
 - [ADR-0004](backend/docs/adr/0004-required-domain-patterns.md): Proxy pattern for role/policy-based guards.
 - [ADR-0005](backend/docs/adr/0005-coverlet-msbuild-for-aggregate-coverage.md): coverlet.msbuild with MergeWith chaining, 95% threshold.
+- [ADR-0006](backend/docs/adr/0006-hu02-user-management-architecture.md): Authorization on operation, not data visibility — GET /api/users returns all roles; DELETE is resource-oriented on the access sub-resource.
 
 ## Boundary Rules
 

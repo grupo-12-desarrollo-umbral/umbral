@@ -302,6 +302,37 @@ Then run: `/debrief`
 
 ---
 
+## 8.5 — Rebuild backend container images
+
+The backend Docker images were built before the new endpoints existed. Rebuild
+and restart so the frontend can test against the live service:
+
+```bash
+cd backend && docker compose build identity-access-service
+docker compose up -d identity-access-service
+```
+
+Also rebuild the gateway if any proxy configuration changed:
+
+```bash
+docker compose build api-gateway
+docker compose up -d api-gateway
+```
+
+Verify the new endpoints respond:
+
+```bash
+curl -s http://localhost:5002/api/users \
+  -H "X-User-Id: admin-1" \
+  -H "X-User-Role: Administrator" \
+  -H "X-User-Email: admin@umbral.local"
+```
+
+**Gate:** both new endpoints (`GET /api/users`, `DELETE /api/users/{id}/access`) return
+the expected status codes when called with trusted headers.
+
+---
+
 ## 9. Frontend slice
 
 ```
