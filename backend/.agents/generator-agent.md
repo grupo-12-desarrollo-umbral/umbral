@@ -157,7 +157,7 @@ Follow the structure of `backend/docs/prompt_example_feature_hu03.md` exactly:
 | Step 4: Start the slice | Branch, move to In Progress, output scope |
 | Steps 5–8: Phases X.1–X.4 | Each with `@backend/.agents/backend-agent.md` reference, scope, gate, commit message. **For the phase(s) that own a mandated pattern, the pattern must appear as an explicit scope bullet AND as an explicit gate line** (e.g. "Gate: access is enforced through a `Proxy`-style guard — `AuthorizationBehaviour`/endpoint policy — with no ad-hoc role `if` checks in handlers or endpoints"). A pattern named only in prose, never in a gate, does not count. |
 | Step 8.5: Docker rebuild | `docker compose build` + `docker compose up -d` + curl smoke |
-| Step 9: Frontend slice | `@frontend/AGENTS.md` reference, scope, gate, commit message |
+| Step 9: Frontend slice | Begin the step with a plan-generation instruction, then the `@frontend/AGENTS.md` reference, scope, gate, commit message. The plan-generation line must read: "Generate a multi phase plan in a markdown file, like the one in `@frontend/plans/hu-03-frontend-role-permission-assignment.md`, save it in `@frontend/plans/` for the following:" immediately followed by `Use @frontend/AGENTS.md` |
 | Step 10: Close-out | Acceptance criteria + `gh pr create` command |
 | Rationale section | Why this HU's pattern differs from its predecessor |
 

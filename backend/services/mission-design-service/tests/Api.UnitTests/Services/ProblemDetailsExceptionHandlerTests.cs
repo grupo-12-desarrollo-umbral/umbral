@@ -4,6 +4,8 @@ using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using umbral_backend.Application.Common.Exceptions;
+using umbral_backend.Domain.Enums;
+using umbral_backend.Domain.Exceptions;
 using umbral_backend.Web.Services;
 using NotFoundException = umbral_backend.Application.Common.Exceptions.NotFoundException;
 using ValidationException = umbral_backend.Application.Common.Exceptions.ValidationException;
@@ -73,6 +75,19 @@ public class ProblemDetailsExceptionHandlerTests
         problem.Status.Should().Be(403);
         problem.Title.Should().Be("Forbidden.");
         httpContext.Response.StatusCode.Should().Be(403);
+    }
+
+    [Fact]
+    public async Task TryHandleAsync_TriviaQuizNotEditableException_Returns409()
+    {
+        var httpContext = CreateHttpContext();
+        var problem = await InvokeHandlerAndReadProblemDetails(
+            httpContext,
+            new TriviaQuizNotEditableException(TriviaQuizStatus.Published));
+
+        problem.Status.Should().Be(409);
+        problem.Title.Should().Be("Trivia quiz cannot be edited in its current state.");
+        httpContext.Response.StatusCode.Should().Be(409);
     }
 
     [Fact]

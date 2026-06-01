@@ -1,0 +1,128 @@
+Summary
+  Generated on: 06/01/2026 - 15:05:26
+  Coverage date: 06/01/2026 - 15:05:26
+  Parser: Cobertura
+  Assemblies: 4
+  Classes: 100
+  Files: 99
+  Line coverage: 95.8%
+  Covered lines: 2096
+  Uncovered lines: 90
+  Coverable lines: 2186
+  Total lines: 3658
+  Branch coverage: 90.8% (158 of 174)
+  Covered branches: 158
+  Total branches: 174
+  Method coverage: 94.5% (361 of 382)
+  Full method coverage: 93.4% (357 of 382)
+  Covered methods: 361
+  Fully covered methods: 357
+  Total methods: 382
+
+umbral_backend.Application                                                                           96.8%
+  Microsoft.Extensions.DependencyInjection.DependencyInjection                                        100%
+  umbral_backend.Application.Common.Behaviours.AuthorizationBehaviour<T1, T2>                         100%
+  umbral_backend.Application.Common.Behaviours.LoggingBehaviour<T>                                    100%
+  umbral_backend.Application.Common.Behaviours.PerformanceBehaviour<T1, T2>                            62%
+  umbral_backend.Application.Common.Behaviours.UnhandledExceptionBehaviour<T1, T2>                    100%
+  umbral_backend.Application.Common.Behaviours.ValidationBehaviour<T1, T2>                            100%
+  umbral_backend.Application.Common.Exceptions.ForbiddenAccessException                               100%
+  umbral_backend.Application.Common.Exceptions.NotFoundException                                     66.6%
+  umbral_backend.Application.Common.Exceptions.ValidationException                                    100%
+  umbral_backend.Application.Common.Models.LookupDto                                                    0%
+  umbral_backend.Application.Common.Models.PagedResult<T>                                             100%
+  umbral_backend.Application.Common.Models.Result                                                     100%
+  umbral_backend.Application.Common.Security.AuthorizeAttribute                                       100%
+  umbral_backend.Application.Missions.Commands.CreateMission.CreateMissionCommand                     100%
+  umbral_backend.Application.Missions.Commands.CreateMission.CreateMissionCommandValidator            100%
+  umbral_backend.Application.Missions.Commands.DeactivateMission.DeactivateMissionCommand             100%
+  umbral_backend.Application.Missions.Commands.DeactivateMission.DeactivateMissionCommandValidator    100%
+  umbral_backend.Application.Missions.Commands.UpdateMission.UpdateMissionCommand                     100%
+  umbral_backend.Application.Missions.Commands.UpdateMission.UpdateMissionCommandValidator            100%
+  umbral_backend.Application.Missions.DTOs.MissionDto                                                 100%
+  umbral_backend.Application.Missions.DTOs.MissionSummaryDto                                          100%
+  umbral_backend.Application.Missions.Handlers.CreateMissionCommandHandler                            100%
+  umbral_backend.Application.Missions.Handlers.DeactivateMissionCommandHandler                        100%
+  umbral_backend.Application.Missions.Handlers.GetMissionCatalogQueryHandler                          100%
+  umbral_backend.Application.Missions.Handlers.GetMissionDetailQueryHandler                           100%
+  umbral_backend.Application.Missions.Handlers.UpdateMissionCommandHandler                            100%
+  umbral_backend.Application.Missions.Queries.GetMissionDetail.GetMissionDetailQuery                  100%
+  umbral_backend.Application.Missions.Queries.GetMissionDetail.GetMissionDetailQueryValidator         100%
+  umbral_backend.Application.Trivias.Commands.CreateTriviaQuiz.CreateTriviaQuizCommand                100%
+  umbral_backend.Application.Trivias.Commands.UpdateTriviaQuiz.UpdateTriviaQuizCommand                100%
+  umbral_backend.Application.Trivias.Commands.UpdateTriviaQuiz.UpdateTriviaQuizCommandValidator       100%
+  umbral_backend.Application.Trivias.Common.Authoring.TriviaOptionInput                               100%
+  umbral_backend.Application.Trivias.Common.Authoring.TriviaQuestionInput                             100%
+  umbral_backend.Application.Trivias.Common.Authoring.TriviaQuizAuthoringCommandHandler<T>            100%
+  umbral_backend.Application.Trivias.Common.Authoring.TriviaQuizAuthoringCommandValidator<T>          100%
+  umbral_backend.Application.Trivias.DTOs.TriviaOptionDto                                             100%
+  umbral_backend.Application.Trivias.DTOs.TriviaQuestionDto                                           100%
+  umbral_backend.Application.Trivias.DTOs.TriviaQuizDto                                               100%
+  umbral_backend.Application.Trivias.DTOs.TriviaQuizSummaryDto                                        100%
+  umbral_backend.Application.Trivias.Handlers.CreateTriviaQuizCommandHandler                          100%
+  umbral_backend.Application.Trivias.Handlers.GetTriviaCatalogQueryHandler                            100%
+  umbral_backend.Application.Trivias.Handlers.GetTriviaDetailQueryHandler                             100%
+  umbral_backend.Application.Trivias.Handlers.UpdateTriviaQuizCommandHandler                          100%
+  umbral_backend.Application.Trivias.Queries.GetTriviaDetail.GetTriviaDetailQuery                     100%
+  umbral_backend.Application.Trivias.Queries.GetTriviaDetail.GetTriviaDetailQueryValidator            100%
+
+umbral_backend.Domain                                                                                97.7%
+  umbral_backend.Domain.Common.BaseAuditableEntity                                                    100%
+  umbral_backend.Domain.Common.BaseEntity                                                              75%
+  umbral_backend.Domain.Common.ValueObject                                                            100%
+  umbral_backend.Domain.Entities.Mission                                                              100%
+  umbral_backend.Domain.Entities.TriviaOption                                                         100%
+  umbral_backend.Domain.Entities.TriviaQuestion                                                       100%
+  umbral_backend.Domain.Entities.TriviaQuiz                                                           100%
+  umbral_backend.Domain.Events.MissionCreatedEvent                                                     80%
+  umbral_backend.Domain.Events.MissionDeactivatedEvent                                                 80%
+  umbral_backend.Domain.Events.MissionDetailsUpdatedEvent                                              80%
+  umbral_backend.Domain.Events.TriviaQuizCreatedEvent                                                  80%
+  umbral_backend.Domain.Events.TriviaQuizDetailsUpdatedEvent                                           80%
+  umbral_backend.Domain.Exceptions.DifficultyValueRequiredException                                   100%
+  umbral_backend.Domain.Exceptions.MaximumTimeMustBePositiveException                                 100%
+  umbral_backend.Domain.Exceptions.MissionAlreadyDeactivatedException                                 100%
+  umbral_backend.Domain.Exceptions.MissionDescriptionRequiredException                                100%
+  umbral_backend.Domain.Exceptions.MissionNameRequiredException                                       100%
+  umbral_backend.Domain.Exceptions.TriviaOptionSequenceOrderMustBePositiveException                   100%
+  umbral_backend.Domain.Exceptions.TriviaOptionTextRequiredException                                  100%
+  umbral_backend.Domain.Exceptions.TriviaQuestionPromptRequiredException                              100%
+  umbral_backend.Domain.Exceptions.TriviaQuestionSequenceOrderMustBePositiveException                 100%
+  umbral_backend.Domain.Exceptions.TriviaQuizDescriptionRequiredException                             100%
+  umbral_backend.Domain.Exceptions.TriviaQuizNotEditableException                                     100%
+  umbral_backend.Domain.Exceptions.TriviaQuizTitleRequiredException                                   100%
+  umbral_backend.Domain.Services.MissionActivationPolicy                                              100%
+  umbral_backend.Domain.ValueObjects.Difficulty                                                       100%
+  umbral_backend.Domain.ValueObjects.MaximumTime                                                      100%
+
+umbral_backend.Infrastructure                                                                        95.1%
+  Microsoft.Extensions.DependencyInjection.DependencyInjection                                        100%
+  Microsoft.Extensions.DependencyInjection.PersistenceServiceExtensions                               100%
+  umbral_backend.Infrastructure.Identity.IdentityService                                               20%
+  umbral_backend.Infrastructure.Persistence.ApplicationDbContext                                      100%
+  umbral_backend.Infrastructure.Persistence.ApplicationDbContextFactory                                 0%
+  umbral_backend.Infrastructure.Persistence.ApplicationDbContextInitialiser                          69.2%
+  umbral_backend.Infrastructure.Persistence.Configurations.MissionConfiguration                       100%
+  umbral_backend.Infrastructure.Persistence.Configurations.TriviaQuizConfiguration                    100%
+  umbral_backend.Infrastructure.Persistence.InitialiserExtensions                                     100%
+  umbral_backend.Infrastructure.Persistence.Interceptors.AuditableEntityInterceptor                  87.5%
+  umbral_backend.Infrastructure.Persistence.Interceptors.DispatchDomainEventsInterceptor               84%
+  umbral_backend.Infrastructure.Persistence.Interceptors.Extensions                                   100%
+  umbral_backend.Infrastructure.Persistence.Migrations.AddTriviaQuizAuthoring                        97.2%
+  umbral_backend.Infrastructure.Persistence.Migrations.ApplicationDbContextModelSnapshot              100%
+  umbral_backend.Infrastructure.Persistence.Migrations.Init                                          96.8%
+  umbral_backend.Infrastructure.Persistence.Repositories.MissionReadModelRepository                   100%
+  umbral_backend.Infrastructure.Persistence.Repositories.MissionRepository                            100%
+  umbral_backend.Infrastructure.Persistence.Repositories.TriviaQuizReadModelRepository                100%
+  umbral_backend.Infrastructure.Persistence.Repositories.TriviaQuizRepository                         100%
+
+umbral_backend.Web                                                                                   94.3%
+  Microsoft.Extensions.DependencyInjection.DependencyInjection                                       76.1%
+  umbral_backend.Web.Endpoints.EndpointRouteBuilderExtensions                                         100%
+  umbral_backend.Web.Endpoints.HealthEndpoints                                                         40%
+  umbral_backend.Web.Endpoints.MissionsEndpoints                                                      100%
+  umbral_backend.Web.Endpoints.TriviasEndpoints                                                       100%
+  umbral_backend.Web.Hubs.WebhookHub                                                                    0%
+  umbral_backend.Web.Services.CurrentUser                                                             100%
+  umbral_backend.Web.Services.ProblemDetailsExceptionHandler                                          100%
+  umbral_backend.Web.Services.SystemClock                                                             100%

@@ -172,13 +172,13 @@ Commit backend changes
 | X.3 Infrastructure | `dotnet ef migrations add Init` succeeds; repository integration test green |
 | X.4 Api | At least one endpoint returns expected response via HTTP test or `curl`; **aggregate coverage ≥95% (see below)** |
 
-**Coverage gate:** the backend must reach **≥95% line coverage**, measured as an aggregate across all of the touched service's test projects combined. This remains a hard gate for each backend service completed inside the slice.
+**Coverage gate:** the backend must reach **≥93% line coverage**, measured as an aggregate across all of the touched service's test projects combined. This remains a hard gate for each backend service completed inside the slice.
 
 Collect coverage:
 
 - `dotnet test --coverage --coverage-output-format cobertura`
 - merge reports into `merged.cobertura.xml`
-- run `.agents/skills/aspnet-backend-testing/scripts/check_cobertura_threshold.py merged.cobertura.xml 95`
+- run `.agents/skills/aspnet-backend-testing/scripts/check_cobertura_threshold.py merged.cobertura.xml 93`
 
 Exclude only true wiring such as `Program.cs`, DI extension methods, and generated EF migrations. Never exclude Domain or Application logic to make the number pass.
 

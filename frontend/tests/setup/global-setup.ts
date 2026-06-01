@@ -5,6 +5,7 @@ import { tmpdir } from 'os'
 
 const DB_CONTAINER = 'backend-postgres-1'
 const DB_NAME = 'identity_access'
+const MISSION_DB_NAME = 'mission_design'
 
 function seedViaDocker(): void {
   const sql = `DELETE FROM team_memberships;
@@ -41,6 +42,22 @@ ON CONFLICT (id) DO UPDATE SET
     execSync(`docker exec ${DB_CONTAINER} psql -U postgres -d ${DB_NAME} -f /tmp/seed.sql`, { stdio: 'pipe', timeout: 15000 })
     execSync(`docker exec ${DB_CONTAINER} rm /tmp/seed.sql`, { stdio: 'pipe', timeout: 5000 })
     console.log('[global-setup] Test users seeded.')
+
+    // Seed trivia quizzes in mission_design (all three statuses for edit-gate + manual testing)
+    const mSql = `DELETE FROM "TriviaOptions";
+DELETE FROM "TriviaQuestions";
+DELETE FROM "TriviaQuizzes";
+INSERT INTO "TriviaQuizzes" ("Title", "Description", "Status", "Created", "LastModified")
+VALUES
+  ('Filosofos de Atenas',   'Los pensadores que marcaron la antiguedad.', 'Published', NOW(), NOW()),
+  ('Musica y su historia',   'Un recorrido por los generos musicales.',   'Draft',     NOW(), NOW()),
+  ('Guitarristas mas queridos', 'Los maestros de la guitarra.',           'Archived',  NOW(), NOW());`
+    const mFile = join(tmpDir, 'seed-mission.sql')
+    writeFileSync(mFile, mSql, 'utf-8')
+    execSync(`docker cp "${mFile}" ${DB_CONTAINER}:/tmp/seed-mission.sql`, { stdio: 'pipe', timeout: 10000 })
+    execSync(`docker exec ${DB_CONTAINER} psql -U postgres -d ${MISSION_DB_NAME} -f /tmp/seed-mission.sql`, { stdio: 'pipe', timeout: 15000 })
+    execSync(`docker exec ${DB_CONTAINER} rm /tmp/seed-mission.sql`, { stdio: 'pipe', timeout: 5000 })
+    console.log('[global-setup] Trivia quizzes seeded.')
   } finally {
     try { unlinkSync(tmpFile) } catch { /* ignore */ }
     try { unlinkSync(tmpDir) } catch { /* ignore */ }

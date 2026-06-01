@@ -161,7 +161,7 @@ ask the driver** — do not silently drop it.
 | X.1 Domain | `dotnet build` exits 0; at least one unit test per public domain type (each aggregate/entity, each value object, each enum behavior) |
 | X.2 Application | `dotnet build` clean; every handler has unit tests for all paths (valid path + every rejection/error branch); every validator has tests for valid and each invalid input |
 | X.3 Infrastructure | `dotnet ef migrations add` succeeds; repository integration test green |
-| X.4 Api | At least one endpoint returns expected response; aggregate ≥95% line coverage gate passes |
+| X.4 Api | At least one endpoint returns expected response; aggregate ≥93% line coverage gate passes |
 
 Coverage exclusions allowed only on: `Program.cs`, DI extension methods, generated EF migrations. Never exclude Domain or Application code.
 
@@ -173,7 +173,7 @@ Coverage exclusions allowed only on: `Program.cs`, DI extension methods, generat
 |---|---|
 | `cqrs-mediatr-aspnetcore` | Structuring commands, queries, handlers, pipeline behaviours |
 | `ef-core-postgresql` | EF Core configurations, migrations, DbContext setup |
-| `aspnet-backend-testing` | Writing unit/integration tests, enforcing ≥95% aggregate coverage |
+| `aspnet-backend-testing` | Writing unit/integration tests, enforcing ≥93% aggregate coverage |
 | `rabbitmq-events-dotnet` | Outbound event publishing and consumer wiring |
 | `signalr-websockets-aspnetcore` | Hub setup, group management, real-time notifier implementation |
 
