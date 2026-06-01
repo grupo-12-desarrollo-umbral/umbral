@@ -14,17 +14,17 @@ public sealed class GetUsersQueryHandlerTests
     [Fact]
     public async Task Handle_ReturnsPagedUserCatalogForAuthorizedActor()
     {
-        var actor = User.Provision("kc-operator", "Operator", "operator@example.com", Role.Operator);
+        var actor = User.Provision("kc-admin", "Admin", "admin@example.com", Role.Administrator);
         actor.Id = 2;
         var listedUser = User.Provision("kc-admin", "Admin", "admin@example.com", Role.Administrator);
         listedUser.Id = 7;
 
         var currentUser = new Mock<ICurrentUser>();
-        currentUser.SetupGet(user => user.Id).Returns("kc-operator");
+        currentUser.SetupGet(user => user.Id).Returns("kc-admin");
 
         var repository = new Mock<IUserRepository>();
         repository
-            .Setup(repo => repo.GetByExternalIdentityIdAsync("kc-operator", It.IsAny<CancellationToken>()))
+            .Setup(repo => repo.GetByExternalIdentityIdAsync("kc-admin", It.IsAny<CancellationToken>()))
             .ReturnsAsync(actor);
         repository
             .Setup(repo => repo.ListAsync(2, 10, It.IsAny<CancellationToken>()))
@@ -51,9 +51,31 @@ public sealed class GetUsersQueryHandlerTests
     [Fact]
     public async Task Handle_RejectsDeactivatedActor()
     {
-        var actor = User.Provision("kc-operator", "Operator", "operator@example.com", Role.Operator);
+        var actor = User.Provision("kc-admin", "Admin", "admin@example.com", Role.Administrator);
         actor.Id = 2;
         actor.DeactivateAccess();
+
+        var currentUser = new Mock<ICurrentUser>();
+        currentUser.SetupGet(user => user.Id).Returns("kc-admin");
+
+        var repository = new Mock<IUserRepository>();
+        repository
+            .Setup(repo => repo.GetByExternalIdentityIdAsync("kc-admin", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(actor);
+
+        var handler = new GetUsersQueryHandler(repository.Object, currentUser.Object, new AccessPolicy());
+
+        var act = async () => await handler.Handle(new GetUsersQuery(), CancellationToken.None);
+
+        await act.Should().ThrowAsync<DeactivatedUserAccessDeniedException>();
+        repository.Verify(repo => repo.ListAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task Handle_RejectsNonAdministratorActor()
+    {
+        var actor = User.Provision("kc-operator", "Operator", "operator@example.com", Role.Operator);
+        actor.Id = 2;
 
         var currentUser = new Mock<ICurrentUser>();
         currentUser.SetupGet(user => user.Id).Returns("kc-operator");
@@ -67,7 +89,7 @@ public sealed class GetUsersQueryHandlerTests
 
         var act = async () => await handler.Handle(new GetUsersQuery(), CancellationToken.None);
 
-        await act.Should().ThrowAsync<DeactivatedUserAccessDeniedException>();
+        await act.Should().ThrowAsync<UserRoleNotAuthorizedException>();
         repository.Verify(repo => repo.ListAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 }
