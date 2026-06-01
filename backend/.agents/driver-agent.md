@@ -32,6 +32,11 @@ Before starting, extract from the file:
 | Branch base (`develop` or `feature/<predecessor>`) | Pre-resolved orient |
 | Acceptance criteria | Step 10 |
 | New endpoints | Step 8.5 curl smoke |
+| Required design pattern(s) + owning phase | "Required design patterns" section |
+
+If the prompt file has **no** "Required design patterns" section, the generator
+ran before this was wired in — stop and ask the human to regenerate, rather than
+driving a slice whose mandated pattern was never scoped (the HU-01/02/03 gap).
 
 ---
 
@@ -227,6 +232,16 @@ The driver runs gates; the subagent does not.
 | X.2 Application | `dotnet build` clean; handler + validator unit tests pass for all paths |
 | X.3 Infrastructure | `dotnet ef migrations add …` succeeds (or confirmed no-op against snapshot); repository integration tests pass |
 | X.4 Api | Endpoint smoke check (201/200) **+ ADR-0005 coverage gate** (see below) |
+
+**Pattern-conformance gate (every phase that owns a mandated pattern).** In
+addition to the build/test gate above, before presenting the commit for the
+owning phase, confirm the prompt file's mandated pattern is actually realized in
+the code the subagent wrote — not just named. For `Proxy`: access is enforced
+through a guard (`AuthorizationBehaviour` / endpoint authorization policy) with
+no ad-hoc role `if` checks leaking into handlers or endpoints. For `State`: an
+explicit state type, not enum + conditionals. Etc. If the pattern is absent,
+treat it as a gate failure (Step D: one retry, then hard stop) — a green build
+with the mandated pattern missing is **not** a passable phase.
 
 ### Step D — On gate failure: one retry then hard stop
 

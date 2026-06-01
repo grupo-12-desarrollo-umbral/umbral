@@ -1,5 +1,6 @@
 using System.Reflection;
 using Microsoft.Extensions.Hosting;
+using umbral_backend.Application.Users.Commands.AssignUserRole;
 using umbral_backend.Application.Common.Behaviours;
 
 namespace Microsoft.Extensions.DependencyInjection;
@@ -18,5 +19,8 @@ public static class DependencyInjection
             cfg.AddOpenBehavior(typeof(ValidationBehaviour<,>));
             cfg.AddOpenBehavior(typeof(PerformanceBehaviour<,>));
         });
+
+        builder.Services.AddScoped<IUserRoleAssignmentExecutor, UserRoleAssignmentService>();
+        builder.Services.AddScoped<IUserRoleAssignmentService, UserRoleAssignmentAuthorizationProxy>();
     }
 }
