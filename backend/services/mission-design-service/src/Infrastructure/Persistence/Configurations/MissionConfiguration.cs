@@ -10,6 +10,8 @@ public sealed class MissionConfiguration : IEntityTypeConfiguration<Mission>
     {
         builder.ToTable("Missions");
 
+        builder.HasKey(mission => mission.Id);
+
         builder.Property(mission => mission.Name)
             .HasMaxLength(200)
             .IsRequired();
@@ -21,6 +23,17 @@ public sealed class MissionConfiguration : IEntityTypeConfiguration<Mission>
         builder.Property(mission => mission.ActivationState)
             .HasConversion<string>()
             .HasMaxLength(50)
+            .IsRequired();
+
+        builder.Property(mission => mission.IsActive)
+            .IsRequired();
+
+        builder.Property(mission => mission.ArchivedAt);
+
+        builder.Property(mission => mission.Created)
+            .IsRequired();
+
+        builder.Property(mission => mission.LastModified)
             .IsRequired();
 
         builder.OwnsOne(mission => mission.Difficulty, difficultyBuilder =>
@@ -37,5 +50,7 @@ public sealed class MissionConfiguration : IEntityTypeConfiguration<Mission>
                 .HasColumnName("MaximumTimeMinutes")
                 .IsRequired();
         });
+
+        builder.HasIndex(mission => mission.IsActive);
     }
 }

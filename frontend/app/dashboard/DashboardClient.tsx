@@ -5,6 +5,7 @@ import { logout } from '@/app/actions/auth';
 import { refreshSession } from '@/app/actions/session';
 import { getUsersPage, deactivateUser, assignUserRole } from '@/app/actions/users';
 import { TeamsPanel } from './TeamsPanel'
+import { MissionsPanel } from './MissionsPanel'
 import type { PagedResult, UserAccessCatalogItemDto } from '@/app/lib/definitions';
 import styles from './dashboard.module.css';
 
@@ -431,6 +432,7 @@ export default function DashboardClient({
 
   const visibleNavigation = navigation.filter((item) => {
     if (role === 'participant') return item.key === 'overview'
+    if (role === 'operator') return item.key !== 'missions'
     return true
   })
 
@@ -562,6 +564,8 @@ export default function DashboardClient({
             <UsersPanel role={role} />
           ) : activeNav === 'teams' ? (
             <TeamsPanel role={role} />
+          ) : activeNav === 'missions' ? (
+            <MissionsPanel role={role} />
           ) : role === 'operator' && selectedSessionId === 'assigned-list' ? (
             <section className={styles.emptyState} aria-labelledby="assigned-sessions-title" data-testid="operator-panel">
               <div>

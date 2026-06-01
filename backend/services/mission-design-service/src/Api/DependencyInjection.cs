@@ -12,6 +12,7 @@ public static class DependencyInjection
         builder.Services.AddDatabaseDeveloperPageExceptionFilter();
 
         builder.Services.AddScoped<ICurrentUser, CurrentUser>();
+        builder.Services.AddSingleton<IClock, SystemClock>();
 
         builder.Services.AddHttpContextAccessor();
 

@@ -1,4 +1,5 @@
 using umbral_backend.Infrastructure.Persistence;
+using System.Diagnostics.CodeAnalysis;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -28,3 +29,8 @@ app.UseExceptionHandler(options => { });
 app.MapEndpoints(typeof(Program).Assembly);
 
 app.Run();
+
+[ExcludeFromCodeCoverage]
+public partial class Program
+{
+}
