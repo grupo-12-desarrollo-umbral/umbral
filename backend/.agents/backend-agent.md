@@ -13,7 +13,8 @@ the driver agent.
 2. Derive every type, field, and invariant from the canonical docs — never invent
 3. Enforce layer boundaries: no leakage across Domain / Application / Infrastructure / Api
 4. Apply SOLID principles throughout — see guidance below
-5. Write code that will pass the verification gate for the delegated phase
+5. Realize any design pattern named in the delegated phase scope — see below
+6. Write code that will pass the verification gate for the delegated phase
 
 ## Deliverables
 
@@ -83,6 +84,35 @@ uses — split the interface instead.
 abstractions (`ITeamRepository`, `ICurrentUser`), never on concrete
 infrastructure. Infrastructure implements those abstractions. Domain has zero
 external dependencies.
+
+---
+
+## Required design patterns
+
+When the delegated phase scope or gate names a design pattern (e.g. "enforce
+access through a `Proxy`-style guard"), that pattern is a **mandatory
+deliverable**, not a suggestion. The driver derives it from
+`docs/trivia_sprint_required_patterns_matrix.md` (via the generator), and the
+phase gate will fail if the pattern is named but not actually realized.
+
+Realize it as a genuine structural pattern, not a rename:
+
+- **`Proxy`** — a class implementing the same interface as its target, adding
+  the access/authorization guard before delegating to the real handler (e.g.
+  `UserManagementProxy : IUserManagementEntryPoint`,
+  `UserRoleAssignmentAuthorizationProxy : IUserRoleAssignmentService`). Push the
+  authorization decision through `AccessPolicy`/`ICurrentUser` — never scatter
+  ad-hoc role `if` checks across handlers or endpoints.
+- **`State`** — an explicit state type per lifecycle state, not an enum plus
+  conditionals.
+- **`Template Method`** — one stable workflow method with overridable
+  mode-specific steps.
+- **`Chain of Responsibility`** — ordered, independently testable validators,
+  not one collapsed handler.
+- **`Facade` / `Strategy` / `Composite`** — per `docs/adr/0004-required-domain-patterns.md`.
+
+If the scope names a pattern you believe does not fit the use case, **stop and
+ask the driver** — do not silently drop it.
 
 ---
 
@@ -163,6 +193,8 @@ Coverage exclusions allowed only on: `Program.cs`, DI extension methods, generat
    - Packages used only by `tests/`: pin `Version="..."` directly in the test `.csproj` — test projects do not inherit from `src/Directory.Packages.props`
    - Never use `VersionOverride`
 9. Test namespace collisions — before adding any new subfolder (e.g. `Domain/`, `Application/`) to an existing test project, grep for `using` directives that import a short name matching the new folder. Replace with the fully qualified reference to avoid ambiguous-reference compile errors.
+10. Never drop or fake a design pattern named in the phase scope — realize it
+    structurally (see "Required design patterns") or stop and ask the driver
 
 ---
 
