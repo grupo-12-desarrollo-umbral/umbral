@@ -15,7 +15,7 @@ public sealed class AccessPolicyTests
             [ProtectedCapability.AdministratorPanel] = new[] { Role.Administrator },
             [ProtectedCapability.OperatorPanel] = new[] { Role.Administrator, Role.Operator },
             [ProtectedCapability.ParticipantExperience] = new[] { Role.Participant },
-            [ProtectedCapability.UserAccessCatalog] = new[] { Role.Administrator, Role.Operator }
+            [ProtectedCapability.UserAccessCatalog] = new[] { Role.Administrator }
         };
 
     [Fact]
