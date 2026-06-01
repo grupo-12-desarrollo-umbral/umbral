@@ -107,17 +107,17 @@ public sealed class IdentityAccessApiEndpointsTests : IClassFixture<PostgreSqlFi
     }
 
     [Fact]
-    public async Task GetUsers_WithOperatorHeaders_ReturnsPagedCatalog()
+    public async Task GetUsers_WithAdministratorHeaders_ReturnsPagedCatalog()
     {
-        await SeedUserAsync("kc-operator-01", "Catalog Operator", "operator@example.com", Role.Operator);
         await SeedUserAsync("kc-admin-01", "Admin User", "admin@example.com", Role.Administrator);
+        await SeedUserAsync("kc-admin-02", "Catalog Administrator", "catalog-admin@example.com", Role.Administrator);
         await SeedUserAsync("kc-participant-01", "Participant User", "participant@example.com", Role.Participant);
 
         AddTrustedHeaders(
             _client,
-            userId: "kc-operator-01",
-            role: "Operator",
-            email: "operator@example.com");
+            userId: "kc-admin-01",
+            role: "Administrator",
+            email: "admin@example.com");
 
         var response = await _client.GetAsync("/api/users?page=1&pageSize=2");
 
@@ -132,8 +132,30 @@ public sealed class IdentityAccessApiEndpointsTests : IClassFixture<PostgreSqlFi
         payload.HasPreviousPage.Should().BeFalse();
         payload.HasNextPage.Should().BeTrue();
         payload.Items.Should().HaveCount(2);
-        payload.Items.Select(user => user.DisplayName).Should().ContainInOrder("Admin User", "Catalog Operator");
-        payload.Items.Select(user => user.Role).Should().Contain(new[] { "Administrator", "Operator" });
+        payload.Items.Select(user => user.DisplayName).Should().ContainInOrder("Admin User", "Catalog Administrator");
+        payload.Items.Select(user => user.Role).Should().OnlyContain(role => role == "Administrator");
+    }
+
+    [Fact]
+    public async Task GetUsers_WithOperatorHeaders_ReturnsForbidden()
+    {
+        await SeedUserAsync("kc-operator-01", "Catalog Operator", "operator@example.com", Role.Operator);
+        await SeedUserAsync("kc-admin-01", "Admin User", "admin@example.com", Role.Administrator);
+
+        AddTrustedHeaders(
+            _client,
+            userId: "kc-operator-01",
+            role: "Operator",
+            email: "operator@example.com");
+
+        var response = await _client.GetAsync("/api/users?page=1&pageSize=20");
+
+        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+
+        var problem = await response.Content.ReadFromJsonAsync<ProblemDetails>();
+        problem.Should().NotBeNull();
+        problem!.Status.Should().Be(StatusCodes.Status403Forbidden);
+        problem.Title.Should().Be("Forbidden.");
     }
 
     [Fact]
