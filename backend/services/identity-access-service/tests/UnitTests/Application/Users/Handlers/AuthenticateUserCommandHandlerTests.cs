@@ -2,6 +2,7 @@ using umbral_backend.Application.Common.Interfaces;
 using umbral_backend.Application.Users.Commands.AuthenticateUser;
 using umbral_backend.Application.Users.Handlers;
 using umbral_backend.Domain.Entities;
+using umbral_backend.Domain.Enums;
 using umbral_backend.Domain.Exceptions;
 using umbral_backend.Domain.Services;
 
@@ -26,7 +27,7 @@ public sealed class AuthenticateUserCommandHandlerTests
         var handler = CreateHandler(repository);
 
         var result = await handler.Handle(
-            new AuthenticateUserCommand("kc-001", "Ada Lovelace", "ada@example.com", "Administrator"),
+            new AuthenticateUserCommand("kc-001", "Ada Lovelace", "ada@example.com", Role.Administrator),
             CancellationToken.None);
 
         result.Actor.ExternalIdentityId.Should().Be("kc-001");
@@ -57,7 +58,7 @@ public sealed class AuthenticateUserCommandHandlerTests
         var handler = CreateHandler(repository);
 
         var result = await handler.Handle(
-            new AuthenticateUserCommand("kc-002", "Grace Hopper", "grace@example.com", "Administrator"),
+            new AuthenticateUserCommand("kc-002", "Grace Hopper", "grace@example.com", Role.Administrator),
             CancellationToken.None);
 
         result.Actor.DisplayName.Should().Be("Grace Hopper");
@@ -81,7 +82,7 @@ public sealed class AuthenticateUserCommandHandlerTests
         var handler = CreateHandler(repository);
 
         var act = async () => await handler.Handle(
-            new AuthenticateUserCommand("kc-003", "Deactivated User", "deactivated@example.com", "Operator"),
+            new AuthenticateUserCommand("kc-003", "Deactivated User", "deactivated@example.com", Role.Operator),
             CancellationToken.None);
 
         await act.Should().ThrowAsync<DeactivatedUserAccessDeniedException>();

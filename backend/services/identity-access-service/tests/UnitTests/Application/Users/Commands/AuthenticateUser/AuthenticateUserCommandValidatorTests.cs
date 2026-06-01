@@ -1,4 +1,5 @@
 using umbral_backend.Application.Users.Commands.AuthenticateUser;
+using umbral_backend.Domain.Enums;
 
 namespace umbral_backend.Application.UnitTests.Application.Users.Commands.AuthenticateUser;
 
@@ -13,7 +14,7 @@ public sealed class AuthenticateUserCommandValidatorTests
             "user-123",
             "Ada Lovelace",
             "ada@example.com",
-            "Administrator");
+            Role.Administrator);
 
         var result = _validator.Validate(command);
 
@@ -21,13 +22,13 @@ public sealed class AuthenticateUserCommandValidatorTests
     }
 
     [Fact]
-    public void Validate_RejectsUnsupportedRoleAndMissingClaims()
+    public void Validate_RejectsMissingClaims()
     {
         var command = new AuthenticateUserCommand(
             string.Empty,
             string.Empty,
             "invalid-email",
-            "Guest");
+            Role.Operator);
 
         var result = _validator.Validate(command);
 
@@ -36,8 +37,7 @@ public sealed class AuthenticateUserCommandValidatorTests
         {
             nameof(AuthenticateUserCommand.ExternalIdentityId),
             nameof(AuthenticateUserCommand.DisplayName),
-            nameof(AuthenticateUserCommand.Email),
-            nameof(AuthenticateUserCommand.Role)
+            nameof(AuthenticateUserCommand.Email)
         });
     }
 }

@@ -80,12 +80,30 @@ Phase subagents write code only. They do not commit, touch Linear, or run gates.
    git worktree add ../umbral-hu-NN -b feature/hu-NN-<slug> <base>
    ```
 
-5. **Copy frontend `.env.local`** from the develop worktree — it is gitignored
-   and doesn't follow the branch:
-   ```bash
-   cp ../umbral/frontend/.env.local ../umbral-hu-NN/frontend/.env.local
-   ```
-   If the file doesn't exist in the source worktree, warn and continue.
+5. **Copy files that don't follow the branch** from the develop worktree into
+   the new worktree:
+
+   a. **Generator artifacts** — `hu<NN>-context.md` and the prompt file are
+      written by the generator into the `develop` worktree (generator-agent.md
+      Stop 1) and are not on the feature branch's base, so the fresh worktree
+      starts without them. Copy both in:
+      ```bash
+      cp ../umbral/backend/docs/hu<NN>-context.md \
+         ../umbral/backend/docs/prompt_example_feature_hu<NN>.md \
+         ../umbral-hu-NN/backend/docs/
+      ```
+      The prompt file is the driver's required input — if `cp` fails because the
+      source is missing, **hard stop and report** (the generator has not run, or
+      Stop 1 was never reached). The first `git add -A` phase commit then sweeps
+      both docs onto the feature branch, so they reach `develop` through the
+      normal PR flow rather than a direct commit to a shared branch.
+
+   b. **Frontend `.env.local`** — gitignored, also doesn't follow the branch:
+      ```bash
+      cp ../umbral/frontend/.env.local ../umbral-hu-NN/frontend/.env.local
+      ```
+      If this file doesn't exist in the source worktree, warn and continue
+      (unlike the docs above, it is not a hard stop).
 
 6. **Move HU to In Progress** in Linear.
 
