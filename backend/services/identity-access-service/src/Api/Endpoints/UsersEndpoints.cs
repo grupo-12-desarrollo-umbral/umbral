@@ -1,11 +1,8 @@
 using Microsoft.AspNetCore.Http.HttpResults;
 using umbral_backend.Application.Common.Models;
 using umbral_backend.Api.Services;
-using umbral_backend.Application.Users.Commands.AssignUserRole;
-using umbral_backend.Application.Users.Commands.DeactivateUser;
 using umbral_backend.Application.Users.DTOs;
 using umbral_backend.Application.Users.Queries.GetAuthenticatedActorProfile;
-using umbral_backend.Application.Users.Queries.GetUsers;
 
 namespace umbral_backend.Api.Endpoints;
 
@@ -41,12 +38,13 @@ public sealed class UsersEndpoints : IEndpointGroup
     }
 
     private static async Task<Ok<PagedResult<UserAccessCatalogItemDto>>> GetUsersAsync(
-        ISender sender,
+        IUserManagementEntryPoint userManagementEntryPoint,
         [AsParameters] GetUsersRequest request,
         CancellationToken cancellationToken)
     {
-        var result = await sender.Send(
-            new GetUsersQuery(request.Page, request.PageSize),
+        var result = await userManagementEntryPoint.ListUsersAsync(
+            request.Page,
+            request.PageSize,
             cancellationToken);
 
         return TypedResults.Ok(result);
@@ -54,20 +52,20 @@ public sealed class UsersEndpoints : IEndpointGroup
 
     private static async Task<NoContent> DeactivateUserAccessAsync(
         int id,
-        ISender sender,
+        IUserManagementEntryPoint userManagementEntryPoint,
         CancellationToken cancellationToken)
     {
-        await sender.Send(new DeactivateUserCommand(id), cancellationToken);
+        await userManagementEntryPoint.DeactivateUserAccessAsync(id, cancellationToken);
         return TypedResults.NoContent();
     }
 
     private static async Task<NoContent> AssignUserRoleAsync(
         int id,
         AssignUserRoleRequest request,
-        ISender sender,
+        IUserManagementEntryPoint userManagementEntryPoint,
         CancellationToken cancellationToken)
     {
-        await sender.Send(new AssignUserRoleCommand(id, request.Role), cancellationToken);
+        await userManagementEntryPoint.AssignUserRoleAsync(id, request.Role, cancellationToken);
         return TypedResults.NoContent();
     }
 
