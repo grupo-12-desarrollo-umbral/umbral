@@ -98,6 +98,36 @@ export type TeamMembershipDto = {
   assignedAt: string   // ISO 8601
 }
 
+export type TriviaOptionDto = {
+  id: number
+  optionText: string
+  sequenceOrder: number
+  isCorrect: boolean
+}
+
+export type TriviaQuestionDto = {
+  id: number
+  prompt: string
+  sequenceOrder: number
+  isActive: boolean
+  options: TriviaOptionDto[]
+}
+
+export type TriviaQuizSummaryDto = {
+  id: number
+  title: string
+  description: string
+  status: string   // "Draft" | "Published" | "Archived"
+}
+
+export type TriviaQuizDto = {
+  id: number
+  title: string
+  description: string
+  status: string
+  questions: TriviaQuestionDto[]
+}
+
 export class IdentityError extends Error {
   constructor(
     public code: 'deactivated' | 'unauthorized' | 'network' | 'unknown',

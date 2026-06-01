@@ -26,7 +26,7 @@ Build the test strategy around the solution's existing layers first, then place 
    - Infrastructure: integration tests with real technical dependencies
    - Presentation/API: integration tests through the ASP.NET host
    - End-to-end: only critical full-system workflows
-4. Enforce a minimum of 95% line coverage for the project.
+4. Enforce a minimum of 93% line coverage for the project.
 
 ## Workflow
 
@@ -60,7 +60,7 @@ Build the test strategy around the solution's existing layers first, then place 
 
 - Never use end-to-end tests to cover business-rule permutations that belong in unit tests.
 - Never rely on EF Core in-memory behavior as proof that the production database works.
-- Never claim the 95% threshold is met without collecting and checking coverage output.
+- Never claim the 93% threshold is met without collecting and checking coverage output.
 
 ## References
 

@@ -25,7 +25,7 @@ public sealed class MissionDesignApiWebApplicationFactory : WebApplicationFactor
         var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
         await dbContext.Database.ExecuteSqlRawAsync(
-            "TRUNCATE TABLE \"Missions\" RESTART IDENTITY CASCADE;");
+            "TRUNCATE TABLE \"TriviaOptions\", \"TriviaQuestions\", \"TriviaQuizzes\", \"Missions\" RESTART IDENTITY CASCADE;");
     }
 
     protected override void Dispose(bool disposing)

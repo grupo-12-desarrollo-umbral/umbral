@@ -6,6 +6,12 @@ using umbral_backend.Application.Missions.Commands.UpdateMission;
 using umbral_backend.Application.Missions.Handlers;
 using umbral_backend.Application.Missions.Queries.GetMissionCatalog;
 using umbral_backend.Application.Missions.Queries.GetMissionDetail;
+using umbral_backend.Application.Trivias.Common.Authoring;
+using umbral_backend.Application.Trivias.Commands.CreateTriviaQuiz;
+using umbral_backend.Application.Trivias.Commands.UpdateTriviaQuiz;
+using umbral_backend.Application.Trivias.Handlers;
+using umbral_backend.Application.Trivias.Queries.GetTriviaCatalog;
+using umbral_backend.Application.Trivias.Queries.GetTriviaDetail;
 using umbral_backend.Domain.Events;
 using umbral_backend.Infrastructure.Persistence;
 using umbral_backend.Infrastructure.Persistence.Interceptors;
@@ -158,9 +164,217 @@ public sealed class MissionInfrastructureIntegrationTests : IClassFixture<Postgr
         detail.Status.Should().Be("Inactive");
     }
 
-    private static Task ResetDatabaseAsync(ApplicationDbContext context)
+    [Fact]
+    public async Task CreateTriviaQuiz_PersistsTriviaAggregateAndPublishesCreatedEvent()
     {
-        return context.Missions.ExecuteDeleteAsync();
+        await using var resetContext = BuildContext();
+        await ResetDatabaseAsync(resetContext);
+
+        var mediator = new CapturingMediator();
+        await using var actContext = BuildContext(mediator, new StubCurrentUser("admin-11"));
+        var handler = new CreateTriviaQuizCommandHandler(new TriviaQuizRepository(actContext));
+
+        var result = await handler.Handle(
+            new CreateTriviaQuizCommand(
+                " General Knowledge ",
+                " Initial trivia authoring ",
+                [
+                    new TriviaQuestionInput(
+                        " Capital of France? ",
+                        2,
+                        true,
+                        [
+                            new TriviaOptionInput(" Berlin ", 2, false),
+                            new TriviaOptionInput(" Paris ", 1, true)
+                        ]),
+                    new TriviaQuestionInput(
+                        " 2 + 2 = ? ",
+                        1,
+                        true,
+                        [
+                            new TriviaOptionInput(" 4 ", 1, true),
+                            new TriviaOptionInput(" 5 ", 2, false)
+                        ])
+                ]),
+            CancellationToken.None);
+
+        result.Status.Should().Be("Draft");
+        result.Questions.Select(question => question.SequenceOrder).Should().Equal(1, 2);
+        result.Questions[0].Options.Select(option => option.SequenceOrder).Should().Equal(1, 2);
+
+        mediator.PublishedNotifications
+            .Should().ContainSingle(notification => notification is TriviaQuizCreatedEvent);
+
+        await using var assertContext = BuildContext();
+        var triviaQuiz = await assertContext.TriviaQuizzes
+            .AsNoTracking()
+            .Include(storedQuiz => storedQuiz.Questions)
+            .ThenInclude(storedQuestion => storedQuestion.Options)
+            .SingleAsync(storedQuiz => storedQuiz.Id == result.Id);
+
+        triviaQuiz.Title.Should().Be("General Knowledge");
+        triviaQuiz.Description.Should().Be("Initial trivia authoring");
+        triviaQuiz.Status.Should().Be(Domain.Enums.TriviaQuizStatus.Draft);
+        triviaQuiz.CreatedBy.Should().BeNull();
+        triviaQuiz.LastModifiedBy.Should().BeNull();
+        triviaQuiz.Created.Should().NotBe(default);
+        triviaQuiz.LastModified.Should().NotBe(default);
+        triviaQuiz.Questions.Select(question => question.Prompt)
+            .Should().Equal("2 + 2 = ?", "Capital of France?");
+        triviaQuiz.Questions.First().Options.Select(option => option.OptionText)
+            .Should().Equal("4", "5");
+    }
+
+    [Fact]
+    public async Task UpdateTriviaQuiz_PersistsQuestionsAndPublishesUpdatedEvent()
+    {
+        await using var setupContext = BuildContext();
+        await ResetDatabaseAsync(setupContext);
+        var setupRepository = new TriviaQuizRepository(setupContext);
+
+        var triviaQuiz = Domain.Entities.TriviaQuiz.Create(
+            "Science",
+            "Original quiz",
+            [
+                Domain.Entities.TriviaQuestion.Create(
+                    "Original question",
+                    1,
+                    [
+                        Domain.Entities.TriviaOption.Create("Option A", 1, true),
+                        Domain.Entities.TriviaOption.Create("Option B", 2, false)
+                    ])
+            ]);
+
+        await setupRepository.AddAsync(triviaQuiz, CancellationToken.None);
+
+        var mediator = new CapturingMediator();
+        await using var actContext = BuildContext(mediator, new StubCurrentUser("admin-12"));
+        var handler = new UpdateTriviaQuizCommandHandler(new TriviaQuizRepository(actContext));
+
+        var result = await handler.Handle(
+            new UpdateTriviaQuizCommand(
+                triviaQuiz.Id,
+                " Science Reloaded ",
+                " Updated quiz description ",
+                [
+                    new TriviaQuestionInput(
+                        "Updated first question",
+                        1,
+                        true,
+                        [
+                            new TriviaOptionInput("Correct", 1, true),
+                            new TriviaOptionInput("Incorrect", 2, false)
+                        ]),
+                    new TriviaQuestionInput(
+                        "Updated second question",
+                        2,
+                        false,
+                        [
+                            new TriviaOptionInput("Yes", 1, true),
+                            new TriviaOptionInput("No", 2, false)
+                        ])
+                ]),
+            CancellationToken.None);
+
+        result.Title.Should().Be("Science Reloaded");
+        result.Questions.Should().HaveCount(2);
+
+        mediator.PublishedNotifications
+            .Should().ContainSingle(notification => notification is TriviaQuizDetailsUpdatedEvent);
+
+        await using var assertContext = BuildContext();
+        var reloadedQuiz = await assertContext.TriviaQuizzes
+            .AsNoTracking()
+            .Include(storedQuiz => storedQuiz.Questions)
+            .ThenInclude(storedQuestion => storedQuestion.Options)
+            .SingleAsync(storedQuiz => storedQuiz.Id == triviaQuiz.Id);
+
+        reloadedQuiz.Title.Should().Be("Science Reloaded");
+        reloadedQuiz.Description.Should().Be("Updated quiz description");
+        reloadedQuiz.Status.Should().Be(Domain.Enums.TriviaQuizStatus.Draft);
+        reloadedQuiz.Questions.Should().HaveCount(2);
+        reloadedQuiz.Questions.Select(question => question.SequenceOrder).Should().Equal(1, 2);
+        reloadedQuiz.Questions.Last().IsActive.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task GetTriviaCatalogAndDetail_ReflectPersistedQuestionShape()
+    {
+        await using var setupContext = BuildContext();
+        await ResetDatabaseAsync(setupContext);
+        var repository = new TriviaQuizRepository(setupContext);
+
+        var firstQuiz = Domain.Entities.TriviaQuiz.Create(
+            "History",
+            "Historic facts",
+            [
+                Domain.Entities.TriviaQuestion.Create(
+                    "When was the city founded?",
+                    1,
+                    [
+                        Domain.Entities.TriviaOption.Create("1810", 1, true),
+                        Domain.Entities.TriviaOption.Create("1910", 2, false)
+                    ])
+            ]);
+
+        var secondQuiz = Domain.Entities.TriviaQuiz.Create(
+            "Sports",
+            "Sports trivia",
+            [
+                Domain.Entities.TriviaQuestion.Create(
+                    "How many players start?",
+                    1,
+                    [
+                        Domain.Entities.TriviaOption.Create("11", 1, true),
+                        Domain.Entities.TriviaOption.Create("10", 2, false)
+                    ])
+            ]);
+
+        await repository.AddAsync(firstQuiz, CancellationToken.None);
+        await repository.AddAsync(secondQuiz, CancellationToken.None);
+
+        firstQuiz.UpdateDetails(
+            "History",
+            "Historic facts updated",
+            [
+                Domain.Entities.TriviaQuestion.Create(
+                    "When was the city founded?",
+                    1,
+                    [
+                        Domain.Entities.TriviaOption.Create("1810", 1, true),
+                        Domain.Entities.TriviaOption.Create("1910", 2, false)
+                    ]),
+                Domain.Entities.TriviaQuestion.Create(
+                    "Who signed the act?",
+                    2,
+                    [
+                        Domain.Entities.TriviaOption.Create("Person A", 1, true),
+                        Domain.Entities.TriviaOption.Create("Person B", 2, false)
+                    ])
+            ]);
+
+        await repository.UpdateAsync(firstQuiz, CancellationToken.None);
+
+        await using var queryContext = BuildContext();
+        var readRepository = new TriviaQuizReadModelRepository(queryContext);
+        var catalogHandler = new GetTriviaCatalogQueryHandler(readRepository);
+        var detailHandler = new GetTriviaDetailQueryHandler(readRepository);
+
+        var catalog = await catalogHandler.Handle(new GetTriviaCatalogQuery(), CancellationToken.None);
+        var detail = await detailHandler.Handle(new GetTriviaDetailQuery(firstQuiz.Id), CancellationToken.None);
+
+        catalog.Select(item => item.Title).Should().Equal("History", "Sports");
+        detail.Title.Should().Be("History");
+        detail.Description.Should().Be("Historic facts updated");
+        detail.Status.Should().Be("Draft");
+        detail.Questions.Select(question => question.SequenceOrder).Should().Equal(1, 2);
+        detail.Questions[1].Options.Select(option => option.OptionText).Should().Equal("Person A", "Person B");
+    }
+
+    private static async Task ResetDatabaseAsync(ApplicationDbContext context)
+    {
+        await context.TriviaQuizzes.ExecuteDeleteAsync();
+        await context.Missions.ExecuteDeleteAsync();
     }
 
     private ApplicationDbContext BuildContext(
