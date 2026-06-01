@@ -70,6 +70,27 @@ export type CreateTeamResultDto = {
   teamId: string
 }
 
+export type MissionSummaryDto = {
+  id: number
+  name: string
+  description: string
+  difficulty: string
+  isActive: boolean
+  activationState: string
+  isSourceReady: boolean
+}
+
+export type MissionDto = {
+  id: number
+  name: string
+  description: string
+  difficulty: string
+  maximumTimeMinutes: number
+  isActive: boolean
+  activationState: string
+  isSourceReady: boolean
+}
+
 export type TeamMembershipDto = {
   teamMembershipId: string
   teamId: string

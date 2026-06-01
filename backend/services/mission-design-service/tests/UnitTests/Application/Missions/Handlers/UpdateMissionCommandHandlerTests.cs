@@ -1,0 +1,45 @@
+using umbral_backend.Application.Common.Exceptions;
+using umbral_backend.Application.Missions.Commands.UpdateMission;
+using umbral_backend.Application.Missions.Handlers;
+using umbral_backend.Application.UnitTests.Application.Missions.TestDoubles;
+using umbral_backend.Domain.Entities;
+
+namespace umbral_backend.Application.UnitTests.Application.Missions.Handlers;
+
+public sealed class UpdateMissionCommandHandlerTests
+{
+    [Fact]
+    public async Task Handle_WhenMissionExists_UpdatesMissionAndReturnsDetail()
+    {
+        var repository = new InMemoryMissionRepository();
+        var mission = Mission.Create("Mission One", "Briefing", "Advanced", 45);
+        repository.Seed(mission);
+        var handler = new UpdateMissionCommandHandler(repository);
+
+        var result = await handler.Handle(
+            new UpdateMissionCommand(mission.Id, "Mission Two", "Updated", "Beginner", 30),
+            CancellationToken.None);
+
+        repository.LastUpdatedMission.Should().BeSameAs(mission);
+        result.Id.Should().Be(mission.Id);
+        result.Name.Should().Be("Mission Two");
+        result.Description.Should().Be("Updated");
+        result.Difficulty.Should().Be("Beginner");
+        result.MaximumTimeMinutes.Should().Be(30);
+        result.Status.Should().Be("Draft");
+    }
+
+    [Fact]
+    public async Task Handle_WhenMissionDoesNotExist_ThrowsNotFound()
+    {
+        var repository = new InMemoryMissionRepository();
+        var handler = new UpdateMissionCommandHandler(repository);
+
+        var act = () => handler.Handle(
+            new UpdateMissionCommand(99, "Mission", "Briefing", "Advanced", 45),
+            CancellationToken.None);
+
+        await act.Should().ThrowAsync<NotFoundException>()
+            .WithMessage("Entity \"Mission\" (99) was not found.");
+    }
+}

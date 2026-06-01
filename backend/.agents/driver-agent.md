@@ -50,64 +50,91 @@ Phase subagents write code only. They do not commit, touch Linear, or run gates.
 
 ---
 
-## Resume (worktree already exists)
+## Pre-flight
 
-If `ls ../umbral-hu-NN` succeeds at the start of the session, the HU is already
-in progress from a prior session. Do not re-run Pre-flight — the build,
-tooling, and label checks were done when the worktree was created.
+1. **Sandbox-safe `dotnet` invocations** — a sandbox blocks MSBuild's
+   named-pipe node-reuse workers, which crashes `dotnet` before it does any
+   work. The fix is `MSBUILDDISABLENODEREUSE=1` (plus `DOTNET_CLI_TELEMETRY_OPTOUT=1`),
+   but it must be set **in the same shell as each `dotnet` command** — a shell
+   `export` in one step does **not** persist to a later `dotnet` run in a
+   separate shell. So:
+   - The **coverage gate** already bakes these into `backend/scripts/cover-gate.sh`
+     (see Phase X.4 below) — nothing to do there.
+   - For any **other** `dotnet` call (`build`, `ef`), prefix it inline:
+     `MSBUILDDISABLENODEREUSE=1 dotnet …` (shown in the steps that need it).
 
-1. Verify the branch: `git -C ../umbral-hu-NN rev-parse --abbrev-ref HEAD`.
-   It must be `feature/hu-NN-<slug>`.
-2. **Check the worktree is clean:**
-   ```bash
-   git -C ../umbral-hu-NN status --short
-   ```
-   If it reports any changes, a prior session died mid-phase with uncommitted
-   edits — **stop and surface the output**. Do not delegate over a dirty
-   worktree; the human decides whether to keep, commit, or discard those edits.
-3. Confirm DES-N is already **In Progress** in Linear — do not move it again.
-4. Skip the rest of Pre-flight and jump directly to **Detect completed phases**
-   (the `git log` step below), then show the menu.
+   If a `dotnet test` still fails on a loopback socket (vstest testhost ↔
+   console), the sandbox is blocking 127.0.0.1 itself — that is an environment
+   problem, not a gate problem; surface it rather than editing the gate, since
+   no flag suppresses the testhost socket.
 
-This makes `Run driver-agent for <prompt file>. Implement phase X.N.` a
-one-shot invocation in a fresh session — no human intervention for the worktree
-question.
-
----
-
-## Pre-flight (first session only)
-
-Run this only when no `../umbral-hu-NN` worktree exists yet. If it already
-exists, follow the **Resume** path above.
-
-1. **Verify labels** — query Linear for the HU ticket (DES-N). Confirm it
+2. **Verify labels** — query Linear for the HU ticket (DES-N). Confirm it
    carries both `svc:<service>` and `ready-for-agent`. If either is missing,
    stop and report.
 
-2. **Check for existing worktree** — run `ls ../umbral-hu-NN`. If it exists,
-   follow the **Resume** path above instead of continuing here.
+3. **Check for existing worktree** — run `ls ../umbral-hu-NN`. If it exists,
+   stop and ask the user whether to reuse or remove it.
 
-3. **Create worktree and branch:**
+4. **Create worktree and branch:**
    ```bash
    git worktree add ../umbral-hu-NN -b feature/hu-NN-<slug> <base>
    ```
-   Branch naming follows the HU-scoped pattern `feature/hu-NN-<slug>` from the
-   prompt file. Ignore any service-level branch names (e.g.
-   `feature/<service-name>`) that appear in older workflow docs — those are
-   superseded by the HU-scoped pattern.
 
-4. **Move HU to In Progress** in Linear.
-
-5. **Verify build is green** before the first phase:
+5. **Copy frontend `.env.local`** from the develop worktree — it is gitignored
+   and doesn't follow the branch:
    ```bash
-   dotnet build backend/services/<service>/src/<service>.sln
+   cp ../umbral/frontend/.env.local ../umbral-hu-NN/frontend/.env.local
+   ```
+   If the file doesn't exist in the source worktree, warn and continue.
+
+6. **Move HU to In Progress** in Linear.
+
+7. **Verify build is green** before the first phase:
+   ```bash
+   MSBUILDDISABLENODEREUSE=1 dotnet build backend/services/<service>/src/<service>.sln
    ```
    If it fails, stop — do not start phases on a broken base.
 
-> EF tooling, the auditable-base read, and the migration rule are **not** part
-> of Pre-flight — they are only needed for the Infrastructure layer. They now
-> live in the **X.3 pre-phase check** below and run only when X.3 is selected.
-> Docker availability is also only needed for X.3 and is checked there.
+8. **Ensure EF tooling exists** — install locally (not globally) so the version
+   is reproducible across environments. After install, prepend the tool path so
+   `dotnet ef` resolves regardless of the shell's default PATH:
+   ```bash
+   export PATH="/tmp/dotnet-tools:$PATH"
+   command -v dotnet-ef >/dev/null || \
+     dotnet tool install --tool-path /tmp/dotnet-tools dotnet-ef --version 10.0.0
+   command -v dotnet-ef >/dev/null
+   ```
+   If the last `command -v` fails, the tool path is not on PATH — stop and
+   investigate before proceeding.
+
+9. **Check auditable base conventions** — audit-column leaks from the base class
+   are the most common EF mapping mistake. Read the base before writing any
+   entity config:
+   ```bash
+   sed -n '1,200p' backend/services/<service>/src/Domain/Common/BaseAuditableEntity.cs
+   ```
+
+10. **Check Docker availability** — required for X.3 integration tests via
+   Testcontainers. Docker daemon must be reachable:
+   ```bash
+   docker ps --format '{{.Names}}'
+   ```
+   If this fails, integration tests will hang or crash.
+
+11. **Migration rule (X.3)** — the generated `Add*` migration must be reviewed
+   for unwanted audit columns (e.g. `created_by`, `updated_by`) before commit.
+   These leak from `BaseAuditableEntity` unless the EF configuration explicitly
+   ignores or excludes them. The fastest fix is `builder.Ignore(...)` in the
+   entity configuration class.
+
+   Startup-project precedence for `dotnet ef migrations add`:
+   - Preferred: `--startup-project src/Api --project src/Infrastructure`
+     (requires `src/Api` to reference `Microsoft.EntityFrameworkCore.Design`)
+   - Fallback: `--startup-project src/Infrastructure --project src/Infrastructure --no-build`
+     (use when the API project is not a valid EF startup project)
+
+   Prefix the `dotnet ef` call with `MSBUILDDISABLENODEREUSE=1` (per step 1):
+   `MSBUILDDISABLENODEREUSE=1 dotnet ef migrations add … `
 
 ---
 
@@ -148,57 +175,13 @@ rebuild + curl smoke step below.
 
 ---
 
-## X.3 pre-phase check (run only when X.3 is selected)
-
-These checks are Infrastructure-only. Run them **after the human selects X.3**
-and before delegating — never during Pre-flight, so X.1/X.2/X.4 sessions don't
-pay for tooling they never use.
-
-1. **Check Docker availability** — required for integration tests via
-   Testcontainers:
-   ```bash
-   docker ps --format '{{.Names}}'
-   ```
-   If this fails, integration tests will hang or crash — stop and report.
-
-2. **Ensure EF tooling exists** — install locally (not globally) so the version
-   is reproducible across environments. After install, prepend the tool path so
-   `dotnet ef` resolves regardless of the shell's default PATH:
-   ```bash
-   export PATH="/tmp/dotnet-tools:$PATH"
-   command -v dotnet-ef >/dev/null || \
-     dotnet tool install --tool-path /tmp/dotnet-tools dotnet-ef --version 10.0.0
-   command -v dotnet-ef >/dev/null
-   ```
-   If the last `command -v` fails, the tool path is not on PATH — stop and
-   investigate before proceeding. (NuGet can transiently fail to resolve the
-   source; if so, retry once before treating it as a hard stop.)
-
-3. **Check auditable base conventions** — audit-column leaks from the base class
-   are the most common EF mapping mistake. Read the base before writing any
-   entity config:
-   ```bash
-   sed -n '1,200p' backend/services/<service>/src/Domain/Common/BaseAuditableEntity.cs
-   ```
-
-4. **Migration rule** — the generated `Add*` migration must be reviewed for
-   unwanted audit columns (e.g. `created_by`, `updated_by`) before commit. These
-   leak from `BaseAuditableEntity` unless the EF configuration explicitly
-   ignores or excludes them. The fastest fix is `builder.Ignore(...)` in the
-   entity configuration class.
-
-   Startup-project precedence for `dotnet ef migrations add`:
-   - Preferred: `--startup-project src/Api --project src/Infrastructure`
-     (requires `src/Api` to reference `Microsoft.EntityFrameworkCore.Design`)
-   - Fallback: `--startup-project src/Infrastructure --project src/Infrastructure --no-build`
-     (use when the API project is not a valid EF startup project)
-
----
-
 ## Per-phase execution (one phase at a time)
 
-Run **only** the phase the human selected. After it completes, re-display the
-menu and wait again.
+Run **only** the phase the human selected. A phase is **not complete until its
+commit exists** — a green gate alone is not "done". When the gate goes green,
+the very next action is to present the commit for approval (Step E); never skip
+straight to re-displaying the menu or starting another phase with gate-green
+work still uncommitted.
 
 ### Step A — Assert worktree context
 
@@ -237,63 +220,99 @@ Pass the exact failure output to the **same** subagent:
 Run the gate again. If it fails a second time — **hard stop**. Surface both
 failure outputs to the human. Wait.
 
-### Step E — On gate green: commit
+### Step E — On gate green: present the commit and wait for approval
+
+The instant the gate returns 0, **stop and present the commit for approval** —
+do not narrate the green result and drift on. This is the most-skipped step.
+Show the human what will be committed and the exact message, then wait:
 
 ```bash
 git -C ../umbral-hu-NN add -A
+git -C ../umbral-hu-NN status --short
+```
+
+```
+─── Phase X.Y green — approve commit? ──────────────────────────────
+<paste the git status --short output>
+
+Proposed message:
+  feat(<svc>): phase X.Y — <layer> (HU-NN)
+
+  Ref: HU-NN
+  Ref: DES-N
+  Ref: DES-PRD
+
+Reply to approve, or tell me what to change.
+────────────────────────────────────────────────────────────────────
+```
+
+Do **not** run the commit until the human approves. Do not re-display the phase
+menu or move to another phase while this approval is pending.
+
+### Step F — On approval: commit, verify it landed, then re-display the menu
+
+```bash
 git -C ../umbral-hu-NN commit -m "feat(<svc>): phase X.Y — <layer> (HU-NN)
 
 Ref: HU-NN
 Ref: DES-N
 Ref: DES-PRD"
+git -C ../umbral-hu-NN log --oneline -1
 ```
 
-### Step F — After commit
-
-Re-display the phase menu and wait for the next selection.
+Confirm the top log line contains `phase X.Y` — the `[✓]` detection keys off the
+commit message, so an un-run commit silently leaves the phase looking undone. If
+it is not there, the commit did not happen; run it before doing anything else.
+Only once the commit is verified do you re-display the phase menu and wait.
 
 ---
 
 ## Coverage gate — Phase X.4 (canonical, per ADR-0005)
 
-Gate = `dotnet test` with chained coverlet threshold. Driver reads **exit code
-only** — 0 = green, non-zero = gate fails. No `Summary.txt` parsing.
+Gate = `backend/scripts/cover-gate.sh`, which runs `dotnet test` with the
+chained coverlet threshold. Driver reads **exit code only** — 0 = green,
+non-zero = gate fails. No `Summary.txt` parsing.
+
+Run it from the service directory so the relative project paths resolve. The
+gate is **variadic** — pass every test project for the service; the last one
+enforces the threshold:
 
 ```bash
-TMP=/tmp/cov-$$; mkdir -p $TMP
-
-# All test projects except the last → JSON for chaining
-dotnet test tests/UnitTests/<Proj>.csproj \
-  /p:CollectCoverage=true /p:CoverletOutputFormat=json \
-  /p:CoverletOutput=$TMP/step1.json
-
-# Final project → merge all + enforce; non-zero exit = GATE FAILS
-dotnet test tests/IntegrationTests/<Proj>.csproj \
-  /p:CollectCoverage=true /p:CoverletOutputFormat=cobertura \
-  /p:CoverletOutput=$TMP/merged.xml \
-  /p:MergeWith=$TMP/step1.json \
-  /p:Threshold=95 /p:ThresholdType=line \
-  /p:ThresholdStat=total
+backend/scripts/cover-gate.sh \
+  tests/UnitTests/<App>.csproj \
+  tests/Api.UnitTests/<Api>.csproj \
+  tests/IntegrationTests/<Infra>.csproj
 ```
 
-**Only when the gate is green**, run the coverage report:
+The script is the single source of truth for the gate AND for the number we
+demonstrate: it owns the `/p:Threshold` (project minimum 93, override per-run
+with `THRESHOLD=NN`), the `MergeWith` chain, and the sandbox-safe env vars
+(`MSBUILDDISABLENODEREUSE=1`) so the gate works on any machine and without
+Claude. It is committed to the repo — never inline the `dotnet test` chain back
+into this doc.
 
-```bash
-backend/scripts/cover.sh <service>
-```
+On a green run the gate persists `coverage/gate/merged.cobertura.xml` and
+renders `coverage/gate/Summary.txt` + `coverage/gate/index.html` **from that
+exact file** — so the demonstrated coverage equals the gated coverage by
+construction. Show those artifacts; do not run `cover.sh` to demonstrate the
+gate passed.
 
-`cover.sh` always exits 0 — it is a diagnostic report, not a gate. Never use
-it to decide pass/fail.
+`backend/scripts/cover.sh <service>` remains a dev-only exploration report. It
+always exits 0, uses a different project set and filters, and its number is
+**not** the gated number — never use it to decide or demonstrate pass/fail.
 
-**Gate containment:** the subagent may never modify `/p:Threshold`, the
-`MergeWith` chain, or add `[ExcludeFromCodeCoverage]` to Domain or Application
-code to make this pass.
+**Gate containment:** the subagent may never modify `cover-gate.sh` (the
+threshold or the `MergeWith` chain), drop a test project from the gate's
+argument list, or add `[ExcludeFromCodeCoverage]` to Domain or Application code
+to make this pass.
 
 ---
 
 ## Stop 2 — after X.4 green
 
-After the X.4 coverage gate passes and `cover.sh` report runs:
+After the X.4 coverage gate passes (the gate renders its own
+`coverage/gate/Summary.txt` + `index.html` from the gated file — no separate
+`cover.sh` run):
 
 ### 1. Docker rebuild
 
@@ -316,7 +335,7 @@ unexpected status code → hard stop, surface the output, wait.
 ─── Stop 2 — Backend complete, awaiting your review ───────────────
 
 Phases:    X.1 Domain ✓  X.2 Application ✓  X.3 Infrastructure ✓  X.4 Api ✓
-Coverage:  <line>% line (≥95% gate passed)
+Coverage:  <line>% line (≥<threshold>% gate passed)
 Endpoints: <list new endpoints with observed status codes>
 
 Acceptance criteria (from HU ticket):
@@ -367,7 +386,9 @@ Wait. The driver's work is done until the human says to run the commands.
 ## Constraints
 
 1. Never write feature code — delegate all implementation to subagents
-2. Never commit until the phase gate passes
+2. Never commit until the phase gate passes — and never commit without the
+   human's approval of the proposed commit (Step E). A phase is not complete
+   until its commit is verified in the log (Step F).
 3. Never skip the worktree-context assertion before delegating
 4. Never modify the coverage threshold or gate commands
 5. Never move the HU to Done — only present the command; the human runs it

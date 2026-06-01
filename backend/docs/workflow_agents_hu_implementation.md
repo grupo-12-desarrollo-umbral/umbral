@@ -17,16 +17,16 @@ You type               Agent runs              You decide
                             ▼
                        driver creates           Phase menu:
                        worktree + branch  →  [ ] X.1 Domain
-                       (first session)         [ ] X.2 Application
+                            │               [ ] X.2 Application
                             │               [ ] X.3 Infrastructure
                             │               [ ] X.4 Api
                             │                   ↑ you pick one
                             │
                     ┌───────┴────────────────────┐
-                    │  ONE phase per session:     │  ← new session
-                    │  subagent implements phase  │     each phase;
-                    │  driver runs gate + commit  │     Resume path
-                    │  menu updates [✓] status    │     skips pre-flight
+                    │  subagent implements phase  │  ← repeats
+                    │  driver runs gate           │     until all
+                    │  you approve the commit     │     four [✓]
+                    │  menu updates [✓] status    │
                     └───────────────────────────┘
                             │
                             ▼
@@ -101,26 +101,20 @@ If it looks good: open a new session and invoke the driver.
 
 ---
 
-## Session 2 onward — one phase per session
+## Session 2 — Drive backend phases
 
-You run **one phase per Claude Code session**. The first driver session creates
-the worktree and runs full pre-flight; every later session resumes the same
-worktree and skips straight to the menu. Each session is invoked the same way —
-the driver decides between Pre-flight and Resume based on whether the worktree
-already exists.
+Open a **new** Claude Code session from the repo root. Point it at the driver:
 
 ```
 Read @backend/.agents/driver-agent.md.
 
 Run driver-agent for backend/docs/prompt_example_feature_hu06.md.
-Implement phase X.1.
 ```
 
-For the next session, change the trailing line to `Implement phase X.2.`, and
-so on. You can omit the trailing line and pick from the menu instead — but
-naming the phase makes each session a single-shot.
+After pre-flight the driver shows a phase menu and waits for you to pick a
+phase. You select one at a time; the driver runs it and updates the status.
 
-### First session — Pre-flight (driver, not you)
+### Pre-flight (driver, not you)
 
 ```bash
 # Confirms DES-13 labels in Linear
@@ -128,28 +122,8 @@ naming the phase makes each session a single-shot.
 git worktree add ../umbral-hu-06 -b feature/hu-06-<slug> develop
 # Moves DES-13 to In Progress in Linear
 # Verifies dotnet build is green on the base
+#   (MSBUILDDISABLENODEREUSE=1 dotnet build … — sandbox-safe)
 ```
-
-### Later sessions — Resume (driver, not you)
-
-Because `../umbral-hu-06` already exists, the driver takes the **Resume** path
-instead of re-running pre-flight:
-
-```bash
-# Verifies branch is feature/hu-06-<slug>
-# git -C ../umbral-hu-06 status --short  → must be clean, else stop
-# Confirms DES-13 is already In Progress (does NOT move it again)
-# git -C ../umbral-hu-06 log --oneline   → detects which phases are [✓]
-# shows the menu
-```
-
-If the worktree is dirty (a prior session died mid-phase with uncommitted
-edits), the driver **stops and surfaces the output** — it will not delegate
-over your uncommitted work. Commit or discard, then re-run the session.
-
-> **X.3 only:** when you select X.3, the driver runs an extra pre-phase check
-> (Docker reachable, EF tooling installed, auditable base read, migration rule)
-> before delegating. X.1/X.2/X.4 sessions skip that entirely.
 
 ### Phase menu (you pick, driver runs)
 
@@ -164,10 +138,10 @@ Select a phase to implement (X.1 / X.2 / X.3 / X.4):
 ────────────────────────────────────────────────────────────────
 ```
 
-You type e.g. `X.1` (or name the phase in the invocation). The driver delegates
-to a subagent, runs the gate, commits on green, then re-shows the menu with
-`[✓]` for the completed phase. You then end the session and start a fresh one
-for the next phase — the menu picks up the `[✓]` state from the commit history.
+You type e.g. `X.1`. The driver delegates to a subagent and runs the gate. On
+green it **presents the commit and waits for your approval**, commits once you
+approve, verifies the commit landed, then re-shows the menu with `[✓]` for the
+completed phase. Repeat until all four are checked.
 
 ### Example — X.1 cycle
 
@@ -180,9 +154,12 @@ driver runs gate:
   dotnet build → exit 0 ✓
   unit tests for new domain types ✓
 
-driver commits:
+driver presents commit, waits for your approval:
   feat(identity-access): phase X.1 — domain layer (HU-06)
   Ref: HU-06 / Ref: DES-13 / Ref: DES-67
+  → you approve
+
+driver commits + verifies it landed (git log shows "phase X.1")
 
 → menu re-displayed: [✓] X.1  [ ] X.2  [ ] X.3  [ ] X.4
 ```
@@ -194,7 +171,7 @@ driver runs X.2 gate → dotnet build fails
 driver → same subagent:
   "Gate failed: <exact error output>. Fix without touching the gate."
 subagent fixes → driver reruns gate → passes ✓
-driver commits phase X.2 → menu re-displayed
+driver presents commit → you approve → driver commits phase X.2 → menu re-displayed
 
 (If gate failed again: hard stop, driver reports both failures, waits for you)
 ```
@@ -205,15 +182,16 @@ driver commits phase X.2 → menu re-displayed
 driver → subagent: implement X.4
 
 driver runs coverage gate (ADR-0005):
-  dotnet test UnitTests … /p:Threshold=95 /p:ThresholdType=line
-  dotnet test IntegrationTests … /p:MergeWith=… /p:Threshold=95
+  backend/scripts/cover-gate.sh tests/UnitTests/<Proj>.csproj \
+                                tests/IntegrationTests/<Proj>.csproj
+  (script owns /p:Threshold=95 + the MergeWith chain + sandbox env vars)
   exit 0 ✓
 
 driver runs cover.sh (report only, coverage already enforced):
   backend/scripts/cover.sh identity-access-service
   → Summary.txt: Line coverage: 96.2%
 
-driver commits phase X.4
+driver presents commit → you approve → driver commits phase X.4
 → all four [✓] — driver proceeds to docker rebuild
   (you may run /debrief any time if you want a decision log)
 ```
@@ -322,34 +300,28 @@ cleanup. It confirms each one succeeded and gives you the PR URL.
 
 | When | You type |
 |---|---|
-| Session 1 (generate) | `Read @backend/.agents/generator-agent.md. Run generator-agent for HU-06 DES-13.` |
-| Stop 1 | Review files, fix anything wrong, then open the first driver session |
-| Phase X.1 session | `Read @backend/.agents/driver-agent.md. Run driver-agent for backend/docs/prompt_example_feature_hu06.md. Implement phase X.1.` |
-| Phase X.2 session | Same invocation, `Implement phase X.2.` (Resume path — worktree already exists) |
-| Phase X.3 session | Same invocation, `Implement phase X.3.` |
-| Phase X.4 session | Same invocation, `Implement phase X.4.` |
-| Stop 2 | Review API contract report (end of the X.4 session) |
+| Session 1 | `Read @backend/.agents/generator-agent.md. Run generator-agent for HU-06 DES-13.` |
+| Stop 1 | Review files, fix anything wrong, then open Session 2 |
+| Session 2 | `Read @backend/.agents/driver-agent.md. Run driver-agent for backend/docs/prompt_example_feature_hu06.md.` |
+| Phase menu × 4 | `X.1` → `X.2` → `X.3` → `X.4` (one reply per phase) |
+| Commit approval × 4 | Approve each phase's commit when the driver presents it (one per phase) |
+| Stop 2 | Review API contract report |
 | Frontend session | Paste Step 9 from the prompt file into a new session with `@frontend/AGENTS.md` |
-| Close-out | `Run the close-out commands.` in a driver session |
+| Close-out | `Run the close-out commands.` in the driver session |
 
-One generator session + four phase sessions + one frontend session, plus the
-close-out. `/debrief` is optional and can be run at the end of any phase
-session.
+Roughly a dozen interactions for a full HU — four phase picks plus four commit
+approvals are the bulk of it. `/debrief` is optional and can be run any time
+after all phases are done.
 
 ---
 
 ## If a gate fails
 
 The driver surfaces the failure and waits. You don't need to act immediately —
-come back when you're ready. The worktree stays intact, and because the failed
-phase was never committed it still shows as `[ ]` on the menu. Start a new
-driver session pointing at the same prompt file: the Resume path detects the
-existing worktree, checks it is clean, and re-shows the menu so you can retry
-the same phase.
-
-Note the clean-worktree guard: if the failed subagent left partial edits in the
-worktree, Resume stops and shows `git status --short` rather than delegating
-over them. Discard or commit those edits first, then re-run.
+come back when you're ready. The worktree stays intact. Restart the driver
+session pointing at the same prompt file and it will pick up from where the
+gate failed (pre-flight will detect the existing worktree and ask whether to
+reuse it).
 
 ---
 

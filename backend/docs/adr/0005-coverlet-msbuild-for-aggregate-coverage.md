@@ -1,6 +1,16 @@
 # Use coverlet.msbuild with MergeWith chaining for aggregate coverage enforcement
 
-All test projects use `coverlet.msbuild` instead of `coverlet.collector`. Coverage is collected by running each test project in order with `/p:CollectCoverage=true /p:CoverletOutputFormat=json`, passing the previous run's output via `/p:MergeWith`; the final project adds `/p:Threshold=95 /p:ThresholdType=line /p:ThresholdStat=total` so `dotnet test` itself fails if the aggregate falls short. This replaces a custom Python script that accepted only a single pre-merged Cobertura file and required the agent to improvise a merge step that was never reliable in practice.
+All test projects use `coverlet.msbuild` instead of `coverlet.collector`. Coverage is collected by running each test project in order with `/p:CollectCoverage=true /p:CoverletOutputFormat=json`, passing the previous run's output via `/p:MergeWith`; the final project adds `/p:Threshold=93 /p:ThresholdType=line /p:ThresholdStat=total` so `dotnet test` itself fails if the aggregate falls short. This replaces a custom Python script that accepted only a single pre-merged Cobertura file and required the agent to improvise a merge step that was never reliable in practice.
+
+## Gate scope and single source of truth
+
+`backend/scripts/cover-gate.sh` is the **only** authority for both CI/CD pass/fail and the coverage number we demonstrate. It is variadic: the chain spans **all test projects** for the service — `Application.UnitTests`, `Api.UnitTests`, and `Infrastructure.IntegrationTests` — with the last project enforcing the threshold. `Api.UnitTests` is included so the gate measures the whole tested surface (Api endpoints included), not just Application + Infrastructure.
+
+On a green run the gate persists the merged Cobertura file to `coverage/gate/merged.cobertura.xml` and renders `Summary.txt` / `index.html` **from that exact file**. The demonstrated number is therefore identical to the gated number by construction.
+
+`backend/scripts/cover.sh` is a dev-only convenience for whole-solution exploration. It uses a different project discovery and different ReportGenerator filters, so its number is **not** the gated number and must not be used to demonstrate that the gate passed.
+
+The threshold defaults to 93% (the project minimum) and is overridable per-run with the `THRESHOLD` env var when a consumer requires a different bar (e.g. `THRESHOLD=95`).
 
 ## Considered Options
 

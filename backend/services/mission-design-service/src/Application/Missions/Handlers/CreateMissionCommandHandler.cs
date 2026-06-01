@@ -1,17 +1,17 @@
 using umbral_backend.Application.Common.Interfaces;
-using umbral_backend.Application.Missions.Commands.CreateMission;
 using umbral_backend.Application.Missions.DTOs;
+using umbral_backend.Application.Missions.Commands.CreateMission;
 using umbral_backend.Domain.Entities;
 
 namespace umbral_backend.Application.Missions.Handlers;
 
 public sealed class CreateMissionCommandHandler : IRequestHandler<CreateMissionCommand, MissionDto>
 {
-    private readonly IApplicationDbContext _context;
+    private readonly IMissionRepository _missionRepository;
 
-    public CreateMissionCommandHandler(IApplicationDbContext context)
+    public CreateMissionCommandHandler(IMissionRepository missionRepository)
     {
-        _context = context;
+        _missionRepository = missionRepository;
     }
 
     public async Task<MissionDto> Handle(CreateMissionCommand request, CancellationToken cancellationToken)
@@ -22,8 +22,7 @@ public sealed class CreateMissionCommandHandler : IRequestHandler<CreateMissionC
             request.Difficulty,
             request.MaximumTimeMinutes);
 
-        _context.Missions.Add(mission);
-        await _context.SaveChangesAsync(cancellationToken);
+        await _missionRepository.AddAsync(mission, cancellationToken);
 
         return new MissionDto(
             mission.Id,
