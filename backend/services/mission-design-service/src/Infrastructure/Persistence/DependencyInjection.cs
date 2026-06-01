@@ -28,6 +28,8 @@ public static class PersistenceServiceExtensions
         builder.Services.AddScoped<IApplicationDbContext>(provider => provider.GetRequiredService<ApplicationDbContext>());
         builder.Services.AddScoped<IMissionRepository, MissionRepository>();
         builder.Services.AddScoped<IMissionReadModelRepository, MissionReadModelRepository>();
+        builder.Services.AddScoped<ITriviaQuizRepository, TriviaQuizRepository>();
+        builder.Services.AddScoped<ITriviaQuizReadModelRepository, TriviaQuizReadModelRepository>();
 
         builder.Services.AddScoped<ApplicationDbContextInitialiser>();
     }

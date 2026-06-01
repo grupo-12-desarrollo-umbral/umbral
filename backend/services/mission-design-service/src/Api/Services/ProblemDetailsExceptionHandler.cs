@@ -1,4 +1,5 @@
 using umbral_backend.Application.Common.Exceptions;
+using umbral_backend.Domain.Exceptions;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
 using NotFoundException = umbral_backend.Application.Common.Exceptions.NotFoundException;
@@ -34,6 +35,12 @@ public sealed class ProblemDetailsExceptionHandler : IExceptionHandler
                 Title = "Forbidden.",
                 Detail = exception.Message,
                 Status = StatusCodes.Status403Forbidden
+            },
+            TriviaQuizNotEditableException => new ProblemDetails
+            {
+                Title = "Trivia quiz cannot be edited in its current state.",
+                Detail = exception.Message,
+                Status = StatusCodes.Status409Conflict
             },
             _ => new ProblemDetails
             {

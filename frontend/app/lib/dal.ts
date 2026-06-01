@@ -22,8 +22,9 @@ export const enforceActivePlatformAccess = cache(async (): Promise<void> => {
   try {
     await checkPlatformAccess(session.externalIdentityId, session.role, session.email)
   } catch (err) {
-    if (err instanceof IdentityError && err.code === 'deactivated') {
-      redirect('/login?error=deactivated')
+    if (err instanceof IdentityError) {
+      if (err.code === 'deactivated') redirect('/login?error=deactivated')
+      redirect('/login')
     }
     throw err
   }

@@ -11,6 +11,8 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext
 
     public DbSet<Mission> Missions => Set<Mission>();
 
+    public DbSet<TriviaQuiz> TriviaQuizzes => Set<TriviaQuiz>();
+
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);

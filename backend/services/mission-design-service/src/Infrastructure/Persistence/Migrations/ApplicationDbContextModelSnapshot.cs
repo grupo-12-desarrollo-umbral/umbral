@@ -49,14 +49,14 @@ namespace umbral_backend.Infrastructure.Persistence.Migrations
                         .HasMaxLength(2000)
                         .HasColumnType("character varying(2000)");
 
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
                     b.Property<DateTimeOffset>("LastModified")
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("LastModifiedBy")
                         .HasColumnType("text");
-
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("boolean");
 
                     b.Property<string>("Name")
                         .IsRequired()
@@ -68,6 +68,42 @@ namespace umbral_backend.Infrastructure.Persistence.Migrations
                     b.HasIndex("IsActive");
 
                     b.ToTable("Missions", (string)null);
+                });
+
+            modelBuilder.Entity("umbral_backend.Domain.Entities.TriviaQuiz", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTimeOffset>("Created")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<DateTimeOffset>("LastModified")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Status");
+
+                    b.ToTable("TriviaQuizzes", (string)null);
                 });
 
             modelBuilder.Entity("umbral_backend.Domain.Entities.Mission", b =>
@@ -113,6 +149,79 @@ namespace umbral_backend.Infrastructure.Persistence.Migrations
 
                     b.Navigation("MaximumTime")
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("umbral_backend.Domain.Entities.TriviaQuiz", b =>
+                {
+                    b.OwnsMany("umbral_backend.Domain.Entities.TriviaQuestion", "Questions", b1 =>
+                        {
+                            b1.Property<int>("Id")
+                                .ValueGeneratedOnAdd()
+                                .HasColumnType("integer");
+
+                            NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b1.Property<int>("Id"));
+
+                            b1.Property<bool>("IsActive")
+                                .HasColumnType("boolean");
+
+                            b1.Property<string>("Prompt")
+                                .IsRequired()
+                                .HasMaxLength(2000)
+                                .HasColumnType("character varying(2000)");
+
+                            b1.Property<int>("SequenceOrder")
+                                .HasColumnType("integer");
+
+                            b1.Property<int>("TriviaQuizId")
+                                .HasColumnType("integer");
+
+                            b1.HasKey("Id");
+
+                            b1.HasIndex("TriviaQuizId", "SequenceOrder")
+                                .IsUnique();
+
+                            b1.ToTable("TriviaQuestions", (string)null);
+
+                            b1.WithOwner()
+                                .HasForeignKey("TriviaQuizId");
+
+                            b1.OwnsMany("umbral_backend.Domain.Entities.TriviaOption", "Options", b2 =>
+                                {
+                                    b2.Property<int>("Id")
+                                        .ValueGeneratedOnAdd()
+                                        .HasColumnType("integer");
+
+                                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b2.Property<int>("Id"));
+
+                                    b2.Property<bool>("IsCorrect")
+                                        .HasColumnType("boolean");
+
+                                    b2.Property<string>("OptionText")
+                                        .IsRequired()
+                                        .HasMaxLength(1000)
+                                        .HasColumnType("character varying(1000)");
+
+                                    b2.Property<int>("SequenceOrder")
+                                        .HasColumnType("integer");
+
+                                    b2.Property<int>("TriviaQuestionId")
+                                        .HasColumnType("integer");
+
+                                    b2.HasKey("Id");
+
+                                    b2.HasIndex("TriviaQuestionId", "SequenceOrder")
+                                        .IsUnique();
+
+                                    b2.ToTable("TriviaOptions", (string)null);
+
+                                    b2.WithOwner()
+                                        .HasForeignKey("TriviaQuestionId");
+                                });
+
+                            b1.Navigation("Options");
+                        });
+
+                    b.Navigation("Questions");
                 });
 #pragma warning restore 612, 618
         }
