@@ -156,6 +156,9 @@ coverage*.json
 coverage*.xml
 coverage*.info
 
+# Generated coverage reports (cover-gate.sh / cover.sh output)
+services/*/coverage/
+
 # Visual Studio code coverage results
 *.coverage
 *.coveragexml

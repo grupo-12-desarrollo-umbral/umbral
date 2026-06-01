@@ -2,19 +2,23 @@ namespace umbral_backend.Application.Missions.Commands.CreateMission;
 
 public sealed class CreateMissionCommandValidator : AbstractValidator<CreateMissionCommand>
 {
+    private const int MaximumNameLength = 200;
+    private const int MaximumDescriptionLength = 2000;
+    private const int MaximumDifficultyLength = 100;
+
     public CreateMissionCommandValidator()
     {
         RuleFor(command => command.Name)
             .NotEmpty()
-            .MaximumLength(200);
+            .MaximumLength(MaximumNameLength);
 
         RuleFor(command => command.Description)
             .NotEmpty()
-            .MaximumLength(2000);
+            .MaximumLength(MaximumDescriptionLength);
 
         RuleFor(command => command.Difficulty)
             .NotEmpty()
-            .MaximumLength(100);
+            .MaximumLength(MaximumDifficultyLength);
 
         RuleFor(command => command.MaximumTimeMinutes)
             .GreaterThan(0);

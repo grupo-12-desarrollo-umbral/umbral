@@ -1,6 +1,7 @@
 using umbral_backend.Application.Common.Interfaces;
 using umbral_backend.Infrastructure.Persistence;
 using umbral_backend.Infrastructure.Persistence.Interceptors;
+using umbral_backend.Infrastructure.Persistence.Repositories;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Configuration;
@@ -25,6 +26,8 @@ public static class PersistenceServiceExtensions
         });
 
         builder.Services.AddScoped<IApplicationDbContext>(provider => provider.GetRequiredService<ApplicationDbContext>());
+        builder.Services.AddScoped<IMissionRepository, MissionRepository>();
+        builder.Services.AddScoped<IMissionReadModelRepository, MissionReadModelRepository>();
 
         builder.Services.AddScoped<ApplicationDbContextInitialiser>();
     }

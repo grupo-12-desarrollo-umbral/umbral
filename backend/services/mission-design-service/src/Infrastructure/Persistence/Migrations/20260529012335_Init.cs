@@ -22,7 +22,9 @@ namespace umbral_backend.Infrastructure.Persistence.Migrations
                     Description = table.Column<string>(type: "character varying(2000)", maxLength: 2000, nullable: false),
                     Difficulty = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: false),
                     MaximumTimeMinutes = table.Column<int>(type: "integer", nullable: false),
+                    IsActive = table.Column<bool>(type: "boolean", nullable: false),
                     ActivationState = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: false),
+                    ArchivedAt = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: true),
                     Created = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false),
                     CreatedBy = table.Column<string>(type: "text", nullable: true),
                     LastModified = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false),
@@ -32,6 +34,11 @@ namespace umbral_backend.Infrastructure.Persistence.Migrations
                 {
                     table.PrimaryKey("PK_Missions", x => x.Id);
                 });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Missions_IsActive",
+                table: "Missions",
+                column: "IsActive");
         }
 
         /// <inheritdoc />
