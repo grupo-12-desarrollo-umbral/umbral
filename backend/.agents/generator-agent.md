@@ -138,6 +138,10 @@ Write both files, then stop. Output:
 
 Wait for human review (**Stop 1**) before any implementation begins.
 
+Leave both files in the `develop` worktree — do not commit them. The driver
+copies them into the feature worktree during pre-flight (driver-agent.md step 5),
+since a fresh worktree branched off `<base>` does not see them otherwise.
+
 ---
 
 ## Constraints

@@ -1,5 +1,4 @@
 using umbral_backend.Application.Common.Interfaces;
-using umbral_backend.Application.Common.Security;
 using umbral_backend.Application.Permissions.DTOs;
 using umbral_backend.Application.Users.Commands.AuthenticateUser;
 using umbral_backend.Application.Users.DTOs;
@@ -31,7 +30,6 @@ public sealed class AuthenticateUserCommandHandler : IRequestHandler<Authenticat
         CancellationToken cancellationToken)
     {
         var externalIdentityId = request.ExternalIdentityId.Trim();
-        var role = GatewayRoleParser.Parse(request.Role);
         var existingUser = await _userRepository.GetByExternalIdentityIdAsync(externalIdentityId, cancellationToken);
 
         var user = _identityProvisioningPolicy.SynchronizeOrCreate(
@@ -39,7 +37,7 @@ public sealed class AuthenticateUserCommandHandler : IRequestHandler<Authenticat
             externalIdentityId,
             request.DisplayName,
             request.Email,
-            role);
+            request.Role);
 
         var accessDecision = _accessPolicy.Evaluate(user, ProtectedCapability.AuthenticatedPlatformAccess);
 

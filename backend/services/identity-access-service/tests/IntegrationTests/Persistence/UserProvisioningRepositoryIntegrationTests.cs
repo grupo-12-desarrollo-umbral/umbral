@@ -39,7 +39,7 @@ public sealed class UserProvisioningRepositoryIntegrationTests : IClassFixture<P
                 "kc-user-01",
                 "Alice Operator",
                 "alice@example.com",
-                "Operator"),
+                Role.Operator),
             CancellationToken.None);
 
         authenticateResult.Actor.ExternalIdentityId.Should().Be("kc-user-01");

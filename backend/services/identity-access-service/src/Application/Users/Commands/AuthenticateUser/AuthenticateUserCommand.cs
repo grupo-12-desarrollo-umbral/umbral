@@ -1,4 +1,5 @@
 using umbral_backend.Application.Users.DTOs;
+using umbral_backend.Domain.Enums;
 
 namespace umbral_backend.Application.Users.Commands.AuthenticateUser;
 
@@ -6,4 +7,4 @@ public sealed record AuthenticateUserCommand(
     string ExternalIdentityId,
     string DisplayName,
     string Email,
-    string Role) : IRequest<AuthenticateUserResultDto>;
+    Role Role) : IRequest<AuthenticateUserResultDto>;

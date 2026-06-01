@@ -1,8 +1,7 @@
 using Microsoft.AspNetCore.Http.HttpResults;
 using umbral_backend.Application.Common.Models;
-using umbral_backend.Application.Common.Interfaces;
+using umbral_backend.Api.Services;
 using umbral_backend.Application.Users.Commands.AssignUserRole;
-using umbral_backend.Application.Users.Commands.AuthenticateUser;
 using umbral_backend.Application.Users.Commands.DeactivateUser;
 using umbral_backend.Application.Users.DTOs;
 using umbral_backend.Application.Users.Queries.GetAuthenticatedActorProfile;
@@ -24,20 +23,11 @@ public sealed class UsersEndpoints : IEndpointGroup
     }
 
     private static async Task<Ok<AuthenticateUserResultDto>> BootstrapAuthenticatedUserAsync(
-        ISender sender,
-        ICurrentUser currentUser,
+        IAuthenticatedUserLoginEntryPoint loginEntryPoint,
         BootstrapAuthenticatedUserRequest request,
         CancellationToken cancellationToken)
     {
-        EnsureTrustedIdentity(currentUser);
-
-        var result = await sender.Send(
-            new AuthenticateUserCommand(
-                currentUser.Id!,
-                request.DisplayName,
-                currentUser.Email!,
-                currentUser.Role!),
-            cancellationToken);
+        var result = await loginEntryPoint.AuthenticateAsync(request.DisplayName, cancellationToken);
 
         return TypedResults.Ok(result);
     }
@@ -79,16 +69,6 @@ public sealed class UsersEndpoints : IEndpointGroup
     {
         await sender.Send(new AssignUserRoleCommand(id, request.Role), cancellationToken);
         return TypedResults.NoContent();
-    }
-
-    private static void EnsureTrustedIdentity(ICurrentUser currentUser)
-    {
-        if (string.IsNullOrWhiteSpace(currentUser.Id) ||
-            string.IsNullOrWhiteSpace(currentUser.Email) ||
-            string.IsNullOrWhiteSpace(currentUser.Role))
-        {
-            throw new UnauthorizedAccessException("Trusted gateway identity headers are required.");
-        }
     }
 
     public sealed record BootstrapAuthenticatedUserRequest(string DisplayName);
