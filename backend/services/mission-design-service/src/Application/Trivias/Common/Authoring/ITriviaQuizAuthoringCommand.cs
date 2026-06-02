@@ -13,7 +13,10 @@ public sealed record TriviaQuestionInput(
     string Prompt,
     int SequenceOrder,
     bool IsActive,
-    IReadOnlyCollection<TriviaOptionInput> Options);
+    IReadOnlyCollection<TriviaOptionInput> Options,
+    int? ScoreValue = null,
+    int? TimeLimitSeconds = null,
+    string? Explanation = null);
 
 public sealed record TriviaOptionInput(
     string OptionText,

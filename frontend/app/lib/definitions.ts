@@ -111,6 +111,25 @@ export type TriviaQuestionDto = {
   sequenceOrder: number
   isActive: boolean
   options: TriviaOptionDto[]
+  scoreValue: number | null
+  timeLimitSeconds: number | null
+  explanation: string | null
+}
+
+export type TriviaOptionRequest = {
+  optionText: string
+  sequenceOrder: number
+  isCorrect: boolean
+}
+
+export type TriviaQuestionRequest = {
+  prompt: string
+  sequenceOrder: number
+  scoreValue: number
+  timeLimitSeconds: number
+  explanation: string | null
+  isActive: boolean
+  options: TriviaOptionRequest[]
 }
 
 export type TriviaQuizSummaryDto = {

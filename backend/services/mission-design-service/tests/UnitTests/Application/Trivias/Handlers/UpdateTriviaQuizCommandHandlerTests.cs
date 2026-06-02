@@ -31,7 +31,10 @@ public sealed class UpdateTriviaQuizCommandHandlerTests
                         [
                             new TriviaOptionInput("Correct", 1, true),
                             new TriviaOptionInput("Incorrect", 2, false)
-                        ])
+                        ],
+                        100,
+                        45,
+                        "Updated explanation")
                 ]),
             CancellationToken.None);
 
@@ -41,6 +44,9 @@ public sealed class UpdateTriviaQuizCommandHandlerTests
         result.Description.Should().Be("Updated Description");
         result.Status.Should().Be("Draft");
         result.Questions.Should().ContainSingle();
+        result.Questions[0].ScoreValue.Should().Be(100);
+        result.Questions[0].TimeLimitSeconds.Should().Be(45);
+        result.Questions[0].Explanation.Should().Be("Updated explanation");
         result.Questions[0].Options.Should().ContainSingle(option => option.IsCorrect);
     }
 

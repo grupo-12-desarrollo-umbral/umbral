@@ -26,32 +26,43 @@ public sealed class TriviaQuizReadModelRepository : ITriviaQuizReadModelReposito
             .ToListAsync(cancellationToken);
     }
 
-    public Task<TriviaQuizDto?> GetTriviaDetailAsync(int triviaQuizId, CancellationToken cancellationToken)
+    public async Task<TriviaQuizDto?> GetTriviaDetailAsync(int triviaQuizId, CancellationToken cancellationToken)
     {
-        return _context.TriviaQuizzes
+        var triviaQuiz = await _context.TriviaQuizzes
             .AsNoTracking()
+            .Include(triviaQuiz => triviaQuiz.Questions)
+            .ThenInclude(question => question.Options)
             .Where(triviaQuiz => triviaQuiz.Id == triviaQuizId)
-            .Select(triviaQuiz => new TriviaQuizDto(
-                triviaQuiz.Id,
-                triviaQuiz.Title,
-                triviaQuiz.Description,
-                triviaQuiz.Status.ToString(),
-                triviaQuiz.Questions
-                    .OrderBy(question => question.SequenceOrder)
-                    .Select(question => new TriviaQuestionDto(
-                        question.Id,
-                        question.Prompt,
-                        question.SequenceOrder,
-                        question.IsActive,
-                        question.Options
-                            .OrderBy(option => option.SequenceOrder)
-                            .Select(option => new TriviaOptionDto(
-                                option.Id,
-                                option.OptionText,
-                                option.SequenceOrder,
-                                option.IsCorrect))
-                            .ToList()))
-                    .ToList()))
             .SingleOrDefaultAsync(cancellationToken);
+
+        if (triviaQuiz is null)
+        {
+            return null;
+        }
+
+        return new TriviaQuizDto(
+            triviaQuiz.Id,
+            triviaQuiz.Title,
+            triviaQuiz.Description,
+            triviaQuiz.Status.ToString(),
+            triviaQuiz.Questions
+                .OrderBy(question => question.SequenceOrder)
+                .Select(question => new TriviaQuestionDto(
+                    question.Id,
+                    question.Prompt,
+                    question.SequenceOrder,
+                    question.IsActive,
+                    question.Options
+                        .OrderBy(option => option.SequenceOrder)
+                        .Select(option => new TriviaOptionDto(
+                            option.Id,
+                            option.OptionText,
+                            option.SequenceOrder,
+                            option.IsCorrect))
+                        .ToList(),
+                    question.ScoreValue,
+                    question.TimeLimit?.Seconds,
+                    question.Explanation))
+                .ToList());
     }
 }

@@ -51,8 +51,18 @@ public sealed class TriviaQuizConfiguration : IEntityTypeConfiguration<TriviaQui
             questionBuilder.Property(question => question.SequenceOrder)
                 .IsRequired();
 
+            questionBuilder.Property(question => question.ScoreValue);
+
+            questionBuilder.Property(question => question.Explanation);
+
             questionBuilder.Property(question => question.IsActive)
                 .IsRequired();
+
+            questionBuilder.OwnsOne(question => question.TimeLimit, timeLimitBuilder =>
+            {
+                timeLimitBuilder.Property(timeLimit => timeLimit.Seconds)
+                    .HasColumnName("TimeLimitSeconds");
+            });
 
             questionBuilder.HasIndex("TriviaQuizId", nameof(TriviaQuestion.SequenceOrder))
                 .IsUnique();

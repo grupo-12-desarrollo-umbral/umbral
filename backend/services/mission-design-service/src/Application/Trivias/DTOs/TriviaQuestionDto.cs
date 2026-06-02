@@ -5,4 +5,7 @@ public sealed record TriviaQuestionDto(
     string Prompt,
     int SequenceOrder,
     bool IsActive,
-    IReadOnlyList<TriviaOptionDto> Options);
+    IReadOnlyList<TriviaOptionDto> Options,
+    int? ScoreValue = null,
+    int? TimeLimitSeconds = null,
+    string? Explanation = null);

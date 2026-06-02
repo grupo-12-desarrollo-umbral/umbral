@@ -25,7 +25,10 @@ public sealed class GetTriviaDetailQueryHandlerTests
                     [
                         new TriviaOptionDto(8, "Correct", 1, true),
                         new TriviaOptionDto(9, "Incorrect", 2, false)
-                    ])
+                    ],
+                    100,
+                    30,
+                    "Because it is Paris.")
             ]);
 
         var repository = new InMemoryTriviaQuizReadModelRepository(
@@ -35,6 +38,9 @@ public sealed class GetTriviaDetailQueryHandlerTests
         var result = await handler.Handle(new GetTriviaDetailQuery(triviaQuiz.Id), CancellationToken.None);
 
         result.Should().Be(triviaQuiz);
+        result.Questions[0].ScoreValue.Should().Be(100);
+        result.Questions[0].TimeLimitSeconds.Should().Be(30);
+        result.Questions[0].Explanation.Should().Be("Because it is Paris.");
     }
 
     [Fact]

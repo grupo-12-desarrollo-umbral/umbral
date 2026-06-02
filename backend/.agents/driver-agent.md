@@ -202,7 +202,7 @@ rebuild + curl smoke step below.
 
 Run **only** the phase the human selected. A phase is **not complete until its
 commit exists** — a green gate alone is not "done". When the gate goes green,
-the very next action is to present the commit for approval (Step E); never skip
+the very next action is to present the commit for approval (Step F); never skip
 straight to re-displaying the menu or starting another phase with gate-green
 work still uncommitted.
 
@@ -214,7 +214,35 @@ Before every delegation confirm:
 
 If either is wrong, **abort immediately**.
 
-### Step B — Delegate to phase subagent
+### Step B — Confirm the detected design pattern(s) and wait for validation
+
+Before delegating, look up whether the selected phase **owns a mandated
+pattern** — cross-reference the phase against the "Required design pattern(s) +
+owning phase" you extracted from the prompt file (Input table). Present what you
+detected and **wait for the human to validate it** before running the phase:
+
+```
+─── Phase X.Y — detected design pattern(s) ─────────────────────────
+This phase is scoped to realize:
+  • <Pattern> — <one-line "Why" from the prompt file>
+    Obligation: <concrete obligation, e.g. guarded handler/behaviour, no
+                 ad-hoc role `if` checks>
+
+Validate this before I run the phase. Reply to confirm, or tell me what to
+change.
+────────────────────────────────────────────────────────────────────
+```
+
+If the phase owns **no** mandated pattern, say so explicitly (e.g. "Phase X.Y
+has no mandated pattern per the prompt file") and still wait for the human's
+go-ahead before delegating.
+
+Do **not** delegate (Step C) until the human validates. If the human disagrees
+with the detected pattern, that is a generation defect — stop and surface it
+rather than proceeding (the same posture as a missing "Required design patterns"
+section in Input).
+
+### Step C — Delegate to phase subagent
 
 Pass to a subagent operating under `backend-agent.md`:
 - the exact phase prompt text from the prompt file
@@ -222,7 +250,7 @@ Pass to a subagent operating under `backend-agent.md`:
 - explicit instruction: *"Write code only. Do not commit, do not touch Linear,
   do not run gates."*
 
-### Step C — Run the gate
+### Step D — Run the gate
 
 The driver runs gates; the subagent does not.
 
@@ -240,10 +268,10 @@ the code the subagent wrote — not just named. For `Proxy`: access is enforced
 through a guard (`AuthorizationBehaviour` / endpoint authorization policy) with
 no ad-hoc role `if` checks leaking into handlers or endpoints. For `State`: an
 explicit state type, not enum + conditionals. Etc. If the pattern is absent,
-treat it as a gate failure (Step D: one retry, then hard stop) — a green build
+treat it as a gate failure (Step E: one retry, then hard stop) — a green build
 with the mandated pattern missing is **not** a passable phase.
 
-### Step D — On gate failure: one retry then hard stop
+### Step E — On gate failure: one retry then hard stop
 
 Pass the exact failure output to the **same** subagent:
 
@@ -253,7 +281,7 @@ Pass the exact failure output to the **same** subagent:
 Run the gate again. If it fails a second time — **hard stop**. Surface both
 failure outputs to the human. Wait.
 
-### Step E — On gate green: present the commit and wait for approval
+### Step F — On gate green: present the commit and wait for approval
 
 The instant the gate returns 0, **stop and present the commit for approval** —
 do not narrate the green result and drift on. This is the most-skipped step.
@@ -282,7 +310,7 @@ Reply to approve, or tell me what to change.
 Do **not** run the commit until the human approves. Do not re-display the phase
 menu or move to another phase while this approval is pending.
 
-### Step F — On approval: commit, verify it landed, then re-display the menu
+### Step G — On approval: commit, verify it landed, then re-display the menu
 
 ```bash
 git -C ../umbral-hu-NN commit -m "feat(<svc>): phase X.Y — <layer> (HU-NN)
@@ -420,8 +448,8 @@ Wait. The driver's work is done until the human says to run the commands.
 
 1. Never write feature code — delegate all implementation to subagents
 2. Never commit until the phase gate passes — and never commit without the
-   human's approval of the proposed commit (Step E). A phase is not complete
-   until its commit is verified in the log (Step F).
+   human's approval of the proposed commit (Step F). A phase is not complete
+   until its commit is verified in the log (Step G).
 3. Never skip the worktree-context assertion before delegating
 4. Never modify the coverage threshold or gate commands
 5. Never move the HU to Done — only present the command; the human runs it

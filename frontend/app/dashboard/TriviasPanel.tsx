@@ -6,20 +6,24 @@ import {
   getTriviaQuiz,
   createTriviaQuiz,
   updateTriviaQuiz,
+  addTriviaQuestion,
+  updateTriviaQuestion,
 } from '@/app/actions/trivias'
-import type { TriviaQuizSummaryDto, TriviaQuizDto } from '@/app/lib/definitions'
+import type { TriviaQuizSummaryDto, TriviaQuizDto, TriviaQuestionDto, TriviaQuestionRequest } from '@/app/lib/definitions'
 import styles from './dashboard.module.css'
 
 type DashboardRole = 'operator' | 'admin' | 'participant'
-type TriviaPanelView = 'list' | 'detail' | 'create' | 'edit'
+type TriviaPanelView = 'list' | 'detail' | 'create' | 'edit' | 'add-question' | 'edit-question'
 
 export function TriviasPanel({ role }: { role: DashboardRole }) {
   const [view, setView] = useState<TriviaPanelView>('list')
   const [selectedQuiz, setSelectedQuiz] = useState<TriviaQuizDto | null>(null)
+  const [selectedQuestion, setSelectedQuestion] = useState<TriviaQuestionDto | null>(null)
   const [listData, setListData] = useState<TriviaQuizSummaryDto[] | null>(null)
   const [isPending, startTransition] = useTransition()
   const [listError, setListError] = useState<string | null>(null)
   const [formError, setFormError] = useState<string | null>(null)
+  const [questionError, setQuestionError] = useState<string | null>(null)
   const [refreshKey, setRefreshKey] = useState(0)
 
   useEffect(() => {
@@ -89,68 +93,199 @@ export function TriviasPanel({ role }: { role: DashboardRole }) {
     })
   }
 
+  async function handleAddQuestion(question: TriviaQuestionRequest) {
+    if (!selectedQuiz) return
+    startTransition(async () => {
+      setQuestionError(null)
+      try {
+        const updated = await addTriviaQuestion(selectedQuiz.id, question)
+        setSelectedQuiz(updated)
+        setView('detail')
+        setRefreshKey((k) => k + 1)
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : ''
+        if (msg === 'invalid_question') {
+          setQuestionError('Invalid question. Check all fields and ensure exactly one correct option.')
+        } else if (msg === 'trivia_not_found') {
+          setQuestionError('Trivia quiz no longer exists.')
+        } else if (msg === 'question_sequence_conflict') {
+          setQuestionError('A question with that sequence order already exists. Choose a different order.')
+        } else {
+          setQuestionError('Failed to add question. Try again.')
+        }
+      }
+    })
+  }
+
+  async function handleUpdateQuestion(questionId: number, question: TriviaQuestionRequest) {
+    if (!selectedQuiz) return
+    startTransition(async () => {
+      setQuestionError(null)
+      try {
+        const updated = await updateTriviaQuestion(selectedQuiz.id, questionId, question)
+        setSelectedQuiz(updated)
+        setView('detail')
+        setRefreshKey((k) => k + 1)
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : ''
+        if (msg === 'invalid_question') {
+          setQuestionError('Invalid question. Check all fields and ensure exactly one correct option.')
+        } else if (msg === 'trivia_not_found') {
+          setQuestionError('Trivia quiz no longer exists.')
+        } else if (msg === 'question_sequence_conflict') {
+          setQuestionError('A question with that sequence order already exists. Choose a different order.')
+        } else {
+          setQuestionError('Failed to update question. Try again.')
+        }
+      }
+    })
+  }
+
   function statusTone(status: string): 'success' | 'warning' | 'muted' {
     if (status === 'Published') return 'success'
     if (status === 'Draft') return 'warning'
     return 'muted'
   }
 
-  function renderQuestionsSection(questions: TriviaQuizDto['questions']) {
-    if (questions.length === 0) {
-      return (
-        <div data-testid="trivia-questions-section">
-          <p className={styles.mutedText}>No questions added yet.</p>
-        </div>
-      )
-    }
-
-    const sorted = [...questions].sort((a, b) => a.sequenceOrder - b.sequenceOrder)
+  function renderQuestionsSection(
+    questions: TriviaQuizDto['questions'],
+    quiz: TriviaQuizDto,
+  ) {
+    const isDraft = quiz.status === 'Draft'
 
     return (
       <div data-testid="trivia-questions-section">
         <div className={styles.subsectionHeader}>
           <h3>Questions</h3>
+          {role === 'admin' && isDraft && (
+            <button
+              className={styles.primaryButton}
+              data-testid="add-question-btn"
+              disabled={isPending}
+              onClick={() => { setQuestionError(null); setSelectedQuestion(null); setView('add-question') }}
+              type="button"
+            >
+              Add question
+            </button>
+          )}
         </div>
-        <table className={styles.table}>
-          <thead>
-            <tr>
-              <th>Order</th>
-              <th>Prompt</th>
-              <th>Status</th>
-              <th>Options</th>
-            </tr>
-          </thead>
-          <tbody>
-            {sorted.map((q) => (
-              <tr key={q.id}>
-                <td>{q.sequenceOrder}</td>
-                <td>{q.prompt}</td>
-                <td>
-                  <span
-                    className={styles.chip}
-                    data-tone={q.isActive ? 'success' : 'muted'}
-                  >
-                    {q.isActive ? 'Active' : 'Inactive'}
-                  </span>
-                </td>
-                <td>
-                  <ul style={{ margin: 0, paddingLeft: '1.2rem', color: 'var(--text-secondary)' }}>
-                    {q.options.sort((a, b) => a.sequenceOrder - b.sequenceOrder).map((opt) => (
-                      <li key={opt.id}>
-                        {opt.optionText}
-                        {opt.isCorrect && <span style={{ marginLeft: '0.4rem', color: 'var(--success)' }}>✓</span>}
-                      </li>
-                    ))}
-                  </ul>
-                </td>
+
+        {questions.length === 0 ? (
+          <p className={styles.mutedText}>No questions added yet.</p>
+        ) : (
+          <table className={styles.table}>
+            <thead>
+              <tr>
+                <th>Order</th>
+                <th>Prompt</th>
+                <th>Score</th>
+                <th>Timer (s)</th>
+                <th>Explanation</th>
+                <th>Status</th>
+                <th>Options</th>
+                {role === 'admin' && isDraft && <th>Actions</th>}
               </tr>
-            ))}
-          </tbody>
-        </table>
-        <p className={styles.mutedText} style={{ marginTop: '0.75rem' }}>
-          Question management is available in a future release.
-        </p>
+            </thead>
+            <tbody>
+              {[...questions]
+                .sort((a, b) => a.sequenceOrder - b.sequenceOrder)
+                .map((q) => (
+                  <tr key={q.id} data-testid={`question-row-${q.id}`}>
+                    <td>{q.sequenceOrder}</td>
+                    <td>{q.prompt}</td>
+                    <td>{q.scoreValue ?? '—'}</td>
+                    <td>{q.timeLimitSeconds ?? '—'}</td>
+                    <td>{q.explanation ?? '—'}</td>
+                    <td>
+                      <span className={styles.chip} data-tone={q.isActive ? 'success' : 'muted'}>
+                        {q.isActive ? 'Active' : 'Inactive'}
+                      </span>
+                    </td>
+                    <td>
+                      <ul style={{ margin: 0, paddingLeft: '1.2rem', color: 'var(--text-secondary)' }}>
+                        {[...q.options]
+                          .sort((a, b) => a.sequenceOrder - b.sequenceOrder)
+                          .map((opt) => (
+                            <li key={opt.id}>
+                              {opt.optionText}
+                              {opt.isCorrect && (
+                                <span style={{ marginLeft: '0.4rem', color: 'var(--success)' }}>✓</span>
+                              )}
+                            </li>
+                          ))}
+                      </ul>
+                    </td>
+                    {role === 'admin' && isDraft && (
+                      <td>
+                        <button
+                          className={styles.inlineButton}
+                          data-testid={`edit-question-btn-${q.id}`}
+                          disabled={isPending}
+                          onClick={() => {
+                            setQuestionError(null)
+                            setSelectedQuestion(q)
+                            setView('edit-question')
+                          }}
+                          type="button"
+                        >
+                          Edit
+                        </button>
+                      </td>
+                    )}
+                  </tr>
+                ))}
+            </tbody>
+          </table>
+        )}
       </div>
+    )
+  }
+
+  if (view === 'add-question' && selectedQuiz !== null) {
+    return (
+      <section className={styles.panel} data-testid="trivias-panel">
+        <button
+          className={styles.inlineButton}
+          onClick={() => { setQuestionError(null); setView('detail') }}
+          type="button"
+        >
+          ← {selectedQuiz.title}
+        </button>
+
+        <h2 className={styles.missionDetailTitle}>Add question</h2>
+
+        <TriviaQuestionForm
+          initial={null}
+          isPending={isPending}
+          error={questionError}
+          onSubmit={(q) => handleAddQuestion(q)}
+          onCancel={() => { setQuestionError(null); setView('detail') }}
+        />
+      </section>
+    )
+  }
+
+  if (view === 'edit-question' && selectedQuiz !== null && selectedQuestion !== null) {
+    return (
+      <section className={styles.panel} data-testid="trivias-panel">
+        <button
+          className={styles.inlineButton}
+          onClick={() => { setQuestionError(null); setView('detail') }}
+          type="button"
+        >
+          ← {selectedQuiz.title}
+        </button>
+
+        <h2 className={styles.missionDetailTitle}>Edit question</h2>
+
+        <TriviaQuestionForm
+          initial={selectedQuestion}
+          isPending={isPending}
+          error={questionError}
+          onSubmit={(q) => handleUpdateQuestion(selectedQuestion.id, q)}
+          onCancel={() => { setQuestionError(null); setView('detail') }}
+        />
+      </section>
     )
   }
 
@@ -199,7 +334,7 @@ export function TriviasPanel({ role }: { role: DashboardRole }) {
           </button>
         </div>
 
-        {renderQuestionsSection(selectedQuiz.questions)}
+        {renderQuestionsSection(selectedQuiz.questions, selectedQuiz)}
       </section>
     )
   }
@@ -249,7 +384,7 @@ export function TriviasPanel({ role }: { role: DashboardRole }) {
           onCancel={() => { setFormError(null); setView('detail') }}
         />
 
-        {renderQuestionsSection(selectedQuiz.questions)}
+        {renderQuestionsSection(selectedQuiz.questions, selectedQuiz)}
       </section>
     )
   }
@@ -380,6 +515,283 @@ function TriviaQuizForm({
         <button
           className={styles.primaryButton}
           data-testid="trivia-submit-btn"
+          disabled={isPending}
+          type="submit"
+        >
+          Save
+        </button>
+        <button
+          className={styles.inlineButton}
+          disabled={isPending}
+          type="button"
+          onClick={onCancel}
+        >
+          Cancel
+        </button>
+      </div>
+    </form>
+  )
+}
+
+type OptionDraft = {
+  optionText: string
+  sequenceOrder: number
+  isCorrect: boolean
+}
+
+function TriviaQuestionForm({
+  initial,
+  isPending,
+  error,
+  onSubmit,
+  onCancel,
+}: {
+  initial: TriviaQuestionDto | null
+  isPending: boolean
+  error: string | null
+  onSubmit: (question: TriviaQuestionRequest) => void
+  onCancel: () => void
+}) {
+  const [prompt, setPrompt] = useState(initial?.prompt ?? '')
+  const [sequenceOrder, setSequenceOrder] = useState(initial?.sequenceOrder ?? 1)
+  const [scoreValue, setScoreValue] = useState(initial?.scoreValue ?? 100)
+  const [timeLimitSeconds, setTimeLimitSeconds] = useState(initial?.timeLimitSeconds ?? 30)
+  const [explanation, setExplanation] = useState(initial?.explanation ?? '')
+  const [isActive, setIsActive] = useState(initial?.isActive ?? true)
+  const [options, setOptions] = useState<OptionDraft[]>(
+    initial?.options && initial.options.length >= 2
+      ? [...initial.options]
+          .sort((a, b) => a.sequenceOrder - b.sequenceOrder)
+          .map((opt) => ({
+            optionText: opt.optionText,
+            sequenceOrder: opt.sequenceOrder,
+            isCorrect: opt.isCorrect,
+          }))
+      : [
+          { optionText: '', sequenceOrder: 1, isCorrect: false },
+          { optionText: '', sequenceOrder: 2, isCorrect: false },
+        ],
+  )
+  const [formError, setFormError] = useState<string | null>(null)
+
+  function addOption() {
+    if (options.length >= 4) return
+    const nextSeq = Math.max(...options.map((o) => o.sequenceOrder)) + 1
+    setOptions([...options, { optionText: '', sequenceOrder: nextSeq, isCorrect: false }])
+  }
+
+  function removeOption(index: number) {
+    if (options.length <= 2) return
+    setOptions(options.filter((_, i) => i !== index))
+  }
+
+  function updateOption(index: number, patch: Partial<OptionDraft>) {
+    setOptions(options.map((opt, i) => (i === index ? { ...opt, ...patch } : opt)))
+  }
+
+  function markCorrect(index: number) {
+    setOptions(options.map((opt, i) => ({ ...opt, isCorrect: i === index })))
+  }
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    setFormError(null)
+
+    const correctCount = options.filter((o) => o.isCorrect).length
+    if (correctCount !== 1) {
+      setFormError('Exactly one option must be marked as correct.')
+      return
+    }
+    if (options.some((o) => o.optionText.trim() === '')) {
+      setFormError('All option texts are required.')
+      return
+    }
+    if (options.length < 2 || options.length > 4) {
+      setFormError('A question must have between 2 and 4 options.')
+      return
+    }
+
+    onSubmit({
+      prompt: prompt.trim(),
+      sequenceOrder,
+      scoreValue,
+      timeLimitSeconds,
+      explanation: explanation.trim() !== '' ? explanation.trim() : null,
+      isActive,
+      options: options.map((opt) => ({
+        optionText: opt.optionText.trim(),
+        sequenceOrder: opt.sequenceOrder,
+        isCorrect: opt.isCorrect,
+      })),
+    })
+  }
+
+  const displayedError = error ?? formError
+
+  return (
+    <form
+      className={styles.missionForm}
+      data-testid="question-form"
+      onSubmit={handleSubmit}
+    >
+      {/* Prompt */}
+      <div className={styles.missionFormNameCard}>
+        <span className={styles.missionDetailDescLabel}>Prompt</span>
+        <input
+          className={styles.missionFormNameInput}
+          data-testid="question-prompt-input"
+          disabled={isPending}
+          maxLength={2000}
+          placeholder="Enter question prompt"
+          required
+          value={prompt}
+          onChange={(e) => setPrompt(e.target.value)}
+        />
+      </div>
+
+      {/* Sequence order */}
+      <div className={styles.missionFormNameCard}>
+        <span className={styles.missionDetailDescLabel}>Sequence order</span>
+        <input
+          className={styles.missionFormNameInput}
+          data-testid="question-sequence-order-input"
+          disabled={isPending}
+          min={1}
+          required
+          type="number"
+          value={sequenceOrder}
+          onChange={(e) => setSequenceOrder(Number(e.target.value))}
+        />
+      </div>
+
+      {/* Score */}
+      <div className={styles.missionFormNameCard}>
+        <span className={styles.missionDetailDescLabel}>Score value</span>
+        <input
+          className={styles.missionFormNameInput}
+          data-testid="question-score-value-input"
+          disabled={isPending}
+          min={1}
+          required
+          type="number"
+          value={scoreValue}
+          onChange={(e) => setScoreValue(Number(e.target.value))}
+        />
+      </div>
+
+      {/* Timer */}
+      <div className={styles.missionFormNameCard}>
+        <span className={styles.missionDetailDescLabel}>Time limit (seconds)</span>
+        <input
+          className={styles.missionFormNameInput}
+          data-testid="question-timer-input"
+          disabled={isPending}
+          min={1}
+          required
+          type="number"
+          value={timeLimitSeconds}
+          onChange={(e) => setTimeLimitSeconds(Number(e.target.value))}
+        />
+      </div>
+
+      {/* Explanation */}
+      <div className={styles.missionFormDescCard}>
+        <span className={styles.missionDetailDescLabel}>Explanation (optional)</span>
+        <textarea
+          className={styles.missionFormDescTextarea}
+          data-testid="question-explanation-input"
+          disabled={isPending}
+          maxLength={4000}
+          placeholder="Explain why the correct answer is right"
+          rows={3}
+          value={explanation}
+          onChange={(e) => setExplanation(e.target.value)}
+        />
+      </div>
+
+      {/* Active toggle */}
+      <div className={styles.missionFormNameCard}>
+        <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <input
+            checked={isActive}
+            data-testid="question-active-checkbox"
+            disabled={isPending}
+            type="checkbox"
+            onChange={(e) => setIsActive(e.target.checked)}
+          />
+          <span className={styles.missionDetailDescLabel}>Active</span>
+        </label>
+      </div>
+
+      {/* Options */}
+      <div className={styles.missionFormDescCard}>
+        <span className={styles.missionDetailDescLabel}>Options (2–4)</span>
+        {options.map((opt, index) => (
+          <div
+            key={index}
+            className={styles.confirmRow}
+            data-testid={`question-option-${index}`}
+            style={{ marginBottom: '0.5rem' }}
+          >
+            <input
+              className={styles.missionFormNameInput}
+              data-testid={`question-option-text-${index}`}
+              disabled={isPending}
+              maxLength={1000}
+              placeholder={`Option ${index + 1}`}
+              required
+              value={opt.optionText}
+              onChange={(e) => updateOption(index, { optionText: e.target.value })}
+            />
+            <input
+              checked={opt.isCorrect}
+              data-testid={`question-option-correct-${index}`}
+              disabled={isPending}
+              name="correct-option"
+              style={{ marginLeft: '0.75rem' }}
+              title="Mark as correct"
+              type="radio"
+              onChange={() => markCorrect(index)}
+            />
+            <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginLeft: '0.35rem' }}>Correct</span>
+            {options.length > 2 && (
+              <button
+                className={styles.inlineButton}
+                data-testid={`question-remove-option-btn-${index}`}
+                disabled={isPending}
+                onClick={() => removeOption(index)}
+                style={{ marginLeft: '1rem' }}
+                type="button"
+              >
+                ✕
+              </button>
+            )}
+          </div>
+        ))}
+        {options.length < 4 && (
+          <div style={{ width: '100%', marginTop: '1rem', paddingLeft: '0.25rem' }}>
+            <button
+              className={styles.inlineButton}
+              data-testid="question-add-option-btn"
+              disabled={isPending}
+              onClick={addOption}
+              type="button"
+            >
+              + Add option
+            </button>
+          </div>
+        )}
+      </div>
+
+      {displayedError && (
+        <p className={styles.formError} role="alert">{displayedError}</p>
+      )}
+
+      {/* Actions */}
+      <div className={styles.missionDetailActions}>
+        <button
+          className={styles.primaryButton}
+          data-testid="question-submit-btn"
           disabled={isPending}
           type="submit"
         >

@@ -16,7 +16,6 @@ These areas were present in `docs/archive/roadmap_umbral.md`, but they are alrea
 
 | Roadmap area                                                          | Owner document                         |
 | --------------------------------------------------------------------- | -------------------------------------- |
-| Academic RF, RNF, RB baseline                                         | `docs/academic_requirements_umbral.md` |
 | Active requirement-to-owner traceability                              | `docs/requirements_traceability.md`    |
 | User-visible flows, acceptance criteria, technical enablers           | `docs/umbral_user_stories.md`          |
 | Canonical requirement-to-owner traceability, including explicit RNF proof | `docs/requirements_traceability.md` |
@@ -41,7 +40,6 @@ For those topics, this delta document only keeps what was still unique to the ro
 Traceability note:
 
 - this document is not the owner for the full RF/RNF/RB walkthrough
-- the academic requirement baseline lives in `docs/academic_requirements_umbral.md`
 - the active cross-document traceability map, including explicit RNF proof, lives in `docs/requirements_traceability.md`
 - the logical requirement-to-model coverage matrix lives in `docs/bd_umbral_entity_spec.md`
 - the roadmap-specific architectural closure that turns the remaining `Parcial` areas into an implementable delivery stance is kept here in Section 4.1

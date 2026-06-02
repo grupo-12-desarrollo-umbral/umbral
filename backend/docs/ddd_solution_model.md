@@ -6,7 +6,6 @@ It consolidates the material that was previously split across strategic mapping,
 
 Read it together with:
 
-- `docs/academic_requirements_umbral.md`
 - `docs/requirements_traceability.md`
 - `docs/condensed_roadmap_umbral.md`
 - `docs/umbral_user_stories.md`
@@ -41,9 +40,8 @@ This document does not replace:
 
 ## 1. Strategic inputs
 
-The model is constrained by six stable inputs:
+The model is constrained by five stable inputs:
 
-- the academic requirements baseline in `academic_requirements_umbral.md`
 - the committed scope and delivery decisions in `condensed_roadmap_umbral.md`
 - the backlog and acceptance criteria in `umbral_user_stories.md`
 - the context mapping in `CONTEXT-MAP.md`

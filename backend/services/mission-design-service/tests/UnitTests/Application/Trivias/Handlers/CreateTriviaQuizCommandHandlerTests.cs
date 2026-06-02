@@ -23,7 +23,10 @@ public sealed class CreateTriviaQuizCommandHandlerTests
                     [
                         new TriviaOptionInput("A", 1, true),
                         new TriviaOptionInput("B", 2, false)
-                    ])
+                    ],
+                    100,
+                    30,
+                    "Geography baseline")
             ]);
 
         var result = await handler.Handle(command, CancellationToken.None);
@@ -35,6 +38,9 @@ public sealed class CreateTriviaQuizCommandHandlerTests
         result.Status.Should().Be("Draft");
         result.Questions.Should().ContainSingle();
         result.Questions[0].Prompt.Should().Be("First question?");
+        result.Questions[0].ScoreValue.Should().Be(100);
+        result.Questions[0].TimeLimitSeconds.Should().Be(30);
+        result.Questions[0].Explanation.Should().Be("Geography baseline");
         result.Questions[0].Options.Should().ContainSingle(option => option.IsCorrect);
     }
 }

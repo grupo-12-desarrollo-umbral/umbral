@@ -1,6 +1,6 @@
 # UMBRAL Requirements Traceability
 
-This document is the active traceability map between the academic baseline in `docs/academic_requirements_umbral.md` and the current canonical document set.
+This document is the active traceability map between the academic requirement baseline and the current canonical document set.
 
 Use it to answer one question quickly:
 
@@ -8,7 +8,6 @@ Use it to answer one question quickly:
 
 This document does not replace:
 
-- `docs/academic_requirements_umbral.md` as the baseline source of truth
 - `docs/umbral_user_stories.md` as the backlog and acceptance-criteria owner
 - `docs/bd_umbral_entity_spec.md` as the logical-model owner
 - `docs/ddd_solution_model.md` as the DDD ownership map
@@ -57,17 +56,17 @@ Interpretation used here:
 
 | Requirement | Status | Owner docs | Traceability note |
 | --- | --- | --- | --- |
-| `RNF-01` | Yes | `docs/academic_requirements_umbral.md`, `docs/condensed_roadmap_umbral.md`, `docs/references/architecture.md` | The active stack keeps React-based clients and a .NET backend. |
-| `RNF-02` | Yes | `docs/academic_requirements_umbral.md`, `docs/adr/001_platform_shape_adr.md`, `docs/references/architecture.md` | PostgreSQL and EF Core are explicit active persistence choices with per-service ownership. |
+| `RNF-01` | Yes | `docs/condensed_roadmap_umbral.md`, `docs/references/architecture.md` | The active stack keeps React-based clients and a .NET backend. |
+| `RNF-02` | Yes | `docs/adr/001_platform_shape_adr.md`, `docs/references/architecture.md` | PostgreSQL and EF Core are explicit active persistence choices with per-service ownership. |
 | `RNF-03` | Yes | `docs/umbral_user_stories.md`, `docs/condensed_roadmap_umbral.md`, `docs/adr/001_platform_shape_adr.md`, `docs/references/architecture.md`, `docs/references/conventions.md` | WebSocket real-time delivery is satisfied through SignalR in the active architecture set. |
 | `RNF-04` | Yes | `docs/umbral_user_stories.md`, `docs/condensed_roadmap_umbral.md`, `docs/references/architecture.md`, `docs/references/conventions.md` | MediatR and CQRS are explicit backend application-layer rules. |
 | `RNF-05` | Yes | `docs/umbral_user_stories.md`, `docs/condensed_roadmap_umbral.md`, `docs/adr/001_platform_shape_adr.md`, `docs/references/architecture.md`, `docs/references/conventions.md`, `docs/references/testing.md` | RabbitMQ is explicitly reserved for secondary asynchronous processing, with a required publish/consume workflow. |
 | `RNF-06` | Yes | `docs/ddd_solution_model.md`, `docs/adr/001_platform_shape_adr.md`, `docs/references/architecture.md` | Clean/hexagonal-compatible structure is explicit at service and layer level. |
 | `RNF-07` | Yes | `docs/ddd_solution_model.md`, `docs/adr/001_platform_shape_adr.md`, `docs/references/architecture.md`, `docs/references/conventions.md` | Domain isolation from infrastructure and web-framework concerns is stated directly in the active architecture rules. |
 | `RNF-08` | Yes | `docs/references/architecture.md`, `docs/references/conventions.md`, `docs/bd_umbral_entity_spec.md` | Logging, validation, and cross-cutting application concerns are explicitly placed in pipeline behaviours and application rules. |
-| `RNF-09` | Yes | `docs/academic_requirements_umbral.md`, `docs/references/testing.md` | The active testing guidance keeps the backend coverage target as an academic quality objective and defines the priority test areas. |
+| `RNF-09` | Yes | `docs/references/testing.md` | The active testing guidance keeps the backend coverage target as an academic quality objective and defines the priority test areas. |
 | `RNF-10` | Yes | `docs/condensed_roadmap_umbral.md`, `docs/adr/001_platform_shape_adr.md` | Local execution through Docker Compose remains part of the active delivery stance for the core backend stack. |
-| `RNF-11` | Yes | `docs/academic_requirements_umbral.md`, `docs/references/testing.md`, `docs/condensed_roadmap_umbral.md` | CI build-and-test expectations remain part of the active engineering and delivery guidance. |
+| `RNF-11` | Yes | `docs/references/testing.md`, `docs/condensed_roadmap_umbral.md` | CI build-and-test expectations remain part of the active engineering and delivery guidance. |
 | `RNF-12` | Yes | `docs/umbral_user_stories.md`, `docs/bd_umbral_entity_spec.md` | Main user flows and the supporting read models for those flows are explicit in the active backlog and logical projections. |
 
 ## Business Rules
