@@ -1,2 +1,5 @@
 coverage-report/
 coverage/
+.dotnet-cli/
+.nuget/
+/appsettings.Development.json

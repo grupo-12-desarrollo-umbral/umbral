@@ -42,6 +42,36 @@ public sealed class ProblemDetailsExceptionHandler : IExceptionHandler
                 Detail = exception.Message,
                 Status = StatusCodes.Status409Conflict
             },
+            TriviaQuizCannotBePublishedInCurrentStateException => new ProblemDetails
+            {
+                Title = "Trivia quiz cannot be published in its current state.",
+                Detail = exception.Message,
+                Status = StatusCodes.Status409Conflict
+            },
+            TriviaQuizCannotBeArchivedInCurrentStateException => new ProblemDetails
+            {
+                Title = "Trivia quiz cannot be archived in its current state.",
+                Detail = exception.Message,
+                Status = StatusCodes.Status409Conflict
+            },
+            TriviaQuizMustHaveAtLeastOneQuestionToPublishException => new ProblemDetails
+            {
+                Title = "Trivia quiz is not ready for publication.",
+                Detail = exception.Message,
+                Status = StatusCodes.Status409Conflict
+            },
+            TriviaQuestionScoreValueRequiredToPublishException => new ProblemDetails
+            {
+                Title = "Trivia quiz is not ready for publication.",
+                Detail = exception.Message,
+                Status = StatusCodes.Status409Conflict
+            },
+            TriviaQuestionTimeLimitRequiredToPublishException => new ProblemDetails
+            {
+                Title = "Trivia quiz is not ready for publication.",
+                Detail = exception.Message,
+                Status = StatusCodes.Status409Conflict
+            },
             TriviaQuestionSequenceOrderMustBeUniqueException => new ProblemDetails
             {
                 Title = "Question sequence order conflict.",

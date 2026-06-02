@@ -1,6 +1,7 @@
 using umbral_backend.Domain.Enums;
 using umbral_backend.Domain.Events;
 using umbral_backend.Domain.Exceptions;
+using umbral_backend.Domain.Services;
 
 namespace umbral_backend.Domain.Entities;
 
@@ -12,6 +13,8 @@ public sealed class TriviaQuiz : BaseAuditableEntity
     private static readonly TriviaQuizAuthoringTemplate UpdateTemplate = new UpdateTriviaQuizAuthoringTemplate();
     private static readonly TriviaQuestionAuthoringTemplate AddQuestionTemplate = new AddTriviaQuestionAuthoringTemplate();
     private static readonly TriviaQuestionAuthoringTemplate UpdateQuestionTemplate = new UpdateTriviaQuestionAuthoringTemplate();
+    private static readonly TriviaQuizLifecycleTemplate PublishTemplate = new PublishTriviaQuizLifecycleTemplate();
+    private static readonly TriviaQuizLifecycleTemplate ArchiveTemplate = new ArchiveTriviaQuizLifecycleTemplate();
 
     private TriviaQuiz()
     {
@@ -23,11 +26,13 @@ public sealed class TriviaQuiz : BaseAuditableEntity
         string title,
         string description,
         TriviaQuizStatus status,
+        DateTimeOffset? publishedAt,
         IEnumerable<TriviaQuestion> questions)
     {
         Title = title;
         Description = description;
         Status = status;
+        PublishedAt = publishedAt;
         _questions.AddRange(questions);
     }
 
@@ -36,6 +41,10 @@ public sealed class TriviaQuiz : BaseAuditableEntity
     public string Description { get; private set; }
 
     public TriviaQuizStatus Status { get; private set; }
+
+    public DateTimeOffset? PublishedAt { get; private set; }
+
+    public bool IsSourceReady => Status == TriviaQuizStatus.Published;
 
     public IReadOnlyCollection<TriviaQuestion> Questions => _questions.AsReadOnly();
 
@@ -50,6 +59,7 @@ public sealed class TriviaQuiz : BaseAuditableEntity
             validated.Title,
             validated.Description,
             TriviaQuizStatus.Draft,
+            publishedAt: null,
             validated.Questions);
 
         quiz.AddDomainEvent(new TriviaQuizCreatedEvent(quiz));
@@ -71,14 +81,24 @@ public sealed class TriviaQuiz : BaseAuditableEntity
         AddDomainEvent(new TriviaQuizDetailsUpdatedEvent(this));
     }
 
+    public void Publish(DateTimeOffset publishedAt)
+    {
+        PublishTemplate.Apply(this, publishedAt);
+    }
+
+    public void Archive(DateTimeOffset archivedAt)
+    {
+        ArchiveTemplate.Apply(this, archivedAt);
+    }
+
     public void MarkAsPublished()
     {
-        Status = TriviaQuizStatus.Published;
+        Publish(DateTimeOffset.UtcNow);
     }
 
     public void MarkAsArchived()
     {
-        Status = TriviaQuizStatus.Archived;
+        Archive(DateTimeOffset.UtcNow);
     }
 
     public TriviaQuestion AddQuestion(
@@ -139,6 +159,27 @@ public sealed class TriviaQuiz : BaseAuditableEntity
     {
         _questions.Clear();
         _questions.AddRange(questions);
+    }
+
+    private abstract class TriviaQuizLifecycleTemplate
+    {
+        public void Apply(TriviaQuiz quiz, DateTimeOffset transitionedAt)
+        {
+            EnsureCurrentStateAllowsTransition(quiz.Status);
+            EnsureReadiness(quiz);
+            ApplyTransition(quiz, transitionedAt);
+            RaiseDomainEvent(quiz);
+        }
+
+        protected abstract void EnsureCurrentStateAllowsTransition(TriviaQuizStatus status);
+
+        protected virtual void EnsureReadiness(TriviaQuiz quiz)
+        {
+        }
+
+        protected abstract void ApplyTransition(TriviaQuiz quiz, DateTimeOffset transitionedAt);
+
+        protected abstract void RaiseDomainEvent(TriviaQuiz quiz);
     }
 
     private sealed record ValidatedTriviaQuizAuthoring(string Title, string Description, IReadOnlyCollection<TriviaQuestion> Questions);
@@ -336,6 +377,54 @@ public sealed class TriviaQuiz : BaseAuditableEntity
                 draft.IsActive);
 
             return targetQuestion;
+        }
+    }
+
+    private sealed class PublishTriviaQuizLifecycleTemplate : TriviaQuizLifecycleTemplate
+    {
+        protected override void EnsureCurrentStateAllowsTransition(TriviaQuizStatus status)
+        {
+            if (status != TriviaQuizStatus.Draft)
+            {
+                throw new TriviaQuizCannotBePublishedInCurrentStateException(status);
+            }
+        }
+
+        protected override void EnsureReadiness(TriviaQuiz quiz)
+        {
+            TriviaPublicationPolicy.EnsurePublishable(quiz);
+        }
+
+        protected override void ApplyTransition(TriviaQuiz quiz, DateTimeOffset transitionedAt)
+        {
+            quiz.Status = TriviaQuizStatus.Published;
+            quiz.PublishedAt = transitionedAt;
+        }
+
+        protected override void RaiseDomainEvent(TriviaQuiz quiz)
+        {
+            quiz.AddDomainEvent(new TriviaQuizPublishedEvent(quiz));
+        }
+    }
+
+    private sealed class ArchiveTriviaQuizLifecycleTemplate : TriviaQuizLifecycleTemplate
+    {
+        protected override void EnsureCurrentStateAllowsTransition(TriviaQuizStatus status)
+        {
+            if (status == TriviaQuizStatus.Archived)
+            {
+                throw new TriviaQuizCannotBeArchivedInCurrentStateException(status);
+            }
+        }
+
+        protected override void ApplyTransition(TriviaQuiz quiz, DateTimeOffset transitionedAt)
+        {
+            quiz.Status = TriviaQuizStatus.Archived;
+        }
+
+        protected override void RaiseDomainEvent(TriviaQuiz quiz)
+        {
+            quiz.AddDomainEvent(new TriviaQuizArchivedEvent(quiz));
         }
     }
 }

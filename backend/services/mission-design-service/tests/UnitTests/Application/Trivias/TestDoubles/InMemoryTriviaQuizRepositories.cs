@@ -75,3 +75,13 @@ internal sealed class InMemoryTriviaQuizReadModelRepository : ITriviaQuizReadMod
         return Task.FromResult(triviaQuiz);
     }
 }
+
+internal sealed class StubClock : IClock
+{
+    public StubClock(DateTimeOffset utcNow)
+    {
+        UtcNow = utcNow;
+    }
+
+    public DateTimeOffset UtcNow { get; }
+}

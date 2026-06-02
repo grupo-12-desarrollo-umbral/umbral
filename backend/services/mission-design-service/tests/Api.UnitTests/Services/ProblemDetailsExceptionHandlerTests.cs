@@ -91,6 +91,32 @@ public class ProblemDetailsExceptionHandlerTests
     }
 
     [Fact]
+    public async Task TryHandleAsync_TriviaQuizCannotBePublishedInCurrentStateException_Returns409()
+    {
+        var httpContext = CreateHttpContext();
+        var problem = await InvokeHandlerAndReadProblemDetails(
+            httpContext,
+            new TriviaQuizCannotBePublishedInCurrentStateException(TriviaQuizStatus.Published));
+
+        problem.Status.Should().Be(409);
+        problem.Title.Should().Be("Trivia quiz cannot be published in its current state.");
+        httpContext.Response.StatusCode.Should().Be(409);
+    }
+
+    [Fact]
+    public async Task TryHandleAsync_TriviaQuizMustHaveAtLeastOneQuestionToPublishException_Returns409()
+    {
+        var httpContext = CreateHttpContext();
+        var problem = await InvokeHandlerAndReadProblemDetails(
+            httpContext,
+            new TriviaQuizMustHaveAtLeastOneQuestionToPublishException());
+
+        problem.Status.Should().Be(409);
+        problem.Title.Should().Be("Trivia quiz is not ready for publication.");
+        httpContext.Response.StatusCode.Should().Be(409);
+    }
+
+    [Fact]
     public async Task TryHandleAsync_UnknownException_Returns500()
     {
         var httpContext = CreateHttpContext();

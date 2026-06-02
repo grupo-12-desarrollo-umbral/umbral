@@ -21,7 +21,7 @@ public abstract class TriviaQuizAuthoringCommandHandler<TCommand> : IRequestHand
 
         await PersistAsync(triviaQuiz, cancellationToken);
 
-        return MapDto(triviaQuiz);
+        return TriviaQuizDtoMapper.Map(triviaQuiz);
     }
 
     protected Task<TriviaQuiz?> GetByIdAsync(int triviaQuizId, CancellationToken cancellationToken)
@@ -62,33 +62,5 @@ public abstract class TriviaQuizAuthoringCommandHandler<TCommand> : IRequestHand
                         .ToArray(),
                     question.IsActive))
             .ToArray();
-    }
-
-    private static TriviaQuizDto MapDto(TriviaQuiz triviaQuiz)
-    {
-        return new TriviaQuizDto(
-            triviaQuiz.Id,
-            triviaQuiz.Title,
-            triviaQuiz.Description,
-            triviaQuiz.Status.ToString(),
-            triviaQuiz.Questions
-                .OrderBy(question => question.SequenceOrder)
-                .Select(question => new TriviaQuestionDto(
-                    question.Id,
-                    question.Prompt,
-                    question.SequenceOrder,
-                    question.IsActive,
-                    question.Options
-                        .OrderBy(option => option.SequenceOrder)
-                        .Select(option => new TriviaOptionDto(
-                            option.Id,
-                            option.OptionText,
-                            option.SequenceOrder,
-                            option.IsCorrect))
-                        .ToArray(),
-                    question.ScoreValue,
-                    question.TimeLimit?.Seconds,
-                    question.Explanation))
-                .ToArray());
     }
 }

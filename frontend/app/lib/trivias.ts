@@ -123,3 +123,37 @@ export async function updateTriviaQuestion(
   if (!response.ok) throw new IdentityError('unknown', `updateTriviaQuestion failed with status ${response.status}`)
   return response.json()
 }
+
+export async function publishTriviaQuiz(id: number): Promise<TriviaQuizDto> {
+  const session = await verifySession()
+  const response = await fetch(
+    `${MISSION_DESIGN_SERVICE_URL}/api/trivias/${id}/publish`,
+    {
+      method: 'POST',
+      headers: getIdentityHeaders(session),
+    },
+  )
+  if (response.status === 401) throw new IdentityError('unauthorized', 'Authentication failed.')
+  if (response.status === 403) throw new IdentityError('unauthorized', 'Forbidden. Administrator role required.')
+  if (response.status === 404) throw new Error('trivia_not_found')
+  if (response.status === 409) throw new Error('trivia_publish_conflict')
+  if (!response.ok) throw new IdentityError('unknown', `publishTriviaQuiz failed with status ${response.status}`)
+  return response.json()
+}
+
+export async function archiveTriviaQuiz(id: number): Promise<TriviaQuizDto> {
+  const session = await verifySession()
+  const response = await fetch(
+    `${MISSION_DESIGN_SERVICE_URL}/api/trivias/${id}/archive`,
+    {
+      method: 'POST',
+      headers: getIdentityHeaders(session),
+    },
+  )
+  if (response.status === 401) throw new IdentityError('unauthorized', 'Authentication failed.')
+  if (response.status === 403) throw new IdentityError('unauthorized', 'Forbidden. Administrator role required.')
+  if (response.status === 404) throw new Error('trivia_not_found')
+  if (response.status === 409) throw new Error('trivia_archive_conflict')
+  if (!response.ok) throw new IdentityError('unknown', `archiveTriviaQuiz failed with status ${response.status}`)
+  return response.json()
+}

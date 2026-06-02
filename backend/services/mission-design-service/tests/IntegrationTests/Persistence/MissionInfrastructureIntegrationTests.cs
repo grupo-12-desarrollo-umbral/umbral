@@ -9,13 +9,17 @@ using umbral_backend.Application.Missions.Queries.GetMissionCatalog;
 using umbral_backend.Application.Missions.Queries.GetMissionDetail;
 using umbral_backend.Application.Trivias.Common.Authoring;
 using umbral_backend.Application.Trivias.Commands.AddTriviaQuestion;
+using umbral_backend.Application.Trivias.Commands.ArchiveTriviaQuiz;
 using umbral_backend.Application.Trivias.Commands.CreateTriviaQuiz;
+using umbral_backend.Application.Trivias.Commands.PublishTriviaQuiz;
 using umbral_backend.Application.Trivias.Commands.UpdateTriviaQuestion;
 using umbral_backend.Application.Trivias.Commands.UpdateTriviaQuiz;
 using umbral_backend.Application.Trivias.Handlers;
 using umbral_backend.Application.Trivias.Queries.GetTriviaCatalog;
 using umbral_backend.Application.Trivias.Queries.GetTriviaDetail;
+using umbral_backend.Domain.Enums;
 using umbral_backend.Domain.Events;
+using umbral_backend.Domain.Exceptions;
 using umbral_backend.Infrastructure.Persistence;
 using umbral_backend.Infrastructure.Persistence.Interceptors;
 using umbral_backend.Infrastructure.Persistence.Repositories;
@@ -219,8 +223,8 @@ public sealed class MissionInfrastructureIntegrationTests : IClassFixture<Postgr
         triviaQuiz.Title.Should().Be("General Knowledge");
         triviaQuiz.Description.Should().Be("Initial trivia authoring");
         triviaQuiz.Status.Should().Be(Domain.Enums.TriviaQuizStatus.Draft);
-        triviaQuiz.CreatedBy.Should().BeNull();
-        triviaQuiz.LastModifiedBy.Should().BeNull();
+        triviaQuiz.CreatedBy.Should().Be("admin-11");
+        triviaQuiz.LastModifiedBy.Should().Be("admin-11");
         triviaQuiz.Created.Should().NotBe(default);
         triviaQuiz.LastModified.Should().NotBe(default);
         triviaQuiz.Questions.Select(question => question.Prompt)
@@ -527,6 +531,222 @@ public sealed class MissionInfrastructureIntegrationTests : IClassFixture<Postgr
         detail.Questions[1].Options.Select(option => option.OptionText).Should().Equal("Person A", "Person B", "Person C", "Person D");
         detail.Questions[1].Options.Should().HaveCount(4);
         detail.Questions[1].Options.Count(option => option.IsCorrect).Should().Be(1);
+    }
+
+    [Fact]
+    public async Task PublishTriviaQuiz_PersistsPublishedStateAndPublishesLifecycleEvent()
+    {
+        await using var setupContext = BuildContext();
+        await ResetDatabaseAsync(setupContext);
+        var setupRepository = new TriviaQuizRepository(setupContext);
+
+        var triviaQuiz = Domain.Entities.TriviaQuiz.Create(
+            "Science Finals",
+            "Ready to publish",
+            [
+                Domain.Entities.TriviaQuestion.Create(
+                    "What is H2O?",
+                    1,
+                    100,
+                    30,
+                    "Water.",
+                    [
+                        Domain.Entities.TriviaOption.Create("Water", 1, true),
+                        Domain.Entities.TriviaOption.Create("Oxygen", 2, false)
+                    ])
+            ]);
+
+        await setupRepository.AddAsync(triviaQuiz, CancellationToken.None);
+
+        var publishedAt = new DateTimeOffset(2026, 6, 2, 12, 0, 0, TimeSpan.Zero);
+        var mediator = new CapturingMediator();
+        await using var actContext = BuildContext(mediator, new StubCurrentUser("admin-15"), new StubClock(publishedAt));
+        var handler = new PublishTriviaQuizCommandHandler(new TriviaQuizRepository(actContext), new StubClock(publishedAt));
+
+        var result = await handler.Handle(new PublishTriviaQuizCommand(triviaQuiz.Id), CancellationToken.None);
+
+        result.Status.Should().Be("Published");
+
+        mediator.PublishedNotifications
+            .Should().ContainSingle(notification => notification is TriviaQuizPublishedEvent);
+
+        await using var assertContext = BuildContext();
+        var reloadedQuiz = await assertContext.TriviaQuizzes.SingleAsync(storedQuiz => storedQuiz.Id == triviaQuiz.Id);
+
+        reloadedQuiz.Status.Should().Be(TriviaQuizStatus.Published);
+        reloadedQuiz.PublishedAt.Should().Be(publishedAt);
+        reloadedQuiz.LastModifiedBy.Should().Be("admin-15");
+    }
+
+    [Fact]
+    public async Task PublishTriviaQuiz_WhenQuizIsNotReady_DoesNotPersistStateChange()
+    {
+        await using var setupContext = BuildContext();
+        await ResetDatabaseAsync(setupContext);
+        var setupRepository = new TriviaQuizRepository(setupContext);
+
+        var triviaQuiz = Domain.Entities.TriviaQuiz.Create(
+            "Incomplete Quiz",
+            "Missing publish metadata",
+            [
+                Domain.Entities.TriviaQuestion.Create(
+                    "Incomplete question",
+                    1,
+                    [
+                        Domain.Entities.TriviaOption.Create("Correct", 1, true),
+                        Domain.Entities.TriviaOption.Create("Incorrect", 2, false)
+                    ])
+            ]);
+
+        await setupRepository.AddAsync(triviaQuiz, CancellationToken.None);
+
+        var publishedAt = new DateTimeOffset(2026, 6, 2, 12, 30, 0, TimeSpan.Zero);
+        await using var actContext = BuildContext(new CapturingMediator(), new StubCurrentUser("admin-16"), new StubClock(publishedAt));
+        var handler = new PublishTriviaQuizCommandHandler(new TriviaQuizRepository(actContext), new StubClock(publishedAt));
+
+        var act = () => handler.Handle(new PublishTriviaQuizCommand(triviaQuiz.Id), CancellationToken.None);
+
+        await act.Should().ThrowAsync<TriviaQuestionScoreValueRequiredToPublishException>();
+
+        await using var assertContext = BuildContext();
+        var reloadedQuiz = await assertContext.TriviaQuizzes.SingleAsync(storedQuiz => storedQuiz.Id == triviaQuiz.Id);
+
+        reloadedQuiz.Status.Should().Be(TriviaQuizStatus.Draft);
+        reloadedQuiz.PublishedAt.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task ArchiveTriviaQuiz_PersistsArchivedStateAndRetainsPublicationHistory()
+    {
+        await using var setupContext = BuildContext();
+        await ResetDatabaseAsync(setupContext);
+        var setupRepository = new TriviaQuizRepository(setupContext);
+
+        var publishedAt = new DateTimeOffset(2026, 6, 2, 13, 0, 0, TimeSpan.Zero);
+        var triviaQuiz = Domain.Entities.TriviaQuiz.Create(
+            "History Finals",
+            "Previously published",
+            [
+                Domain.Entities.TriviaQuestion.Create(
+                    "Who discovered America?",
+                    1,
+                    100,
+                    30,
+                    "Expected baseline answer.",
+                    [
+                        Domain.Entities.TriviaOption.Create("Christopher Columbus", 1, true),
+                        Domain.Entities.TriviaOption.Create("Simón Bolívar", 2, false)
+                    ])
+            ]);
+
+        triviaQuiz.Publish(publishedAt);
+        await setupRepository.AddAsync(triviaQuiz, CancellationToken.None);
+
+        var archivedAt = new DateTimeOffset(2026, 6, 2, 14, 0, 0, TimeSpan.Zero);
+        var mediator = new CapturingMediator();
+        await using var actContext = BuildContext(mediator, new StubCurrentUser("admin-17"), new StubClock(archivedAt));
+        var handler = new ArchiveTriviaQuizCommandHandler(new TriviaQuizRepository(actContext), new StubClock(archivedAt));
+
+        var result = await handler.Handle(new ArchiveTriviaQuizCommand(triviaQuiz.Id), CancellationToken.None);
+
+        result.Status.Should().Be("Archived");
+
+        mediator.PublishedNotifications
+            .Should().ContainSingle(notification => notification is TriviaQuizArchivedEvent);
+
+        await using var assertContext = BuildContext();
+        var reloadedQuiz = await assertContext.TriviaQuizzes.SingleAsync(storedQuiz => storedQuiz.Id == triviaQuiz.Id);
+
+        reloadedQuiz.Status.Should().Be(TriviaQuizStatus.Archived);
+        reloadedQuiz.PublishedAt.Should().Be(publishedAt);
+        reloadedQuiz.LastModifiedBy.Should().Be("admin-17");
+    }
+
+    [Fact]
+    public async Task GetTriviaCatalogAndDetail_ReflectLifecycleStateAndPublishedOnlySourceReadiness()
+    {
+        await using var setupContext = BuildContext();
+        await ResetDatabaseAsync(setupContext);
+        var repository = new TriviaQuizRepository(setupContext);
+
+        var draftQuiz = Domain.Entities.TriviaQuiz.Create(
+            "Draft Trivia",
+            "Still in draft",
+            [
+                Domain.Entities.TriviaQuestion.Create(
+                    "Draft question",
+                    1,
+                    100,
+                    20,
+                    "Draft explanation",
+                    [
+                        Domain.Entities.TriviaOption.Create("Draft correct", 1, true),
+                        Domain.Entities.TriviaOption.Create("Draft incorrect", 2, false)
+                    ])
+            ]);
+
+        var publishedQuiz = Domain.Entities.TriviaQuiz.Create(
+            "Published Trivia",
+            "Available for sessions",
+            [
+                Domain.Entities.TriviaQuestion.Create(
+                    "Published question",
+                    1,
+                    100,
+                    20,
+                    "Published explanation",
+                    [
+                        Domain.Entities.TriviaOption.Create("Published correct", 1, true),
+                        Domain.Entities.TriviaOption.Create("Published incorrect", 2, false)
+                    ])
+            ]);
+        publishedQuiz.Publish(new DateTimeOffset(2026, 6, 2, 15, 0, 0, TimeSpan.Zero));
+
+        var archivedQuiz = Domain.Entities.TriviaQuiz.Create(
+            "Archived Trivia",
+            "Withdrawn from future sessions",
+            [
+                Domain.Entities.TriviaQuestion.Create(
+                    "Archived question",
+                    1,
+                    100,
+                    20,
+                    "Archived explanation",
+                    [
+                        Domain.Entities.TriviaOption.Create("Archived correct", 1, true),
+                        Domain.Entities.TriviaOption.Create("Archived incorrect", 2, false)
+                    ])
+            ]);
+        archivedQuiz.Publish(new DateTimeOffset(2026, 6, 2, 16, 0, 0, TimeSpan.Zero));
+        archivedQuiz.Archive(new DateTimeOffset(2026, 6, 2, 17, 0, 0, TimeSpan.Zero));
+
+        await repository.AddAsync(draftQuiz, CancellationToken.None);
+        await repository.AddAsync(publishedQuiz, CancellationToken.None);
+        await repository.AddAsync(archivedQuiz, CancellationToken.None);
+
+        await using var queryContext = BuildContext();
+        var readRepository = new TriviaQuizReadModelRepository(queryContext);
+        var catalogHandler = new GetTriviaCatalogQueryHandler(readRepository);
+        var detailHandler = new GetTriviaDetailQueryHandler(readRepository);
+
+        var catalog = await catalogHandler.Handle(new GetTriviaCatalogQuery(), CancellationToken.None);
+        var publishedDetail = await detailHandler.Handle(new GetTriviaDetailQuery(publishedQuiz.Id), CancellationToken.None);
+        var archivedDetail = await detailHandler.Handle(new GetTriviaDetailQuery(archivedQuiz.Id), CancellationToken.None);
+
+        catalog.Should().Contain(item => item.Id == draftQuiz.Id && item.Status == "Draft");
+        catalog.Should().Contain(item => item.Id == publishedQuiz.Id && item.Status == "Published");
+        catalog.Should().Contain(item => item.Id == archivedQuiz.Id && item.Status == "Archived");
+
+        publishedDetail.Status.Should().Be("Published");
+        archivedDetail.Status.Should().Be("Archived");
+
+        var sourceReadyQuizIds = await queryContext.TriviaQuizzes
+            .AsNoTracking()
+            .Where(triviaQuiz => triviaQuiz.Status == TriviaQuizStatus.Published)
+            .Select(triviaQuiz => triviaQuiz.Id)
+            .ToListAsync();
+
+        sourceReadyQuizIds.Should().ContainSingle().Which.Should().Be(publishedQuiz.Id);
     }
 
     private static async Task ResetDatabaseAsync(ApplicationDbContext context)

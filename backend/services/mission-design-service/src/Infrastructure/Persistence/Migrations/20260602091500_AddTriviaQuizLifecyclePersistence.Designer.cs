@@ -2,7 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
-using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using umbral_backend.Infrastructure.Persistence;
 
@@ -11,9 +11,11 @@ using umbral_backend.Infrastructure.Persistence;
 namespace umbral_backend.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260602091500_AddTriviaQuizLifecyclePersistence")]
+    partial class AddTriviaQuizLifecyclePersistence
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -81,9 +83,6 @@ namespace umbral_backend.Infrastructure.Persistence.Migrations
                     b.Property<DateTimeOffset>("Created")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<string>("CreatedBy")
-                        .HasColumnType("text");
-
                     b.Property<string>("Description")
                         .IsRequired()
                         .HasMaxLength(2000)
@@ -91,9 +90,6 @@ namespace umbral_backend.Infrastructure.Persistence.Migrations
 
                     b.Property<DateTimeOffset>("LastModified")
                         .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("LastModifiedBy")
-                        .HasColumnType("text");
 
                     b.Property<DateTimeOffset?>("PublishedAt")
                         .HasColumnType("timestamp with time zone");
@@ -187,6 +183,9 @@ namespace umbral_backend.Infrastructure.Persistence.Migrations
                             b1.Property<int>("SequenceOrder")
                                 .HasColumnType("integer");
 
+                            b1.Property<int?>("TimeLimitSeconds")
+                                .HasColumnType("integer");
+
                             b1.Property<int>("TriviaQuizId")
                                 .HasColumnType("integer");
 
@@ -233,7 +232,7 @@ namespace umbral_backend.Infrastructure.Persistence.Migrations
                                         .HasForeignKey("TriviaQuestionId");
                                 });
 
-                            b1.OwnsOne("umbral_backend.Domain.ValueObjects.QuestionTimer", "TimeLimit", b2 =>
+                            b1.OwnsOne("umbral_backend.Domain.ValueObjects.QuestionTimeLimit", "TimeLimit", b2 =>
                                 {
                                     b2.Property<int>("TriviaQuestionId")
                                         .HasColumnType("integer");
@@ -251,7 +250,6 @@ namespace umbral_backend.Infrastructure.Persistence.Migrations
                                 });
 
                             b1.Navigation("Options");
-
                             b1.Navigation("TimeLimit");
                         });
 

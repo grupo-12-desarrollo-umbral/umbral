@@ -1,4 +1,4 @@
-import { test, expect } from '../fixtures/auth'
+import { test, expect, Page } from '../fixtures/auth'
 
 // --- Nav visibility ---
 
@@ -356,8 +356,287 @@ test('HU-11 trivia edit flow still works after question authoring wiring', async
   await page.click('[data-testid="trivia-submit-btn"]')
 
   await page.click('[data-testid="edit-trivia-btn"]')
-  await page.fill('[data-testid="trivia-title-input"]', 'Regression Edit Quiz — Updated')
+  await page.fill('[data-testid="trivia-title-input"]', 'Regression HU-11 Edit — Updated')
   await page.click('[data-testid="trivia-submit-btn"]')
 
-  await expect(page.locator('[data-testid="trivia-detail-title"]')).toContainText('Regression Edit Quiz — Updated')
+  await expect(page.locator('[data-testid="trivia-detail-title"]')).toContainText('Regression HU-11 Edit — Updated')
+})
+
+// ---- Helpers ----
+
+async function createReadyDraftQuiz(page: Page, title: string): Promise<void> {
+  await page.click('[data-testid="nav-trivias"]')
+  await page.click('[data-testid="create-trivia-btn"]')
+  await page.fill('[data-testid="trivia-title-input"]', title)
+  await page.fill('[data-testid="trivia-description-input"]', 'Lifecycle test quiz.')
+  await page.click('[data-testid="trivia-submit-btn"]')
+
+  // Add one question to satisfy the readiness check
+  await page.click('[data-testid="add-question-btn"]')
+  await page.fill('[data-testid="question-prompt-input"]', 'What is 2+2?')
+  await page.fill('[data-testid="question-sequence-order-input"]', '1')
+  await page.fill('[data-testid="question-score-value-input"]', '100')
+  await page.fill('[data-testid="question-timer-input"]', '30')
+  await page.fill('[data-testid="question-option-text-0"]', '4')
+  await page.fill('[data-testid="question-option-text-1"]', '5')
+  await page.click('[data-testid="question-option-correct-0"]')
+  await page.click('[data-testid="question-submit-btn"]')
+  // now on detail view with one question
+}
+
+// ---- isSourceReady display ----
+
+test('draft quiz shows source ready as No in list view', async ({ adminPage: page }) => {
+  await page.goto('/dashboard')
+  await page.click('[data-testid="nav-trivias"]')
+  await page.click('[data-testid="create-trivia-btn"]')
+  await page.fill('[data-testid="trivia-title-input"]', 'Source Ready Test')
+  await page.fill('[data-testid="trivia-description-input"]', 'Should be not ready.')
+  await page.click('[data-testid="trivia-submit-btn"]')
+
+  // Back to list
+  await page.getByRole('button', { name: '← Back to trivia quizzes' }).click()
+
+  const row = page.locator('[data-testid^="trivia-row-"]').filter({ hasText: 'Source Ready Test' })
+  const chip = row.locator('[data-testid^="trivia-source-ready-"]')
+  await expect(chip).toContainText('No')
+})
+
+test('draft quiz detail shows source ready badge as No', async ({ adminPage: page }) => {
+  await page.goto('/dashboard')
+  await page.click('[data-testid="nav-trivias"]')
+  await page.click('[data-testid="create-trivia-btn"]')
+  await page.fill('[data-testid="trivia-title-input"]', 'Badge Check Draft')
+  await page.fill('[data-testid="trivia-description-input"]', 'Draft badge.')
+  await page.click('[data-testid="trivia-submit-btn"]')
+
+  await expect(page.locator('[data-testid="trivia-source-ready"]')).toContainText('No')
+})
+
+// ---- Publish button readiness gate ----
+
+test('publish button is disabled for empty draft quiz', async ({ adminPage: page }) => {
+  await page.goto('/dashboard')
+  await page.click('[data-testid="nav-trivias"]')
+  await page.click('[data-testid="create-trivia-btn"]')
+  await page.fill('[data-testid="trivia-title-input"]', 'Empty Draft')
+  await page.fill('[data-testid="trivia-description-input"]', 'No questions.')
+  await page.click('[data-testid="trivia-submit-btn"]')
+
+  await expect(page.locator('[data-testid="publish-trivia-btn"]')).toBeDisabled()
+  await expect(page.locator('[data-testid="trivia-readiness-indicator"]')).toBeVisible()
+})
+
+test('publish button is enabled when all readiness conditions are met', async ({ adminPage: page }) => {
+  await page.goto('/dashboard')
+  await createReadyDraftQuiz(page, 'Ready To Publish Quiz')
+
+  await expect(page.locator('[data-testid="publish-trivia-btn"]')).not.toBeDisabled()
+  await expect(page.locator('[data-testid="trivia-readiness-indicator"]')).toHaveCount(0)
+})
+
+// ---- Publish flow ----
+
+test('admin can publish a ready draft quiz', async ({ adminPage: page }) => {
+  await page.goto('/dashboard')
+  await createReadyDraftQuiz(page, 'Publishable Quiz')
+
+  await page.click('[data-testid="publish-trivia-btn"]')
+  await expect(page.locator('[data-testid="confirm-publish-btn"]')).toBeVisible()
+  await page.click('[data-testid="confirm-publish-btn"]')
+
+  await expect(page.locator('[data-testid="trivia-detail-status"]')).toContainText('Published')
+  await expect(page.locator('[data-testid="trivia-source-ready"]')).toContainText('Yes')
+  await expect(page.locator('[data-testid="publish-trivia-btn"]')).toHaveCount(0)
+  await expect(page.locator('[data-testid="archive-trivia-btn"]')).toBeVisible()
+})
+
+test('published quiz shows source ready as Yes in list view', async ({ adminPage: page }) => {
+  await page.goto('/dashboard')
+  await createReadyDraftQuiz(page, 'Published List Check')
+
+  await page.click('[data-testid="publish-trivia-btn"]')
+  await page.click('[data-testid="confirm-publish-btn"]')
+
+  await page.getByRole('button', { name: '← Back to trivia quizzes' }).click()
+
+  const row = page.locator('[data-testid^="trivia-row-"]').filter({ hasText: 'Published List Check' })
+  await expect(row.locator('[data-testid^="trivia-source-ready-"]')).toContainText('Yes')
+})
+
+test('admin can cancel publish confirmation without network call', async ({ adminPage: page }) => {
+  await page.goto('/dashboard')
+  await createReadyDraftQuiz(page, 'Cancel Publish Quiz')
+
+  await page.click('[data-testid="publish-trivia-btn"]')
+  await expect(page.locator('[data-testid="confirm-publish-btn"]')).toBeVisible()
+  await page.getByRole('button', { name: 'Cancel' }).first().click()
+
+  // Should be back to showing the trigger buttons — status unchanged
+  await expect(page.locator('[data-testid="publish-trivia-btn"]')).toBeVisible()
+  await expect(page.locator('[data-testid="trivia-detail-status"]')).toContainText('Draft')
+})
+
+// ---- Archive flow ----
+
+test('admin can archive a published quiz', async ({ adminPage: page }) => {
+  await page.goto('/dashboard')
+  await createReadyDraftQuiz(page, 'Archive From Published')
+
+  // Publish first
+  await page.click('[data-testid="publish-trivia-btn"]')
+  await page.click('[data-testid="confirm-publish-btn"]')
+  await expect(page.locator('[data-testid="trivia-detail-status"]')).toContainText('Published')
+
+  // Archive
+  await page.click('[data-testid="archive-trivia-btn"]')
+  await expect(page.locator('[data-testid="confirm-archive-btn"]')).toBeVisible()
+  await page.click('[data-testid="confirm-archive-btn"]')
+
+  await expect(page.locator('[data-testid="trivia-detail-status"]')).toContainText('Archived')
+  await expect(page.locator('[data-testid="trivia-source-ready"]')).toContainText('No')
+  await expect(page.locator('[data-testid="archive-trivia-btn"]')).toHaveCount(0)
+  await expect(page.locator('[data-testid="publish-trivia-btn"]')).toHaveCount(0)
+})
+
+test('admin can archive a draft quiz directly', async ({ adminPage: page }) => {
+  await page.goto('/dashboard')
+  await page.click('[data-testid="nav-trivias"]')
+  await page.click('[data-testid="create-trivia-btn"]')
+  await page.fill('[data-testid="trivia-title-input"]', 'Archive From Draft')
+  await page.fill('[data-testid="trivia-description-input"]', 'Archiving draft directly.')
+  await page.click('[data-testid="trivia-submit-btn"]')
+
+  await expect(page.locator('[data-testid="archive-trivia-btn"]')).toBeVisible()
+  await page.click('[data-testid="archive-trivia-btn"]')
+  await page.click('[data-testid="confirm-archive-btn"]')
+
+  await expect(page.locator('[data-testid="trivia-detail-status"]')).toContainText('Archived')
+  await expect(page.locator('[data-testid="archive-trivia-btn"]')).toHaveCount(0)
+})
+
+test('admin can cancel archive confirmation without network call', async ({ adminPage: page }) => {
+  await page.goto('/dashboard')
+  await createReadyDraftQuiz(page, 'Cancel Archive Quiz')
+
+  await page.click('[data-testid="publish-trivia-btn"]')
+  await page.click('[data-testid="confirm-publish-btn"]')
+
+  await page.click('[data-testid="archive-trivia-btn"]')
+  await expect(page.locator('[data-testid="confirm-archive-btn"]')).toBeVisible()
+  await page.getByRole('button', { name: 'Cancel' }).first().click()
+
+  await expect(page.locator('[data-testid="archive-trivia-btn"]')).toBeVisible()
+  await expect(page.locator('[data-testid="trivia-detail-status"]')).toContainText('Published')
+})
+
+// ---- Edit gate after lifecycle transitions ----
+
+test('edit button is disabled for published quiz', async ({ adminPage: page }) => {
+  await page.goto('/dashboard')
+  await createReadyDraftQuiz(page, 'Published No Edit')
+
+  await page.click('[data-testid="publish-trivia-btn"]')
+  await page.click('[data-testid="confirm-publish-btn"]')
+
+  await expect(page.locator('[data-testid="edit-trivia-btn"]')).toBeDisabled()
+})
+
+test('edit button is disabled for archived quiz', async ({ adminPage: page }) => {
+  await page.goto('/dashboard')
+  await page.click('[data-testid="nav-trivias"]')
+  await page.click('[data-testid="create-trivia-btn"]')
+  await page.fill('[data-testid="trivia-title-input"]', 'Archived No Edit')
+  await page.fill('[data-testid="trivia-description-input"]', 'Will be archived.')
+  await page.click('[data-testid="trivia-submit-btn"]')
+
+  await page.click('[data-testid="archive-trivia-btn"]')
+  await page.click('[data-testid="confirm-archive-btn"]')
+
+  await expect(page.locator('[data-testid="edit-trivia-btn"]')).toBeDisabled()
+})
+
+// ---- Confirm-state mutual exclusion ----
+
+test('opening publish confirmation hides archive trigger', async ({ adminPage: page }) => {
+  await page.goto('/dashboard')
+  await createReadyDraftQuiz(page, 'Mutual Exclusion Quiz')
+
+  await page.click('[data-testid="publish-trivia-btn"]')
+
+  // Publish confirm is visible, archive trigger must be gone
+  await expect(page.locator('[data-testid="confirm-publish-btn"]')).toBeVisible()
+  await expect(page.locator('[data-testid="archive-trivia-btn"]')).toHaveCount(0)
+})
+
+// ---- Authorization ----
+
+test('operator cannot reach publish or archive controls', async ({ operatorPage: page }) => {
+  await page.goto('/dashboard')
+  // Operators do not see trivias nav — panel is unreachable
+  await expect(page.locator('[data-testid="nav-trivias"]')).toHaveCount(0)
+})
+
+// ---- Regression: HU-14A question authoring unaffected ----
+
+test('HU-14A add-question flow still works after lifecycle wiring', async ({ adminPage: page }) => {
+  await page.goto('/dashboard')
+  await page.click('[data-testid="nav-trivias"]')
+  await page.click('[data-testid="create-trivia-btn"]')
+  await page.fill('[data-testid="trivia-title-input"]', 'Regression: Add Question')
+  await page.fill('[data-testid="trivia-description-input"]', 'Question authoring regression.')
+  await page.click('[data-testid="trivia-submit-btn"]')
+
+  await page.click('[data-testid="add-question-btn"]')
+  await expect(page.locator('[data-testid="question-form"]')).toBeVisible()
+  await page.getByRole('button', { name: 'Cancel' }).click()
+  await expect(page.locator('[data-testid="trivia-detail"]')).toBeVisible()
+})
+
+test('HU-14A edit-question flow still works after lifecycle wiring', async ({ adminPage: page }) => {
+  await page.goto('/dashboard')
+  await createReadyDraftQuiz(page, 'Regression: Edit Question')
+
+  await page.locator('[data-testid^="edit-question-btn-"]').first().click()
+  await expect(page.locator('[data-testid="question-form"]')).toBeVisible()
+  await page.fill('[data-testid="question-prompt-input"]', 'Updated prompt after lifecycle wiring')
+  await page.click('[data-testid="question-submit-btn"]')
+  await expect(page.locator('[data-testid="trivia-detail"]')).toBeVisible()
+  await expect(page.locator('[data-testid="trivia-questions-section"]')).toContainText('Updated prompt after lifecycle wiring')
+})
+
+// ---- Regression: HU-11 quiz create/edit flows unaffected ----
+
+test('HU-11 trivia create flow still works after publish/archive wiring', async ({ adminPage: page }) => {
+  await page.goto('/dashboard')
+  await page.click('[data-testid="nav-trivias"]')
+  await page.click('[data-testid="create-trivia-btn"]')
+  await page.fill('[data-testid="trivia-title-input"]', 'Regression HU-11 Create')
+  await page.fill('[data-testid="trivia-description-input"]', 'HU-11 regression check.')
+  await page.click('[data-testid="trivia-submit-btn"]')
+  await expect(page.locator('[data-testid="trivia-detail"]')).toBeVisible()
+  await expect(page.locator('[data-testid="trivia-detail-status"]')).toContainText('Draft')
+})
+
+test('HU-11 trivia edit flow still works after publish/archive wiring', async ({ adminPage: page }) => {
+  await page.goto('/dashboard')
+  await page.click('[data-testid="nav-trivias"]')
+  await page.click('[data-testid="create-trivia-btn"]')
+  await page.fill('[data-testid="trivia-title-input"]', 'Regression HU-11 Edit')
+  await page.fill('[data-testid="trivia-description-input"]', 'Before edit.')
+  await page.click('[data-testid="trivia-submit-btn"]')
+
+  await page.click('[data-testid="edit-trivia-btn"]')
+  await page.fill('[data-testid="trivia-title-input"]', 'Regression HU-11 Edit — Updated')
+  await page.click('[data-testid="trivia-submit-btn"]')
+
+  await expect(page.locator('[data-testid="trivia-detail-title"]')).toContainText('Regression HU-11 Edit — Updated')
+})
+
+// ---- Regression: HU-09 missions panel unaffected ----
+
+test('HU-09 missions panel still reachable after lifecycle wiring', async ({ adminPage: page }) => {
+  await page.goto('/dashboard')
+  await page.click('[data-testid="nav-missions"]')
+  await expect(page.locator('[data-testid="missions-panel"]')).toBeVisible()
 })

@@ -27,6 +27,8 @@ public class TriviaQuizTests
         quiz.Title.Should().Be("Intro Quiz");
         quiz.Description.Should().Be("Warm-up trivia");
         quiz.Status.Should().Be(TriviaQuizStatus.Draft);
+        quiz.PublishedAt.Should().BeNull();
+        quiz.IsSourceReady.Should().BeFalse();
         quiz.Questions.Should().ContainSingle().Which.Should().BeSameAs(questions[0]);
         quiz.DomainEvents.Should().ContainSingle(e => e is TriviaQuizCreatedEvent);
     }
@@ -55,7 +57,17 @@ public class TriviaQuizTests
     public void UpdateDetails_WhenQuizIsPublished_ThrowsNotEditableException()
     {
         var quiz = TriviaQuiz.Create("Intro Quiz", "Warm-up trivia");
-        quiz.MarkAsPublished();
+        quiz.AddQuestion(
+            "Capital of France?",
+            1,
+            100,
+            45,
+            null,
+            [
+                TriviaOption.Create("Paris", 1, true),
+                TriviaOption.Create("Berlin", 2, false)
+            ]);
+        quiz.Publish(new DateTimeOffset(2026, 6, 1, 12, 0, 0, TimeSpan.Zero));
 
         var act = () => quiz.UpdateDetails("Updated Quiz", "Refined summary");
 
@@ -66,7 +78,7 @@ public class TriviaQuizTests
     public void UpdateDetails_WhenQuizIsArchived_ThrowsNotEditableException()
     {
         var quiz = TriviaQuiz.Create("Intro Quiz", "Warm-up trivia");
-        quiz.MarkAsArchived();
+        quiz.Archive(new DateTimeOffset(2026, 6, 1, 12, 0, 0, TimeSpan.Zero));
 
         var act = () => quiz.UpdateDetails("Updated Quiz", "Refined summary");
 
@@ -217,5 +229,169 @@ public class TriviaQuizTests
             ]);
 
         act.Should().Throw<TriviaQuestionNotFoundException>();
+    }
+
+    [Fact]
+    public void Publish_WhenQuizIsPublishable_UsesLifecycleWorkflowAndRaisesPublishedEvent()
+    {
+        var publishedAt = new DateTimeOffset(2026, 6, 1, 14, 30, 0, TimeSpan.Zero);
+        var quiz = TriviaQuiz.Create("Intro Quiz", "Warm-up trivia");
+        quiz.AddQuestion(
+            "Capital of France?",
+            1,
+            100,
+            45,
+            null,
+            [
+                TriviaOption.Create("Paris", 1, true),
+                TriviaOption.Create("Berlin", 2, false)
+            ]);
+        quiz.ClearDomainEvents();
+
+        quiz.Publish(publishedAt);
+
+        quiz.Status.Should().Be(TriviaQuizStatus.Published);
+        quiz.PublishedAt.Should().Be(publishedAt);
+        quiz.IsSourceReady.Should().BeTrue();
+        quiz.DomainEvents.Should().ContainSingle(e => e is TriviaQuizPublishedEvent);
+    }
+
+    [Fact]
+    public void Publish_WhenQuizHasNoQuestions_Throws()
+    {
+        var quiz = TriviaQuiz.Create("Intro Quiz", "Warm-up trivia");
+
+        var act = () => quiz.Publish(new DateTimeOffset(2026, 6, 1, 14, 30, 0, TimeSpan.Zero));
+
+        act.Should().Throw<TriviaQuizMustHaveAtLeastOneQuestionToPublishException>();
+    }
+
+    [Fact]
+    public void Publish_WhenQuestionHasNoScoreValue_Throws()
+    {
+        var quiz = TriviaQuiz.Create(
+            "Intro Quiz",
+            "Warm-up trivia",
+            [
+                TriviaQuestion.Create(
+                    "Question 1",
+                    1,
+                    [
+                        TriviaOption.Create("Option A", 1, true),
+                        TriviaOption.Create("Option B", 2, false)
+                    ])
+            ]);
+
+        var act = () => quiz.Publish(new DateTimeOffset(2026, 6, 1, 14, 30, 0, TimeSpan.Zero));
+
+        act.Should().Throw<TriviaQuestionScoreValueRequiredToPublishException>();
+    }
+
+    [Fact]
+    public void Publish_WhenQuestionHasNoTimeLimit_Throws()
+    {
+        var quiz = TriviaQuiz.Create(
+            "Intro Quiz",
+            "Warm-up trivia",
+            [
+                TriviaQuestion.Create(
+                    "Question 1",
+                    1,
+                    100,
+                    null,
+                    null,
+                    [
+                        TriviaOption.Create("Option A", 1, true),
+                        TriviaOption.Create("Option B", 2, false)
+                    ])
+            ]);
+
+        var act = () => quiz.Publish(new DateTimeOffset(2026, 6, 1, 14, 30, 0, TimeSpan.Zero));
+
+        act.Should().Throw<TriviaQuestionTimeLimitRequiredToPublishException>();
+    }
+
+    [Theory]
+    [InlineData(TriviaQuizStatus.Published)]
+    [InlineData(TriviaQuizStatus.Archived)]
+    public void Publish_WhenStateDoesNotAllowTransition_Throws(TriviaQuizStatus targetState)
+    {
+        var quiz = TriviaQuiz.Create("Intro Quiz", "Warm-up trivia");
+        quiz.AddQuestion(
+            "Capital of France?",
+            1,
+            100,
+            45,
+            null,
+            [
+                TriviaOption.Create("Paris", 1, true),
+                TriviaOption.Create("Berlin", 2, false)
+            ]);
+
+        if (targetState == TriviaQuizStatus.Published)
+        {
+            quiz.Publish(new DateTimeOffset(2026, 6, 1, 14, 30, 0, TimeSpan.Zero));
+        }
+        else
+        {
+            quiz.Archive(new DateTimeOffset(2026, 6, 1, 14, 30, 0, TimeSpan.Zero));
+        }
+
+        var act = () => quiz.Publish(new DateTimeOffset(2026, 6, 1, 15, 0, 0, TimeSpan.Zero));
+
+        act.Should().Throw<TriviaQuizCannotBePublishedInCurrentStateException>();
+    }
+
+    [Fact]
+    public void Archive_FromDraft_UsesLifecycleWorkflowAndRaisesArchivedEvent()
+    {
+        var archivedAt = new DateTimeOffset(2026, 6, 1, 16, 0, 0, TimeSpan.Zero);
+        var quiz = TriviaQuiz.Create("Intro Quiz", "Warm-up trivia");
+        quiz.ClearDomainEvents();
+
+        quiz.Archive(archivedAt);
+
+        quiz.Status.Should().Be(TriviaQuizStatus.Archived);
+        quiz.IsSourceReady.Should().BeFalse();
+        quiz.PublishedAt.Should().BeNull();
+        quiz.DomainEvents.Should().ContainSingle(e => e is TriviaQuizArchivedEvent);
+    }
+
+    [Fact]
+    public void Archive_FromPublished_PreservesPublicationHistoryAndRaisesArchivedEvent()
+    {
+        var publishedAt = new DateTimeOffset(2026, 6, 1, 14, 30, 0, TimeSpan.Zero);
+        var archivedAt = new DateTimeOffset(2026, 6, 1, 16, 0, 0, TimeSpan.Zero);
+        var quiz = TriviaQuiz.Create("Intro Quiz", "Warm-up trivia");
+        quiz.AddQuestion(
+            "Capital of France?",
+            1,
+            100,
+            45,
+            null,
+            [
+                TriviaOption.Create("Paris", 1, true),
+                TriviaOption.Create("Berlin", 2, false)
+            ]);
+        quiz.Publish(publishedAt);
+        quiz.ClearDomainEvents();
+
+        quiz.Archive(archivedAt);
+
+        quiz.Status.Should().Be(TriviaQuizStatus.Archived);
+        quiz.PublishedAt.Should().Be(publishedAt);
+        quiz.IsSourceReady.Should().BeFalse();
+        quiz.DomainEvents.Should().ContainSingle(e => e is TriviaQuizArchivedEvent);
+    }
+
+    [Fact]
+    public void Archive_WhenQuizIsAlreadyArchived_Throws()
+    {
+        var quiz = TriviaQuiz.Create("Intro Quiz", "Warm-up trivia");
+        quiz.Archive(new DateTimeOffset(2026, 6, 1, 14, 30, 0, TimeSpan.Zero));
+
+        var act = () => quiz.Archive(new DateTimeOffset(2026, 6, 1, 15, 0, 0, TimeSpan.Zero));
+
+        act.Should().Throw<TriviaQuizCannotBeArchivedInCurrentStateException>();
     }
 }
