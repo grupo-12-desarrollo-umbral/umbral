@@ -42,6 +42,18 @@ public sealed class ProblemDetailsExceptionHandler : IExceptionHandler
                 Detail = exception.Message,
                 Status = StatusCodes.Status409Conflict
             },
+            TriviaQuestionSequenceOrderMustBeUniqueException => new ProblemDetails
+            {
+                Title = "Question sequence order conflict.",
+                Detail = exception.Message,
+                Status = StatusCodes.Status409Conflict
+            },
+            TriviaQuestionNotFoundException => new ProblemDetails
+            {
+                Title = "Trivia question not found.",
+                Detail = exception.Message,
+                Status = StatusCodes.Status404NotFound
+            },
             _ => new ProblemDetails
             {
                 Title = "An unexpected error occurred.",

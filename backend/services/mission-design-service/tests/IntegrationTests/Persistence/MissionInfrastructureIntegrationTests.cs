@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using MediatR;
 using umbral_backend.Application.Common.Interfaces;
 using umbral_backend.Application.Missions.Commands.CreateMission;
@@ -7,7 +8,9 @@ using umbral_backend.Application.Missions.Handlers;
 using umbral_backend.Application.Missions.Queries.GetMissionCatalog;
 using umbral_backend.Application.Missions.Queries.GetMissionDetail;
 using umbral_backend.Application.Trivias.Common.Authoring;
+using umbral_backend.Application.Trivias.Commands.AddTriviaQuestion;
 using umbral_backend.Application.Trivias.Commands.CreateTriviaQuiz;
+using umbral_backend.Application.Trivias.Commands.UpdateTriviaQuestion;
 using umbral_backend.Application.Trivias.Commands.UpdateTriviaQuiz;
 using umbral_backend.Application.Trivias.Handlers;
 using umbral_backend.Application.Trivias.Queries.GetTriviaCatalog;
@@ -19,6 +22,7 @@ using umbral_backend.Infrastructure.Persistence.Repositories;
 
 namespace umbral_backend.Infrastructure.IntegrationTests.Persistence;
 
+[Collection("MissionDesignIntegrationTests")]
 public sealed class MissionInfrastructureIntegrationTests : IClassFixture<PostgreSqlFixture>
 {
     private readonly PostgreSqlFixture _fixture;
@@ -298,6 +302,138 @@ public sealed class MissionInfrastructureIntegrationTests : IClassFixture<Postgr
     }
 
     [Fact]
+    public async Task AddTriviaQuestion_PersistsQuestionMetadataAndPublishesAddedEvent()
+    {
+        await using var setupContext = BuildContext();
+        await ResetDatabaseAsync(setupContext);
+        var setupRepository = new TriviaQuizRepository(setupContext);
+
+        var triviaQuiz = Domain.Entities.TriviaQuiz.Create("Geography", "Quiz ready for authoring");
+        await setupRepository.AddAsync(triviaQuiz, CancellationToken.None);
+
+        var mediator = new CapturingMediator();
+        await using var actContext = BuildContext(mediator, new StubCurrentUser("admin-13"));
+        var handler = new AddTriviaQuestionCommandHandler(new TriviaQuizRepository(actContext));
+
+        var result = await handler.Handle(
+            new AddTriviaQuestionCommand(
+                triviaQuiz.Id,
+                " Highest mountain? ",
+                1,
+                100,
+                45,
+                " Because Everest is the tallest above sea level. ",
+                true,
+                [
+                    new TriviaOptionInput(" Everest ", 1, true),
+                    new TriviaOptionInput(" K2 ", 2, false),
+                    new TriviaOptionInput(" Kilimanjaro ", 3, false),
+                    new TriviaOptionInput(" Aconcagua ", 4, false)
+                ]),
+            CancellationToken.None);
+
+        mediator.PublishedNotifications
+            .Should().ContainSingle(notification => notification is TriviaQuestionAddedEvent);
+
+        result.Questions.Should().ContainSingle();
+        result.Questions[0].ScoreValue.Should().Be(100);
+        result.Questions[0].TimeLimitSeconds.Should().Be(45);
+        result.Questions[0].Explanation.Should().Be("Because Everest is the tallest above sea level.");
+
+        await using var assertContext = BuildContext();
+        var reloadedQuiz = await assertContext.TriviaQuizzes
+            .AsNoTracking()
+            .Include(storedQuiz => storedQuiz.Questions)
+            .ThenInclude(storedQuestion => storedQuestion.Options)
+            .SingleAsync(storedQuiz => storedQuiz.Id == triviaQuiz.Id);
+
+        reloadedQuiz.Questions.Should().ContainSingle();
+        var question = reloadedQuiz.Questions.Single();
+        question.Prompt.Should().Be("Highest mountain?");
+        question.ScoreValue.Should().Be(100);
+        question.TimeLimit!.Seconds.Should().Be(45);
+        question.Explanation.Should().Be("Because Everest is the tallest above sea level.");
+        question.Options.Should().HaveCount(4);
+        question.Options.Count(option => option.IsCorrect).Should().Be(1);
+        question.Options.Single(option => option.IsCorrect).OptionText.Should().Be("Everest");
+    }
+
+    [Fact]
+    public async Task UpdateTriviaQuestion_PersistsQuestionMetadataAndPublishesUpdatedEvent()
+    {
+        await using var setupContext = BuildContext();
+        await ResetDatabaseAsync(setupContext);
+        var setupRepository = new TriviaQuizRepository(setupContext);
+
+        var triviaQuiz = Domain.Entities.TriviaQuiz.Create(
+            "Science",
+            "Question updates",
+            [
+                Domain.Entities.TriviaQuestion.Create(
+                    "Original question",
+                    1,
+                    100,
+                    30,
+                    "Original explanation",
+                    [
+                        Domain.Entities.TriviaOption.Create("Option A", 1, true),
+                        Domain.Entities.TriviaOption.Create("Option B", 2, false)
+                    ])
+            ]);
+
+        await setupRepository.AddAsync(triviaQuiz, CancellationToken.None);
+        var existingQuestionId = triviaQuiz.Questions.Single().Id;
+
+        var mediator = new CapturingMediator();
+        await using var actContext = BuildContext(mediator, new StubCurrentUser("admin-14"));
+        var handler = new UpdateTriviaQuestionCommandHandler(new TriviaQuizRepository(actContext));
+
+        var result = await handler.Handle(
+            new UpdateTriviaQuestionCommand(
+                triviaQuiz.Id,
+                existingQuestionId,
+                " Updated question ",
+                2,
+                100,
+                60,
+                " Updated explanation ",
+                false,
+                [
+                    new TriviaOptionInput("Wrong", 1, false),
+                    new TriviaOptionInput("Right", 2, true),
+                    new TriviaOptionInput("Almost", 3, false)
+                ]),
+            CancellationToken.None);
+
+        mediator.PublishedNotifications
+            .Should().ContainSingle(notification => notification is TriviaQuestionUpdatedEvent);
+
+        result.Questions.Should().ContainSingle();
+        result.Questions[0].SequenceOrder.Should().Be(2);
+        result.Questions[0].ScoreValue.Should().Be(100);
+        result.Questions[0].TimeLimitSeconds.Should().Be(60);
+        result.Questions[0].Explanation.Should().Be("Updated explanation");
+
+        await using var assertContext = BuildContext();
+        var reloadedQuiz = await assertContext.TriviaQuizzes
+            .AsNoTracking()
+            .Include(storedQuiz => storedQuiz.Questions)
+            .ThenInclude(storedQuestion => storedQuestion.Options)
+            .SingleAsync(storedQuiz => storedQuiz.Id == triviaQuiz.Id);
+
+        var question = reloadedQuiz.Questions.Single();
+        question.Prompt.Should().Be("Updated question");
+        question.SequenceOrder.Should().Be(2);
+        question.ScoreValue.Should().Be(100);
+        question.TimeLimit!.Seconds.Should().Be(60);
+        question.Explanation.Should().Be("Updated explanation");
+        question.IsActive.Should().BeFalse();
+        question.Options.Should().HaveCount(3);
+        question.Options.Count(option => option.IsCorrect).Should().Be(1);
+        question.Options.Single(option => option.IsCorrect).OptionText.Should().Be("Right");
+    }
+
+    [Fact]
     public async Task GetTriviaCatalogAndDetail_ReflectPersistedQuestionShape()
     {
         await using var setupContext = BuildContext();
@@ -311,6 +447,9 @@ public sealed class MissionInfrastructureIntegrationTests : IClassFixture<Postgr
                 Domain.Entities.TriviaQuestion.Create(
                     "When was the city founded?",
                     1,
+                    100,
+                    20,
+                    "The first charter date is the accepted answer.",
                     [
                         Domain.Entities.TriviaOption.Create("1810", 1, true),
                         Domain.Entities.TriviaOption.Create("1910", 2, false)
@@ -324,6 +463,9 @@ public sealed class MissionInfrastructureIntegrationTests : IClassFixture<Postgr
                 Domain.Entities.TriviaQuestion.Create(
                     "How many players start?",
                     1,
+                    100,
+                    15,
+                    null,
                     [
                         Domain.Entities.TriviaOption.Create("11", 1, true),
                         Domain.Entities.TriviaOption.Create("10", 2, false)
@@ -340,6 +482,9 @@ public sealed class MissionInfrastructureIntegrationTests : IClassFixture<Postgr
                 Domain.Entities.TriviaQuestion.Create(
                     "When was the city founded?",
                     1,
+                    100,
+                    20,
+                    "The first charter date is the accepted answer.",
                     [
                         Domain.Entities.TriviaOption.Create("1810", 1, true),
                         Domain.Entities.TriviaOption.Create("1910", 2, false)
@@ -347,9 +492,14 @@ public sealed class MissionInfrastructureIntegrationTests : IClassFixture<Postgr
                 Domain.Entities.TriviaQuestion.Create(
                     "Who signed the act?",
                     2,
+                    100,
+                    40,
+                    "The signer appears in the independence record.",
                     [
                         Domain.Entities.TriviaOption.Create("Person A", 1, true),
-                        Domain.Entities.TriviaOption.Create("Person B", 2, false)
+                        Domain.Entities.TriviaOption.Create("Person B", 2, false),
+                        Domain.Entities.TriviaOption.Create("Person C", 3, false),
+                        Domain.Entities.TriviaOption.Create("Person D", 4, false)
                     ])
             ]);
 
@@ -368,7 +518,15 @@ public sealed class MissionInfrastructureIntegrationTests : IClassFixture<Postgr
         detail.Description.Should().Be("Historic facts updated");
         detail.Status.Should().Be("Draft");
         detail.Questions.Select(question => question.SequenceOrder).Should().Equal(1, 2);
-        detail.Questions[1].Options.Select(option => option.OptionText).Should().Equal("Person A", "Person B");
+        detail.Questions[0].ScoreValue.Should().Be(100);
+        detail.Questions[0].TimeLimitSeconds.Should().Be(20);
+        detail.Questions[0].Explanation.Should().Be("The first charter date is the accepted answer.");
+        detail.Questions[1].ScoreValue.Should().Be(100);
+        detail.Questions[1].TimeLimitSeconds.Should().Be(40);
+        detail.Questions[1].Explanation.Should().Be("The signer appears in the independence record.");
+        detail.Questions[1].Options.Select(option => option.OptionText).Should().Equal("Person A", "Person B", "Person C", "Person D");
+        detail.Questions[1].Options.Should().HaveCount(4);
+        detail.Questions[1].Options.Count(option => option.IsCorrect).Should().Be(1);
     }
 
     private static async Task ResetDatabaseAsync(ApplicationDbContext context)

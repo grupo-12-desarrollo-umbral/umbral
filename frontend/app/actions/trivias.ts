@@ -6,9 +6,11 @@ import {
   getTriviaQuizById,
   createTriviaQuiz as createTriviaQuizLib,
   updateTriviaQuiz as updateTriviaQuizLib,
+  addTriviaQuestion as addTriviaQuestionLib,
+  updateTriviaQuestion as updateTriviaQuestionLib,
 } from '@/app/lib/trivias'
 import { revalidatePath } from 'next/cache'
-import type { TriviaQuizSummaryDto, TriviaQuizDto } from '@/app/lib/definitions'
+import type { TriviaQuizSummaryDto, TriviaQuizDto, TriviaQuestionRequest } from '@/app/lib/definitions'
 
 export async function getTriviaQuizzes(): Promise<TriviaQuizSummaryDto[]> {
   await verifySession()
@@ -39,6 +41,29 @@ export async function updateTriviaQuiz(
   const session = await verifySession()
   if (session.role !== 'Administrator') throw new Error('Forbidden')
   const result = await updateTriviaQuizLib(id, title, description)
+  revalidatePath('/dashboard')
+  return result
+}
+
+export async function addTriviaQuestion(
+  triviaQuizId: number,
+  question: TriviaQuestionRequest,
+): Promise<TriviaQuizDto> {
+  const session = await verifySession()
+  if (session.role !== 'Administrator') throw new Error('Forbidden')
+  const result = await addTriviaQuestionLib(triviaQuizId, question)
+  revalidatePath('/dashboard')
+  return result
+}
+
+export async function updateTriviaQuestion(
+  triviaQuizId: number,
+  questionId: number,
+  question: TriviaQuestionRequest,
+): Promise<TriviaQuizDto> {
+  const session = await verifySession()
+  if (session.role !== 'Administrator') throw new Error('Forbidden')
+  const result = await updateTriviaQuestionLib(triviaQuizId, questionId, question)
   revalidatePath('/dashboard')
   return result
 }

@@ -3,6 +3,7 @@ using umbral_backend.Web.Endpoints;
 
 namespace umbral_backend.Infrastructure.IntegrationTests.Api;
 
+[Collection("MissionDesignIntegrationTests")]
 public sealed class TriviaEndpointsTests : IClassFixture<PostgreSqlFixture>, IAsyncLifetime
 {
     private readonly PostgreSqlFixture _fixture;
@@ -44,6 +45,9 @@ public sealed class TriviaEndpointsTests : IClassFixture<PostgreSqlFixture>, IAs
                     {
                         prompt = "Capital of France?",
                         sequenceOrder = 1,
+                        scoreValue = 100,
+                        timeLimitSeconds = 45,
+                        explanation = "Paris is the French capital.",
                         isActive = true,
                         options = new[]
                         {
@@ -64,6 +68,9 @@ public sealed class TriviaEndpointsTests : IClassFixture<PostgreSqlFixture>, IAs
         payload.Status.Should().Be("Draft");
         payload.Questions.Should().ContainSingle();
         payload.Questions[0].Prompt.Should().Be("Capital of France?");
+        payload.Questions[0].ScoreValue.Should().Be(100);
+        payload.Questions[0].TimeLimitSeconds.Should().Be(45);
+        payload.Questions[0].Explanation.Should().Be("Paris is the French capital.");
         payload.Questions[0].Options.Select(option => option.OptionText).Should().Equal("Paris", "Berlin");
     }
 
@@ -113,6 +120,9 @@ public sealed class TriviaEndpointsTests : IClassFixture<PostgreSqlFixture>, IAs
                     {
                         prompt = "2 + 2?",
                         sequenceOrder = 1,
+                        scoreValue = 25,
+                        timeLimitSeconds = 30,
+                        explanation = "Arithmetic baseline.",
                         isActive = true,
                         options = new[]
                         {
@@ -124,6 +134,9 @@ public sealed class TriviaEndpointsTests : IClassFixture<PostgreSqlFixture>, IAs
                     {
                         prompt = "3 + 3?",
                         sequenceOrder = 2,
+                        scoreValue = 30,
+                        timeLimitSeconds = 35,
+                        explanation = "Second arithmetic baseline.",
                         isActive = true,
                         options = new[]
                         {
@@ -142,31 +155,147 @@ public sealed class TriviaEndpointsTests : IClassFixture<PostgreSqlFixture>, IAs
         payload.Title.Should().Be("Trivia After");
         payload.Description.Should().Be("Updated draft.");
         payload.Questions.Select(question => question.SequenceOrder).Should().Equal(1, 2);
+        payload.Questions[0].ScoreValue.Should().Be(25);
+        payload.Questions[0].TimeLimitSeconds.Should().Be(30);
+        payload.Questions[0].Explanation.Should().Be("Arithmetic baseline.");
     }
 
     [Fact]
-    public async Task CreateTriviaQuiz_WithNonAdminCaller_Returns403()
+    public async Task AddTriviaQuestion_ReturnsUpdatedQuizAndPersistsQuestionDetail()
     {
+        AddAdministratorHeaders();
+
+        var triviaId = await CreateTriviaQuizAsync("Question Authoring");
+
+        var response = await _client.PostAsJsonAsync(
+            $"/api/trivias/{triviaId}/questions",
+            new
+            {
+                prompt = "Largest ocean?",
+                sequenceOrder = 2,
+                scoreValue = 100,
+                timeLimitSeconds = 60,
+                explanation = "The Pacific Ocean is the largest.",
+                isActive = true,
+                options = new[]
+                {
+                    new { optionText = "Pacific", sequenceOrder = 1, isCorrect = true },
+                    new { optionText = "Atlantic", sequenceOrder = 2, isCorrect = false },
+                    new { optionText = "Indian", sequenceOrder = 3, isCorrect = false }
+                }
+            });
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var payload = await response.Content.ReadFromJsonAsync<TriviasEndpoints.TriviaQuizResponse>();
+        payload.Should().NotBeNull();
+        payload!.Questions.Should().HaveCount(2);
+
+        var addedQuestion = payload.Questions.Single(question => question.SequenceOrder == 2);
+        addedQuestion.Prompt.Should().Be("Largest ocean?");
+        addedQuestion.ScoreValue.Should().Be(100);
+        addedQuestion.TimeLimitSeconds.Should().Be(60);
+        addedQuestion.Explanation.Should().Be("The Pacific Ocean is the largest.");
+        addedQuestion.Options.Should().HaveCount(3);
+        addedQuestion.Options.Should().ContainSingle(option => option.IsCorrect && option.OptionText == "Pacific");
+
+        var detailResponse = await _client.GetAsync($"/api/trivias/{triviaId}");
+        detailResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var detail = await detailResponse.Content.ReadFromJsonAsync<TriviasEndpoints.TriviaQuizResponse>();
+        detail.Should().NotBeNull();
+        detail!.Questions.Should().ContainSingle(question =>
+            question.SequenceOrder == 2 &&
+            question.ScoreValue == 100 &&
+            question.TimeLimitSeconds == 60 &&
+            question.Explanation == "The Pacific Ocean is the largest.");
+    }
+
+    [Fact]
+    public async Task UpdateTriviaQuestion_ReturnsUpdatedQuizAndDetail()
+    {
+        AddAdministratorHeaders();
+
+        var triviaId = await CreateTriviaQuizAsync("Question Update");
+        var questionId = await GetFirstQuestionIdAsync(triviaId);
+
+        var response = await _client.PutAsJsonAsync(
+            $"/api/trivias/{triviaId}/questions/{questionId}",
+            new
+            {
+                prompt = "Capital of Colombia?",
+                sequenceOrder = 1,
+                scoreValue = 100,
+                timeLimitSeconds = 50,
+                explanation = "Bogota is the capital city.",
+                isActive = true,
+                options = new[]
+                {
+                    new { optionText = "Bogota", sequenceOrder = 1, isCorrect = true },
+                    new { optionText = "Medellin", sequenceOrder = 2, isCorrect = false },
+                    new { optionText = "Cali", sequenceOrder = 3, isCorrect = false }
+                }
+            });
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var payload = await response.Content.ReadFromJsonAsync<TriviasEndpoints.TriviaQuizResponse>();
+        payload.Should().NotBeNull();
+
+        var updatedQuestion = payload!.Questions.Single(question => question.Id == questionId);
+        updatedQuestion.Prompt.Should().Be("Capital of Colombia?");
+        updatedQuestion.ScoreValue.Should().Be(100);
+        updatedQuestion.TimeLimitSeconds.Should().Be(50);
+        updatedQuestion.Explanation.Should().Be("Bogota is the capital city.");
+        updatedQuestion.Options.Should().HaveCount(3);
+        updatedQuestion.Options.Should().ContainSingle(option => option.IsCorrect && option.OptionText == "Bogota");
+
+        var detailResponse = await _client.GetAsync($"/api/trivias/{triviaId}");
+        detailResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var detail = await detailResponse.Content.ReadFromJsonAsync<TriviasEndpoints.TriviaQuizResponse>();
+        detail.Should().NotBeNull();
+        detail!.Questions.Should().ContainSingle(question =>
+            question.Id == questionId &&
+            question.Prompt == "Capital of Colombia?" &&
+            question.ScoreValue == 100 &&
+            question.TimeLimitSeconds == 50 &&
+            question.Explanation == "Bogota is the capital city." &&
+            question.Options.Count == 3);
+    }
+
+    [Fact]
+    public async Task AddTriviaQuestion_WithNonAdminCaller_Returns403()
+    {
+        AddAdministratorHeaders();
+
+        var triviaId = await CreateTriviaQuizAsync("Unauthorized Question Mutation");
+
         AddOperatorHeaders();
 
         var response = await _client.PostAsJsonAsync(
-            "/api/trivias/",
+            $"/api/trivias/{triviaId}/questions",
             new
             {
-                title = "Unauthorized Trivia",
-                description = "Should be rejected.",
-                questions = new[]
+                prompt = "Capital of Spain?",
+                sequenceOrder = 2,
+                scoreValue = 75,
+                timeLimitSeconds = 25,
+                explanation = "Madrid is the capital.",
+                isActive = true,
+                options = new[]
                 {
                     new
                     {
-                        prompt = "Capital of Spain?",
+                        optionText = "Madrid",
                         sequenceOrder = 1,
-                        isActive = true,
-                        options = new[]
-                        {
-                            new { optionText = "Madrid", sequenceOrder = 1, isCorrect = true },
-                            new { optionText = "Lisbon", sequenceOrder = 2, isCorrect = false }
-                        }
+                        isCorrect = true
+                    },
+                    new
+                    {
+                        optionText = "Lisbon",
+                        sequenceOrder = 2,
+                        isCorrect = false
                     }
                 }
             });
@@ -248,6 +377,9 @@ public sealed class TriviaEndpointsTests : IClassFixture<PostgreSqlFixture>, IAs
                     {
                         prompt = "Capital of Venezuela?",
                         sequenceOrder = 1,
+                        scoreValue = 100,
+                        timeLimitSeconds = 30,
+                        explanation = "Caracas is the capital city.",
                         isActive = true,
                         options = new[]
                         {
@@ -264,6 +396,17 @@ public sealed class TriviaEndpointsTests : IClassFixture<PostgreSqlFixture>, IAs
         payload.Should().NotBeNull();
 
         return payload!.Id;
+    }
+
+    private async Task<int> GetFirstQuestionIdAsync(int triviaId)
+    {
+        var detailResponse = await _client.GetAsync($"/api/trivias/{triviaId}");
+        detailResponse.EnsureSuccessStatusCode();
+
+        var detail = await detailResponse.Content.ReadFromJsonAsync<TriviasEndpoints.TriviaQuizResponse>();
+        detail.Should().NotBeNull();
+
+        return detail!.Questions.Single().Id;
     }
 
     private async Task MarkTriviaQuizAsPublishedAsync(int triviaId)

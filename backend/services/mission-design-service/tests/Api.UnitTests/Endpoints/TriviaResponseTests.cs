@@ -22,7 +22,10 @@ public class TriviaQuizResponseTests
                     [
                         new TriviaOptionDto(31, "Paris", 1, true),
                         new TriviaOptionDto(32, "Berlin", 2, false)
-                    ])
+                    ],
+                    100,
+                    20,
+                    "Paris is the capital city.")
             ]);
 
         var response = TriviasEndpoints.TriviaQuizResponse.FromDto(dto);
@@ -35,6 +38,9 @@ public class TriviaQuizResponseTests
         response.Questions[0].Options.Should().HaveCount(2);
         response.Questions[0].Options[0].OptionText.Should().Be("Paris");
         response.Questions[0].Options[0].IsCorrect.Should().BeTrue();
+        response.Questions[0].ScoreValue.Should().Be(100);
+        response.Questions[0].TimeLimitSeconds.Should().Be(20);
+        response.Questions[0].Explanation.Should().Be("Paris is the capital city.");
     }
 }
 

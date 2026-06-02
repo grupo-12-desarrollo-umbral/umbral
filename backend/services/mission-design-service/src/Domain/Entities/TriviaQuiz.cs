@@ -10,6 +10,8 @@ public sealed class TriviaQuiz : BaseAuditableEntity
 
     private static readonly TriviaQuizAuthoringTemplate CreateTemplate = new CreateTriviaQuizAuthoringTemplate();
     private static readonly TriviaQuizAuthoringTemplate UpdateTemplate = new UpdateTriviaQuizAuthoringTemplate();
+    private static readonly TriviaQuestionAuthoringTemplate AddQuestionTemplate = new AddTriviaQuestionAuthoringTemplate();
+    private static readonly TriviaQuestionAuthoringTemplate UpdateQuestionTemplate = new UpdateTriviaQuestionAuthoringTemplate();
 
     private TriviaQuiz()
     {
@@ -79,6 +81,60 @@ public sealed class TriviaQuiz : BaseAuditableEntity
         Status = TriviaQuizStatus.Archived;
     }
 
+    public TriviaQuestion AddQuestion(
+        string prompt,
+        int sequenceOrder,
+        int scoreValue,
+        int timeLimitSeconds,
+        string? explanation,
+        IEnumerable<TriviaOption> options,
+        bool isActive = true)
+    {
+        var question = AddQuestionTemplate.Apply(
+            this,
+            new TriviaQuestionAuthoringDraft(
+                null,
+                prompt,
+                sequenceOrder,
+                scoreValue,
+                timeLimitSeconds,
+                explanation,
+                options,
+                isActive));
+
+        _questions.Add(question);
+        AddDomainEvent(new TriviaQuestionAddedEvent(this, question));
+
+        return question;
+    }
+
+    public TriviaQuestion UpdateQuestion(
+        int questionId,
+        string prompt,
+        int sequenceOrder,
+        int scoreValue,
+        int timeLimitSeconds,
+        string? explanation,
+        IEnumerable<TriviaOption> options,
+        bool isActive = true)
+    {
+        var question = UpdateQuestionTemplate.Apply(
+            this,
+            new TriviaQuestionAuthoringDraft(
+                questionId,
+                prompt,
+                sequenceOrder,
+                scoreValue,
+                timeLimitSeconds,
+                explanation,
+                options,
+                isActive));
+
+        AddDomainEvent(new TriviaQuestionUpdatedEvent(this, question));
+
+        return question;
+    }
+
     private void ReplaceQuestions(IEnumerable<TriviaQuestion> questions)
     {
         _questions.Clear();
@@ -86,6 +142,15 @@ public sealed class TriviaQuiz : BaseAuditableEntity
     }
 
     private sealed record ValidatedTriviaQuizAuthoring(string Title, string Description, IReadOnlyCollection<TriviaQuestion> Questions);
+    private sealed record TriviaQuestionAuthoringDraft(
+        int? QuestionId,
+        string Prompt,
+        int SequenceOrder,
+        int ScoreValue,
+        int TimeLimitSeconds,
+        string? Explanation,
+        IEnumerable<TriviaOption> Options,
+        bool IsActive);
 
     private abstract class TriviaQuizAuthoringTemplate
     {
@@ -142,6 +207,135 @@ public sealed class TriviaQuiz : BaseAuditableEntity
             {
                 throw new TriviaQuizNotEditableException(status);
             }
+        }
+    }
+
+    private abstract class TriviaQuestionAuthoringTemplate
+    {
+        public TriviaQuestion Apply(TriviaQuiz quiz, TriviaQuestionAuthoringDraft draft)
+        {
+            EnsureEditable(quiz.Status);
+
+            var targetQuestion = ResolveTargetQuestion(quiz, draft);
+            var normalizedOptions = NormalizeOptions(draft.Options);
+
+            EnsureQuestionSequenceIsUnique(quiz, draft.SequenceOrder, targetQuestion?.Id);
+            EnsureOptionCount(normalizedOptions.Count);
+            EnsureExactlyOneCorrectOption(normalizedOptions);
+            EnsureDistinctOptionSequenceOrders(normalizedOptions);
+
+            return BuildQuestion(targetQuestion, draft, normalizedOptions);
+        }
+
+        protected virtual void EnsureEditable(TriviaQuizStatus status)
+        {
+            if (status != TriviaQuizStatus.Draft)
+            {
+                throw new TriviaQuizNotEditableException(status);
+            }
+        }
+
+        protected abstract TriviaQuestion? ResolveTargetQuestion(TriviaQuiz quiz, TriviaQuestionAuthoringDraft draft);
+
+        protected abstract TriviaQuestion BuildQuestion(
+            TriviaQuestion? targetQuestion,
+            TriviaQuestionAuthoringDraft draft,
+            IReadOnlyCollection<TriviaOption> normalizedOptions);
+
+        private static IReadOnlyCollection<TriviaOption> NormalizeOptions(IEnumerable<TriviaOption> options)
+        {
+            return options.ToArray();
+        }
+
+        private static void EnsureQuestionSequenceIsUnique(TriviaQuiz quiz, int sequenceOrder, int? currentQuestionId)
+        {
+            if (quiz._questions.Any(question =>
+                    question.SequenceOrder == sequenceOrder &&
+                    question.Id != currentQuestionId))
+            {
+                throw new TriviaQuestionSequenceOrderMustBeUniqueException(sequenceOrder);
+            }
+        }
+
+        private static void EnsureOptionCount(int count)
+        {
+            if (count is < 2 or > 4)
+            {
+                throw new TriviaQuestionMustHaveBetweenTwoAndFourOptionsException();
+            }
+        }
+
+        private static void EnsureExactlyOneCorrectOption(IEnumerable<TriviaOption> options)
+        {
+            if (options.Count(option => option.IsCorrect) != 1)
+            {
+                throw new TriviaQuestionMustHaveExactlyOneCorrectOptionException();
+            }
+        }
+
+        private static void EnsureDistinctOptionSequenceOrders(IEnumerable<TriviaOption> options)
+        {
+            var sequenceOrders = options.Select(option => option.SequenceOrder).ToArray();
+
+            if (sequenceOrders.Length != sequenceOrders.Distinct().Count())
+            {
+                throw new TriviaOptionSequenceOrderMustBeUniqueException();
+            }
+        }
+    }
+
+    private sealed class AddTriviaQuestionAuthoringTemplate : TriviaQuestionAuthoringTemplate
+    {
+        protected override TriviaQuestion? ResolveTargetQuestion(TriviaQuiz quiz, TriviaQuestionAuthoringDraft draft)
+        {
+            return null;
+        }
+
+        protected override TriviaQuestion BuildQuestion(
+            TriviaQuestion? targetQuestion,
+            TriviaQuestionAuthoringDraft draft,
+            IReadOnlyCollection<TriviaOption> normalizedOptions)
+        {
+            return TriviaQuestion.Create(
+                draft.Prompt,
+                draft.SequenceOrder,
+                draft.ScoreValue,
+                draft.TimeLimitSeconds,
+                draft.Explanation,
+                normalizedOptions,
+                draft.IsActive);
+        }
+    }
+
+    private sealed class UpdateTriviaQuestionAuthoringTemplate : TriviaQuestionAuthoringTemplate
+    {
+        protected override TriviaQuestion? ResolveTargetQuestion(TriviaQuiz quiz, TriviaQuestionAuthoringDraft draft)
+        {
+            var question = quiz._questions.SingleOrDefault(existing => existing.Id == draft.QuestionId);
+
+            if (question is null)
+            {
+                throw new TriviaQuestionNotFoundException(draft.QuestionId!.Value);
+            }
+
+            return question;
+        }
+
+        protected override TriviaQuestion BuildQuestion(
+            TriviaQuestion? targetQuestion,
+            TriviaQuestionAuthoringDraft draft,
+            IReadOnlyCollection<TriviaOption> normalizedOptions)
+        {
+            targetQuestion!.ApplyAuthoring(
+                draft.Prompt,
+                draft.SequenceOrder,
+                draft.ScoreValue,
+                draft.TimeLimitSeconds,
+                draft.Explanation,
+                normalizedOptions,
+                draft.IsActive);
+
+            return targetQuestion;
         }
     }
 }

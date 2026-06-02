@@ -50,14 +50,17 @@ public abstract class TriviaQuizAuthoringCommandHandler<TCommand> : IRequestHand
     {
         return questions
             .OrderBy(question => question.SequenceOrder)
-            .Select(question => TriviaQuestion.Create(
-                question.Prompt,
-                question.SequenceOrder,
-                question.Options
-                    .OrderBy(option => option.SequenceOrder)
-                    .Select(option => TriviaOption.Create(option.OptionText, option.SequenceOrder, option.IsCorrect))
-                    .ToArray(),
-                question.IsActive))
+                .Select(question => TriviaQuestion.Create(
+                    question.Prompt,
+                    question.SequenceOrder,
+                    question.ScoreValue,
+                    question.TimeLimitSeconds,
+                    question.Explanation,
+                    question.Options
+                        .OrderBy(option => option.SequenceOrder)
+                        .Select(option => TriviaOption.Create(option.OptionText, option.SequenceOrder, option.IsCorrect))
+                        .ToArray(),
+                    question.IsActive))
             .ToArray();
     }
 
@@ -82,7 +85,10 @@ public abstract class TriviaQuizAuthoringCommandHandler<TCommand> : IRequestHand
                             option.OptionText,
                             option.SequenceOrder,
                             option.IsCorrect))
-                        .ToArray()))
+                        .ToArray(),
+                    question.ScoreValue,
+                    question.TimeLimit?.Seconds,
+                    question.Explanation))
                 .ToArray());
     }
 }

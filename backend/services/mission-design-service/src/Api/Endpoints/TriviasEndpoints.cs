@@ -1,5 +1,7 @@
 using Microsoft.AspNetCore.Http.HttpResults;
+using umbral_backend.Application.Trivias.Commands.AddTriviaQuestion;
 using umbral_backend.Application.Trivias.Commands.CreateTriviaQuiz;
+using umbral_backend.Application.Trivias.Commands.UpdateTriviaQuestion;
 using umbral_backend.Application.Trivias.Commands.UpdateTriviaQuiz;
 using umbral_backend.Application.Trivias.Common.Authoring;
 using umbral_backend.Application.Trivias.DTOs;
@@ -18,6 +20,8 @@ public sealed class TriviasEndpoints : IEndpointGroup
         trivias.MapGet("/", GetTriviaCatalog);
         trivias.MapGet("/{id:int}", GetTriviaDetail);
         trivias.MapPut("/{id:int}", UpdateTriviaQuiz);
+        trivias.MapPost("/{triviaQuizId:int}/questions", AddTriviaQuestion);
+        trivias.MapPut("/{triviaQuizId:int}/questions/{questionId:int}", UpdateTriviaQuestion);
     }
 
     private static async Task<Created<TriviaQuizResponse>> CreateTriviaQuiz(
@@ -30,16 +34,14 @@ public sealed class TriviasEndpoints : IEndpointGroup
                 request.Title,
                 request.Description,
                 request.Questions.Select(question =>
-                    new TriviaQuestionInput(
+                    MapTriviaQuestionInput(
                         question.Prompt,
                         question.SequenceOrder,
                         question.IsActive,
-                        question.Options.Select(option =>
-                            new TriviaOptionInput(
-                                option.OptionText,
-                                option.SequenceOrder,
-                                option.IsCorrect))
-                            .ToArray()))
+                        question.Options,
+                        question.ScoreValue,
+                        question.TimeLimitSeconds,
+                        question.Explanation))
                     .ToArray()),
             cancellationToken);
 
@@ -79,20 +81,89 @@ public sealed class TriviasEndpoints : IEndpointGroup
                 request.Title,
                 request.Description,
                 request.Questions.Select(question =>
-                    new TriviaQuestionInput(
+                    MapTriviaQuestionInput(
                         question.Prompt,
                         question.SequenceOrder,
                         question.IsActive,
-                        question.Options.Select(option =>
-                            new TriviaOptionInput(
-                                option.OptionText,
-                                option.SequenceOrder,
-                                option.IsCorrect))
-                            .ToArray()))
+                        question.Options,
+                        question.ScoreValue,
+                        question.TimeLimitSeconds,
+                        question.Explanation))
                     .ToArray()),
             cancellationToken);
 
         return TypedResults.Ok(TriviaQuizResponse.FromDto(triviaQuiz));
+    }
+
+    private static async Task<Ok<TriviaQuizResponse>> AddTriviaQuestion(
+        ISender sender,
+        int triviaQuizId,
+        AddTriviaQuestionRequest request,
+        CancellationToken cancellationToken)
+    {
+        var triviaQuiz = await sender.Send(
+            new AddTriviaQuestionCommand(
+                triviaQuizId,
+                request.Prompt,
+                request.SequenceOrder,
+                request.ScoreValue,
+                request.TimeLimitSeconds,
+                request.Explanation,
+                request.IsActive,
+                request.Options.Select(MapTriviaOptionInput).ToArray()),
+            cancellationToken);
+
+        return TypedResults.Ok(TriviaQuizResponse.FromDto(triviaQuiz));
+    }
+
+    private static async Task<Ok<TriviaQuizResponse>> UpdateTriviaQuestion(
+        ISender sender,
+        int triviaQuizId,
+        int questionId,
+        UpdateTriviaQuestionRequest request,
+        CancellationToken cancellationToken)
+    {
+        var triviaQuiz = await sender.Send(
+            new UpdateTriviaQuestionCommand(
+                triviaQuizId,
+                questionId,
+                request.Prompt,
+                request.SequenceOrder,
+                request.ScoreValue,
+                request.TimeLimitSeconds,
+                request.Explanation,
+                request.IsActive,
+                request.Options.Select(MapTriviaOptionInput).ToArray()),
+            cancellationToken);
+
+        return TypedResults.Ok(TriviaQuizResponse.FromDto(triviaQuiz));
+    }
+
+    private static TriviaQuestionInput MapTriviaQuestionInput(
+        string prompt,
+        int sequenceOrder,
+        bool isActive,
+        IReadOnlyList<TriviaOptionRequest> options,
+        int? scoreValue,
+        int? timeLimitSeconds,
+        string? explanation)
+    {
+        return new TriviaQuestionInput(
+            prompt,
+            sequenceOrder,
+            isActive,
+            options.Select(MapTriviaOptionInput).ToArray(),
+            scoreValue,
+            timeLimitSeconds,
+            explanation);
+    }
+
+    private static TriviaOptionInput MapTriviaOptionInput(TriviaOptionRequest option)
+    {
+        return new TriviaOptionInput(
+            option.OptionText,
+            option.SequenceOrder,
+            option.IsCorrect);
     }
 
     public sealed record CreateTriviaQuizRequest(
@@ -105,11 +176,32 @@ public sealed class TriviasEndpoints : IEndpointGroup
         string Description,
         IReadOnlyList<TriviaQuestionRequest> Questions);
 
+    public sealed record AddTriviaQuestionRequest(
+        string Prompt,
+        int SequenceOrder,
+        int ScoreValue,
+        int TimeLimitSeconds,
+        string? Explanation,
+        bool IsActive,
+        IReadOnlyList<TriviaOptionRequest> Options);
+
+    public sealed record UpdateTriviaQuestionRequest(
+        string Prompt,
+        int SequenceOrder,
+        int ScoreValue,
+        int TimeLimitSeconds,
+        string? Explanation,
+        bool IsActive,
+        IReadOnlyList<TriviaOptionRequest> Options);
+
     public sealed record TriviaQuestionRequest(
         string Prompt,
         int SequenceOrder,
         bool IsActive,
-        IReadOnlyList<TriviaOptionRequest> Options);
+        IReadOnlyList<TriviaOptionRequest> Options,
+        int? ScoreValue = null,
+        int? TimeLimitSeconds = null,
+        string? Explanation = null);
 
     public sealed record TriviaOptionRequest(
         string OptionText,
@@ -139,7 +231,10 @@ public sealed class TriviasEndpoints : IEndpointGroup
         string Prompt,
         int SequenceOrder,
         bool IsActive,
-        IReadOnlyList<TriviaOptionResponse> Options)
+        IReadOnlyList<TriviaOptionResponse> Options,
+        int? ScoreValue,
+        int? TimeLimitSeconds,
+        string? Explanation)
     {
         public static TriviaQuestionResponse FromDto(TriviaQuestionDto triviaQuestionDto)
         {
@@ -148,7 +243,10 @@ public sealed class TriviasEndpoints : IEndpointGroup
                 triviaQuestionDto.Prompt,
                 triviaQuestionDto.SequenceOrder,
                 triviaQuestionDto.IsActive,
-                triviaQuestionDto.Options.Select(TriviaOptionResponse.FromDto).ToList());
+                triviaQuestionDto.Options.Select(TriviaOptionResponse.FromDto).ToList(),
+                triviaQuestionDto.ScoreValue,
+                triviaQuestionDto.TimeLimitSeconds,
+                triviaQuestionDto.Explanation);
         }
     }
 

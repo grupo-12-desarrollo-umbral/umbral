@@ -3,6 +3,7 @@ using umbral_backend.Web.Endpoints;
 
 namespace umbral_backend.Infrastructure.IntegrationTests.Api;
 
+[Collection("MissionDesignIntegrationTests")]
 public sealed class MissionEndpointsTests : IClassFixture<PostgreSqlFixture>, IAsyncLifetime
 {
     private readonly PostgreSqlFixture _fixture;

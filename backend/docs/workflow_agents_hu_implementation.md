@@ -51,7 +51,7 @@ You type               Agent runs              You decide
 
 ## Session 1 — Generate
 
-Open a new Claude Code session from the repo root. Point it at the generator:
+Open a new Codex session from the repo root. Point it at the generator:
 
 ```
 Read @backend/.agents/generator-agent.md.
@@ -90,6 +90,7 @@ HU-06 adds: <one paragraph summary from the generator>
 Read both files before proceeding.
 
 Check:
+
 - Pre-resolved orient lists the right predecessor work (HU-01–05 landed items)
 - Scope table matches what the PRD says HU-06 adds
 - Branch base is correct (develop vs predecessor branch)
@@ -103,7 +104,7 @@ If it looks good: open a new session and invoke the driver.
 
 ## Session 2 — Drive backend phases
 
-Open a **new** Claude Code session from the repo root. Point it at the driver:
+Open a **new** Codex session from the repo root. Point it at the driver:
 
 ```
 Read @backend/.agents/driver-agent.md.
@@ -136,6 +137,15 @@ git worktree add ../umbral-hu-06 -b feature/hu-06-<slug> develop
 
 Select a phase to implement (X.1 / X.2 / X.3 / X.4):
 ────────────────────────────────────────────────────────────────
+```
+
+Open a new Codex session from the repo root. Point it at the subagent:
+
+```
+Read @backend/.agents/driver-agent.md.
+
+Run driver-agent for backend/docs/prompt_example_feature_hu06.md.
+Implement phase X.1.
 ```
 
 You type e.g. `X.1`. The driver delegates to a subagent and runs the gate. On
@@ -298,16 +308,16 @@ cleanup. It confirms each one succeeded and gives you the PR URL.
 
 ## What you type in total
 
-| When | You type |
-|---|---|
-| Session 1 | `Read @backend/.agents/generator-agent.md. Run generator-agent for HU-06 DES-13.` |
-| Stop 1 | Review files, fix anything wrong, then open Session 2 |
-| Session 2 | `Read @backend/.agents/driver-agent.md. Run driver-agent for backend/docs/prompt_example_feature_hu06.md.` |
-| Phase menu × 4 | `X.1` → `X.2` → `X.3` → `X.4` (one reply per phase) |
-| Commit approval × 4 | Approve each phase's commit when the driver presents it (one per phase) |
-| Stop 2 | Review API contract report |
-| Frontend session | Paste Step 9 from the prompt file into a new session with `@frontend/AGENTS.md` |
-| Close-out | `Run the close-out commands.` in the driver session |
+| When                | You type                                                                                                   |
+| ------------------- | ---------------------------------------------------------------------------------------------------------- |
+| Session 1           | `Read @backend/.agents/generator-agent.md. Run generator-agent for HU-06 DES-13.`                          |
+| Stop 1              | Review files, fix anything wrong, then open Session 2                                                      |
+| Session 2           | `Read @backend/.agents/driver-agent.md. Run driver-agent for backend/docs/prompt_example_feature_hu06.md.` |
+| Phase menu × 4      | `X.1` → `X.2` → `X.3` → `X.4` (one reply per phase)                                                        |
+| Commit approval × 4 | Approve each phase's commit when the driver presents it (one per phase)                                    |
+| Stop 2              | Review API contract report                                                                                 |
+| Frontend session    | Paste Step 9 from the prompt file into a new session with `@frontend/AGENTS.md`                            |
+| Close-out           | `Run the close-out commands.` in the driver session                                                        |
 
 Roughly a dozen interactions for a full HU — four phase picks plus four commit
 approvals are the bulk of it. `/debrief` is optional and can be run any time
@@ -327,9 +337,9 @@ reuse it).
 
 ## Agent docs
 
-| Agent | File |
-|---|---|
-| Generator | `backend/.agents/generator-agent.md` |
-| Driver | `backend/.agents/driver-agent.md` |
-| Phase implementation | `backend/.agents/backend-agent.md` |
+| Agent                        | File                                 |
+| ---------------------------- | ------------------------------------ |
+| Generator                    | `backend/.agents/generator-agent.md` |
+| Driver                       | `backend/.agents/driver-agent.md`    |
+| Phase implementation         | `backend/.agents/backend-agent.md`   |
 | Architect (boundaries, ADRs) | `backend/.agents/architect-agent.md` |

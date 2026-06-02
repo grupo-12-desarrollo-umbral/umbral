@@ -161,6 +161,9 @@ namespace umbral_backend.Infrastructure.Persistence.Migrations
 
                             NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b1.Property<int>("Id"));
 
+                            b1.Property<string>("Explanation")
+                                .HasColumnType("text");
+
                             b1.Property<bool>("IsActive")
                                 .HasColumnType("boolean");
 
@@ -168,6 +171,9 @@ namespace umbral_backend.Infrastructure.Persistence.Migrations
                                 .IsRequired()
                                 .HasMaxLength(2000)
                                 .HasColumnType("character varying(2000)");
+
+                            b1.Property<int?>("ScoreValue")
+                                .HasColumnType("integer");
 
                             b1.Property<int>("SequenceOrder")
                                 .HasColumnType("integer");
@@ -218,7 +224,26 @@ namespace umbral_backend.Infrastructure.Persistence.Migrations
                                         .HasForeignKey("TriviaQuestionId");
                                 });
 
+                            b1.OwnsOne("umbral_backend.Domain.ValueObjects.QuestionTimer", "TimeLimit", b2 =>
+                                {
+                                    b2.Property<int>("TriviaQuestionId")
+                                        .HasColumnType("integer");
+
+                                    b2.Property<int>("Seconds")
+                                        .HasColumnType("integer")
+                                        .HasColumnName("TimeLimitSeconds");
+
+                                    b2.HasKey("TriviaQuestionId");
+
+                                    b2.ToTable("TriviaQuestions");
+
+                                    b2.WithOwner()
+                                        .HasForeignKey("TriviaQuestionId");
+                                });
+
                             b1.Navigation("Options");
+
+                            b1.Navigation("TimeLimit");
                         });
 
                     b.Navigation("Questions");
