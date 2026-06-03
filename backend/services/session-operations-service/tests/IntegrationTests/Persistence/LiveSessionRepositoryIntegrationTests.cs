@@ -124,6 +124,57 @@ public sealed class LiveSessionRepositoryIntegrationTests
         reloadedTeam.Members.Should().ContainSingle(member => member.SessionParticipantId == participant.SessionParticipantId);
     }
 
+    [Fact]
+    public async Task GetByIdAsync_RestoresTriviaSnapshotGraph()
+    {
+        await using var resetContext = BuildContext();
+        await ResetDatabaseAsync(resetContext);
+
+        var scheduledAt = DateTimeOffset.UtcNow.AddDays(1);
+        var liveSession = LiveSession.CreateTrivia(
+            SessionSource.CreateTriviaQuiz(42),
+            $"SES-{Guid.NewGuid():N}"[..12],
+            "Trivia Night",
+            20,
+            scheduledAt,
+            TriviaSessionSnapshot.Create(
+                "Trivia Source",
+                [
+                    TriviaQuestionSnapshot.Create(
+                        "Capital of France?",
+                        1,
+                        50,
+                        30,
+                        "Paris is the capital city.",
+                        [
+                            TriviaOptionSnapshot.Create("Paris", 1, true),
+                            TriviaOptionSnapshot.Create("Lyon", 2, false)
+                        ])
+                ]));
+
+        await using (var seedContext = BuildContext())
+        {
+            seedContext.LiveSessions.Add(liveSession);
+            await seedContext.SaveChangesAsync(CancellationToken.None);
+        }
+
+        await using var assertContext = BuildContext();
+        var persistedSession = await new LiveSessionRepository(assertContext)
+            .GetByIdAsync(liveSession.LiveSessionId, CancellationToken.None);
+
+        persistedSession.Should().NotBeNull();
+        persistedSession!.Source.SourceTriviaQuizId.Should().Be(42);
+        persistedSession.TriviaSnapshot.Should().NotBeNull();
+        persistedSession.TriviaSnapshot!.QuizTitle.Should().Be("Trivia Source");
+        persistedSession.TriviaSnapshot.Questions.Should().ContainSingle();
+
+        var question = persistedSession.TriviaSnapshot.Questions.Single();
+        question.Prompt.Should().Be("Capital of France?");
+        question.Explanation.Should().Be("Paris is the capital city.");
+        question.Options.Should().HaveCount(2);
+        question.Options.Should().ContainSingle(option => option.OptionText == "Paris" && option.IsCorrect);
+    }
+
     private ApplicationDbContext BuildContext()
     {
         return _contextFactory.Create();

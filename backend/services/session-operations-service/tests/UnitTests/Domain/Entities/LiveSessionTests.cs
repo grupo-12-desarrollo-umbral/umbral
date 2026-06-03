@@ -12,17 +12,51 @@ public sealed class LiveSessionTests
     private readonly JoinPolicy _joinPolicy = new();
 
     [Fact]
-    public void Create_WithMismatchedSource_ThrowsException()
+    public void CreateTrivia_WithMismatchedSource_ThrowsException()
+    {
+        var act = () => LiveSession.CreateTrivia(
+            SessionSource.Create(SessionSourceType.Mission, Guid.NewGuid()),
+            "abc123",
+            "Trivia Session",
+            30,
+            DateTimeOffset.UtcNow,
+            TriviaSessionSnapshotFactory.CreateSingleQuestion());
+
+        act.Should().Throw<SessionSourceDoesNotMatchModeException>();
+    }
+
+    [Fact]
+    public void Create_WithTriviaModeWithoutSnapshot_ThrowsException()
     {
         var act = () => LiveSession.Create(
-            SessionMode.TreasureHunt,
-            SessionSource.Create(SessionSourceType.TriviaQuiz, Guid.NewGuid()),
-            "abc123",
+            SessionMode.Trivia,
+            SessionSource.CreateTriviaQuiz(42),
+            "tri-123",
             "Trivia Session",
             30,
             DateTimeOffset.UtcNow);
 
-        act.Should().Throw<SessionSourceDoesNotMatchModeException>();
+        act.Should().Throw<TriviaSessionSnapshotRequiredException>();
+    }
+
+    [Fact]
+    public void CreateTrivia_WithSnapshot_AttachesFixedCopy()
+    {
+        var snapshot = TriviaSessionSnapshotFactory.CreateSingleQuestion();
+
+        var session = LiveSession.CreateTrivia(
+            SessionSource.CreateTriviaQuiz(42),
+            "tri-123",
+            "Trivia Session",
+            30,
+            DateTimeOffset.UtcNow,
+            snapshot);
+
+        session.SessionMode.Should().Be(SessionMode.Trivia);
+        session.Source.SourceTriviaQuizId.Should().Be(42);
+        session.TriviaSnapshot.Should().NotBeNull();
+        session.TriviaSnapshot!.Questions.Should().ContainSingle();
+        session.TriviaSnapshot.QuizTitle.Should().Be("Foundations of Science");
     }
 
     [Fact]

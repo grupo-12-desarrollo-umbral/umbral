@@ -26,6 +26,12 @@ public static class DependencyInjection
                 _ => { });
         builder.Services.AddAuthorization(options =>
         {
+            options.AddPolicy(AuthorizationPolicies.Operator, policy =>
+            {
+                policy.AddAuthenticationSchemes(TrustedHeadersAuthenticationDefaults.Scheme);
+                policy.RequireAuthenticatedUser();
+                policy.RequireRole("Operator");
+            });
             options.AddPolicy(AuthorizationPolicies.Participant, policy =>
             {
                 policy.AddAuthenticationSchemes(TrustedHeadersAuthenticationDefaults.Scheme);
