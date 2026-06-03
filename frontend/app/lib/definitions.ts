@@ -157,6 +157,23 @@ export type TriviaQuizDto = {
   questions: TriviaQuestionDto[]
 }
 
+export type CreateTriviaSessionRequest = {
+  sourceTriviaQuizId: number
+  title: string
+  maximumTimeMinutes: number
+  scheduledAt: string // ISO 8601 UTC string
+}
+
+export type TriviaSessionCreatedDto = {
+  liveSessionId: string // UUID
+  sessionCode: string // e.g. "SES-A1B2C3D4E5F6"
+  title: string
+  sessionState: string // "Scheduled"
+  scheduledAt: string // ISO 8601
+  sourceTriviaQuizId: number
+  questionCount: number
+}
+
 export class IdentityError extends Error {
   constructor(
     public code: 'deactivated' | 'unauthorized' | 'network' | 'unknown',

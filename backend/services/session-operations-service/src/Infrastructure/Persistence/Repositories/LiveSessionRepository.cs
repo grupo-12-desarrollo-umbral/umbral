@@ -20,6 +20,9 @@ public sealed class LiveSessionRepository : ILiveSessionRepository
                 .ThenInclude(team => team.Members)
             .Include(session => session.Participants)
             .Include(session => session.JoinContexts)
+            .Include(session => session.TriviaSnapshot!)
+                .ThenInclude(snapshot => snapshot.Questions)
+                    .ThenInclude(question => question.Options)
             .AsSplitQuery()
             .SingleOrDefaultAsync(session => session.LiveSessionId == liveSessionId, cancellationToken);
     }
@@ -28,7 +31,7 @@ public sealed class LiveSessionRepository : ILiveSessionRepository
     {
         if (_context.Entry(liveSession).State == EntityState.Detached)
         {
-            _context.LiveSessions.Update(liveSession);
+            _context.LiveSessions.Add(liveSession);
         }
 
         await _context.SaveChangesAsync(cancellationToken);

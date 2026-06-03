@@ -87,6 +87,9 @@ public sealed class LiveSessionConfiguration : IEntityTypeConfiguration<LiveSess
             sourceBuilder.Property(source => source.SourceEntityId)
                 .HasColumnName("source_entity_id")
                 .IsRequired();
+
+            sourceBuilder.Property(source => source.SourceTriviaQuizId)
+                .HasColumnName("source_trivia_quiz_id");
         });
 
         builder.OwnsOne(session => session.MaximumTime, maximumTimeBuilder =>
@@ -94,6 +97,100 @@ public sealed class LiveSessionConfiguration : IEntityTypeConfiguration<LiveSess
             maximumTimeBuilder.Property(maximumTime => maximumTime.Minutes)
                 .HasColumnName("maximum_time_minutes")
                 .IsRequired();
+        });
+
+        builder.OwnsOne(session => session.TriviaSnapshot, snapshotBuilder =>
+        {
+            snapshotBuilder.ToTable("live_session_trivia_snapshots");
+            snapshotBuilder.WithOwner().HasForeignKey("live_session_id");
+
+            snapshotBuilder.Ignore(snapshot => snapshot.Id);
+
+            snapshotBuilder.Property<Guid>("live_session_id")
+                .HasColumnName("live_session_id");
+
+            snapshotBuilder.HasKey("live_session_id");
+
+            snapshotBuilder.Property(snapshot => snapshot.QuizTitle)
+                .HasColumnName("quiz_title")
+                .HasMaxLength(200)
+                .IsRequired();
+
+            snapshotBuilder.OwnsMany(snapshot => snapshot.Questions, questionBuilder =>
+            {
+                questionBuilder.ToTable("live_session_trivia_snapshot_questions");
+                questionBuilder.WithOwner().HasForeignKey("trivia_snapshot_live_session_id");
+
+                questionBuilder.Property<int>("id")
+                    .HasColumnName("id")
+                    .ValueGeneratedOnAdd();
+
+                questionBuilder.Property<Guid>("trivia_snapshot_live_session_id")
+                    .HasColumnName("live_session_id");
+
+                questionBuilder.HasKey("id");
+
+                questionBuilder.Property(question => question.Prompt)
+                    .HasColumnName("prompt")
+                    .HasMaxLength(4000)
+                    .IsRequired();
+
+                questionBuilder.Property(question => question.SequenceOrder)
+                    .HasColumnName("sequence_order")
+                    .IsRequired();
+
+                questionBuilder.Property(question => question.ScoreValue)
+                    .HasColumnName("score_value")
+                    .IsRequired();
+
+                questionBuilder.Property(question => question.TimeLimitSeconds)
+                    .HasColumnName("time_limit_seconds")
+                    .IsRequired();
+
+                questionBuilder.Property(question => question.Explanation)
+                    .HasColumnName("explanation")
+                    .HasMaxLength(4000);
+
+                questionBuilder.HasIndex("trivia_snapshot_live_session_id", nameof(Domain.ValueObjects.TriviaQuestionSnapshot.SequenceOrder))
+                    .IsUnique();
+
+                questionBuilder.OwnsMany(question => question.Options, optionBuilder =>
+                {
+                    optionBuilder.ToTable("live_session_trivia_snapshot_options");
+                    optionBuilder.WithOwner().HasForeignKey("trivia_question_snapshot_id");
+
+                    optionBuilder.Property<int>("id")
+                        .HasColumnName("id")
+                        .ValueGeneratedOnAdd();
+
+                    optionBuilder.Property<int>("trivia_question_snapshot_id")
+                        .HasColumnName("trivia_question_snapshot_id");
+
+                    optionBuilder.HasKey("id");
+
+                    optionBuilder.Property(option => option.OptionText)
+                        .HasColumnName("option_text")
+                        .HasMaxLength(2000)
+                        .IsRequired();
+
+                    optionBuilder.Property(option => option.SequenceOrder)
+                        .HasColumnName("sequence_order")
+                        .IsRequired();
+
+                    optionBuilder.Property(option => option.IsCorrect)
+                        .HasColumnName("is_correct")
+                        .IsRequired();
+
+                    optionBuilder.HasIndex("trivia_question_snapshot_id", nameof(Domain.ValueObjects.TriviaOptionSnapshot.SequenceOrder))
+                        .IsUnique();
+                });
+
+                questionBuilder.Navigation(question => question.Options)
+                    .UsePropertyAccessMode(PropertyAccessMode.Field);
+            });
+
+            snapshotBuilder.Navigation(snapshot => snapshot.Questions)
+                .UsePropertyAccessMode(PropertyAccessMode.Field);
         });
 
         builder.OwnsMany(session => session.Teams, teamBuilder =>
@@ -284,6 +381,9 @@ public sealed class LiveSessionConfiguration : IEntityTypeConfiguration<LiveSess
 
         builder.Navigation(session => session.JoinContexts)
             .UsePropertyAccessMode(PropertyAccessMode.Field);
+
+        builder.Navigation(session => session.TriviaSnapshot)
+            .IsRequired(false);
 
         builder.HasIndex(session => session.SessionCode)
             .IsUnique();

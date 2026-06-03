@@ -7,6 +7,7 @@ import { getUsersPage, deactivateUser, assignUserRole } from '@/app/actions/user
 import { TeamsPanel } from './TeamsPanel'
 import { MissionsPanel } from './MissionsPanel'
 import { TriviasPanel } from './TriviasPanel'
+import { SessionsPanel } from './SessionsPanel'
 import type { PagedResult, UserAccessCatalogItemDto } from '@/app/lib/definitions';
 import styles from './dashboard.module.css';
 
@@ -86,6 +87,7 @@ const navigation = [
   { key: 'teams', label: 'Teams', icon: '◫' },
   { key: 'missions', label: 'Missions', icon: '▤' },
   { key: 'trivias', label: 'Trivias', icon: '▤' },
+  { key: 'sessions', label: 'Sessions', icon: '▶' },
   { key: 'rules', label: 'Rules', icon: '⚑' },
   { key: 'users', label: 'Users', icon: '⊞' },
   { key: 'settings', label: 'Settings', icon: '⚙' },
@@ -434,6 +436,7 @@ export default function DashboardClient({
 
   const visibleNavigation = navigation.filter((item) => {
     if (role === 'participant') return item.key === 'overview'
+    if (role === 'admin') return item.key !== 'sessions'
     if (role === 'operator') return item.key !== 'missions' && item.key !== 'trivias'
     return true
   })
@@ -568,6 +571,8 @@ export default function DashboardClient({
             <TeamsPanel role={role} />
           ) : activeNav === 'trivias' ? (
             <TriviasPanel role={role} />
+          ) : activeNav === 'sessions' ? (
+            <SessionsPanel role={role as 'operator'} />
           ) : activeNav === 'missions' ? (
             <MissionsPanel role={role} />
           ) : role === 'operator' && selectedSessionId === 'assigned-list' ? (

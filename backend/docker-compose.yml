@@ -110,6 +110,7 @@ services:
       ASPNETCORE_URLS: http://+:8080
       ConnectionStrings__umbral_backendDb: Host=postgres;Port=5432;Database=session_operations;Username=postgres;Password=postgres
       IdentityAccess__BaseAddress: http://identity-access-service:8080/
+      PublishedTriviaQuizSource__BaseAddress: http://mission-design-service:8080/
     ports:
       - "5003:8080"
 

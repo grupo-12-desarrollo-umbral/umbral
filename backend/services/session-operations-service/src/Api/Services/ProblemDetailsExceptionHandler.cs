@@ -40,6 +40,12 @@ public sealed class ProblemDetailsExceptionHandler : IExceptionHandler
                 Detail = exception.Message,
                 Status = StatusCodes.Status403Forbidden
             },
+            SourceTriviaQuizNotPublishedException => new ProblemDetails
+            {
+                Title = "Conflict.",
+                Detail = exception.Message,
+                Status = StatusCodes.Status409Conflict
+            },
             TeamCapacityReachedException
                 or TeamJoinClosedException
                 or ParticipantAlreadyConnectedException
