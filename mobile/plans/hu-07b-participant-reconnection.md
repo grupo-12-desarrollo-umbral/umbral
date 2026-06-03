@@ -35,8 +35,7 @@ service. The hub is reached at `${apiBaseUrl()}/hubs/sessions`.
 - **Hub method** (`Api/Hubs/SessionsHub.cs`):
   ```
   Task<ReconnectParticipantResultDto> ReconnectAsync(
-      Guid liveSessionId,
-      ReconnectParticipantHubRequest { Guid TeamId, string DisplayName, int TeamCapacity, string? Token })
+      Guid liveSessionId, ReconnectParticipantHubRequest { Guid TeamId, string DisplayName, string? Token })
   ```
   On success the server adds the connection to groups
   `live-session:{id:D}`, `team:{id:D}`, `participant:{id:D}` and returns the DTO.
@@ -60,17 +59,20 @@ service. The hub is reached at `${apiBaseUrl()}/hubs/sessions`.
   in `Api/Endpoints/SessionsEndpoints.cs`. Useful as a transport-agnostic smoke
   check and as a non-realtime fallback if hub negotiation fails on a device.
 - **Validation** (`ReconnectAuthenticatedParticipantCommandValidator`): `LiveSessionId`,
-  `TeamId` non-empty; `DisplayName` non-empty; `TeamCapacity > 0`. Violations →
+  `TeamId` non-empty; `DisplayName` non-empty. Violations →
   `HubException` over the hub / `400` over REST.
 
 ### Gateway + auth wiring — already supports browser/RN SignalR
 
 - Gateway route `session-ops-hubs`: `Path: /hubs/{**catch-all}` → `session-ops`
   cluster, `AuthorizationPolicy: "default"` (validates the Keycloak JWT).
-- `WebSocketTokenExtractionTransform.OnMessageReceived` already reads the SignalR
-  `?access_token=` query param — so a WS/SSE handshake (which can't set an
-  `Authorization` header) authenticates correctly through the gateway. **This means
-  `@microsoft/signalr`'s `accessTokenFactory` is the supported auth path.**
+- `WebSocketTokenExtractionTransform.OnMessageReceived` copies the SignalR
+  `?access_token=` query param into the token **only when the request carries
+  `Upgrade: websocket`** — so the WS handshake (which can't set an `Authorization`
+  header) authenticates correctly through the gateway. **This means
+  `@microsoft/signalr`'s `accessTokenFactory` is the supported auth path for WS.**
+  LongPolling/SSE are not WS upgrades and are not covered by this transform; they
+  authenticate via the `Authorization` header on their HTTP requests instead.
 - Gateway strips `Authorization` and injects trusted headers `X-User-Id`,
   `X-User-Role`, `X-User-Email`. The service authenticates the hub via the
   `TrustedHeaders` scheme + `RequireRole("Participant")` — the client just sends the
@@ -111,9 +113,13 @@ service. The hub is reached at `${apiBaseUrl()}/hubs/sessions`.
   npx expo install @microsoft/signalr
   ```
 - **Transport:** RN ships a global `WebSocket`, so prefer `WebSockets` transport with
-  `accessTokenFactory`. Keep `LongPolling` as a documented fallback (gateway supports
-  both via the same `access_token` extraction). Do **not** force `skipNegotiation`
-  through the gateway.
+  `accessTokenFactory` → the gateway's `WebSocketTokenExtractionTransform` lifts the
+  `?access_token=` query param into the token (it only fires on an `Upgrade: websocket`
+  request). `LongPolling`/SSE are **not** WS upgrades, so they are not covered by that
+  transform — they authenticate via the `Authorization` header `@microsoft/signalr`
+  sets on their HTTP requests. If LongPolling is kept as a fallback, add a Phase 0
+  smoke step confirming a LongPolling handshake authenticates through the gateway. Do
+  **not** force `skipNegotiation` through the gateway.
 
 ---
 
@@ -130,22 +136,20 @@ client and must be sourced or defaulted.
       ```bash
       curl -s -X POST "$GW/api/sessions/$LSID/participants/reconnect" \
         -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
-        -d '{"teamId":"...","displayName":"participant","teamCapacity":4,"token":null}' | jq
+        -d '{"teamId":"...","displayName":"participant","token":null}' | jq
       ```
       Confirm the happy path returns the DTO and a forbidden late-join / wrong-team /
       invalid-state attempt is rejected.
 - [ ] Smoke the **hub** through the gateway with `access_token` in the query string to
       confirm WS negotiation + auth works end-to-end (a tiny node `@microsoft/signalr`
       script against `${GW}/hubs/sessions?access_token=$TOKEN`, invoking
-      `ReconnectAsync`). Capture a known-good transcript and the `HubException` shape
-      on rejection.
+      `ReconnectAsync`). Capture a known-good transcript and the `HubException`
+      `{ "code": ... }` shape on rejection, and pin the **code → outcome** mapping (see
+      Key Risk #2) — not message prose.
 - [ ] **RESOLVE open contract inputs** (document the decision inline, like HU-06 did):
   - `DisplayName` → from the auth profile (`useAuth().profile.displayName`).
   - `LiveSessionId` / `TeamId` → from the live team context the participant last
     held (route params today; must be persisted for resume — see Phase 1).
-  - `TeamCapacity` → **not exposed by the HU-07A lobby DTO.** Decide the source:
-    extend the lobby/team DTO to carry capacity, OR pass a known per-session default.
-    Pick the minimal option and record it; `TeamCapacity > 0` is validated.
   - `Token` → the join token. HU-07A deliberately did **not** wire token consumption,
     and the prompt flags Identity token-consumption as a possible follow-up. Default
     to `null` unless the spike shows the backend requires it; note it as a close-out
@@ -174,11 +178,11 @@ Encapsulate SignalR and the persisted live context so screens stay thin.
   - Centralize transport/keepalive config; never log the token.
 - [ ] **DTO + request types** (`src/lib/realtime/sessions-hub-types.ts`): mirror
       `ReconnectParticipantResultDto` and the `ReconnectParticipantHubRequest`
-      (`teamId`, `displayName`, `teamCapacity`, `token?`) exactly.
+      (`teamId`, `displayName`, `token?`) exactly.
 - [ ] **Reconnect context store** (`src/lib/realtime/reconnect-context.ts`):
   - Persist the minimal data needed to resume — `{ liveSessionId, teamId, displayName,
-    teamCapacity, token? }` — in `expo-secure-store` (set on a successful join/admission,
-    cleared on sign-out / explicit leave).
+    token? }` — in `expo-secure-store` (set on a successful join/admission, cleared on
+    sign-out / explicit leave).
   - `saveReconnectContext`, `loadReconnectContext`, `clearReconnectContext`. This is
     what makes "resume the app and rejoin" possible without replaying the lobby.
 - [ ] Write the team-space landing to call `saveReconnectContext` so a later resume has
@@ -198,14 +202,18 @@ policy that maps results/`HubException` to a discriminated union the UI renders.
   - `ReconnectOutcome` union:
     `{ kind: 'reconnected'; result: ReconnectParticipantResultDto }`
     | `{ kind: 'forbidden-late-join' }` | `{ kind: 'invalid-session-state' }`
-    | `{ kind: 'lost-access' }` | `{ kind: 'unauthorized' }`
+    | `{ kind: 'lost-access' }` | `{ kind: 'already-connected' }`
+    | `{ kind: 'wrong-team' }` | `{ kind: 'unauthorized' }`
     | `{ kind: 'network-error' }` | `{ kind: 'error' }`.
-  - `interpretHubError(error)` maps `HubException` message content (and any error from
-    `invoke`) to the union. Because the backend rejects via `HubException` (not status
-    codes), key on the message/contract agreed in Phase 0; default unknown → `error`.
-    Treat connection failures as `network-error`; auth failures (401 on negotiate /
-    token rejected) as `unauthorized`.
-  - Keep **no access rules** here — only translate backend outcomes to UI vocabulary.
+  - `interpretHubError(error)` extracts the backend **code** from the `HubException`
+    message and maps it to the union (see Key Risk #2 for the code shape). Mapping:
+    `LATE_JOIN_NOT_ALLOWED` → `forbidden-late-join`; `TEAM_UNAVAILABLE` →
+    `invalid-session-state`; `FORBIDDEN` / `PARTICIPANT_REMOVED` / `NOT_FOUND` →
+    `lost-access`; `ALREADY_CONNECTED` → `already-connected`; `WRONG_TEAM` →
+    `wrong-team`; `UNAUTHORIZED` → `unauthorized`; `VALIDATION_FAILED` / `ERROR` /
+    unknown → `error`. Transport failures (no code) classify first: 401 on negotiate /
+    token rejected → `unauthorized`; connection/negotiate failure → `network-error`.
+  - Keep **no access rules** here — only translate backend codes to UI vocabulary.
 - [ ] **Hook** (`src/lib/realtime/use-reconnect.ts`):
   - State: `idle | connecting | reconnecting | reconnected | denied | error`.
   - `reconnect(context)` orchestrates: `start()` connection → `reconnect(...)` invoke →
@@ -241,6 +249,9 @@ the resume entry points decided in Phase 0. **Preserve the HU-07A join flow.**
   - `forbidden-late-join`: "The session has moved on — late join isn't allowed."
   - `invalid-session-state`: "This session isn't accepting participants right now."
   - `lost-access`: "You no longer have access to this team." → offer return to lobby.
+  - `already-connected`: "You're already connected on another device." → back to home.
+  - `wrong-team`: "You're assigned to a different team — head back to the lobby to
+    rejoin." → back to lobby.
   - `network-error`: retry affordance (reuse the lobby's "Try again" pattern).
   - `unauthorized`: sign out (handled in the hook).
   - Each denied state offers a clear next step (back to `index` / `join`), never a dead
@@ -276,6 +287,8 @@ the correct explicit state; the HU-07A first-join path is unchanged.
   | Session moved past join window | `forbidden-late-join` state |
   | Session in non-joinable state | `invalid-session-state` state |
   | Participant lost team access | `lost-access` state → back to lobby |
+  | Participant already connected elsewhere | `already-connected` state → back to home |
+  | Reconnect with a mismatched team | `wrong-team` state → back to lobby |
   | Token expired / rejected on negotiate | sign-out |
   | Gateway/hub down | network error + retry |
   | Transient WS drop | "Reconnecting…" banner, auto-recovers |
@@ -300,13 +313,21 @@ the correct explicit state; the HU-07A first-join path is unchanged.
    `?access_token` (`WebSocketTokenExtractionTransform`), so `accessTokenFactory` is the
    supported path. Don't set an `Authorization` header on the WS handshake; don't
    `skipNegotiation`.
-2. **`HubException` has no status code** — rejection reasons arrive as a message string.
-   Pin the message→outcome mapping in Phase 0 against the real backend; default unknown
-   messages to a generic `error` so the screen never silently breaks.
-3. **Missing client inputs (`TeamCapacity`, `Token`)** — not produced by the HU-07A
-   flow. Resolve the source in Phase 0; if the lobby DTO must be extended for capacity,
-   that's a small, isolated change. `Token` defaults to `null` pending the Identity
-   follow-up.
+2. **`HubException` carries a stable code, not free-text prose** — the backend's
+   `DomainExceptionHubFilter` (session-ops) wraps domain/validation failures into a
+   `HubException` whose message is `{"code":"...","message":"..."}`. The code is
+   identical across environments; the English prose is not (it is only the bare
+   `HubException` message in production, and SignalR prepends a wrapper when
+   `EnableDetailedErrors` is on in dev). So `interpretHubError` keys on the **code**
+   (extracted from the message), never the prose, and defaults an unknown/absent code to
+   a generic `error` so the screen never silently breaks. Pin the code→outcome mapping in
+   Phase 0 against the real backend.
+3. **Missing client input (`Token`)** — not produced by the HU-07A flow. Resolve the
+   source in Phase 0. `Token` defaults to `null` pending the Identity follow-up.
 4. **`@microsoft/signalr` in RN/Expo Go** — verify WS transport works in Expo Go on the
    target device early (Phase 0 hub smoke from a device, not just node). LongPolling is
-   the documented fallback if a device blocks WS through the gateway.
+   the documented fallback if a device blocks WS through the gateway — but it
+   authenticates via the `Authorization` header `@microsoft/signalr` sets on its HTTP
+   requests, **not** the `?access_token=` extraction (that transform only fires on a WS
+   upgrade). If LongPolling is kept, smoke a LongPolling handshake through the gateway in
+   Phase 0; otherwise drop it explicitly.

@@ -28,20 +28,7 @@ screen code later.
 | `displayName` | `useAuth().profile.displayName` | `src/lib/auth/auth-context.tsx` hydrates `profile` from `GET /api/users/me` and already uses `profile.displayName` as the authenticated participant display name. |
 | `liveSessionId` | current route params after the HU-07A join flow; persist this for resume in Phase 1 | `src/app/(app)/team-lobby.tsx` routes to `/(app)/team-space` with `liveSessionId`. |
 | `teamId` | current route params after the HU-07A join flow; persist this for resume in Phase 1 | `src/app/(app)/team-lobby.tsx` routes to `/(app)/team-space` with `teamId`. |
-| `teamCapacity` | extend the lobby/team DTO to carry capacity; do **not** hardcode a default into the app flow | `src/lib/api/teams.ts` currently exposes only `{ teamId, displayName, joinState }`, while the backend validator requires `teamCapacity > 0`. |
 | `token` | default to `null` for reconnect unless the backend spike proves it is required | HU-07A intentionally left token consumption unwired; the reconnect validator accepts `null`. |
-
-### Why `teamCapacity` is a contract follow-up
-
-`session-operations-service` enforces first-admission capacity with the client-supplied
-`teamCapacity`. A fixed mobile default would silently weaken the server's join rules.
-The minimal safe choice is to extend the lobby DTO so the client can preserve the
-real capacity it already saw during the HU-07A flow.
-
-That is a cross-workload contract change:
-
-- backend: include `teamCapacity` in the lobby/team payload
-- mobile: persist it with the reconnect context in Phase 1
 
 ## Transport decision
 
@@ -123,7 +110,6 @@ Capture these values for the next steps:
 - `LIVE_SESSION_ID`
 - `TEAM_ID`
 - `DISPLAY_NAME`
-- `TEAM_CAPACITY`
 
 ## Step 3 — Smoke the REST reconnect first
 
@@ -133,7 +119,7 @@ REST is the simplest transport for checking the command contract before the hub:
 curl -s -X POST "$GW/api/sessions/$LIVE_SESSION_ID/participants/reconnect" \
   -H "Authorization: Bearer $PARTICIPANT_TOKEN" \
   -H 'Content-Type: application/json' \
-  -d "{\"teamId\":\"$TEAM_ID\",\"displayName\":\"$DISPLAY_NAME\",\"teamCapacity\":$TEAM_CAPACITY,\"token\":null}" \
+  -d "{\"teamId\":\"$TEAM_ID\",\"displayName\":\"$DISPLAY_NAME\",\"token\":null}" \
   | jq
 ```
 
@@ -157,7 +143,7 @@ Also capture at least one rejected attempt:
 
 - first join into an already active session -> `403`
 - wrong team for an already assigned participant -> `409`
-- blank display name or non-positive capacity -> `400`
+- blank display name -> `400`
 
 ## Step 4 — Smoke the hub through the gateway
 
@@ -171,7 +157,6 @@ TOKEN="$PARTICIPANT_TOKEN" \
 LIVE_SESSION_ID="$LIVE_SESSION_ID" \
 TEAM_ID="$TEAM_ID" \
 DISPLAY_NAME="$DISPLAY_NAME" \
-TEAM_CAPACITY="$TEAM_CAPACITY" \
 TRANSCRIPT_FILE=/tmp/hu07b-hub-success.json \
 npm run smoke:reconnect:hub
 ```
@@ -196,7 +181,6 @@ TOKEN="$PARTICIPANT_TOKEN" \
 LIVE_SESSION_ID="$LIVE_SESSION_ID" \
 TEAM_ID="$WRONG_TEAM_ID" \
 DISPLAY_NAME="$DISPLAY_NAME" \
-TEAM_CAPACITY="$TEAM_CAPACITY" \
 TRANSCRIPT_FILE=/tmp/hu07b-hub-denied.json \
 npm run smoke:reconnect:hub
 ```
@@ -210,7 +194,7 @@ translation in one place; do not scatter message matching into screens.
 - REST rejection path captured through the gateway
 - Hub happy path captured through the gateway over `WebSockets`
 - Hub rejection path captured with the serialized error message
-- `displayName`, `liveSessionId`, `teamId`, `teamCapacity`, and `token` sources recorded
+- `displayName`, `liveSessionId`, `teamId`, and `token` sources recorded
 - reconnect trigger policy fixed: resume, transport-drop, and manual retry
 
 ## Phase 4 — On-device manual test matrix

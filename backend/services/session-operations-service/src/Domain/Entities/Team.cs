@@ -16,17 +16,28 @@ public sealed class Team : BaseEntity
         DisplayName = string.Empty;
     }
 
-    private Team(Guid liveSessionId, string displayName, TeamCode teamCode)
+    private Team(Guid liveSessionId, Guid teamId, string displayName, TeamCode teamCode, int capacity)
     {
+        if (teamId == Guid.Empty)
+        {
+            throw new TeamIdentityRequiredException();
+        }
+
         if (string.IsNullOrWhiteSpace(displayName))
         {
             throw new TeamDisplayNameRequiredException();
         }
 
-        TeamId = Guid.NewGuid();
+        if (capacity <= 0)
+        {
+            throw new TeamCapacityMustBePositiveException();
+        }
+
+        TeamId = teamId;
         LiveSessionId = liveSessionId;
         TeamCode = teamCode;
         DisplayName = displayName.Trim();
+        Capacity = capacity;
         JoinStatus = TeamJoinStatus.Open;
     }
 
@@ -37,6 +48,8 @@ public sealed class Team : BaseEntity
     public TeamCode TeamCode { get; private set; }
 
     public string DisplayName { get; private set; }
+
+    public int Capacity { get; private set; }
 
     public int? CurrentScore { get; private set; }
 
@@ -54,9 +67,14 @@ public sealed class Team : BaseEntity
 
     public int ActiveMemberCount => _members.Count(member => member.IsActive);
 
-    public static Team Register(Guid liveSessionId, string displayName, string teamCode)
+    public static Team Register(Guid liveSessionId, string displayName, string teamCode, int capacity)
     {
-        return new Team(liveSessionId, displayName, TeamCode.Create(teamCode));
+        return Register(liveSessionId, Guid.NewGuid(), displayName, teamCode, capacity);
+    }
+
+    public static Team Register(Guid liveSessionId, Guid teamId, string displayName, string teamCode, int capacity)
+    {
+        return new Team(liveSessionId, teamId, displayName, TeamCode.Create(teamCode), capacity);
     }
 
     public void LockNewParticipants()

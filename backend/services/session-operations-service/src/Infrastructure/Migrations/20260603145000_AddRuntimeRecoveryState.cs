@@ -94,6 +94,7 @@ namespace umbral_backend.Infrastructure.Migrations
                     live_session_id = table.Column<Guid>(type: "uuid", nullable: false),
                     team_code = table.Column<string>(type: "character varying(32)", maxLength: 32, nullable: false),
                     display_name = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: false),
+                    team_capacity = table.Column<int>(type: "integer", nullable: false),
                     current_score = table.Column<int>(type: "integer", nullable: true),
                     current_progress_node_id = table.Column<Guid>(type: "uuid", nullable: true),
                     current_clue_node_id = table.Column<Guid>(type: "uuid", nullable: true),

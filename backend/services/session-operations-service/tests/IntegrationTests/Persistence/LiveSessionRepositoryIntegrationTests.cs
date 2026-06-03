@@ -25,13 +25,12 @@ public sealed class LiveSessionRepositoryIntegrationTests
 
         var createdAt = DateTimeOffset.UtcNow.AddMinutes(-30);
         var liveSession = CreateSession(createdAt);
-        var team = liveSession.RegisterTeam("Blue", "BLUE-01");
+        var team = liveSession.RegisterTeam("Blue", "BLUE-01", 4);
         var participant = liveSession.AdmitParticipant(
             Guid.NewGuid(),
             "Nora",
             team.TeamId,
             createdAt.AddMinutes(2),
-            4,
             new JoinPolicy()).Participant;
         liveSession.OpenJoinContext(team.TeamId, Guid.NewGuid(), createdAt.AddMinutes(1), createdAt.AddMinutes(11));
         liveSession.DisconnectParticipant(participant.SessionParticipantId, createdAt.AddMinutes(5));
@@ -55,6 +54,7 @@ public sealed class LiveSessionRepositoryIntegrationTests
 
         var persistedTeam = persistedSession.Teams.Single();
         persistedTeam.TeamCode.Value.Should().Be("BLUE-01");
+        persistedTeam.Capacity.Should().Be(4);
         persistedTeam.Members.Should().ContainSingle(member => member.SessionParticipantId == participant.SessionParticipantId);
 
         var persistedParticipant = persistedSession.Participants.Single();
@@ -71,13 +71,12 @@ public sealed class LiveSessionRepositoryIntegrationTests
 
         var joinedAt = DateTimeOffset.UtcNow.AddMinutes(-10);
         var liveSession = CreateSession(joinedAt.AddMinutes(-5));
-        var team = liveSession.RegisterTeam("Red", "RED-01");
+        var team = liveSession.RegisterTeam("Red", "RED-01", 3);
         var participant = liveSession.AdmitParticipant(
             Guid.NewGuid(),
             "Nova",
             team.TeamId,
             joinedAt,
-            3,
             new JoinPolicy()).Participant;
         liveSession.DisconnectParticipant(participant.SessionParticipantId, joinedAt.AddMinutes(2));
 
@@ -101,7 +100,6 @@ public sealed class LiveSessionRepositoryIntegrationTests
                 participant.DisplayName,
                 team.TeamId,
                 reconnectedAt,
-                3,
                 new JoinPolicy());
 
             admission.IsReconnect.Should().BeTrue();

@@ -46,7 +46,6 @@ public sealed class SessionsEndpoints : IEndpointGroup
                 liveSessionId,
                 request.TeamId,
                 request.DisplayName,
-                request.TeamCapacity,
                 request.Token),
             cancellationToken);
 
@@ -62,6 +61,5 @@ public sealed class SessionsEndpoints : IEndpointGroup
     public sealed record ReconnectParticipantRequest(
         Guid TeamId,
         string DisplayName,
-        int TeamCapacity,
         string? Token);
 }

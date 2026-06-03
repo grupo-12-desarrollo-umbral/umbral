@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Http.Connections;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.AspNetCore.SignalR.Client;
@@ -46,7 +47,7 @@ public sealed class ReconnectParticipantHubTests : IAsyncLifetime
         var payload = await connection.InvokeAsync<ReconnectParticipantResultDto>(
             nameof(SessionsHub.ReconnectAsync),
             seeded.LiveSessionId,
-            new SessionsHub.ReconnectParticipantHubRequest(seeded.TeamId, "Nova", 4, null));
+            new SessionsHub.ReconnectParticipantHubRequest(seeded.TeamId, "Nova", null));
 
         payload.LiveSessionId.Should().Be(seeded.LiveSessionId);
         payload.TeamId.Should().Be(seeded.TeamId);
@@ -87,19 +88,90 @@ public sealed class ReconnectParticipantHubTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task ReconnectAsync_FirstJoinIntoActiveSession_IsRejected()
+    public async Task ReconnectAsync_FirstJoinIntoActiveSession_SurfacesLateJoinCode()
     {
         var seeded = await SeedSessionWithoutParticipantAsync(SessionState.Active);
         await using var connection = CreateHubConnection(Guid.NewGuid().ToString(), "Participant", "newcomer@example.com");
 
         await connection.StartAsync();
 
+        var code = await InvokeAndCaptureCodeAsync(
+            connection,
+            seeded.LiveSessionId,
+            new SessionsHub.ReconnectParticipantHubRequest(seeded.TeamId, "Newcomer", null));
+
+        code.Should().Be("LATE_JOIN_NOT_ALLOWED");
+    }
+
+    [Fact]
+    public async Task ReconnectAsync_WithBlankDisplayName_SurfacesValidationCode()
+    {
+        var externalIdentityId = Guid.NewGuid();
+        var seeded = await SeedSessionWithDisconnectedParticipantAsync(externalIdentityId, SessionState.Active);
+        await using var connection = CreateHubConnection(externalIdentityId.ToString(), "Participant", "participant@example.com");
+
+        await connection.StartAsync();
+
+        var code = await InvokeAndCaptureCodeAsync(
+            connection,
+            seeded.LiveSessionId,
+            new SessionsHub.ReconnectParticipantHubRequest(seeded.TeamId, " ", null));
+
+        code.Should().Be("VALIDATION_FAILED");
+    }
+
+    [Fact]
+    public async Task ReconnectAsync_WhenParticipantStillConnected_SurfacesAlreadyConnectedCode()
+    {
+        var externalIdentityId = Guid.NewGuid();
+        var seeded = await SeedSessionWithConnectedParticipantAsync(externalIdentityId, SessionState.Active);
+        await using var connection = CreateHubConnection(externalIdentityId.ToString(), "Participant", "participant@example.com");
+
+        await connection.StartAsync();
+
+        var code = await InvokeAndCaptureCodeAsync(
+            connection,
+            seeded.LiveSessionId,
+            new SessionsHub.ReconnectParticipantHubRequest(seeded.TeamId, "Nova", null));
+
+        code.Should().Be("ALREADY_CONNECTED");
+    }
+
+    [Fact]
+    public async Task ReconnectAsync_WithMismatchedTeam_SurfacesWrongTeamCode()
+    {
+        var externalIdentityId = Guid.NewGuid();
+        var seeded = await SeedSessionWithDisconnectedParticipantAsync(externalIdentityId, SessionState.Active, registerSecondTeam: true);
+        await using var connection = CreateHubConnection(externalIdentityId.ToString(), "Participant", "participant@example.com");
+
+        await connection.StartAsync();
+
+        var code = await InvokeAndCaptureCodeAsync(
+            connection,
+            seeded.LiveSessionId,
+            new SessionsHub.ReconnectParticipantHubRequest(seeded.OtherTeamId!.Value, "Nova", null));
+
+        code.Should().Be("WRONG_TEAM");
+    }
+
+    // The filter emits `{"code":"...","message":"..."}` as the HubException message. In production
+    // (EnableDetailedErrors off) the client receives that JSON verbatim; the test host runs in
+    // Development, where SignalR prepends "An unexpected error occurred invoking '...'. HubException: ".
+    // Extract the code from wherever it sits so the assertion holds in both environments — exactly how
+    // the mobile client keys on the code.
+    private static async Task<string?> InvokeAndCaptureCodeAsync(
+        HubConnection connection,
+        Guid liveSessionId,
+        SessionsHub.ReconnectParticipantHubRequest request)
+    {
         var act = () => connection.InvokeAsync<ReconnectParticipantResultDto>(
             nameof(SessionsHub.ReconnectAsync),
-            seeded.LiveSessionId,
-            new SessionsHub.ReconnectParticipantHubRequest(seeded.TeamId, "Newcomer", 4, null));
+            liveSessionId,
+            request);
 
-        await act.Should().ThrowAsync<HubException>();
+        var thrown = await act.Should().ThrowAsync<HubException>();
+        var match = Regex.Match(thrown.Which.Message, "\"code\"\\s*:\\s*\"(?<code>[A-Z_]+)\"");
+        return match.Success ? match.Groups["code"].Value : null;
     }
 
     private HubConnection CreateHubConnection(
@@ -135,22 +207,51 @@ public sealed class ReconnectParticipantHubTests : IAsyncLifetime
 
     private async Task<SeededParticipantSession> SeedSessionWithDisconnectedParticipantAsync(
         Guid externalIdentityId,
+        SessionState sessionState,
+        bool registerSecondTeam = false)
+    {
+        await using var scope = _factory.Services.CreateAsyncScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var createdAt = DateTimeOffset.UtcNow.AddMinutes(-20);
+        var session = CreateSession(createdAt);
+        var team = session.RegisterTeam("Red", "RED-01", 4);
+        var otherTeam = registerSecondTeam ? session.RegisterTeam("Blue", "BLUE-01", 4) : null;
+        var participant = session.AdmitParticipant(
+            externalIdentityId,
+            "Nova",
+            team.TeamId,
+            createdAt.AddMinutes(1),
+            new JoinPolicy()).Participant;
+
+        session.DisconnectParticipant(participant.SessionParticipantId, createdAt.AddMinutes(5));
+        MoveToState(session, sessionState, createdAt.AddMinutes(2));
+
+        dbContext.LiveSessions.Add(session);
+        await dbContext.SaveChangesAsync();
+
+        return new SeededParticipantSession(
+            session.LiveSessionId,
+            team.TeamId,
+            participant.SessionParticipantId,
+            otherTeam?.TeamId);
+    }
+
+    private async Task<SeededParticipantSession> SeedSessionWithConnectedParticipantAsync(
+        Guid externalIdentityId,
         SessionState sessionState)
     {
         await using var scope = _factory.Services.CreateAsyncScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         var createdAt = DateTimeOffset.UtcNow.AddMinutes(-20);
         var session = CreateSession(createdAt);
-        var team = session.RegisterTeam("Red", "RED-01");
+        var team = session.RegisterTeam("Red", "RED-01", 4);
         var participant = session.AdmitParticipant(
             externalIdentityId,
             "Nova",
             team.TeamId,
             createdAt.AddMinutes(1),
-            4,
             new JoinPolicy()).Participant;
 
-        session.DisconnectParticipant(participant.SessionParticipantId, createdAt.AddMinutes(5));
         MoveToState(session, sessionState, createdAt.AddMinutes(2));
 
         dbContext.LiveSessions.Add(session);
@@ -165,7 +266,7 @@ public sealed class ReconnectParticipantHubTests : IAsyncLifetime
         var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         var createdAt = DateTimeOffset.UtcNow.AddMinutes(-20);
         var session = CreateSession(createdAt);
-        var team = session.RegisterTeam("Red", "RED-01");
+        var team = session.RegisterTeam("Red", "RED-01", 4);
         MoveToState(session, sessionState, createdAt.AddMinutes(2));
 
         dbContext.LiveSessions.Add(session);

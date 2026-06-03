@@ -56,7 +56,6 @@ public sealed class ReconnectAuthenticatedParticipantService : IReconnectAuthent
             command.DisplayName,
             command.TeamId,
             _timeProvider.GetUtcNow(),
-            command.TeamCapacity,
             _joinPolicy);
 
         await _liveSessionRepository.UpdateAsync(liveSession, cancellationToken);

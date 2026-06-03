@@ -8,5 +8,4 @@ public sealed record ReconnectAuthenticatedParticipantCommand(
     Guid LiveSessionId,
     Guid TeamId,
     string DisplayName,
-    int TeamCapacity,
     string? Token) : IRequest<ReconnectParticipantResultDto>;

@@ -17,9 +17,6 @@ function isReconnectContext(value: unknown): value is ReconnectContext {
     candidate.teamId.length > 0 &&
     typeof candidate.displayName === 'string' &&
     candidate.displayName.length > 0 &&
-    typeof candidate.teamCapacity === 'number' &&
-    Number.isInteger(candidate.teamCapacity) &&
-    candidate.teamCapacity > 0 &&
     (token === undefined || token === null || typeof token === 'string') &&
     (lastSeenAt === undefined || typeof lastSeenAt === 'string')
   );

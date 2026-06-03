@@ -214,6 +214,10 @@ public sealed class LiveSessionConfiguration : IEntityTypeConfiguration<LiveSess
                 .HasMaxLength(200)
                 .IsRequired();
 
+            teamBuilder.Property(team => team.Capacity)
+                .HasColumnName("team_capacity")
+                .IsRequired();
+
             teamBuilder.Property(team => team.CurrentScore)
                 .HasColumnName("current_score");
 

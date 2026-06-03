@@ -44,7 +44,7 @@ public sealed class ReconnectParticipantEndpointTests : IAsyncLifetime
 
         var response = await _client.PostAsJsonAsync(
             $"/api/sessions/{seeded.LiveSessionId}/participants/reconnect",
-            new { teamId = seeded.TeamId, displayName = "Nova", teamCapacity = 4, token = (string?)null });
+            new { teamId = seeded.TeamId, displayName = "Nova", token = (string?)null });
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
@@ -76,7 +76,7 @@ public sealed class ReconnectParticipantEndpointTests : IAsyncLifetime
 
         var response = await _client.PostAsJsonAsync(
             $"/api/sessions/{seeded.LiveSessionId}/participants/reconnect",
-            new { teamId = seeded.TeamId, displayName = "Nova", teamCapacity = 4, token = (string?)null });
+            new { teamId = seeded.TeamId, displayName = "Nova", token = (string?)null });
 
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
@@ -91,7 +91,7 @@ public sealed class ReconnectParticipantEndpointTests : IAsyncLifetime
 
         var response = await _client.PostAsJsonAsync(
             $"/api/sessions/{seeded.LiveSessionId}/participants/reconnect",
-            new { teamId = seeded.TeamId, displayName = "Nova", teamCapacity = 4, token = (string?)null });
+            new { teamId = seeded.TeamId, displayName = "Nova", token = (string?)null });
 
         response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
     }
@@ -107,7 +107,7 @@ public sealed class ReconnectParticipantEndpointTests : IAsyncLifetime
 
         var response = await _client.PostAsJsonAsync(
             $"/api/sessions/{seeded.LiveSessionId}/participants/reconnect",
-            new { teamId = seeded.TeamId, displayName = "Nova", teamCapacity = 4, token = (string?)null });
+            new { teamId = seeded.TeamId, displayName = "Nova", token = (string?)null });
 
         response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
 
@@ -127,7 +127,7 @@ public sealed class ReconnectParticipantEndpointTests : IAsyncLifetime
 
         var response = await _client.PostAsJsonAsync(
             $"/api/sessions/{seeded.LiveSessionId}/participants/reconnect",
-            new { teamId = seeded.TeamId, displayName = "Newcomer", teamCapacity = 4, token = (string?)null });
+            new { teamId = seeded.TeamId, displayName = "Newcomer", token = (string?)null });
 
         response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
 
@@ -146,7 +146,7 @@ public sealed class ReconnectParticipantEndpointTests : IAsyncLifetime
 
         var response = await _client.PostAsJsonAsync(
             $"/api/sessions/{seeded.LiveSessionId}/participants/reconnect",
-            new { teamId = seeded.TeamId, displayName = "Nova", teamCapacity = 4, token = (string?)null });
+            new { teamId = seeded.TeamId, displayName = "Nova", token = (string?)null });
 
         response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
     }
@@ -161,7 +161,7 @@ public sealed class ReconnectParticipantEndpointTests : IAsyncLifetime
 
         var response = await _client.PostAsJsonAsync(
             $"/api/sessions/{seeded.LiveSessionId}/participants/reconnect",
-            new { teamId = seeded.OtherTeamId, displayName = "Nova", teamCapacity = 4, token = (string?)null });
+            new { teamId = seeded.OtherTeamId, displayName = "Nova", token = (string?)null });
 
         response.StatusCode.Should().Be(HttpStatusCode.Conflict);
     }
@@ -177,7 +177,7 @@ public sealed class ReconnectParticipantEndpointTests : IAsyncLifetime
         // First participant fills the single open seat (capacity 1).
         var response = await _client.PostAsJsonAsync(
             $"/api/sessions/{seeded.LiveSessionId}/participants/reconnect",
-            new { teamId = seeded.TeamId, displayName = "Newcomer", teamCapacity = 1, token = (string?)null });
+            new { teamId = seeded.TeamId, displayName = "Newcomer", token = (string?)null });
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
@@ -188,7 +188,7 @@ public sealed class ReconnectParticipantEndpointTests : IAsyncLifetime
 
         var conflictResponse = await _client.PostAsJsonAsync(
             $"/api/sessions/{seeded.LiveSessionId}/participants/reconnect",
-            new { teamId = seeded.TeamId, displayName = "Second", teamCapacity = 1, token = (string?)null });
+            new { teamId = seeded.TeamId, displayName = "Second", token = (string?)null });
 
         conflictResponse.StatusCode.Should().Be(HttpStatusCode.Conflict);
     }
@@ -200,7 +200,7 @@ public sealed class ReconnectParticipantEndpointTests : IAsyncLifetime
 
         var response = await _client.PostAsJsonAsync(
             $"/api/sessions/{Guid.NewGuid()}/participants/reconnect",
-            new { teamId = Guid.NewGuid(), displayName = "Nova", teamCapacity = 4, token = (string?)null });
+            new { teamId = Guid.NewGuid(), displayName = "Nova", token = (string?)null });
 
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
@@ -215,28 +215,13 @@ public sealed class ReconnectParticipantEndpointTests : IAsyncLifetime
 
         var response = await _client.PostAsJsonAsync(
             $"/api/sessions/{seeded.LiveSessionId}/participants/reconnect",
-            new { teamId = seeded.TeamId, displayName = " ", teamCapacity = 4, token = (string?)null });
+            new { teamId = seeded.TeamId, displayName = " ", token = (string?)null });
 
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
 
         var problem = await response.Content.ReadFromJsonAsync<ProblemDetails>();
         problem.Should().NotBeNull();
         problem!.Title.Should().Be("Validation failed.");
-    }
-
-    [Fact]
-    public async Task Reconnect_WithNonPositiveTeamCapacity_ReturnsBadRequest()
-    {
-        var externalIdentityId = Guid.NewGuid();
-        var seeded = await SeedSessionWithDisconnectedParticipantAsync(externalIdentityId, SessionState.Active);
-
-        AddTrustedHeaders(_client, externalIdentityId.ToString(), "Participant", "participant@example.com");
-
-        var response = await _client.PostAsJsonAsync(
-            $"/api/sessions/{seeded.LiveSessionId}/participants/reconnect",
-            new { teamId = seeded.TeamId, displayName = "Nova", teamCapacity = 0, token = (string?)null });
-
-        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
     }
 
     [Fact]
@@ -273,11 +258,11 @@ public sealed class ReconnectParticipantEndpointTests : IAsyncLifetime
 
         var scheduledAt = DateTimeOffset.UtcNow.AddMinutes(-30);
         var liveSession = CreateSession(scheduledAt);
-        var team = liveSession.RegisterTeam("Red", "RED-01");
+        var team = liveSession.RegisterTeam("Red", "RED-01", registerSecondTeam ? 4 : 1);
         Guid? otherTeamId = null;
         if (registerSecondTeam)
         {
-            otherTeamId = liveSession.RegisterTeam("Blue", "BLUE-01").TeamId;
+            otherTeamId = liveSession.RegisterTeam("Blue", "BLUE-01", 4).TeamId;
         }
 
         var admission = liveSession.AdmitParticipant(
@@ -285,7 +270,6 @@ public sealed class ReconnectParticipantEndpointTests : IAsyncLifetime
             "Nova",
             team.TeamId,
             scheduledAt.AddMinutes(1),
-            4,
             new JoinPolicy());
 
         liveSession.DisconnectParticipant(admission.Participant.SessionParticipantId, scheduledAt.AddMinutes(5));
@@ -308,7 +292,7 @@ public sealed class ReconnectParticipantEndpointTests : IAsyncLifetime
 
         var scheduledAt = DateTimeOffset.UtcNow.AddMinutes(-30);
         var liveSession = CreateSession(scheduledAt);
-        var team = liveSession.RegisterTeam("Red", "RED-01");
+        var team = liveSession.RegisterTeam("Red", "RED-01", 1);
         MoveToState(liveSession, state, scheduledAt.AddMinutes(1));
 
         dbContext.LiveSessions.Add(liveSession);

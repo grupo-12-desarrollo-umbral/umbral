@@ -63,20 +63,42 @@ public sealed class LiveSessionTests
     public void RegisterTeam_WithDuplicateCode_ThrowsException()
     {
         var session = LiveSessionFactory.CreateScheduledTreasureHunt();
-        session.RegisterTeam("Alpha", "alpha");
+        session.RegisterTeam("Alpha", "alpha", 4);
 
-        var act = () => session.RegisterTeam("Beta", "ALPHA");
+        var act = () => session.RegisterTeam("Beta", "ALPHA", 4);
 
         act.Should().Throw<DuplicateTeamCodeInSessionException>();
+    }
+
+    [Fact]
+    public void RegisterTeam_WithExplicitTeamId_PreservesIdentityReferenceTeamId()
+    {
+        var session = LiveSessionFactory.CreateScheduledTreasureHunt();
+        var identityReferenceTeamId = Guid.NewGuid();
+
+        var team = session.RegisterTeam(identityReferenceTeamId, "Alpha", "A-01", 4);
+
+        team.TeamId.Should().Be(identityReferenceTeamId);
+        session.Teams.Should().ContainSingle().Which.TeamId.Should().Be(identityReferenceTeamId);
+    }
+
+    [Fact]
+    public void RegisterTeam_WithEmptyTeamId_ThrowsException()
+    {
+        var session = LiveSessionFactory.CreateScheduledTreasureHunt();
+
+        var act = () => session.RegisterTeam(Guid.Empty, "Alpha", "A-01", 4);
+
+        act.Should().Throw<TeamIdentityRequiredException>();
     }
 
     [Fact]
     public void AdmitParticipant_WhenNewParticipant_CreatesMembership()
     {
         var session = LiveSessionFactory.CreateScheduledTreasureHunt();
-        var team = session.RegisterTeam("Alpha", "A-01");
+        var team = session.RegisterTeam("Alpha", "A-01", 4);
 
-        var result = session.AdmitParticipant(Guid.NewGuid(), "Nora", team.TeamId, DateTimeOffset.UtcNow, 4, _joinPolicy);
+        var result = session.AdmitParticipant(Guid.NewGuid(), "Nora", team.TeamId, DateTimeOffset.UtcNow, _joinPolicy);
 
         result.IsReconnect.Should().BeFalse();
         result.Participant.ParticipantStatus.Should().Be(ParticipantStatus.Active);
@@ -87,14 +109,14 @@ public sealed class LiveSessionTests
     public void AdmitParticipant_WhenParticipantReconnects_RestoresPresenceInAssignedTeam()
     {
         var session = LiveSessionFactory.CreateScheduledTreasureHunt();
-        var team = session.RegisterTeam("Alpha", "A-01");
+        var team = session.RegisterTeam("Alpha", "A-01", 4);
         var identityId = Guid.NewGuid();
         var joinedAt = new DateTimeOffset(2026, 6, 3, 10, 0, 0, TimeSpan.Zero);
-        var joined = session.AdmitParticipant(identityId, "Nora", team.TeamId, joinedAt, 4, _joinPolicy);
+        var joined = session.AdmitParticipant(identityId, "Nora", team.TeamId, joinedAt, _joinPolicy);
         session.DisconnectParticipant(joined.Participant.SessionParticipantId, joinedAt.AddMinutes(5));
         session.MoveTo(SessionState.Preparing, joinedAt.AddMinutes(6), new SessionStateTransitionPolicy());
 
-        var reconnected = session.AdmitParticipant(identityId, "Nora", team.TeamId, joinedAt.AddMinutes(7), 4, _joinPolicy);
+        var reconnected = session.AdmitParticipant(identityId, "Nora", team.TeamId, joinedAt.AddMinutes(7), _joinPolicy);
 
         reconnected.IsReconnect.Should().BeTrue();
         reconnected.Team.TeamId.Should().Be(team.TeamId);
@@ -105,12 +127,12 @@ public sealed class LiveSessionTests
     public void AdmitParticipant_WhenSessionIsActive_RejectsLateJoin()
     {
         var session = LiveSessionFactory.CreateScheduledTreasureHunt();
-        var team = session.RegisterTeam("Alpha", "A-01");
+        var team = session.RegisterTeam("Alpha", "A-01", 4);
         var transitionPolicy = new SessionStateTransitionPolicy();
         session.MoveTo(SessionState.Preparing, DateTimeOffset.UtcNow, transitionPolicy);
         session.MoveTo(SessionState.Active, DateTimeOffset.UtcNow.AddMinutes(1), transitionPolicy);
 
-        var act = () => session.AdmitParticipant(Guid.NewGuid(), "Late", team.TeamId, DateTimeOffset.UtcNow.AddMinutes(2), 4, _joinPolicy);
+        var act = () => session.AdmitParticipant(Guid.NewGuid(), "Late", team.TeamId, DateTimeOffset.UtcNow.AddMinutes(2), _joinPolicy);
 
         act.Should().Throw<LateJoinNotAllowedException>();
     }
@@ -163,7 +185,7 @@ public sealed class LiveSessionTests
     public void MoveTo_TracksLifecycleTimestampsAndReason()
     {
         var session = LiveSessionFactory.CreateScheduledTreasureHunt();
-        session.RegisterTeam("Alpha", "A-01");
+        session.RegisterTeam("Alpha", "A-01", 4);
         var policy = new SessionStateTransitionPolicy();
         var preparingAt = new DateTimeOffset(2026, 6, 3, 10, 0, 0, TimeSpan.Zero);
         var activeAt = preparingAt.AddMinutes(1);

@@ -16,7 +16,7 @@ const mockStart = jest.fn<Promise<void>, []>(async () => {});
 const mockStop = jest.fn<Promise<void>, []>(async () => {});
 const mockReconnectClient = jest.fn<
   Promise<ReconnectParticipantResultDto>,
-  [string, { teamId: string; displayName: string; teamCapacity: number; token?: string | null }]
+  [string, { teamId: string; displayName: string; token?: string | null }]
 >();
 
 jest.mock('@/lib/auth/use-auth', () => ({
@@ -90,7 +90,6 @@ const context: ReconnectContext = {
   liveSessionId: 'session-1',
   teamId: 'team-1',
   displayName: 'Nova',
-  teamCapacity: 4,
   token: null,
 };
 
@@ -127,7 +126,6 @@ describe('useReconnect', () => {
     expect(mockReconnectClient).toHaveBeenCalledWith('session-1', {
       teamId: 'team-1',
       displayName: 'Nova',
-      teamCapacity: 4,
       token: null,
     });
     expect(mockSaveReconnectContext).toHaveBeenCalledWith({
@@ -174,9 +172,7 @@ describe('useReconnect', () => {
   test('maps late join denials to denied state', async () => {
     mockStart.mockResolvedValueOnce(undefined);
     mockReconnectClient.mockRejectedValueOnce(
-      new Error(
-        "New participant joins are not allowed while the session is 'Active'.",
-      ),
+      new Error(JSON.stringify({ code: 'LATE_JOIN_NOT_ALLOWED', message: 'late' })),
     );
 
     const hook = renderUseReconnect();
@@ -196,9 +192,7 @@ describe('useReconnect', () => {
   test('maps invalid session state denials', async () => {
     mockStart.mockResolvedValueOnce(undefined);
     mockReconnectClient.mockRejectedValueOnce(
-      new Error(
-        "New participant joins are not allowed while the session is 'Finished'.",
-      ),
+      new Error(JSON.stringify({ code: 'TEAM_UNAVAILABLE', message: 'closed' })),
     );
 
     const hook = renderUseReconnect();
@@ -216,7 +210,7 @@ describe('useReconnect', () => {
   test('maps removed participants to lost access', async () => {
     mockStart.mockResolvedValueOnce(undefined);
     mockReconnectClient.mockRejectedValueOnce(
-      new Error("Participant 'participant-1' was removed from the live session."),
+      new Error(JSON.stringify({ code: 'PARTICIPANT_REMOVED', message: 'removed' })),
     );
 
     const hook = renderUseReconnect();

@@ -14,6 +14,8 @@ import { useTeamLobby } from '@/lib/membership/use-team-lobby';
 import { useMembershipAccess } from '@/lib/membership/use-membership-access';
 import type { MembershipAccessOutcome } from '@/lib/membership/membership-policy';
 import { useAuth } from '@/lib/auth/use-auth';
+import { saveReconnectContext } from '@/lib/realtime/reconnect-context';
+import { buildReconnectContext } from '@/lib/realtime/reconnect-context-resolution';
 import { colors, spacing } from '@/constants/theme';
 
 function asParam(value: string | string[] | undefined): string {
@@ -49,7 +51,7 @@ function getJoinOutcomeCopy(outcome: MembershipAccessOutcome): string | null {
 
 export default function TeamLobbyScreen() {
   const router = useRouter();
-  const { signOut } = useAuth();
+  const { profile, signOut } = useAuth();
   const params = useLocalSearchParams<{ sessionCode?: string }>();
   const sessionCode = asParam(params.sessionCode);
 
@@ -99,7 +101,6 @@ export default function TeamLobbyScreen() {
 
   async function handleTeamSelect(teamId: string) {
     if (isJoining || !liveSessionId) return;
-    const selectedTeam = teams.find((team) => team.teamId === teamId);
     resetJoin();
     resetAccess();
     setJoiningTeamId(teamId);
@@ -118,16 +119,21 @@ export default function TeamLobbyScreen() {
     const accessOutcome = await validate({ liveSessionId, teamId });
 
     if (accessOutcome.kind === 'allowed') {
+      const reconnectContext = buildReconnectContext({
+        liveSessionId: accessOutcome.decision.liveSessionId,
+        teamId: accessOutcome.decision.teamId,
+        displayName: profile?.displayName ?? '',
+      });
+      if (reconnectContext) {
+        await saveReconnectContext(reconnectContext);
+      }
+
       fireHaptic('success');
       router.replace({
         pathname: '/(app)/team-space',
         params: {
           liveSessionId: accessOutcome.decision.liveSessionId,
           teamId: accessOutcome.decision.teamId,
-          teamCapacity:
-            typeof selectedTeam?.teamCapacity === 'number'
-              ? String(selectedTeam.teamCapacity)
-              : undefined,
           reason: accessOutcome.decision.reason,
         },
       } as Href);

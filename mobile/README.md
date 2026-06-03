@@ -82,7 +82,7 @@ killed the app are restored into their live session over the session-operations
   authenticates the hub. The connection logs at `Warning` level so the token (carried
   in the connection URL) is never echoed.
 - **How resume works:** on a successful join the minimal live context
-  (`liveSessionId`, `teamId`, `displayName`, `teamCapacity`) is persisted to
+  (`liveSessionId`, `teamId`, `displayName`, optional `token`) is persisted to
   `expo-secure-store` (`src/lib/realtime/reconnect-context.ts`). On cold start or
   return-to-foreground, `app/_layout.tsx` routes an authenticated participant with a
   stored context back to `team-space`, which invokes the hub's `ReconnectAsync` and

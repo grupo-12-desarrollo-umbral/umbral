@@ -13,7 +13,6 @@ public sealed class ReconnectAuthenticatedParticipantCommandValidatorTests
             Guid.NewGuid(),
             Guid.NewGuid(),
             "Nora",
-            4,
             "join-token");
 
         var result = await _validator.ValidateAsync(command);
@@ -28,7 +27,6 @@ public sealed class ReconnectAuthenticatedParticipantCommandValidatorTests
             Guid.Empty,
             Guid.NewGuid(),
             "Nora",
-            4,
             null));
 
         result.IsValid.Should().BeFalse();
@@ -42,7 +40,6 @@ public sealed class ReconnectAuthenticatedParticipantCommandValidatorTests
             Guid.NewGuid(),
             Guid.Empty,
             "Nora",
-            4,
             null));
 
         result.IsValid.Should().BeFalse();
@@ -56,24 +53,9 @@ public sealed class ReconnectAuthenticatedParticipantCommandValidatorTests
             Guid.NewGuid(),
             Guid.NewGuid(),
             string.Empty,
-            4,
             null));
 
         result.IsValid.Should().BeFalse();
         result.Errors.Should().ContainSingle(error => error.PropertyName == nameof(ReconnectAuthenticatedParticipantCommand.DisplayName));
-    }
-
-    [Fact]
-    public async Task Validate_WhenTeamCapacityIsNotPositive_Fails()
-    {
-        var result = await _validator.ValidateAsync(new ReconnectAuthenticatedParticipantCommand(
-            Guid.NewGuid(),
-            Guid.NewGuid(),
-            "Nora",
-            0,
-            null));
-
-        result.IsValid.Should().BeFalse();
-        result.Errors.Should().ContainSingle(error => error.PropertyName == nameof(ReconnectAuthenticatedParticipantCommand.TeamCapacity));
     }
 }

@@ -268,6 +268,7 @@ Suggested fields:
 | `liveSessionId`         | Parent session reference                               |
 | `teamCode`              | `TeamCode` business identifier                         |
 | `displayName`           | Visible team name                                      |
+| `capacity`              | Maximum number of participants the runtime team admits |
 | `currentScore`          | Optional cached score view derived from `ScoreEntry`   |
 | `currentProgressNodeId` | Optional reference to current progression point        |
 | `currentClueNodeId`     | Optional currently available clue for the team board   |
@@ -289,6 +290,7 @@ Relationships:
 Key constraints:
 
 - `teamCode` must be unique within the `LiveSession`
+- `capacity` must be greater than zero
 - score traceability must come from `ScoreEntry`, even if `currentScore` is cached
 
 ### `EvidenceSubmission`

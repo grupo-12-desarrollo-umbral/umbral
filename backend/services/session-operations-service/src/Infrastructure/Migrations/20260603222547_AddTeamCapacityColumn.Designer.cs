@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using umbral_backend.Infrastructure.Persistence;
@@ -11,9 +12,11 @@ using umbral_backend.Infrastructure.Persistence;
 namespace umbral_backend.Infrastructure.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260603222547_AddTeamCapacityColumn")]
+    partial class AddTeamCapacityColumn
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -324,10 +327,6 @@ namespace umbral_backend.Infrastructure.Migrations
                                 .HasColumnType("uuid")
                                 .HasColumnName("source_entity_id");
 
-                            b1.Property<int?>("SourceTriviaQuizId")
-                                .HasColumnType("integer")
-                                .HasColumnName("source_trivia_quiz_id");
-
                             b1.Property<string>("SourceType")
                                 .IsRequired()
                                 .HasMaxLength(32)
@@ -342,115 +341,6 @@ namespace umbral_backend.Infrastructure.Migrations
                                 .HasForeignKey("LiveSessionId");
                         });
 
-                    b.OwnsOne("umbral_backend.Domain.Entities.TriviaSessionSnapshot", "TriviaSnapshot", b1 =>
-                        {
-                            b1.Property<Guid>("live_session_id")
-                                .HasColumnType("uuid")
-                                .HasColumnName("live_session_id");
-
-                            b1.Property<string>("QuizTitle")
-                                .IsRequired()
-                                .HasMaxLength(200)
-                                .HasColumnType("character varying(200)")
-                                .HasColumnName("quiz_title");
-
-                            b1.HasKey("live_session_id");
-
-                            b1.ToTable("live_session_trivia_snapshots", (string)null);
-
-                            b1.WithOwner()
-                                .HasForeignKey("live_session_id");
-
-                            b1.OwnsMany("umbral_backend.Domain.ValueObjects.TriviaQuestionSnapshot", "Questions", b2 =>
-                                {
-                                    b2.Property<int>("id")
-                                        .ValueGeneratedOnAdd()
-                                        .HasColumnType("integer")
-                                        .HasColumnName("id");
-
-                                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b2.Property<int>("id"));
-
-                                    b2.Property<string>("Explanation")
-                                        .HasMaxLength(4000)
-                                        .HasColumnType("character varying(4000)")
-                                        .HasColumnName("explanation");
-
-                                    b2.Property<string>("Prompt")
-                                        .IsRequired()
-                                        .HasMaxLength(4000)
-                                        .HasColumnType("character varying(4000)")
-                                        .HasColumnName("prompt");
-
-                                    b2.Property<int>("ScoreValue")
-                                        .HasColumnType("integer")
-                                        .HasColumnName("score_value");
-
-                                    b2.Property<int>("SequenceOrder")
-                                        .HasColumnType("integer")
-                                        .HasColumnName("sequence_order");
-
-                                    b2.Property<int>("TimeLimitSeconds")
-                                        .HasColumnType("integer")
-                                        .HasColumnName("time_limit_seconds");
-
-                                    b2.Property<Guid>("trivia_snapshot_live_session_id")
-                                        .HasColumnType("uuid")
-                                        .HasColumnName("live_session_id");
-
-                                    b2.HasKey("id");
-
-                                    b2.HasIndex("trivia_snapshot_live_session_id", "SequenceOrder")
-                                        .IsUnique();
-
-                                    b2.ToTable("live_session_trivia_snapshot_questions", (string)null);
-
-                                    b2.WithOwner()
-                                        .HasForeignKey("trivia_snapshot_live_session_id");
-
-                                    b2.OwnsMany("umbral_backend.Domain.ValueObjects.TriviaOptionSnapshot", "Options", b3 =>
-                                        {
-                                            b3.Property<int>("id")
-                                                .ValueGeneratedOnAdd()
-                                                .HasColumnType("integer")
-                                                .HasColumnName("id");
-
-                                            NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b3.Property<int>("id"));
-
-                                            b3.Property<bool>("IsCorrect")
-                                                .HasColumnType("boolean")
-                                                .HasColumnName("is_correct");
-
-                                            b3.Property<string>("OptionText")
-                                                .IsRequired()
-                                                .HasMaxLength(2000)
-                                                .HasColumnType("character varying(2000)")
-                                                .HasColumnName("option_text");
-
-                                            b3.Property<int>("SequenceOrder")
-                                                .HasColumnType("integer")
-                                                .HasColumnName("sequence_order");
-
-                                            b3.Property<int>("trivia_question_snapshot_id")
-                                                .HasColumnType("integer")
-                                                .HasColumnName("trivia_question_snapshot_id");
-
-                                            b3.HasKey("id");
-
-                                            b3.HasIndex("trivia_question_snapshot_id", "SequenceOrder")
-                                                .IsUnique();
-
-                                            b3.ToTable("live_session_trivia_snapshot_options", (string)null);
-
-                                            b3.WithOwner()
-                                                .HasForeignKey("trivia_question_snapshot_id");
-                                        });
-
-                                    b2.Navigation("Options");
-                                });
-
-                            b1.Navigation("Questions");
-                        });
-
                     b.Navigation("JoinContexts");
 
                     b.Navigation("MaximumTime")
@@ -462,8 +352,6 @@ namespace umbral_backend.Infrastructure.Migrations
                         .IsRequired();
 
                     b.Navigation("Teams");
-
-                    b.Navigation("TriviaSnapshot");
                 });
 #pragma warning restore 612, 618
         }
