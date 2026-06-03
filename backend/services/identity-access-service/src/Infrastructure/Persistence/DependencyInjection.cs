@@ -29,5 +29,7 @@ public static class PersistenceServiceExtensions
 
         builder.Services.AddScoped<IUserRepository, UserRepository>();
         builder.Services.AddScoped<ITeamRepository, TeamRepository>();
+        builder.Services.AddScoped<ILiveSessionReferenceRepository, LiveSessionReferenceRepository>();
+        builder.Services.AddScoped<IJoinTokenRepository, JoinTokenRepository>();
     }
 }

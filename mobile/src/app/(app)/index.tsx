@@ -1,4 +1,5 @@
 import { View } from 'react-native';
+import { useRouter, type Href } from 'expo-router';
 import { BrandMark } from '@/components/ui/brand-mark';
 import { Button } from '@/components/ui/button';
 import { Panel } from '@/components/ui/panel';
@@ -9,6 +10,7 @@ import { spacing } from '@/constants/theme';
 
 export default function ParticipantHome() {
   const { profile, signOut } = useAuth();
+  const router = useRouter();
 
   return (
     <Screen centered contentContainerStyle={{ gap: spacing.md }}>
@@ -22,7 +24,8 @@ export default function ParticipantHome() {
             Welcome, {profile?.displayName ?? 'Participant'}
           </Text>
           <Text variant="body" muted>
-            You're signed in. More features are coming soon.
+            When your session is live, enter your session code to see its teams
+            and join your team space.
           </Text>
           {profile?.email ? (
             <Text variant="label" muted>
@@ -31,6 +34,12 @@ export default function ParticipantHome() {
           ) : null}
         </View>
       </Panel>
+
+      <Button
+        label="Join your session"
+        variant="primary"
+        onPress={() => router.push('/(app)/join' as Href)}
+      />
 
       <Button label="Sign out" variant="secondary" onPress={signOut} />
     </Screen>

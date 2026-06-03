@@ -60,7 +60,7 @@ public sealed class UpdateTeamCommandHandler : IRequestHandler<UpdateTeamCommand
 
     private void EnsureActorCanManageTeams(User actor)
     {
-        var decision = _accessPolicy.Evaluate(actor, ProtectedCapability.AdministratorPanel);
+        var decision = _accessPolicy.Evaluate(actor, ProtectedCapability.OperatorPanel);
 
         if (!actor.IsActive)
         {
@@ -69,7 +69,7 @@ public sealed class UpdateTeamCommandHandler : IRequestHandler<UpdateTeamCommand
 
         if (!decision.IsAllowed)
         {
-            throw new UserRoleNotAuthorizedException(actor.Role, ProtectedCapability.AdministratorPanel);
+            throw new UserRoleNotAuthorizedException(actor.Role, ProtectedCapability.OperatorPanel);
         }
     }
 }

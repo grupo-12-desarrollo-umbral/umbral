@@ -45,10 +45,19 @@ public sealed class ProblemDetailsExceptionHandler : IExceptionHandler
                 Detail = exception.Message,
                 Status = StatusCodes.Status403Forbidden
             },
+            JoinTokenExpirationInvalidException => new ProblemDetails
+            {
+                Title = "Validation failed.",
+                Detail = exception.Message,
+                Status = StatusCodes.Status400BadRequest
+            },
             TeamCodeAlreadyExistsException
                 or TeamAlreadyDeactivatedException
                 or TeamNotActiveException
-                or ParticipantAlreadyAssignedToTeamException => new ProblemDetails
+                or ParticipantAlreadyAssignedToTeamException
+                or ParticipantLockedToAnotherSessionTeamException
+                or JoinTokenExpiredException
+                or JoinTokenReplayRejectedException => new ProblemDetails
             {
                 Title = "Conflict.",
                 Detail = exception.Message,

@@ -18,6 +18,7 @@ type DashboardRole = 'operator' | 'admin' | 'participant'
 type TeamPanelView = 'list' | 'detail' | 'create' | 'edit'
 
 export function TeamsPanel({ role }: { role: DashboardRole }) {
+  const canManageTeams = role === 'admin' || role === 'operator'
   const [view, setView] = useState<TeamPanelView>('list')
   const [selectedTeam, setSelectedTeam] = useState<TeamDto | null>(null)
   const [listData, setListData] = useState<PagedResult<TeamDto> | null>(null)
@@ -146,12 +147,15 @@ export function TeamsPanel({ role }: { role: DashboardRole }) {
       try {
         await assignParticipantToTeam(selectedTeam.teamId, selectedUserId)
         // Optimistic update — append synthetic membership entry
+        const assignedUser = participantUsers.find((u) => u.id === selectedUserId)
         setParticipants((prev) => [
           ...prev,
           {
             teamMembershipId: 'optimistic-' + Date.now(),
             teamId: selectedTeam.teamId,
             userId: selectedUserId,
+            email: assignedUser?.email ?? '',
+            displayName: assignedUser?.displayName ?? '',
             assignedAt: new Date().toISOString(),
           },
         ])
@@ -202,7 +206,7 @@ export function TeamsPanel({ role }: { role: DashboardRole }) {
             <div className={styles.panelMeta}>{selectedTeam.teamCode}</div>
           </div>
 
-          {role === 'admin' && selectedTeam.isActive && (
+          {canManageTeams && selectedTeam.isActive && (
             <div className={styles.panelActions}>
               {!confirmDeactivate && (
                 <button
@@ -292,7 +296,7 @@ export function TeamsPanel({ role }: { role: DashboardRole }) {
         >
           <div className={styles.subsectionHeader}>
             <h3 id="participants-section-title">Participants</h3>
-            {role === 'admin' && selectedTeam.isActive && (
+            {canManageTeams && selectedTeam.isActive && (
               <button
                 className={styles.inlineButton}
                 data-testid="assign-participant-btn"
@@ -309,7 +313,7 @@ export function TeamsPanel({ role }: { role: DashboardRole }) {
             )}
           </div>
 
-          {showAssignForm && role === 'admin' && (
+          {showAssignForm && canManageTeams && (
             <div className={styles.formGroup} data-testid="assign-form">
               <label htmlFor="participant-select">Select participant</label>
               <select
@@ -381,6 +385,7 @@ export function TeamsPanel({ role }: { role: DashboardRole }) {
               <thead>
                 <tr>
                   <th>User</th>
+                  <th>Email</th>
                   <th>Assigned</th>
                 </tr>
               </thead>
@@ -388,6 +393,7 @@ export function TeamsPanel({ role }: { role: DashboardRole }) {
                 {participants.map((m) => (
                   <tr key={m.teamMembershipId} data-testid={`participant-row-${m.teamMembershipId}`}>
                     <td data-testid={`participant-user-${m.userId}`}>{m.userId}</td>
+                    <td data-testid={`participant-email-${m.userId}`}>{m.email}</td>
                     <td>{new Date(m.assignedAt).toLocaleDateString()}</td>
                   </tr>
                 ))}
@@ -399,7 +405,7 @@ export function TeamsPanel({ role }: { role: DashboardRole }) {
     )
   }
 
-  if (view === 'create' && role === 'admin') {
+  if (view === 'create' && canManageTeams) {
     return (
       <section
         className={styles.panel}
@@ -430,7 +436,7 @@ export function TeamsPanel({ role }: { role: DashboardRole }) {
     )
   }
 
-  if (view === 'edit' && selectedTeam !== null && role === 'admin') {
+  if (view === 'edit' && selectedTeam !== null && canManageTeams) {
     return (
       <section
         className={styles.panel}
@@ -476,14 +482,14 @@ export function TeamsPanel({ role }: { role: DashboardRole }) {
         <div>
           <h2 id="teams-panel-title">Registered teams</h2>
           <div className={styles.panelMeta}>
-            {role === 'admin'
+            {canManageTeams
               ? 'Team registry. Inactive teams are preserved for audit.'
               : 'Read-only team catalog.'}
           </div>
         </div>
         <div className={styles.panelActions}>
           {isPending && <span className={styles.chip}>Loading…</span>}
-          {role === 'admin' && (
+          {canManageTeams && (
             <button
               className={styles.primaryButton}
               data-testid="create-team-btn"

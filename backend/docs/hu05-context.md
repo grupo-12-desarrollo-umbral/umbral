@@ -43,7 +43,7 @@ HU-05 assumes the user/access stack from HU-01 through HU-03 plus the team regis
 | Membership invariant | `Team.AssignParticipant(userId)` only succeeds for active teams and rejects duplicate assignments |
 | Domain events | Add `ParticipantAssignedToTeamEvent` |
 | Domain exceptions | Add `TeamNotActiveException` and `ParticipantAlreadyAssignedToTeamException` |
-| Application use case | `AssignParticipantToTeamCommand` — Administrator-only; verifies team exists, user exists, and `user.Role == Participant` before assigning |
+| Application use case | `AssignParticipantToTeamCommand` — Administrator/Operator; verifies team exists, user exists, and `user.Role == Participant` before assigning |
 | Membership queries | `GetTeamParticipantsQuery` returning `TeamMembershipDto` / participant projections for a team |
 | Persistence | Add `team_memberships` table plus `AddTeamMemberships` migration and repository loading with memberships included |
 | API endpoints | `POST /api/teams/{id}/participants`, `GET /api/teams/{id}/participants` |

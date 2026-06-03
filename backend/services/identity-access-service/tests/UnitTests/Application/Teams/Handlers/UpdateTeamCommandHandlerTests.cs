@@ -84,16 +84,29 @@ public sealed class UpdateTeamCommandHandlerTests
     }
 
     [Fact]
-    public async Task Handle_RejectsNonAdministratorCaller()
+    public async Task Handle_OperatorCanUpdateTeam()
     {
         var actor = CreateUser(1, "kc-operator", Role.Operator);
-        var handler = CreateHandler(new Mock<ITeamRepository>(), CreateUserRepository(actor), actor.ExternalIdentityId);
+        var team = CreateTeam("Red Team", "RED-01");
 
-        var act = async () => await handler.Handle(
-            new UpdateTeamCommand(Guid.NewGuid(), "Blue Team", "BLUE-01"),
-            CancellationToken.None);
+        var teamRepository = new Mock<ITeamRepository>();
+        teamRepository
+            .Setup(repo => repo.GetByIdAsync(team.TeamId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(team);
+        teamRepository
+            .Setup(repo => repo.TeamCodeExistsAsync("BLUE-01", team.TeamId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(false);
+        teamRepository
+            .Setup(repo => repo.UpdateAsync(team, It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
 
-        await act.Should().ThrowAsync<UserRoleNotAuthorizedException>();
+        var handler = CreateHandler(teamRepository, CreateUserRepository(actor), actor.ExternalIdentityId);
+
+        await handler.Handle(new UpdateTeamCommand(team.TeamId, "Blue Team", "BLUE-01"), CancellationToken.None);
+
+        team.DisplayName.Should().Be("Blue Team");
+        team.TeamCode.Should().Be("BLUE-01");
+        teamRepository.Verify(repo => repo.UpdateAsync(team, It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]

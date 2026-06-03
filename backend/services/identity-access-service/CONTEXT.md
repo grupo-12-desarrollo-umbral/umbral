@@ -30,6 +30,14 @@ _Avoid_: domain token, business credential
 The identity-side facts returned after authentication, such as actor identity, role, token validity, and coarse access-policy results. `Access Facts` inform admission but do not decide it.
 _Avoid_: final authorization, join decision, session approval
 
+**Team**:
+The Identity-side reference-data team catalog used for pre-session registration and membership facts. It is not the runtime team owned by `SessionOperations`.
+_Avoid_: live team state, score holder, session-local aggregate
+
+**SessionTeamAssociation**:
+The minimal Identity-owned link between an opaque `LiveSessionId` and a reference-data `Team`, used to scope participant lobby discovery and enforce one active team membership per participant inside a session. It is an access-language index, not runtime session state.
+_Avoid_: live team roster, runtime room membership, final session authority
+
 **JoinToken**:
 The limited-scope token owned by `Identity` that proves a participant may enter a specific `LiveSession` and `Team` through the approved join flow, referencing them only as authorization targets. Participants must already hold a valid Keycloak JWT before a `JoinToken` can be consumed; the gateway validates the JWT first, and `identity-access-service` validates the `JoinToken` as a subsequent application-level guard.
 _Avoid_: invite token, entry token, team join token, unauthenticated join
@@ -45,8 +53,12 @@ Authentication is externalized to `Keycloak`. The `api-gateway` validates every 
 _Avoid_: session admission, runtime ownership, per-service JWT validation, re-implementing login
 
 **Access Validation**:
-`Identity` may validate actor identity, role, token status, and coarse access-policy conditions for a requested target, but it does not decide whether a specific live session may be joined right now. This decision belongs to `SessionOperations`.
+`Identity` may validate actor identity, role, token status, coarse access-policy conditions for a requested target, and the session-scoped team facts needed to render a participant lobby (`mine` / `joinable` / `locked`). It may also enforce the "at most one active team membership per participant per session" rule. It still does not decide whether a specific live session may be joined right now; that decision belongs to `SessionOperations`.
 _Avoid_: final admission, join approval
+
+**Team administration**:
+`Identity` treats team registration and participant-to-team assignment as operator-facing backoffice capabilities. `Administrator` and `Operator` may register teams and assign participants; broader lifecycle changes remain explicit per use case.
+_Avoid_: assuming every team mutation is operator-enabled without a recorded decision
 
 ## Required Patterns
 

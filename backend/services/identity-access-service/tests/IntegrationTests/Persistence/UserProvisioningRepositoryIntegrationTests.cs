@@ -9,18 +9,18 @@ using umbral_backend.Domain.Events;
 using umbral_backend.Domain.Exceptions;
 using umbral_backend.Domain.Services;
 using umbral_backend.Infrastructure.Persistence;
-using umbral_backend.Infrastructure.Persistence.Interceptors;
 using umbral_backend.Infrastructure.Persistence.Repositories;
 
 namespace umbral_backend.Infrastructure.IntegrationTests.Persistence;
 
-public sealed class UserProvisioningRepositoryIntegrationTests : IClassFixture<PostgreSqlFixture>
+[Collection(PostgreSqlCollection.Name)]
+public sealed class UserProvisioningRepositoryIntegrationTests
 {
-    private readonly PostgreSqlFixture _fixture;
+    private readonly PersistenceTestContextFactory _contextFactory;
 
     public UserProvisioningRepositoryIntegrationTests(PostgreSqlFixture fixture)
     {
-        _fixture = fixture;
+        _contextFactory = new PersistenceTestContextFactory(fixture.ConnectionString);
     }
 
     [Fact]
@@ -49,7 +49,7 @@ public sealed class UserProvisioningRepositoryIntegrationTests : IClassFixture<P
 
         var getProfileHandler = new GetAuthenticatedActorProfileQueryHandler(
             repository,
-            new StubCurrentUser("kc-user-01", "alice@example.com", "Operator"));
+            new TestCurrentUser("kc-user-01", "alice@example.com", "Operator"));
 
         var profile = await getProfileHandler.Handle(
             new GetAuthenticatedActorProfileQuery(),
@@ -225,102 +225,5 @@ public sealed class UserProvisioningRepositoryIntegrationTests : IClassFixture<P
     }
 
     private ApplicationDbContext BuildContext(IMediator? mediator = null)
-    {
-        var optionsBuilder = new DbContextOptionsBuilder<ApplicationDbContext>()
-            .UseNpgsql(_fixture.ConnectionString);
-
-        optionsBuilder.AddInterceptors(new DispatchDomainEventsInterceptor(mediator ?? new NoOpMediator()));
-
-        return new ApplicationDbContext(optionsBuilder.Options);
-    }
-
-    private sealed record StubCurrentUser(string? Id, string? Email, string? Role) : ICurrentUser;
-
-    private sealed class CapturingMediator : IMediator
-    {
-        public List<object> PublishedNotifications { get; } = new();
-
-        public Task Publish(object notification, CancellationToken cancellationToken = default)
-        {
-            PublishedNotifications.Add(notification);
-            return Task.CompletedTask;
-        }
-
-        public Task Publish<TNotification>(TNotification notification, CancellationToken cancellationToken = default)
-            where TNotification : INotification
-        {
-            PublishedNotifications.Add(notification);
-            return Task.CompletedTask;
-        }
-
-        public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
-        {
-            throw new NotSupportedException();
-        }
-
-        public Task Send<TRequest>(TRequest request, CancellationToken cancellationToken = default)
-            where TRequest : IRequest
-        {
-            throw new NotSupportedException();
-        }
-
-        public Task<object?> Send(object request, CancellationToken cancellationToken = default)
-        {
-            throw new NotSupportedException();
-        }
-
-        public IAsyncEnumerable<TResponse> CreateStream<TResponse>(
-            IStreamRequest<TResponse> request,
-            CancellationToken cancellationToken = default)
-        {
-            throw new NotSupportedException();
-        }
-
-        public IAsyncEnumerable<object?> CreateStream(object request, CancellationToken cancellationToken = default)
-        {
-            throw new NotSupportedException();
-        }
-    }
-
-    private sealed class NoOpMediator : IMediator
-    {
-        public Task Publish(object notification, CancellationToken cancellationToken = default)
-        {
-            return Task.CompletedTask;
-        }
-
-        public Task Publish<TNotification>(TNotification notification, CancellationToken cancellationToken = default)
-            where TNotification : INotification
-        {
-            return Task.CompletedTask;
-        }
-
-        public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
-        {
-            throw new NotSupportedException();
-        }
-
-        public Task Send<TRequest>(TRequest request, CancellationToken cancellationToken = default)
-            where TRequest : IRequest
-        {
-            throw new NotSupportedException();
-        }
-
-        public Task<object?> Send(object request, CancellationToken cancellationToken = default)
-        {
-            throw new NotSupportedException();
-        }
-
-        public IAsyncEnumerable<TResponse> CreateStream<TResponse>(
-            IStreamRequest<TResponse> request,
-            CancellationToken cancellationToken = default)
-        {
-            throw new NotSupportedException();
-        }
-
-        public IAsyncEnumerable<object?> CreateStream(object request, CancellationToken cancellationToken = default)
-        {
-            throw new NotSupportedException();
-        }
-    }
+        => _contextFactory.Create(mediator);
 }

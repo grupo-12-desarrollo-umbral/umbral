@@ -38,6 +38,30 @@ public sealed class AssignParticipantToTeamCommandHandlerTests
     }
 
     [Fact]
+    public async Task Handle_AllowsOperatorToAssignParticipant()
+    {
+        var actor = CreateUser(1, "kc-operator", Role.Operator);
+        var participant = CreateUser(10, "kc-participant", Role.Participant);
+        var team = Team.Register("Red Team", "RED-01");
+
+        var teamRepository = new Mock<ITeamRepository>();
+        teamRepository
+            .Setup(repo => repo.GetByIdWithMembershipsAsync(team.TeamId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(team);
+        teamRepository
+            .Setup(repo => repo.UpdateAsync(team, It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        var handler = CreateHandler(teamRepository, CreateUserRepository(actor, participant), actor.ExternalIdentityId, actor.Role.ToString());
+
+        var membershipId = await handler.Handle(new AssignParticipantToTeamCommand(team.TeamId, participant.Id), CancellationToken.None);
+
+        membershipId.Should().NotBe(Guid.Empty);
+        team.Memberships.Should().ContainSingle();
+        teamRepository.Verify(repo => repo.UpdateAsync(team, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
     public async Task Handle_ThrowsWhenTeamDoesNotExist()
     {
         var actor = CreateUser(1, "kc-admin", Role.Administrator);
@@ -156,9 +180,9 @@ public sealed class AssignParticipantToTeamCommandHandlerTests
     }
 
     [Fact]
-    public async Task Handle_RejectsNonAdministratorCaller()
+    public async Task Handle_RejectsParticipantCaller()
     {
-        var actor = CreateUser(1, "kc-operator", Role.Operator);
+        var actor = CreateUser(1, "kc-participant-actor", Role.Participant);
         var participant = CreateUser(10, "kc-participant", Role.Participant);
         var handler = CreateHandler(new Mock<ITeamRepository>(), CreateUserRepository(actor, participant), actor.ExternalIdentityId, actor.Role.ToString());
 

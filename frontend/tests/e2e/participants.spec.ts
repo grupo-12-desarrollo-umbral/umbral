@@ -16,11 +16,18 @@ test('operator detail view shows participants section', async ({ operatorPage: p
   await expect(page.locator('[data-testid="participants-section"]')).toBeVisible()
 })
 
-test('operator sees no assign participant button', async ({ operatorPage: page }) => {
+test('operator sees assign participant button', async ({ operatorPage: page }) => {
   await page.goto('/dashboard')
   await page.click('[data-testid="nav-teams"]')
+  // Open an active team so the assign button is rendered
   await page.locator('[data-testid^="team-row-"]').first().click()
-  await expect(page.locator('[data-testid="assign-participant-btn"]')).toHaveCount(0)
+  await expect(page.locator('[data-testid="detail-status"]')).toHaveText(/(Active|Inactive)/)
+  const statusText = await page.locator('[data-testid="detail-status"]').textContent()
+  if (statusText?.includes('Active')) {
+    await expect(page.locator('[data-testid="assign-participant-btn"]')).toBeVisible()
+  } else {
+    await expect(page.locator('[data-testid="assign-participant-btn"]')).toHaveCount(0)
+  }
 })
 
 test('participant cannot see teams panel or participants section', async ({ participantPage: page }) => {
@@ -82,6 +89,35 @@ test('successful assignment adds participant row optimistically', async ({ admin
   await page.locator('[data-testid^="team-row-"]').nth(2).click()
   await page.click('[data-testid="assign-participant-btn"]')
   // Select the first available participant by label
+  const select = page.locator('[data-testid="participant-select"]')
+  const options = await select.locator('option').count()
+  if (options <= 1) {
+    // No participant users in test DB — skip execution part of test
+    return
+  }
+  await page.selectOption('[data-testid="participant-select"]', { index: 1 })
+  await page.click('[data-testid="confirm-assign-btn"]')
+  // Form should close
+  await expect(page.locator('[data-testid="assign-form"]')).toHaveCount(0)
+  // Table should now have at least one row
+  await expect(page.locator('[data-testid="participants-table"]')).toBeVisible()
+})
+
+test('operator can open assign form and it shows participant users', async ({ operatorPage: page }) => {
+  await page.goto('/dashboard')
+  await page.click('[data-testid="nav-teams"]')
+  await page.locator('[data-testid^="team-row-"]').nth(2).click()
+  await expect(page.locator('[data-testid="detail-status"]')).toContainText('Active')
+  await page.click('[data-testid="assign-participant-btn"]')
+  await expect(page.locator('[data-testid="assign-form"]')).toBeVisible()
+  await expect(page.locator('[data-testid="participant-select"]')).toBeVisible()
+})
+
+test('operator successful assignment adds participant row optimistically', async ({ operatorPage: page }) => {
+  await page.goto('/dashboard')
+  await page.click('[data-testid="nav-teams"]')
+  await page.locator('[data-testid^="team-row-"]').nth(2).click()
+  await page.click('[data-testid="assign-participant-btn"]')
   const select = page.locator('[data-testid="participant-select"]')
   const options = await select.locator('option').count()
   if (options <= 1) {

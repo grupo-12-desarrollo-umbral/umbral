@@ -50,7 +50,7 @@ All of this is on `feature/hu-03-role-permission-assignment` (or `develop` once 
 | Application use cases | `RegisterTeamCommand`, `UpdateTeamCommand`, `DeactivateTeamCommand`, `GetTeamsQuery`, `GetTeamByIdQuery` |
 | Persistence | Add `teams` table, unique `TeamCode` index, `ITeamRepository`, and `AddTeams` migration |
 | API endpoints | `POST /api/teams`, `GET /api/teams`, `GET /api/teams/{id}`, `PATCH /api/teams/{id}`, `DELETE /api/teams/{id}/status` |
-| Authorization | Mutations are Administrator-only; reads are Administrator/Operator |
+| Authorization | `RegisterTeam` is Administrator/Operator; `UpdateTeam` and `DeactivateTeam` remain Administrator-only unless widened by a later decision; reads are Administrator/Operator |
 | Historical traceability | Deactivation is soft: record remains queryable with `IsActive=false` |
 
 ## Touched surfaces

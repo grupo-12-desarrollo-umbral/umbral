@@ -194,9 +194,10 @@ export async function assignParticipant(
   }
 
   if (response.status === 409) {
-    // Read ProblemDetails body to distinguish TeamNotActiveException from
-    // ParticipantAlreadyAssignedToTeamException. Verify the exact field/value
-    // against the live backend before finalising these match strings.
+    // The operator/admin assignment endpoint still uses TeamNotActiveException
+    // and ParticipantAlreadyAssignedToTeamException for 409 responses. The
+    // newer ParticipantLockedToAnotherSessionTeamException is wired to the
+    // participant self-join flow, not this endpoint.
     let body: Record<string, unknown> = {}
     try {
       body = await response.json()

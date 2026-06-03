@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 using Testcontainers.PostgreSql;
 using umbral_backend.Infrastructure.Persistence;
 
@@ -20,8 +21,24 @@ public sealed class PostgreSqlFixture : IAsyncLifetime
             .UseNpgsql(ConnectionString)
             .Options;
 
-        await using var context = new ApplicationDbContext(options);
-        await context.Database.MigrateAsync();
+        const int maxAttempts = 10;
+
+        for (var attempt = 1; attempt <= maxAttempts; attempt++)
+        {
+            try
+            {
+                await using var context = new ApplicationDbContext(options);
+                await context.Database.MigrateAsync();
+                return;
+            }
+            catch (Exception exception) when (attempt < maxAttempts && exception is NpgsqlException or TimeoutException)
+            {
+                await Task.Delay(TimeSpan.FromSeconds(1));
+            }
+        }
+
+        await using var finalContext = new ApplicationDbContext(options);
+        await finalContext.Database.MigrateAsync();
     }
 
     public Task DisposeAsync()

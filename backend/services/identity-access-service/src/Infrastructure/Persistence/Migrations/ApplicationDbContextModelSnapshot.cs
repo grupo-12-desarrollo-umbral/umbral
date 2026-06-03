@@ -72,6 +72,110 @@ namespace umbral_backend.Infrastructure.Persistence.Migrations
                     b.ToTable("identity_provider_sessions", (string)null);
                 });
 
+            modelBuilder.Entity("umbral_backend.Domain.Entities.JoinToken", b =>
+                {
+                    b.Property<Guid>("JoinTokenId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset?>("ConsumedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("consumed_at");
+
+                    b.Property<DateTimeOffset>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("expires_at");
+
+                    b.Property<DateTimeOffset>("IssuedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("issued_at");
+
+                    b.Property<int>("IssuedByUserId")
+                        .HasColumnType("integer")
+                        .HasColumnName("issued_by_user_id");
+
+                    b.Property<Guid>("LiveSessionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("live_session_id");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("status");
+
+                    b.Property<Guid>("TeamId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("team_id");
+
+                    b.Property<string>("TokenHash")
+                        .IsRequired()
+                        .HasMaxLength(512)
+                        .HasColumnType("character varying(512)")
+                        .HasColumnName("token_hash");
+
+                    b.HasKey("JoinTokenId");
+
+                    b.HasIndex("TokenHash")
+                        .IsUnique();
+
+                    b.HasIndex("LiveSessionId", "TeamId", "Status");
+
+                    b.ToTable("join_tokens", (string)null);
+                });
+
+            modelBuilder.Entity("umbral_backend.Domain.Entities.LiveSessionReference", b =>
+                {
+                    b.Property<Guid>("LiveSessionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("Created")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<DateTimeOffset>("LastModified")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("SessionCode")
+                        .IsRequired()
+                        .HasMaxLength(6)
+                        .HasColumnType("character varying(6)")
+                        .HasColumnName("session_code");
+
+                    b.HasKey("LiveSessionId");
+
+                    b.HasIndex("SessionCode")
+                        .IsUnique();
+
+                    b.ToTable("live_sessions", (string)null);
+                });
+
+            modelBuilder.Entity("umbral_backend.Domain.Entities.SessionTeamAssociation", b =>
+                {
+                    b.Property<Guid>("SessionTeamAssociationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("LiveSessionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("live_session_id");
+
+                    b.Property<Guid>("TeamId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("team_id");
+
+                    b.HasKey("SessionTeamAssociationId");
+
+                    b.HasIndex("LiveSessionId", "TeamId")
+                        .IsUnique();
+
+                    b.HasIndex("TeamId");
+
+                    b.ToTable("session_team_associations", (string)null);
+                });
+
             modelBuilder.Entity("umbral_backend.Domain.Entities.Team", b =>
                 {
                     b.Property<Guid>("TeamId")
@@ -198,6 +302,21 @@ namespace umbral_backend.Infrastructure.Persistence.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("umbral_backend.Domain.Entities.SessionTeamAssociation", b =>
+                {
+                    b.HasOne("umbral_backend.Domain.Entities.LiveSessionReference", null)
+                        .WithMany("TeamAssociations")
+                        .HasForeignKey("LiveSessionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("umbral_backend.Domain.Entities.Team", null)
+                        .WithMany()
+                        .HasForeignKey("TeamId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("umbral_backend.Domain.Entities.TeamMembership", b =>
                 {
                     b.HasOne("umbral_backend.Domain.Entities.Team", null)
@@ -211,6 +330,11 @@ namespace umbral_backend.Infrastructure.Persistence.Migrations
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("umbral_backend.Domain.Entities.LiveSessionReference", b =>
+                {
+                    b.Navigation("TeamAssociations");
                 });
 
             modelBuilder.Entity("umbral_backend.Domain.Entities.Team", b =>

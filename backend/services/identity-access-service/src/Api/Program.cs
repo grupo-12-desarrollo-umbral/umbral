@@ -22,6 +22,8 @@ if (!app.Environment.IsDevelopment())
 }
 
 app.UseExceptionHandler(options => { });
+app.UseAuthentication();
+app.UseAuthorization();
 app.MapOpenApi();
 app.MapEndpoints(typeof(Program).Assembly);
 

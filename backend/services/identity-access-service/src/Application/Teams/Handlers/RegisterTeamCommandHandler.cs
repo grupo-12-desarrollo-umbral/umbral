@@ -59,7 +59,7 @@ public sealed class RegisterTeamCommandHandler : IRequestHandler<RegisterTeamCom
 
     private void EnsureActorCanManageTeams(User actor)
     {
-        var decision = _accessPolicy.Evaluate(actor, ProtectedCapability.AdministratorPanel);
+        var decision = _accessPolicy.Evaluate(actor, ProtectedCapability.OperatorPanel);
 
         if (!actor.IsActive)
         {
@@ -68,7 +68,7 @@ public sealed class RegisterTeamCommandHandler : IRequestHandler<RegisterTeamCom
 
         if (!decision.IsAllowed)
         {
-            throw new UserRoleNotAuthorizedException(actor.Role, ProtectedCapability.AdministratorPanel);
+            throw new UserRoleNotAuthorizedException(actor.Role, ProtectedCapability.OperatorPanel);
         }
     }
 }
