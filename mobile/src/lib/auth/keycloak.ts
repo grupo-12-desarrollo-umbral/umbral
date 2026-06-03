@@ -1,4 +1,5 @@
 import { fetch } from 'expo/fetch';
+import { keycloakBaseUrl } from '@/lib/host';
 
 export type KeycloakTokens = {
   accessToken: string;
@@ -22,15 +23,13 @@ export class KeycloakError extends Error {
 }
 
 function tokenUrl(): string {
-  const url = process.env.EXPO_PUBLIC_KEYCLOAK_URL;
   const realm = process.env.EXPO_PUBLIC_KEYCLOAK_REALM;
-  return `${url}/realms/${realm}/protocol/openid-connect/token`;
+  return `${keycloakBaseUrl()}/realms/${realm}/protocol/openid-connect/token`;
 }
 
 function logoutUrl(): string {
-  const url = process.env.EXPO_PUBLIC_KEYCLOAK_URL;
   const realm = process.env.EXPO_PUBLIC_KEYCLOAK_REALM;
-  return `${url}/realms/${realm}/protocol/openid-connect/logout`;
+  return `${keycloakBaseUrl()}/realms/${realm}/protocol/openid-connect/logout`;
 }
 
 function parseJwt(token: string): Record<string, unknown> {

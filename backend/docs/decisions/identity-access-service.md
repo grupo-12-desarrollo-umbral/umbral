@@ -354,3 +354,83 @@ Endpoints delegate to the existing application-layer command/query from phase Y.
 
 **Next session needs to know**
 Phase Y.4 builds clean: `dotnet build` succeeds with 0 errors, 0 warnings. All integration tests pass. The participant-to-team assignment feature is complete end-to-end (backend + frontend). No pending work remains for HU-04 or HU-05. The next session can advance to the next prioritized HU or address DES tickets.
+
+---
+
+## [021] HU-07A Phases X.1–X.3 — JoinToken aggregate, membership validation, and DI completion
+**Date:** 2026-06-02
+**Phase:** X.1 Domain → X.2 Application → X.3 Infrastructure (HU-07A)
+**Commits:** 24e4b9d, 338dcf1, 21d7e10
+**HU tickets advanced:** HU-07A, DES-11, DES-67
+
+**What was built**
+The Identity-owned `JoinToken` aggregate (entity, `JoinTokenStatus`, issued/consumed domain events, seven domain exceptions, `JoinTokenPolicy`), the `IssueJoinToken` command and non-consuming `ValidateParticipantMembershipAccess` query (handlers, validators, DTOs, authorization proxies), and the Infrastructure layer: `join_tokens` table (`AddJoinTokens` migration + `JoinTokenConfiguration`), `JoinTokenRepository`, and `JoinTokenTokenService` (256-bit CSPRNG token + deterministic SHA-256 hash). Committed as three layer-scoped phase commits. ADR-0007 extended with the token generation/hashing decision.
+
+**Why this approach**
+Token hashing is **deterministic SHA-256**, not bcrypt/Argon2: validation recomputes `HashToken(suppliedToken)` and looks the row up by hash, so a per-call random salt would never match. Brute force is mitigated by the token itself carrying 256 bits of entropy, not by the hash. HMAC-with-pepper is documented in ADR-0007 as the upgrade path if DB-leak resistance is later needed (still deterministic, only adds secret config). Separately, `JoinToken` normalizes `IssuedAt`/`ExpiresAt`/`ConsumedAt` to microsecond precision at the domain boundary, because PostgreSQL `timestamptz` (6 fractional digits) truncates .NET `DateTimeOffset` (7-digit ticks) — without this, exact-equality assertions and event/DB comparisons drift by the 7th digit. `JoinTokenPolicy` is registered as a singleton (stateless); `JoinTokenTokenService` likewise.
+
+**Deliberately skipped**
+- **X.4 API layer** — no endpoints wired in HU-07A. `Consume()` is defined and unit-tested but intentionally not endpoint-exposed; single-use consumption is owned by `session-operations-service` at admission (and must stay available for reconnection, HU-07B). `ValidateParticipantMembershipAccess` is read-only / non-consuming by design (ADR-0007).
+- **Unit tests for `JoinTokenTokenService`** — the deterministic-hash and distinct-token contract is currently only exercised indirectly via integration tests. Worth adding directly.
+- `.mcp.json` (a local shadcn MCP config) was left untracked, not part of the feature.
+
+**Next session needs to know**
+HU-07A backend is at X.3 complete and green: 165 unit + 62 integration tests pass, `Api.csproj` builds 0 errors. Two DI registrations were the fix that unblocked all 43 API endpoint tests (they were failing `ValidateOnBuild` at host startup): `IJoinTokenTokenService → JoinTokenTokenService` (Infrastructure DI) and `JoinTokenPolicy` (Application DI). If continuing to X.4 / HU-07B, the `ValidateParticipantMembershipAccess` query and `IssueJoinToken` command are ready to wire to endpoints. Note: the debrief skill's `.claude` copy points the decisions target at `services/<svc>/decisions/untracked.md`, but the live history is here at `docs/decisions/identity-access-service.md` — reconcile before the next debrief.
+
+---
+
+## [022] HU-07A Phase X.4 — API endpoints and trusted-header authorization for join tokens
+**Date:** 2026-06-02
+**Phase:** X.4 — Api (HU-07A)
+**Commits:** Uncommitted working tree
+**HU tickets advanced:** HU-07A, DES-11, DES-67
+
+**What was built**
+Added `JoinTokensEndpoints` with `POST /api/join-tokens` for administrators/operators and extended `PermissionsEndpoints` with `POST /api/permissions/participant-membership-access` for participants. Wired a trusted-header authentication handler plus named authorization policies so `RequireAuthorization(...)` works against the forwarded `X-User-Id`, `X-User-Role`, and `X-User-Email` headers, updated `ProblemDetailsExceptionHandler` for join-token failures, and added integration/unit tests covering authorized issuance, participant validation, forbidden-role cases, foreign-team rejection, and API test DB cleanup for `join_tokens`.
+
+**Why this approach**
+The API layer stays thin by delegating directly to the existing `IssueJoinTokenCommand` and `ValidateParticipantMembershipAccessQuery` from X.2. The custom trusted-header authentication scheme lets Minimal API authorization run through the normal ASP.NET Core pipeline without reintroducing JWT parsing, which matches the repo's gateway-forwarded identity rule and keeps tests aligned with production request shape. The endpoint applies a default 15-minute token lifetime only when `expiresInSeconds` is omitted or non-positive, leaving expiry validation and token semantics in the existing application/domain layers.
+
+**Deliberately skipped**
+- Join-token consumption/admission endpoints — still out of scope here; HU-07A only exposes issuance and non-consuming validation
+- OpenAPI metadata and richer endpoint documentation — deferred to a later API documentation pass
+- The untracked `.mcp.json` file at the repo root — left untouched and not part of this feature
+
+**Next session needs to know**
+`dotnet build backend/services/identity-access-service/src/Api/Api.csproj` succeeds when run unrestricted; the only diagnostics were `NU1900` vulnerability-data warnings because NuGet advisory data could not be reached. The X.4 changes are still uncommitted in the worktree, so if this phase is to be preserved, commit the API/test changes together with this debrief entry.
+
+---
+
+## [023] HU-07A Phase 0 — session-scoped team lobby supersession
+**Date:** 2026-06-02
+**Phase:** 0 — Scope / architecture decision (HU-07A)
+**Commits:** Uncommitted working tree
+**HU tickets advanced:** HU-07A, DES-11, DES-69, HU-18
+
+**What was built**
+Recorded the branch-level supersession that turns the old HU-07A GUID-pair harness into a participant session → team-lobby → team-space flow. The settled decision is option **B**: keep the lobby's session→team association inside `Identity`, expose `GET /api/sessions/{id}/teams`, and annotate each team for the caller as `mine`, `joinable`, or `locked`. This same decision log entry aligns the active docs set: the HU-07A PRD, the `identity-access-service` `CONTEXT.md`, the HU-07A handoff context, the prompt example, and the original mobile "future" note.
+
+**Why this approach**
+Keeping the session-team association in `Identity` is the smallest honest implementation: the service already owns the `TeamMembership` facts needed to compute lobby lock state, while `session-operations-service` still owns final admission and runtime team state. This supersedes the original "participant may only ever enter their own team" phrasing with the product rule the branch now targets: unassigned participants may self-select a team and thereby self-assign; pre-assigned participants remain locked to their team. The decision also avoids pretending that the old mobile form is a shippable participant experience.
+
+**Deliberately skipped**
+- No service code or mobile UI landed in this phase; endpoint/entity/hook/screen work remains in Phases 1–3
+- No attempt was made to revive the abandoned "future" framing that said the lobby belonged to HU-07B/08; that document is now explicitly historical only
+- HU-04/HU-05 operator-authorization widening remains a separate Phase 1.5 branch concern
+
+---
+
+## [024] HU-04/HU-05 Phase 1.5 — operator authorization for register/assign
+**Date:** 2026-06-02
+**Phase:** 1.5 — authorization adjustment
+**Commits:** Uncommitted working tree
+**HU tickets advanced:** HU-04, HU-05, HU-07A
+
+**What was built**
+Widened the two team-management use cases required by the participant lobby flow so both `Administrator` and `Operator` can execute them in `identity-access-service`. `RegisterTeamCommand` and `AssignParticipantToTeamCommand` now authorize `Administrator,Operator`, and their handlers now evaluate `ProtectedCapability.OperatorPanel` instead of `AdministratorPanel`. Unit and API integration tests were extended so operators succeed on both paths while participants still receive `403 Forbidden`.
+
+**Why this approach**
+Phase 1.5 only needs operators to create teams and pre-assign participants ahead of session entry. Limiting the change to `RegisterTeam` and `AssignParticipantToTeam` implements that supersession directly while leaving `UpdateTeam` and `DeactivateTeam` on their existing admin-only policy until a separate decision widens them.
+
+**Next session needs to know**
+The repository docs now assume the branch is building toward the team lobby inside HU-07A. If the next step is implementation, start from the Phase 1 mobile tracer or Phase 2 backend endpoint in `mobile/docs/plan-participant-session-team-lobby.md`; do not rely on older "own team only" wording in historical HU-07A notes without checking the supersession note first.

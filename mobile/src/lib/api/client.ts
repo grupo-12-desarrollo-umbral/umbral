@@ -1,5 +1,6 @@
 import { fetch } from 'expo/fetch';
 import { getAccessToken } from '@/lib/auth/token-store';
+import { apiBaseUrl } from '@/lib/host';
 
 export class ApiError extends Error {
   constructor(
@@ -24,7 +25,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
   let response: Response;
   try {
-    response = await fetch(`${process.env.EXPO_PUBLIC_API_BASE_URL}${path}`, {
+    response = await fetch(`${apiBaseUrl()}${path}`, {
       ...init,
       headers,
     });

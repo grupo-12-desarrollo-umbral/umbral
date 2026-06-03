@@ -26,7 +26,7 @@ public sealed class AccessPolicy
             ProtectedCapability.AdministratorPanel => user.Role == Role.Administrator,
             ProtectedCapability.OperatorPanel => user.Role is Role.Administrator or Role.Operator,
             ProtectedCapability.ParticipantExperience => user.Role == Role.Participant,
-            ProtectedCapability.UserAccessCatalog => user.Role == Role.Administrator,
+            ProtectedCapability.UserAccessCatalog => user.Role is Role.Administrator or Role.Operator,
             _ => false
         };
 

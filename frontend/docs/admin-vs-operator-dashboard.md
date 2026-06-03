@@ -2,11 +2,13 @@
 
 > Both roles share the same SPA (Next.js). The base layout (sidebar, header, active session) is common. The visibility of sections, widgets, and actions is governed by the **authenticated user's RBAC role** — there are no separate routes per role.
 
+Supersession note: for `HU-04`/`HU-05`, Phase 1.5 of `mobile/docs/plan-participant-session-team-lobby.md` and backend decision `[024]` in `../backend/docs/decisions/identity-access-service.md` widen Operator access to team registration and participant assignment, while team edit/deactivate remain Administrator-only.
+
 | Dimension | Admin | Operator |
 |---|---|---|
 | **User management** (`HU-02`) | CRUD of registered users, account deactivation. | Not visible. |
 | **Roles & permissions** (`HU-03`) | Assign and change user roles. | Not visible. |
-| **Teams** (`HU-04`, `HU-05`) | CRUD of teams, assign participants to teams. | Read-only view of teams linked to assigned sessions. |
+| **Teams** (`HU-04`, `HU-05`) | Full CRUD of teams, assign participants to teams. | Read teams, register teams, and assign participants to teams; cannot edit or deactivate teams. |
 | **Missions / Content** (`HU-09`–`HU-14`) | Full CRUD of missions, quizzes, questions. Publish and archive. | Not visible (only picks active content when creating a session). |
 | **Operator-to-session assignment** (`HU-19`) | Assign/change the operator responsible for a session. | Not visible (only sees sessions they were assigned to). |
 | **Session creation** (`HU-15`–`HU-18`) | Not visible (operator task). | Create sessions from active content, associate teams. |

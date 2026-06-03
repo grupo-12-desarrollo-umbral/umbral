@@ -63,7 +63,7 @@ public sealed class AssignParticipantToTeamCommandHandler : IRequestHandler<Assi
 
     private void EnsureActorCanManageTeams(User actor)
     {
-        var decision = _accessPolicy.Evaluate(actor, ProtectedCapability.AdministratorPanel);
+        var decision = _accessPolicy.Evaluate(actor, ProtectedCapability.OperatorPanel);
 
         if (!actor.IsActive)
         {

@@ -9,11 +9,11 @@ test('admin sees teams panel with create button', async ({ adminPage: page }) =>
   await expect(page.locator('[data-testid="create-team-btn"]')).toBeVisible()
 })
 
-test('operator sees teams panel without create button', async ({ operatorPage: page }) => {
+test('operator sees teams panel with create button', async ({ operatorPage: page }) => {
   await page.goto('/dashboard')
   await page.click('[data-testid="nav-teams"]')
   await expect(page.locator('[data-testid="teams-panel"]')).toBeVisible()
-  await expect(page.locator('[data-testid="create-team-btn"]')).toHaveCount(0)
+  await expect(page.locator('[data-testid="create-team-btn"]')).toBeVisible()
 })
 
 test('participant does not see teams nav item', async ({ participantPage: page }) => {
@@ -34,13 +34,13 @@ test('admin can open team detail by clicking a row', async ({ adminPage: page })
   await expect(page.locator('[data-testid="deactivate-team-btn"]')).toBeVisible()
 })
 
-test('operator detail view has no action buttons', async ({ operatorPage: page }) => {
+test('operator detail view has action buttons', async ({ operatorPage: page }) => {
   await page.goto('/dashboard')
   await page.click('[data-testid="nav-teams"]')
   await page.locator('[data-testid^="team-row-"]').first().click()
   await expect(page.locator('[data-testid="team-detail-panel"]')).toBeVisible()
-  await expect(page.locator('[data-testid="edit-team-btn"]')).toHaveCount(0)
-  await expect(page.locator('[data-testid="deactivate-team-btn"]')).toHaveCount(0)
+  await expect(page.locator('[data-testid="edit-team-btn"]')).toBeVisible()
+  await expect(page.locator('[data-testid="deactivate-team-btn"]')).toBeVisible()
 })
 
 test('back button from detail returns to list', async ({ adminPage: page }) => {
@@ -104,12 +104,35 @@ test('admin create team success navigates to detail', async ({ adminPage: page }
   await expect(page.locator('[data-testid="detail-display-name"]')).toContainText('Alpha Squad')
 })
 
+test('operator create team success navigates to detail', async ({ operatorPage: page }) => {
+  await page.goto('/dashboard')
+  await page.click('[data-testid="nav-teams"]')
+  await page.click('[data-testid="create-team-btn"]')
+  await expect(page.locator('[data-testid="create-team-panel"]')).toBeVisible()
+  await page.fill('[data-testid="team-display-name-input"]', 'Operator Squad')
+  await page.fill('[data-testid="team-code-input"]', 'OP-SQUAD-E2E')
+  await page.click('[data-testid="team-form-submit"]')
+  await expect(page.locator('[data-testid="team-detail-panel"]')).toBeVisible()
+  await expect(page.locator('[data-testid="detail-display-name"]')).toContainText('Operator Squad')
+})
+
 // --- Team edit form ---
 
 test('admin edit form is pre-populated', async ({ adminPage: page }) => {
   await page.goto('/dashboard')
   await page.click('[data-testid="nav-teams"]')
   // Use nth(3) to avoid race with deactivation tests
+  await page.locator('[data-testid^="team-row-"]').nth(3).click()
+  const currentCode = await page.locator('[data-testid="detail-team-code"]').innerText()
+  await page.click('[data-testid="edit-team-btn"]')
+  await expect(page.locator('[data-testid="edit-team-panel"]')).toBeVisible()
+  await expect(page.locator('[data-testid="team-code-input"]')).toHaveValue(currentCode.trim())
+})
+
+test('operator can open edit form and it is pre-populated', async ({ operatorPage: page }) => {
+  await page.goto('/dashboard')
+  await page.click('[data-testid="nav-teams"]')
+  // Use nth(3) to avoid race with deactivation tests; rows may shift so nth(4)
   await page.locator('[data-testid^="team-row-"]').nth(3).click()
   const currentCode = await page.locator('[data-testid="detail-team-code"]').innerText()
   await page.click('[data-testid="edit-team-btn"]')

@@ -335,6 +335,44 @@ Deactivates a team, setting its `IsActive` flag to `false`. Returns the updated 
 
 ---
 
+### `GET /api/sessions/{sessionCode}/teams`
+
+Returns the teams associated with a live session, marking each one according to the participant's membership status. This is the participant-facing team lobby — it does not admit the participant to any team; it only lists what is available.
+
+**Auth:** `Participant` only (via `ParticipantExperience` capability)
+
+**Response `200`**
+```json
+{
+  "liveSessionId": "guid",
+  "sessionCode": "RSF231",
+  "teams": [
+    { "teamId": "guid", "displayName": "Blue Owls", "joinState": "mine" },
+    { "teamId": "guid", "displayName": "Red Foxes", "joinState": "locked" }
+  ]
+}
+```
+
+**`joinState` values** — defined in `ParticipantSessionTeamLobbyService`:
+
+| Value | Condition |
+|-------|-----------|
+| `mine` | The participant is a **member of this team** (pre-assigned by operator via HU-05). |
+| `locked` | The participant is already a member of **another** team in this session. Enforces the "at most one active membership per participant per session" invariant — they cannot join a second team. |
+| `joinable` | The participant has **no membership yet** in this session. All teams are available for self-assignment. |
+
+**Logic summary**: if the participant already has a team → only theirs is `mine`, the rest are `locked`. If they have no team → all appear `joinable`; selecting one self-assigns their membership.
+
+**Error responses:**
+
+| Status | Reason |
+|--------|--------|
+| `401` | Missing or invalid trusted gateway headers. |
+| `403` | Actor role is not `Participant`. |
+| `404` | Session code not found. |
+
+---
+
 ### Health Endpoints
 
 ---

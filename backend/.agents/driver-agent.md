@@ -57,21 +57,26 @@ Phase subagents write code only. They do not commit, touch Linear, or run gates.
 
 ## Pre-flight
 
-1. **Sandbox-safe `dotnet` invocations** — a sandbox blocks MSBuild's
+1. **Sandbox-safe toolchain via `make`** — a sandbox blocks MSBuild's
    named-pipe node-reuse workers, which crashes `dotnet` before it does any
-   work. The fix is `MSBUILDDISABLENODEREUSE=1` (plus `DOTNET_CLI_TELEMETRY_OPTOUT=1`),
-   but it must be set **in the same shell as each `dotnet` command** — a shell
-   `export` in one step does **not** persist to a later `dotnet` run in a
-   separate shell. So:
-   - The **coverage gate** already bakes these into `backend/scripts/cover-gate.sh`
-     (see Phase X.4 below) — nothing to do there.
-   - For any **other** `dotnet` call (`build`, `ef`), prefix it inline:
-     `MSBUILDDISABLENODEREUSE=1 dotnet …` (shown in the steps that need it).
+   work. Rather than prefix every call, route the whole toolchain through
+   `backend/Makefile`, which exports `MSBUILDDISABLENODEREUSE=1` (plus
+   `DOTNET_CLI_TELEMETRY_OPTOUT=1`) once for every recipe and child process:
+   - `make -C backend build SVC=<service>`
+   - `make -C backend test  SVC=<service>`
+   - `make -C backend gate  SVC=<service>`  (wraps `cover-gate.sh`, Phase X.4)
+   - `make -C backend ef    SVC=<service> ARGS="migrations add <Name>"`
+
+   The Makefile is committed, so any agent or human gets the same behaviour
+   without per-call prefixes. The repo's `.claude/settings.json` also lists
+   `make`/`dotnet`/`docker` in `sandbox.excludedCommands`, so they run outside
+   the sandbox and never hit the fail-then-retry loop.
 
    If a `dotnet test` still fails on a loopback socket (vstest testhost ↔
-   console), the sandbox is blocking 127.0.0.1 itself — that is an environment
-   problem, not a gate problem; surface it rather than editing the gate, since
-   no flag suppresses the testhost socket.
+   console) despite the above, the **host** sandbox is broken (missing `socat`,
+   or `apparmor_restrict_unprivileged_userns=1` with no `bwrap` profile) — that
+   is an environment problem, not a gate problem; surface it rather than editing
+   the gate.
 
 2. **Verify labels** — query Linear for the HU ticket (DES-N). Confirm it
    carries both `svc:<service>` and `ready-for-agent`. If either is missing,
@@ -114,7 +119,7 @@ Phase subagents write code only. They do not commit, touch Linear, or run gates.
 
 7. **Verify build is green** before the first phase:
    ```bash
-   MSBUILDDISABLENODEREUSE=1 dotnet build backend/services/<service>/src/<service>.sln
+   make -C backend build SVC=<service>
    ```
    If it fails, stop — do not start phases on a broken base.
 
@@ -156,8 +161,11 @@ Phase subagents write code only. They do not commit, touch Linear, or run gates.
    - Fallback: `--startup-project src/Infrastructure --project src/Infrastructure --no-build`
      (use when the API project is not a valid EF startup project)
 
-   Prefix the `dotnet ef` call with `MSBUILDDISABLENODEREUSE=1` (per step 1):
-   `MSBUILDDISABLENODEREUSE=1 dotnet ef migrations add … `
+   Run `dotnet ef` through the Makefile (per step 1), which applies the
+   preferred startup/project pair and the sandbox env:
+   `make -C backend ef SVC=<service> ARGS="migrations add <Name>"`
+   For the fallback form, call `dotnet ef` directly with
+   `--startup-project src/Infrastructure --project src/Infrastructure --no-build`.
 
 ---
 
@@ -334,16 +342,17 @@ Gate = `backend/scripts/cover-gate.sh`, which runs `dotnet test` with the
 chained coverlet threshold. Driver reads **exit code only** — 0 = green,
 non-zero = gate fails. No `Summary.txt` parsing.
 
-Run it from the service directory so the relative project paths resolve. The
-gate is **variadic** — pass every test project for the service; the last one
-enforces the threshold:
+Invoke it through the Makefile, which `cd`s into the service directory,
+discovers every test project, and passes the integration project last (it
+enforces the threshold) — the gate stays **variadic** by construction:
 
 ```bash
-backend/scripts/cover-gate.sh \
-  tests/UnitTests/<App>.csproj \
-  tests/Api.UnitTests/<Api>.csproj \
-  tests/IntegrationTests/<Infra>.csproj
+make -C backend gate SVC=<service>
 ```
+
+To run `cover-gate.sh` directly instead (e.g. a custom project subset), call it
+from the service directory and pass every test project, the threshold-enforcing
+one last.
 
 The script is the single source of truth for the gate AND for the number we
 demonstrate: it owns the `/p:Threshold` (project minimum 93, override per-run

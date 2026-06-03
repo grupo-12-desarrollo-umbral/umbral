@@ -55,7 +55,7 @@ public sealed class UserManagementProxy : IUserManagementEntryPoint
 
         var role = GatewayRoleParser.Parse(currentUser.Role);
 
-        if (role != Role.Administrator)
+        if (role is not Role.Administrator and not Role.Operator)
         {
             throw new ForbiddenAccessException();
         }

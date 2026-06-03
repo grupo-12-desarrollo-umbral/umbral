@@ -95,6 +95,8 @@ export type TeamMembershipDto = {
   teamMembershipId: string
   teamId: string
   userId: number       // database integer id of the assigned user
+  email: string
+  displayName: string
   assignedAt: string   // ISO 8601
 }
 

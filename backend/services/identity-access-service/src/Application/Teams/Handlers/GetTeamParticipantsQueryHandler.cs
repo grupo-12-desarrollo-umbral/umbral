@@ -36,13 +36,20 @@ public sealed class GetTeamParticipantsQueryHandler : IRequestHandler<GetTeamPar
         var team = await _teamRepository.GetByIdWithMembershipsAsync(request.TeamId, cancellationToken)
             ?? throw new NotFoundException(nameof(Team), request.TeamId);
 
-        return team.Memberships
-            .Select(membership => new TeamMembershipDto(
+        var memberships = new List<TeamMembershipDto>();
+        foreach (var membership in team.Memberships)
+        {
+            var user = await _userRepository.GetByIdAsync(membership.UserId, cancellationToken);
+            memberships.Add(new TeamMembershipDto(
                 membership.TeamMembershipId,
                 membership.TeamId,
                 membership.UserId,
-                membership.AssignedAt))
-            .ToArray();
+                user?.Email ?? "",
+                user?.DisplayName ?? "",
+                membership.AssignedAt));
+        }
+
+        return memberships.AsReadOnly();
     }
 
     private async Task<User> GetCurrentActorAsync(CancellationToken cancellationToken)

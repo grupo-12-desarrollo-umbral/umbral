@@ -12,16 +12,18 @@ footnotes for exactly which edges were removed and why.
 
 ## Status
 
+- **Linear snapshot:** 2026-06-03.
 - **Sprint total:** 31 HUs (identity 12 · mission-design 5 · session-operations 11 · scoring 3).
-- **Done (in-sprint, 8):** `HU-01`, `HU-02`, `HU-03`, `HU-04`, `HU-05` (identity) ·
+- **Done (in-sprint, 9):** `HU-01`, `HU-02`, `HU-03`, `HU-04`, `HU-05`, `HU-06` (identity) ·
   `HU-11`, `HU-14A`, `HU-14B` (mission-design).
+- **In progress:** `HU-12` (Samuel), `HU-07A` (Salomon).
 - **Done (out-of-sprint):** `HU-09` — mission authoring, *not* part of the trivia sprint;
   adds no trivia progress.
-- **Remaining in-sprint:** 23 → **Samuel: 10**, **Salomon: 13**.
+- **Remaining in-sprint:** 22 → **Samuel: 10**, **Salomon: 12**.
 
 > The `HU-11 → HU-14A → HU-14B` content-authoring chain is already **complete**, so the
-> mission-design content base is done. What remains of mission-design is `HU-12` (Samuel)
-> and `HU-13` (Salomon).
+> mission-design content base is done. What remains of mission-design is `HU-12` (Samuel,
+> **in progress**) and `HU-13` (Salomon, still blocked on `HU-12`).
 
 ## Split principle (and where it bends)
 
@@ -33,8 +35,8 @@ footnotes for exactly which edges were removed and why.
   Salomon" claim does **not** hold against Linear):
   1. **Samuel's `HU-34A` is blocked by Salomon's `HU-07A`.** Low risk: Samuel's path to `HU-34A` is
      ~7 HUs deep, while `HU-07A` is only 2 deep for Salomon (`HU-06 → HU-07A`), so Salomon
-     will be ready long before Samuel needs it — *as long as Salomon starts `HU-06`
-     on day one*.
+     will be ready long before Samuel needs it — and that precondition is already being met
+     because `HU-06` is done and `HU-07A` is in progress.
   2. **Samuel's `HU-33B` is blocked by Salomon's `HU-37A`, and `HU-37A` is in turn blocked by
      Samuel's `HU-34A`.** This is a genuine Samuel → Salomon → Samuel ping-pong: after Samuel lands
      `HU-34A`, Salomon builds the scoring ledger `HU-37A`, and only then can Samuel close
@@ -48,7 +50,7 @@ Listed in **true Linear topological order** (top = start first). This is the cri
 
 | # | HU | Title | Service | Pattern(s) | Transport | Blocked by (trivia-scope, Linear) | Tier |
 |---|----|-------|---------|-----------|-----------|-----------------------------------|------|
-| 1 | `HU-12` | Publicación y archivado de quizzes | mission-design | `Template Method` | — | — (HU-11 ✅, HU-14A ✅, HU-14B ✅) → **ready now** | base root |
+| 1 | `HU-12` | Publicación y archivado de quizzes | mission-design | `Template Method` | — | — (HU-11 ✅, HU-14A ✅, HU-14B ✅) → **in progress** | base root |
 | 2 | `HU-16` | Creación de sesiones trivia | session-ops | `Facade` | — | HU-12 (Samuel) (HU-11/14A/14B ✅) | base |
 | 3 | `HU-18` | Asociación de equipos a sesiones | identity | `Facade` | — | HU-16 (Samuel) (HU-04 ✅) † | base |
 | 4 | `HU-19` | Asignación de operador a sesión | identity | `Facade`, `Proxy` | — | HU-16 (Samuel) (HU-03 ✅) † | base |
@@ -89,8 +91,8 @@ resolved, out-of-scope blockers stripped).
 
 | HU | Title | Service | Pattern(s) | Transport | Blocked by (trivia-scope, Linear) | Can start |
 |----|-------|---------|-----------|-----------|-----------------------------------|-----------|
-| `HU-06` | Inicio de sesión de participantes | identity | `Proxy` | — | — (HU-01 ✅) | **day one** |
-| `HU-07A` | Validación de membresía en sesión | identity | `Proxy` | SignalR | HU-06 (Salomon) (HU-05 ✅) | after own 06 |
+| `HU-06` | Inicio de sesión de participantes | identity | `Proxy` | — | — (HU-01 ✅) | **done** |
+| `HU-07A` | Validación de membresía en sesión | identity | `Proxy` | SignalR | HU-06 ✅ (Salomon) (HU-05 ✅) | **in progress** |
 | `HU-07B` | Reconexión autorizada del participante | identity | `Proxy` | SignalR | HU-07A (Salomon) | after own 07A |
 | `HU-08` | Sincronización multi-dispositivo | identity | real-time enabler | SignalR | HU-07A, HU-07B (Salomon) | after own 07A/07B |
 | `HU-13` | Duplicación y retiro de quizzes | mission-design | `Template Method` | — | HU-12 (**Samuel**) (HU-11 ✅) | after Samuel's 12 |
@@ -106,10 +108,10 @@ resolved, out-of-scope blockers stripped).
 `§` = `HU-37A`'s Linear `blockedBy` also includes `HU-30A` (evidence-context validation)
 and `HU-38` (penalties) — both **out of scope** — stripped here, leaving only `HU-34A`.
 
-**Salomon's true day-one start is just `HU-06`.** Everything else is gated: `HU-07A` needs
-Salomon's own `HU-06` first; the scoring ledger `HU-37A` waits on Samuel's `HU-34A` (it is
-**not** a day-one start). So Salomon's realistic opening is the participant-auth chain
-`HU-06 → HU-07A → HU-07B → HU-08`, which he can run end-to-end without Samuel.
+**Salomon's opening move has already happened:** `HU-06` is done, and `HU-07A` is now in
+progress. The scoring ledger `HU-37A` still waits on Samuel's `HU-34A` (it is **not** an
+early parallel start), so Salomon's active near-term chain remains
+`HU-07A → HU-07B → HU-08`.
 
 **Salomon's internal chains** (Salomon-blocked-by-Salomon, fully under his control):
 - `HU-06 → HU-07A → HU-07B → HU-08`
@@ -139,7 +141,7 @@ The only edges that cross the Samuel/Salomon boundary:
 
 ## Handoff order (what each side unblocks, and when)
 
-**Day one (parallel):** Samuel starts `HU-12`; Salomon starts `HU-06`.
+**Current opening state:** Samuel is on `HU-12`; Salomon has finished `HU-06` and is on `HU-07A`.
 
 As Samuel lands spine HUs, they release Salomon's work:
 
@@ -156,18 +158,19 @@ As Samuel lands spine HUs, they release Salomon's work:
     `HU-37A`/`HU-37B`/`HU-39B` prerequisites).
 
 **Sequencing advice:**
-- **Salomon: start `HU-06` on day one** so `HU-07A` is ready well before Samuel's `HU-34A`.
+- **Salomon: finish `HU-07A` next** so Samuel's future `HU-34A` dependency is cleared well in advance.
 - **Samuel: do `HU-34B` while Salomon builds `HU-37A`**, so the `HU-34A → HU-37A → HU-33B`
   ping-pong doesn't leave Samuel idle.
 
 ## Dependency map (remaining sprint only)
 
 ```
-DONE: HU-01 02 03 04 05 (identity) · HU-11 14A 14B (mission-design)
+DONE: HU-01 02 03 04 05 06 (identity) · HU-11 14A 14B (mission-design)
+IN PROGRESS: HU-12 (Samuel) · HU-07A (Salomon)
 
 SAMUEL (spine, critical path)
 --------------------------
-HU-12 ─▶ HU-16 ─┬─▶ HU-18 ─┐
+HU-12 (in progress) ─▶ HU-16 ─┬─▶ HU-18 ─┐
                 └─▶ HU-19 ─┴─▶ HU-21A ─▶ HU-22 ─▶ HU-33A ─┬─▶ HU-34A ─▶ HU-34B
                                                           └─▶ HU-33B
                                                               (HU-33B also needs Salomon's HU-37A)
@@ -175,8 +178,8 @@ HU-12 ─▶ HU-16 ─┬─▶ HU-18 ─┐
 
 SALOMON (leaves)
 ---------------
-day one:  HU-06 ─▶ HU-07A ─┬─▶ HU-07B ─▶ HU-08
-                           └─(gates Samuel's HU-34A)
+done/in progress:  HU-06 ✅ ─▶ HU-07A (in progress) ─┬─▶ HU-07B ─▶ HU-08
+                                                     └─(gates Samuel's HU-34A)
 after Samuel's 12:   HU-13
 after Samuel's 19:   HU-20
 after Samuel's 21A:  HU-21B

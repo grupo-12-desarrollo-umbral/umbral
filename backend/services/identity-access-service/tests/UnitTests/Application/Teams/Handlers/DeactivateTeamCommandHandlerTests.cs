@@ -73,14 +73,26 @@ public sealed class DeactivateTeamCommandHandlerTests
     }
 
     [Fact]
-    public async Task Handle_RejectsNonAdministratorCaller()
+    public async Task Handle_OperatorCanDeactivateTeam()
     {
         var actor = CreateUser(1, "kc-operator", Role.Operator);
-        var handler = CreateHandler(new Mock<ITeamRepository>(), CreateUserRepository(actor), actor.ExternalIdentityId);
+        var team = Team.Register("Red Team", "RED-01");
 
-        var act = async () => await handler.Handle(new DeactivateTeamCommand(Guid.NewGuid()), CancellationToken.None);
+        var teamRepository = new Mock<ITeamRepository>();
+        teamRepository
+            .Setup(repo => repo.GetByIdAsync(team.TeamId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(team);
+        teamRepository
+            .Setup(repo => repo.UpdateAsync(team, It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
 
-        await act.Should().ThrowAsync<UserRoleNotAuthorizedException>();
+        var handler = CreateHandler(teamRepository, CreateUserRepository(actor), actor.ExternalIdentityId);
+
+        await handler.Handle(new DeactivateTeamCommand(team.TeamId), CancellationToken.None);
+
+        team.IsActive.Should().BeFalse();
+        team.DomainEvents.OfType<TeamDeactivatedEvent>().Should().ContainSingle();
+        teamRepository.Verify(repo => repo.UpdateAsync(team, It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]

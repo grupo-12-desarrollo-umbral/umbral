@@ -10,18 +10,18 @@ using umbral_backend.Domain.Events;
 using umbral_backend.Domain.Exceptions;
 using umbral_backend.Domain.Services;
 using umbral_backend.Infrastructure.Persistence;
-using umbral_backend.Infrastructure.Persistence.Interceptors;
 using umbral_backend.Infrastructure.Persistence.Repositories;
 
 namespace umbral_backend.Infrastructure.IntegrationTests.Persistence;
 
-public sealed class TeamRepositoryIntegrationTests : IClassFixture<PostgreSqlFixture>
+[Collection(PostgreSqlCollection.Name)]
+public sealed class TeamRepositoryIntegrationTests
 {
-    private readonly PostgreSqlFixture _fixture;
+    private readonly PersistenceTestContextFactory _contextFactory;
 
     public TeamRepositoryIntegrationTests(PostgreSqlFixture fixture)
     {
-        _fixture = fixture;
+        _contextFactory = new PersistenceTestContextFactory(fixture.ConnectionString);
     }
 
     [Fact]
@@ -126,7 +126,7 @@ public sealed class TeamRepositoryIntegrationTests : IClassFixture<PostgreSqlFix
     [Fact]
     public async Task RegisterTeam_WithDuplicateCode_ThrowsInHandlerAndDatabaseBackstopRejectsDuplicate()
     {
-        await using var setupContext = BuildContext(new NoOpMediator(), new StubCurrentUser("kc-admin"));
+        await using var setupContext = BuildContext(new NoOpMediator(), new TestCurrentUser("kc-admin"));
         await ResetDatabaseAsync(setupContext);
 
         IUserRepository userRepository = new UserRepository(setupContext);
@@ -134,7 +134,7 @@ public sealed class TeamRepositoryIntegrationTests : IClassFixture<PostgreSqlFix
             User.Provision("kc-admin", "Admin User", "admin@example.com", Role.Administrator),
             CancellationToken.None);
 
-        var currentUser = new StubCurrentUser("kc-admin");
+        var currentUser = new TestCurrentUser("kc-admin");
         var accessPolicy = new AccessPolicy();
 
         await using var actContext = BuildContext(new NoOpMediator(), currentUser);
@@ -204,7 +204,7 @@ public sealed class TeamRepositoryIntegrationTests : IClassFixture<PostgreSqlFix
         await setupContext.SaveChangesAsync();
 
         var mediator = new CapturingMediator();
-        var currentUser = new StubCurrentUser("kc-admin");
+        var currentUser = new TestCurrentUser("kc-admin");
 
         await using var actContext = BuildContext(mediator, currentUser);
         var handler = new AssignParticipantToTeamCommandHandler(
@@ -252,7 +252,7 @@ public sealed class TeamRepositoryIntegrationTests : IClassFixture<PostgreSqlFix
         setupContext.Teams.Add(team);
         await setupContext.SaveChangesAsync();
 
-        var currentUser = new StubCurrentUser("kc-admin");
+        var currentUser = new TestCurrentUser("kc-admin");
 
         await using var firstContext = BuildContext(new NoOpMediator(), currentUser);
         var firstHandler = new AssignParticipantToTeamCommandHandler(
@@ -300,7 +300,7 @@ public sealed class TeamRepositoryIntegrationTests : IClassFixture<PostgreSqlFix
         setupContext.Teams.Add(team);
         await setupContext.SaveChangesAsync();
 
-        var currentUser = new StubCurrentUser("kc-admin");
+        var currentUser = new TestCurrentUser("kc-admin");
 
         await using var actContext = BuildContext(new NoOpMediator(), currentUser);
         var handler = new AssignParticipantToTeamCommandHandler(
@@ -341,7 +341,7 @@ public sealed class TeamRepositoryIntegrationTests : IClassFixture<PostgreSqlFix
         team.AssignParticipant(secondParticipant.Id);
         await setupContext.SaveChangesAsync();
 
-        var currentUser = new StubCurrentUser("kc-admin");
+        var currentUser = new TestCurrentUser("kc-admin");
 
         await using var actContext = BuildContext(new NoOpMediator(), currentUser);
         var handler = new GetTeamParticipantsQueryHandler(
@@ -365,111 +365,12 @@ public sealed class TeamRepositoryIntegrationTests : IClassFixture<PostgreSqlFix
     {
         await context.IdentityProviderSessions.ExecuteDeleteAsync();
         await context.TeamMemberships.ExecuteDeleteAsync();
+        await context.SessionTeamAssociations.ExecuteDeleteAsync();
+        await context.LiveSessionReferences.ExecuteDeleteAsync();
         await context.Teams.ExecuteDeleteAsync();
         await context.Users.ExecuteDeleteAsync();
     }
 
     private ApplicationDbContext BuildContext(IMediator? mediator = null, ICurrentUser? currentUser = null)
-    {
-        var optionsBuilder = new DbContextOptionsBuilder<ApplicationDbContext>()
-            .UseNpgsql(_fixture.ConnectionString);
-
-        var effectiveCurrentUser = currentUser ?? new StubCurrentUser("integration-test");
-
-        optionsBuilder.AddInterceptors(
-            new AuditableEntityInterceptor(effectiveCurrentUser, TimeProvider.System),
-            new DispatchDomainEventsInterceptor(mediator ?? new NoOpMediator()));
-
-        return new ApplicationDbContext(optionsBuilder.Options);
-    }
-
-    private sealed record StubCurrentUser(string? Id, string? Email = null, string? Role = null) : ICurrentUser;
-
-    private sealed class CapturingMediator : IMediator
-    {
-        public List<object> PublishedNotifications { get; } = new();
-
-        public Task Publish(object notification, CancellationToken cancellationToken = default)
-        {
-            PublishedNotifications.Add(notification);
-            return Task.CompletedTask;
-        }
-
-        public Task Publish<TNotification>(TNotification notification, CancellationToken cancellationToken = default)
-            where TNotification : INotification
-        {
-            PublishedNotifications.Add(notification!);
-            return Task.CompletedTask;
-        }
-
-        public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
-        {
-            throw new NotSupportedException();
-        }
-
-        public Task Send<TRequest>(TRequest request, CancellationToken cancellationToken = default)
-            where TRequest : IRequest
-        {
-            throw new NotSupportedException();
-        }
-
-        public Task<object?> Send(object request, CancellationToken cancellationToken = default)
-        {
-            throw new NotSupportedException();
-        }
-
-        public IAsyncEnumerable<TResponse> CreateStream<TResponse>(
-            IStreamRequest<TResponse> request,
-            CancellationToken cancellationToken = default)
-        {
-            throw new NotSupportedException();
-        }
-
-        public IAsyncEnumerable<object?> CreateStream(object request, CancellationToken cancellationToken = default)
-        {
-            throw new NotSupportedException();
-        }
-    }
-
-    private sealed class NoOpMediator : IMediator
-    {
-        public Task Publish(object notification, CancellationToken cancellationToken = default)
-        {
-            return Task.CompletedTask;
-        }
-
-        public Task Publish<TNotification>(TNotification notification, CancellationToken cancellationToken = default)
-            where TNotification : INotification
-        {
-            return Task.CompletedTask;
-        }
-
-        public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
-        {
-            throw new NotSupportedException();
-        }
-
-        public Task Send<TRequest>(TRequest request, CancellationToken cancellationToken = default)
-            where TRequest : IRequest
-        {
-            throw new NotSupportedException();
-        }
-
-        public Task<object?> Send(object request, CancellationToken cancellationToken = default)
-        {
-            throw new NotSupportedException();
-        }
-
-        public IAsyncEnumerable<TResponse> CreateStream<TResponse>(
-            IStreamRequest<TResponse> request,
-            CancellationToken cancellationToken = default)
-        {
-            throw new NotSupportedException();
-        }
-
-        public IAsyncEnumerable<object?> CreateStream(object request, CancellationToken cancellationToken = default)
-        {
-            throw new NotSupportedException();
-        }
-    }
+        => _contextFactory.Create(mediator, currentUser);
 }

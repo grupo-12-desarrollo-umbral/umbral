@@ -37,7 +37,7 @@ export async function createTeam(
   teamCode: string,
 ): Promise<CreateTeamResultDto> {
   const session = await verifySession()
-  if (session.role !== 'Administrator') {
+  if (session.role !== 'Administrator' && session.role !== 'Operator') {
     throw new Error('Forbidden')
   }
   const result = await createTeamLib(displayName, teamCode)
@@ -51,7 +51,7 @@ export async function updateTeam(
   teamCode: string,
 ): Promise<void> {
   const session = await verifySession()
-  if (session.role !== 'Administrator') {
+  if (session.role !== 'Administrator' && session.role !== 'Operator') {
     throw new Error('Forbidden')
   }
   await updateTeamLib(id, displayName, teamCode)
@@ -60,7 +60,7 @@ export async function updateTeam(
 
 export async function deactivateTeam(id: string): Promise<TeamDto> {
   const session = await verifySession()
-  if (session.role !== 'Administrator') {
+  if (session.role !== 'Administrator' && session.role !== 'Operator') {
     throw new Error('Forbidden')
   }
   const result = await deactivateTeamLib(id)
@@ -83,7 +83,7 @@ export async function assignParticipantToTeam(
   userId: number,
 ): Promise<void> {
   const session = await verifySession()
-  if (session.role !== 'Administrator') {
+  if (session.role !== 'Administrator' && session.role !== 'Operator') {
     throw new Error('Forbidden')
   }
   await assignParticipantLib(teamId, userId)

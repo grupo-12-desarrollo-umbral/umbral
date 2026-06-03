@@ -1,6 +1,8 @@
 using Microsoft.AspNetCore.Http.HttpResults;
+using umbral_backend.Api.Services;
 using umbral_backend.Application.Common.Models;
 using umbral_backend.Application.Teams.Commands.AssignParticipantToTeam;
+using umbral_backend.Application.Teams.Commands.JoinTeamAsParticipant;
 using umbral_backend.Application.Teams.Commands.DeactivateTeam;
 using umbral_backend.Application.Teams.Commands.RegisterTeam;
 using umbral_backend.Application.Teams.Commands.UpdateTeam;
@@ -23,6 +25,8 @@ public sealed class TeamsEndpoints : IEndpointGroup
         teams.MapPatch("/{id:guid}", UpdateTeamAsync);
         teams.MapDelete("/{id:guid}/status", DeactivateTeamAsync);
         teams.MapPost("/{id:guid}/participants", AssignParticipantToTeamAsync);
+        teams.MapPost("/{id:guid}/participants/self", JoinTeamAsParticipantAsync)
+            .RequireAuthorization(AuthorizationPolicies.Participant);
         teams.MapGet("/{id:guid}/participants", GetTeamParticipantsAsync);
     }
 
@@ -98,6 +102,21 @@ public sealed class TeamsEndpoints : IEndpointGroup
             new AssignParticipantToTeamResponse(membershipId));
     }
 
+    private static async Task<Created<JoinTeamAsParticipantResponse>> JoinTeamAsParticipantAsync(
+        Guid id,
+        JoinTeamAsParticipantRequest request,
+        ISender sender,
+        CancellationToken cancellationToken)
+    {
+        var membershipId = await sender.Send(
+            new JoinTeamAsParticipantCommand(request.LiveSessionId, id),
+            cancellationToken);
+
+        return TypedResults.Created(
+            $"/api/teams/{id}/participants/{membershipId}",
+            new JoinTeamAsParticipantResponse(membershipId));
+    }
+
     private static async Task<Ok<IReadOnlyList<TeamMembershipDto>>> GetTeamParticipantsAsync(
         Guid id,
         ISender sender,
@@ -118,4 +137,8 @@ public sealed class TeamsEndpoints : IEndpointGroup
     public sealed record AssignParticipantToTeamRequest(int UserId);
 
     public sealed record AssignParticipantToTeamResponse(Guid TeamMembershipId);
+
+    public sealed record JoinTeamAsParticipantRequest(Guid LiveSessionId);
+
+    public sealed record JoinTeamAsParticipantResponse(Guid TeamMembershipId);
 }
