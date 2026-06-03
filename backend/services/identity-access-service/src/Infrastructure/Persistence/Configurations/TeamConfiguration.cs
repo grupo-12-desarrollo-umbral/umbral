@@ -37,8 +37,10 @@ public sealed class TeamConfiguration : IEntityTypeConfiguration<Team>
             .HasColumnName("updated_at")
             .IsRequired();
 
-        builder.Ignore(team => team.CreatedBy);
-        builder.Ignore(team => team.LastModifiedBy);
+        builder.Property(team => team.CreatedBy)
+            .HasColumnName("created_by");
+        builder.Property(team => team.LastModifiedBy)
+            .HasColumnName("updated_by");
 
         builder.HasIndex(team => team.TeamCode)
             .IsUnique();

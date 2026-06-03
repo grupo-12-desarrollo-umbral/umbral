@@ -8,12 +8,36 @@ import {
   updateTriviaQuiz,
   addTriviaQuestion,
   updateTriviaQuestion,
+  publishTriviaQuiz,
+  archiveTriviaQuiz,
 } from '@/app/actions/trivias'
 import type { TriviaQuizSummaryDto, TriviaQuizDto, TriviaQuestionDto, TriviaQuestionRequest } from '@/app/lib/definitions'
 import styles from './dashboard.module.css'
 
 type DashboardRole = 'operator' | 'admin' | 'participant'
 type TriviaPanelView = 'list' | 'detail' | 'create' | 'edit' | 'add-question' | 'edit-question'
+
+function computeReadiness(quiz: TriviaQuizDto): { isReady: boolean; reasons: string[] } {
+  const reasons: string[] = []
+  if (quiz.questions.length === 0) {
+    reasons.push('At least one question is required.')
+  }
+  for (const q of quiz.questions) {
+    if (q.scoreValue === null) {
+      reasons.push(`Question ${q.sequenceOrder}: score value is required.`)
+    }
+    if (q.timeLimitSeconds === null) {
+      reasons.push(`Question ${q.sequenceOrder}: time limit is required.`)
+    }
+    if (q.options.length < 2 || q.options.length > 4) {
+      reasons.push(`Question ${q.sequenceOrder}: must have 2–4 options.`)
+    }
+    if (q.options.filter((o) => o.isCorrect).length !== 1) {
+      reasons.push(`Question ${q.sequenceOrder}: exactly one correct option required.`)
+    }
+  }
+  return { isReady: reasons.length === 0, reasons }
+}
 
 export function TriviasPanel({ role }: { role: DashboardRole }) {
   const [view, setView] = useState<TriviaPanelView>('list')
@@ -25,6 +49,9 @@ export function TriviasPanel({ role }: { role: DashboardRole }) {
   const [formError, setFormError] = useState<string | null>(null)
   const [questionError, setQuestionError] = useState<string | null>(null)
   const [refreshKey, setRefreshKey] = useState(0)
+  const [confirmPublish, setConfirmPublish] = useState(false)
+  const [confirmArchive, setConfirmArchive] = useState(false)
+  const [lifecycleError, setLifecycleError] = useState<string | null>(null)
 
   useEffect(() => {
     startTransition(async () => {
@@ -137,6 +164,54 @@ export function TriviasPanel({ role }: { role: DashboardRole }) {
         } else {
           setQuestionError('Failed to update question. Try again.')
         }
+      }
+    })
+  }
+
+  async function handlePublish() {
+    if (!selectedQuiz) return
+    startTransition(async () => {
+      setLifecycleError(null)
+      try {
+        const updated = await publishTriviaQuiz(selectedQuiz.id)
+        setSelectedQuiz(updated)
+        setConfirmPublish(false)
+        setRefreshKey((k) => k + 1)
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : ''
+        if (msg === 'trivia_publish_conflict') {
+          setLifecycleError(
+            'Publication failed. Ensure the quiz is in Draft status and all questions have score values, time limits, and valid options.',
+          )
+        } else if (msg === 'trivia_not_found') {
+          setLifecycleError('Trivia quiz no longer exists.')
+        } else {
+          setLifecycleError('Failed to publish quiz. Try again.')
+        }
+        setConfirmPublish(false)
+      }
+    })
+  }
+
+  async function handleArchive() {
+    if (!selectedQuiz) return
+    startTransition(async () => {
+      setLifecycleError(null)
+      try {
+        const updated = await archiveTriviaQuiz(selectedQuiz.id)
+        setSelectedQuiz(updated)
+        setConfirmArchive(false)
+        setRefreshKey((k) => k + 1)
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : ''
+        if (msg === 'trivia_archive_conflict') {
+          setLifecycleError('This quiz cannot be archived in its current state.')
+        } else if (msg === 'trivia_not_found') {
+          setLifecycleError('Trivia quiz no longer exists.')
+        } else {
+          setLifecycleError('Failed to archive quiz. Try again.')
+        }
+        setConfirmArchive(false)
       }
     })
   }
@@ -294,7 +369,7 @@ export function TriviasPanel({ role }: { role: DashboardRole }) {
       <section className={styles.panel} data-testid="trivia-detail">
         <button
           className={styles.inlineButton}
-          onClick={() => setView('list')}
+          onClick={() => { setView('list'); setConfirmPublish(false); setConfirmArchive(false); setLifecycleError(null) }}
           type="button"
         >
           ← Back to trivia quizzes
@@ -320,7 +395,35 @@ export function TriviasPanel({ role }: { role: DashboardRole }) {
               {selectedQuiz.status}
             </span>
           </span>
+          <span>
+            Source ready:
+            <span
+              className={styles.chip}
+              data-tone={selectedQuiz.isSourceReady ? 'success' : 'muted'}
+              data-testid="trivia-source-ready"
+            >
+              {selectedQuiz.isSourceReady ? 'Yes' : 'No'}
+            </span>
+          </span>
         </div>
+
+        {selectedQuiz.status === 'Draft' && (() => {
+          const { isReady, reasons } = computeReadiness(selectedQuiz)
+          return !isReady ? (
+            <div className={styles.missionDetailDescCard} data-testid="trivia-readiness-indicator">
+              <span className={styles.missionDetailDescLabel}>Publication readiness</span>
+              <ul style={{ margin: 0, paddingLeft: '1.2rem', color: 'var(--text-secondary)' }}>
+                {reasons.map((r, i) => <li key={i}>{r}</li>)}
+              </ul>
+            </div>
+          ) : null
+        })()}
+
+        {lifecycleError && (
+          <p className={styles.formError} role="alert" data-testid="lifecycle-error">
+            {lifecycleError}
+          </p>
+        )}
 
         <div className={styles.missionDetailActions}>
           <button
@@ -332,6 +435,78 @@ export function TriviasPanel({ role }: { role: DashboardRole }) {
           >
             Edit
           </button>
+
+          {role === 'admin' && selectedQuiz.status === 'Draft' && !confirmPublish && !confirmArchive && (() => {
+            const { isReady, reasons } = computeReadiness(selectedQuiz)
+            return (
+              <button
+                className={styles.primaryButton}
+                data-testid="publish-trivia-btn"
+                disabled={isPending || !isReady}
+                title={!isReady ? reasons.join(' ') : undefined}
+                onClick={() => { setLifecycleError(null); setConfirmPublish(true) }}
+                type="button"
+              >
+                Publish
+              </button>
+            )
+          })()}
+
+          {confirmPublish && (
+            <span className={styles.confirmRow}>
+              <button
+                className={styles.smallButton}
+                data-testid="confirm-publish-btn"
+                disabled={isPending}
+                onClick={handlePublish}
+                type="button"
+              >
+                Confirm publish
+              </button>
+              <button
+                className={styles.inlineButton}
+                disabled={isPending}
+                onClick={() => { setConfirmPublish(false); setLifecycleError(null) }}
+                type="button"
+              >
+                Cancel
+              </button>
+            </span>
+          )}
+
+          {role === 'admin' && selectedQuiz.status !== 'Archived' && !confirmPublish && !confirmArchive && (
+            <button
+              className={styles.inlineButton}
+              data-testid="archive-trivia-btn"
+              disabled={isPending}
+              onClick={() => { setLifecycleError(null); setConfirmArchive(true) }}
+              type="button"
+            >
+              Archive
+            </button>
+          )}
+
+          {confirmArchive && (
+            <span className={styles.confirmRow}>
+              <button
+                className={styles.smallButton}
+                data-testid="confirm-archive-btn"
+                disabled={isPending}
+                onClick={handleArchive}
+                type="button"
+              >
+                Confirm archive
+              </button>
+              <button
+                className={styles.inlineButton}
+                disabled={isPending}
+                onClick={() => { setConfirmArchive(false); setLifecycleError(null) }}
+                type="button"
+              >
+                Cancel
+              </button>
+            </span>
+          )}
         </div>
 
         {renderQuestionsSection(selectedQuiz.questions, selectedQuiz)}
@@ -418,6 +593,7 @@ export function TriviasPanel({ role }: { role: DashboardRole }) {
               <th>Title</th>
               <th>Description</th>
               <th>Status</th>
+              <th>Source ready</th>
               <th>Actions</th>
             </tr>
           </thead>
@@ -433,6 +609,15 @@ export function TriviasPanel({ role }: { role: DashboardRole }) {
                     data-testid={`trivia-status-${quiz.id}`}
                   >
                     {quiz.status}
+                  </span>
+                </td>
+                <td>
+                  <span
+                    className={styles.chip}
+                    data-tone={quiz.isSourceReady ? 'success' : 'muted'}
+                    data-testid={`trivia-source-ready-${quiz.id}`}
+                  >
+                    {quiz.isSourceReady ? 'Yes' : 'No'}
                   </span>
                 </td>
                 <td>

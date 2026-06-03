@@ -25,14 +25,16 @@ public sealed class TriviaQuizConfiguration : IEntityTypeConfiguration<TriviaQui
             .HasMaxLength(50)
             .IsRequired();
 
+        builder.Property(triviaQuiz => triviaQuiz.PublishedAt);
+
         builder.Property(triviaQuiz => triviaQuiz.Created)
             .IsRequired();
 
         builder.Property(triviaQuiz => triviaQuiz.LastModified)
             .IsRequired();
 
-        builder.Ignore(triviaQuiz => triviaQuiz.CreatedBy);
-        builder.Ignore(triviaQuiz => triviaQuiz.LastModifiedBy);
+        builder.Property(triviaQuiz => triviaQuiz.CreatedBy);
+        builder.Property(triviaQuiz => triviaQuiz.LastModifiedBy);
 
         builder.OwnsMany(triviaQuiz => triviaQuiz.Questions, questionBuilder =>
         {

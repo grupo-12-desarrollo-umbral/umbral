@@ -5,6 +5,11 @@ namespace umbral_backend.Infrastructure.IntegrationTests;
 
 public sealed class PostgreSqlFixture : IAsyncLifetime
 {
+    static PostgreSqlFixture()
+    {
+        Environment.SetEnvironmentVariable("TESTCONTAINERS_RYUK_DISABLED", "true");
+    }
+
     private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder()
         .WithImage("postgres:16")
         .Build();

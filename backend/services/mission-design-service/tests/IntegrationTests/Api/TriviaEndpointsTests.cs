@@ -66,6 +66,7 @@ public sealed class TriviaEndpointsTests : IClassFixture<PostgreSqlFixture>, IAs
         payload!.Title.Should().Be("Capital Cities");
         payload.Description.Should().Be("Identify the right capital.");
         payload.Status.Should().Be("Draft");
+        payload.IsSourceReady.Should().BeFalse();
         payload.Questions.Should().ContainSingle();
         payload.Questions[0].Prompt.Should().Be("Capital of France?");
         payload.Questions[0].ScoreValue.Should().Be(100);
@@ -90,6 +91,7 @@ public sealed class TriviaEndpointsTests : IClassFixture<PostgreSqlFixture>, IAs
         catalog[0].Id.Should().Be(triviaId);
         catalog[0].Title.Should().Be("Historic Capitals");
         catalog[0].Status.Should().Be("Draft");
+        catalog[0].IsSourceReady.Should().BeFalse();
 
         var detailResponse = await _client.GetAsync($"/api/trivias/{triviaId}");
         detailResponse.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -97,6 +99,7 @@ public sealed class TriviaEndpointsTests : IClassFixture<PostgreSqlFixture>, IAs
         var detail = await detailResponse.Content.ReadFromJsonAsync<TriviasEndpoints.TriviaQuizResponse>();
         detail.Should().NotBeNull();
         detail!.Id.Should().Be(triviaId);
+        detail.IsSourceReady.Should().BeFalse();
         detail.Questions.Should().ContainSingle();
         detail.Questions[0].Options.Should().HaveCount(2);
     }
@@ -154,6 +157,7 @@ public sealed class TriviaEndpointsTests : IClassFixture<PostgreSqlFixture>, IAs
         payload!.Id.Should().Be(triviaId);
         payload.Title.Should().Be("Trivia After");
         payload.Description.Should().Be("Updated draft.");
+        payload.IsSourceReady.Should().BeFalse();
         payload.Questions.Select(question => question.SequenceOrder).Should().Equal(1, 2);
         payload.Questions[0].ScoreValue.Should().Be(25);
         payload.Questions[0].TimeLimitSeconds.Should().Be(30);
@@ -190,6 +194,7 @@ public sealed class TriviaEndpointsTests : IClassFixture<PostgreSqlFixture>, IAs
         var payload = await response.Content.ReadFromJsonAsync<TriviasEndpoints.TriviaQuizResponse>();
         payload.Should().NotBeNull();
         payload!.Questions.Should().HaveCount(2);
+        payload.IsSourceReady.Should().BeFalse();
 
         var addedQuestion = payload.Questions.Single(question => question.SequenceOrder == 2);
         addedQuestion.Prompt.Should().Be("Largest ocean?");
@@ -241,8 +246,9 @@ public sealed class TriviaEndpointsTests : IClassFixture<PostgreSqlFixture>, IAs
 
         var payload = await response.Content.ReadFromJsonAsync<TriviasEndpoints.TriviaQuizResponse>();
         payload.Should().NotBeNull();
+        payload!.IsSourceReady.Should().BeFalse();
 
-        var updatedQuestion = payload!.Questions.Single(question => question.Id == questionId);
+        var updatedQuestion = payload.Questions.Single(question => question.Id == questionId);
         updatedQuestion.Prompt.Should().Be("Capital of Colombia?");
         updatedQuestion.ScoreValue.Should().Be(100);
         updatedQuestion.TimeLimitSeconds.Should().Be(50);
@@ -347,6 +353,139 @@ public sealed class TriviaEndpointsTests : IClassFixture<PostgreSqlFixture>, IAs
         problem.Detail.Should().Contain("cannot be edited");
     }
 
+    [Fact]
+    public async Task PublishTriviaQuiz_ReturnsPublishedQuizAndSourceReadyProjection()
+    {
+        AddAdministratorHeaders();
+
+        var triviaId = await CreateTriviaQuizAsync("Publication Candidate");
+
+        var response = await _client.PostAsync($"/api/trivias/{triviaId}/publish", content: null);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var payload = await response.Content.ReadFromJsonAsync<TriviasEndpoints.TriviaQuizResponse>();
+        payload.Should().NotBeNull();
+        payload!.Id.Should().Be(triviaId);
+        payload.Status.Should().Be("Published");
+        payload.IsSourceReady.Should().BeTrue();
+
+        var catalogResponse = await _client.GetAsync("/api/trivias/");
+        catalogResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var catalog = await catalogResponse.Content.ReadFromJsonAsync<IReadOnlyList<TriviasEndpoints.TriviaQuizSummaryResponse>>();
+        catalog.Should().NotBeNull();
+        catalog!.Single().Status.Should().Be("Published");
+        catalog.Single().IsSourceReady.Should().BeTrue();
+
+        var detailResponse = await _client.GetAsync($"/api/trivias/{triviaId}");
+        detailResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var detail = await detailResponse.Content.ReadFromJsonAsync<TriviasEndpoints.TriviaQuizResponse>();
+        detail.Should().NotBeNull();
+        detail!.Status.Should().Be("Published");
+        detail.IsSourceReady.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task PublishTriviaQuiz_WhenQuizFailsReadinessRules_ReturnsConflict()
+    {
+        AddAdministratorHeaders();
+
+        var triviaId = await CreateEmptyTriviaQuizAsync("Incomplete Quiz");
+
+        var response = await _client.PostAsync($"/api/trivias/{triviaId}/publish", content: null);
+
+        response.StatusCode.Should().Be(HttpStatusCode.Conflict);
+
+        var problem = await response.Content.ReadFromJsonAsync<ProblemDetails>();
+        problem.Should().NotBeNull();
+        problem!.Status.Should().Be(StatusCodes.Status409Conflict);
+        problem.Title.Should().Be("Trivia quiz is not ready for publication.");
+        problem.Detail.Should().Contain("at least one question");
+
+        var detailResponse = await _client.GetAsync($"/api/trivias/{triviaId}");
+        detailResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var detail = await detailResponse.Content.ReadFromJsonAsync<TriviasEndpoints.TriviaQuizResponse>();
+        detail.Should().NotBeNull();
+        detail!.Status.Should().Be("Draft");
+        detail.IsSourceReady.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task ArchiveTriviaQuiz_ReturnsArchivedQuizAndRemovesSourceReadiness()
+    {
+        AddAdministratorHeaders();
+
+        var triviaId = await CreateTriviaQuizAsync("Archivable Quiz");
+        await PublishTriviaQuizAsync(triviaId);
+
+        var response = await _client.PostAsync($"/api/trivias/{triviaId}/archive", content: null);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var payload = await response.Content.ReadFromJsonAsync<TriviasEndpoints.TriviaQuizResponse>();
+        payload.Should().NotBeNull();
+        payload!.Status.Should().Be("Archived");
+        payload.IsSourceReady.Should().BeFalse();
+
+        var catalogResponse = await _client.GetAsync("/api/trivias/");
+        catalogResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var catalog = await catalogResponse.Content.ReadFromJsonAsync<IReadOnlyList<TriviasEndpoints.TriviaQuizSummaryResponse>>();
+        catalog.Should().NotBeNull();
+        catalog!.Single().Status.Should().Be("Archived");
+        catalog.Single().IsSourceReady.Should().BeFalse();
+
+        var detailResponse = await _client.GetAsync($"/api/trivias/{triviaId}");
+        detailResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var detail = await detailResponse.Content.ReadFromJsonAsync<TriviasEndpoints.TriviaQuizResponse>();
+        detail.Should().NotBeNull();
+        detail!.Status.Should().Be("Archived");
+        detail.IsSourceReady.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task PublishTriviaQuiz_WithNonAdminCaller_Returns403()
+    {
+        AddAdministratorHeaders();
+
+        var triviaId = await CreateTriviaQuizAsync("Unauthorized Publish");
+
+        AddOperatorHeaders();
+
+        var response = await _client.PostAsync($"/api/trivias/{triviaId}/publish", content: null);
+
+        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+
+        var problem = await response.Content.ReadFromJsonAsync<ProblemDetails>();
+        problem.Should().NotBeNull();
+        problem!.Status.Should().Be(StatusCodes.Status403Forbidden);
+        problem.Title.Should().Be("Forbidden.");
+    }
+
+    [Fact]
+    public async Task ArchiveTriviaQuiz_WithNonAdminCaller_Returns403()
+    {
+        AddAdministratorHeaders();
+
+        var triviaId = await CreateTriviaQuizAsync("Unauthorized Archive");
+        await PublishTriviaQuizAsync(triviaId);
+
+        AddOperatorHeaders();
+
+        var response = await _client.PostAsync($"/api/trivias/{triviaId}/archive", content: null);
+
+        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+
+        var problem = await response.Content.ReadFromJsonAsync<ProblemDetails>();
+        problem.Should().NotBeNull();
+        problem!.Status.Should().Be(StatusCodes.Status403Forbidden);
+        problem.Title.Should().Be("Forbidden.");
+    }
+
     private void AddAdministratorHeaders()
     {
         _client.DefaultRequestHeaders.Remove("X-User-Id");
@@ -398,6 +537,25 @@ public sealed class TriviaEndpointsTests : IClassFixture<PostgreSqlFixture>, IAs
         return payload!.Id;
     }
 
+    private async Task<int> CreateEmptyTriviaQuizAsync(string title)
+    {
+        var response = await _client.PostAsJsonAsync(
+            "/api/trivias/",
+            new
+            {
+                title,
+                description = "Trivia briefing.",
+                questions = Array.Empty<object>()
+            });
+
+        response.EnsureSuccessStatusCode();
+
+        var payload = await response.Content.ReadFromJsonAsync<TriviasEndpoints.TriviaQuizResponse>();
+        payload.Should().NotBeNull();
+
+        return payload!.Id;
+    }
+
     private async Task<int> GetFirstQuestionIdAsync(int triviaId)
     {
         var detailResponse = await _client.GetAsync($"/api/trivias/{triviaId}");
@@ -417,5 +575,11 @@ public sealed class TriviaEndpointsTests : IClassFixture<PostgreSqlFixture>, IAs
 
         triviaQuiz.MarkAsPublished();
         await dbContext.SaveChangesAsync();
+    }
+
+    private async Task PublishTriviaQuizAsync(int triviaId)
+    {
+        var response = await _client.PostAsync($"/api/trivias/{triviaId}/publish", content: null);
+        response.EnsureSuccessStatusCode();
     }
 }

@@ -33,6 +33,7 @@ public class TriviaQuizResponseTests
         response.Id.Should().Be(10);
         response.Title.Should().Be("Trivia Capitals");
         response.Status.Should().Be("Draft");
+        response.IsSourceReady.Should().BeFalse();
         response.Questions.Should().ContainSingle();
         response.Questions[0].Prompt.Should().Be("Capital of France?");
         response.Questions[0].Options.Should().HaveCount(2);
@@ -49,13 +50,14 @@ public class TriviaQuizSummaryResponseTests
     [Fact]
     public void FromDto_MapsSummaryFields()
     {
-        var dto = new TriviaQuizSummaryDto(12, "Science", "Basic science trivia.", "Draft");
+        var dto = new TriviaQuizSummaryDto(12, "Science", "Basic science trivia.", "Published");
 
         var response = TriviasEndpoints.TriviaQuizSummaryResponse.FromDto(dto);
 
         response.Id.Should().Be(12);
         response.Title.Should().Be("Science");
         response.Description.Should().Be("Basic science trivia.");
-        response.Status.Should().Be("Draft");
+        response.Status.Should().Be("Published");
+        response.IsSourceReady.Should().BeTrue();
     }
 }
