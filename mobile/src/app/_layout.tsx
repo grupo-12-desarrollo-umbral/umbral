@@ -1,7 +1,9 @@
 import { Stack, useRouter, useSegments, type Href } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
+import { AppState } from 'react-native';
 import { AuthProvider, useAuth } from '@/lib/auth/use-auth';
+import { loadReconnectContext } from '@/lib/realtime/reconnect-context';
 
 function AuthGuard() {
   const { status } = useAuth();
@@ -31,11 +33,56 @@ function AuthGuard() {
   return null;
 }
 
+/**
+ * Routes an authenticated participant who has a persisted live context back into
+ * `team-space` — on a cold start (app killed) and when the app returns to the
+ * foreground — so resuming doesn't replay the join flow. team-space itself owns
+ * the actual `ReconnectAsync` invoke; this only puts the user on that surface.
+ */
+function ReconnectResume() {
+  const { status } = useAuth();
+  const router = useRouter();
+  const segments = useSegments() as unknown as string[];
+  const appState = useRef(AppState.currentState);
+  const coldStartChecked = useRef(false);
+
+  const resume = useCallback(async () => {
+    const inTeamSpace = segments[0] === '(app)' && segments[1] === 'team-space';
+    if (inTeamSpace) return;
+    const context = await loadReconnectContext();
+    if (context) {
+      router.replace('/(app)/team-space' as Href);
+    }
+  }, [router, segments]);
+
+  // Cold start: once auth settles, restore into the live surface if context exists.
+  useEffect(() => {
+    if (status !== 'authenticated' || coldStartChecked.current) return;
+    coldStartChecked.current = true;
+    void resume();
+  }, [status, resume]);
+
+  // Warm resume: on background → active while authenticated.
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (next) => {
+      const wasBackground = /inactive|background/.test(appState.current);
+      appState.current = next;
+      if (next === 'active' && wasBackground && status === 'authenticated') {
+        void resume();
+      }
+    });
+    return () => subscription.remove();
+  }, [status, resume]);
+
+  return null;
+}
+
 export default function RootLayout() {
   return (
     <AuthProvider>
       <StatusBar style="dark" />
       <AuthGuard />
+      <ReconnectResume />
       <Stack screenOptions={{ headerShown: false }} />
     </AuthProvider>
   );

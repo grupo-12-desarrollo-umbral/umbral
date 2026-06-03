@@ -131,6 +131,20 @@ public class MyTests : IClassFixture<PostgreSqlFixture>
 }
 ```
 
+**Database schema + per-test reset** — the container is shared across tests, so each test must start from a known-clean schema. Apply migrations **once** in the fixture's `InitializeAsync` (`await context.Database.MigrateAsync()`), then reset *data* between tests by deleting rows from the aggregate-root table(s):
+
+```csharp
+// Per-test reset — delete the aggregate root; ON DELETE CASCADE clears children.
+private static async Task ResetDatabaseAsync(ApplicationDbContext context)
+    => await context.LiveSessions.ExecuteDeleteAsync();
+```
+
+For API tests that reset through the running host, `TRUNCATE TABLE a, b, c RESTART IDENTITY CASCADE;` is the equivalent. Both match the convention used by the existing services (identity-access, mission-design, session-operations).
+
+Do **not** reset by dropping and re-creating the database (`EnsureDeletedAsync()` + `MigrateAsync()` per test). It is slow (full re-migration every test) and, because Testcontainers' default database name is `postgres` (the cluster's maintenance DB), the drop fails with `55006: cannot drop the currently open database`. Migrate once; delete rows thereafter.
+
+**Timestamp assertions** — PostgreSQL `timestamptz` stores microsecond precision, but .NET `DateTimeOffset` ticks are 100 ns. A value round-tripped through the database loses its 7th fractional digit, so exact `.Be(timestamp)` assertions are flaky. Compare round-tripped timestamps with `.BeCloseTo(expected, TimeSpan.FromMicroseconds(1))`.
+
 **Handler dependencies** — Application-layer handlers must depend on repository interfaces (e.g., `IMissionRepository`), not on `DbContext` directly. Depending on `DbContext` makes the handler impossible to unit test and forces it into the integration test suite. The integration test then verifies that the real repository implements the interface correctly; the handler behavior is verified separately with a mocked interface.
 
 ### Presentation/API layer

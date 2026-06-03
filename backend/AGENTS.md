@@ -15,3 +15,20 @@ according to the Concrete Target Tree and DDD/Boundary rules.
 
 Do not invent new folder paths outside the established structure
 without updating `structure.md` first.
+
+## Toolchain & sandbox
+
+Run the .NET toolchain through the sandbox-hardened Makefile — never call
+`dotnet`/`docker` directly:
+
+    make -C backend build SVC=<service>   # compile Api + test projects
+    make -C backend test  SVC=<service>   # run unit + integration tests
+    make -C backend gate  SVC=<service>   # ADR-0005 coverage gate
+    make -C backend ef    SVC=<service> ARGS="migrations add Foo"
+
+The Makefile opts out of the first-run telemetry network call and disables
+MSBuild node-reuse so the build survives the agent sandbox. This host
+(Ubuntu 24.04) also needs `kernel.apparmor_restrict_unprivileged_userns=0`
+(set in `/etc/sysctl.d/99-userns.conf`) for the bwrap-based sandbox to start.
+Docker/Testcontainers integration tests cannot be sandboxed — the Docker socket
+is a sandbox escape — so they always run with full access.

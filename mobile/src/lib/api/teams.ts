@@ -4,6 +4,7 @@ export type SessionTeamDto = {
   teamId: string;
   displayName: string;
   joinState: 'mine' | 'joinable' | 'locked';
+  teamCapacity?: number;
 };
 
 export type SessionTeamLobbyDto = {

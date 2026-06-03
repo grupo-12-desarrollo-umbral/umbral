@@ -13,6 +13,7 @@ import {
 } from '@/lib/api/identity';
 import { evaluateAccess, type RejectionReason } from './access-policy';
 import { ApiError } from '@/lib/api/client';
+import { clearReconnectContext } from '@/lib/realtime/reconnect-context';
 
 export type AuthStatus =
   | 'idle'
@@ -127,6 +128,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       await kcSignOut(refreshToken);
     }
     await clearTokens();
+    // Drop any persisted live context so a different user signing in on this
+    // device never inherits a stale team/session to resume into.
+    await clearReconnectContext();
     setState({ status: 'idle', profile: null, rejectionReason: null, errorMessage: null });
   }
 
