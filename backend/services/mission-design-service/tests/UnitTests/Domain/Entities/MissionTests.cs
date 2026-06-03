@@ -71,7 +71,7 @@ public class MissionTests
     [InlineData("  ")]
     public void Create_WhenNameIsInvalid_ThrowsMissionNameRequiredException(string? name)
     {
-        var act = () => Mission.Create(name, "Briefing", "Advanced", 45);
+        var act = () => Mission.Create(name!, "Briefing", "Advanced", 45);
 
         act.Should().Throw<MissionNameRequiredException>();
     }
@@ -82,7 +82,7 @@ public class MissionTests
     [InlineData("  ")]
     public void Create_WhenDescriptionIsInvalid_ThrowsMissionDescriptionRequiredException(string? description)
     {
-        var act = () => Mission.Create("Mission One", description, "Advanced", 45);
+        var act = () => Mission.Create("Mission One", description!, "Advanced", 45);
 
         act.Should().Throw<MissionDescriptionRequiredException>();
     }
@@ -95,7 +95,7 @@ public class MissionTests
     {
         var mission = Mission.Create("Mission One", "Briefing", "Advanced", 45);
 
-        var act = () => mission.UpdateDetails(name, "Updated Briefing", "Beginner", 30);
+        var act = () => mission.UpdateDetails(name!, "Updated Briefing", "Beginner", 30);
 
         act.Should().Throw<MissionNameRequiredException>();
     }
@@ -108,7 +108,7 @@ public class MissionTests
     {
         var mission = Mission.Create("Mission One", "Briefing", "Advanced", 45);
 
-        var act = () => mission.UpdateDetails("Mission Two", description, "Beginner", 30);
+        var act = () => mission.UpdateDetails("Mission Two", description!, "Beginner", 30);
 
         act.Should().Throw<MissionDescriptionRequiredException>();
     }

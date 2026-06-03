@@ -11,7 +11,10 @@ using umbral_backend.Application.Trivias.Common.Authoring;
 using umbral_backend.Application.Trivias.Commands.AddTriviaQuestion;
 using umbral_backend.Application.Trivias.Commands.ArchiveTriviaQuiz;
 using umbral_backend.Application.Trivias.Commands.CreateTriviaQuiz;
+using umbral_backend.Application.Trivias.Commands.DeleteTriviaQuiz;
+using umbral_backend.Application.Trivias.Commands.DuplicateTriviaQuiz;
 using umbral_backend.Application.Trivias.Commands.PublishTriviaQuiz;
+using umbral_backend.Application.Trivias.Commands.RetireTriviaQuiz;
 using umbral_backend.Application.Trivias.Commands.UpdateTriviaQuestion;
 using umbral_backend.Application.Trivias.Commands.UpdateTriviaQuiz;
 using umbral_backend.Application.Trivias.Handlers;
@@ -747,6 +750,226 @@ public sealed class MissionInfrastructureIntegrationTests : IClassFixture<Postgr
             .ToListAsync();
 
         sourceReadyQuizIds.Should().ContainSingle().Which.Should().Be(publishedQuiz.Id);
+    }
+
+    [Fact]
+    public async Task DuplicateTriviaQuiz_PersistsSeparateAuthoringCopyWithLineageAndReusableStructure()
+    {
+        await using var setupContext = BuildContext();
+        await ResetDatabaseAsync(setupContext);
+        var repository = new TriviaQuizRepository(setupContext);
+
+        var sourceQuiz = Domain.Entities.TriviaQuiz.Create(
+            "Campus History",
+            "Original source quiz",
+            [
+                Domain.Entities.TriviaQuestion.Create(
+                    "When was the campus founded?",
+                    1,
+                    100,
+                    30,
+                    "Use the first official founding record.",
+                    [
+                        Domain.Entities.TriviaOption.Create("1810", 1, true),
+                        Domain.Entities.TriviaOption.Create("1910", 2, false)
+                    ]),
+                Domain.Entities.TriviaQuestion.Create(
+                    "Which building came first?",
+                    2,
+                    100,
+                    45,
+                    "The main hall predates the library.",
+                    [
+                        Domain.Entities.TriviaOption.Create("Main Hall", 1, true),
+                        Domain.Entities.TriviaOption.Create("Library", 2, false)
+                    ])
+            ]);
+        sourceQuiz.Publish(new DateTimeOffset(2026, 6, 3, 9, 0, 0, TimeSpan.Zero));
+        await repository.AddAsync(sourceQuiz, CancellationToken.None);
+
+        await using var actContext = BuildContext(new CapturingMediator(), new StubCurrentUser("admin-18"));
+        var handler = new DuplicateTriviaQuizCommandHandler(
+            new TriviaQuizRepository(actContext),
+            new StubClock(new DateTimeOffset(2026, 6, 3, 9, 30, 0, TimeSpan.Zero)));
+
+        var result = await handler.Handle(new DuplicateTriviaQuizCommand(sourceQuiz.Id), CancellationToken.None);
+
+        result.Id.Should().NotBe(sourceQuiz.Id);
+        result.Status.Should().Be("Draft");
+        result.SourceTriviaQuizId.Should().Be(sourceQuiz.Id);
+        result.IsDuplicate.Should().BeTrue();
+        result.HasUsageHistory.Should().BeFalse();
+        result.Questions.Should().HaveCount(2);
+
+        await using var assertContext = BuildContext();
+        var storedQuizzes = await assertContext.TriviaQuizzes
+            .AsNoTracking()
+            .Include(triviaQuiz => triviaQuiz.Questions)
+            .ThenInclude(question => question.Options)
+            .OrderBy(triviaQuiz => triviaQuiz.Id)
+            .ToListAsync();
+
+        storedQuizzes.Should().HaveCount(2);
+
+        var persistedSource = storedQuizzes.Single(triviaQuiz => triviaQuiz.Id == sourceQuiz.Id);
+        var persistedDuplicate = storedQuizzes.Single(triviaQuiz => triviaQuiz.Id == result.Id);
+
+        persistedSource.SourceTriviaQuizId.Should().BeNull();
+        persistedSource.Status.Should().Be(TriviaQuizStatus.Published);
+        persistedSource.Questions.Select(question => question.Prompt)
+            .Should().Equal("When was the campus founded?", "Which building came first?");
+
+        persistedDuplicate.SourceTriviaQuizId.Should().Be(sourceQuiz.Id);
+        persistedDuplicate.HasUsageHistory.Should().BeFalse();
+        persistedDuplicate.Status.Should().Be(TriviaQuizStatus.Draft);
+        persistedDuplicate.Questions.Select(question => question.Prompt)
+            .Should().Equal("When was the campus founded?", "Which building came first?");
+        persistedDuplicate.Questions.Select(question => question.Id)
+            .Should().OnlyHaveUniqueItems();
+        persistedDuplicate.Questions.SelectMany(question => question.Options).Select(option => option.Id)
+            .Should().OnlyHaveUniqueItems();
+    }
+
+    [Fact]
+    public async Task DeleteTriviaQuiz_WhenQuizHasUsageHistory_RejectsDestructiveRemovalAndKeepsRecord()
+    {
+        await using var setupContext = BuildContext();
+        await ResetDatabaseAsync(setupContext);
+        var repository = new TriviaQuizRepository(setupContext);
+
+        var triviaQuiz = Domain.Entities.TriviaQuiz.Create("Used Quiz", "Must stay for history");
+        triviaQuiz.MarkAsUsedInSession();
+        await repository.AddAsync(triviaQuiz, CancellationToken.None);
+
+        await using var actContext = BuildContext();
+        var handler = new DeleteTriviaQuizCommandHandler(new TriviaQuizRepository(actContext));
+
+        var act = () => handler.Handle(new DeleteTriviaQuizCommand(triviaQuiz.Id), CancellationToken.None);
+
+        await act.Should().ThrowAsync<TriviaQuizCannotBeDestructivelyRemovedAfterUsageException>();
+
+        await using var assertContext = BuildContext();
+        var storedQuiz = await assertContext.TriviaQuizzes
+            .AsNoTracking()
+            .SingleOrDefaultAsync(candidate => candidate.Id == triviaQuiz.Id);
+
+        storedQuiz.Should().NotBeNull();
+        storedQuiz!.HasUsageHistory.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task RetireTriviaQuiz_WhenUsed_PersistsArchivedStateWithoutBreakingHistoricalIdentity()
+    {
+        await using var setupContext = BuildContext();
+        await ResetDatabaseAsync(setupContext);
+        var repository = new TriviaQuizRepository(setupContext);
+
+        var triviaQuiz = Domain.Entities.TriviaQuiz.Create(
+            "Used Published Quiz",
+            "Can no longer be used for new sessions",
+            [
+                Domain.Entities.TriviaQuestion.Create(
+                    "Who keeps the record?",
+                    1,
+                    100,
+                    30,
+                    "The archive keeps the original identity.",
+                    [
+                        Domain.Entities.TriviaOption.Create("The original quiz", 1, true),
+                        Domain.Entities.TriviaOption.Create("The duplicate only", 2, false)
+                    ])
+            ]);
+        triviaQuiz.Publish(new DateTimeOffset(2026, 6, 3, 10, 0, 0, TimeSpan.Zero));
+        triviaQuiz.MarkAsUsedInSession();
+        await repository.AddAsync(triviaQuiz, CancellationToken.None);
+
+        var archivedAt = new DateTimeOffset(2026, 6, 3, 11, 0, 0, TimeSpan.Zero);
+        await using var actContext = BuildContext(new CapturingMediator(), new StubCurrentUser("admin-19"), new StubClock(archivedAt));
+        var handler = new RetireTriviaQuizCommandHandler(new TriviaQuizRepository(actContext), new StubClock(archivedAt));
+
+        var result = await handler.Handle(new RetireTriviaQuizCommand(triviaQuiz.Id), CancellationToken.None);
+
+        result.Id.Should().Be(triviaQuiz.Id);
+        result.Status.Should().Be("Archived");
+        result.HasUsageHistory.Should().BeTrue();
+        result.SourceTriviaQuizId.Should().BeNull();
+
+        await using var assertContext = BuildContext();
+        var storedQuiz = await assertContext.TriviaQuizzes
+            .AsNoTracking()
+            .SingleAsync(candidate => candidate.Id == triviaQuiz.Id);
+
+        storedQuiz.Id.Should().Be(triviaQuiz.Id);
+        storedQuiz.Status.Should().Be(TriviaQuizStatus.Archived);
+        storedQuiz.HasUsageHistory.Should().BeTrue();
+        storedQuiz.PublishedAt.Should().Be(new DateTimeOffset(2026, 6, 3, 10, 0, 0, TimeSpan.Zero));
+        storedQuiz.SourceTriviaQuizId.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task GetTriviaCatalogAndDetail_ExposeLineageAndUsageStateAfterDuplicateAndRetireFlows()
+    {
+        await using var setupContext = BuildContext();
+        await ResetDatabaseAsync(setupContext);
+        var repository = new TriviaQuizRepository(setupContext);
+
+        var sourceQuiz = Domain.Entities.TriviaQuiz.Create(
+            "Source Quiz",
+            "Original lineage root",
+            [
+                Domain.Entities.TriviaQuestion.Create(
+                    "Question one",
+                    1,
+                    100,
+                    20,
+                    "First explanation",
+                    [
+                        Domain.Entities.TriviaOption.Create("Correct", 1, true),
+                        Domain.Entities.TriviaOption.Create("Incorrect", 2, false)
+                    ])
+            ]);
+        sourceQuiz.Publish(new DateTimeOffset(2026, 6, 3, 12, 0, 0, TimeSpan.Zero));
+        sourceQuiz.MarkAsUsedInSession();
+        await repository.AddAsync(sourceQuiz, CancellationToken.None);
+
+        var duplicateQuiz = sourceQuiz.Duplicate();
+        await repository.AddAsync(duplicateQuiz, CancellationToken.None);
+
+        sourceQuiz.RetireFromFutureUse(new DateTimeOffset(2026, 6, 3, 13, 0, 0, TimeSpan.Zero));
+        await repository.UpdateAsync(sourceQuiz, CancellationToken.None);
+
+        await using var queryContext = BuildContext();
+        var readRepository = new TriviaQuizReadModelRepository(queryContext);
+        var catalog = await readRepository.GetTriviaCatalogAsync(CancellationToken.None);
+        var sourceDetail = await readRepository.GetTriviaDetailAsync(sourceQuiz.Id, CancellationToken.None);
+        var duplicateDetail = await readRepository.GetTriviaDetailAsync(duplicateQuiz.Id, CancellationToken.None);
+
+        catalog.Should().Contain(item =>
+            item.Id == sourceQuiz.Id &&
+            item.Status == "Archived" &&
+            item.HasUsageHistory &&
+            item.SourceTriviaQuizId == null &&
+            !item.IsDuplicate);
+
+        catalog.Should().Contain(item =>
+            item.Id == duplicateQuiz.Id &&
+            item.Status == "Draft" &&
+            !item.HasUsageHistory &&
+            item.SourceTriviaQuizId == sourceQuiz.Id &&
+            item.IsDuplicate);
+
+        sourceDetail.Should().NotBeNull();
+        sourceDetail!.Status.Should().Be("Archived");
+        sourceDetail.HasUsageHistory.Should().BeTrue();
+        sourceDetail.SourceTriviaQuizId.Should().BeNull();
+        sourceDetail.IsDuplicate.Should().BeFalse();
+
+        duplicateDetail.Should().NotBeNull();
+        duplicateDetail!.Status.Should().Be("Draft");
+        duplicateDetail.HasUsageHistory.Should().BeFalse();
+        duplicateDetail.SourceTriviaQuizId.Should().Be(sourceQuiz.Id);
+        duplicateDetail.IsDuplicate.Should().BeTrue();
+        duplicateDetail.Questions.Should().ContainSingle();
     }
 
     private static async Task ResetDatabaseAsync(ApplicationDbContext context)

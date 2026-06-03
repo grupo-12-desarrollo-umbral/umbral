@@ -448,6 +448,149 @@ public sealed class TriviaEndpointsTests : IClassFixture<PostgreSqlFixture>, IAs
     }
 
     [Fact]
+    public async Task DuplicateTriviaQuiz_ReturnsCreatedAuthoringCopyWithLineageProjection()
+    {
+        AddAdministratorHeaders();
+
+        var sourceTriviaId = await CreateTriviaQuizAsync("Source Trivia");
+        await PublishTriviaQuizAsync(sourceTriviaId);
+
+        var response = await _client.PostAsync($"/api/trivias/{sourceTriviaId}/duplicate", content: null);
+
+        response.StatusCode.Should().Be(HttpStatusCode.Created);
+        response.Headers.Location.Should().NotBeNull();
+
+        var payload = await response.Content.ReadFromJsonAsync<TriviasEndpoints.TriviaQuizResponse>();
+        payload.Should().NotBeNull();
+        payload!.Id.Should().NotBe(sourceTriviaId);
+        payload.Status.Should().Be("Draft");
+        payload.IsSourceReady.Should().BeFalse();
+        payload.SourceTriviaQuizId.Should().Be(sourceTriviaId);
+        payload.HasUsageHistory.Should().BeFalse();
+        payload.IsDuplicate.Should().BeTrue();
+        payload.Questions.Should().ContainSingle();
+
+        var sourceDetailResponse = await _client.GetAsync($"/api/trivias/{sourceTriviaId}");
+        sourceDetailResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var sourceDetail = await sourceDetailResponse.Content.ReadFromJsonAsync<TriviasEndpoints.TriviaQuizResponse>();
+        sourceDetail.Should().NotBeNull();
+        sourceDetail!.Id.Should().Be(sourceTriviaId);
+        sourceDetail.Status.Should().Be("Published");
+        sourceDetail.SourceTriviaQuizId.Should().BeNull();
+        sourceDetail.HasUsageHistory.Should().BeFalse();
+        sourceDetail.IsDuplicate.Should().BeFalse();
+
+        var duplicateDetailResponse = await _client.GetAsync($"/api/trivias/{payload.Id}");
+        duplicateDetailResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var duplicateDetail = await duplicateDetailResponse.Content.ReadFromJsonAsync<TriviasEndpoints.TriviaQuizResponse>();
+        duplicateDetail.Should().NotBeNull();
+        duplicateDetail!.SourceTriviaQuizId.Should().Be(sourceTriviaId);
+        duplicateDetail.IsDuplicate.Should().BeTrue();
+
+        var catalogResponse = await _client.GetAsync("/api/trivias/");
+        catalogResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var catalog = await catalogResponse.Content.ReadFromJsonAsync<IReadOnlyList<TriviasEndpoints.TriviaQuizSummaryResponse>>();
+        catalog.Should().NotBeNull();
+        catalog!.Should().Contain(item =>
+            item.Id == sourceTriviaId &&
+            item.Status == "Published" &&
+            item.SourceTriviaQuizId == null &&
+            !item.IsDuplicate);
+        catalog.Should().Contain(item =>
+            item.Id == payload.Id &&
+            item.Status == "Draft" &&
+            item.SourceTriviaQuizId == sourceTriviaId &&
+            item.IsDuplicate);
+    }
+
+    [Fact]
+    public async Task DeleteTriviaQuiz_WhenUnused_ReturnsNoContentAndRemovesQuiz()
+    {
+        AddAdministratorHeaders();
+
+        var triviaId = await CreateTriviaQuizAsync("Disposable Trivia");
+
+        var response = await _client.DeleteAsync($"/api/trivias/{triviaId}");
+
+        response.StatusCode.Should().Be(HttpStatusCode.NoContent);
+
+        var detailResponse = await _client.GetAsync($"/api/trivias/{triviaId}");
+        detailResponse.StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    [Fact]
+    public async Task DeleteTriviaQuiz_WhenUsed_ReturnsConflictAndKeepsHistoricalRecord()
+    {
+        AddAdministratorHeaders();
+
+        var triviaId = await CreateTriviaQuizAsync("Used Trivia");
+        await MarkTriviaQuizAsUsedAsync(triviaId);
+
+        var response = await _client.DeleteAsync($"/api/trivias/{triviaId}");
+
+        response.StatusCode.Should().Be(HttpStatusCode.Conflict);
+
+        var problem = await response.Content.ReadFromJsonAsync<ProblemDetails>();
+        problem.Should().NotBeNull();
+        problem!.Status.Should().Be(StatusCodes.Status409Conflict);
+        problem.Title.Should().Be("Trivia quiz cannot be removed destructively after usage.");
+        problem.Detail.Should().Contain("cannot be removed destructively");
+
+        var detailResponse = await _client.GetAsync($"/api/trivias/{triviaId}");
+        detailResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var detail = await detailResponse.Content.ReadFromJsonAsync<TriviasEndpoints.TriviaQuizResponse>();
+        detail.Should().NotBeNull();
+        detail!.HasUsageHistory.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task RetireTriviaQuiz_WhenUsed_ReturnsArchivedQuizAndPreservesHistoricalIdentity()
+    {
+        AddAdministratorHeaders();
+
+        var triviaId = await CreateTriviaQuizAsync("Retirable Trivia");
+        await PublishTriviaQuizAsync(triviaId);
+        await MarkTriviaQuizAsUsedAsync(triviaId);
+
+        var response = await _client.PostAsync($"/api/trivias/{triviaId}/retire", content: null);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var payload = await response.Content.ReadFromJsonAsync<TriviasEndpoints.TriviaQuizResponse>();
+        payload.Should().NotBeNull();
+        payload!.Id.Should().Be(triviaId);
+        payload.Status.Should().Be("Archived");
+        payload.IsSourceReady.Should().BeFalse();
+        payload.SourceTriviaQuizId.Should().BeNull();
+        payload.HasUsageHistory.Should().BeTrue();
+        payload.IsDuplicate.Should().BeFalse();
+
+        var detailResponse = await _client.GetAsync($"/api/trivias/{triviaId}");
+        detailResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var detail = await detailResponse.Content.ReadFromJsonAsync<TriviasEndpoints.TriviaQuizResponse>();
+        detail.Should().NotBeNull();
+        detail!.Status.Should().Be("Archived");
+        detail.HasUsageHistory.Should().BeTrue();
+
+        var catalogResponse = await _client.GetAsync("/api/trivias/");
+        catalogResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var catalog = await catalogResponse.Content.ReadFromJsonAsync<IReadOnlyList<TriviasEndpoints.TriviaQuizSummaryResponse>>();
+        catalog.Should().NotBeNull();
+        catalog!.Should().ContainSingle(item =>
+            item.Id == triviaId &&
+            item.Status == "Archived" &&
+            item.HasUsageHistory &&
+            item.SourceTriviaQuizId == null &&
+            !item.IsDuplicate);
+    }
+
+    [Fact]
     public async Task PublishTriviaQuiz_WithNonAdminCaller_Returns403()
     {
         AddAdministratorHeaders();
@@ -574,6 +717,16 @@ public sealed class TriviaEndpointsTests : IClassFixture<PostgreSqlFixture>, IAs
         var triviaQuiz = await dbContext.TriviaQuizzes.SingleAsync(quiz => quiz.Id == triviaId);
 
         triviaQuiz.MarkAsPublished();
+        await dbContext.SaveChangesAsync();
+    }
+
+    private async Task MarkTriviaQuizAsUsedAsync(int triviaId)
+    {
+        await using var scope = _factory.Services.CreateAsyncScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var triviaQuiz = await dbContext.TriviaQuizzes.SingleAsync(quiz => quiz.Id == triviaId);
+
+        triviaQuiz.MarkAsUsedInSession();
         await dbContext.SaveChangesAsync();
     }
 

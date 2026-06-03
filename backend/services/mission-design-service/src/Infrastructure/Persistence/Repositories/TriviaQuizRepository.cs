@@ -32,4 +32,10 @@ public sealed class TriviaQuizRepository : ITriviaQuizRepository
         _context.TriviaQuizzes.Update(triviaQuiz);
         await _context.SaveChangesAsync(cancellationToken);
     }
+
+    public async Task RemoveAsync(TriviaQuiz triviaQuiz, CancellationToken cancellationToken)
+    {
+        _context.TriviaQuizzes.Remove(triviaQuiz);
+        await _context.SaveChangesAsync(cancellationToken);
+    }
 }

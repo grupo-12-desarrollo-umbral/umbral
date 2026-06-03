@@ -21,7 +21,7 @@ public class TriviaOptionTests
     [InlineData("  ")]
     public void Create_WhenOptionTextIsInvalid_Throws(string? optionText)
     {
-        var act = () => TriviaOption.Create(optionText, 1, false);
+        var act = () => TriviaOption.Create(optionText!, 1, false);
 
         act.Should().Throw<TriviaOptionTextRequiredException>();
     }

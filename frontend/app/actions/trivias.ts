@@ -10,6 +10,8 @@ import {
   updateTriviaQuestion as updateTriviaQuestionLib,
   publishTriviaQuiz as publishTriviaQuizLib,
   archiveTriviaQuiz as archiveTriviaQuizLib,
+  duplicateTriviaQuiz as duplicateTriviaQuizLib,
+  retireTriviaQuiz as retireTriviaQuizLib,
 } from '@/app/lib/trivias'
 import { revalidatePath } from 'next/cache'
 import type { TriviaQuizSummaryDto, TriviaQuizDto, TriviaQuestionRequest } from '@/app/lib/definitions'
@@ -82,6 +84,22 @@ export async function archiveTriviaQuiz(id: number): Promise<TriviaQuizDto> {
   const session = await verifySession()
   if (session.role !== 'Administrator') throw new Error('Forbidden')
   const result = await archiveTriviaQuizLib(id)
+  revalidatePath('/dashboard')
+  return result
+}
+
+export async function duplicateTriviaQuiz(id: number): Promise<TriviaQuizDto> {
+  const session = await verifySession()
+  if (session.role !== 'Administrator') throw new Error('Forbidden')
+  const result = await duplicateTriviaQuizLib(id)
+  revalidatePath('/dashboard')
+  return result
+}
+
+export async function retireTriviaQuiz(id: number): Promise<TriviaQuizDto> {
+  const session = await verifySession()
+  if (session.role !== 'Administrator') throw new Error('Forbidden')
+  const result = await retireTriviaQuizLib(id)
   revalidatePath('/dashboard')
   return result
 }

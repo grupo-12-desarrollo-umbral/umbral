@@ -22,7 +22,10 @@ public sealed class TriviaQuizReadModelRepository : ITriviaQuizReadModelReposito
                 triviaQuiz.Id,
                 triviaQuiz.Title,
                 triviaQuiz.Description,
-                triviaQuiz.Status.ToString()))
+                triviaQuiz.Status.ToString(),
+                triviaQuiz.SourceTriviaQuizId,
+                triviaQuiz.HasUsageHistory,
+                triviaQuiz.SourceTriviaQuizId != null))
             .ToListAsync(cancellationToken);
     }
 
@@ -63,6 +66,9 @@ public sealed class TriviaQuizReadModelRepository : ITriviaQuizReadModelReposito
                     question.ScoreValue,
                     question.TimeLimit?.Seconds,
                     question.Explanation))
-                .ToList());
+                .ToList(),
+            triviaQuiz.SourceTriviaQuizId,
+            triviaQuiz.HasUsageHistory,
+            triviaQuiz.SourceTriviaQuizId != null);
     }
 }

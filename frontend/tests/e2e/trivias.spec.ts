@@ -640,3 +640,324 @@ test('HU-09 missions panel still reachable after lifecycle wiring', async ({ adm
   await page.click('[data-testid="nav-missions"]')
   await expect(page.locator('[data-testid="missions-panel"]')).toBeVisible()
 })
+
+// ---- Helpers ----
+
+async function createReadyPublishedQuiz(page: Page, title: string): Promise<number> {
+  // Reuses createReadyDraftQuiz from HU-12 helpers, then publishes.
+  await createReadyDraftQuiz(page, title)
+  await page.click('[data-testid="publish-trivia-btn"]')
+  await page.click('[data-testid="confirm-publish-btn"]')
+  await expect(page.locator('[data-testid="trivia-detail-status"]')).toContainText('Published')
+
+  // Extract id from trivia-source-ready testid context — use the URL or data attribute.
+  // Alternatively, capture from the back-and-re-list pattern:
+  await page.getByRole('button', { name: '← Back to trivia quizzes' }).click()
+  const row = page.locator('[data-testid^="trivia-row-"]').filter({ hasText: title })
+  const rowTestId = await row.getAttribute('data-testid')
+  return parseInt(rowTestId!.replace('trivia-row-', ''), 10)
+}
+
+// ---- Duplicate flow ----
+
+test('admin can duplicate a published quiz and lands on new copy detail', async ({ adminPage: page }) => {
+  await page.goto('/dashboard')
+  await createReadyDraftQuiz(page, 'Original For Duplication')
+
+  await page.click('[data-testid="publish-trivia-btn"]')
+  await page.click('[data-testid="confirm-publish-btn"]')
+  await expect(page.locator('[data-testid="trivia-detail-status"]')).toContainText('Published')
+
+  await page.click('[data-testid="duplicate-trivia-btn"]')
+  await expect(page.locator('[data-testid="confirm-duplicate-btn"]')).toBeVisible()
+  await page.click('[data-testid="confirm-duplicate-btn"]')
+
+  // Should now be on the new copy's detail
+  await expect(page.locator('[data-testid="trivia-detail-status"]')).toContainText('Draft')
+  await expect(page.locator('[data-testid="trivia-source-ready"]')).toContainText('No')
+  await expect(page.locator('[data-testid="trivia-source-quiz-id"]')).toBeVisible()
+  await expect(page.locator('[data-testid="trivia-has-usage-history"]')).toHaveCount(0)
+})
+
+test('duplicate copy title matches source title', async ({ adminPage: page }) => {
+  await page.goto('/dashboard')
+  await createReadyDraftQuiz(page, 'Source Title Check')
+
+  await page.click('[data-testid="duplicate-trivia-btn"]')
+  await page.click('[data-testid="confirm-duplicate-btn"]')
+
+  await expect(page.locator('[data-testid="trivia-detail-title"]')).toContainText('Source Title Check')
+})
+
+test('admin can cancel duplicate confirmation without network call', async ({ adminPage: page }) => {
+  await page.goto('/dashboard')
+  await createReadyDraftQuiz(page, 'Cancel Duplicate Quiz')
+
+  await page.click('[data-testid="duplicate-trivia-btn"]')
+  await expect(page.locator('[data-testid="confirm-duplicate-btn"]')).toBeVisible()
+  await page.getByRole('button', { name: 'Cancel' }).first().click()
+
+  await expect(page.locator('[data-testid="duplicate-trivia-btn"]')).toBeVisible()
+  await expect(page.locator('[data-testid="trivia-detail-status"]')).toContainText('Draft')
+})
+
+test('duplicate confirmation hides other trigger buttons', async ({ adminPage: page }) => {
+  await page.goto('/dashboard')
+  await createReadyDraftQuiz(page, 'Mutual Exclusion Duplicate')
+
+  await page.click('[data-testid="duplicate-trivia-btn"]')
+
+  await expect(page.locator('[data-testid="confirm-duplicate-btn"]')).toBeVisible()
+  await expect(page.locator('[data-testid="archive-trivia-btn"]')).toHaveCount(0)
+  await expect(page.locator('[data-testid="publish-trivia-btn"]')).toHaveCount(0)
+})
+
+test('archived quiz has no duplicate button', async ({ adminPage: page }) => {
+  await page.goto('/dashboard')
+  await page.click('[data-testid="nav-trivias"]')
+  await page.click('[data-testid="create-trivia-btn"]')
+  await page.fill('[data-testid="trivia-title-input"]', 'Archived No Duplicate')
+  await page.fill('[data-testid="trivia-description-input"]', 'Will be archived.')
+  await page.click('[data-testid="trivia-submit-btn"]')
+
+  await page.click('[data-testid="archive-trivia-btn"]')
+  await page.click('[data-testid="confirm-archive-btn"]')
+
+  await expect(page.locator('[data-testid="duplicate-trivia-btn"]')).toHaveCount(0)
+})
+
+// ---- Lineage cues in list view ----
+
+test('copy shows Copy chip in list provenance column', async ({ adminPage: page }) => {
+  await page.goto('/dashboard')
+  await createReadyDraftQuiz(page, 'Lineage List Source')
+
+  await page.click('[data-testid="duplicate-trivia-btn"]')
+  await page.click('[data-testid="confirm-duplicate-btn"]')
+
+  // Navigate back to list
+  await page.getByRole('button', { name: '← Back to trivia quizzes' }).click()
+
+  // The new copy row should have a Copy chip
+  const copyRow = page.locator('[data-testid^="trivia-row-"]').filter({
+    has: page.locator('[data-testid^="trivia-copy-chip-"]'),
+  })
+  await expect(copyRow).toHaveCount(1)
+})
+
+test('original quiz shows no Copy chip in list', async ({ adminPage: page }) => {
+  await page.goto('/dashboard')
+  await page.click('[data-testid="nav-trivias"]')
+  await page.click('[data-testid="create-trivia-btn"]')
+  await page.fill('[data-testid="trivia-title-input"]', 'Original No Copy Chip')
+  await page.fill('[data-testid="trivia-description-input"]', 'Original quiz.')
+  await page.click('[data-testid="trivia-submit-btn"]')
+  await page.getByRole('button', { name: '← Back to trivia quizzes' }).click()
+
+  const originalRow = page.locator('[data-testid^="trivia-row-"]').filter({
+    hasText: 'Original No Copy Chip',
+  })
+  await expect(originalRow.locator('[data-testid^="trivia-copy-chip-"]')).toHaveCount(0)
+})
+
+// ---- Lineage cue in detail view ----
+
+test('copy detail shows source quiz id badge', async ({ adminPage: page }) => {
+  await page.goto('/dashboard')
+  await createReadyDraftQuiz(page, 'Lineage Detail Source')
+
+  await page.click('[data-testid="duplicate-trivia-btn"]')
+  await page.click('[data-testid="confirm-duplicate-btn"]')
+
+  await expect(page.locator('[data-testid="trivia-source-quiz-id"]')).toBeVisible()
+  const badgeText = await page.locator('[data-testid="trivia-source-quiz-id"]').innerText()
+  expect(badgeText).toMatch(/Quiz #\d+/)
+})
+
+test('original quiz detail shows no source quiz id badge', async ({ adminPage: page }) => {
+  await page.goto('/dashboard')
+  await page.click('[data-testid="nav-trivias"]')
+  await page.click('[data-testid="create-trivia-btn"]')
+  await page.fill('[data-testid="trivia-title-input"]', 'Original No Badge')
+  await page.fill('[data-testid="trivia-description-input"]', 'Original quiz.')
+  await page.click('[data-testid="trivia-submit-btn"]')
+
+  await expect(page.locator('[data-testid="trivia-source-quiz-id"]')).toHaveCount(0)
+})
+
+// ---- Retire flow (uses page.route() to inject hasUsageHistory: true) ----
+
+test('retire button is visible for a quiz with usage history', async ({ adminPage: page }) => {
+  const MOCK_QUIZ_ID = 9001
+
+  // Intercept catalog to include a used quiz
+  await page.route('**/api/trivias', (route) => {
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify([
+        {
+          id: MOCK_QUIZ_ID,
+          title: 'Used Quiz',
+          description: 'Has session history.',
+          status: 'Published',
+          isSourceReady: true,
+          sourceTriviaQuizId: null,
+          hasUsageHistory: true,
+          isDuplicate: false,
+        },
+      ]),
+    })
+  })
+
+  // Intercept detail fetch for the used quiz
+  await page.route(`**/api/trivias/${MOCK_QUIZ_ID}`, (route) => {
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        id: MOCK_QUIZ_ID,
+        title: 'Used Quiz',
+        description: 'Has session history.',
+        status: 'Published',
+        isSourceReady: true,
+        sourceTriviaQuizId: null,
+        hasUsageHistory: true,
+        isDuplicate: false,
+        questions: [],
+      }),
+    })
+  })
+
+  await page.goto('/dashboard')
+  await page.click('[data-testid="nav-trivias"]')
+  await page.click(`[data-testid="view-trivia-btn-${MOCK_QUIZ_ID}"]`)
+
+  await expect(page.locator('[data-testid="retire-trivia-btn"]')).toBeVisible()
+  await expect(page.locator('[data-testid="archive-trivia-btn"]')).toHaveCount(0)
+  await expect(page.locator('[data-testid="trivia-has-usage-history"]')).toBeVisible()
+})
+
+test('Used chip appears in list for a quiz with usage history', async ({ adminPage: page }) => {
+  const MOCK_QUIZ_ID = 9002
+
+  await page.route('**/api/trivias', (route) => {
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify([
+        {
+          id: MOCK_QUIZ_ID,
+          title: 'Used Quiz List',
+          description: 'Has session history.',
+          status: 'Published',
+          isSourceReady: true,
+          sourceTriviaQuizId: null,
+          hasUsageHistory: true,
+          isDuplicate: false,
+        },
+      ]),
+    })
+  })
+
+  await page.goto('/dashboard')
+  await page.click('[data-testid="nav-trivias"]')
+
+  await expect(page.locator(`[data-testid="trivia-usage-chip-${MOCK_QUIZ_ID}"]`)).toBeVisible()
+  await expect(page.locator(`[data-testid="trivia-copy-chip-${MOCK_QUIZ_ID}"]`)).toHaveCount(0)
+})
+
+test('retire button is not visible for a quiz without usage history', async ({ adminPage: page }) => {
+  await page.goto('/dashboard')
+  await page.click('[data-testid="nav-trivias"]')
+  await page.click('[data-testid="create-trivia-btn"]')
+  await page.fill('[data-testid="trivia-title-input"]', 'Unused No Retire')
+  await page.fill('[data-testid="trivia-description-input"]', 'No history.')
+  await page.click('[data-testid="trivia-submit-btn"]')
+
+  await expect(page.locator('[data-testid="retire-trivia-btn"]')).toHaveCount(0)
+  await expect(page.locator('[data-testid="archive-trivia-btn"]')).toBeVisible()
+})
+
+// ---- Archive regression: unused quizzes still use Archive ----
+
+test('HU-12 archive flow still works for unused quizzes after retire wiring', async ({ adminPage: page }) => {
+  await page.goto('/dashboard')
+  await createReadyDraftQuiz(page, 'Archive Regression After HU-13')
+
+  await page.click('[data-testid="publish-trivia-btn"]')
+  await page.click('[data-testid="confirm-publish-btn"]')
+  await expect(page.locator('[data-testid="trivia-detail-status"]')).toContainText('Published')
+
+  await expect(page.locator('[data-testid="archive-trivia-btn"]')).toBeVisible()
+  await expect(page.locator('[data-testid="retire-trivia-btn"]')).toHaveCount(0)
+
+  await page.click('[data-testid="archive-trivia-btn"]')
+  await page.click('[data-testid="confirm-archive-btn"]')
+
+  await expect(page.locator('[data-testid="trivia-detail-status"]')).toContainText('Archived')
+  await expect(page.locator('[data-testid="archive-trivia-btn"]')).toHaveCount(0)
+  await expect(page.locator('[data-testid="retire-trivia-btn"]')).toHaveCount(0)
+  await expect(page.locator('[data-testid="duplicate-trivia-btn"]')).toHaveCount(0)
+})
+
+// ---- Authorization ----
+
+test('operator cannot reach duplicate or retire controls', async ({ operatorPage: page }) => {
+  await page.goto('/dashboard')
+  await expect(page.locator('[data-testid="nav-trivias"]')).toHaveCount(0)
+})
+
+// ---- Regression: HU-12 publish flow unaffected ----
+
+test('HU-12 publish flow unaffected after HU-13 wiring', async ({ adminPage: page }) => {
+  await page.goto('/dashboard')
+  await createReadyDraftQuiz(page, 'HU-12 Publish Regression')
+
+  await page.click('[data-testid="publish-trivia-btn"]')
+  await expect(page.locator('[data-testid="confirm-publish-btn"]')).toBeVisible()
+  await page.click('[data-testid="confirm-publish-btn"]')
+
+  await expect(page.locator('[data-testid="trivia-detail-status"]')).toContainText('Published')
+  await expect(page.locator('[data-testid="trivia-source-ready"]')).toContainText('Yes')
+})
+
+// ---- Regression: HU-14A question authoring unaffected ----
+
+test('HU-14A add-question flow still works after HU-13 wiring', async ({ adminPage: page }) => {
+  await page.goto('/dashboard')
+  await page.click('[data-testid="nav-trivias"]')
+  await page.click('[data-testid="create-trivia-btn"]')
+  await page.fill('[data-testid="trivia-title-input"]', 'HU-14A Regression After HU-13')
+  await page.fill('[data-testid="trivia-description-input"]', 'Question authoring regression.')
+  await page.click('[data-testid="trivia-submit-btn"]')
+
+  await page.click('[data-testid="add-question-btn"]')
+  await expect(page.locator('[data-testid="question-form"]')).toBeVisible()
+  await page.getByRole('button', { name: 'Cancel' }).click()
+  await expect(page.locator('[data-testid="trivia-detail"]')).toBeVisible()
+})
+
+// ---- Regression: HU-11 quiz create/edit flows unaffected ----
+
+test('HU-11 trivia create flow still works after HU-13 wiring', async ({ adminPage: page }) => {
+  await page.goto('/dashboard')
+  await page.click('[data-testid="nav-trivias"]')
+  await page.click('[data-testid="create-trivia-btn"]')
+  await page.fill('[data-testid="trivia-title-input"]', 'HU-11 Regression After HU-13')
+  await page.fill('[data-testid="trivia-description-input"]', 'HU-11 regression check.')
+  await page.click('[data-testid="trivia-submit-btn"]')
+
+  await expect(page.locator('[data-testid="trivia-detail"]')).toBeVisible()
+  await expect(page.locator('[data-testid="trivia-detail-status"]')).toContainText('Draft')
+  await expect(page.locator('[data-testid="trivia-source-quiz-id"]')).toHaveCount(0)
+  await expect(page.locator('[data-testid="trivia-has-usage-history"]')).toHaveCount(0)
+})
+
+// ---- Regression: HU-09 missions panel unaffected ----
+
+test('HU-09 missions panel still reachable after HU-13 wiring', async ({ adminPage: page }) => {
+  await page.goto('/dashboard')
+  await page.click('[data-testid="nav-missions"]')
+  await expect(page.locator('[data-testid="missions-panel"]')).toBeVisible()
+})

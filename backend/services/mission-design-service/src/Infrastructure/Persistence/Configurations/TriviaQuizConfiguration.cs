@@ -27,6 +27,11 @@ public sealed class TriviaQuizConfiguration : IEntityTypeConfiguration<TriviaQui
 
         builder.Property(triviaQuiz => triviaQuiz.PublishedAt);
 
+        builder.Property(triviaQuiz => triviaQuiz.SourceTriviaQuizId);
+
+        builder.Property(triviaQuiz => triviaQuiz.HasUsageHistory)
+            .IsRequired();
+
         builder.Property(triviaQuiz => triviaQuiz.Created)
             .IsRequired();
 
@@ -101,5 +106,6 @@ public sealed class TriviaQuizConfiguration : IEntityTypeConfiguration<TriviaQui
             .UsePropertyAccessMode(PropertyAccessMode.Field);
 
         builder.HasIndex(triviaQuiz => triviaQuiz.Status);
+        builder.HasIndex(triviaQuiz => triviaQuiz.SourceTriviaQuizId);
     }
 }

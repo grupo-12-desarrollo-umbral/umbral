@@ -15,6 +15,9 @@ public sealed class TriviaQuiz : BaseAuditableEntity
     private static readonly TriviaQuestionAuthoringTemplate UpdateQuestionTemplate = new UpdateTriviaQuestionAuthoringTemplate();
     private static readonly TriviaQuizLifecycleTemplate PublishTemplate = new PublishTriviaQuizLifecycleTemplate();
     private static readonly TriviaQuizLifecycleTemplate ArchiveTemplate = new ArchiveTriviaQuizLifecycleTemplate();
+    private static readonly TriviaQuizReuseWorkflowTemplate<TriviaQuiz> DuplicateWorkflow = new DuplicateTriviaQuizWorkflowTemplate();
+    private static readonly TriviaQuizReuseWorkflowTemplate<TriviaQuiz> RetireWorkflow = new RetireTriviaQuizWorkflowTemplate();
+    private static readonly TriviaQuizReuseWorkflowTemplate<TriviaQuiz> DestructiveRemovalGuardWorkflow = new DestructiveRemovalTriviaQuizWorkflowTemplate();
 
     private TriviaQuiz()
     {
@@ -27,12 +30,16 @@ public sealed class TriviaQuiz : BaseAuditableEntity
         string description,
         TriviaQuizStatus status,
         DateTimeOffset? publishedAt,
-        IEnumerable<TriviaQuestion> questions)
+        IEnumerable<TriviaQuestion> questions,
+        int? sourceTriviaQuizId,
+        bool hasUsageHistory)
     {
         Title = title;
         Description = description;
         Status = status;
         PublishedAt = publishedAt;
+        SourceTriviaQuizId = sourceTriviaQuizId;
+        HasUsageHistory = hasUsageHistory;
         _questions.AddRange(questions);
     }
 
@@ -43,6 +50,12 @@ public sealed class TriviaQuiz : BaseAuditableEntity
     public TriviaQuizStatus Status { get; private set; }
 
     public DateTimeOffset? PublishedAt { get; private set; }
+
+    public int? SourceTriviaQuizId { get; private set; }
+
+    public bool HasUsageHistory { get; private set; }
+
+    public bool IsDuplicate => SourceTriviaQuizId.HasValue;
 
     public bool IsSourceReady => Status == TriviaQuizStatus.Published;
 
@@ -60,7 +73,9 @@ public sealed class TriviaQuiz : BaseAuditableEntity
             validated.Description,
             TriviaQuizStatus.Draft,
             publishedAt: null,
-            validated.Questions);
+            validated.Questions,
+            sourceTriviaQuizId: null,
+            hasUsageHistory: false);
 
         quiz.AddDomainEvent(new TriviaQuizCreatedEvent(quiz));
 
@@ -89,6 +104,26 @@ public sealed class TriviaQuiz : BaseAuditableEntity
     public void Archive(DateTimeOffset archivedAt)
     {
         ArchiveTemplate.Apply(this, archivedAt);
+    }
+
+    public TriviaQuiz Duplicate()
+    {
+        return DuplicateWorkflow.Apply(this, TriviaQuizReuseContext.Empty);
+    }
+
+    public void RetireFromFutureUse(DateTimeOffset archivedAt)
+    {
+        RetireWorkflow.Apply(this, new TriviaQuizReuseContext(archivedAt));
+    }
+
+    public void EnsureCanBeDestructivelyRemoved()
+    {
+        DestructiveRemovalGuardWorkflow.Apply(this, TriviaQuizReuseContext.Empty);
+    }
+
+    public void MarkAsUsedInSession()
+    {
+        HasUsageHistory = true;
     }
 
     public void MarkAsPublished()
@@ -161,6 +196,33 @@ public sealed class TriviaQuiz : BaseAuditableEntity
         _questions.AddRange(questions);
     }
 
+    private static TriviaQuestion CloneQuestion(TriviaQuestion sourceQuestion)
+    {
+        return TriviaQuestion.Create(
+            sourceQuestion.Prompt,
+            sourceQuestion.SequenceOrder,
+            sourceQuestion.ScoreValue,
+            sourceQuestion.TimeLimit?.Seconds,
+            sourceQuestion.Explanation,
+            sourceQuestion.Options.Select(CloneOption).ToArray(),
+            sourceQuestion.IsActive);
+    }
+
+    private static TriviaOption CloneOption(TriviaOption sourceOption)
+    {
+        return TriviaOption.Create(
+            sourceOption.OptionText,
+            sourceOption.SequenceOrder,
+            sourceOption.IsCorrect);
+    }
+
+    private static int? ResolveDuplicateLineageSourceId(TriviaQuiz sourceQuiz)
+    {
+        return sourceQuiz.Id > 0
+            ? sourceQuiz.Id
+            : sourceQuiz.SourceTriviaQuizId;
+    }
+
     private abstract class TriviaQuizLifecycleTemplate
     {
         public void Apply(TriviaQuiz quiz, DateTimeOffset transitionedAt)
@@ -180,6 +242,31 @@ public sealed class TriviaQuiz : BaseAuditableEntity
         protected abstract void ApplyTransition(TriviaQuiz quiz, DateTimeOffset transitionedAt);
 
         protected abstract void RaiseDomainEvent(TriviaQuiz quiz);
+    }
+
+    private sealed record TriviaQuizReuseContext(DateTimeOffset? ArchivedAt)
+    {
+        public static TriviaQuizReuseContext Empty { get; } = new((DateTimeOffset?)null);
+    }
+
+    private abstract class TriviaQuizReuseWorkflowTemplate<TResult>
+    {
+        public TResult Apply(TriviaQuiz quiz, TriviaQuizReuseContext context)
+        {
+            EnsureCurrentStateAllowsOperation(quiz.Status);
+            EnsureUsageStateAllowsOperation(quiz.HasUsageHistory);
+            return ApplyOperation(quiz, context);
+        }
+
+        protected virtual void EnsureCurrentStateAllowsOperation(TriviaQuizStatus status)
+        {
+        }
+
+        protected virtual void EnsureUsageStateAllowsOperation(bool hasUsageHistory)
+        {
+        }
+
+        protected abstract TResult ApplyOperation(TriviaQuiz quiz, TriviaQuizReuseContext context);
     }
 
     private sealed record ValidatedTriviaQuizAuthoring(string Title, string Description, IReadOnlyCollection<TriviaQuestion> Questions);
@@ -425,6 +512,75 @@ public sealed class TriviaQuiz : BaseAuditableEntity
         protected override void RaiseDomainEvent(TriviaQuiz quiz)
         {
             quiz.AddDomainEvent(new TriviaQuizArchivedEvent(quiz));
+        }
+    }
+
+    private sealed class DuplicateTriviaQuizWorkflowTemplate : TriviaQuizReuseWorkflowTemplate<TriviaQuiz>
+    {
+        protected override void EnsureCurrentStateAllowsOperation(TriviaQuizStatus status)
+        {
+            if (status == TriviaQuizStatus.Archived)
+            {
+                throw new TriviaQuizCannotBeArchivedInCurrentStateException(status);
+            }
+        }
+
+        protected override TriviaQuiz ApplyOperation(TriviaQuiz quiz, TriviaQuizReuseContext context)
+        {
+            var duplicate = new TriviaQuiz(
+                quiz.Title,
+                quiz.Description,
+                TriviaQuizStatus.Draft,
+                publishedAt: null,
+                quiz.Questions.Select(CloneQuestion).ToArray(),
+                ResolveDuplicateLineageSourceId(quiz),
+                hasUsageHistory: false);
+
+            duplicate.AddDomainEvent(new TriviaQuizCreatedEvent(duplicate));
+            quiz.AddDomainEvent(new TriviaQuizDuplicatedEvent(quiz, duplicate));
+
+            return duplicate;
+        }
+    }
+
+    private sealed class RetireTriviaQuizWorkflowTemplate : TriviaQuizReuseWorkflowTemplate<TriviaQuiz>
+    {
+        protected override void EnsureCurrentStateAllowsOperation(TriviaQuizStatus status)
+        {
+            if (status == TriviaQuizStatus.Archived)
+            {
+                throw new TriviaQuizCannotBeArchivedInCurrentStateException(status);
+            }
+        }
+
+        protected override void EnsureUsageStateAllowsOperation(bool hasUsageHistory)
+        {
+            if (!hasUsageHistory)
+            {
+                throw new TriviaQuizCannotBeRetiredWithoutUsageHistoryException();
+            }
+        }
+
+        protected override TriviaQuiz ApplyOperation(TriviaQuiz quiz, TriviaQuizReuseContext context)
+        {
+            ArchiveTemplate.Apply(quiz, context.ArchivedAt!.Value);
+            return quiz;
+        }
+    }
+
+    private sealed class DestructiveRemovalTriviaQuizWorkflowTemplate : TriviaQuizReuseWorkflowTemplate<TriviaQuiz>
+    {
+        protected override void EnsureUsageStateAllowsOperation(bool hasUsageHistory)
+        {
+            if (hasUsageHistory)
+            {
+                throw new TriviaQuizCannotBeDestructivelyRemovedAfterUsageException();
+            }
+        }
+
+        protected override TriviaQuiz ApplyOperation(TriviaQuiz quiz, TriviaQuizReuseContext context)
+        {
+            return quiz;
         }
     }
 }

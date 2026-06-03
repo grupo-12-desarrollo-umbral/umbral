@@ -140,6 +140,9 @@ export type TriviaQuizSummaryDto = {
   description: string
   status: string   // "Draft" | "Published" | "Archived"
   isSourceReady: boolean
+  sourceTriviaQuizId: number | null
+  hasUsageHistory: boolean
+  isDuplicate: boolean
 }
 
 export type TriviaQuizDto = {
@@ -148,6 +151,9 @@ export type TriviaQuizDto = {
   description: string
   status: string
   isSourceReady: boolean
+  sourceTriviaQuizId: number | null
+  hasUsageHistory: boolean
+  isDuplicate: boolean
   questions: TriviaQuestionDto[]
 }
 
