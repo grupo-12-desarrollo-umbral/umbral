@@ -28,7 +28,6 @@ describe('reconnect context store', () => {
       liveSessionId: 'session-1',
       teamId: 'team-1',
       displayName: 'Nova',
-      teamCapacity: 4,
       token: null,
     };
 

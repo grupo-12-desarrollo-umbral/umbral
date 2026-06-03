@@ -14,6 +14,7 @@ import {
   loadReconnectContext,
   saveReconnectContext,
 } from '@/lib/realtime/reconnect-context';
+import { resolveReconnectContext } from '@/lib/realtime/reconnect-context-resolution';
 import type { ReconnectOutcome } from '@/lib/realtime/reconnect-policy';
 import { useReconnect } from '@/lib/realtime/use-reconnect';
 import type { ReconnectContext } from '@/lib/realtime/sessions-hub-types';
@@ -21,12 +22,6 @@ import { colors, spacing } from '@/constants/theme';
 
 function asParam(value: string | string[] | undefined): string {
   return Array.isArray(value) ? (value[0] ?? '') : (value ?? '');
-}
-
-function parsePositiveInt(value: string): number | null {
-  if (!value) return null;
-  const parsed = Number.parseInt(value, 10);
-  return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
 }
 
 function fireHaptic(type: 'success' | 'error') {
@@ -53,6 +48,10 @@ function deniedCopy(outcome: ReconnectOutcome): string | null {
       return "This session isn't accepting participants right now.";
     case 'lost-access':
       return 'You no longer have access to this team.';
+    case 'already-connected':
+      return "You're already connected on another device.";
+    case 'wrong-team':
+      return "You're assigned to a different team — head back to the lobby to rejoin.";
     case 'network-error':
       return "Couldn't reach your live session. Check your connection and try again.";
     case 'unauthorized':
@@ -77,7 +76,6 @@ export default function TeamSpaceScreen() {
   const params = useLocalSearchParams<{
     liveSessionId?: string;
     teamId?: string;
-    teamCapacity?: string;
     reason?: string;
   }>();
 
@@ -98,27 +96,29 @@ export default function TeamSpaceScreen() {
     async function run() {
       const liveSessionId = asParam(params.liveSessionId);
       const teamId = asParam(params.teamId);
-      const teamCapacity = parsePositiveInt(asParam(params.teamCapacity));
-
-      let resolved: ReconnectContext | null = null;
-      if (liveSessionId && teamId && profile?.displayName && teamCapacity) {
-        resolved = {
+      const persisted = await loadReconnectContext();
+      const resolved = resolveReconnectContext(
+        {
           liveSessionId,
           teamId,
-          displayName: profile.displayName,
-          teamCapacity,
-          token: null,
-        };
-        await saveReconnectContext(resolved);
-      } else {
-        resolved = await loadReconnectContext();
-      }
+          displayName: profile?.displayName ?? '',
+        },
+        persisted,
+      );
 
       if (!active) return;
 
       if (!resolved) {
         setPhase('no-context');
         return;
+      }
+
+      if (
+        resolved.liveSessionId === liveSessionId &&
+        resolved.teamId === teamId &&
+        resolved.displayName === (profile?.displayName ?? '')
+      ) {
+        await saveReconnectContext(resolved);
       }
 
       setContext(resolved);

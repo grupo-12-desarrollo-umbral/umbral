@@ -30,7 +30,6 @@ public sealed class SessionsHub : Hub
                 liveSessionId,
                 request.TeamId,
                 request.DisplayName,
-                request.TeamCapacity,
                 request.Token),
             cancellationToken);
 
@@ -50,6 +49,5 @@ public sealed class SessionsHub : Hub
     public sealed record ReconnectParticipantHubRequest(
         Guid TeamId,
         string DisplayName,
-        int TeamCapacity,
         string? Token);
 }

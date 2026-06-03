@@ -30,7 +30,6 @@ describe('reconnect-policy', () => {
       liveSessionId: 'session-1',
       teamId: 'team-1',
       displayName: 'Nova',
-      teamCapacity: 4,
       token: null,
     };
     const result = {
@@ -54,34 +53,54 @@ describe('reconnect-policy', () => {
     });
   });
 
-  test('maps active-session late join hub errors', () => {
-    expect(
-      interpretHubError(
-        new Error(
-          "New participant joins are not allowed while the session is 'Active'.",
-        ),
-      ),
-    ).toEqual({ kind: 'forbidden-late-join' });
+  // The backend rejects via a HubException carrying `{"code":"...","message":"..."}`.
+  // The policy keys on the code, so the tests pin the code→outcome mapping.
+  function hubError(code: string, message = 'human readable detail'): Error {
+    return new Error(JSON.stringify({ code, message }));
+  }
+
+  test('maps the late-join code to forbidden-late-join', () => {
+    expect(interpretHubError(hubError('LATE_JOIN_NOT_ALLOWED'))).toEqual({
+      kind: 'forbidden-late-join',
+    });
   });
 
-  test('maps finished-session hub errors to invalid session state', () => {
-    expect(
-      interpretHubError(
-        new Error(
-          "New participant joins are not allowed while the session is 'Finished'.",
-        ),
-      ),
-    ).toEqual({ kind: 'invalid-session-state' });
+  test('maps the team-unavailable code to invalid session state', () => {
+    expect(interpretHubError(hubError('TEAM_UNAVAILABLE'))).toEqual({
+      kind: 'invalid-session-state',
+    });
   });
 
-  test('maps removed-participant hub errors to lost access', () => {
-    expect(
-      interpretHubError(
-        new Error(
-          "Participant 'participant-1' was removed from the live session.",
-        ),
-      ),
-    ).toEqual({ kind: 'lost-access' });
+  test('maps the participant-removed code to lost access', () => {
+    expect(interpretHubError(hubError('PARTICIPANT_REMOVED'))).toEqual({
+      kind: 'lost-access',
+    });
+  });
+
+  test('maps the already-connected code to its own outcome', () => {
+    expect(interpretHubError(hubError('ALREADY_CONNECTED'))).toEqual({
+      kind: 'already-connected',
+    });
+  });
+
+  test('maps the wrong-team code to its own outcome', () => {
+    expect(interpretHubError(hubError('WRONG_TEAM'))).toEqual({
+      kind: 'wrong-team',
+    });
+  });
+
+  test('extracts the code even when SignalR wraps the message in dev', () => {
+    const wrapped = new Error(
+      "An unexpected error occurred invoking 'ReconnectAsync'. HubException: " +
+        JSON.stringify({ code: 'WRONG_TEAM', message: 'detail' }),
+    );
+    expect(interpretHubError(wrapped)).toEqual({ kind: 'wrong-team' });
+  });
+
+  test('falls back to generic error for an unknown code', () => {
+    expect(interpretHubError(hubError('SOMETHING_NEW'))).toEqual({
+      kind: 'error',
+    });
   });
 
   test('maps negotiate 401 errors to unauthorized', () => {

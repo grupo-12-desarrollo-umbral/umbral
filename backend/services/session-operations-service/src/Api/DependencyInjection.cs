@@ -3,7 +3,9 @@ using System.Security.Claims;
 using System.Text.Encodings.Web;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Options;
+using umbral_backend.Api.Hubs;
 using umbral_backend.Api.Services;
 using umbral_backend.Application.Common.Interfaces;
 
@@ -16,7 +18,11 @@ public static class DependencyInjection
     {
         builder.Services.AddDatabaseDeveloperPageExceptionFilter();
         builder.Services.AddHttpContextAccessor();
-        builder.Services.AddSignalR(options => options.EnableDetailedErrors = builder.Environment.IsDevelopment());
+        builder.Services.AddSignalR(options =>
+        {
+            options.EnableDetailedErrors = builder.Environment.IsDevelopment();
+            options.AddFilter<DomainExceptionHubFilter>();
+        });
         builder.Services.AddScoped<CurrentUserContext>();
         builder.Services.AddScoped<ICurrentUser, CurrentUser>();
         builder.Services

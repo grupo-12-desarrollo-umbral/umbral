@@ -110,7 +110,12 @@ public sealed class LiveSession : BaseAuditableEntity
         return session;
     }
 
-    public Team RegisterTeam(string displayName, string teamCode)
+    public Team RegisterTeam(string displayName, string teamCode, int capacity)
+    {
+        return RegisterTeam(Guid.NewGuid(), displayName, teamCode, capacity);
+    }
+
+    public Team RegisterTeam(Guid teamId, string displayName, string teamCode, int capacity)
     {
         var normalizedCode = TeamCode.Create(teamCode);
         if (_teams.Any(team => team.TeamCode == normalizedCode))
@@ -118,7 +123,7 @@ public sealed class LiveSession : BaseAuditableEntity
             throw new DuplicateTeamCodeInSessionException(normalizedCode.Value);
         }
 
-        var team = Team.Register(LiveSessionId, displayName, normalizedCode.Value);
+        var team = Team.Register(LiveSessionId, teamId, displayName, normalizedCode.Value, capacity);
         _teams.Add(team);
         AddDomainEvent(new TeamRegisteredInSessionEvent(LiveSessionId, team.TeamId, team.TeamCode.Value));
         return team;
@@ -129,7 +134,6 @@ public sealed class LiveSession : BaseAuditableEntity
         string displayName,
         Guid teamId,
         DateTimeOffset occurredAt,
-        int teamCapacity,
         JoinPolicy joinPolicy)
     {
         ArgumentNullException.ThrowIfNull(joinPolicy);
@@ -139,7 +143,7 @@ public sealed class LiveSession : BaseAuditableEntity
 
         if (existingParticipant is null)
         {
-            joinPolicy.EnsureCanJoin(this, team, teamCapacity);
+            joinPolicy.EnsureCanJoin(this, team);
 
             var participant = SessionParticipant.Join(LiveSessionId, externalIdentityId, displayName, occurredAt);
             _participants.Add(participant);

@@ -221,6 +221,10 @@ namespace umbral_backend.Infrastructure.Migrations
                                 .HasColumnType("character varying(200)")
                                 .HasColumnName("display_name");
 
+                            b1.Property<int>("Capacity")
+                                .HasColumnType("integer")
+                                .HasColumnName("team_capacity");
+
                             b1.Property<string>("JoinStatus")
                                 .IsRequired()
                                 .HasMaxLength(32)

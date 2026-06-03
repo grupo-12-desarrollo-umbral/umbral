@@ -31,6 +31,8 @@ function statusForOutcome(outcome: ReconnectOutcome): ReconnectStatus {
     case 'forbidden-late-join':
     case 'invalid-session-state':
     case 'lost-access':
+    case 'already-connected':
+    case 'wrong-team':
     case 'unauthorized':
       return 'denied';
     case 'network-error':
@@ -80,7 +82,6 @@ export function useReconnect() {
       const result = await client.reconnect(context.liveSessionId, {
         teamId: context.teamId,
         displayName: context.displayName,
-        teamCapacity: context.teamCapacity,
         token: context.token ?? null,
       });
 

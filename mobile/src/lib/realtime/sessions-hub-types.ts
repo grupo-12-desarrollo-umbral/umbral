@@ -1,7 +1,6 @@
 export type ReconnectParticipantHubRequest = {
   teamId: string;
   displayName: string;
-  teamCapacity: number;
   token?: string | null;
 };
 
@@ -21,7 +20,6 @@ export type ReconnectContext = {
   liveSessionId: string;
   teamId: string;
   displayName: string;
-  teamCapacity: number;
   token?: string | null;
   lastSeenAt?: string;
 };

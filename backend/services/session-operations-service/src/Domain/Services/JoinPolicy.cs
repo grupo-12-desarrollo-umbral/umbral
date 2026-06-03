@@ -6,15 +6,10 @@ namespace umbral_backend.Domain.Services;
 
 public sealed class JoinPolicy
 {
-    public void EnsureCanJoin(LiveSession session, Team team, int teamCapacity)
+    public void EnsureCanJoin(LiveSession session, Team team)
     {
         ArgumentNullException.ThrowIfNull(session);
         ArgumentNullException.ThrowIfNull(team);
-
-        if (teamCapacity <= 0)
-        {
-            throw new TeamCapacityReachedException(team.TeamId, teamCapacity);
-        }
 
         if (session.State is not (SessionState.Scheduled or SessionState.Preparing))
         {
@@ -26,9 +21,9 @@ public sealed class JoinPolicy
             throw new TeamJoinClosedException(team.TeamId);
         }
 
-        if (team.ActiveMemberCount >= teamCapacity)
+        if (team.ActiveMemberCount >= team.Capacity)
         {
-            throw new TeamCapacityReachedException(team.TeamId, teamCapacity);
+            throw new TeamCapacityReachedException(team.TeamId, team.Capacity);
         }
     }
 

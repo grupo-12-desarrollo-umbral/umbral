@@ -12,8 +12,5 @@ public sealed class ReconnectAuthenticatedParticipantCommandValidator : Abstract
 
         RuleFor(command => command.DisplayName)
             .NotEmpty();
-
-        RuleFor(command => command.TeamCapacity)
-            .GreaterThan(0);
     }
 }

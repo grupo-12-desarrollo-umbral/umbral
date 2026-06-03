@@ -14,10 +14,10 @@ public sealed class JoinPolicyTests
     public void EnsureCanJoin_WhenTeamIsLocked_ThrowsException()
     {
         var session = LiveSessionFactory.CreateScheduledTreasureHunt();
-        var team = session.RegisterTeam("Alpha", "A-01");
+        var team = session.RegisterTeam("Alpha", "A-01", 4);
         team.LockNewParticipants();
 
-        var act = () => _policy.EnsureCanJoin(session, team, 4);
+        var act = () => _policy.EnsureCanJoin(session, team);
 
         act.Should().Throw<TeamJoinClosedException>();
     }
@@ -26,13 +26,13 @@ public sealed class JoinPolicyTests
     public void EnsureCanJoin_WhenTeamIsAtCapacity_ThrowsException()
     {
         var session = LiveSessionFactory.CreateScheduledTreasureHunt();
-        var team = session.RegisterTeam("Alpha", "A-01");
+        var team = session.RegisterTeam("Alpha", "A-01", 2);
         for (var i = 0; i < 2; i++)
         {
-            session.AdmitParticipant(Guid.NewGuid(), $"P{i}", team.TeamId, DateTimeOffset.UtcNow.AddMinutes(i), 2, _policy);
+            session.AdmitParticipant(Guid.NewGuid(), $"P{i}", team.TeamId, DateTimeOffset.UtcNow.AddMinutes(i), _policy);
         }
 
-        var act = () => _policy.EnsureCanJoin(session, team, 2);
+        var act = () => _policy.EnsureCanJoin(session, team);
 
         act.Should().Throw<TeamCapacityReachedException>();
     }
@@ -41,10 +41,10 @@ public sealed class JoinPolicyTests
     public void EnsureCanReconnect_WhenParticipantTargetsDifferentTeam_ThrowsException()
     {
         var session = LiveSessionFactory.CreateScheduledTreasureHunt();
-        var alpha = session.RegisterTeam("Alpha", "A-01");
-        var beta = session.RegisterTeam("Beta", "B-01");
+        var alpha = session.RegisterTeam("Alpha", "A-01", 4);
+        var beta = session.RegisterTeam("Beta", "B-01", 4);
         var identityId = Guid.NewGuid();
-        var joined = session.AdmitParticipant(identityId, "Nora", alpha.TeamId, DateTimeOffset.UtcNow, 4, _policy);
+        var joined = session.AdmitParticipant(identityId, "Nora", alpha.TeamId, DateTimeOffset.UtcNow, _policy);
         session.DisconnectParticipant(joined.Participant.SessionParticipantId, DateTimeOffset.UtcNow.AddMinutes(1));
 
         var act = () => _policy.EnsureCanReconnect(session, joined.Participant, alpha, beta.TeamId);

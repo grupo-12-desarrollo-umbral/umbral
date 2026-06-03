@@ -18,14 +18,6 @@ function requiredEnv(name) {
   return value;
 }
 
-function parseCapacity(value) {
-  const parsed = Number.parseInt(value ?? '4', 10);
-  if (!Number.isFinite(parsed) || parsed <= 0) {
-    throw new Error('TEAM_CAPACITY must be a positive integer.');
-  }
-  return parsed;
-}
-
 function parseTransport(value) {
   const normalized = (value ?? 'websockets').trim().toLowerCase();
   switch (normalized) {
@@ -72,7 +64,7 @@ function usage() {
   return [
     'Usage:',
     '  GW=http://localhost:8000 TOKEN=... LIVE_SESSION_ID=... TEAM_ID=... \\',
-    '  DISPLAY_NAME=participant TEAM_CAPACITY=4 npm run smoke:reconnect:hub',
+    '  DISPLAY_NAME=participant npm run smoke:reconnect:hub',
     '',
     'Optional environment variables:',
     '  JOIN_TOKEN        reconnect/join token; defaults to null',
@@ -92,7 +84,6 @@ async function main() {
   const liveSessionId = requiredEnv('LIVE_SESSION_ID');
   const teamId = requiredEnv('TEAM_ID');
   const displayName = requiredEnv('DISPLAY_NAME');
-  const teamCapacity = parseCapacity(process.env.TEAM_CAPACITY);
   const joinToken = process.env.JOIN_TOKEN?.trim() || null;
   const transcriptFile = process.env.TRANSCRIPT_FILE?.trim() || null;
   const transport = parseTransport(process.env.TRANSPORT);
@@ -102,7 +93,6 @@ async function main() {
     liveSessionId,
     teamId,
     displayName,
-    teamCapacity,
     tokenProvided: joinToken !== null,
     transport: transport.label,
     startedAt: new Date().toISOString(),
@@ -126,7 +116,6 @@ async function main() {
       {
         teamId,
         displayName,
-        teamCapacity,
         token: joinToken,
       },
     );

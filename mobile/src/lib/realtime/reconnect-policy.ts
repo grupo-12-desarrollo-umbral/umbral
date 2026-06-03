@@ -9,6 +9,8 @@ export type ReconnectOutcome =
   | { kind: 'forbidden-late-join' }
   | { kind: 'invalid-session-state' }
   | { kind: 'lost-access' }
+  | { kind: 'already-connected' }
+  | { kind: 'wrong-team' }
   | { kind: 'unauthorized' }
   | { kind: 'network-error' }
   | { kind: 'error' };
@@ -20,6 +22,29 @@ const NETWORK_ERROR_NAMES = new Set([
   'HttpRequestError',
 ]);
 
+// The backend's DomainExceptionHubFilter rejects via a HubException whose message
+// carries a stable, machine-readable code: `{"code":"...","message":"..."}`. In
+// production (EnableDetailedErrors off) the client receives that JSON verbatim; in
+// development SignalR prepends "An unexpected error occurred invoking '...'.
+// HubException: ", so we extract the code from wherever it sits rather than parsing
+// the whole message. We key on the code, never the (environment-dependent) prose.
+const HUB_ERROR_CODE = /"code"\s*:\s*"([A-Z_]+)"/;
+
+// Maps each backend code to a UI outcome. Codes the reconnect path can raise plus the
+// shared hub codes; anything unmapped falls through to the safe generic `error`.
+const CODE_TO_OUTCOME: Record<string, ReconnectOutcome> = {
+  LATE_JOIN_NOT_ALLOWED: { kind: 'forbidden-late-join' },
+  TEAM_UNAVAILABLE: { kind: 'invalid-session-state' },
+  FORBIDDEN: { kind: 'lost-access' },
+  PARTICIPANT_REMOVED: { kind: 'lost-access' },
+  NOT_FOUND: { kind: 'lost-access' },
+  ALREADY_CONNECTED: { kind: 'already-connected' },
+  WRONG_TEAM: { kind: 'wrong-team' },
+  UNAUTHORIZED: { kind: 'unauthorized' },
+  VALIDATION_FAILED: { kind: 'error' },
+  ERROR: { kind: 'error' },
+};
+
 function normalizeMessage(error: unknown): string {
   if (error instanceof Error) {
     return error.message.toLowerCase();
@@ -28,11 +53,9 @@ function normalizeMessage(error: unknown): string {
   return String(error).toLowerCase();
 }
 
-function isFinishedOrCancelledState(message: string): boolean {
-  return (
-    message.includes("session is 'finished'") ||
-    message.includes("session is 'cancelled'")
-  );
+function hubErrorCode(error: unknown): string | null {
+  const raw = error instanceof Error ? error.message : String(error);
+  return HUB_ERROR_CODE.exec(raw)?.[1] ?? null;
 }
 
 function isNetworkError(error: unknown, message: string): boolean {
@@ -66,17 +89,6 @@ function isUnauthorized(error: unknown, message: string): boolean {
   );
 }
 
-function isLostAccess(message: string): boolean {
-  return (
-    message.includes('participant') &&
-    message.includes('was removed from the live session')
-  ) ||
-    message.includes('cannot reconnect to') ||
-    message.includes('resource not found') ||
-    message.includes('entity "livesession"') ||
-    message.includes('forbiddenaccessexception');
-}
-
 export function toReconnectedOutcome(
   result: ReconnectParticipantResultDto,
 ): ReconnectOutcome {
@@ -99,6 +111,8 @@ export function toUpdatedReconnectContext(
 export function interpretHubError(error: unknown): ReconnectOutcome {
   const message = normalizeMessage(error);
 
+  // Transport-level failures (negotiate/connection) arrive as HttpError/TimeoutError
+  // before the hub invoke, so they carry no domain code — classify them first.
   if (isUnauthorized(error, message)) {
     return { kind: 'unauthorized' };
   }
@@ -107,23 +121,10 @@ export function interpretHubError(error: unknown): ReconnectOutcome {
     return { kind: 'network-error' };
   }
 
-  if (
-    message.includes("new participant joins are not allowed while the session is 'active'") ||
-    message.includes("new participant joins are not allowed while the session is 'preparing'")
-  ) {
-    return { kind: 'forbidden-late-join' };
-  }
-
-  if (isFinishedOrCancelledState(message) || message.includes('is not accepting new participants')) {
-    return { kind: 'invalid-session-state' };
-  }
-
-  if (
-    isLostAccess(message) ||
-    message.includes('has reached its capacity') ||
-    message.includes('is already connected')
-  ) {
-    return { kind: 'lost-access' };
+  // Domain/validation rejections from the hub: key on the stable code.
+  const code = hubErrorCode(error);
+  if (code) {
+    return CODE_TO_OUTCOME[code] ?? { kind: 'error' };
   }
 
   return { kind: 'error' };
