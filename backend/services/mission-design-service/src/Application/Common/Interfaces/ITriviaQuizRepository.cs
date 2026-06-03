@@ -9,4 +9,9 @@ public interface ITriviaQuizRepository
     Task AddAsync(TriviaQuiz triviaQuiz, CancellationToken cancellationToken);
 
     Task UpdateAsync(TriviaQuiz triviaQuiz, CancellationToken cancellationToken);
+
+    Task RemoveAsync(TriviaQuiz triviaQuiz, CancellationToken cancellationToken)
+    {
+        throw new NotSupportedException("Trivia quiz removal must be implemented by the persistence layer.");
+    }
 }

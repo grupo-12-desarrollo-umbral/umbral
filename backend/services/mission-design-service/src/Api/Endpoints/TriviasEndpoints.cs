@@ -2,7 +2,10 @@ using Microsoft.AspNetCore.Http.HttpResults;
 using umbral_backend.Application.Trivias.Commands.AddTriviaQuestion;
 using umbral_backend.Application.Trivias.Commands.ArchiveTriviaQuiz;
 using umbral_backend.Application.Trivias.Commands.CreateTriviaQuiz;
+using umbral_backend.Application.Trivias.Commands.DeleteTriviaQuiz;
+using umbral_backend.Application.Trivias.Commands.DuplicateTriviaQuiz;
 using umbral_backend.Application.Trivias.Commands.PublishTriviaQuiz;
+using umbral_backend.Application.Trivias.Commands.RetireTriviaQuiz;
 using umbral_backend.Application.Trivias.Commands.UpdateTriviaQuestion;
 using umbral_backend.Application.Trivias.Commands.UpdateTriviaQuiz;
 using umbral_backend.Application.Trivias.Common.Authoring;
@@ -22,8 +25,11 @@ public sealed class TriviasEndpoints : IEndpointGroup
         trivias.MapGet("/", GetTriviaCatalog);
         trivias.MapGet("/{id:int}", GetTriviaDetail);
         trivias.MapPut("/{id:int}", UpdateTriviaQuiz);
+        trivias.MapDelete("/{id:int}", DeleteTriviaQuiz);
+        trivias.MapPost("/{id:int}/duplicate", DuplicateTriviaQuiz);
         trivias.MapPost("/{id:int}/publish", PublishTriviaQuiz);
         trivias.MapPost("/{id:int}/archive", ArchiveTriviaQuiz);
+        trivias.MapPost("/{id:int}/retire", RetireTriviaQuiz);
         trivias.MapPost("/{triviaQuizId:int}/questions", AddTriviaQuestion);
         trivias.MapPut("/{triviaQuizId:int}/questions/{questionId:int}", UpdateTriviaQuestion);
     }
@@ -99,6 +105,24 @@ public sealed class TriviasEndpoints : IEndpointGroup
         return TypedResults.Ok(TriviaQuizResponse.FromDto(triviaQuiz));
     }
 
+    private static async Task<NoContent> DeleteTriviaQuiz(
+        ISender sender,
+        int id,
+        CancellationToken cancellationToken)
+    {
+        await sender.Send(new DeleteTriviaQuizCommand(id), cancellationToken);
+        return TypedResults.NoContent();
+    }
+
+    private static async Task<Created<TriviaQuizResponse>> DuplicateTriviaQuiz(
+        ISender sender,
+        int id,
+        CancellationToken cancellationToken)
+    {
+        var triviaQuiz = await sender.Send(new DuplicateTriviaQuizCommand(id), cancellationToken);
+        return TypedResults.Created($"/api/trivias/{triviaQuiz.Id}", TriviaQuizResponse.FromDto(triviaQuiz));
+    }
+
     private static async Task<Ok<TriviaQuizResponse>> PublishTriviaQuiz(
         ISender sender,
         int id,
@@ -114,6 +138,15 @@ public sealed class TriviasEndpoints : IEndpointGroup
         CancellationToken cancellationToken)
     {
         var triviaQuiz = await sender.Send(new ArchiveTriviaQuizCommand(id), cancellationToken);
+        return TypedResults.Ok(TriviaQuizResponse.FromDto(triviaQuiz));
+    }
+
+    private static async Task<Ok<TriviaQuizResponse>> RetireTriviaQuiz(
+        ISender sender,
+        int id,
+        CancellationToken cancellationToken)
+    {
+        var triviaQuiz = await sender.Send(new RetireTriviaQuizCommand(id), cancellationToken);
         return TypedResults.Ok(TriviaQuizResponse.FromDto(triviaQuiz));
     }
 
@@ -236,6 +269,9 @@ public sealed class TriviasEndpoints : IEndpointGroup
         string Description,
         string Status,
         bool IsSourceReady,
+        int? SourceTriviaQuizId,
+        bool HasUsageHistory,
+        bool IsDuplicate,
         IReadOnlyList<TriviaQuestionResponse> Questions)
     {
         public static TriviaQuizResponse FromDto(TriviaQuizDto triviaQuizDto)
@@ -246,6 +282,9 @@ public sealed class TriviasEndpoints : IEndpointGroup
                 triviaQuizDto.Description,
                 triviaQuizDto.Status,
                 string.Equals(triviaQuizDto.Status, "Published", StringComparison.Ordinal),
+                triviaQuizDto.SourceTriviaQuizId,
+                triviaQuizDto.HasUsageHistory,
+                triviaQuizDto.IsDuplicate,
                 triviaQuizDto.Questions.Select(TriviaQuestionResponse.FromDto).ToList());
         }
     }
@@ -295,7 +334,10 @@ public sealed class TriviasEndpoints : IEndpointGroup
         string Title,
         string Description,
         string Status,
-        bool IsSourceReady)
+        bool IsSourceReady,
+        int? SourceTriviaQuizId,
+        bool HasUsageHistory,
+        bool IsDuplicate)
     {
         public static TriviaQuizSummaryResponse FromDto(TriviaQuizSummaryDto triviaQuizDto)
         {
@@ -304,7 +346,10 @@ public sealed class TriviasEndpoints : IEndpointGroup
                 triviaQuizDto.Title,
                 triviaQuizDto.Description,
                 triviaQuizDto.Status,
-                string.Equals(triviaQuizDto.Status, "Published", StringComparison.Ordinal));
+                string.Equals(triviaQuizDto.Status, "Published", StringComparison.Ordinal),
+                triviaQuizDto.SourceTriviaQuizId,
+                triviaQuizDto.HasUsageHistory,
+                triviaQuizDto.IsDuplicate);
         }
     }
 }

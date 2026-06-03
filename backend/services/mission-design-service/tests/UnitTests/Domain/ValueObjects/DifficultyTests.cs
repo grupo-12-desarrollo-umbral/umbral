@@ -70,8 +70,8 @@ public class DifficultyTests
         Difficulty? nil = null;
         var a = Difficulty.Create("Advanced");
 
-        (a == nil).Should().BeFalse();
-        (nil == a).Should().BeFalse();
+        (a == nil!).Should().BeFalse();
+        (nil! == a).Should().BeFalse();
     }
 
     [Fact]
@@ -80,7 +80,7 @@ public class DifficultyTests
         Difficulty? a = null;
         Difficulty? b = null;
 
-        (a == b).Should().BeTrue();
+        (a! == b!).Should().BeTrue();
     }
 
     [Fact]

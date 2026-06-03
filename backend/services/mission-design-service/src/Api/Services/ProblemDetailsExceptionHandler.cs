@@ -54,6 +54,18 @@ public sealed class ProblemDetailsExceptionHandler : IExceptionHandler
                 Detail = exception.Message,
                 Status = StatusCodes.Status409Conflict
             },
+            TriviaQuizCannotBeDestructivelyRemovedAfterUsageException => new ProblemDetails
+            {
+                Title = "Trivia quiz cannot be removed destructively after usage.",
+                Detail = exception.Message,
+                Status = StatusCodes.Status409Conflict
+            },
+            TriviaQuizCannotBeRetiredWithoutUsageHistoryException => new ProblemDetails
+            {
+                Title = "Trivia quiz cannot be retired without usage history.",
+                Detail = exception.Message,
+                Status = StatusCodes.Status409Conflict
+            },
             TriviaQuizMustHaveAtLeastOneQuestionToPublishException => new ProblemDetails
             {
                 Title = "Trivia quiz is not ready for publication.",

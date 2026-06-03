@@ -13,6 +13,8 @@ internal sealed class InMemoryTriviaQuizRepository : ITriviaQuizRepository
 
     public TriviaQuiz? LastUpdatedTriviaQuiz { get; private set; }
 
+    public TriviaQuiz? LastRemovedTriviaQuiz { get; private set; }
+
     public Task<TriviaQuiz?> GetByIdAsync(int triviaQuizId, CancellationToken cancellationToken)
     {
         _triviaQuizzes.TryGetValue(triviaQuizId, out var triviaQuiz);
@@ -36,6 +38,13 @@ internal sealed class InMemoryTriviaQuizRepository : ITriviaQuizRepository
     {
         LastUpdatedTriviaQuiz = triviaQuiz;
         _triviaQuizzes[triviaQuiz.Id] = triviaQuiz;
+        return Task.CompletedTask;
+    }
+
+    public Task RemoveAsync(TriviaQuiz triviaQuiz, CancellationToken cancellationToken)
+    {
+        LastRemovedTriviaQuiz = triviaQuiz;
+        _triviaQuizzes.Remove(triviaQuiz.Id);
         return Task.CompletedTask;
     }
 

@@ -30,6 +30,9 @@ internal static class TriviaQuizDtoMapper
                     question.ScoreValue,
                     question.TimeLimit?.Seconds,
                     question.Explanation))
-                .ToArray());
+                .ToArray(),
+            triviaQuiz.SourceTriviaQuizId,
+            triviaQuiz.HasUsageHistory,
+            triviaQuiz.IsDuplicate);
     }
 }

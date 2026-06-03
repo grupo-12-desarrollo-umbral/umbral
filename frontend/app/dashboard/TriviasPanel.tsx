@@ -10,6 +10,8 @@ import {
   updateTriviaQuestion,
   publishTriviaQuiz,
   archiveTriviaQuiz,
+  duplicateTriviaQuiz,
+  retireTriviaQuiz,
 } from '@/app/actions/trivias'
 import type { TriviaQuizSummaryDto, TriviaQuizDto, TriviaQuestionDto, TriviaQuestionRequest } from '@/app/lib/definitions'
 import styles from './dashboard.module.css'
@@ -51,7 +53,11 @@ export function TriviasPanel({ role }: { role: DashboardRole }) {
   const [refreshKey, setRefreshKey] = useState(0)
   const [confirmPublish, setConfirmPublish] = useState(false)
   const [confirmArchive, setConfirmArchive] = useState(false)
+  const [confirmDuplicate, setConfirmDuplicate] = useState(false)
+  const [confirmRetire, setConfirmRetire] = useState(false)
   const [lifecycleError, setLifecycleError] = useState<string | null>(null)
+
+  const allConfirmsClosed = !confirmPublish && !confirmArchive && !confirmDuplicate && !confirmRetire
 
   useEffect(() => {
     startTransition(async () => {
@@ -216,6 +222,54 @@ export function TriviasPanel({ role }: { role: DashboardRole }) {
     })
   }
 
+  async function handleDuplicate() {
+    if (!selectedQuiz) return
+    startTransition(async () => {
+      setLifecycleError(null)
+      try {
+        const duplicated = await duplicateTriviaQuiz(selectedQuiz.id)
+        setSelectedQuiz(duplicated)
+        setConfirmDuplicate(false)
+        setRefreshKey((k) => k + 1)
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : ''
+        if (msg === 'trivia_duplicate_conflict') {
+          setLifecycleError('Cannot duplicate an archived quiz.')
+        } else if (msg === 'trivia_not_found') {
+          setLifecycleError('Trivia quiz no longer exists.')
+        } else {
+          setLifecycleError('Failed to duplicate quiz. Try again.')
+        }
+        setConfirmDuplicate(false)
+      }
+    })
+  }
+
+  async function handleRetire() {
+    if (!selectedQuiz) return
+    startTransition(async () => {
+      setLifecycleError(null)
+      try {
+        const updated = await retireTriviaQuiz(selectedQuiz.id)
+        setSelectedQuiz(updated)
+        setConfirmRetire(false)
+        setRefreshKey((k) => k + 1)
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : ''
+        if (msg === 'trivia_retire_conflict') {
+          setLifecycleError(
+            'This quiz cannot be retired. It may already be archived or have no usage history.',
+          )
+        } else if (msg === 'trivia_not_found') {
+          setLifecycleError('Trivia quiz no longer exists.')
+        } else {
+          setLifecycleError('Failed to retire quiz. Try again.')
+        }
+        setConfirmRetire(false)
+      }
+    })
+  }
+
   function statusTone(status: string): 'success' | 'warning' | 'muted' {
     if (status === 'Published') return 'success'
     if (status === 'Draft') return 'warning'
@@ -369,7 +423,7 @@ export function TriviasPanel({ role }: { role: DashboardRole }) {
       <section className={styles.panel} data-testid="trivia-detail">
         <button
           className={styles.inlineButton}
-          onClick={() => { setView('list'); setConfirmPublish(false); setConfirmArchive(false); setLifecycleError(null) }}
+          onClick={() => { setView('list'); setConfirmPublish(false); setConfirmArchive(false); setConfirmDuplicate(false); setConfirmRetire(false); setLifecycleError(null) }}
           type="button"
         >
           ← Back to trivia quizzes
@@ -405,6 +459,29 @@ export function TriviasPanel({ role }: { role: DashboardRole }) {
               {selectedQuiz.isSourceReady ? 'Yes' : 'No'}
             </span>
           </span>
+          {selectedQuiz.isDuplicate && selectedQuiz.sourceTriviaQuizId !== null && (
+            <span>
+              Copied from:
+              <span
+                className={styles.chip}
+                data-tone="muted"
+                data-testid="trivia-source-quiz-id"
+              >
+                Quiz #{selectedQuiz.sourceTriviaQuizId}
+              </span>
+            </span>
+          )}
+          {selectedQuiz.hasUsageHistory && (
+            <span>
+              <span
+                className={styles.chip}
+                data-tone="warning"
+                data-testid="trivia-has-usage-history"
+              >
+                Has usage history
+              </span>
+            </span>
+          )}
         </div>
 
         {selectedQuiz.status === 'Draft' && (() => {
@@ -426,6 +503,7 @@ export function TriviasPanel({ role }: { role: DashboardRole }) {
         )}
 
         <div className={styles.missionDetailActions}>
+          {/* Edit — unchanged */}
           <button
             className={styles.inlineButton}
             data-testid="edit-trivia-btn"
@@ -436,7 +514,8 @@ export function TriviasPanel({ role }: { role: DashboardRole }) {
             Edit
           </button>
 
-          {role === 'admin' && selectedQuiz.status === 'Draft' && !confirmPublish && !confirmArchive && (() => {
+          {/* Publish trigger — only Draft, admin, no confirmations open (unchanged) */}
+          {role === 'admin' && selectedQuiz.status === 'Draft' && allConfirmsClosed && (() => {
             const { isReady, reasons } = computeReadiness(selectedQuiz)
             return (
               <button
@@ -452,6 +531,7 @@ export function TriviasPanel({ role }: { role: DashboardRole }) {
             )
           })()}
 
+          {/* Publish confirmation row — unchanged */}
           {confirmPublish && (
             <span className={styles.confirmRow}>
               <button
@@ -474,7 +554,8 @@ export function TriviasPanel({ role }: { role: DashboardRole }) {
             </span>
           )}
 
-          {role === 'admin' && selectedQuiz.status !== 'Archived' && !confirmPublish && !confirmArchive && (
+          {/* Archive trigger — unused quizzes only; used quizzes get Retire instead */}
+          {role === 'admin' && selectedQuiz.status !== 'Archived' && !selectedQuiz.hasUsageHistory && allConfirmsClosed && (
             <button
               className={styles.inlineButton}
               data-testid="archive-trivia-btn"
@@ -486,6 +567,7 @@ export function TriviasPanel({ role }: { role: DashboardRole }) {
             </button>
           )}
 
+          {/* Archive confirmation row — unchanged */}
           {confirmArchive && (
             <span className={styles.confirmRow}>
               <button
@@ -501,6 +583,79 @@ export function TriviasPanel({ role }: { role: DashboardRole }) {
                 className={styles.inlineButton}
                 disabled={isPending}
                 onClick={() => { setConfirmArchive(false); setLifecycleError(null) }}
+                type="button"
+              >
+                Cancel
+              </button>
+            </span>
+          )}
+
+          {/* Duplicate trigger — non-Archived, admin only, no confirmations open */}
+          {role === 'admin' && selectedQuiz.status !== 'Archived' && allConfirmsClosed && (
+            <button
+              className={styles.inlineButton}
+              data-testid="duplicate-trivia-btn"
+              disabled={isPending}
+              onClick={() => { setLifecycleError(null); setConfirmDuplicate(true) }}
+              type="button"
+            >
+              Duplicate
+            </button>
+          )}
+
+          {/* Duplicate confirmation row */}
+          {confirmDuplicate && (
+            <span className={styles.confirmRow}>
+              <button
+                className={styles.smallButton}
+                data-testid="confirm-duplicate-btn"
+                disabled={isPending}
+                onClick={handleDuplicate}
+                type="button"
+              >
+                Confirm duplicate
+              </button>
+              <button
+                className={styles.inlineButton}
+                disabled={isPending}
+                onClick={() => { setConfirmDuplicate(false); setLifecycleError(null) }}
+                type="button"
+              >
+                Cancel
+              </button>
+            </span>
+          )}
+
+          {/* Retire trigger — used quizzes only, non-Archived, admin only, no confirmations open */}
+          {role === 'admin' && selectedQuiz.status !== 'Archived' && selectedQuiz.hasUsageHistory && allConfirmsClosed && (
+            <button
+              className={styles.inlineButton}
+              data-testid="retire-trivia-btn"
+              disabled={isPending}
+              title="Withdraw from future use — session history is preserved."
+              onClick={() => { setLifecycleError(null); setConfirmRetire(true) }}
+              type="button"
+            >
+              Retire
+            </button>
+          )}
+
+          {/* Retire confirmation row */}
+          {confirmRetire && (
+            <span className={styles.confirmRow}>
+              <button
+                className={styles.smallButton}
+                data-testid="confirm-retire-btn"
+                disabled={isPending}
+                onClick={handleRetire}
+                type="button"
+              >
+                Confirm retire
+              </button>
+              <button
+                className={styles.inlineButton}
+                disabled={isPending}
+                onClick={() => { setConfirmRetire(false); setLifecycleError(null) }}
                 type="button"
               >
                 Cancel
@@ -587,54 +742,76 @@ export function TriviasPanel({ role }: { role: DashboardRole }) {
       {listError && <p className={styles.formError}>{listError}</p>}
 
       {listData && (
-        <table className={styles.table}>
-          <thead>
-            <tr>
-              <th>Title</th>
-              <th>Description</th>
-              <th>Status</th>
-              <th>Source ready</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {listData.map((quiz) => (
-              <tr key={quiz.id} data-testid={`trivia-row-${quiz.id}`}>
-                <td>{quiz.title}</td>
-                <td>{quiz.description}</td>
-                <td>
-                  <span
-                    className={styles.chip}
-                    data-tone={statusTone(quiz.status)}
-                    data-testid={`trivia-status-${quiz.id}`}
-                  >
-                    {quiz.status}
-                  </span>
-                </td>
-                <td>
-                  <span
-                    className={styles.chip}
-                    data-tone={quiz.isSourceReady ? 'success' : 'muted'}
-                    data-testid={`trivia-source-ready-${quiz.id}`}
-                  >
-                    {quiz.isSourceReady ? 'Yes' : 'No'}
-                  </span>
-                </td>
-                <td>
-                  <button
-                    className={styles.inlineButton}
-                    data-testid={`view-trivia-btn-${quiz.id}`}
-                    disabled={isPending}
-                    onClick={() => handleOpenDetail(quiz.id)}
-                    type="button"
-                  >
-                    View details
-                  </button>
-                </td>
+          <table className={styles.table}>
+            <thead>
+              <tr>
+                <th>Title</th>
+                <th>Description</th>
+                <th>Status</th>
+                <th>Source ready</th>
+                <th>Provenance</th>
+                <th>Actions</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {listData.map((quiz) => (
+                <tr key={quiz.id} data-testid={`trivia-row-${quiz.id}`}>
+                  <td>{quiz.title}</td>
+                  <td>{quiz.description}</td>
+                  <td>
+                    <span
+                      className={styles.chip}
+                      data-tone={statusTone(quiz.status)}
+                      data-testid={`trivia-status-${quiz.id}`}
+                    >
+                      {quiz.status}
+                    </span>
+                  </td>
+                  <td>
+                    <span
+                      className={styles.chip}
+                      data-tone={quiz.isSourceReady ? 'success' : 'muted'}
+                      data-testid={`trivia-source-ready-${quiz.id}`}
+                    >
+                      {quiz.isSourceReady ? 'Yes' : 'No'}
+                    </span>
+                  </td>
+                  <td>
+                    {quiz.isDuplicate ? (
+                      <span
+                        className={styles.chip}
+                        data-tone="muted"
+                        data-testid={`trivia-copy-chip-${quiz.id}`}
+                      >
+                        Copy
+                      </span>
+                    ) : quiz.hasUsageHistory ? (
+                      <span
+                        className={styles.chip}
+                        data-tone="warning"
+                        data-testid={`trivia-usage-chip-${quiz.id}`}
+                      >
+                        Used
+                      </span>
+                    ) : (
+                      <span style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>—</span>
+                    )}
+                  </td>
+                  <td>
+                    <button
+                      className={styles.inlineButton}
+                      data-testid={`view-trivia-btn-${quiz.id}`}
+                      disabled={isPending}
+                      onClick={() => handleOpenDetail(quiz.id)}
+                      type="button"
+                    >
+                      View details
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
       )}
     </section>
   )

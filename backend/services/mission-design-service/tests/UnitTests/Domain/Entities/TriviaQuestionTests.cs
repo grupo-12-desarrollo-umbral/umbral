@@ -42,7 +42,7 @@ public class TriviaQuestionTests
     [InlineData("  ")]
     public void Create_WhenPromptIsInvalid_Throws(string? prompt)
     {
-        var act = () => TriviaQuestion.Create(prompt, 1);
+        var act = () => TriviaQuestion.Create(prompt!, 1);
 
         act.Should().Throw<TriviaQuestionPromptRequiredException>();
     }

@@ -5,4 +5,7 @@ public sealed record TriviaQuizDto(
     string Title,
     string Description,
     string Status,
-    IReadOnlyList<TriviaQuestionDto> Questions);
+    IReadOnlyList<TriviaQuestionDto> Questions,
+    int? SourceTriviaQuizId = null,
+    bool HasUsageHistory = false,
+    bool IsDuplicate = false);

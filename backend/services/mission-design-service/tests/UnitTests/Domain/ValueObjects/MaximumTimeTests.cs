@@ -70,8 +70,8 @@ public class MaximumTimeTests
         MaximumTime? nil = null;
         var a = MaximumTime.Create(45);
 
-        (a == nil).Should().BeFalse();
-        (nil == a).Should().BeFalse();
+        (a == nil!).Should().BeFalse();
+        (nil! == a).Should().BeFalse();
     }
 
     [Fact]
@@ -80,7 +80,7 @@ public class MaximumTimeTests
         MaximumTime? a = null;
         MaximumTime? b = null;
 
-        (a == b).Should().BeTrue();
+        (a! == b!).Should().BeTrue();
     }
 
     [Fact]

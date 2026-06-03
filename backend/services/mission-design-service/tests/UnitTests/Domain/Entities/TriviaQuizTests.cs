@@ -91,7 +91,7 @@ public class TriviaQuizTests
     [InlineData("  ")]
     public void Create_WhenTitleIsInvalid_Throws(string? title)
     {
-        var act = () => TriviaQuiz.Create(title, "Warm-up trivia");
+        var act = () => TriviaQuiz.Create(title!, "Warm-up trivia");
 
         act.Should().Throw<TriviaQuizTitleRequiredException>();
     }
@@ -102,7 +102,7 @@ public class TriviaQuizTests
     [InlineData("  ")]
     public void Create_WhenDescriptionIsInvalid_Throws(string? description)
     {
-        var act = () => TriviaQuiz.Create("Intro Quiz", description);
+        var act = () => TriviaQuiz.Create("Intro Quiz", description!);
 
         act.Should().Throw<TriviaQuizDescriptionRequiredException>();
     }
@@ -393,5 +393,116 @@ public class TriviaQuizTests
         var act = () => quiz.Archive(new DateTimeOffset(2026, 6, 1, 15, 0, 0, TimeSpan.Zero));
 
         act.Should().Throw<TriviaQuizCannotBeArchivedInCurrentStateException>();
+    }
+
+    [Fact]
+    public void Duplicate_CreatesSeparateDraftCopyPreservesLineageAndRaisesEvents()
+    {
+        var sourceQuiz = TriviaQuiz.Create("Intro Quiz", "Warm-up trivia");
+        sourceQuiz.Id = 41;
+        sourceQuiz.AddQuestion(
+            "Capital of France?",
+            1,
+            100,
+            45,
+            "Geography baseline",
+            [
+                TriviaOption.Create("Paris", 1, true),
+                TriviaOption.Create("Berlin", 2, false)
+            ]);
+        sourceQuiz.Publish(new DateTimeOffset(2026, 6, 1, 14, 30, 0, TimeSpan.Zero));
+        sourceQuiz.MarkAsUsedInSession();
+        sourceQuiz.ClearDomainEvents();
+
+        var duplicate = sourceQuiz.Duplicate();
+
+        duplicate.Should().NotBeSameAs(sourceQuiz);
+        duplicate.Title.Should().Be(sourceQuiz.Title);
+        duplicate.Description.Should().Be(sourceQuiz.Description);
+        duplicate.Status.Should().Be(TriviaQuizStatus.Draft);
+        duplicate.PublishedAt.Should().BeNull();
+        duplicate.SourceTriviaQuizId.Should().Be(sourceQuiz.Id);
+        duplicate.IsDuplicate.Should().BeTrue();
+        duplicate.HasUsageHistory.Should().BeFalse();
+        duplicate.IsSourceReady.Should().BeFalse();
+        duplicate.Questions.Should().ContainSingle();
+        duplicate.Questions.Single().Should().NotBeSameAs(sourceQuiz.Questions.Single());
+        duplicate.Questions.Single().Options.Should().HaveCount(2);
+        duplicate.Questions.Single().Options.First().Should().NotBeSameAs(sourceQuiz.Questions.Single().Options.First());
+        duplicate.DomainEvents.Should().ContainSingle(e => e is TriviaQuizCreatedEvent);
+        sourceQuiz.Status.Should().Be(TriviaQuizStatus.Published);
+        sourceQuiz.PublishedAt.Should().Be(new DateTimeOffset(2026, 6, 1, 14, 30, 0, TimeSpan.Zero));
+        sourceQuiz.HasUsageHistory.Should().BeTrue();
+        sourceQuiz.DomainEvents.Should().ContainSingle(e => e is TriviaQuizDuplicatedEvent);
+    }
+
+    [Fact]
+    public void RetireFromFutureUse_WhenQuizHasUsageHistory_ArchivesQuizThroughSharedWorkflow()
+    {
+        var publishedAt = new DateTimeOffset(2026, 6, 1, 14, 30, 0, TimeSpan.Zero);
+        var archivedAt = new DateTimeOffset(2026, 6, 1, 16, 0, 0, TimeSpan.Zero);
+        var quiz = TriviaQuiz.Create("Intro Quiz", "Warm-up trivia");
+        quiz.AddQuestion(
+            "Capital of France?",
+            1,
+            100,
+            45,
+            null,
+            [
+                TriviaOption.Create("Paris", 1, true),
+                TriviaOption.Create("Berlin", 2, false)
+            ]);
+        quiz.Publish(publishedAt);
+        quiz.MarkAsUsedInSession();
+        quiz.ClearDomainEvents();
+
+        quiz.RetireFromFutureUse(archivedAt);
+
+        quiz.Status.Should().Be(TriviaQuizStatus.Archived);
+        quiz.PublishedAt.Should().Be(publishedAt);
+        quiz.HasUsageHistory.Should().BeTrue();
+        quiz.DomainEvents.Should().ContainSingle(e => e is TriviaQuizArchivedEvent);
+    }
+
+    [Fact]
+    public void RetireFromFutureUse_WhenQuizHasNoUsageHistory_Throws()
+    {
+        var quiz = TriviaQuiz.Create("Intro Quiz", "Warm-up trivia");
+        quiz.AddQuestion(
+            "Capital of France?",
+            1,
+            100,
+            45,
+            null,
+            [
+                TriviaOption.Create("Paris", 1, true),
+                TriviaOption.Create("Berlin", 2, false)
+            ]);
+        quiz.Publish(new DateTimeOffset(2026, 6, 1, 14, 30, 0, TimeSpan.Zero));
+
+        var act = () => quiz.RetireFromFutureUse(new DateTimeOffset(2026, 6, 1, 16, 0, 0, TimeSpan.Zero));
+
+        act.Should().Throw<TriviaQuizCannotBeRetiredWithoutUsageHistoryException>();
+    }
+
+    [Fact]
+    public void EnsureCanBeDestructivelyRemoved_WhenQuizHasUsageHistory_Throws()
+    {
+        var quiz = TriviaQuiz.Create("Intro Quiz", "Warm-up trivia");
+        quiz.MarkAsUsedInSession();
+
+        var act = () => quiz.EnsureCanBeDestructivelyRemoved();
+
+        act.Should().Throw<TriviaQuizCannotBeDestructivelyRemovedAfterUsageException>();
+    }
+
+    [Fact]
+    public void EnsureCanBeDestructivelyRemoved_WhenQuizHasNoUsageHistory_AllowsRemoval()
+    {
+        var quiz = TriviaQuiz.Create("Intro Quiz", "Warm-up trivia");
+
+        var act = () => quiz.EnsureCanBeDestructivelyRemoved();
+
+        act.Should().NotThrow();
     }
 }

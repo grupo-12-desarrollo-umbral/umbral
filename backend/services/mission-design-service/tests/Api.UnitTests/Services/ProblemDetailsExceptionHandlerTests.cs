@@ -117,6 +117,32 @@ public class ProblemDetailsExceptionHandlerTests
     }
 
     [Fact]
+    public async Task TryHandleAsync_TriviaQuizCannotBeDestructivelyRemovedAfterUsageException_Returns409()
+    {
+        var httpContext = CreateHttpContext();
+        var problem = await InvokeHandlerAndReadProblemDetails(
+            httpContext,
+            new TriviaQuizCannotBeDestructivelyRemovedAfterUsageException());
+
+        problem.Status.Should().Be(409);
+        problem.Title.Should().Be("Trivia quiz cannot be removed destructively after usage.");
+        httpContext.Response.StatusCode.Should().Be(409);
+    }
+
+    [Fact]
+    public async Task TryHandleAsync_TriviaQuizCannotBeRetiredWithoutUsageHistoryException_Returns409()
+    {
+        var httpContext = CreateHttpContext();
+        var problem = await InvokeHandlerAndReadProblemDetails(
+            httpContext,
+            new TriviaQuizCannotBeRetiredWithoutUsageHistoryException());
+
+        problem.Status.Should().Be(409);
+        problem.Title.Should().Be("Trivia quiz cannot be retired without usage history.");
+        httpContext.Response.StatusCode.Should().Be(409);
+    }
+
+    [Fact]
     public async Task TryHandleAsync_UnknownException_Returns500()
     {
         var httpContext = CreateHttpContext();
