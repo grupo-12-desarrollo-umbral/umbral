@@ -165,6 +165,16 @@ ask the driver** — do not silently drop it.
 
 Coverage exclusions allowed only on: `Program.cs`, DI extension methods, generated EF migrations. Never exclude Domain or Application code.
 
+To verify your code locally, always go through the sandbox-hardened Makefile —
+never call `dotnet`/`docker` directly:
+
+    make -C backend build SVC=<service>   # compile Api + test projects
+    make -C backend test  SVC=<service>   # run unit + integration tests
+    make -C backend ef    SVC=<service> ARGS="migrations add Foo"
+
+The wrapper opts out of the first-run telemetry network call and disables
+MSBuild node-reuse so the build survives the agent sandbox.
+
 ---
 
 ## Skills available

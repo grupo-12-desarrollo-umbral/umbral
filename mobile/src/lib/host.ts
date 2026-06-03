@@ -27,6 +27,10 @@ export function apiBaseUrl(): string {
   return process.env.EXPO_PUBLIC_API_BASE_URL ?? '';
 }
 
+export function hubBaseUrl(): string {
+  return `${apiBaseUrl()}/hubs/sessions`;
+}
+
 export function keycloakBaseUrl(): string {
   const host = devHost();
   if (host) return `http://${host}:8080`;

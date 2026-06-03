@@ -99,6 +99,7 @@ export default function TeamLobbyScreen() {
 
   async function handleTeamSelect(teamId: string) {
     if (isJoining || !liveSessionId) return;
+    const selectedTeam = teams.find((team) => team.teamId === teamId);
     resetJoin();
     resetAccess();
     setJoiningTeamId(teamId);
@@ -123,6 +124,10 @@ export default function TeamLobbyScreen() {
         params: {
           liveSessionId: accessOutcome.decision.liveSessionId,
           teamId: accessOutcome.decision.teamId,
+          teamCapacity:
+            typeof selectedTeam?.teamCapacity === 'number'
+              ? String(selectedTeam.teamCapacity)
+              : undefined,
           reason: accessOutcome.decision.reason,
         },
       } as Href);
