@@ -1,0 +1,102 @@
+.timerPanel {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.timerLabel {
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  margin-bottom: 0.35rem;
+}
+
+.timerRow {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.timerValue {
+  font-size: 2rem;
+  line-height: 1;
+  letter-spacing: -0.06em;
+  font-variant-numeric: tabular-nums;
+}
+
+.timerValue[data-placeholder="true"] {
+  color: var(--text-muted);
+}
+
+.timerChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  width: fit-content;
+  padding: 0.3rem 0.55rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: 999px;
+  font-size: 0.74rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.timerChip[data-tone="running"] {
+  color: var(--accent-strong);
+  border-color: color-mix(in oklab, var(--accent) 32%, var(--border-subtle));
+  background: color-mix(in oklab, var(--accent-soft) 48%, transparent);
+}
+
+.timerChip[data-tone="frozen"] {
+  color: color-mix(in oklab, var(--warning) 66%, var(--text-primary));
+  border-color: color-mix(in oklab, var(--warning) 32%, var(--border-subtle));
+  background: color-mix(in oklab, var(--warning) 12%, transparent);
+}
+
+.timerChip[data-tone="expired"] {
+  color: color-mix(in oklab, var(--critical) 70%, var(--text-primary));
+  border-color: color-mix(in oklab, var(--critical) 32%, var(--border-subtle));
+  background: color-mix(in oklab, var(--critical) 12%, transparent);
+}
+
+.timerChip[data-tone="unavailable"] {
+  color: var(--text-secondary);
+  border-color: var(--border-subtle);
+  background: color-mix(in oklab, var(--surface-raised) 70%, transparent);
+}
+
+.progressTrack {
+  margin-top: 0.75rem;
+  height: 0.35rem;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--surface-raised) 80%, var(--border-subtle));
+  overflow: hidden;
+}
+
+.progressFill {
+  height: 100%;
+  border-radius: 999px;
+  transition: width 400ms ease-out;
+  background: var(--accent);
+}
+
+.progressFill[data-tone="expired"] {
+  background: var(--critical);
+}
+
+.progressFill[data-tone="frozen"] {
+  background: var(--warning);
+}
+
+.progressFill[data-tone="unavailable"] {
+  background: var(--border-subtle);
+}
+
+.errorMessage {
+  margin-top: 0.4rem;
+  color: var(--text-secondary);
+  font-size: 0.82rem;
+}

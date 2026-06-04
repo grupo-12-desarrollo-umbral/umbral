@@ -10,7 +10,9 @@ import { hubBaseUrl } from '@/lib/host';
 import type {
   ReconnectParticipantHubRequest,
   ReconnectParticipantResultDto,
+  SessionStateChangedNotificationDto,
 } from './sessions-hub-types';
+import type { SessionTimerUpdatedNotificationDto } from './timer-types';
 
 const KEEP_ALIVE_INTERVAL_MS = 15_000;
 const SERVER_TIMEOUT_MS = 30_000;
@@ -23,6 +25,12 @@ export type SessionsHubClient = {
     liveSessionId: string,
     request: ReconnectParticipantHubRequest,
   ) => Promise<ReconnectParticipantResultDto>;
+  onTimerUpdated: (
+    cb: (notification: SessionTimerUpdatedNotificationDto) => void,
+  ) => () => void;
+  onStateChanged: (
+    cb: (notification: SessionStateChangedNotificationDto) => void,
+  ) => () => void;
 };
 
 export function createSessionsHubConnection(): SessionsHubClient {
@@ -56,6 +64,14 @@ export function createSessionsHubConnection(): SessionsHubClient {
         liveSessionId,
         request,
       );
+    },
+    onTimerUpdated(cb) {
+      connection.on('SessionTimerUpdated', cb);
+      return () => connection.off('SessionTimerUpdated', cb);
+    },
+    onStateChanged(cb) {
+      connection.on('SessionStateChanged', cb);
+      return () => connection.off('SessionStateChanged', cb);
     },
   };
 }

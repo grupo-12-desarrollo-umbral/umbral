@@ -45,7 +45,53 @@ public sealed class ReconnectAuthenticatedParticipantCommandHandlerTests
         result.ParticipantDisplayName.Should().Be("Nora");
         result.SessionState.Should().Be(SessionState.Scheduled.ToString());
         result.LastSeenAt.Should().Be(new DateTimeOffset(2026, 6, 3, 10, 7, 0, TimeSpan.Zero));
+        result.Timer.Should().NotBeNull();
+        result.Timer!.RemainingSeconds.Should().Be(2700);
+        result.Timer.TimerStatus.Should().Be("Frozen");
         repository.Verify(repo => repo.UpdateAsync(session, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task Handle_WhenParticipantReconnectsToActiveSession_ReturnsAuthoritativeTimerSnapshot()
+    {
+        var session = CreateScheduledSession();
+        var identityReferenceTeamId = Guid.NewGuid();
+        var team = session.RegisterTeam(identityReferenceTeamId, "Alpha", "A-01", 4);
+        var participantIdentity = Guid.NewGuid();
+        var joinedAt = new DateTimeOffset(2026, 6, 3, 10, 0, 0, TimeSpan.Zero);
+        var activeAt = joinedAt.AddMinutes(2);
+        var reconnectAt = activeAt.AddMinutes(5);
+        var firstAdmission = session.AdmitParticipant(
+            participantIdentity,
+            "Nora",
+            identityReferenceTeamId,
+            joinedAt,
+            new JoinPolicy());
+        var transitionPolicy = new SessionStateTransitionPolicy();
+        session.MoveTo(SessionState.Preparing, joinedAt.AddMinutes(1), transitionPolicy);
+        session.MoveTo(SessionState.Active, activeAt, transitionPolicy);
+        session.DisconnectParticipant(firstAdmission.Participant.SessionParticipantId, activeAt.AddMinutes(3));
+
+        var repository = CreateRepository(session);
+        var accessClient = CreateAccessClient(session.LiveSessionId, identityReferenceTeamId, isAllowed: true);
+        var currentUser = CreateCurrentUser(participantIdentity);
+        var command = new ReconnectAuthenticatedParticipantCommand(
+            session.LiveSessionId,
+            identityReferenceTeamId,
+            "Nora",
+            null);
+        var handler = CreateHandler(repository, accessClient, currentUser, new FixedTimeProvider(reconnectAt));
+
+        var result = await handler.Handle(command, CancellationToken.None);
+
+        result.IsReconnect.Should().BeTrue();
+        result.TeamId.Should().Be(team.TeamId);
+        result.Timer.Should().NotBeNull();
+        result.Timer!.SessionState.Should().Be(nameof(SessionState.Active));
+        result.Timer.RemainingSeconds.Should().Be(2400);
+        result.Timer.TimerStatus.Should().Be("Advancing");
+        result.Timer.IsAdvancing.Should().BeTrue();
+        result.Timer.AdvancingSince.Should().Be(activeAt);
     }
 
     [Fact]

@@ -2,6 +2,7 @@ using umbral_backend.Domain.Enums;
 using umbral_backend.Domain.Events;
 using umbral_backend.Domain.Exceptions;
 using umbral_backend.Domain.Services;
+using umbral_backend.Domain.Services.SessionStates;
 using umbral_backend.Domain.ValueObjects;
 
 namespace umbral_backend.Domain.Entities;
@@ -11,6 +12,10 @@ public sealed class LiveSession : BaseAuditableEntity
     private readonly List<Team> _teams = new();
     private readonly List<SessionParticipant> _participants = new();
     private readonly List<JoinContext> _joinContexts = new();
+    private TimeSpan _sessionTimerTotalDuration;
+    private TimeSpan _sessionTimerRemainingDuration;
+    private DateTimeOffset? _sessionTimerAdvancingSince;
+    private DateTimeOffset? _sessionTimerExpiredAt;
 
     private LiveSession()
     {
@@ -20,6 +25,8 @@ public sealed class LiveSession : BaseAuditableEntity
         Source = null!;
         MaximumTime = null!;
         TriviaSnapshot = null;
+        _sessionTimerTotalDuration = TimeSpan.Zero;
+        _sessionTimerRemainingDuration = TimeSpan.Zero;
     }
 
     private LiveSession(
@@ -55,6 +62,8 @@ public sealed class LiveSession : BaseAuditableEntity
         LastStateChangedAt = scheduledAt;
         MaximumTime = maximumTime;
         TriviaSnapshot = triviaSnapshot;
+        _sessionTimerTotalDuration = TimeSpan.FromMinutes(maximumTime.Minutes);
+        _sessionTimerRemainingDuration = _sessionTimerTotalDuration;
     }
 
     public Guid LiveSessionId { get; private set; }
@@ -84,6 +93,8 @@ public sealed class LiveSession : BaseAuditableEntity
     public string? StateReason { get; private set; }
 
     public MaximumTime MaximumTime { get; private set; }
+
+    public bool IsSessionTimerAdvancing => LiveSessionStateFactory.For(State).IsSessionTimerAdvancing(this);
 
     public int? AssignedOperatorUserId { get; private set; }
 
@@ -244,24 +255,19 @@ public sealed class LiveSession : BaseAuditableEntity
         LastStateChangedAt = occurredAt;
         StateReason = string.IsNullOrWhiteSpace(reason) ? null : reason.Trim();
 
-        switch (nextState)
-        {
-            case SessionState.Active:
-                StartedAt ??= occurredAt;
-                PausedAt = null;
-                break;
-            case SessionState.Paused:
-                PausedAt = occurredAt;
-                break;
-            case SessionState.Finished:
-                EndedAt = occurredAt;
-                break;
-            case SessionState.Cancelled:
-                CancelledAt = occurredAt;
-                break;
-        }
+        LiveSessionStateFactory.For(nextState).Enter(this, occurredAt);
 
         AddDomainEvent(new SessionStateChangedEvent(LiveSessionId, previousState, nextState, occurredAt));
+    }
+
+    public AuthoritativeSessionTimerSnapshot GetAuthoritativeSessionTimerSnapshot(DateTimeOffset observedAt)
+    {
+        return LiveSessionStateFactory.For(State).GetTimerSnapshot(this, observedAt);
+    }
+
+    public AuthoritativeSessionTimerSnapshot MarkSessionTimerExpiredIfElapsed(DateTimeOffset occurredAt)
+    {
+        return LiveSessionStateFactory.For(State).MarkTimerExpiredIfElapsed(this, occurredAt);
     }
 
     public void AssignOperator(int operatorUserId, DateTimeOffset occurredAt)
@@ -279,6 +285,126 @@ public sealed class LiveSession : BaseAuditableEntity
             previousOperatorUserId,
             AssignedOperatorUserId,
             occurredAt));
+    }
+
+    internal bool HasAdvancingSessionTimer()
+    {
+        return _sessionTimerAdvancingSince.HasValue &&
+            _sessionTimerExpiredAt is null &&
+            _sessionTimerRemainingDuration > TimeSpan.Zero;
+    }
+
+    internal void EnterActiveSessionState(DateTimeOffset occurredAt)
+    {
+        StartedAt ??= occurredAt;
+        PausedAt = null;
+
+        if (_sessionTimerExpiredAt is not null || _sessionTimerRemainingDuration <= TimeSpan.Zero)
+        {
+            _sessionTimerRemainingDuration = TimeSpan.Zero;
+            _sessionTimerAdvancingSince = null;
+            _sessionTimerExpiredAt ??= occurredAt;
+            return;
+        }
+
+        _sessionTimerAdvancingSince = occurredAt;
+    }
+
+    internal void EnterPausedSessionState(DateTimeOffset occurredAt)
+    {
+        FreezeSessionTimer(occurredAt);
+        PausedAt = occurredAt;
+    }
+
+    internal void EnterFinishedSessionState(DateTimeOffset occurredAt)
+    {
+        FreezeSessionTimer(occurredAt);
+        EndedAt = occurredAt;
+    }
+
+    internal void EnterCancelledSessionState(DateTimeOffset occurredAt)
+    {
+        FreezeSessionTimer(occurredAt);
+        CancelledAt = occurredAt;
+    }
+
+    internal AuthoritativeSessionTimerSnapshot GetAdvancingSessionTimerSnapshot(DateTimeOffset observedAt)
+    {
+        var remaining = CalculateAdvancingSessionTimerRemaining(observedAt);
+        var expired = _sessionTimerExpiredAt.HasValue || remaining <= TimeSpan.Zero;
+
+        return AuthoritativeSessionTimerSnapshot.Create(
+            _sessionTimerTotalDuration,
+            remaining,
+            isAdvancing: !expired && HasAdvancingSessionTimer(),
+            observedAt,
+            _sessionTimerAdvancingSince,
+            _sessionTimerExpiredAt);
+    }
+
+    internal AuthoritativeSessionTimerSnapshot GetFrozenSessionTimerSnapshot(DateTimeOffset observedAt)
+    {
+        return AuthoritativeSessionTimerSnapshot.Create(
+            _sessionTimerTotalDuration,
+            _sessionTimerExpiredAt.HasValue ? TimeSpan.Zero : _sessionTimerRemainingDuration,
+            isAdvancing: false,
+            observedAt,
+            advancingSince: null,
+            _sessionTimerExpiredAt);
+    }
+
+    internal AuthoritativeSessionTimerSnapshot MarkAdvancingSessionTimerExpiredIfElapsed(DateTimeOffset occurredAt)
+    {
+        var remaining = CalculateAdvancingSessionTimerRemaining(occurredAt);
+        if (remaining > TimeSpan.Zero)
+        {
+            return GetAdvancingSessionTimerSnapshot(occurredAt);
+        }
+
+        _sessionTimerRemainingDuration = TimeSpan.Zero;
+        _sessionTimerAdvancingSince = null;
+        _sessionTimerExpiredAt ??= occurredAt;
+
+        return GetFrozenSessionTimerSnapshot(occurredAt);
+    }
+
+    private void FreezeSessionTimer(DateTimeOffset occurredAt)
+    {
+        if (_sessionTimerAdvancingSince is null)
+        {
+            return;
+        }
+
+        _sessionTimerRemainingDuration = CalculateAdvancingSessionTimerRemaining(occurredAt);
+        _sessionTimerAdvancingSince = null;
+
+        if (_sessionTimerRemainingDuration <= TimeSpan.Zero)
+        {
+            _sessionTimerRemainingDuration = TimeSpan.Zero;
+            _sessionTimerExpiredAt ??= occurredAt;
+        }
+    }
+
+    private TimeSpan CalculateAdvancingSessionTimerRemaining(DateTimeOffset observedAt)
+    {
+        if (_sessionTimerExpiredAt.HasValue)
+        {
+            return TimeSpan.Zero;
+        }
+
+        if (_sessionTimerAdvancingSince is null)
+        {
+            return _sessionTimerRemainingDuration;
+        }
+
+        var elapsed = observedAt - _sessionTimerAdvancingSince.Value;
+        if (elapsed <= TimeSpan.Zero)
+        {
+            return _sessionTimerRemainingDuration;
+        }
+
+        var remaining = _sessionTimerRemainingDuration - elapsed;
+        return remaining > TimeSpan.Zero ? remaining : TimeSpan.Zero;
     }
 
     private Team GetTeam(Guid teamId)

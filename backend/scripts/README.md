@@ -5,8 +5,7 @@ Scripts auxiliares para desarrollo, testing y cobertura del backend. Ejecútalos
 | Script | Propósito |
 |--------|-----------|
 | [`dev-up.sh`](#pipeline-dev-upsh) | **Pipeline de desarrollo**: levanta la pila y la siembra en un solo comando |
-| [`seed-dev-data.sh`](#seed-dev-datash) | Siembra datos de desarrollo alineados en `identity_access` y `session_operations` |
-| [`seed-users.sh`](#seed-userssh) | Crea usuarios de desarrollo en Keycloak + 4 equipos con participantes, y los aprovisiona en `identity_access` |
+| [`seed-all.sh`](#seed-allsh) | Siembra completa: quizzes, sesiones, equipos, usuarios Keycloak y membresías — todo en un solo script |
 | [`cover.sh`](#coversh) | Ejecuta tests de un servicio y genera el reporte de cobertura HTML |
 | [`cover-gate.sh`](#cover-gatesh) | Gate de cobertura canónico (ADR-0005): mergea coverlet y aplica el umbral |
 
@@ -18,8 +17,7 @@ El "pipeline" de desarrollo local: recrea la pila con hot-reload y la siembra en
 
 1. `docker compose down -v --remove-orphans` — borra los volúmenes para empezar de cero (omitir con `--keep`).
 2. `docker compose up -d --wait` — bloquea hasta que los servicios con healthcheck (**postgres**, **keycloak**) estén sanos.
-3. `seed-dev-data.sh` — siembra las sesiones (psql directo; solo necesita postgres).
-4. Espera a que el gateway escuche en `:8000` y ejecuta `seed-users.sh` (usuarios + equipos) **best-effort**: si el gateway aún está compilando, avisa en vez de tumbar la corrida.
+3. `seed-all.sh` — siembra todo (psql → espera gateway → API). Si el gateway aún está compilando, avisa en vez de tumbar la corrida.
 
 **Uso**
 
@@ -32,12 +30,17 @@ El "pipeline" de desarrollo local: recrea la pila con hot-reload y la siembra en
 
 ---
 
-## `seed-dev-data.sh`
+## `seed-all.sh`
 
-Siembra datos de desarrollo **alineados entre dos bases de datos** —`identity_access` y `session_operations`— escribiendo **directamente con `psql`** (no pasa por la API ni por el gateway). Crea una sesión en cada estado del ciclo de vida para que puedas validar el flujo de unión (*join* / *late-join*) en la UI móvil:
+Fusión de los dos scripts anteriores en uno solo. Combina la siembra directa a PostgreSQL con el aprovisionamiento vía API:
+
+1. **Siembra vía `psql`** — 5 quizzes de trivia (3 Published, 1 Draft, 1 Archived) en `mission_design`; 7 sesiones (SMOKE1–SMOKE7) en cada estado del ciclo de vida, cada una con 2 equipos asociados, en `identity_access` y `session_operations`.
+2. **Espera** a que el gateway conteste en `:8000`.
+3. **Siembra vía API** — 12 usuarios en Keycloak (admin, 3 operators, 8 participants), los bootstrapea en `identity_access` a través del gateway, registra 4 equipos app-level (Delta, Echo, Bismarck, Los Panas) y asigna 2 participantes por equipo.
 
 | Código | Estado | Comportamiento esperado al unirse |
 |--------|--------|-----------------------------------|
+| `SMOKE1` | `Scheduled` | primera unión tiene éxito (3 min tras seed) |
 | `SMOKE2` | `Active` | "The session has moved on — late join isn't allowed." |
 | `SMOKE3` | `Scheduled` | la primera unión tiene éxito |
 | `SMOKE4` | `Preparing` | la primera unión tiene éxito |
@@ -45,19 +48,15 @@ Siembra datos de desarrollo **alineados entre dos bases de datos** —`identity_
 | `SMOKE6` | `Finished` | "The session has moved on — late join isn't allowed." |
 | `SMOKE7` | `Cancelled` | "The session has moved on — late join isn't allowed." |
 
-Cada sesión recibe un `id` y un `team` deterministas; los equipos comparten el mismo GUID en ambas bases de datos. Es **idempotente** (`ON CONFLICT DO NOTHING`): seguro de ejecutar varias veces.
+Idempotente: `ON CONFLICT DO NOTHING` en las inserciones SQL y detección de `409` en las llamadas API.
 
 **Uso**
 
 ```bash
-./backend/scripts/seed-dev-data.sh
+./backend/scripts/seed-all.sh
 ```
 
-Apunta a otro host de PostgreSQL con variables de entorno `PG*`:
-
-```bash
-PGHOST=192.168.1.50 ./backend/scripts/seed-dev-data.sh
-```
+**Variables de entorno para la parte psql**
 
 | Variable | Por defecto |
 |----------|-------------|
@@ -66,30 +65,12 @@ PGHOST=192.168.1.50 ./backend/scripts/seed-dev-data.sh
 | `PGUSER` | `postgres` |
 | `PGPASSWORD` | `postgres` |
 
-> Requiere `psql` en el `PATH` y acceso directo a las dos bases de datos (con la pila de docker-compose levantada, los puertos de PostgreSQL están expuestos en `localhost`).
-
----
-
-## `seed-users.sh`
-
-Asegura que las identidades base de desarrollo del realm importado (`admin`, `operator`, `operator2`, `participant`), el operador adicional (`operator3`) y ocho participantes (`participant01` … `participant08`) existan y queden aprovisionados en la aplicación. Para las cuentas ya importadas en el realm, reutiliza la identidad existente; para las nuevas, las crea en **Keycloak** usando la Admin API del realm `master`. Después autentica cada cuenta contra el realm `umbral` para llamar a `POST /api/users/authenticated` a través del gateway. Así quedan alineados tanto la identidad externa como la fila interna en `identity_access.users`.
-
-Después de los usuarios, siembra **4 equipos** (`Delta`, `Echo`, `Bismarck`, `Los Panas`) vía `POST /api/teams` y asigna los ocho participantes **2 por equipo** vía `POST /api/teams/{id}/participants` (resuelve el `UserId` interno con `GET /api/users/me`). Esto requiere un token de app con rol `Administrator`/`Operator` (usa `admin`).
-
-Es **idempotente**: si la identidad ya existe en Keycloak, la reutiliza; los equipos ya existentes (`409`) se reutilizan y las membresías ya existentes (`409`) se omiten; en todos los casos vuelve a sincronizar el rol de realm y reejecuta el bootstrap del usuario en la aplicación.
-
-**Uso**
-
-```bash
-./backend/scripts/seed-users.sh
-# o apuntando a otra URL base / instancia de Keycloak:
-./backend/scripts/seed-users.sh http://localhost:8000 http://localhost:8080
-```
-
-**Variables de entorno**
+**Variables de entorno para la parte API / Keycloak**
 
 | Variable | Por defecto |
 |----------|-------------|
+| `BASE_URL` | `http://localhost:8000` |
+| `KEYCLOAK_URL` | `http://localhost:8080` |
 | `REALM` | `umbral` |
 | `WEB_CLIENT_ID` | `umbral-web` |
 | `MASTER_REALM` | `master` |
@@ -99,7 +80,13 @@ Es **idempotente**: si la identidad ya existe en Keycloak, la reutiliza; los equ
 | `OPERATOR_PASSWORD` | `operator123` |
 | `PARTICIPANT_PASSWORD` | `participant123` |
 
-> Este script no escribe directo a PostgreSQL. La fuente de verdad de credenciales sigue siendo Keycloak; la fuente de verdad del perfil interno sigue siendo el flujo de bootstrap de `identity-access-service`.
+> Los scripts originales `seed-dev-data.sh` y `seed-users.sh` se conservan para quien necesite ejecutar solo una fase.
+
+Si solo quieres datos de sesión (sin usuarios Keycloak ni equipos con miembros):
+
+```bash
+docker compose down -v && docker compose up -d --wait && ./scripts/seed-dev-data.sh
+```
 
 ---
 

@@ -51,8 +51,29 @@ public sealed class SessionsHub : Hub
         await Groups.AddToGroupAsync(Context.ConnectionId, BuildLiveSessionGroup(result.LiveSessionId), cancellationToken);
         await Groups.AddToGroupAsync(Context.ConnectionId, BuildTeamGroup(result.TeamId), cancellationToken);
         await Groups.AddToGroupAsync(Context.ConnectionId, BuildParticipantGroup(result.SessionParticipantId), cancellationToken);
+        _connectionTracker.Add(Context.ConnectionId, result.LiveSessionId, result.SessionParticipantId);
 
         return result;
+    }
+
+    public override async Task OnDisconnectedAsync(Exception? exception)
+    {
+        _userContext.Principal = Context.User;
+
+        if (_connectionTracker.TryRemove(
+            Context.ConnectionId,
+            out var participant,
+            out var hasRemainingConnections) &&
+            !hasRemainingConnections)
+        {
+            await _sender.Send(
+                new DisconnectParticipantCommand(
+                    participant.LiveSessionId,
+                    participant.SessionParticipantId),
+                CancellationToken.None);
+        }
+
+        await base.OnDisconnectedAsync(exception);
     }
 
     public async Task JoinLiveSessionAsOperatorAsync(Guid liveSessionId)

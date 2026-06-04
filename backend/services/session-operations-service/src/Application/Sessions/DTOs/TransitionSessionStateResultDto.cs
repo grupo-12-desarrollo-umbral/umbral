@@ -4,4 +4,5 @@ public sealed record TransitionSessionStateResultDto(
     Guid LiveSessionId,
     string PreviousState,
     string CurrentState,
-    DateTimeOffset TransitionedAt);
+    DateTimeOffset TransitionedAt,
+    SessionTimerSnapshotDto? Timer = null);

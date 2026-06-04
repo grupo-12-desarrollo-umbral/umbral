@@ -10,6 +10,7 @@ set -euo pipefail
 #
 # Sessions in each lifecycle state so you can validate the mobile UI:
 #
+#   SMOKE1  Scheduled  → first join succeeds (scheduled 3 min after seed)
 #   SMOKE2  Active     → "The session has moved on — late join isn't allowed."
 #   SMOKE3  Scheduled  → first join succeeds
 #   SMOKE4  Preparing  → first join succeeds
@@ -37,19 +38,30 @@ PGUSER="${PGUSER:-postgres}"
 PGPASSWORD="${PGPASSWORD:-postgres}"
 export PGPASSWORD
 
+# Wait for EF Core migrations to create the tables in each database
+echo "Waiting for session_operations.live_sessions table …"
+for i in $(seq 1 20); do
+  psql -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d session_operations -c '
+    SELECT 1 FROM live_sessions LIMIT 1;
+  ' &>/dev/null && break
+  echo "  attempt $i/20 — not ready yet, waiting 2s …"
+  sleep 2
+done
+
 echo "Cleaning dirty dev data …"
 psql -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d identity_access -c "
   DELETE FROM live_sessions WHERE session_code = 'RSF231';
 "
 psql -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d session_operations -c "
   DELETE FROM live_sessions WHERE session_code = 'RSF231';
-"
+" 2>/dev/null || true
 
 # ---------------------------------------------------------------------------
 # Each session gets a deterministic base ID and team ID.
 # Teams share the same GUID in both databases.
 # ---------------------------------------------------------------------------
 declare -A SESSIONS=(
+  [SMOKE1]=b1000000-0000-0000-0000-000000000000:Scheduled:b1000000-0000-0000-0000-000000000016:DV-SOON:Soon
   [SMOKE2]=b1000000-0000-0000-0000-000000000001:Active:b1000000-0000-0000-0000-000000000010:DV-SMK:Smoke
   [SMOKE3]=b1000000-0000-0000-0000-000000000002:Scheduled:b1000000-0000-0000-0000-000000000011:DV-ECH:Echo
   [SMOKE4]=b1000000-0000-0000-0000-000000000003:Preparing:b1000000-0000-0000-0000-000000000012:DV-FOX:Foxtrot
@@ -272,6 +284,8 @@ done
 echo "Seeding session_operations …"
 for CODE in "${!SESSIONS[@]}"; do
   IFS=: read -r SID STATE TID TCODE TDISPLAY <<< "${SESSIONS[$CODE]}"
+  SCHEDULED_AT="now()"
+  [[ "$CODE" == "SMOKE1" ]] && SCHEDULED_AT="now() + interval '3 minutes'"
 
   psql -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d session_operations -c "
     INSERT INTO live_sessions (
@@ -282,10 +296,49 @@ for CODE in "${!SESSIONS[@]}"; do
     ) VALUES (
       '$SID', 'TreasureHunt', 'Mission', gen_random_uuid(),
       '$CODE', '$TDISPLAY Team', '$STATE',
-      now(), now(), 60,
+      $SCHEDULED_AT, now(), 60,
       now(), now()
     )
     ON CONFLICT (id) DO NOTHING;
+  "
+  psql -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d session_operations -c "
+    INSERT INTO live_session_teams (
+      id, live_session_id, team_code, display_name,
+      team_capacity, current_score, released_clue_count, join_status
+    ) VALUES (
+      '$TID', '$SID', '$TCODE', '$TDISPLAY Team',
+      10, null, 0, 'Open'
+    )
+    ON CONFLICT (id) DO NOTHING;
+  "
+done
+
+# ---------------------------------------------------------------------------
+# Second team per session
+# ---------------------------------------------------------------------------
+declare -A SECOND_TEAMS=(
+  [SMOKE1]=b2000000-0000-0000-0000-000000000016:DV-SN2:Soon2
+  [SMOKE2]=b2000000-0000-0000-0000-000000000010:DV-SM2:Smoke2
+  [SMOKE3]=b2000000-0000-0000-0000-000000000011:DV-EC2:Echo2
+  [SMOKE4]=b2000000-0000-0000-0000-000000000012:DV-FX2:Foxtrot2
+  [SMOKE5]=b2000000-0000-0000-0000-000000000013:DV-GL2:Golf2
+  [SMOKE6]=b2000000-0000-0000-0000-000000000014:DV-HT2:Hotel2
+  [SMOKE7]=b2000000-0000-0000-0000-000000000015:DV-IN2:India2
+)
+
+for CODE in "${!SECOND_TEAMS[@]}"; do
+  IFS=: read -r TID TCODE TDISPLAY <<< "${SECOND_TEAMS[$CODE]}"
+  IFS=: read -r SID _ _ _ _ <<< "${SESSIONS[$CODE]}"
+
+  psql -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d identity_access -c "
+    INSERT INTO teams (id, display_name, team_code, is_active, created_at, updated_at)
+    VALUES ('$TID', '$TDISPLAY Team', '$TCODE', true, now(), now())
+    ON CONFLICT (id) DO NOTHING;
+  "
+  psql -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d identity_access -c "
+    INSERT INTO session_team_associations (id, live_session_id, team_id)
+    VALUES (gen_random_uuid(), '$SID', '$TID')
+    ON CONFLICT (live_session_id, team_id) DO NOTHING;
   "
   psql -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d session_operations -c "
     INSERT INTO live_session_teams (

@@ -6,6 +6,8 @@ using umbral_backend.Application.Sessions.Commands.CreateTriviaSession;
 using umbral_backend.Application.Sessions.Commands.ReconnectAuthenticatedParticipant;
 using umbral_backend.Application.Sessions.Commands.TransitionSessionState;
 using umbral_backend.Application.Sessions.DTOs;
+using umbral_backend.Application.Sessions.Queries.GetOperatorSessionTimerSnapshot;
+using umbral_backend.Application.Sessions.Queries.GetParticipantSessionTimerSnapshot;
 using umbral_backend.Application.Sessions.Queries.GetAssociatedTeamsForSession;
 using umbral_backend.Application.Sessions.Queries.ListAssignableSessions;
 using umbral_backend.Domain.Enums;
@@ -38,6 +40,12 @@ public sealed class SessionsEndpoints : IEndpointGroup
 
         sessions.MapPost("/{liveSessionId:guid}/participants/reconnect", ReconnectParticipantAsync)
             .RequireAuthorization(AuthorizationPolicies.Participant);
+
+        sessions.MapGet("/{liveSessionId:guid}/participants/timer", GetParticipantTimerSnapshotAsync)
+            .RequireAuthorization(AuthorizationPolicies.Participant);
+
+        sessions.MapGet("/{liveSessionId:guid}/timer", GetOperatorTimerSnapshotAsync)
+            .RequireAuthorization(AuthorizationPolicies.Operator);
     }
 
     private static async Task<Created<CreateTriviaSessionResultDto>> CreateTriviaSessionAsync(
@@ -98,6 +106,32 @@ public sealed class SessionsEndpoints : IEndpointGroup
                 request.TeamId,
                 request.DisplayName,
                 request.Token),
+            cancellationToken);
+
+        return TypedResults.Ok(result);
+    }
+
+    private static async Task<Ok<SessionTimerSnapshotDto>> GetParticipantTimerSnapshotAsync(
+        Guid liveSessionId,
+        Guid teamId,
+        string? token,
+        ISender sender,
+        CancellationToken cancellationToken)
+    {
+        var result = await sender.Send(
+            new GetParticipantSessionTimerSnapshotQuery(liveSessionId, teamId, token),
+            cancellationToken);
+
+        return TypedResults.Ok(result);
+    }
+
+    private static async Task<Ok<SessionTimerSnapshotDto>> GetOperatorTimerSnapshotAsync(
+        Guid liveSessionId,
+        ISender sender,
+        CancellationToken cancellationToken)
+    {
+        var result = await sender.Send(
+            new GetOperatorSessionTimerSnapshotQuery(liveSessionId),
             cancellationToken);
 
         return TypedResults.Ok(result);

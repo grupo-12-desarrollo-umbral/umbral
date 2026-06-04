@@ -56,6 +56,13 @@ public sealed class ReconnectParticipantEndpointTests : IAsyncLifetime
         payload.SessionParticipantId.Should().Be(seeded.SessionParticipantId);
         payload.IsReconnect.Should().BeTrue();
         payload.SessionState.Should().Be(nameof(SessionState.Active));
+        payload.Timer.Should().NotBeNull();
+        payload.Timer!.LiveSessionId.Should().Be(seeded.LiveSessionId);
+        payload.Timer.TeamId.Should().Be(seeded.TeamId);
+        payload.Timer.SessionState.Should().Be(nameof(SessionState.Active));
+        payload.Timer.TimerStatus.Should().Be("Advancing");
+        payload.Timer.IsAdvancing.Should().BeTrue();
+        payload.Timer.IsExpired.Should().BeFalse();
 
         await using var scope = _factory.Services.CreateAsyncScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
@@ -362,7 +369,21 @@ public sealed class ReconnectParticipantEndpointTests : IAsyncLifetime
         string SessionState,
         bool IsReconnect,
         DateTimeOffset JoinedAt,
-        DateTimeOffset LastSeenAt);
+        DateTimeOffset LastSeenAt,
+        SessionTimerSnapshotResponse? Timer);
+
+    private sealed record SessionTimerSnapshotResponse(
+        Guid LiveSessionId,
+        Guid? TeamId,
+        string SessionState,
+        int TotalSeconds,
+        int RemainingSeconds,
+        string TimerStatus,
+        bool IsAdvancing,
+        bool IsExpired,
+        DateTimeOffset ObservedAt,
+        DateTimeOffset? AdvancingSince,
+        DateTimeOffset? ExpiredAt);
 
     private sealed record HealthStatusResponse(string Status);
 }

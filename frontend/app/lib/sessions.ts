@@ -9,6 +9,7 @@ import {
   type AssignSessionOperatorResultDto,
   type SessionLifecycleState,
   type TransitionSessionStateResultDto,
+  type SessionTimerSnapshotDto,
 } from './definitions'
 import { verifySession } from './dal'
 import { KeycloakAuthError } from './keycloak'
@@ -152,6 +153,24 @@ export async function transitionSessionState(
   return response.json() as Promise<TransitionSessionStateResultDto>
 }
 
+export async function getOperatorSessionTimerSnapshot(
+  liveSessionId: string,
+): Promise<SessionTimerSnapshotDto> {
+  await verifySession()
+  const response = await fetch(
+    `${API_GATEWAY_URL}/api/sessions/${liveSessionId}/timer`,
+    {
+      headers: await getGatewayHeaders(),
+      cache: 'no-store',
+    },
+  )
+
+  if (response.status === 401) throw new IdentityError('unauthorized', 'Timer read: auth expired')
+  if (response.status === 403) throw new IdentityError('unauthorized', 'Timer read: not assigned operator')
+  if (response.status === 404) throw new IdentityError('unknown', 'Session not found')
+  if (!response.ok) throw new IdentityError('unknown', `Timer read failed with status ${response.status}`)
+
+  return response.json() as Promise<SessionTimerSnapshotDto>
 export async function getSessionAssociatedTeams(
   liveSessionId: string,
 ): Promise<SessionAssociatedTeamsDto> {

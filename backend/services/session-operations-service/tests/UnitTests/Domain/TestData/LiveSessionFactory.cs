@@ -16,4 +16,15 @@ internal static class LiveSessionFactory
             45,
             new DateTimeOffset(2026, 6, 3, 10, 0, 0, TimeSpan.Zero));
     }
+
+    internal static LiveSession CreateScheduledTrivia(int maximumTimeMinutes = 10)
+    {
+        return LiveSession.CreateTrivia(
+            SessionSource.CreateTriviaQuiz(42),
+            "tri-123",
+            "Trivia Session",
+            maximumTimeMinutes,
+            new DateTimeOffset(2026, 6, 3, 10, 0, 0, TimeSpan.Zero),
+            TriviaSessionSnapshotFactory.CreateSingleQuestion());
+    }
 }

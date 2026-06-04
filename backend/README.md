@@ -189,6 +189,8 @@ Con la pila levantada, siembra datos de prueba (ver [Scripts](#scripts)):
 
 ```bash
 ./scripts/dev-up.sh          # pipeline: down -v → up --wait → seed (sesiones + usuarios/equipos)
+
+docker compose up -d --wait && ./scripts/seed-dev-data.sh   # levantar + seed sesiones
 ./scripts/seed-dev-data.sh   # solo sesiones en cada estado del ciclo de vida (psql directo)
 ./scripts/seed-users.sh      # solo usuarios + 4 equipos con participantes vía la API del gateway
 ```

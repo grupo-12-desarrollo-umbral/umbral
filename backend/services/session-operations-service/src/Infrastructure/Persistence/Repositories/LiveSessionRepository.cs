@@ -29,6 +29,12 @@ public sealed class LiveSessionRepository : ILiveSessionRepository
             .SingleOrDefaultAsync(session => session.LiveSessionId == liveSessionId, cancellationToken);
     }
 
+    public Task<LiveSession?> GetTimerSessionByIdAsync(Guid liveSessionId, CancellationToken cancellationToken)
+    {
+        return _context.LiveSessions
+            .SingleOrDefaultAsync(session => session.LiveSessionId == liveSessionId, cancellationToken);
+    }
+
     public async Task<IReadOnlyList<SessionOperatorSummaryDto>> ListAssignableSummariesAsync(
         int? assignedOperatorUserId,
         CancellationToken cancellationToken)
@@ -67,6 +73,16 @@ public sealed class LiveSessionRepository : ILiveSessionRepository
                 row.ScheduledAt,
                 row.LastStateChangedAt))
             .ToList();
+    }
+
+    public async Task<IReadOnlyList<LiveSession>> ListActiveTimersAsync(CancellationToken cancellationToken)
+    {
+        return await _context.LiveSessions
+            .Where(session =>
+                session.State == SessionState.Active &&
+                EF.Property<DateTimeOffset?>(session, "_sessionTimerAdvancingSince") != null &&
+                EF.Property<DateTimeOffset?>(session, "_sessionTimerExpiredAt") == null)
+            .ToListAsync(cancellationToken);
     }
 
     public async Task UpdateAsync(LiveSession liveSession, CancellationToken cancellationToken)

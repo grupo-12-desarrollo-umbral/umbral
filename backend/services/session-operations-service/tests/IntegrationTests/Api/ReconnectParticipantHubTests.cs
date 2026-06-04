@@ -239,7 +239,7 @@ public sealed class ReconnectParticipantHubTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task ReconnectAsync_WhenSecondConnectionArrivesBeforeFirstDisconnectCompletes_ReusesParticipantSession()
+    public async Task ReconnectAsync_WhenSecondConnectionReconnectsBeforeFirstDisconnectCompletes_ReturnsSameParticipantContext()
     {
         var externalIdentityId = Guid.NewGuid();
         var seeded = await SeedSessionWithDisconnectedParticipantAsync(externalIdentityId, SessionState.Active);

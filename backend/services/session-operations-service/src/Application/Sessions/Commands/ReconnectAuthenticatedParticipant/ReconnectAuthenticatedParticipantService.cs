@@ -51,12 +51,14 @@ public sealed class ReconnectAuthenticatedParticipantService : IReconnectAuthent
             throw new UnauthorizedAccessException();
         }
 
+        var occurredAt = _timeProvider.GetUtcNow();
         var admission = liveSession.AdmitParticipant(
             externalIdentityId,
             command.DisplayName,
             command.TeamId,
-            _timeProvider.GetUtcNow(),
+            occurredAt,
             _joinPolicy);
+        var timerSnapshot = liveSession.GetAuthoritativeSessionTimerSnapshot(occurredAt);
 
         await _liveSessionRepository.UpdateAsync(liveSession, cancellationToken);
 
@@ -69,6 +71,7 @@ public sealed class ReconnectAuthenticatedParticipantService : IReconnectAuthent
             liveSession.State.ToString(),
             admission.IsReconnect,
             admission.Participant.JoinedAt,
-            admission.Participant.LastSeenAt);
+            admission.Participant.LastSeenAt,
+            SessionTimerSnapshotDtoFactory.Create(liveSession, admission.Team.TeamId, timerSnapshot));
     }
 }

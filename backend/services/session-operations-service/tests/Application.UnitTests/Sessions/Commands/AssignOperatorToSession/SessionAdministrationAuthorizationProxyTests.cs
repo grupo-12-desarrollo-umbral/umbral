@@ -56,6 +56,18 @@ public sealed class SessionAdministrationAuthorizationProxyTests
         await act.Should().ThrowAsync<UnauthorizedAccessException>();
     }
 
+    [Fact]
+    public async Task GetAuthorizedTimerSessionAsync_WhenCallerIsAssignedOperator_ReturnsSession()
+    {
+        var session = CreateScheduledSession();
+        session.AssignOperator(27, DateTimeOffset.UtcNow);
+        var proxy = CreateProxy(session, "kc-operator-27", "Operator", resolvedUserId: 27);
+
+        var result = await proxy.GetAuthorizedTimerSessionAsync(session.LiveSessionId, CancellationToken.None);
+
+        result.Should().BeSameAs(session);
+    }
+
     private static SessionAdministrationAuthorizationProxy CreateProxy(
         LiveSession session,
         string? id,
@@ -78,6 +90,9 @@ public sealed class SessionAdministrationAuthorizationProxyTests
         var inner = new Mock<ISessionAdministrationAccessExecutor>();
         inner
             .Setup(executor => executor.GetAuthorizedSessionAsync(session.LiveSessionId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(session);
+        inner
+            .Setup(executor => executor.GetAuthorizedTimerSessionAsync(session.LiveSessionId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(session);
 
         return new SessionAdministrationAuthorizationProxy(currentUser.Object, inner.Object, actorClient.Object);

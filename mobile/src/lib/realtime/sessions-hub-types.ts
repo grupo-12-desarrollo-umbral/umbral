@@ -23,3 +23,10 @@ export type ReconnectContext = {
   token?: string | null;
   lastSeenAt?: string;
 };
+
+export type SessionStateChangedNotificationDto = {
+  liveSessionId: string;
+  previousState: string;
+  currentState: string;
+  changedAt: string;
+};

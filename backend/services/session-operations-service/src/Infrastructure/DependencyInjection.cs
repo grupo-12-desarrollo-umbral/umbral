@@ -3,6 +3,7 @@ using Microsoft.Extensions.Hosting;
 using umbral_backend.Application.Common.Interfaces;
 using umbral_backend.Infrastructure.Integrations.MissionDesign;
 using umbral_backend.Infrastructure.Identity;
+using umbral_backend.Infrastructure.Realtime;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -12,6 +13,8 @@ public static class DependencyInjection
     {
         builder.AddPersistenceServices();
         builder.Services.AddSingleton(TimeProvider.System);
+        builder.Services.AddSingleton<ISessionTimerBroadcaster, SignalRSessionTimerBroadcaster>();
+        builder.Services.AddHostedService<AuthoritativeSessionTimerWorker>();
 
         builder.Services.Configure<ParticipantMembershipAccessClientOptions>(
             builder.Configuration.GetSection(ParticipantMembershipAccessClientOptions.SectionName));

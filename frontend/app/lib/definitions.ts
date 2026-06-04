@@ -192,6 +192,7 @@ export type TransitionSessionStateResultDto = {
   previousState: string
   currentState: string
   transitionedAt: string
+  timer?: SessionTimerSnapshotDto | null
 }
 
 export type SessionStateChangedNotificationDto = {
@@ -246,6 +247,39 @@ export type AssignableOperatorDto = {
   displayName: string
   email: string
   role: string
+}
+
+// "Advancing" = timer counting down (session Active and not expired).
+// "Frozen"    = timer not moving (session Paused, Scheduled, or Preparing).
+// "Expired"   = remaining time reached zero.
+export type SessionTimerStatus = 'Advancing' | 'Frozen' | 'Expired'
+
+// Response of GET /api/sessions/{id}/timer (Operator) and
+// GET /api/sessions/{id}/participants/timer (Participant).
+export type SessionTimerSnapshotDto = {
+  liveSessionId: string
+  teamId: string | null
+  sessionState: SessionLifecycleState | string
+  totalSeconds: number
+  remainingSeconds: number
+  timerStatus: SessionTimerStatus
+  isAdvancing: boolean
+  isExpired: boolean
+  observedAt: string
+  advancingSince: string | null
+  expiredAt: string | null
+}
+
+// SignalR "SessionTimerUpdated" hub event payload.
+// Note: time units are milliseconds (long on the backend), not seconds.
+export type SessionTimerUpdatedNotificationDto = {
+  liveSessionId: string
+  remainingMilliseconds: number
+  isPaused: boolean
+  emittedAt: string
+  totalMilliseconds: number
+  isExpired: boolean
+  sessionState: SessionLifecycleState | string
 }
 
 export class IdentityError extends Error {

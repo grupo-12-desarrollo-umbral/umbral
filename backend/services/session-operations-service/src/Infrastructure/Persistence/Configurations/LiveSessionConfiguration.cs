@@ -65,6 +65,20 @@ public sealed class LiveSessionConfiguration : IEntityTypeConfiguration<LiveSess
             .HasColumnName("state_reason")
             .HasMaxLength(500);
 
+        builder.Property<TimeSpan>("_sessionTimerTotalDuration")
+            .HasColumnName("session_timer_total_duration")
+            .IsRequired();
+
+        builder.Property<TimeSpan>("_sessionTimerRemainingDuration")
+            .HasColumnName("session_timer_remaining_duration")
+            .IsRequired();
+
+        builder.Property<DateTimeOffset?>("_sessionTimerAdvancingSince")
+            .HasColumnName("session_timer_advancing_since");
+
+        builder.Property<DateTimeOffset?>("_sessionTimerExpiredAt")
+            .HasColumnName("session_timer_expired_at");
+
         builder.Property(session => session.AssignedOperatorUserId)
             .HasColumnName("assigned_operator_user_id");
 
