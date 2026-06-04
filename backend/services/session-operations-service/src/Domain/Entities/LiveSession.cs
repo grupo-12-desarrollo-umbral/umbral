@@ -139,6 +139,10 @@ public sealed class LiveSession : BaseAuditableEntity
         return session;
     }
 
+    public bool HasAssociatedTeams => _teams.Any(team => team.ReferenceTeamId.HasValue);
+
+    public int AssociatedTeamCount => _teams.Count(team => team.ReferenceTeamId.HasValue);
+
     public Team RegisterTeam(string displayName, string teamCode, int capacity)
     {
         return RegisterTeam(Guid.NewGuid(), displayName, teamCode, capacity);
@@ -153,6 +157,27 @@ public sealed class LiveSession : BaseAuditableEntity
         }
 
         var team = Team.Register(LiveSessionId, teamId, displayName, normalizedCode.Value, capacity);
+        _teams.Add(team);
+        AddDomainEvent(new TeamRegisteredInSessionEvent(LiveSessionId, team.TeamId, team.TeamCode.Value));
+        return team;
+    }
+
+    public Team AssociateTeam(Guid referenceTeamId, string displayName, string teamCode, int capacity)
+    {
+        EnsureCanAssociateTeam();
+
+        if (_teams.Any(team => team.ReferenceTeamId == referenceTeamId))
+        {
+            throw new DuplicateTeamAssociationInSessionException(referenceTeamId);
+        }
+
+        var normalizedCode = TeamCode.Create(teamCode);
+        if (_teams.Any(team => team.TeamCode == normalizedCode))
+        {
+            throw new DuplicateTeamCodeInSessionException(normalizedCode.Value);
+        }
+
+        var team = Team.Associate(LiveSessionId, referenceTeamId, displayName, normalizedCode.Value, capacity);
         _teams.Add(team);
         AddDomainEvent(new TeamRegisteredInSessionEvent(LiveSessionId, team.TeamId, team.TeamCode.Value));
         return team;
@@ -212,7 +237,7 @@ public sealed class LiveSession : BaseAuditableEntity
     {
         ArgumentNullException.ThrowIfNull(transitionPolicy);
 
-        transitionPolicy.EnsureCanTransition(State, nextState, _teams.Count);
+        transitionPolicy.EnsureCanTransition(State, nextState, AssociatedTeamCount);
 
         var previousState = State;
         State = nextState;
@@ -260,6 +285,14 @@ public sealed class LiveSession : BaseAuditableEntity
     {
         return _teams.SingleOrDefault(team => team.TeamId == teamId)
             ?? throw new TeamNotFoundException(teamId);
+    }
+
+    private void EnsureCanAssociateTeam()
+    {
+        if (State != SessionState.Scheduled)
+        {
+            throw new TeamAssociationRequiresScheduledSessionException(State);
+        }
     }
 
     private Team? FindAssignedTeam(Guid sessionParticipantId)

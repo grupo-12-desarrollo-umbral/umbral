@@ -258,11 +258,11 @@ public sealed class ReconnectParticipantEndpointTests : IAsyncLifetime
 
         var scheduledAt = DateTimeOffset.UtcNow.AddMinutes(-30);
         var liveSession = CreateSession(scheduledAt);
-        var team = liveSession.RegisterTeam("Red", "RED-01", registerSecondTeam ? 4 : 1);
+        var team = liveSession.AssociateTeam(Guid.NewGuid(), "Red", "RED-01", registerSecondTeam ? 4 : 1);
         Guid? otherTeamId = null;
         if (registerSecondTeam)
         {
-            otherTeamId = liveSession.RegisterTeam("Blue", "BLUE-01", 4).TeamId;
+            otherTeamId = liveSession.AssociateTeam(Guid.NewGuid(), "Blue", "BLUE-01", 4).TeamId;
         }
 
         var admission = liveSession.AdmitParticipant(
@@ -292,7 +292,7 @@ public sealed class ReconnectParticipantEndpointTests : IAsyncLifetime
 
         var scheduledAt = DateTimeOffset.UtcNow.AddMinutes(-30);
         var liveSession = CreateSession(scheduledAt);
-        var team = liveSession.RegisterTeam("Red", "RED-01", 1);
+        var team = liveSession.AssociateTeam(Guid.NewGuid(), "Red", "RED-01", 1);
         MoveToState(liveSession, state, scheduledAt.AddMinutes(1));
 
         dbContext.LiveSessions.Add(liveSession);

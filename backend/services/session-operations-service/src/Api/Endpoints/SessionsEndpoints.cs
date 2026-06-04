@@ -1,10 +1,12 @@
 using Microsoft.AspNetCore.Http.HttpResults;
 using umbral_backend.Api.Services;
+using umbral_backend.Application.Sessions.Commands.AssociateTeamToSession;
 using umbral_backend.Application.Sessions.Commands.AssignOperatorToSession;
 using umbral_backend.Application.Sessions.Commands.CreateTriviaSession;
 using umbral_backend.Application.Sessions.Commands.ReconnectAuthenticatedParticipant;
 using umbral_backend.Application.Sessions.Commands.TransitionSessionState;
 using umbral_backend.Application.Sessions.DTOs;
+using umbral_backend.Application.Sessions.Queries.GetAssociatedTeamsForSession;
 using umbral_backend.Application.Sessions.Queries.ListAssignableSessions;
 using umbral_backend.Domain.Enums;
 
@@ -26,6 +28,12 @@ public sealed class SessionsEndpoints : IEndpointGroup
             .RequireAuthorization(AuthorizationPolicies.Administrator);
 
         sessions.MapPatch("/{liveSessionId:guid}/state", TransitionSessionStateAsync)
+            .RequireAuthorization(AuthorizationPolicies.Operator);
+
+        sessions.MapPost("/{liveSessionId:guid}/teams", AssociateTeamAsync)
+            .RequireAuthorization(AuthorizationPolicies.Operator);
+
+        sessions.MapGet("/{liveSessionId:guid}/teams", GetAssociatedTeamsAsync)
             .RequireAuthorization(AuthorizationPolicies.Operator);
 
         sessions.MapPost("/{liveSessionId:guid}/participants/reconnect", ReconnectParticipantAsync)
@@ -53,6 +61,28 @@ public sealed class SessionsEndpoints : IEndpointGroup
         CancellationToken cancellationToken)
     {
         var result = await sender.Send(new ListAssignableSessionsQuery(), cancellationToken);
+        return TypedResults.Ok(result);
+    }
+
+    private static async Task<Ok<AssociateTeamToSessionResultDto>> AssociateTeamAsync(
+        Guid liveSessionId,
+        AssociateTeamRequest request,
+        ISender sender,
+        CancellationToken cancellationToken)
+    {
+        var result = await sender.Send(
+            new AssociateTeamToSessionCommand(liveSessionId, request.ReferenceTeamId),
+            cancellationToken);
+
+        return TypedResults.Ok(result);
+    }
+
+    private static async Task<Ok<SessionAssociatedTeamsDto>> GetAssociatedTeamsAsync(
+        Guid liveSessionId,
+        ISender sender,
+        CancellationToken cancellationToken)
+    {
+        var result = await sender.Send(new GetAssociatedTeamsForSessionQuery(liveSessionId), cancellationToken);
         return TypedResults.Ok(result);
     }
 
@@ -113,6 +143,8 @@ public sealed class SessionsEndpoints : IEndpointGroup
         string Title,
         int MaximumTimeMinutes,
         DateTimeOffset ScheduledAt);
+
+    public sealed record AssociateTeamRequest(Guid ReferenceTeamId);
 
     public sealed record ReconnectParticipantRequest(
         Guid TeamId,

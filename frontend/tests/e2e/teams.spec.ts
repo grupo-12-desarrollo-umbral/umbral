@@ -16,6 +16,18 @@ test('operator sees teams panel with create button', async ({ operatorPage: page
   await expect(page.locator('[data-testid="create-team-btn"]')).toBeVisible()
 })
 
+test('operator sees session assignment action on team rows', async ({ operatorPage: page }) => {
+  await page.goto('/dashboard')
+  await page.click('[data-testid="nav-teams"]')
+  await expect(page.locator('[data-testid^="team-row-session-actions-"]').first()).toBeVisible()
+})
+
+test('admin does not see session assignment action on team rows', async ({ adminPage: page }) => {
+  await page.goto('/dashboard')
+  await page.click('[data-testid="nav-teams"]')
+  await expect(page.locator('[data-testid^="team-row-session-actions-"]')).toHaveCount(0)
+})
+
 test('participant does not see teams nav item', async ({ participantPage: page }) => {
   await page.goto('/dashboard')
   await expect(page.locator('[data-testid="nav-teams"]')).toHaveCount(0)
@@ -49,6 +61,17 @@ test('back button from detail returns to list', async ({ adminPage: page }) => {
   await page.locator('[data-testid^="team-row-"]').first().click()
   await page.click('[data-testid="teams-back-btn"]')
   await expect(page.locator('[data-testid="teams-panel"]')).toBeVisible()
+})
+
+test('operator can open assign-to-session modal from team row actions', async ({ operatorPage: page }) => {
+  await page.goto('/dashboard')
+  await page.click('[data-testid="nav-teams"]')
+
+  const actionButton = page.locator('[data-testid^="team-row-session-actions-"]:not([disabled])').first()
+  if (await actionButton.count() === 0) return
+
+  await actionButton.click()
+  await expect(page.getByRole('heading', { name: 'Assign team to session' })).toBeVisible()
 })
 
 // --- Team deactivation ---

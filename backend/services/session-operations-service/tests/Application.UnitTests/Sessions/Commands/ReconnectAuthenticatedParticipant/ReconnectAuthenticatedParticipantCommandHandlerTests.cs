@@ -18,12 +18,12 @@ public sealed class ReconnectAuthenticatedParticipantCommandHandlerTests
     {
         var session = CreateScheduledSession();
         var identityReferenceTeamId = Guid.NewGuid();
-        var team = session.RegisterTeam(identityReferenceTeamId, "Alpha", "A-01", 4);
+        var team = session.AssociateTeam(identityReferenceTeamId, "Alpha", "A-01", 4);
         var participantIdentity = Guid.NewGuid();
         var firstAdmission = session.AdmitParticipant(
             participantIdentity,
             "Nora",
-            identityReferenceTeamId,
+            team.TeamId,
             new DateTimeOffset(2026, 6, 3, 10, 5, 0, TimeSpan.Zero),
             new JoinPolicy());
         session.DisconnectParticipant(
@@ -31,16 +31,16 @@ public sealed class ReconnectAuthenticatedParticipantCommandHandlerTests
             new DateTimeOffset(2026, 6, 3, 10, 6, 0, TimeSpan.Zero));
 
         var repository = CreateRepository(session);
-        var accessClient = CreateAccessClient(session.LiveSessionId, identityReferenceTeamId, isAllowed: true);
+        var accessClient = CreateAccessClient(session.LiveSessionId, team.TeamId, isAllowed: true);
         var currentUser = CreateCurrentUser(participantIdentity);
-        var command = new ReconnectAuthenticatedParticipantCommand(session.LiveSessionId, identityReferenceTeamId, "Nora", "join-token");
+        var command = new ReconnectAuthenticatedParticipantCommand(session.LiveSessionId, team.TeamId, "Nora", "join-token");
         var handler = CreateHandler(repository, accessClient, currentUser, new FixedTimeProvider(new DateTimeOffset(2026, 6, 3, 10, 7, 0, TimeSpan.Zero)));
 
         var result = await handler.Handle(command, CancellationToken.None);
 
         result.IsReconnect.Should().BeTrue();
         result.LiveSessionId.Should().Be(session.LiveSessionId);
-        result.TeamId.Should().Be(identityReferenceTeamId);
+        result.TeamId.Should().Be(team.TeamId);
         result.TeamDisplayName.Should().Be("Alpha");
         result.ParticipantDisplayName.Should().Be("Nora");
         result.SessionState.Should().Be(SessionState.Scheduled.ToString());
@@ -69,7 +69,7 @@ public sealed class ReconnectAuthenticatedParticipantCommandHandlerTests
     public async Task Handle_WhenIdentityDeniesMembershipAccess_ThrowsForbiddenException()
     {
         var session = CreateScheduledSession();
-        var team = session.RegisterTeam("Alpha", "A-01", 4);
+        var team = session.AssociateTeam(Guid.NewGuid(), "Alpha", "A-01", 4);
         var repository = CreateRepository(session);
         var accessClient = CreateAccessClient(session.LiveSessionId, team.TeamId, isAllowed: false);
         var currentUser = CreateCurrentUser(Guid.NewGuid());
@@ -87,7 +87,7 @@ public sealed class ReconnectAuthenticatedParticipantCommandHandlerTests
     {
         var transitionPolicy = new SessionStateTransitionPolicy();
         var session = CreateScheduledSession();
-        var team = session.RegisterTeam("Alpha", "A-01", 4);
+        var team = session.AssociateTeam(Guid.NewGuid(), "Alpha", "A-01", 4);
         var participantIdentity = Guid.NewGuid();
         var admission = session.AdmitParticipant(
             participantIdentity,
@@ -203,7 +203,7 @@ public sealed class ReconnectAuthenticatedParticipantCommandHandlerTests
     private static LiveSession CreateActiveSession()
     {
         var session = CreateScheduledSession();
-        session.RegisterTeam("Alpha", "A-01", 4);
+        session.AssociateTeam(Guid.NewGuid(), "Alpha", "A-01", 4);
         var transitionPolicy = new SessionStateTransitionPolicy();
         session.MoveTo(SessionState.Preparing, new DateTimeOffset(2026, 6, 3, 10, 1, 0, TimeSpan.Zero), transitionPolicy);
         session.MoveTo(SessionState.Active, new DateTimeOffset(2026, 6, 3, 10, 2, 0, TimeSpan.Zero), transitionPolicy);

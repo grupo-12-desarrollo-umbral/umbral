@@ -1,8 +1,13 @@
 'use client'
 
+import { useEffect, useState, useTransition } from 'react'
+import { getSessionAssociatedTeams, associateTeamToSession } from '@/app/actions/sessions'
+import { getActiveTeams } from '@/app/actions/teams'
 import type {
+  SessionAssociatedTeamsDto,
   SessionAssignmentSummaryDto,
   SessionLifecycleState,
+  TeamDto,
 } from '@/app/lib/definitions'
 import styles from './dashboard.module.css'
 
@@ -44,6 +49,94 @@ export function SessionsPanel({
     selectedSessionId == null
       ? null
       : assignedSessions.find((session) => session.liveSessionId === selectedSessionId) ?? null
+  const selectedLiveSessionId = selectedAssignedSession?.liveSessionId ?? null
+  const [associatedTeams, setAssociatedTeams] = useState<SessionAssociatedTeamsDto | null>(null)
+  const [catalogTeams, setCatalogTeams] = useState<TeamDto[]>([])
+  const [teamsError, setTeamsError] = useState<string | null>(null)
+  const [associateError, setAssociateError] = useState<string | null>(null)
+  const [isTeamsPending, startTeamsTransition] = useTransition()
+  const [isAssociatePending, startAssociateTransition] = useTransition()
+
+  useEffect(() => {
+    if (selectedLiveSessionId == null) {
+      return
+    }
+
+    startTeamsTransition(async () => {
+      setTeamsError(null)
+      setAssociateError(null)
+      try {
+        const [sessionTeams, activeTeams] = await Promise.all([
+          getSessionAssociatedTeams(selectedLiveSessionId),
+          getActiveTeams(),
+        ])
+
+        setAssociatedTeams(sessionTeams)
+        setCatalogTeams(activeTeams)
+      } catch {
+        setTeamsError('Failed to load session teams.')
+      }
+    })
+  }, [selectedLiveSessionId])
+
+  const visibleAssociatedTeams =
+    selectedLiveSessionId != null && associatedTeams?.liveSessionId === selectedLiveSessionId
+      ? associatedTeams
+      : null
+  const associatedReferenceTeamIds = new Set(
+    visibleAssociatedTeams?.teams.map((team) => team.referenceTeamId) ?? [],
+  )
+  const availableTeams = catalogTeams.filter(
+    (team) => !associatedReferenceTeamIds.has(team.teamId),
+  )
+
+  async function handleAssociate(referenceTeamId: string) {
+    if (selectedAssignedSession == null) return
+
+    startAssociateTransition(async () => {
+      setAssociateError(null)
+      try {
+        const result = await associateTeamToSession(
+          selectedAssignedSession.liveSessionId,
+          referenceTeamId,
+        )
+
+        setAssociatedTeams((current) => ({
+          liveSessionId: selectedAssignedSession.liveSessionId,
+          teams: [
+            ...(current?.teams ?? []),
+            {
+              runtimeTeamId: result.runtimeTeamId,
+              referenceTeamId: result.referenceTeamId,
+              displayName: result.displayName,
+              teamCode: result.teamCode,
+              joinStatus: 'Open',
+            },
+          ],
+        }))
+      } catch (error) {
+        const message = error instanceof Error ? error.message : ''
+        switch (message) {
+          case 'inactive_team':
+            setAssociateError('This team is inactive and cannot be associated.')
+            break
+          case 'duplicate_association':
+            setAssociateError('This team is already associated to the session.')
+            break
+          case 'session_not_scheduled':
+            setAssociateError('Teams can only be associated while the session is scheduled.')
+            break
+          case 'not_found':
+          case 'session_not_found':
+            setAssociateError('The session or selected team no longer exists.')
+            break
+          default:
+            setAssociateError('Failed to associate the team.')
+            break
+        }
+      }
+    })
+  }
 
   return (
     <section className={`${styles.panel} ${styles.sessionsPanel}`} data-testid="sessions-panel">
@@ -140,6 +233,94 @@ export function SessionsPanel({
                   <dt>Ownership</dt>
                   <dd>{selectedAssignedSession.assignedOperatorUserId == null ? 'Unassigned' : 'Assigned to you'}</dd>
                 </dl>
+              </section>
+
+              {teamsError && (
+                <p className={styles.errorBanner} role="alert" data-testid="session-teams-error">
+                  {teamsError}
+                </p>
+              )}
+
+              {associateError && (
+                <p className={styles.errorBanner} role="alert" data-testid="session-associate-error">
+                  {associateError}
+                </p>
+              )}
+
+              <section className={styles.assignmentCard} data-testid="session-associated-teams-card">
+                <div className={styles.panelHeader}>
+                  <div>
+                    <h3>Associated teams</h3>
+                    <div className={styles.panelMeta}>
+                      Add active teams before moving the session into live operation.
+                    </div>
+                  </div>
+                  {isTeamsPending && <span className={styles.chip}>Loading...</span>}
+                </div>
+
+                {visibleAssociatedTeams == null || visibleAssociatedTeams.teams.length === 0 ? (
+                  <p className={styles.emptyStateCopy} data-testid="session-associated-teams-empty">
+                    No teams associated yet.
+                  </p>
+                ) : (
+                  <div className={styles.sessionCards} data-testid="session-associated-teams-list">
+                    {visibleAssociatedTeams.teams.map((team) => (
+                      <section key={team.referenceTeamId} className={styles.sessionCard}>
+                        <div className={styles.sessionCardHeader}>
+                          <div>
+                            <h3>{team.displayName}</h3>
+                            <div className={styles.sessionCardMeta}>
+                              {team.teamCode} • Join status {team.joinStatus}
+                            </div>
+                          </div>
+                          <span className={styles.chip}>{team.teamCode}</span>
+                        </div>
+                      </section>
+                    ))}
+                  </div>
+                )}
+              </section>
+
+              <section className={styles.assignmentCard} data-testid="session-team-catalog-card">
+                <div className={styles.panelHeader}>
+                  <div>
+                    <h3>Available active teams</h3>
+                    <div className={styles.panelMeta}>
+                      Only active teams not already associated are shown here.
+                    </div>
+                  </div>
+                </div>
+
+                {availableTeams.length === 0 ? (
+                  <p className={styles.emptyStateCopy} data-testid="session-team-catalog-empty">
+                    No additional active teams available to associate.
+                  </p>
+                ) : (
+                  <div className={styles.sessionCards} data-testid="session-team-catalog-list">
+                    {availableTeams.map((team) => (
+                      <section key={team.teamId} className={styles.sessionCard}>
+                        <div className={styles.sessionCardHeader}>
+                          <div>
+                            <h3>{team.displayName}</h3>
+                            <div className={styles.sessionCardMeta}>{team.teamCode}</div>
+                          </div>
+                          <button
+                            type="button"
+                            className={styles.smallButton}
+                            onClick={() => handleAssociate(team.teamId)}
+                            disabled={
+                              isAssociatePending ||
+                              selectedAssignedSession.sessionState !== 'Scheduled'
+                            }
+                            data-testid={`associate-team-btn-${team.teamId}`}
+                          >
+                            Associate
+                          </button>
+                        </div>
+                      </section>
+                    ))}
+                  </div>
+                )}
               </section>
 
               <button

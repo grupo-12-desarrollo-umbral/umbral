@@ -90,7 +90,7 @@ public sealed class DisconnectParticipantCommandHandlerTests
             45,
             new DateTimeOffset(2026, 6, 4, 11, 0, 0, TimeSpan.Zero));
 
-        var team = session.RegisterTeam("Alpha", "A-01", 4);
+        var team = session.AssociateTeam(Guid.NewGuid(), "Alpha", "A-01", 4);
         participantId = session.AdmitParticipant(
             Guid.NewGuid(),
             "Nora",

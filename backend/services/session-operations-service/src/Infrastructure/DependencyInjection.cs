@@ -33,6 +33,12 @@ public static class DependencyInjection
             client.Timeout = TimeSpan.FromSeconds(10);
         });
 
+        builder.Services.AddHttpClient<ITeamReferenceCatalogClient, TeamReferenceCatalogClient>(client =>
+        {
+            client.BaseAddress = new Uri(identityAccessBaseAddress);
+            client.Timeout = TimeSpan.FromSeconds(10);
+        });
+
         builder.Services.AddHttpClient<IAuthenticatedActorProfileAccessClient, AuthenticatedActorProfileAccessClient>(client =>
         {
             client.BaseAddress = new Uri(identityAccessBaseAddress);

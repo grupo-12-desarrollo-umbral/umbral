@@ -6,6 +6,8 @@ import {
   createTriviaSession as createTriviaSessionLib,
   listAssignableSessions as listAssignableSessionsLib,
   listOperatorSessions as listOperatorSessionsLib,
+  getSessionAssociatedTeams as getSessionAssociatedTeamsLib,
+  associateTeamToSession as associateTeamToSessionLib,
   assignSessionOperator as assignSessionOperatorLib,
   transitionSessionState as transitionSessionStateLib,
 } from '@/app/lib/sessions'
@@ -16,6 +18,8 @@ import type {
   CreateTriviaSessionRequest,
   TriviaSessionCreatedDto,
   SessionAssignmentSummaryDto,
+  SessionAssociatedTeamsDto,
+  AssociateTeamToSessionResultDto,
   AssignSessionOperatorResultDto,
   AssignableOperatorDto,
   SessionLifecycleState,
@@ -76,6 +80,25 @@ export async function transitionSessionState(
   const session = await verifySession()
   if (session.role !== 'Operator') throw new Error('Forbidden')
   const result = await transitionSessionStateLib(liveSessionId, targetState, reason)
+  revalidatePath('/dashboard')
+  return result
+}
+
+export async function getSessionAssociatedTeams(
+  liveSessionId: string,
+): Promise<SessionAssociatedTeamsDto> {
+  const session = await verifySession()
+  if (session.role !== 'Operator') throw new Error('Forbidden')
+  return getSessionAssociatedTeamsLib(liveSessionId)
+}
+
+export async function associateTeamToSession(
+  liveSessionId: string,
+  referenceTeamId: string,
+): Promise<AssociateTeamToSessionResultDto> {
+  const session = await verifySession()
+  if (session.role !== 'Operator') throw new Error('Forbidden')
+  const result = await associateTeamToSessionLib(liveSessionId, referenceTeamId)
   revalidatePath('/dashboard')
   return result
 }
