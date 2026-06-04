@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { exchangeCode } from '@/app/lib/keycloak'
 import { bootstrapUser } from '@/app/lib/identity'
-import { createSession } from '@/app/lib/session'
+import { storeKeycloakTokens } from '@/app/lib/keycloak-tokens'
+import { createSession, deleteSession } from '@/app/lib/session'
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
@@ -37,13 +38,14 @@ export async function GET(request: NextRequest) {
 
   try {
     console.log('[auth/callback] Exchanging code for tokens...')
-    const { accessToken, displayName, email } = await exchangeCode(code, codeVerifier)
+    const { accessToken, refreshToken, expiresIn, refreshExpiresIn, displayName } = await exchangeCode(code, codeVerifier)
     console.log('[auth/callback] Tokens received. Bootstrapping user...')
 
     const result = await bootstrapUser(accessToken, displayName)
     console.log('[auth/callback] Bootstrap result:', JSON.stringify(result))
 
     if (!result.access.isAllowed) {
+      await deleteSession()
       const response = NextResponse.redirect(new URL('/login?error=deactivated', request.url))
       response.cookies.delete('auth_state')
       response.cookies.delete('auth_verifier')
@@ -57,6 +59,12 @@ export async function GET(request: NextRequest) {
       role: result.actor.role as 'Administrator' | 'Operator',
       isActive: result.actor.isActive,
     })
+    await storeKeycloakTokens({
+      accessToken,
+      refreshToken,
+      expiresIn,
+      refreshExpiresIn,
+    })
 
     const response = NextResponse.redirect(new URL('/dashboard', request.url))
     response.cookies.delete('auth_state')
@@ -67,12 +75,13 @@ export async function GET(request: NextRequest) {
     console.error('[auth/callback] Error during callback:', message)
     console.error('[auth/callback] Full error:', err)
 
-    const response = NextResponse.redirect(new URL('/login?error=unauthorized', request.url))
+    await deleteSession()
+    const redirectUrl = message.includes('deactivated')
+      ? new URL('/login?error=deactivated', request.url)
+      : new URL('/login?error=unauthorized', request.url)
+    const response = NextResponse.redirect(redirectUrl)
     response.cookies.delete('auth_state')
     response.cookies.delete('auth_verifier')
-    if (message.includes('deactivated')) {
-      return NextResponse.redirect(new URL('/login?error=deactivated', request.url))
-    }
     return response
   }
 }

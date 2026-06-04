@@ -16,6 +16,17 @@ according to the Concrete Target Tree and DDD/Boundary rules.
 Do not invent new folder paths outside the established structure
 without updating `structure.md` first.
 
+## Local dev loop (hot reload)
+
+`docker compose up` auto-loads `docker-compose.override.yml`, which runs every
+.NET service from the SDK image with its `src/` bind-mounted under `dotnet watch
+run`. Editing a `.cs` file recompiles and restarts that service in place — no
+`--build`, no manual rebuild. The frontend/mobile dev servers hot-reload on
+their own and only talk to the gateway on `localhost:8000`.
+
+For a production-like build that ignores the override (bakes a Release publish
+into each image), run `docker compose -f docker-compose.yml up --build`.
+
 ## Toolchain & sandbox
 
 Run the .NET toolchain through the sandbox-hardened Makefile — never call

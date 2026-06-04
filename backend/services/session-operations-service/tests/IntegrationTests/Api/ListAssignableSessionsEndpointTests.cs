@@ -2,6 +2,7 @@ using umbral_backend.Domain.Entities;
 using umbral_backend.Domain.Enums;
 using umbral_backend.Domain.Services;
 using umbral_backend.Domain.ValueObjects;
+using umbral_backend.Application.Sessions.DTOs;
 using umbral_backend.Infrastructure.Persistence;
 
 namespace umbral_backend.Infrastructure.IntegrationTests.Api;
@@ -22,6 +23,11 @@ public sealed class ListAssignableSessionsEndpointTests : IAsyncLifetime
     {
         _factory = new SessionOperationsApiWebApplicationFactory(_fixture.ConnectionString);
         _client = _factory.CreateClient();
+        _factory.AuthenticatedActorProfileAccessClient.CurrentActor = new AuthenticatedActorProfileLookupDto(
+            27,
+            "kc-operator-27",
+            "Operator",
+            true);
         await _factory.ResetDatabaseAsync();
     }
 
@@ -71,9 +77,39 @@ public sealed class ListAssignableSessionsEndpointTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task ListAssignableSessions_WithNonAdministratorRole_ReturnsForbidden()
+    public async Task ListAssignableSessions_WithAssignedOperatorCaller_ReturnsOnlyOwnedNonTerminalSessions()
     {
-        AddTrustedHeaders(_client, Guid.NewGuid().ToString(), "Operator", "operator@example.com");
+        var owned = await SeedSessionAsync(
+            scheduledAt: new DateTimeOffset(2026, 6, 4, 12, 0, 0, TimeSpan.Zero),
+            assignedOperatorUserId: 27,
+            title: "Owned Session");
+        await SeedSessionAsync(
+            scheduledAt: new DateTimeOffset(2026, 6, 4, 11, 0, 0, TimeSpan.Zero),
+            assignedOperatorUserId: 99,
+            title: "Other Operator Session");
+        await SeedSessionAsync(
+            scheduledAt: new DateTimeOffset(2026, 6, 4, 10, 0, 0, TimeSpan.Zero),
+            assignedOperatorUserId: 27,
+            state: SessionState.Finished,
+            title: "Finished Session");
+
+        AddTrustedHeaders(_client, "kc-operator-27", "Operator", "operator@example.com");
+
+        var response = await _client.GetAsync("/api/sessions");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var payload = await response.Content.ReadFromJsonAsync<List<SessionOperatorSummaryResponse>>();
+        payload.Should().NotBeNull();
+        payload!.Should().ContainSingle();
+        payload[0].LiveSessionId.Should().Be(owned.LiveSessionId);
+        payload[0].AssignedOperatorUserId.Should().Be(27);
+    }
+
+    [Fact]
+    public async Task ListAssignableSessions_WithParticipantRole_ReturnsForbidden()
+    {
+        AddTrustedHeaders(_client, Guid.NewGuid().ToString(), "Participant", "participant@example.com");
 
         var response = await _client.GetAsync("/api/sessions");
 
@@ -83,9 +119,10 @@ public sealed class ListAssignableSessionsEndpointTests : IAsyncLifetime
     private async Task<LiveSession> SeedSessionAsync(
         DateTimeOffset scheduledAt,
         SessionState state = SessionState.Scheduled,
-        int? assignedOperatorUserId = null)
+        int? assignedOperatorUserId = null,
+        string title = "Operator Assignment Session")
     {
-        var liveSession = CreateSession(scheduledAt);
+        var liveSession = CreateSession(scheduledAt, title);
 
         if (assignedOperatorUserId is not null)
         {
@@ -105,13 +142,13 @@ public sealed class ListAssignableSessionsEndpointTests : IAsyncLifetime
         return liveSession;
     }
 
-    private static LiveSession CreateSession(DateTimeOffset scheduledAt)
+    private static LiveSession CreateSession(DateTimeOffset scheduledAt, string title)
     {
         return LiveSession.Create(
             SessionMode.TreasureHunt,
             SessionSource.Create(SessionSourceType.Mission, Guid.NewGuid()),
             $"SES-{Guid.NewGuid():N}"[..12],
-            "Operator Assignment Session",
+            title,
             45,
             scheduledAt);
     }
@@ -166,5 +203,6 @@ public sealed class ListAssignableSessionsEndpointTests : IAsyncLifetime
         string Title,
         string SessionState,
         int? AssignedOperatorUserId,
-        DateTimeOffset ScheduledAt);
+        DateTimeOffset ScheduledAt,
+        DateTimeOffset? LastTransitionedAt);
 }

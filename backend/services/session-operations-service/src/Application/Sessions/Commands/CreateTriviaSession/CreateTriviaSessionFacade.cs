@@ -61,6 +61,8 @@ public sealed class CreateTriviaSessionFacade : ICreateTriviaSessionFacade
             command.ScheduledAt,
             snapshot);
 
+        // Sessions are created unassigned; an administrator assigns the responsible
+        // operator afterward via the operator-assignment endpoint (HU-19).
         await _liveSessionRepository.UpdateAsync(liveSession, cancellationToken);
 
         return new CreateTriviaSessionResultDto(

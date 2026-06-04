@@ -26,6 +26,7 @@ public static class DependencyInjection
         builder.Services.AddSingleton<ConnectionTracker>();
         builder.Services.AddScoped<CurrentUserContext>();
         builder.Services.AddScoped<ICurrentUser, CurrentUser>();
+        builder.Services.AddScoped<ISessionStateBroadcaster, SessionStateBroadcaster>();
         builder.Services
             .AddAuthentication(TrustedHeadersAuthenticationDefaults.Scheme)
             .AddScheme<AuthenticationSchemeOptions, TrustedHeadersAuthenticationHandler>(
@@ -50,6 +51,18 @@ public static class DependencyInjection
                 policy.AddAuthenticationSchemes(TrustedHeadersAuthenticationDefaults.Scheme);
                 policy.RequireAuthenticatedUser();
                 policy.RequireRole("Participant");
+            });
+            options.AddPolicy(AuthorizationPolicies.AdministratorOrOperator, policy =>
+            {
+                policy.AddAuthenticationSchemes(TrustedHeadersAuthenticationDefaults.Scheme);
+                policy.RequireAuthenticatedUser();
+                policy.RequireRole("Administrator", "Operator");
+            });
+            options.AddPolicy(AuthorizationPolicies.ParticipantOrOperator, policy =>
+            {
+                policy.AddAuthenticationSchemes(TrustedHeadersAuthenticationDefaults.Scheme);
+                policy.RequireAuthenticatedUser();
+                policy.RequireRole("Participant", "Operator");
             });
         });
         builder.Services.AddExceptionHandler<ProblemDetailsExceptionHandler>();

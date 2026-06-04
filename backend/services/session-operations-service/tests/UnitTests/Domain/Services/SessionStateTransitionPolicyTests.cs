@@ -23,4 +23,27 @@ public sealed class SessionStateTransitionPolicyTests
 
         act.Should().Throw<InvalidSessionStateTransitionException>();
     }
+
+    [Theory]
+    [InlineData(SessionState.Scheduled, SessionState.Preparing)]
+    [InlineData(SessionState.Scheduled, SessionState.Cancelled)]
+    [InlineData(SessionState.Preparing, SessionState.Active)]
+    [InlineData(SessionState.Active, SessionState.Paused)]
+    [InlineData(SessionState.Active, SessionState.Finished)]
+    [InlineData(SessionState.Paused, SessionState.Active)]
+    public void IsTransitionAllowed_ForReachableEdge_ReturnsTrue(SessionState current, SessionState next)
+    {
+        _policy.IsTransitionAllowed(current, next).Should().BeTrue();
+    }
+
+    [Theory]
+    [InlineData(SessionState.Scheduled, SessionState.Active)]
+    [InlineData(SessionState.Scheduled, SessionState.Finished)]
+    [InlineData(SessionState.Finished, SessionState.Active)]
+    [InlineData(SessionState.Cancelled, SessionState.Preparing)]
+    [InlineData(SessionState.Active, SessionState.Scheduled)]
+    public void IsTransitionAllowed_ForUnreachableEdge_ReturnsFalse(SessionState current, SessionState next)
+    {
+        _policy.IsTransitionAllowed(current, next).Should().BeFalse();
+    }
 }

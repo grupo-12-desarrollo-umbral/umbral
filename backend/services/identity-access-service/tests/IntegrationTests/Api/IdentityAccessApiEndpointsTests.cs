@@ -47,7 +47,8 @@ public sealed class IdentityAccessApiEndpointsTests : IAsyncLifetime
 
         var bootstrapPayload = await bootstrapResponse.Content.ReadFromJsonAsync<BootstrapResponse>();
         bootstrapPayload.Should().NotBeNull();
-        bootstrapPayload!.Actor.ExternalIdentityId.Should().Be("kc-user-01");
+        bootstrapPayload!.Actor.UserId.Should().BeGreaterThan(0);
+        bootstrapPayload.Actor.ExternalIdentityId.Should().Be("kc-user-01");
         bootstrapPayload.Actor.DisplayName.Should().Be("Alice Operator");
         bootstrapPayload.Actor.Email.Should().Be("alice@example.com");
         bootstrapPayload.Actor.Role.Should().Be("Operator");
@@ -60,7 +61,8 @@ public sealed class IdentityAccessApiEndpointsTests : IAsyncLifetime
 
         var mePayload = await meResponse.Content.ReadFromJsonAsync<AuthenticatedActorProfileResponse>();
         mePayload.Should().NotBeNull();
-        mePayload!.ExternalIdentityId.Should().Be("kc-user-01");
+        mePayload!.UserId.Should().BeGreaterThan(0);
+        mePayload.ExternalIdentityId.Should().Be("kc-user-01");
         mePayload.Role.Should().Be("Operator");
         mePayload.IsActive.Should().BeTrue();
 
@@ -422,7 +424,7 @@ public sealed class IdentityAccessApiEndpointsTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task UpdateTeam_WithNonAdministratorHeaders_ReturnsForbidden()
+    public async Task UpdateTeam_WithOperatorHeaders_ReturnsNoContent()
     {
         await SeedUserAsync("kc-operator-01", "Operator User", "operator@example.com", Role.Operator);
         var team = await SeedTeamAsync("Red Foxes", "RED-01");
@@ -437,7 +439,7 @@ public sealed class IdentityAccessApiEndpointsTests : IAsyncLifetime
             $"/api/teams/{team.TeamId}",
             new { displayName = "Blue Owls", teamCode = "BLUE-02" });
 
-        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        response.StatusCode.Should().Be(HttpStatusCode.NoContent);
     }
 
     [Fact]
@@ -481,7 +483,7 @@ public sealed class IdentityAccessApiEndpointsTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task DeactivateTeam_WithNonAdministratorHeaders_ReturnsForbidden()
+    public async Task DeactivateTeam_WithOperatorHeaders_ReturnsUpdatedInactiveTeam()
     {
         await SeedUserAsync("kc-operator-01", "Operator User", "operator@example.com", Role.Operator);
         var team = await SeedTeamAsync("Red Foxes", "RED-01");
@@ -494,7 +496,12 @@ public sealed class IdentityAccessApiEndpointsTests : IAsyncLifetime
 
         var response = await _client.DeleteAsync($"/api/teams/{team.TeamId}/status");
 
-        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var payload = await response.Content.ReadFromJsonAsync<TeamResponse>();
+        payload.Should().NotBeNull();
+        payload!.TeamId.Should().Be(team.TeamId);
+        payload.IsActive.Should().BeFalse();
     }
 
     [Theory]
@@ -1407,6 +1414,7 @@ public sealed class IdentityAccessApiEndpointsTests : IAsyncLifetime
         ProtectedAccessDecisionResponse Access);
 
     private sealed record AuthenticatedActorProfileResponse(
+        int UserId,
         string ExternalIdentityId,
         string DisplayName,
         string Email,

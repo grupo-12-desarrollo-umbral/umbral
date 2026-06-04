@@ -52,6 +52,29 @@ public sealed class ProblemDetailsExceptionHandler : IExceptionHandler
                 Detail = exception.Message,
                 Status = StatusCodes.Status409Conflict
             },
+            // Transition failures share a 409 but carry a stable Type so the client can render a
+            // specific message instead of one ambiguous "invalid transition" catch-all.
+            LiveSessionRequiresAtLeastOneTeamException => new ProblemDetails
+            {
+                Type = "session-no-teams",
+                Title = "Conflict.",
+                Detail = exception.Message,
+                Status = StatusCodes.Status409Conflict
+            },
+            SessionOperatorNotAssignedException => new ProblemDetails
+            {
+                Type = "session-operator-unassigned",
+                Title = "Conflict.",
+                Detail = exception.Message,
+                Status = StatusCodes.Status409Conflict
+            },
+            InvalidSessionStateTransitionException => new ProblemDetails
+            {
+                Type = "invalid-state-transition",
+                Title = "Conflict.",
+                Detail = exception.Message,
+                Status = StatusCodes.Status409Conflict
+            },
             TeamCapacityReachedException
                 or TeamJoinClosedException
                 or ParticipantAlreadyConnectedException

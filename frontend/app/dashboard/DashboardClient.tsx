@@ -4,16 +4,32 @@ import { useEffect, useState, useTransition } from 'react';
 import { logout } from '@/app/actions/auth';
 import { refreshSession } from '@/app/actions/session';
 import { getUsersPage, deactivateUser, assignUserRole } from '@/app/actions/users';
+import { listSessionsForOperator, transitionSessionState } from '@/app/actions/sessions';
 import { TeamsPanel } from './TeamsPanel'
 import { TriviasPanel } from './TriviasPanel'
 import { SessionsPanel } from './SessionsPanel'
 import { SessionOperatorPanel } from './SessionOperatorPanel'
-import type { PagedResult, UserAccessCatalogItemDto } from '@/app/lib/definitions';
+import { createSessionStateRealtimeClient, type SessionRealtimeStatus } from '@/app/lib/realtime/session-state-client'
+import type {
+  PagedResult,
+  SessionAssignmentSummaryDto,
+  SessionLifecycleState,
+  SessionStateChangedNotificationDto,
+  TransitionSessionStateResultDto,
+  UserAccessCatalogItemDto,
+} from '@/app/lib/definitions';
 import styles from './dashboard.module.css';
 
 type DashboardRole = 'operator' | 'admin' | 'participant';
 type Theme = 'dark' | 'light';
 type SessionState = 'live' | 'paused' | 'draft';
+
+const transportStatusLabel: Record<SessionRealtimeStatus, string> = {
+  Connected: 'Connected',
+  Reconnecting: 'Reconnecting',
+  Offline: 'Offline',
+  AuthExpired: 'Auth expired',
+};
 
 type Session = {
   id: string;
@@ -120,6 +136,65 @@ const stateLabels: Record<SessionState, string> = {
   paused: 'Paused',
 };
 
+const lifecycleStates = new Set<SessionLifecycleState>([
+  'Scheduled',
+  'Preparing',
+  'Active',
+  'Paused',
+  'Finished',
+  'Cancelled',
+])
+
+const lifecycleTone: Record<SessionLifecycleState, 'success' | 'warning' | 'critical' | 'muted'> = {
+  Scheduled: 'muted',
+  Preparing: 'warning',
+  Active: 'success',
+  Paused: 'warning',
+  Finished: 'muted',
+  Cancelled: 'critical',
+}
+
+const lifecycleActions: Record<
+  SessionLifecycleState,
+  Array<{
+    label: string
+    targetState: SessionLifecycleState
+    description: string
+    destructive?: boolean
+    allowsReason?: boolean
+  }>
+> = {
+  Scheduled: [
+    { label: 'Prepare', targetState: 'Preparing', description: 'Open operator preparation for this session.' },
+    { label: 'Cancel', targetState: 'Cancelled', description: 'Terminally cancel this scheduled session.', destructive: true, allowsReason: true },
+  ],
+  Preparing: [
+    { label: 'Start', targetState: 'Active', description: 'Move teams into active answering.' },
+    { label: 'Cancel', targetState: 'Cancelled', description: 'Terminally cancel this preparing session.', destructive: true, allowsReason: true },
+  ],
+  Active: [
+    { label: 'Pause', targetState: 'Paused', description: 'Freeze the live session while preserving progress.' },
+    { label: 'Finish', targetState: 'Finished', description: 'Terminally finish this live session.', destructive: true },
+    { label: 'Cancel', targetState: 'Cancelled', description: 'Terminally cancel this live session.', destructive: true, allowsReason: true },
+  ],
+  Paused: [
+    { label: 'Resume', targetState: 'Active', description: 'Return the paused session to active operation.' },
+    { label: 'Finish', targetState: 'Finished', description: 'Terminally finish this paused session.', destructive: true },
+    { label: 'Cancel', targetState: 'Cancelled', description: 'Terminally cancel this paused session.', destructive: true, allowsReason: true },
+  ],
+  Finished: [],
+  Cancelled: [],
+}
+
+function toLifecycleState(value: string): SessionLifecycleState | null {
+  return lifecycleStates.has(value as SessionLifecycleState) ? value as SessionLifecycleState : null
+}
+
+function formatDateTime(value: string | null | undefined) {
+  if (!value) return 'Not available'
+  return new Date(value).toLocaleString()
+}
+
 function getPreferredTheme(): Theme {
   if (typeof window === 'undefined') {
     return 'dark';
@@ -134,13 +209,7 @@ function getPreferredTheme(): Theme {
 }
 
 function getOperatorDefaultSession() {
-  const sessionStateMap: Record<string, SessionState> = Object.fromEntries(
-    sessions.map((session) => [session.id, session.state])
-  );
-  const activeAssignedSession = sessions.find(
-    (session) => session.assignedToOperator && session.recent && sessionStateMap[session.id] !== 'draft'
-  );
-  return activeAssignedSession ? activeAssignedSession.id : 'assigned-list';
+  return 'assigned-list';
 }
 
 function getNavigationLabel(role: DashboardRole, key: string) {
@@ -184,13 +253,18 @@ export default function DashboardClient({
     role === 'operator' ? getOperatorDefaultSession() : 'downtown-trivia'
   );
   const [activeNav, setActiveNav] = useState(() =>
-    role === 'operator' ? 'operator' : 'overview'
+    role === 'operator' ? 'sessions' : 'overview'
   );
-  const [isConnected, setIsConnected] = useState(true);
   const [toast, setToast] = useState<{ title: string; body: string } | null>(null);
-  const [sessionStateMap, setSessionStateMap] = useState<Record<string, SessionState>>(() =>
-    Object.fromEntries(sessions.map((session) => [session.id, session.state]))
-  );
+  const [operatorSessions, setOperatorSessions] = useState<SessionAssignmentSummaryDto[]>([]);
+  const [operatorSessionsError, setOperatorSessionsError] = useState<string | null>(null);
+  const [operatorSessionsRequestState, setOperatorSessionsRequestState] = useState<'idle' | 'loaded' | 'failed'>('idle');
+  const [realtimeStatus, setRealtimeStatus] = useState<SessionRealtimeStatus>('Offline');
+  const [transitionError, setTransitionError] = useState<string | null>(null);
+  const [pendingTransition, setPendingTransition] = useState<SessionLifecycleState | null>(null);
+  const [confirmTransition, setConfirmTransition] = useState<SessionLifecycleState | null>(null);
+  const [cancelReason, setCancelReason] = useState('');
+  const [liveUpdateNote, setLiveUpdateNote] = useState<string | null>(null);
   const isOperatorSessionsWorkspace = role === 'operator' && activeNav === 'sessions';
 
   useEffect(() => {
@@ -207,10 +281,70 @@ export default function DashboardClient({
     return () => window.clearTimeout(timeout);
   }, [toast]);
 
+  useEffect(() => {
+    if (role !== 'operator') return
+
+    listSessionsForOperator()
+      .then((result) => {
+        setOperatorSessions(result)
+        setOperatorSessionsRequestState('loaded')
+      })
+      .catch(() => {
+        setOperatorSessionsError(
+          'Assigned sessions could not be loaded through the gateway. The backend needs an operator-authorized session listing endpoint.',
+        )
+        setOperatorSessionsRequestState('failed')
+      })
+  }, [role])
+
+  const selectedOperatorSession =
+    role === 'operator'
+      ? operatorSessions.find((session) => session.liveSessionId === selectedSessionId) ?? null
+      : null
+  const selectedOperatorState = selectedOperatorSession
+    ? toLifecycleState(selectedOperatorSession.sessionState)
+    : null
   const activeSession = sessions.find((session) => session.id === selectedSessionId);
   const derivedSession = activeSession
-    ? { ...activeSession, state: sessionStateMap[activeSession.id] }
+    ? { ...activeSession }
     : null;
+
+  // Key this effect on the stable session id, not the derived `selectedOperatorSession` object.
+  // The object is re-created via `.find()` on every render, so depending on it tore down and
+  // restarted the SignalR connection each render — aborting the in-flight negotiate ("connection
+  // was stopped during negotiation"). Keying on the id connects once per selected session.
+  const selectedRealtimeSessionId = selectedOperatorSession?.liveSessionId ?? null
+
+  useEffect(() => {
+    if (!selectedRealtimeSessionId) return
+
+    const client = createSessionStateRealtimeClient({
+      liveSessionId: selectedRealtimeSessionId,
+      onStatusChange: setRealtimeStatus,
+      onStateChanged: (notification: SessionStateChangedNotificationDto) => {
+        if (notification.liveSessionId !== selectedRealtimeSessionId) return
+
+        setOperatorSessions((current) =>
+          current.map((session) =>
+            session.liveSessionId === notification.liveSessionId
+              ? {
+                  ...session,
+                  sessionState: notification.currentState,
+                  lastTransitionedAt: notification.changedAt,
+                }
+              : session
+          )
+        )
+        setLiveUpdateNote('State updated live from another client or tab.')
+      },
+    })
+
+    void client.start()
+    return () => {
+      void client.stop()
+    }
+  }, [selectedRealtimeSessionId])
+
   function announce(title: string, body: string) {
     setToast({ title, body });
   }
@@ -219,40 +353,83 @@ export default function DashboardClient({
     setTheme((current) => (current === 'dark' ? 'light' : 'dark'));
   }
 
-  function toggleConnection() {
-    setIsConnected((current) => {
-      const next = !current;
-      announce(next ? 'SignalR link restored' : 'SignalR link lost', next ? 'Live updates resumed across the control room.' : 'Realtime updates paused. Last synced 8 seconds ago.');
-      return next;
-    });
+  function applyTransitionResult(result: TransitionSessionStateResultDto) {
+    setOperatorSessions((current) =>
+      current.map((session) =>
+        session.liveSessionId === result.liveSessionId
+          ? {
+              ...session,
+              sessionState: result.currentState,
+              lastTransitionedAt: result.transitionedAt,
+            }
+          : session
+      )
+    )
   }
 
-  function updateSessionState(nextState: SessionState) {
-    if (!derivedSession) {
-      return;
+  function mapTransitionError(err: unknown) {
+    if (!(err instanceof Error)) return 'State transition failed. Try again.'
+
+    return (
+      {
+        not_assigned_operator: 'You are not the assigned operator for this session.',
+        session_not_found: 'Session not found. It may have been removed or reassigned.',
+        no_teams: 'This session has no teams yet. Add at least one team before starting it.',
+        session_unassigned: 'This session has no assigned operator. Ask an administrator to assign one before changing its state.',
+        invalid_transition: 'That state change is not allowed from the current session state.',
+        invalid_payload: 'Invalid state change payload. Reload the page and try again.',
+      } satisfies Record<string, string>
+    )[err.message] ?? 'State transition failed. Try again.'
+  }
+
+  function requestTransition(targetState: SessionLifecycleState) {
+    const action = selectedOperatorState
+      ? lifecycleActions[selectedOperatorState].find((item) => item.targetState === targetState)
+      : null
+
+    setTransitionError(null)
+    setLiveUpdateNote(null)
+    if (action?.destructive) {
+      setConfirmTransition(targetState)
+      return
     }
 
-    setSessionStateMap((current) => ({ ...current, [derivedSession.id]: nextState }));
-
-    const messages: Record<SessionState, { title: string; body: string }> = {
-      draft: {
-        title: `${derivedSession.title} returned to draft`,
-        body: 'The session is no longer visible to operators on the live board.',
-      },
-      live: {
-        title: `${derivedSession.title} is live`,
-        body: `Teams are active and ${derivedSession.questionsAnswered} of ${derivedSession.questionsTotal} questions have been answered.`,
-      },
-      paused: {
-        title: `${derivedSession.title} paused`,
-        body: 'Countdown timers are frozen while operators resolve the issue.',
-      },
-    };
-
-    announce(messages[nextState].title, messages[nextState].body);
+    void runTransition(targetState)
   }
 
-  const statusTone = !isConnected ? 'critical' : derivedSession?.state === 'paused' ? 'warning' : 'success';
+  async function runTransition(targetState: SessionLifecycleState) {
+    if (!selectedOperatorSession) return
+
+    setPendingTransition(targetState)
+    setTransitionError(null)
+    try {
+      const result = await transitionSessionState(
+        selectedOperatorSession.liveSessionId,
+        targetState,
+        targetState === 'Cancelled' ? cancelReason : undefined,
+      )
+      applyTransitionResult(result)
+      setConfirmTransition(null)
+      setCancelReason('')
+      announce(`${selectedOperatorSession.title} moved to ${result.currentState}`, 'The backend accepted the lifecycle transition.')
+    } catch (err) {
+      setTransitionError(mapTransitionError(err))
+    } finally {
+      setPendingTransition(null)
+    }
+  }
+
+  const statusTone =
+    (selectedOperatorSession ? realtimeStatus : 'Offline') === 'Offline' ||
+    (selectedOperatorSession ? realtimeStatus : 'Offline') === 'AuthExpired' ? 'critical'
+    : selectedOperatorState ? lifecycleTone[selectedOperatorState]
+    : derivedSession?.state === 'paused' ? 'warning'
+    : 'success';
+  const transportStatus = selectedOperatorSession ? realtimeStatus : 'Offline'
+  const transportStatusText = transportStatusLabel[transportStatus]
+  const realtimeAuthExpired = transportStatus === 'AuthExpired'
+  const isLoadingOperatorSessions = role === 'operator' && operatorSessionsRequestState === 'idle'
+  const healthIsGood = role !== 'operator' || transportStatus === 'Connected'
 
   const visibleNavigation = navigation.filter((item) => {
     if (role === 'participant') return item.key === 'overview'
@@ -305,11 +482,15 @@ export default function DashboardClient({
                 Session health
               </div>
               <div className={styles.healthStatus}>
-                <span className={styles.statusDot} aria-hidden="true" data-tone={isConnected ? 'success' : 'critical'} />
-                <span>{isConnected ? 'Good' : 'Needs attention'}</span>
+                <span className={styles.statusDot} aria-hidden="true" data-tone={healthIsGood ? 'success' : 'critical'} />
+                <span>{healthIsGood ? 'Good' : 'Needs attention'}</span>
               </div>
               <p className={styles.healthText}>
-                {isConnected ? 'SignalR is healthy, validator sync is stable.' : 'Realtime transport dropped. Hold question reveals until sync recovers.'}
+                {role === 'operator'
+                  ? realtimeAuthExpired
+                    ? 'Realtime authentication expired. Sign in again to restore live updates.'
+                    : `Realtime transport: ${transportStatusText}.`
+                  : 'SignalR is healthy, validator sync is stable.'}
               </p>
 
               <div className={styles.eventTime}>
@@ -333,9 +514,9 @@ export default function DashboardClient({
                 <>
                   <span className={styles.chip}>My sessions</span>
                   <span className={styles.panelMeta}>
-                    {derivedSession
-                      ? `${derivedSession.title} is part of your current workload. Create new sessions here, or select one to continue setup before live operation.`
-                      : 'Review the sessions you own, create a new one from valid content, or ask an administrator to reassign an existing session.'}
+                    {selectedOperatorSession
+                      ? `${selectedOperatorSession.title} is part of your current workload. Select one of your sessions to review it before live operation.`
+                      : 'Review the sessions assigned to you, or ask an administrator to assign or reassign a session.'}
                   </span>
                 </>
               ) : (
@@ -356,11 +537,30 @@ export default function DashboardClient({
                       ))}
                     </select>
                   </label>
-                  <span className={!isConnected ? styles.chip : derivedSession?.state === 'live' ? styles.liveChip : styles.chip} data-tone={!isConnected ? 'critical' : derivedSession?.state === 'live' ? undefined : 'warning'}>
-                    {!isConnected ? 'Signal lost' : derivedSession ? stateLabels[derivedSession.state] : 'Live'}
+                  <span
+                    className={selectedOperatorState === 'Active' && transportStatus === 'Connected' ? styles.liveChip : styles.chip}
+                    data-tone={
+                      role === 'operator'
+                        ? transportStatus === 'Offline' || transportStatus === 'AuthExpired'
+                          ? 'critical'
+                          : selectedOperatorState
+                            ? lifecycleTone[selectedOperatorState]
+                            : 'muted'
+                        : derivedSession?.state === 'live'
+                          ? undefined
+                          : 'warning'
+                    }
+                  >
+                    {role === 'operator'
+                      ? selectedOperatorState ?? transportStatusText
+                      : derivedSession ? stateLabels[derivedSession.state] : 'Live'}
                   </span>
                   <span className={styles.panelMeta}>
-                    {derivedSession ? `Started ${derivedSession.startedAt}` : 'Choose a session to inspect'}
+                    {role === 'operator'
+                      ? selectedOperatorSession
+                        ? `Scheduled ${formatDateTime(selectedOperatorSession.scheduledAt)}`
+                        : 'Choose a session to inspect'
+                      : derivedSession ? `Started ${derivedSession.startedAt}` : 'Choose a session to inspect'}
                   </span>
                 </>
               )}
@@ -368,9 +568,9 @@ export default function DashboardClient({
 
             <div className={styles.topbarRight}>
               <div className={styles.statusRow}>
-                <button className={styles.statusToggle} onClick={toggleConnection} type="button">
-                  {isConnected ? 'SignalR' : 'Offline'}
-                </button>
+                <span className={styles.statusToggle} data-testid="session-transport-status">
+                  {role === 'operator' ? transportStatusText : 'SignalR'}
+                </span>
               </div>
 
               <button className={styles.themeButton} onClick={toggleTheme} type="button" suppressHydrationWarning>
@@ -411,7 +611,9 @@ export default function DashboardClient({
               ? <SessionOperatorPanel />
               : (
                   <SessionsPanel
-                    assignedSessions={sessions.filter((session) => session.assignedToOperator)}
+                    assignedSessions={operatorSessions}
+                    isLoadingAssignedSessions={isLoadingOperatorSessions}
+                    assignedSessionsError={operatorSessionsError}
                     selectedSessionId={selectedSessionId === 'assigned-list' ? null : selectedSessionId}
                     onSelectSession={setSelectedSessionId}
                     onOpenLiveOperation={(sessionId) => {
@@ -425,31 +627,31 @@ export default function DashboardClient({
               <div>
                 <h1 id="assigned-sessions-title">My sessions</h1>
                 <p className={styles.emptyStateCopy}>
-                  Review the sessions you are responsible for, create a new one from valid content, or ask an administrator to reassign a session when the live floor changes.
+                  Review the sessions you are responsible for, or ask an administrator to assign or reassign a session when the live floor changes.
                 </p>
               </div>
 
               <div className={styles.sessionCards}>
-                {sessions.filter((session) => session.assignedToOperator).map((session) => {
-                  const sessionState = sessionStateMap[session.id];
+                {operatorSessions.map((session) => {
+                  const sessionState = toLifecycleState(session.sessionState);
 
                   return (
                     <button
-                      key={session.id}
+                      key={session.liveSessionId}
                       className={styles.sessionButton}
                       data-current={false}
-                      onClick={() => setSelectedSessionId(session.id)}
+                      onClick={() => setSelectedSessionId(session.liveSessionId)}
                       type="button"
                     >
                       <div className={styles.sessionCardHeader}>
                         <div>
                           <h3>{session.title}</h3>
                           <div className={styles.sessionCardMeta}>
-                            {session.subtitle} • {session.district} • {session.night}
+                            {session.sessionCode} • Scheduled {formatDateTime(session.scheduledAt)}
                           </div>
                         </div>
-                        <span className={styles.chip} data-tone={sessionState === 'live' ? 'success' : sessionState === 'paused' ? 'warning' : 'critical'}>
-                          {stateLabels[sessionState]}
+                        <span className={styles.chip} data-tone={sessionState ? lifecycleTone[sessionState] : 'muted'}>
+                          {sessionState ?? session.sessionState}
                         </span>
                       </div>
                     </button>
@@ -458,15 +660,12 @@ export default function DashboardClient({
               </div>
 
               <div className={styles.emptyActions}>
-                <button className={styles.primaryButton} onClick={() => setActiveNav('sessions')} type="button">
-                  Create session
-                </button>
-                <button className={styles.secondaryButton} onClick={() => setSelectedSessionId('downtown-trivia')} type="button">
+                <button className={styles.primaryButton} onClick={() => operatorSessions[0] && setSelectedSessionId(operatorSessions[0].liveSessionId)} type="button" disabled={operatorSessions.length === 0}>
                   Open live session
                 </button>
               </div>
             </section>
-          ) : role === 'operator' && derivedSession ? (
+          ) : role === 'operator' && selectedOperatorSession && selectedOperatorState ? (
             <>
               <section className={styles.hero} aria-labelledby="session-title" data-testid="operator-panel">
                 <div className={styles.heroHeader}>
@@ -477,139 +676,190 @@ export default function DashboardClient({
 
                     <div className={styles.heroHeading}>
                       <div className={styles.headerButtons}>
-                        <h1 id="session-title">{derivedSession.title}</h1>
+                        <h1 id="session-title">{selectedOperatorSession.title}</h1>
                         <span className={styles.chip} data-tone={statusTone}>
-                          {!isConnected ? 'Signal lost' : stateLabels[derivedSession.state]}
+                          {selectedOperatorState}
                         </span>
                       </div>
 
                       <div className={styles.sessionMeta}>
-                        <span>{derivedSession.subtitle}</span>
+                        <span>{selectedOperatorSession.sessionCode}</span>
                         <span>•</span>
-                        <span>{derivedSession.district}</span>
+                        <span>Scheduled {formatDateTime(selectedOperatorSession.scheduledAt)}</span>
                         <span>•</span>
-                        <span>{derivedSession.night}</span>
+                        <span>{selectedOperatorSession.assignedOperatorUserId == null ? 'Unassigned' : 'Assigned to you'}</span>
                       </div>
                     </div>
                   </div>
 
                   <div className={styles.heroMetrics}>
                     <div className={styles.metricBlock}>
-                      <span className={styles.metricValue}>{derivedSession.timeRemaining}</span>
-                      <span className={styles.metricLabel}>Time remaining</span>
+                      <span className={styles.metricValue}>{selectedOperatorState}</span>
+                      <span className={styles.metricLabel}>Current state</span>
+                    </div>
+                    <div className={styles.metricBlock}>
+                      <span className={styles.metricValue}>{transportStatusText}</span>
+                      <span className={styles.metricLabel}>Transport</span>
                     </div>
                     <div className={styles.metricBlock}>
                       <span className={styles.metricValue}>
-                        {derivedSession.teamsActive} <small>/ {derivedSession.teamsTotal}</small>
+                        {selectedOperatorSession.lastTransitionedAt
+                          ? new Date(selectedOperatorSession.lastTransitionedAt).toLocaleTimeString()
+                          : 'None'}
                       </span>
-                      <span className={styles.metricLabel}>Teams active</span>
-                    </div>
-                    <div className={styles.metricBlock}>
-                      <span className={styles.metricValue}>
-                        {derivedSession.questionsAnswered} <small>/ {derivedSession.questionsTotal}</small>
-                      </span>
-                      <span className={styles.metricLabel}>Answers submitted</span>
+                      <span className={styles.metricLabel}>Last transition</span>
                     </div>
                   </div>
                 </div>
 
-                <div className={styles.heroActions}>
-                  <button
-                    className={styles.primaryButton}
-                    onClick={() => updateSessionState(derivedSession.state === 'paused' ? 'live' : 'paused')}
-                    type="button"
-                  >
-                    {derivedSession.state === 'paused' ? 'Resume session' : 'Pause session'}
-                  </button>
-                </div>
+                {liveUpdateNote && (
+                  <p className={styles.liveNote} role="status" data-testid="session-live-update-note">
+                    {liveUpdateNote}
+                  </p>
+                )}
+
+                {realtimeAuthExpired && (
+                  <section className={styles.authBanner} role="alert" data-testid="session-auth-expired-banner">
+                    <div>
+                      <strong>Realtime authentication expired.</strong> Your dashboard session is still active, but SignalR cannot reconnect until you sign in again.
+                    </div>
+                    <div className={styles.authBannerActions}>
+                      <a className={styles.primaryButton} href="/api/auth/login">
+                        Sign in again
+                      </a>
+                      <form action={logout}>
+                        <button className={styles.inlineButton} type="submit">
+                          Sign out
+                        </button>
+                      </form>
+                    </div>
+                  </section>
+                )}
               </section>
 
-              <div className={styles.contentGrid}>
-              </div>
-
               <div className={styles.bottomGrid}>
-                <section className={styles.panel} aria-labelledby="round-status-title">
-                  <div className={styles.panelHeader}>
-                    <div>
-                      <h2 id="round-status-title">Round status</h2>
-                      <div className={styles.panelMeta}>Team response overview for the active question.</div>
-                    </div>
-                  </div>
-
-                  <table className={styles.roundTable}>
-                    <thead>
-                      <tr>
-                        <th>Team</th>
-                        <th data-align="center">Status</th>
-                        <th data-align="center">Answer</th>
-                        <th data-align="center">Score</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {[
-                        { team: 'Gilded Owls', badge: '🦉', status: 'Answered', answer: 'B', score: 40 },
-                        { team: 'Maple Runners', badge: '🍁', status: 'Answered', answer: 'B', score: 40 },
-                        { team: 'Cipher Secrets', badge: '🗝', status: 'Pending', answer: '—', score: 0 },
-                        { team: 'The Wayfinders', badge: '🧭', status: 'Answered', answer: 'C', score: 10 },
-                      ].map((row) => (
-                        <tr key={row.team}>
-                          <td data-label="Team">
-                            <div className={styles.teamCell}>
-                              <span className={styles.teamBadge}>{row.badge}</span>
-                              <span>{row.team}</span>
-                            </div>
-                          </td>
-                          <td data-align="center" data-label="Status">
-                            <span className={styles.chip} data-tone={row.status === 'Answered' ? 'success' : 'warning'}>
-                              {row.status}
-                            </span>
-                          </td>
-                          <td data-align="center" data-label="Answer">{row.answer}</td>
-                          <td data-align="center" data-label="Score">{row.score}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </section>
-
                 <section className={styles.panel} aria-labelledby="session-controls-title">
                   <div className={styles.panelHeader}>
                     <div>
                       <h2 id="session-controls-title">Session controls</h2>
-                      <div className={styles.panelMeta}>High-stakes actions stay obvious, reversible where possible, and keyboard reachable.</div>
+                      <div className={styles.panelMeta}>Allowed next actions are derived from the backend lifecycle state.</div>
                     </div>
                   </div>
 
+                  {transitionError && (
+                    <p className={styles.errorBanner} role="alert" data-testid="session-transition-error">
+                      {transitionError}
+                    </p>
+                  )}
+
                   <div className={styles.controlGrid}>
-                    <button className={styles.controlTile} onClick={() => updateSessionState('paused')} type="button">
-                      <span className={styles.controlKicker}>Ⅱ</span>
-                      <span className={styles.controlTitle}>Pause session</span>
-                      <span className={styles.controlCopy}>Freeze countdown and stop accepting answers.</span>
-                    </button>
-                    <button className={styles.controlTile} onClick={() => updateSessionState('live')} type="button">
-                      <span className={styles.controlKicker}>▷</span>
-                      <span className={styles.controlTitle}>Resume session</span>
-                      <span className={styles.controlCopy}>Return teams to live answering.</span>
-                    </button>
-                    <button className={styles.controlTile} data-tone="accent" type="button">
-                      <span className={styles.controlKicker}>▶</span>
-                      <span className={styles.controlTitle}>Next question</span>
-                      <span className={styles.controlCopy}>Advance to the next trivia question.</span>
-                    </button>
-                    <button className={styles.controlTile} data-tone="success" type="button">
-                      <span className={styles.controlKicker}>◉</span>
-                      <span className={styles.controlTitle}>Reveal answer</span>
-                      <span className={styles.controlCopy}>Show the correct answer to all teams.</span>
-                    </button>
-                    <button className={styles.controlTile} type="button">
-                      <span className={styles.controlKicker}>✉</span>
-                      <span className={styles.controlTitle}>Send announcement</span>
-                      <span className={styles.controlCopy}>Broadcast delays, hints, or clarifications.</span>
-                    </button>
+                    {lifecycleActions[selectedOperatorState].map((action) => (
+                      <button
+                        className={styles.controlTile}
+                        data-testid={`session-action-${action.targetState}`}
+                        data-tone={action.destructive ? 'critical' : action.targetState === 'Active' ? 'success' : 'accent'}
+                        disabled={pendingTransition != null}
+                        key={action.targetState}
+                        onClick={() => requestTransition(action.targetState)}
+                        type="button"
+                      >
+                        <span className={styles.controlKicker}>{action.destructive ? '!' : '>'}</span>
+                        <span className={styles.controlTitle}>
+                          {pendingTransition === action.targetState ? 'Working...' : action.label}
+                        </span>
+                        <span className={styles.controlCopy}>{action.description}</span>
+                      </button>
+                    ))}
                   </div>
+
+                  {lifecycleActions[selectedOperatorState].length === 0 && (
+                    <p className={styles.emptyStateCopy} data-testid="session-no-actions">
+                      This session is terminal. No further lifecycle actions are available.
+                    </p>
+                  )}
+
+                  {confirmTransition && (
+                    <section className={styles.confirmPanel} aria-label="Confirm terminal transition">
+                      <h3>Confirm {confirmTransition}</h3>
+                      <p className={styles.panelMeta}>
+                        This is a terminal lifecycle action. The backend will reject it if the transition is no longer valid.
+                      </p>
+                      {confirmTransition === 'Cancelled' && (
+                        <label className={styles.reasonField}>
+                          <span>Cancellation reason (optional)</span>
+                          <textarea
+                            value={cancelReason}
+                            onChange={(event) => setCancelReason(event.target.value)}
+                            rows={3}
+                            disabled={pendingTransition != null}
+                          />
+                        </label>
+                      )}
+                      <div className={styles.confirmRow}>
+                        <button
+                          className={styles.dangerButton}
+                          data-testid="session-confirm-terminal"
+                          disabled={pendingTransition != null}
+                          onClick={() => void runTransition(confirmTransition)}
+                          type="button"
+                        >
+                          Confirm {confirmTransition}
+                        </button>
+                        <button
+                          className={styles.inlineButton}
+                          disabled={pendingTransition != null}
+                          onClick={() => {
+                            setConfirmTransition(null)
+                            setCancelReason('')
+                          }}
+                          type="button"
+                        >
+                          Keep session open
+                        </button>
+                      </div>
+                    </section>
+                  )}
+                </section>
+
+                <section className={styles.panel} aria-labelledby="session-detail-title">
+                  <div className={styles.panelHeader}>
+                    <div>
+                      <h2 id="session-detail-title">Session detail</h2>
+                      <div className={styles.panelMeta}>Backend summary for the selected operator session.</div>
+                    </div>
+                  </div>
+
+                  <dl className={styles.sessionMeta}>
+                    <dt>Title</dt>
+                    <dd>{selectedOperatorSession.title}</dd>
+                    <dt>Code</dt>
+                    <dd>{selectedOperatorSession.sessionCode}</dd>
+                    <dt>Scheduled time</dt>
+                    <dd>{formatDateTime(selectedOperatorSession.scheduledAt)}</dd>
+                    <dt>Ownership</dt>
+                    <dd>{selectedOperatorSession.assignedOperatorUserId == null ? 'No assigned operator' : 'Assigned operator present'}</dd>
+                    <dt>Last transition</dt>
+                    <dd>{formatDateTime(selectedOperatorSession.lastTransitionedAt)}</dd>
+                    <dt>Transport</dt>
+                    <dd>{transportStatusText}</dd>
+                  </dl>
                 </section>
               </div>
             </>
+          ) : role === 'operator' ? (
+            <section className={styles.emptyState} aria-labelledby="operator-session-unavailable-title" data-testid="operator-panel">
+              <div>
+                <h1 id="operator-session-unavailable-title">No operator session selected</h1>
+                <p className={styles.emptyStateCopy}>
+                  Select one of your assigned sessions before opening lifecycle controls.
+                </p>
+              </div>
+              <div className={styles.emptyActions}>
+                <button className={styles.primaryButton} onClick={() => setActiveNav('sessions')} type="button">
+                  Back to my sessions
+                </button>
+              </div>
+            </section>
           ) : (
             <>
               <section className={styles.hero} aria-labelledby="admin-title" data-testid="admin-panel">
@@ -621,8 +871,8 @@ export default function DashboardClient({
                     <div className={styles.heroHeading}>
                       <div className={styles.headerButtons}>
                         <h1 id="admin-title">Trivia night overview</h1>
-                        <span className={styles.chip} data-tone={isConnected ? 'success' : 'critical'}>
-                          {isConnected ? 'Global view live' : 'Signal degraded'}
+                        <span className={styles.chip} data-tone="success">
+                          Global view live
                         </span>
                       </div>
                       <div className={styles.sessionMeta}>
@@ -637,7 +887,7 @@ export default function DashboardClient({
 
                   <div className={styles.heroActions}>
                     <button className={styles.secondaryButton} type="button" onClick={() => setActiveNav('sessions')}>
-                      Manage sessions
+                      Assign operators
                     </button>
                   </div>
                 </div>

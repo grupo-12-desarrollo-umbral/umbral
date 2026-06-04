@@ -174,13 +174,41 @@ export type TriviaSessionCreatedDto = {
   questionCount: number
 }
 
+export type SessionLifecycleState =
+  | 'Scheduled'
+  | 'Preparing'
+  | 'Active'
+  | 'Paused'
+  | 'Finished'
+  | 'Cancelled'
+
+export type TransitionSessionStateRequest = {
+  targetState: SessionLifecycleState
+  reason?: string
+}
+
+export type TransitionSessionStateResultDto = {
+  liveSessionId: string
+  previousState: string
+  currentState: string
+  transitionedAt: string
+}
+
+export type SessionStateChangedNotificationDto = {
+  liveSessionId: string
+  previousState: string
+  currentState: string
+  changedAt: string
+}
+
 export type SessionAssignmentSummaryDto = {
   liveSessionId: string
   sessionCode: string
   title: string
-  sessionState: string
+  sessionState: SessionLifecycleState | string
   assignedOperatorUserId: number | null // null = unassigned
   scheduledAt: string
+  lastTransitionedAt?: string | null
 }
 
 // Result of PATCH /api/sessions/{id}/operator-assignment (projection of AssignOperatorToSessionResultDto)

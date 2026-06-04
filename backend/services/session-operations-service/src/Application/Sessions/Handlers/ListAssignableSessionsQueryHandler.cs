@@ -1,4 +1,5 @@
 using umbral_backend.Application.Common.Interfaces;
+using umbral_backend.Application.Common.Exceptions;
 using umbral_backend.Application.Sessions.DTOs;
 using umbral_backend.Application.Sessions.Queries.ListAssignableSessions;
 
@@ -8,16 +9,42 @@ public sealed class ListAssignableSessionsQueryHandler
     : IRequestHandler<ListAssignableSessionsQuery, IReadOnlyList<SessionOperatorSummaryDto>>
 {
     private readonly ILiveSessionRepository _repository;
+    private readonly ICurrentUser _currentUser;
+    private readonly IAuthenticatedActorProfileAccessClient _authenticatedActorProfileAccessClient;
 
-    public ListAssignableSessionsQueryHandler(ILiveSessionRepository repository)
+    public ListAssignableSessionsQueryHandler(
+        ILiveSessionRepository repository,
+        ICurrentUser currentUser,
+        IAuthenticatedActorProfileAccessClient authenticatedActorProfileAccessClient)
     {
         _repository = repository;
+        _currentUser = currentUser;
+        _authenticatedActorProfileAccessClient = authenticatedActorProfileAccessClient;
     }
 
-    public Task<IReadOnlyList<SessionOperatorSummaryDto>> Handle(
+    public async Task<IReadOnlyList<SessionOperatorSummaryDto>> Handle(
         ListAssignableSessionsQuery request,
         CancellationToken cancellationToken)
     {
-        return _repository.ListAssignableSummariesAsync(cancellationToken);
+        if (string.IsNullOrWhiteSpace(_currentUser.Id))
+        {
+            throw new UnauthorizedAccessException();
+        }
+
+        if (string.Equals(_currentUser.Role, "Administrator", StringComparison.OrdinalIgnoreCase))
+        {
+            return await _repository.ListAssignableSummariesAsync(
+                assignedOperatorUserId: null,
+                cancellationToken);
+        }
+
+        if (!string.Equals(_currentUser.Role, "Operator", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new ForbiddenAccessException();
+        }
+
+        var actor = await _authenticatedActorProfileAccessClient.GetCurrentAsync(cancellationToken);
+
+        return await _repository.ListAssignableSummariesAsync(actor.UserId, cancellationToken);
     }
 }

@@ -522,18 +522,18 @@ Coverage is collected per ADR-0005: `coverlet.msbuild` with `/p:CollectCoverage=
 | API Endpoints | Bootstrap + read-back cycle (provision user via POST, GET /me, verify DB), no-headers → 401, deactivated user → 403, bootstrap without headers → 401, list users → paginated results, deactivate user → 204, deactivate already-deactivated → 400, health → 200, alive → 200 | Api/infra |
 | Persistence | Full authenticate + retrieve profile through real `UserRepository` + PostgreSQL | Infra |
 
-## Seeding Teams (Development)
+## Seeding Users and Teams (Development)
 
-Once the stack is running, seed test teams by running the script from the repo root:
+Once the stack is running, seed test users and teams by running the script from the repo root:
 
 ```bash
-./backend/scripts/seed-teams.sh
+./backend/scripts/seed-users.sh
 ```
 
-The script authenticates as the `admin` Keycloak user, obtains a token, and calls `POST /api/teams` through the gateway (`localhost:8000`). It is idempotent — teams that already exist (409) are skipped. To target a different base URL or Keycloak instance, pass them as arguments:
+The script provisions the dev identities in Keycloak (operators + eight participants), bootstraps each into `identity_access` through the gateway, then registers 4 teams (Delta/Echo/Bismarck/Los Panas) and assigns the eight participants 2-per-team via `POST /api/teams` and `POST /api/teams/{id}/participants`. It is idempotent — existing teams (409) are reused and existing memberships (409) are skipped. To target a different base URL or Keycloak instance, pass them as arguments:
 
 ```bash
-./backend/scripts/seed-teams.sh http://localhost:8000 http://localhost:8080
+./backend/scripts/seed-users.sh http://localhost:8000 http://localhost:8080
 ```
 
 ## Running the Service

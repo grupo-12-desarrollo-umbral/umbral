@@ -179,6 +179,24 @@
       "realmRoles": [
         "Participant"
       ]
+    },
+    {
+      "username": "operator2",
+      "enabled": true,
+      "emailVerified": true,
+      "email": "operator2@umbral.local",
+      "firstName": "Operator",
+      "lastName": "Dos",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "operator123",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "Operator"
+      ]
     }
   ]
 }

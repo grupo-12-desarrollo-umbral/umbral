@@ -11,13 +11,16 @@ public sealed class SessionAdministrationAuthorizationProxy : ISessionAdministra
 
     private readonly ICurrentUser _currentUser;
     private readonly ISessionAdministrationAccessExecutor _inner;
+    private readonly IAuthenticatedActorProfileAccessClient _authenticatedActorProfileAccessClient;
 
     public SessionAdministrationAuthorizationProxy(
         ICurrentUser currentUser,
-        ISessionAdministrationAccessExecutor inner)
+        ISessionAdministrationAccessExecutor inner,
+        IAuthenticatedActorProfileAccessClient authenticatedActorProfileAccessClient)
     {
         _currentUser = currentUser;
         _inner = inner;
+        _authenticatedActorProfileAccessClient = authenticatedActorProfileAccessClient;
     }
 
     public async Task<LiveSession> GetAuthorizedSessionAsync(Guid liveSessionId, CancellationToken cancellationToken)
@@ -39,12 +42,9 @@ public sealed class SessionAdministrationAuthorizationProxy : ISessionAdministra
             throw new ForbiddenAccessException();
         }
 
-        if (!int.TryParse(_currentUser.Id, out var operatorUserId))
-        {
-            throw new UnauthorizedAccessException();
-        }
+        var actor = await _authenticatedActorProfileAccessClient.GetCurrentAsync(cancellationToken);
 
-        if (liveSession.AssignedOperatorUserId != operatorUserId)
+        if (liveSession.AssignedOperatorUserId != actor.UserId)
         {
             throw new ForbiddenAccessException();
         }

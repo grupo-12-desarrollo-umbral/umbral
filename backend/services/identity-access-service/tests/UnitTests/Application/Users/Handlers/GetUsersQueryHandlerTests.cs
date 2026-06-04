@@ -72,10 +72,12 @@ public sealed class GetUsersQueryHandlerTests
     }
 
     [Fact]
-    public async Task Handle_RejectsNonAdministratorActor()
+    public async Task Handle_AllowsOperatorActor()
     {
         var actor = User.Provision("kc-operator", "Operator", "operator@example.com", Role.Operator);
         actor.Id = 2;
+        var listedUser = User.Provision("kc-admin", "Admin", "admin@example.com", Role.Administrator);
+        listedUser.Id = 7;
 
         var currentUser = new Mock<ICurrentUser>();
         currentUser.SetupGet(user => user.Id).Returns("kc-operator");
@@ -84,12 +86,23 @@ public sealed class GetUsersQueryHandlerTests
         repository
             .Setup(repo => repo.GetByExternalIdentityIdAsync("kc-operator", It.IsAny<CancellationToken>()))
             .ReturnsAsync(actor);
+        repository
+            .Setup(repo => repo.ListAsync(1, 20, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new PagedResult<User>
+            {
+                Items = new[] { listedUser },
+                TotalCount = 1,
+                Page = 1,
+                PageSize = 20
+            });
 
         var handler = new GetUsersQueryHandler(repository.Object, currentUser.Object, new AccessPolicy());
 
-        var act = async () => await handler.Handle(new GetUsersQuery(), CancellationToken.None);
+        var result = await handler.Handle(new GetUsersQuery(), CancellationToken.None);
 
-        await act.Should().ThrowAsync<UserRoleNotAuthorizedException>();
-        repository.Verify(repo => repo.ListAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()), Times.Never);
+        result.TotalCount.Should().Be(1);
+        result.Items.Should().ContainSingle();
+        result.Items.Single().Role.Should().Be("Administrator");
+        repository.Verify(repo => repo.ListAsync(1, 20, It.IsAny<CancellationToken>()), Times.Once);
     }
 }

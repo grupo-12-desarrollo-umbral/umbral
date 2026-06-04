@@ -3,7 +3,7 @@ using umbral_backend.Application.Sessions.DTOs;
 
 namespace umbral_backend.Application.Sessions.Commands.CreateTriviaSession;
 
-[Authorize(Roles = "Operator")]
+[Authorize(Roles = "Administrator")]
 public sealed record CreateTriviaSessionCommand(
     int SourceTriviaQuizId,
     string Title,

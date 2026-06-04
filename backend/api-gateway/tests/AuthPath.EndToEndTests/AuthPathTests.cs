@@ -10,6 +10,30 @@ public sealed class AuthPathTests : IClassFixture<ComposeStackFixture>
     }
 
     [Fact]
+    public async Task AllowedFrontendOriginPreflightSucceedsBeforeAuthentication()
+    {
+        await _fixture.ResetProbeAsync();
+
+        using var request = new HttpRequestMessage(HttpMethod.Options, "/api/test-auth-probe/inspect");
+        request.Headers.Add("Origin", "http://localhost:3000");
+        request.Headers.Add("Access-Control-Request-Method", "GET");
+        request.Headers.Add("Access-Control-Request-Headers", "authorization");
+
+        using var response = await _fixture.GatewayClient.SendAsync(request);
+        response.StatusCode.Should().Be(HttpStatusCode.NoContent);
+        response.Headers.TryGetValues("Access-Control-Allow-Origin", out var allowedOrigins).Should().BeTrue();
+        allowedOrigins.Should().ContainSingle("http://localhost:3000");
+        response.Headers.TryGetValues("Access-Control-Allow-Credentials", out var allowCredentials).Should().BeTrue();
+        allowCredentials.Should().ContainSingle("true");
+        response.Headers.TryGetValues("Access-Control-Allow-Headers", out var allowedHeaders).Should().BeTrue();
+        allowedHeaders.Should().Contain(header =>
+            header.Contains("authorization", StringComparison.OrdinalIgnoreCase));
+
+        var state = await _fixture.GetProbeStateAsync();
+        state.HitCount.Should().Be(0);
+    }
+
+    [Fact]
     public async Task ValidTokenAddsTrustedHeadersAndStripsAuthorization()
     {
         await _fixture.ResetProbeAsync();
@@ -24,7 +48,7 @@ public sealed class AuthPathTests : IClassFixture<ComposeStackFixture>
         var probeResponse = await response.Content.ReadFromJsonAsync<ProbeInspectResponse>();
         probeResponse.Should().NotBeNull();
         probeResponse!.XUserId.Should().Be(subject);
-        probeResponse.XUserRole.Should().Be("Administrador");
+        probeResponse.XUserRole.Should().Be("Administrator");
         probeResponse.XUserEmail.Should().Be("admin@umbral.local");
         probeResponse.Authorization.Should().BeNullOrEmpty();
 

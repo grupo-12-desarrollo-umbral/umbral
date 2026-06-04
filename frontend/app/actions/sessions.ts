@@ -5,7 +5,9 @@ import { listTriviaQuizzes } from '@/app/lib/trivias'
 import {
   createTriviaSession as createTriviaSessionLib,
   listAssignableSessions as listAssignableSessionsLib,
+  listOperatorSessions as listOperatorSessionsLib,
   assignSessionOperator as assignSessionOperatorLib,
+  transitionSessionState as transitionSessionStateLib,
 } from '@/app/lib/sessions'
 import { listAssignableOperators as listAssignableOperatorsLib } from '@/app/lib/users'
 import { revalidatePath } from 'next/cache'
@@ -16,11 +18,13 @@ import type {
   SessionAssignmentSummaryDto,
   AssignSessionOperatorResultDto,
   AssignableOperatorDto,
+  SessionLifecycleState,
+  TransitionSessionStateResultDto,
 } from '@/app/lib/definitions'
 
 export async function getPublishedTrivias(): Promise<TriviaQuizSummaryDto[]> {
   const session = await verifySession()
-  if (session.role !== 'Operator') throw new Error('Forbidden')
+  if (session.role !== 'Administrator') throw new Error('Forbidden')
   const all = await listTriviaQuizzes()
   return all.filter((q) => q.status === 'Published')
 }
@@ -29,8 +33,10 @@ export async function createTriviaSession(
   req: CreateTriviaSessionRequest,
 ): Promise<TriviaSessionCreatedDto> {
   const session = await verifySession()
-  if (session.role !== 'Operator') throw new Error('Forbidden')
-  return createTriviaSessionLib(req)
+  if (session.role !== 'Administrator') throw new Error('Forbidden')
+  const result = await createTriviaSessionLib(req)
+  revalidatePath('/dashboard')
+  return result
 }
 
 export async function getAssignableOperators(): Promise<AssignableOperatorDto[]> {
@@ -45,6 +51,12 @@ export async function listSessionsForAssignment(): Promise<SessionAssignmentSumm
   return listAssignableSessionsLib()
 }
 
+export async function listSessionsForOperator(): Promise<SessionAssignmentSummaryDto[]> {
+  const session = await verifySession()
+  if (session.role !== 'Operator') throw new Error('Forbidden')
+  return listOperatorSessionsLib()
+}
+
 export async function assignSessionOperator(
   liveSessionId: string,
   operatorUserId: number,
@@ -52,6 +64,18 @@ export async function assignSessionOperator(
   const session = await verifySession()
   if (session.role !== 'Administrator') throw new Error('Forbidden')
   const result = await assignSessionOperatorLib(liveSessionId, operatorUserId)
+  revalidatePath('/dashboard')
+  return result
+}
+
+export async function transitionSessionState(
+  liveSessionId: string,
+  targetState: SessionLifecycleState,
+  reason?: string,
+): Promise<TransitionSessionStateResultDto> {
+  const session = await verifySession()
+  if (session.role !== 'Operator') throw new Error('Forbidden')
+  const result = await transitionSessionStateLib(liveSessionId, targetState, reason)
   revalidatePath('/dashboard')
   return result
 }

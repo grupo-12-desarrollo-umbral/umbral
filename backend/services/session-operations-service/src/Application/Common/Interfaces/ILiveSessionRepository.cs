@@ -7,7 +7,9 @@ public interface ILiveSessionRepository
 {
     Task<LiveSession?> GetByIdAsync(Guid liveSessionId, CancellationToken cancellationToken);
 
-    Task<IReadOnlyList<SessionOperatorSummaryDto>> ListAssignableSummariesAsync(CancellationToken cancellationToken);
+    Task<IReadOnlyList<SessionOperatorSummaryDto>> ListAssignableSummariesAsync(
+        int? assignedOperatorUserId,
+        CancellationToken cancellationToken);
 
     Task UpdateAsync(LiveSession liveSession, CancellationToken cancellationToken);
 }

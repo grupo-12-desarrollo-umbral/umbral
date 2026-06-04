@@ -1,6 +1,7 @@
 import 'server-only'
 import { SignJWT, jwtVerify } from 'jose'
 import { cookies } from 'next/headers'
+import { clearKeycloakTokens } from './keycloak-tokens'
 import type { SessionPayload } from './definitions'
 
 const secretKey = process.env.SESSION_SECRET
@@ -59,6 +60,7 @@ export async function createSession(payload: Omit<SessionPayload, 'expiresAt'>):
 export async function deleteSession(): Promise<void> {
   const cookieStore = await cookies()
   cookieStore.delete('session')
+  await clearKeycloakTokens()
 }
 
 export async function updateSession(): Promise<void> {

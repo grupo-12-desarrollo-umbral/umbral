@@ -2,8 +2,35 @@ namespace Microsoft.Extensions.DependencyInjection;
 
 public static class DependencyInjection
 {
+    public const string FrontendCorsPolicyName = "FrontendSignalR";
+
     public static void AddGatewayServices(this IHostApplicationBuilder builder)
     {
+        var frontendOrigins = builder.Configuration
+            .GetSection("Frontend:AllowedOrigins")
+            .Get<string[]>()?
+            .Where(origin => !string.IsNullOrWhiteSpace(origin))
+            .Select(origin => origin.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray() ?? [];
+
+        builder.Services.AddCors(options =>
+        {
+            options.AddPolicy(FrontendCorsPolicyName, policy =>
+            {
+                if (frontendOrigins.Length == 0)
+                {
+                    return;
+                }
+
+                policy
+                    .WithOrigins(frontendOrigins)
+                    .WithMethods(HttpMethods.Get, HttpMethods.Post, HttpMethods.Options)
+                    .AllowAnyHeader()
+                    .AllowCredentials();
+            });
+        });
+
         builder.Services
             .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             .AddJwtBearer(options =>

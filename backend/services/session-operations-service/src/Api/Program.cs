@@ -29,7 +29,7 @@ app.UseAuthorization();
 app.MapOpenApi();
 app.MapEndpoints(typeof(Program).Assembly);
 app.MapHub<SessionsHub>("/hubs/sessions")
-    .RequireAuthorization(AuthorizationPolicies.Participant);
+    .RequireAuthorization(AuthorizationPolicies.ParticipantOrOperator);
 
 app.Run();
 

@@ -30,6 +30,7 @@ public sealed class AuthenticateUserCommandHandlerTests
             new AuthenticateUserCommand("kc-001", "Ada Lovelace", "ada@example.com", Role.Administrator),
             CancellationToken.None);
 
+        result.Actor.UserId.Should().Be(0);
         result.Actor.ExternalIdentityId.Should().Be("kc-001");
         result.Actor.DisplayName.Should().Be("Ada Lovelace");
         result.Actor.Email.Should().Be("ada@example.com");

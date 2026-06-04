@@ -37,7 +37,7 @@ public sealed class CreateTriviaSessionEndpointTests : IAsyncLifetime
         const int sourceTriviaQuizId = 42;
         var scheduledAt = new DateTimeOffset(2026, 6, 4, 15, 0, 0, TimeSpan.Zero);
         _factory.TriviaQuizSource.Quiz = CreateQuiz(sourceTriviaQuizId, "Published");
-        AddTrustedHeaders(_client, Guid.NewGuid().ToString(), "Operator", "operator@example.com");
+        AddTrustedHeaders(_client, "kc-admin-1", "Administrator", "admin@example.com");
 
         var response = await _client.PostAsJsonAsync(
             "/api/sessions",
@@ -69,10 +69,67 @@ public sealed class CreateTriviaSessionEndpointTests : IAsyncLifetime
             .SingleAsync(session => session.LiveSessionId == payload.LiveSessionId);
 
         persistedSession.Source.SourceTriviaQuizId.Should().Be(sourceTriviaQuizId);
+        persistedSession.AssignedOperatorUserId.Should().BeNull();
         persistedSession.TriviaSnapshot.Should().NotBeNull();
         persistedSession.TriviaSnapshot!.QuizTitle.Should().Be("Quiz Night");
         persistedSession.TriviaSnapshot.Questions.Should().ContainSingle();
         persistedSession.TriviaSnapshot.Questions.Single().Options.Should().HaveCount(2);
+    }
+
+    [Fact]
+    public async Task CreateTriviaSession_AsAdministrator_MakesUnassignedSessionVisibleInAssignmentList()
+    {
+        const int sourceTriviaQuizId = 42;
+        var scheduledAt = new DateTimeOffset(2026, 6, 4, 15, 0, 0, TimeSpan.Zero);
+        _factory.TriviaQuizSource.Quiz = CreateQuiz(sourceTriviaQuizId, "Published");
+        AddTrustedHeaders(_client, "kc-admin-1", "Administrator", "admin@example.com");
+
+        var createResponse = await _client.PostAsJsonAsync(
+            "/api/sessions",
+            new
+            {
+                sourceTriviaQuizId,
+                title = "Unassigned Smoke Trivia",
+                maximumTimeMinutes = 10,
+                scheduledAt
+            });
+
+        createResponse.StatusCode.Should().Be(HttpStatusCode.Created);
+
+        var createdPayload = await createResponse.Content.ReadFromJsonAsync<CreateTriviaSessionResponse>();
+        createdPayload.Should().NotBeNull();
+
+        var listResponse = await _client.GetAsync("/api/sessions");
+
+        listResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var listedSessions = await listResponse.Content.ReadFromJsonAsync<List<SessionOperatorSummaryResponse>>();
+        listedSessions.Should().NotBeNull();
+        listedSessions!
+            .Should()
+            .ContainSingle(session =>
+                session.LiveSessionId == createdPayload!.LiveSessionId &&
+                session.AssignedOperatorUserId == null &&
+                session.Title == "Unassigned Smoke Trivia");
+    }
+
+    [Fact]
+    public async Task CreateTriviaSession_AsOperator_ReturnsForbidden()
+    {
+        _factory.TriviaQuizSource.Quiz = CreateQuiz(42, "Published");
+        AddTrustedHeaders(_client, "kc-operator-27", "Operator", "operator@example.com");
+
+        var response = await _client.PostAsJsonAsync(
+            "/api/sessions",
+            new
+            {
+                sourceTriviaQuizId = 42,
+                title = "Smoke Trivia",
+                maximumTimeMinutes = 10,
+                scheduledAt = new DateTimeOffset(2026, 6, 4, 15, 0, 0, TimeSpan.Zero)
+            });
+
+        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
     }
 
     [Theory]
@@ -82,7 +139,7 @@ public sealed class CreateTriviaSessionEndpointTests : IAsyncLifetime
     {
         const int sourceTriviaQuizId = 42;
         _factory.TriviaQuizSource.Quiz = CreateQuiz(sourceTriviaQuizId, status);
-        AddTrustedHeaders(_client, Guid.NewGuid().ToString(), "Operator", "operator@example.com");
+        AddTrustedHeaders(_client, "kc-admin-1", "Administrator", "admin@example.com");
 
         var response = await _client.PostAsJsonAsync(
             "/api/sessions",
@@ -191,4 +248,13 @@ public sealed class CreateTriviaSessionEndpointTests : IAsyncLifetime
         DateTimeOffset ScheduledAt,
         int SourceTriviaQuizId,
         int QuestionCount);
+
+    private sealed record SessionOperatorSummaryResponse(
+        Guid LiveSessionId,
+        string SessionCode,
+        string Title,
+        string SessionState,
+        int? AssignedOperatorUserId,
+        DateTimeOffset ScheduledAt,
+        DateTimeOffset? LastTransitionedAt);
 }

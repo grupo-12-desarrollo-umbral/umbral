@@ -1,27 +1,31 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
-using umbral_backend.Application.Sessions.Commands.DisconnectParticipant;
 using umbral_backend.Api.Services;
+using umbral_backend.Application.Common.Exceptions;
+using umbral_backend.Application.Common.Interfaces;
 using umbral_backend.Application.Sessions.Commands.ReconnectAuthenticatedParticipant;
 using umbral_backend.Application.Sessions.DTOs;
 
 namespace umbral_backend.Api.Hubs;
 
-[Authorize(Policy = AuthorizationPolicies.Participant)]
+[Authorize(Policy = AuthorizationPolicies.ParticipantOrOperator)]
 public sealed class SessionsHub : Hub
 {
     private readonly ISender _sender;
-    private readonly ConnectionTracker _connectionTracker;
     private readonly CurrentUserContext _userContext;
+    private readonly ICurrentUser _currentUser;
+    private readonly ISessionAdministrationAccessResolver _sessionAdministrationAccessResolver;
 
     public SessionsHub(
         ISender sender,
-        ConnectionTracker connectionTracker,
-        CurrentUserContext userContext)
+        CurrentUserContext userContext,
+        ICurrentUser currentUser,
+        ISessionAdministrationAccessResolver sessionAdministrationAccessResolver)
     {
         _sender = sender;
-        _connectionTracker = connectionTracker;
         _userContext = userContext;
+        _currentUser = currentUser;
+        _sessionAdministrationAccessResolver = sessionAdministrationAccessResolver;
     }
 
     public async Task<ReconnectParticipantResultDto> ReconnectAsync(
@@ -42,28 +46,35 @@ public sealed class SessionsHub : Hub
         await Groups.AddToGroupAsync(Context.ConnectionId, BuildLiveSessionGroup(result.LiveSessionId), cancellationToken);
         await Groups.AddToGroupAsync(Context.ConnectionId, BuildTeamGroup(result.TeamId), cancellationToken);
         await Groups.AddToGroupAsync(Context.ConnectionId, BuildParticipantGroup(result.SessionParticipantId), cancellationToken);
-        _connectionTracker.Add(Context.ConnectionId, result.LiveSessionId, result.SessionParticipantId);
 
         return result;
     }
 
-    public override async Task OnDisconnectedAsync(Exception? exception)
+    public async Task JoinLiveSessionAsOperatorAsync(Guid liveSessionId)
     {
-        try
-        {
-            if (_connectionTracker.TryRemove(Context.ConnectionId, out var participant, out var hasRemainingConnections) &&
-                !hasRemainingConnections)
-            {
-                _userContext.Principal = Context.User;
+        _userContext.Principal = Context.User;
+        var cancellationToken = Context.ConnectionAborted;
 
-                await _sender.Send(new DisconnectParticipantCommand(
-                    participant.LiveSessionId,
-                    participant.SessionParticipantId));
-            }
-        }
-        finally
+        EnsureOperatorCaller();
+        await _sessionAdministrationAccessResolver.GetAuthorizedSessionAsync(liveSessionId, cancellationToken);
+        await Groups.AddToGroupAsync(Context.ConnectionId, BuildLiveSessionGroup(liveSessionId), cancellationToken);
+    }
+
+    public async Task LeaveLiveSessionAsync(Guid liveSessionId)
+    {
+        _userContext.Principal = Context.User;
+        var cancellationToken = Context.ConnectionAborted;
+
+        EnsureOperatorCaller();
+        await _sessionAdministrationAccessResolver.GetAuthorizedSessionAsync(liveSessionId, cancellationToken);
+        await Groups.RemoveFromGroupAsync(Context.ConnectionId, BuildLiveSessionGroup(liveSessionId), cancellationToken);
+    }
+
+    private void EnsureOperatorCaller()
+    {
+        if (!string.Equals(_currentUser.Role, "Operator", StringComparison.OrdinalIgnoreCase))
         {
-            await base.OnDisconnectedAsync(exception);
+            throw new ForbiddenAccessException();
         }
     }
 
