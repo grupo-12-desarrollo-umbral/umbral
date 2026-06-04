@@ -83,6 +83,8 @@ public sealed class LiveSession : BaseAuditableEntity
 
     public int? AssignedOperatorUserId { get; private set; }
 
+    public bool HasAssociatedTeams => _teams.Count > 0;
+
     public IReadOnlyCollection<Team> Teams => _teams.AsReadOnly();
 
     public IReadOnlyCollection<SessionParticipant> Participants => _participants.AsReadOnly();
@@ -121,6 +123,31 @@ public sealed class LiveSession : BaseAuditableEntity
         var team = Team.Register(LiveSessionId, displayName, normalizedCode.Value);
         _teams.Add(team);
         AddDomainEvent(new TeamRegisteredInSessionEvent(LiveSessionId, team.TeamId, team.TeamCode.Value));
+        return team;
+    }
+
+    public Team AssociateTeam(Guid referenceTeamId, string displayName, string teamCode)
+    {
+        EnsureCanAssociateTeam();
+
+        if (_teams.Any(team => team.ReferenceTeamId == referenceTeamId))
+        {
+            throw new DuplicateTeamAssociationInSessionException(referenceTeamId);
+        }
+
+        var normalizedCode = TeamCode.Create(teamCode);
+        if (_teams.Any(team => team.TeamCode == normalizedCode))
+        {
+            throw new DuplicateTeamCodeInSessionException(normalizedCode.Value);
+        }
+
+        var team = Team.Associate(LiveSessionId, referenceTeamId, displayName, normalizedCode.Value);
+        _teams.Add(team);
+        AddDomainEvent(new TeamRegisteredInSessionEvent(
+            LiveSessionId,
+            team.TeamId,
+            team.TeamCode.Value,
+            team.ReferenceTeamId));
         return team;
     }
 
@@ -210,6 +237,14 @@ public sealed class LiveSession : BaseAuditableEntity
     {
         return _teams.SingleOrDefault(team => team.TeamId == teamId)
             ?? throw new TeamNotFoundException(teamId);
+    }
+
+    private void EnsureCanAssociateTeam()
+    {
+        if (State != SessionState.Scheduled)
+        {
+            throw new TeamAssociationRequiresScheduledSessionException(State);
+        }
     }
 
     private Team? FindAssignedTeam(Guid sessionParticipantId)

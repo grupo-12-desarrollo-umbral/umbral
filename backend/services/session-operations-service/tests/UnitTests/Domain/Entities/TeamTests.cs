@@ -15,6 +15,24 @@ public sealed class TeamTests
     }
 
     [Fact]
+    public void Associate_WithReferenceTeamId_TracksIdentityCorrelation()
+    {
+        var referenceTeamId = Guid.NewGuid();
+
+        var team = Team.Associate(Guid.NewGuid(), referenceTeamId, "Alpha", "A-01");
+
+        team.ReferenceTeamId.Should().Be(referenceTeamId);
+    }
+
+    [Fact]
+    public void Associate_WithEmptyReferenceTeamId_ThrowsException()
+    {
+        var act = () => Team.Associate(Guid.NewGuid(), Guid.Empty, "Alpha", "A-01");
+
+        act.Should().Throw<ReferenceTeamIdRequiredException>();
+    }
+
+    [Fact]
     public void CloseNewParticipants_ChangesJoinStatus()
     {
         var team = Team.Register(Guid.NewGuid(), "Alpha", "A-01");

@@ -12,11 +12,12 @@ public sealed class Team : BaseEntity
     {
         TeamId = Guid.Empty;
         LiveSessionId = Guid.Empty;
+        ReferenceTeamId = null;
         TeamCode = null!;
         DisplayName = string.Empty;
     }
 
-    private Team(Guid liveSessionId, string displayName, TeamCode teamCode)
+    private Team(Guid liveSessionId, Guid? referenceTeamId, string displayName, TeamCode teamCode)
     {
         if (string.IsNullOrWhiteSpace(displayName))
         {
@@ -25,6 +26,7 @@ public sealed class Team : BaseEntity
 
         TeamId = Guid.NewGuid();
         LiveSessionId = liveSessionId;
+        ReferenceTeamId = referenceTeamId;
         TeamCode = teamCode;
         DisplayName = displayName.Trim();
         JoinStatus = TeamJoinStatus.Open;
@@ -33,6 +35,8 @@ public sealed class Team : BaseEntity
     public Guid TeamId { get; private set; }
 
     public Guid LiveSessionId { get; private set; }
+
+    public Guid? ReferenceTeamId { get; private set; }
 
     public TeamCode TeamCode { get; private set; }
 
@@ -56,7 +60,17 @@ public sealed class Team : BaseEntity
 
     public static Team Register(Guid liveSessionId, string displayName, string teamCode)
     {
-        return new Team(liveSessionId, displayName, TeamCode.Create(teamCode));
+        return new Team(liveSessionId, null, displayName, TeamCode.Create(teamCode));
+    }
+
+    public static Team Associate(Guid liveSessionId, Guid referenceTeamId, string displayName, string teamCode)
+    {
+        if (referenceTeamId == Guid.Empty)
+        {
+            throw new ReferenceTeamIdRequiredException();
+        }
+
+        return new Team(liveSessionId, referenceTeamId, displayName, TeamCode.Create(teamCode));
     }
 
     public void LockNewParticipants()
