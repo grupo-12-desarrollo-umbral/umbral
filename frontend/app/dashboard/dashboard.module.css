@@ -203,8 +203,10 @@
 }
 
 .main {
+  align-content: start;
   display: grid;
   gap: 1rem;
+  grid-auto-rows: max-content;
   padding: 1rem;
 }
 
@@ -930,20 +932,20 @@ html[data-theme="dark"] .cluePreview::after {
   gap: 1rem;
 }
 
-.missionTable {
+.roundTable {
   width: 100%;
   border-collapse: collapse;
   font-variant-numeric: tabular-nums;
 }
 
-.missionTable th,
-.missionTable td {
+.roundTable th,
+.roundTable td {
   padding: 0.8rem 0;
   border-top: 1px solid var(--border-subtle);
   text-align: left;
 }
 
-.missionTable th {
+.roundTable th {
   color: var(--text-muted);
   font-size: 0.75rem;
   font-weight: 600;
@@ -951,8 +953,8 @@ html[data-theme="dark"] .cluePreview::after {
   text-transform: uppercase;
 }
 
-.missionTable td[data-align="center"],
-.missionTable th[data-align="center"] {
+.roundTable td[data-align="center"],
+.roundTable th[data-align="center"] {
   text-align: center;
 }
 
@@ -1085,6 +1087,130 @@ html[data-theme="dark"] .cluePreview::after {
 .sessionButton[data-current="true"] {
   border-color: color-mix(in oklab, var(--accent) 28%, var(--border-subtle));
   background: color-mix(in oklab, var(--surface-raised) 78%, var(--accent-soft));
+}
+
+.sessionOperatorList {
+  display: grid;
+  gap: 1rem;
+}
+
+.sessionOperatorItem {
+  display: grid;
+  gap: 1.25rem;
+  width: 100%;
+  padding: 1.35rem 1.45rem;
+  border: 1px solid color-mix(in oklab, var(--accent) 16%, var(--border-subtle));
+  border-radius: 1.5rem;
+  background:
+    radial-gradient(circle at top right, color-mix(in oklab, var(--accent-soft) 26%, transparent) 0%, transparent 38%),
+    color-mix(in oklab, var(--surface-raised) 88%, transparent);
+  box-shadow:
+    inset 0 1px 0 color-mix(in oklab, white 30%, transparent),
+    0 0 0 1px color-mix(in oklab, var(--surface) 36%, transparent);
+  text-align: left;
+}
+
+.sessionOperatorHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.sessionOperatorTitleBlock {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.sessionOperatorTitleBlock h3 {
+  margin: 0;
+  font-size: clamp(1.15rem, 2vw, 1.45rem);
+  line-height: 1.05;
+  letter-spacing: -0.04em;
+}
+
+.sessionCodePill {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  padding: 0.25rem 0.55rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--surface) 86%, transparent);
+  color: var(--text-primary);
+  font-size: 0.76rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.sessionOperatorBody {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid color-mix(in oklab, var(--border-subtle) 84%, transparent);
+}
+
+.sessionOperatorInfo {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.sessionOperatorLabel {
+  color: var(--text-muted);
+  font-size: 0.74rem;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.modalScrim {
+  position: fixed;
+  inset: 0;
+  z-index: 25;
+  display: grid;
+  place-items: center;
+  padding: 1.5rem;
+  background: color-mix(in oklab, var(--bg) 52%, transparent);
+  backdrop-filter: blur(12px);
+}
+
+.sessionOperatorModal {
+  display: grid;
+  gap: 1.25rem;
+  width: min(40rem, 100%);
+  max-height: min(42rem, calc(100vh - 3rem));
+  overflow: auto;
+  padding: 1.35rem;
+  border: 1px solid color-mix(in oklab, var(--accent) 18%, var(--border-subtle));
+  border-radius: 1.6rem;
+  background:
+    radial-gradient(circle at top right, color-mix(in oklab, var(--accent-soft) 28%, transparent) 0%, transparent 36%),
+    color-mix(in oklab, var(--panel) 96%, transparent);
+  box-shadow:
+    inset 0 1px 0 color-mix(in oklab, white 30%, transparent),
+    0 1.5rem 4rem color-mix(in oklab, black 18%, transparent);
+}
+
+.sessionOperatorModalDetails {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.85rem;
+}
+
+.sessionOperatorModalDetails .assignmentCard {
+  display: grid;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.sessionOperatorModalActions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.75rem;
 }
 
 .emptyState {
@@ -1344,6 +1470,17 @@ html[data-theme="dark"] .cluePreview::after {
   gap: 1rem;
 }
 
+.sessionWorkspaceGrid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.sessionsPanelStack {
+  display: grid;
+  gap: 1rem;
+}
+
 .sessionForm {
   display: flex;
   flex-direction: column;
@@ -1412,6 +1549,23 @@ html[data-theme="dark"] .cluePreview::after {
   border-radius: var(--radius-sm, 0.5rem);
   padding: var(--space-2, 0.5rem) var(--space-3, 0.75rem);
   font-size: 0.875rem;
+}
+
+@media (max-width: 860px) {
+  .sessionWorkspaceGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .sessionOperatorHeader,
+  .sessionOperatorBody,
+  .sessionOperatorModalActions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .sessionOperatorModalDetails {
+    grid-template-columns: 1fr;
+  }
 }
 
 .missionForm {
@@ -1600,35 +1754,35 @@ html[data-theme="dark"] .cluePreview::after {
   }
 
   .table thead,
-  .missionTable thead {
+  .roundTable thead {
     display: none;
   }
 
   .table tbody,
-  .missionTable tbody,
+  .roundTable tbody,
   .table tr,
-  .missionTable tr,
+  .roundTable tr,
   .table td,
-  .missionTable td {
+  .roundTable td {
     display: block;
     width: 100%;
   }
 
   .table tr,
-  .missionTable tr {
+  .roundTable tr {
     border-top: 1px solid var(--border-subtle);
     padding: 0.75rem 0;
   }
 
   .table td,
-  .missionTable td {
+  .roundTable td {
     border-top: none;
     padding: 0.2rem 0;
     text-align: left !important;
   }
 
   .table td::before,
-  .missionTable td::before {
+  .roundTable td::before {
     content: attr(data-label);
     display: block;
     color: var(--text-muted);

@@ -7,9 +7,9 @@ test('operator sees sessions nav item', async ({ operatorPage: page }) => {
   await expect(page.locator('[data-testid="nav-sessions"]')).toBeVisible()
 })
 
-test('admin does not see sessions nav item', async ({ adminPage: page }) => {
+test('admin sees sessions nav item for operator assignment', async ({ adminPage: page }) => {
   await page.goto('/dashboard')
-  await expect(page.locator('[data-testid="nav-sessions"]')).toHaveCount(0)
+  await expect(page.locator('[data-testid="nav-sessions"]')).toBeVisible()
 })
 
 test('participant does not see sessions nav item', async ({ participantPage: page }) => {
@@ -23,6 +23,10 @@ test('operator sessions panel loads and shows create form', async ({ operatorPag
   await page.goto('/dashboard')
   await page.click('[data-testid="nav-sessions"]')
   await expect(page.locator('[data-testid="session-create-form"]')).toBeVisible()
+  await expect(page.locator('[data-testid="session-switcher"]')).toHaveCount(0)
+  await expect(page.getByRole('heading', { name: 'My sessions' })).toBeVisible()
+  await expect(page.getByText(/Create and prepare sessions you are responsible for/)).toBeVisible()
+  await expect(page.getByText(`Sessions you're responsible for`)).toBeVisible()
 })
 
 // AC #1 — only Published quizzes appear

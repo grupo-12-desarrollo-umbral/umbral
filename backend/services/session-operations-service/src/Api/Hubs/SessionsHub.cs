@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
+using umbral_backend.Application.Sessions.Commands.DisconnectParticipant;
 using umbral_backend.Api.Services;
 using umbral_backend.Application.Sessions.Commands.ReconnectAuthenticatedParticipant;
 using umbral_backend.Application.Sessions.DTOs;
@@ -10,11 +11,16 @@ namespace umbral_backend.Api.Hubs;
 public sealed class SessionsHub : Hub
 {
     private readonly ISender _sender;
+    private readonly ConnectionTracker _connectionTracker;
     private readonly CurrentUserContext _userContext;
 
-    public SessionsHub(ISender sender, CurrentUserContext userContext)
+    public SessionsHub(
+        ISender sender,
+        ConnectionTracker connectionTracker,
+        CurrentUserContext userContext)
     {
         _sender = sender;
+        _connectionTracker = connectionTracker;
         _userContext = userContext;
     }
 
@@ -36,8 +42,29 @@ public sealed class SessionsHub : Hub
         await Groups.AddToGroupAsync(Context.ConnectionId, BuildLiveSessionGroup(result.LiveSessionId), cancellationToken);
         await Groups.AddToGroupAsync(Context.ConnectionId, BuildTeamGroup(result.TeamId), cancellationToken);
         await Groups.AddToGroupAsync(Context.ConnectionId, BuildParticipantGroup(result.SessionParticipantId), cancellationToken);
+        _connectionTracker.Add(Context.ConnectionId, result.LiveSessionId, result.SessionParticipantId);
 
         return result;
+    }
+
+    public override async Task OnDisconnectedAsync(Exception? exception)
+    {
+        try
+        {
+            if (_connectionTracker.TryRemove(Context.ConnectionId, out var participant, out var hasRemainingConnections) &&
+                !hasRemainingConnections)
+            {
+                _userContext.Principal = Context.User;
+
+                await _sender.Send(new DisconnectParticipantCommand(
+                    participant.LiveSessionId,
+                    participant.SessionParticipantId));
+            }
+        }
+        finally
+        {
+            await base.OnDisconnectedAsync(exception);
+        }
     }
 
     private static string BuildLiveSessionGroup(Guid liveSessionId) => $"live-session:{liveSessionId:D}";

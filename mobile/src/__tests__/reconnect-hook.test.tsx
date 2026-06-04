@@ -18,6 +18,9 @@ const mockReconnectClient = jest.fn<
   Promise<ReconnectParticipantResultDto>,
   [string, { teamId: string; displayName: string; token?: string | null }]
 >();
+let reconnectingHandler: ((error?: Error) => void) | null = null;
+let reconnectedHandler: ((connectionId?: string) => void | Promise<void>) | null =
+  null;
 
 jest.mock('@/lib/auth/use-auth', () => ({
   useAuth: () => ({ signOut: mockSignOut }),
@@ -31,7 +34,16 @@ jest.mock('@/lib/realtime/reconnect-context', () => ({
 
 jest.mock('@/lib/realtime/sessions-hub', () => ({
   createSessionsHubConnection: () => ({
-    connection: {},
+    connection: {
+      onreconnecting: (callback: (error?: Error) => void) => {
+        reconnectingHandler = callback;
+      },
+      onreconnected: (
+        callback: (connectionId?: string) => void | Promise<void>,
+      ) => {
+        reconnectedHandler = callback;
+      },
+    },
     start: mockStart,
     stop: mockStop,
     reconnect: mockReconnectClient,
@@ -41,6 +53,7 @@ jest.mock('@/lib/realtime/sessions-hub', () => ({
 type HookSnapshot = {
   status: ReconnectStatus;
   outcome: ReturnType<typeof useReconnect>['outcome'];
+  isHubReconnecting: ReturnType<typeof useReconnect>['isHubReconnecting'];
   reconnect: ReturnType<typeof useReconnect>['reconnect'];
   reset: ReturnType<typeof useReconnect>['reset'];
 };
@@ -108,6 +121,8 @@ const result: ReconnectParticipantResultDto = {
 describe('useReconnect', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    reconnectingHandler = null;
+    reconnectedHandler = null;
   });
 
   test('runs the reconnect happy path and persists the refreshed context', async () => {
@@ -254,6 +269,57 @@ describe('useReconnect', () => {
     expect(mockSignOut).not.toHaveBeenCalled();
     expect(hook.getSnapshot().status).toBe('error');
     expect(hook.getSnapshot().outcome).toEqual({ kind: 'network-error' });
+
+    hook.unmount();
+  });
+
+  test('replays reconnect after SignalR restores the transport', async () => {
+    mockStart.mockResolvedValue(undefined);
+    mockReconnectClient
+      .mockResolvedValueOnce(result)
+      .mockResolvedValueOnce({
+        ...result,
+        lastSeenAt: '2026-06-03T12:06:00.000Z',
+      });
+
+    const hook = renderUseReconnect();
+
+    await act(async () => {
+      await hook.getSnapshot().reconnect(context);
+    });
+
+    expect(reconnectingHandler).not.toBeNull();
+    expect(reconnectedHandler).not.toBeNull();
+
+    act(() => {
+      reconnectingHandler?.(new Error('transport dropped'));
+    });
+
+    expect(hook.getSnapshot().isHubReconnecting).toBe(true);
+    expect(hook.getSnapshot().status).toBe('reconnected');
+
+    await act(async () => {
+      await reconnectedHandler?.('connection-2');
+    });
+
+    expect(mockReconnectClient).toHaveBeenNthCalledWith(2, 'session-1', {
+      teamId: 'team-1',
+      displayName: 'Nova',
+      token: null,
+    });
+    expect(mockSaveReconnectContext).toHaveBeenLastCalledWith({
+      ...context,
+      lastSeenAt: '2026-06-03T12:06:00.000Z',
+    });
+    expect(hook.getSnapshot().isHubReconnecting).toBe(false);
+    expect(hook.getSnapshot().status).toBe('reconnected');
+    expect(hook.getSnapshot().outcome).toEqual({
+      kind: 'reconnected',
+      result: {
+        ...result,
+        lastSeenAt: '2026-06-03T12:06:00.000Z',
+      },
+    });
 
     hook.unmount();
   });

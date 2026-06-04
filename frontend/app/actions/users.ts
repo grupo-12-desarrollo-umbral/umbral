@@ -1,7 +1,7 @@
 'use server'
 
 import { verifySession } from '@/app/lib/dal'
-import { listUsers, deactivateUserAccess, assignUserRole as assignUserRoleLib } from '@/app/lib/users'
+import { listDedupedUsers, deactivateUserAccess, assignUserRole as assignUserRoleLib } from '@/app/lib/users'
 import { revalidatePath } from 'next/cache'
 import type { PagedResult, UserAccessCatalogItemDto } from '@/app/lib/definitions'
 
@@ -14,7 +14,7 @@ export async function getUsersPage(
   if (session.role !== 'Administrator' && session.role !== 'Operator') {
     throw new Error('Forbidden')
   }
-  return listUsers(page, pageSize)
+  return listDedupedUsers(page, pageSize)
 }
 
 export async function deactivateUser(id: number): Promise<void> {

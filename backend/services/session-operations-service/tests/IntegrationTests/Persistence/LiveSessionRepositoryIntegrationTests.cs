@@ -122,6 +122,66 @@ public sealed class LiveSessionRepositoryIntegrationTests
         reloadedTeam.Members.Should().ContainSingle(member => member.SessionParticipantId == participant.SessionParticipantId);
     }
 
+
+    [Fact]
+    public async Task GetByIdAsync_RestoresAssignedOperatorFromExistingPersistenceColumn()
+    {
+        await using var resetContext = BuildContext();
+        await ResetDatabaseAsync(resetContext);
+
+        var assignedAt = DateTimeOffset.UtcNow.AddMinutes(-15);
+        var liveSession = CreateSession(assignedAt.AddMinutes(-10));
+        liveSession.AssignOperator(27, assignedAt);
+
+        await using (var seedContext = BuildContext())
+        {
+            seedContext.LiveSessions.Add(liveSession);
+            await seedContext.SaveChangesAsync(CancellationToken.None);
+        }
+
+        await using var assertContext = BuildContext();
+        var persistedSession = await new LiveSessionRepository(assertContext)
+            .GetByIdAsync(liveSession.LiveSessionId, CancellationToken.None);
+
+        persistedSession.Should().NotBeNull();
+        persistedSession!.AssignedOperatorUserId.Should().Be(27);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_PersistsOperatorReassignmentToExistingPersistenceColumn()
+    {
+        await using var resetContext = BuildContext();
+        await ResetDatabaseAsync(resetContext);
+
+        var assignedAt = DateTimeOffset.UtcNow.AddMinutes(-12);
+        var liveSession = CreateSession(assignedAt.AddMinutes(-8));
+        liveSession.AssignOperator(27, assignedAt);
+
+        await using (var seedContext = BuildContext())
+        {
+            seedContext.LiveSessions.Add(liveSession);
+            await seedContext.SaveChangesAsync(CancellationToken.None);
+        }
+
+        await using (var actContext = BuildContext())
+        {
+            var repository = new LiveSessionRepository(actContext);
+            var persistedSession = await repository.GetByIdAsync(liveSession.LiveSessionId, CancellationToken.None);
+
+            persistedSession.Should().NotBeNull();
+            persistedSession!.AssignOperator(31, assignedAt.AddMinutes(3));
+
+            await repository.UpdateAsync(persistedSession, CancellationToken.None);
+        }
+
+        await using var assertContext = BuildContext();
+        var reloadedSession = await new LiveSessionRepository(assertContext)
+            .GetByIdAsync(liveSession.LiveSessionId, CancellationToken.None);
+
+        reloadedSession.Should().NotBeNull();
+        reloadedSession!.AssignedOperatorUserId.Should().Be(31);
+    }
+
     [Fact]
     public async Task GetByIdAsync_RestoresTriviaSnapshotGraph()
     {

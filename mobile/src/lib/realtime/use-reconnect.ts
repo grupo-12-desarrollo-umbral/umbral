@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useAuth } from '@/lib/auth/use-auth';
 import {
   clearReconnectContext,
@@ -49,30 +49,18 @@ export function useReconnect() {
   // Build the connection exactly once per hook instance. A lazy state
   // initializer (not a ref read during render) keeps this off the render path.
   const [client] = useState<SessionsHubClient>(createSessionsHubConnection);
+  const contextRef = useRef<ReconnectContext | null>(null);
+  const reconnectAttemptRef = useRef(0);
 
-  // Surface transient WS drops handled by `withAutomaticReconnect()` so the UI
-  // can show a "Reconnecting…" banner instead of treating the drop as a denial.
-  useEffect(() => {
-    const connection = client.connection as {
-      onreconnecting?: (callback: (error?: Error) => void) => void;
-      onreconnected?: (callback: (connectionId?: string) => void) => void;
-    };
-    if (typeof connection.onreconnecting === 'function') {
-      connection.onreconnecting(() => setIsHubReconnecting(true));
-    }
-    if (typeof connection.onreconnected === 'function') {
-      connection.onreconnected(() => setIsHubReconnecting(false));
-    }
-  }, [client]);
+  async function handleReconnectAttempt(
+    context: ReconnectContext,
+    options?: { resumeTransport?: boolean },
+  ): Promise<ReconnectOutcome> {
+    contextRef.current = context;
+    const attemptId = reconnectAttemptRef.current + 1;
+    reconnectAttemptRef.current = attemptId;
 
-  useEffect(() => {
-    return () => {
-      void client.stop();
-    };
-  }, [client]);
-
-  async function reconnect(context: ReconnectContext): Promise<ReconnectOutcome> {
-    setStatus('connecting');
+    setStatus(options?.resumeTransport ? 'reconnecting' : 'connecting');
     setOutcome(null);
 
     try {
@@ -85,12 +73,20 @@ export function useReconnect() {
         token: context.token ?? null,
       });
 
+      if (reconnectAttemptRef.current !== attemptId) {
+        return { kind: 'error' };
+      }
+
       const nextOutcome = toReconnectedOutcome(result);
       await saveReconnectContext(toUpdatedReconnectContext(context, result));
       setOutcome(nextOutcome);
       setStatus('reconnected');
       return nextOutcome;
     } catch (error) {
+      if (reconnectAttemptRef.current !== attemptId) {
+        return { kind: 'error' };
+      }
+
       const nextOutcome = interpretHubError(error);
 
       if (nextOutcome.kind === 'unauthorized') {
@@ -102,6 +98,43 @@ export function useReconnect() {
       setStatus(statusForOutcome(nextOutcome));
       return nextOutcome;
     }
+  }
+
+  // Surface transient WS drops handled by `withAutomaticReconnect()` so the UI
+  // can show a "Reconnecting…" banner. Once SignalR re-establishes the transport,
+  // the backend sees a new connection, so re-run `ReconnectAsync` to restore the
+  // participant's groups/runtime membership on that fresh connection.
+  useEffect(() => {
+    const connection = client.connection as {
+      onreconnecting?: (callback: (error?: Error) => void) => void;
+      onreconnected?: (
+        callback: (connectionId?: string) => void | Promise<void>,
+      ) => void;
+    };
+    if (typeof connection.onreconnecting === 'function') {
+      connection.onreconnecting(() => setIsHubReconnecting(true));
+    }
+    if (typeof connection.onreconnected === 'function') {
+      connection.onreconnected(async () => {
+        setIsHubReconnecting(false);
+
+        if (!contextRef.current) {
+          return;
+        }
+
+        await handleReconnectAttempt(contextRef.current, { resumeTransport: true });
+      });
+    }
+  }, [client]);
+
+  useEffect(() => {
+    return () => {
+      void client.stop();
+    };
+  }, [client]);
+
+  async function reconnect(context: ReconnectContext): Promise<ReconnectOutcome> {
+    return handleReconnectAttempt(context);
   }
 
   async function stop(): Promise<void> {

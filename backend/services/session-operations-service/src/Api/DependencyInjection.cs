@@ -23,6 +23,7 @@ public static class DependencyInjection
             options.EnableDetailedErrors = builder.Environment.IsDevelopment();
             options.AddFilter<DomainExceptionHubFilter>();
         });
+        builder.Services.AddSingleton<ConnectionTracker>();
         builder.Services.AddScoped<CurrentUserContext>();
         builder.Services.AddScoped<ICurrentUser, CurrentUser>();
         builder.Services
@@ -32,6 +33,12 @@ public static class DependencyInjection
                 _ => { });
         builder.Services.AddAuthorization(options =>
         {
+            options.AddPolicy(AuthorizationPolicies.Administrator, policy =>
+            {
+                policy.AddAuthenticationSchemes(TrustedHeadersAuthenticationDefaults.Scheme);
+                policy.RequireAuthenticatedUser();
+                policy.RequireRole("Administrator");
+            });
             options.AddPolicy(AuthorizationPolicies.Operator, policy =>
             {
                 policy.AddAuthenticationSchemes(TrustedHeadersAuthenticationDefaults.Scheme);

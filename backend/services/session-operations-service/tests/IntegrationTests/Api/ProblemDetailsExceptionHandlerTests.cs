@@ -60,6 +60,16 @@ public sealed class ProblemDetailsExceptionHandlerTests
     }
 
     [Fact]
+    public async Task TryHandleAsync_WithIneligibleSessionOperatorException_ReturnsBadRequestProblemDetails()
+    {
+        var problem = await HandleAsync(new IneligibleSessionOperatorException(27));
+
+        problem.Status.Should().Be(StatusCodes.Status400BadRequest);
+        problem.Title.Should().Be("Bad request.");
+        problem.Detail.Should().Contain("not eligible");
+    }
+
+    [Fact]
     public async Task TryHandleAsync_WithUnknownException_ReturnsInternalServerErrorProblemDetails()
     {
         var problem = await HandleAsync(new InvalidOperationException("boom"));

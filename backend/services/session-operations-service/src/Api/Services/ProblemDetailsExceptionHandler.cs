@@ -28,6 +28,12 @@ public sealed class ProblemDetailsExceptionHandler : IExceptionHandler
                 Detail = string.Join(" ", validationException.Errors.SelectMany(entry => entry.Value)),
                 Status = StatusCodes.Status400BadRequest
             },
+            IneligibleSessionOperatorException => new ProblemDetails
+            {
+                Title = "Bad request.",
+                Detail = exception.Message,
+                Status = StatusCodes.Status400BadRequest
+            },
             UnauthorizedAccessException => new ProblemDetails
             {
                 Title = "Unauthorized.",
