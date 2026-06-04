@@ -1,7 +1,10 @@
 using System.Reflection;
 using Microsoft.Extensions.Hosting;
 using umbral_backend.Application.Common.Behaviours;
+using umbral_backend.Application.Sessions.Commands.AssociateTeamToSession;
+using umbral_backend.Application.Sessions.Queries.GetAssociatedTeamsForSession;
 using umbral_backend.Application.Sessions.Commands.ReconnectAuthenticatedParticipant;
+using umbral_backend.Application.Sessions.Facades;
 using umbral_backend.Domain.Services;
 
 namespace Microsoft.Extensions.DependencyInjection;
@@ -24,6 +27,7 @@ public static class DependencyInjection
         builder.Services.AddSingleton<JoinPolicy>();
         builder.Services.AddSingleton<TimeProvider>(TimeProvider.System);
 
+        builder.Services.AddScoped<ISessionTeamAssociationFacade, SessionTeamAssociationFacade>();
         builder.Services.AddScoped<IReconnectAuthenticatedParticipantExecutor, ReconnectAuthenticatedParticipantService>();
         builder.Services.AddScoped<IReconnectAuthenticatedParticipantService, ReconnectAuthenticatedParticipantAuthorizationProxy>();
     }
