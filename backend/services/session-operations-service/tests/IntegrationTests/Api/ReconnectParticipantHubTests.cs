@@ -119,7 +119,7 @@ public sealed class ReconnectParticipantHubTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task ReconnectAsync_WhenParticipantStillConnected_SurfacesAlreadyConnectedCode()
+    public async Task ReconnectAsync_WhenParticipantStillConnected_RefreshesLiveContext()
     {
         var externalIdentityId = Guid.NewGuid();
         var seeded = await SeedSessionWithConnectedParticipantAsync(externalIdentityId, SessionState.Active);
@@ -127,12 +127,115 @@ public sealed class ReconnectParticipantHubTests : IAsyncLifetime
 
         await connection.StartAsync();
 
-        var code = await InvokeAndCaptureCodeAsync(
-            connection,
+        var payload = await connection.InvokeAsync<ReconnectParticipantResultDto>(
+            nameof(SessionsHub.ReconnectAsync),
             seeded.LiveSessionId,
             new SessionsHub.ReconnectParticipantHubRequest(seeded.TeamId, "Nova", null));
 
-        code.Should().Be("ALREADY_CONNECTED");
+        payload.LiveSessionId.Should().Be(seeded.LiveSessionId);
+        payload.TeamId.Should().Be(seeded.TeamId);
+        payload.SessionParticipantId.Should().Be(seeded.SessionParticipantId!.Value);
+        payload.IsReconnect.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task ReconnectAsync_WhenMultipleConnectionsExist_KeepsParticipantActiveUntilLastConnectionStops()
+    {
+        var externalIdentityId = Guid.NewGuid();
+        var seeded = await SeedSessionWithDisconnectedParticipantAsync(externalIdentityId, SessionState.Active);
+        await using var firstConnection = CreateHubConnection(externalIdentityId.ToString(), "Participant", "participant@example.com");
+        await using var secondConnection = CreateHubConnection(externalIdentityId.ToString(), "Participant", "participant@example.com");
+
+        await firstConnection.StartAsync();
+        await secondConnection.StartAsync();
+
+        var firstPayload = await firstConnection.InvokeAsync<ReconnectParticipantResultDto>(
+            nameof(SessionsHub.ReconnectAsync),
+            seeded.LiveSessionId,
+            new SessionsHub.ReconnectParticipantHubRequest(seeded.TeamId, "Nova", null));
+
+        var secondPayload = await secondConnection.InvokeAsync<ReconnectParticipantResultDto>(
+            nameof(SessionsHub.ReconnectAsync),
+            seeded.LiveSessionId,
+            new SessionsHub.ReconnectParticipantHubRequest(seeded.TeamId, "Nova", null));
+
+        firstPayload.IsReconnect.Should().BeTrue();
+        secondPayload.IsReconnect.Should().BeTrue();
+        secondPayload.SessionParticipantId.Should().Be(firstPayload.SessionParticipantId);
+
+        await firstConnection.StopAsync();
+
+        var participantWhileSecondConnectionRemains = await WaitForParticipantStateAsync(
+            seeded.LiveSessionId,
+            firstPayload.SessionParticipantId,
+            expectedDisconnected: false);
+
+        participantWhileSecondConnectionRemains.IsDisconnected.Should().BeFalse();
+
+        await secondConnection.StopAsync();
+
+        var participantAfterLastConnectionStops = await WaitForParticipantStateAsync(
+            seeded.LiveSessionId,
+            firstPayload.SessionParticipantId,
+            expectedDisconnected: true);
+
+        participantAfterLastConnectionStops.IsDisconnected.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task StopAsync_AfterReconnect_MarksParticipantDisconnected()
+    {
+        var externalIdentityId = Guid.NewGuid();
+        var seeded = await SeedSessionWithDisconnectedParticipantAsync(externalIdentityId, SessionState.Active);
+        await using var connection = CreateHubConnection(externalIdentityId.ToString(), "Participant", "participant@example.com");
+
+        await connection.StartAsync();
+
+        var payload = await connection.InvokeAsync<ReconnectParticipantResultDto>(
+            nameof(SessionsHub.ReconnectAsync),
+            seeded.LiveSessionId,
+            new SessionsHub.ReconnectParticipantHubRequest(seeded.TeamId, "Nova", null));
+
+        await connection.StopAsync();
+
+        var participant = await WaitForParticipantStateAsync(
+            seeded.LiveSessionId,
+            payload.SessionParticipantId,
+            expectedDisconnected: true);
+
+        participant.IsDisconnected.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task ReconnectAsync_AfterPriorConnectionStops_ReconnectsAgain()
+    {
+        var externalIdentityId = Guid.NewGuid();
+        var seeded = await SeedSessionWithDisconnectedParticipantAsync(externalIdentityId, SessionState.Active);
+        await using var firstConnection = CreateHubConnection(externalIdentityId.ToString(), "Participant", "participant@example.com");
+
+        await firstConnection.StartAsync();
+
+        var firstPayload = await firstConnection.InvokeAsync<ReconnectParticipantResultDto>(
+            nameof(SessionsHub.ReconnectAsync),
+            seeded.LiveSessionId,
+            new SessionsHub.ReconnectParticipantHubRequest(seeded.TeamId, "Nova", null));
+
+        await firstConnection.StopAsync();
+        await WaitForParticipantStateAsync(
+            seeded.LiveSessionId,
+            firstPayload.SessionParticipantId,
+            expectedDisconnected: true);
+
+        await using var secondConnection = CreateHubConnection(externalIdentityId.ToString(), "Participant", "participant@example.com");
+        await secondConnection.StartAsync();
+
+        var secondPayload = await secondConnection.InvokeAsync<ReconnectParticipantResultDto>(
+            nameof(SessionsHub.ReconnectAsync),
+            seeded.LiveSessionId,
+            new SessionsHub.ReconnectParticipantHubRequest(seeded.TeamId, "Nova", null));
+
+        secondPayload.IsReconnect.Should().BeTrue();
+        secondPayload.SessionParticipantId.Should().Be(firstPayload.SessionParticipantId);
     }
 
     [Fact]
@@ -332,6 +435,36 @@ public sealed class ReconnectParticipantHubTests : IAsyncLifetime
             "Reconnect Session",
             45,
             scheduledAt);
+    }
+
+    private async Task<SessionParticipant> WaitForParticipantStateAsync(
+        Guid liveSessionId,
+        Guid sessionParticipantId,
+        bool expectedDisconnected)
+    {
+        const int maxAttempts = 20;
+
+        for (var attempt = 0; attempt < maxAttempts; attempt++)
+        {
+            await using var scope = _factory.Services.CreateAsyncScope();
+            var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var participant = await dbContext.LiveSessions
+                .AsNoTracking()
+                .Include(session => session.Participants)
+                .Where(session => session.LiveSessionId == liveSessionId)
+                .SelectMany(session => session.Participants)
+                .SingleAsync(candidate => candidate.SessionParticipantId == sessionParticipantId);
+
+            if (participant.IsDisconnected == expectedDisconnected)
+            {
+                return participant;
+            }
+
+            await Task.Delay(100);
+        }
+
+        throw new Xunit.Sdk.XunitException(
+            $"Participant {sessionParticipantId} did not reach disconnected={expectedDisconnected}.");
     }
 
     private sealed record SeededParticipantSession(

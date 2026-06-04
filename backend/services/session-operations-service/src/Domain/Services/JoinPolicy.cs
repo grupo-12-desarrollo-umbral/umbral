@@ -38,11 +38,6 @@ public sealed class JoinPolicy
             throw new ParticipantRemovedFromSessionException(participant.SessionParticipantId);
         }
 
-        if (!participant.IsDisconnected)
-        {
-            throw new ParticipantAlreadyConnectedException(participant.SessionParticipantId);
-        }
-
         if (assignedTeam.TeamId != requestedTeamId)
         {
             throw new ParticipantAssignedToDifferentTeamException(

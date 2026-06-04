@@ -23,6 +23,7 @@ public static class DependencyInjection
             options.EnableDetailedErrors = builder.Environment.IsDevelopment();
             options.AddFilter<DomainExceptionHubFilter>();
         });
+        builder.Services.AddSingleton<ConnectionTracker>();
         builder.Services.AddScoped<CurrentUserContext>();
         builder.Services.AddScoped<ICurrentUser, CurrentUser>();
         builder.Services.AddScoped<ISessionStateBroadcaster, SessionStateBroadcaster>();
