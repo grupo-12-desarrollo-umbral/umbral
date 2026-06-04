@@ -5,6 +5,7 @@ import { logout } from '@/app/actions/auth';
 import { refreshSession } from '@/app/actions/session';
 import { getUsersPage, deactivateUser, assignUserRole } from '@/app/actions/users';
 import { TeamsPanel } from './TeamsPanel'
+import { SessionsPanel } from './SessionsPanel'
 import { MissionsPanel } from './MissionsPanel'
 import { TriviasPanel } from './TriviasPanel'
 import type { PagedResult, UserAccessCatalogItemDto } from '@/app/lib/definitions';
@@ -86,6 +87,7 @@ const navigation = [
   { key: 'teams', label: 'Teams', icon: '◫' },
   { key: 'missions', label: 'Missions', icon: '▤' },
   { key: 'trivias', label: 'Trivias', icon: '▤' },
+  { key: 'sessions', label: 'Sessions', icon: '⊙' },
   { key: 'rules', label: 'Rules', icon: '⚑' },
   { key: 'users', label: 'Users', icon: '⊞' },
   { key: 'settings', label: 'Settings', icon: '⚙' },
@@ -570,6 +572,8 @@ export default function DashboardClient({
             <TriviasPanel role={role} />
           ) : activeNav === 'missions' ? (
             <MissionsPanel role={role} />
+          ) : activeNav === 'sessions' ? (
+            <SessionsPanel role={role} />
           ) : role === 'operator' && selectedSessionId === 'assigned-list' ? (
             <section className={styles.emptyState} aria-labelledby="assigned-sessions-title" data-testid="operator-panel">
               <div>

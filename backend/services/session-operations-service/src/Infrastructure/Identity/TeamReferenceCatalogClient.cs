@@ -5,16 +5,15 @@ using umbral_backend.Application.Sessions.DTOs;
 
 namespace umbral_backend.Infrastructure.Identity;
 
-/// <summary>
-/// HTTP adapter that resolves team reference data from the identity-access-service.
-/// External integration glue — excluded from coverage.
-/// </summary>
 [ExcludeFromCodeCoverage]
 public sealed class TeamReferenceCatalogClient : ITeamReferenceCatalogClient
 {
     public async Task<TeamReferenceDto?> GetByIdAsync(Guid teamId, CancellationToken cancellationToken)
     {
-        var response = await _httpClient.GetAsync($"/api/teams/{teamId}", cancellationToken);
+        using var requestMessage = new HttpRequestMessage(HttpMethod.Get, $"/api/teams/{teamId}");
+        ForwardTrustedHeaders(requestMessage);
+
+        using var response = await _httpClient.SendAsync(requestMessage, cancellationToken);
 
         if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
         {
@@ -32,10 +31,27 @@ public sealed class TeamReferenceCatalogClient : ITeamReferenceCatalogClient
     }
 
     private readonly HttpClient _httpClient;
+    private readonly ICurrentUser _currentUser;
 
-    public TeamReferenceCatalogClient(HttpClient httpClient)
+    public TeamReferenceCatalogClient(HttpClient httpClient, ICurrentUser currentUser)
     {
         _httpClient = httpClient;
+        _currentUser = currentUser;
+    }
+
+    private void ForwardTrustedHeaders(HttpRequestMessage requestMessage)
+    {
+        AddHeaderIfPresent(requestMessage, "X-User-Id", _currentUser.Id);
+        AddHeaderIfPresent(requestMessage, "X-User-Role", _currentUser.Role);
+        AddHeaderIfPresent(requestMessage, "X-User-Email", _currentUser.Email);
+    }
+
+    private static void AddHeaderIfPresent(HttpRequestMessage requestMessage, string name, string? value)
+    {
+        if (!string.IsNullOrWhiteSpace(value))
+        {
+            requestMessage.Headers.TryAddWithoutValidation(name, value);
+        }
     }
 
     private sealed record TeamReferenceCatalogResponse(

@@ -157,6 +157,29 @@ export type TriviaQuizDto = {
   questions: TriviaQuestionDto[]
 }
 
+export type AssociatedSessionTeamDto = {
+  runtimeTeamId: string    // UUID — session-scoped identity
+  referenceTeamId: string  // UUID — catalog identity (matches TeamDto.teamId)
+  displayName: string
+  teamCode: string
+  joinStatus: string       // participant join state; display-only for now
+}
+
+export type SessionAssociatedTeamsDto = {
+  liveSessionId: string
+  teams: AssociatedSessionTeamDto[]
+}
+
+export type AssociateTeamToSessionResultDto = {
+  liveSessionId: string
+  runtimeTeamId: string
+  referenceTeamId: string
+  displayName: string
+  teamCode: string
+  sessionState: string
+  associatedTeamCount: number
+}
+
 export class IdentityError extends Error {
   constructor(
     public code: 'deactivated' | 'unauthorized' | 'network' | 'unknown',
