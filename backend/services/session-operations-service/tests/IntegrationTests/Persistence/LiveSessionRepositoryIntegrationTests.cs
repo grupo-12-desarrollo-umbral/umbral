@@ -233,6 +233,96 @@ public sealed class LiveSessionRepositoryIntegrationTests
         question.Options.Should().ContainSingle(option => option.OptionText == "Paris" && option.IsCorrect);
     }
 
+    [Fact]
+    public async Task GetByIdAsync_RestoresAdvancingAuthoritativeTimerState()
+    {
+        await using var resetContext = BuildContext();
+        await ResetDatabaseAsync(resetContext);
+
+        var activeAt = new DateTimeOffset(2026, 6, 4, 12, 0, 0, TimeSpan.Zero);
+        var liveSession = CreateActiveSession(activeAt);
+
+        await using (var seedContext = BuildContext())
+        {
+            seedContext.LiveSessions.Add(liveSession);
+            await seedContext.SaveChangesAsync(CancellationToken.None);
+        }
+
+        await using var assertContext = BuildContext();
+        var persistedSession = await new LiveSessionRepository(assertContext)
+            .GetByIdAsync(liveSession.LiveSessionId, CancellationToken.None);
+
+        persistedSession.Should().NotBeNull();
+        var snapshot = persistedSession!.GetAuthoritativeSessionTimerSnapshot(activeAt.AddMinutes(5));
+
+        snapshot.TotalDuration.Should().Be(TimeSpan.FromMinutes(45));
+        snapshot.RemainingDuration.Should().Be(TimeSpan.FromMinutes(40));
+        snapshot.IsAdvancing.Should().BeTrue();
+        snapshot.AdvancingSince.Should().Be(activeAt);
+    }
+
+    [Fact]
+    public async Task GetByIdAsync_RestoresPausedAuthoritativeTimerAsFrozen()
+    {
+        await using var resetContext = BuildContext();
+        await ResetDatabaseAsync(resetContext);
+
+        var activeAt = new DateTimeOffset(2026, 6, 4, 12, 0, 0, TimeSpan.Zero);
+        var pausedAt = activeAt.AddMinutes(4);
+        var liveSession = CreateActiveSession(activeAt);
+        liveSession.MoveTo(SessionState.Paused, pausedAt, new SessionStateTransitionPolicy(), "Break");
+
+        await using (var seedContext = BuildContext())
+        {
+            seedContext.LiveSessions.Add(liveSession);
+            await seedContext.SaveChangesAsync(CancellationToken.None);
+        }
+
+        await using var assertContext = BuildContext();
+        var persistedSession = await new LiveSessionRepository(assertContext)
+            .GetByIdAsync(liveSession.LiveSessionId, CancellationToken.None);
+
+        persistedSession.Should().NotBeNull();
+        var snapshot = persistedSession!.GetAuthoritativeSessionTimerSnapshot(pausedAt.AddMinutes(10));
+
+        snapshot.RemainingDuration.Should().Be(TimeSpan.FromMinutes(41));
+        snapshot.IsAdvancing.Should().BeFalse();
+        snapshot.AdvancingSince.Should().BeNull();
+        persistedSession.State.Should().Be(SessionState.Paused);
+    }
+
+    [Fact]
+    public async Task GetByIdAsync_RestoresResumedAuthoritativeTimerFromFrozenRemainder()
+    {
+        await using var resetContext = BuildContext();
+        await ResetDatabaseAsync(resetContext);
+
+        var activeAt = new DateTimeOffset(2026, 6, 4, 12, 0, 0, TimeSpan.Zero);
+        var pausedAt = activeAt.AddMinutes(5);
+        var resumedAt = pausedAt.AddMinutes(10);
+        var liveSession = CreateActiveSession(activeAt);
+        var transitionPolicy = new SessionStateTransitionPolicy();
+        liveSession.MoveTo(SessionState.Paused, pausedAt, transitionPolicy, "Break");
+        liveSession.MoveTo(SessionState.Active, resumedAt, transitionPolicy);
+
+        await using (var seedContext = BuildContext())
+        {
+            seedContext.LiveSessions.Add(liveSession);
+            await seedContext.SaveChangesAsync(CancellationToken.None);
+        }
+
+        await using var assertContext = BuildContext();
+        var persistedSession = await new LiveSessionRepository(assertContext)
+            .GetByIdAsync(liveSession.LiveSessionId, CancellationToken.None);
+
+        persistedSession.Should().NotBeNull();
+        var snapshot = persistedSession!.GetAuthoritativeSessionTimerSnapshot(resumedAt.AddMinutes(3));
+
+        snapshot.RemainingDuration.Should().Be(TimeSpan.FromMinutes(37));
+        snapshot.IsAdvancing.Should().BeTrue();
+        snapshot.AdvancingSince.Should().Be(resumedAt);
+    }
+
     private ApplicationDbContext BuildContext()
     {
         return _contextFactory.Create();
@@ -254,5 +344,15 @@ public sealed class LiveSessionRepositoryIntegrationTests
             "Reconnect Session",
             45,
             scheduledAt);
+    }
+
+    private static LiveSession CreateActiveSession(DateTimeOffset activeAt)
+    {
+        var liveSession = CreateSession(activeAt.AddMinutes(-10));
+        liveSession.RegisterTeam("Blue", "BLUE-01", 4);
+        var transitionPolicy = new SessionStateTransitionPolicy();
+        liveSession.MoveTo(SessionState.Preparing, activeAt.AddMinutes(-1), transitionPolicy);
+        liveSession.MoveTo(SessionState.Active, activeAt, transitionPolicy);
+        return liveSession;
     }
 }

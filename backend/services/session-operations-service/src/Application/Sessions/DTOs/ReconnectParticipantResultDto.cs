@@ -9,4 +9,5 @@ public sealed record ReconnectParticipantResultDto(
     string SessionState,
     bool IsReconnect,
     DateTimeOffset JoinedAt,
-    DateTimeOffset LastSeenAt);
+    DateTimeOffset LastSeenAt,
+    SessionTimerSnapshotDto? Timer = null);

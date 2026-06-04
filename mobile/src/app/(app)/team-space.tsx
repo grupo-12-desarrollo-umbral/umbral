@@ -8,6 +8,7 @@ import { Card } from '@/components/ui/card';
 import { Panel } from '@/components/ui/panel';
 import { Screen } from '@/components/ui/screen';
 import { Text } from '@/components/ui/text';
+import { SessionTimerBar } from '@/components/session-timer-bar';
 import { useAuth } from '@/lib/auth/use-auth';
 import {
   clearReconnectContext,
@@ -17,6 +18,8 @@ import {
 import { resolveReconnectContext } from '@/lib/realtime/reconnect-context-resolution';
 import type { ReconnectOutcome } from '@/lib/realtime/reconnect-policy';
 import { useReconnect } from '@/lib/realtime/use-reconnect';
+import { useSessionTimer } from '@/lib/realtime/use-session-timer';
+import type { SessionsHubClient } from '@/lib/realtime/sessions-hub';
 import type { ReconnectContext } from '@/lib/realtime/sessions-hub-types';
 import { colors, spacing } from '@/constants/theme';
 
@@ -79,7 +82,7 @@ export default function TeamSpaceScreen() {
     reason?: string;
   }>();
 
-  const { status, outcome, reconnect, stop, isHubReconnecting } = useReconnect();
+  const { status, outcome, reconnect, stop, isHubReconnecting, client, reconnectNonce } = useReconnect();
 
   const [context, setContext] = useState<ReconnectContext | null>(null);
   const [phase, setPhase] = useState<'resolving' | 'ready' | 'no-context'>(
@@ -189,7 +192,13 @@ export default function TeamSpaceScreen() {
           </Text>
         </View>
       ) : status === 'reconnected' && outcome?.kind === 'reconnected' ? (
-        <LiveTeamSpace outcome={outcome} onLeave={leaveToHome} />
+        <LiveTeamSpace
+            outcome={outcome}
+            onLeave={leaveToHome}
+            client={client}
+            reconnectNonce={reconnectNonce}
+            token={context?.token}
+          />
       ) : phase === 'no-context' ? (
         <>
           <Panel>
@@ -217,11 +226,25 @@ export default function TeamSpaceScreen() {
 function LiveTeamSpace({
   outcome,
   onLeave,
+  client,
+  reconnectNonce,
+  token,
 }: {
   outcome: Extract<ReconnectOutcome, { kind: 'reconnected' }>;
   onLeave: () => void;
+  client: SessionsHubClient;
+  reconnectNonce: number;
+  token?: string | null;
 }) {
   const { result } = outcome;
+  const { display } = useSessionTimer({
+    client,
+    liveSessionId: result.liveSessionId,
+    teamId: result.teamId,
+    token,
+    isReconnected: true,
+    reconnectNonce,
+  });
 
   return (
     <>
@@ -249,6 +272,8 @@ function LiveTeamSpace({
           </Text>
         </View>
       </Panel>
+
+      <SessionTimerBar display={display} />
 
       <Card>
         <View style={{ gap: spacing.sm }}>

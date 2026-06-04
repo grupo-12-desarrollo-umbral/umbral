@@ -1,0 +1,20 @@
+using umbral_backend.Domain.Entities;
+using umbral_backend.Domain.Enums;
+using umbral_backend.Domain.ValueObjects;
+
+namespace umbral_backend.Domain.Services.SessionStates;
+
+internal interface ILiveSessionState
+{
+    SessionState State { get; }
+
+    bool CanTransitionTo(SessionState nextState);
+
+    void Enter(LiveSession session, DateTimeOffset occurredAt);
+
+    AuthoritativeSessionTimerSnapshot GetTimerSnapshot(LiveSession session, DateTimeOffset observedAt);
+
+    AuthoritativeSessionTimerSnapshot MarkTimerExpiredIfElapsed(LiveSession session, DateTimeOffset occurredAt);
+
+    bool IsSessionTimerAdvancing(LiveSession session);
+}

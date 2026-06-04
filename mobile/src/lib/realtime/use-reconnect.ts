@@ -49,6 +49,7 @@ export function useReconnect() {
   // Build the connection exactly once per hook instance. A lazy state
   // initializer (not a ref read during render) keeps this off the render path.
   const [client] = useState<SessionsHubClient>(createSessionsHubConnection);
+  const [reconnectNonce, setReconnectNonce] = useState(0);
   const contextRef = useRef<ReconnectContext | null>(null);
   const reconnectAttemptRef = useRef(0);
 
@@ -123,6 +124,7 @@ export function useReconnect() {
         }
 
         await handleReconnectAttempt(contextRef.current, { resumeTransport: true });
+        setReconnectNonce(n => n + 1);
       });
     }
   }, [client]);
@@ -146,5 +148,5 @@ export function useReconnect() {
     setOutcome(null);
   }
 
-  return { status, outcome, reconnect, reset, stop, isHubReconnecting };
+  return { status, outcome, reconnect, reset, stop, isHubReconnecting, client, reconnectNonce };
 }

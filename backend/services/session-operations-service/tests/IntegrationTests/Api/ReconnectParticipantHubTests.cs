@@ -239,7 +239,7 @@ public sealed class ReconnectParticipantHubTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task ReconnectAsync_WhenSecondConnectionRacesBeforeFirstDisconnectCompletes_SurfacesAlreadyConnectedCode()
+    public async Task ReconnectAsync_WhenSecondConnectionReconnectsBeforeFirstDisconnectCompletes_ReturnsSameParticipantContext()
     {
         var externalIdentityId = Guid.NewGuid();
         var seeded = await SeedSessionWithDisconnectedParticipantAsync(externalIdentityId, SessionState.Active);
@@ -254,13 +254,14 @@ public sealed class ReconnectParticipantHubTests : IAsyncLifetime
             seeded.LiveSessionId,
             new SessionsHub.ReconnectParticipantHubRequest(seeded.TeamId, "Nova", null));
 
-        var secondCode = await InvokeAndCaptureCodeAsync(
-            secondConnection,
+        var secondPayload = await secondConnection.InvokeAsync<ReconnectParticipantResultDto>(
+            nameof(SessionsHub.ReconnectAsync),
             seeded.LiveSessionId,
             new SessionsHub.ReconnectParticipantHubRequest(seeded.TeamId, "Nova", null));
 
         firstPayload.IsReconnect.Should().BeTrue();
-        secondCode.Should().Be("ALREADY_CONNECTED");
+        secondPayload.IsReconnect.Should().BeTrue();
+        secondPayload.SessionParticipantId.Should().Be(firstPayload.SessionParticipantId);
     }
 
     [Fact]

@@ -93,6 +93,22 @@ namespace umbral_backend.Infrastructure.Migrations
                         .HasColumnType("character varying(200)")
                         .HasColumnName("title_snapshot");
 
+                    b.Property<DateTimeOffset?>("_sessionTimerAdvancingSince")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("session_timer_advancing_since");
+
+                    b.Property<DateTimeOffset?>("_sessionTimerExpiredAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("session_timer_expired_at");
+
+                    b.Property<TimeSpan>("_sessionTimerRemainingDuration")
+                        .HasColumnType("interval")
+                        .HasColumnName("session_timer_remaining_duration");
+
+                    b.Property<TimeSpan>("_sessionTimerTotalDuration")
+                        .HasColumnType("interval")
+                        .HasColumnName("session_timer_total_duration");
+
                     b.HasKey("LiveSessionId");
 
                     b.HasIndex("SessionCode")

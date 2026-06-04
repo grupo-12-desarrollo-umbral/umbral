@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Http.Connections;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.AspNetCore.SignalR.Client;
+using umbral_backend.Application.Common.Interfaces;
 using umbral_backend.Api.Hubs;
 using umbral_backend.Application.Sessions.DTOs;
 using umbral_backend.Domain.Entities;
@@ -8,6 +9,7 @@ using umbral_backend.Domain.Enums;
 using umbral_backend.Domain.Services;
 using umbral_backend.Domain.ValueObjects;
 using umbral_backend.Infrastructure.Persistence;
+using umbral_backend.Infrastructure.Realtime;
 
 namespace umbral_backend.Infrastructure.IntegrationTests.Api;
 
@@ -114,6 +116,52 @@ public sealed class SessionStateBroadcastHubTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task TimerBroadcaster_BroadcastsSessionTimerUpdatedToConnectedParticipant()
+    {
+        var externalIdentityId = Guid.NewGuid();
+        var seeded = await SeedPausedSessionWithDisconnectedParticipantAsync(externalIdentityId);
+
+        await using var participant = CreateHubConnection(externalIdentityId.ToString(), "Participant", "participant@example.com");
+        await participant.StartAsync();
+
+        await participant.InvokeAsync(
+            nameof(SessionsHub.ReconnectAsync),
+            seeded.LiveSessionId,
+            new SessionsHub.ReconnectParticipantHubRequest(seeded.TeamId, "Nova", null));
+
+        var received = new TaskCompletionSource<SessionTimerUpdatedNotificationDto>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        participant.On<SessionTimerUpdatedNotificationDto>(
+            SignalRSessionTimerBroadcaster.TimerUpdatedMethod,
+            notification => received.TrySetResult(notification));
+
+        var emittedAt = DateTimeOffset.UtcNow;
+        await using (var scope = _factory.Services.CreateAsyncScope())
+        {
+            var broadcaster = scope.ServiceProvider.GetRequiredService<ISessionTimerBroadcaster>();
+            await broadcaster.BroadcastTimerUpdatedAsync(
+                new SessionTimerUpdatedNotificationDto(
+                    seeded.LiveSessionId,
+                    RemainingMilliseconds: 120_000,
+                    IsPaused: true,
+                    EmittedAt: emittedAt,
+                    TotalMilliseconds: 2_700_000,
+                    IsExpired: false,
+                    SessionState: nameof(SessionState.Paused)),
+                CancellationToken.None);
+        }
+
+        var completed = await Task.WhenAny(received.Task, Task.Delay(TimeSpan.FromSeconds(5)));
+        completed.Should().Be(received.Task, "timer updates must broadcast over SignalR");
+
+        var notification = await received.Task;
+        notification.LiveSessionId.Should().Be(seeded.LiveSessionId);
+        notification.RemainingMilliseconds.Should().Be(120_000);
+        notification.IsPaused.Should().BeTrue();
+        notification.EmittedAt.Should().BeCloseTo(emittedAt, TimeSpan.FromSeconds(1));
+    }
+
+    [Fact]
     public async Task NonAssignedOperatorJoin_IsForbidden()
     {
         var seeded = await SeedActiveSessionWithDisconnectedParticipantAsync(Guid.NewGuid());
@@ -174,6 +222,40 @@ public sealed class SessionStateBroadcastHubTests : IAsyncLifetime
         var transitionPolicy = new SessionStateTransitionPolicy();
         session.MoveTo(SessionState.Preparing, createdAt.AddMinutes(2), transitionPolicy);
         session.MoveTo(SessionState.Active, createdAt.AddMinutes(3), transitionPolicy);
+
+        dbContext.LiveSessions.Add(session);
+        await dbContext.SaveChangesAsync();
+
+        return new SeededSession(session.LiveSessionId, team.TeamId);
+    }
+
+    private async Task<SeededSession> SeedPausedSessionWithDisconnectedParticipantAsync(Guid externalIdentityId)
+    {
+        await using var scope = _factory.Services.CreateAsyncScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var createdAt = DateTimeOffset.UtcNow.AddMinutes(-20);
+
+        var session = LiveSession.Create(
+            SessionMode.TreasureHunt,
+            SessionSource.Create(SessionSourceType.Mission, Guid.NewGuid()),
+            $"SES-{Guid.NewGuid():N}"[..12],
+            "Paused Timer Session",
+            45,
+            createdAt);
+        var team = session.RegisterTeam("Red", "RED-01", 4);
+        session.AssignOperator(OperatorUserId, createdAt.AddMinutes(1));
+        var participant = session.AdmitParticipant(
+            externalIdentityId,
+            "Nova",
+            team.TeamId,
+            createdAt.AddMinutes(1),
+            new JoinPolicy()).Participant;
+        session.DisconnectParticipant(participant.SessionParticipantId, createdAt.AddMinutes(5));
+
+        var transitionPolicy = new SessionStateTransitionPolicy();
+        session.MoveTo(SessionState.Preparing, createdAt.AddMinutes(2), transitionPolicy);
+        session.MoveTo(SessionState.Active, createdAt.AddMinutes(3), transitionPolicy);
+        session.MoveTo(SessionState.Paused, createdAt.AddMinutes(4), transitionPolicy, "Timer test");
 
         dbContext.LiveSessions.Add(session);
         await dbContext.SaveChangesAsync();

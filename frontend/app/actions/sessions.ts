@@ -8,6 +8,7 @@ import {
   listOperatorSessions as listOperatorSessionsLib,
   assignSessionOperator as assignSessionOperatorLib,
   transitionSessionState as transitionSessionStateLib,
+  getOperatorSessionTimerSnapshot as getOperatorSessionTimerSnapshotLib,
 } from '@/app/lib/sessions'
 import { listAssignableOperators as listAssignableOperatorsLib } from '@/app/lib/users'
 import { revalidatePath } from 'next/cache'
@@ -20,7 +21,9 @@ import type {
   AssignableOperatorDto,
   SessionLifecycleState,
   TransitionSessionStateResultDto,
+  SessionTimerSnapshotDto,
 } from '@/app/lib/definitions'
+import { IdentityError } from '@/app/lib/definitions'
 
 export async function getPublishedTrivias(): Promise<TriviaQuizSummaryDto[]> {
   const session = await verifySession()
@@ -78,4 +81,19 @@ export async function transitionSessionState(
   const result = await transitionSessionStateLib(liveSessionId, targetState, reason)
   revalidatePath('/dashboard')
   return result
+}
+
+export async function getSessionTimerSnapshotAction(
+  liveSessionId: string,
+): Promise<{ data: SessionTimerSnapshotDto } | { error: string }> {
+  'use server'
+  const session = await verifySession()
+  if (session.role !== 'Operator') return { error: 'Forbidden' }
+  try {
+    const data = await getOperatorSessionTimerSnapshotLib(liveSessionId)
+    return { data }
+  } catch (error) {
+    if (error instanceof IdentityError) return { error: error.message }
+    return { error: 'Unexpected error fetching timer snapshot' }
+  }
 }

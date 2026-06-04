@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.SignalR;
 using umbral_backend.Api.Services;
 using umbral_backend.Application.Common.Exceptions;
 using umbral_backend.Application.Common.Interfaces;
+using umbral_backend.Application.Sessions.Commands.DisconnectParticipant;
 using umbral_backend.Application.Sessions.Commands.ReconnectAuthenticatedParticipant;
 using umbral_backend.Application.Sessions.DTOs;
 
@@ -15,17 +16,20 @@ public sealed class SessionsHub : Hub
     private readonly CurrentUserContext _userContext;
     private readonly ICurrentUser _currentUser;
     private readonly ISessionAdministrationAccessResolver _sessionAdministrationAccessResolver;
+    private readonly ConnectionTracker _connectionTracker;
 
     public SessionsHub(
         ISender sender,
         CurrentUserContext userContext,
         ICurrentUser currentUser,
-        ISessionAdministrationAccessResolver sessionAdministrationAccessResolver)
+        ISessionAdministrationAccessResolver sessionAdministrationAccessResolver,
+        ConnectionTracker connectionTracker)
     {
         _sender = sender;
         _userContext = userContext;
         _currentUser = currentUser;
         _sessionAdministrationAccessResolver = sessionAdministrationAccessResolver;
+        _connectionTracker = connectionTracker;
     }
 
     public async Task<ReconnectParticipantResultDto> ReconnectAsync(
@@ -46,8 +50,29 @@ public sealed class SessionsHub : Hub
         await Groups.AddToGroupAsync(Context.ConnectionId, BuildLiveSessionGroup(result.LiveSessionId), cancellationToken);
         await Groups.AddToGroupAsync(Context.ConnectionId, BuildTeamGroup(result.TeamId), cancellationToken);
         await Groups.AddToGroupAsync(Context.ConnectionId, BuildParticipantGroup(result.SessionParticipantId), cancellationToken);
+        _connectionTracker.Add(Context.ConnectionId, result.LiveSessionId, result.SessionParticipantId);
 
         return result;
+    }
+
+    public override async Task OnDisconnectedAsync(Exception? exception)
+    {
+        _userContext.Principal = Context.User;
+
+        if (_connectionTracker.TryRemove(
+            Context.ConnectionId,
+            out var participant,
+            out var hasRemainingConnections) &&
+            !hasRemainingConnections)
+        {
+            await _sender.Send(
+                new DisconnectParticipantCommand(
+                    participant.LiveSessionId,
+                    participant.SessionParticipantId),
+                CancellationToken.None);
+        }
+
+        await base.OnDisconnectedAsync(exception);
     }
 
     public async Task JoinLiveSessionAsOperatorAsync(Guid liveSessionId)

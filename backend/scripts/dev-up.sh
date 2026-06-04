@@ -44,22 +44,8 @@ fi
 echo "▶ docker compose up -d --wait  (postgres + keycloak healthchecks) …"
 docker compose up -d --wait
 
-echo "▶ Seeding sessions (seed-dev-data.sh — direct psql) …"
-./scripts/seed-dev-data.sh
-
-# seed-users goes through the gateway + Keycloak (users, teams, memberships).
-# The gateway has no healthcheck, so it may still be compiling after --wait;
-# poll until it answers anything (even 401), then seed best-effort so a slow
-# start doesn't tear down the run.
-echo "▶ Waiting for the gateway to listen on :8000 …"
-for _ in $(seq 1 30); do
-  code="$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8000/ || echo 000)"
-  [[ "$code" != "000" ]] && break
-  sleep 2
-done
-
-echo "▶ Seeding users, teams and memberships (seed-users.sh — gateway API) …"
-./scripts/seed-users.sh \
-  || echo "⚠ seed-users failed (gateway/keycloak still warming up?) — rerun ./scripts/seed-users.sh shortly."
+echo "▶ Seeding all dev data (seed-all.sh — psql + gateway API) …"
+./scripts/seed-all.sh \
+  || echo "⚠ seed-all failed (gateway/keycloak still warming up?) — rerun ./scripts/seed-all.sh shortly."
 
 echo "✓ Dev stack up and seeded.  Gateway: http://localhost:8000"

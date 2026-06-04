@@ -38,6 +38,52 @@ public sealed class TransitionSessionStateCommandHandlerTests
     }
 
     [Fact]
+    public async Task Handle_WhenPausingActiveSession_ReturnsFrozenTimerSnapshot()
+    {
+        var session = CreateScheduledSession(assignedOperatorUserId: 42, registerTeam: true);
+        var transitionPolicy = new SessionStateTransitionPolicy();
+        var activeAt = Now.AddMinutes(-9);
+        session.MoveTo(SessionState.Preparing, activeAt.AddMinutes(-1), transitionPolicy);
+        session.MoveTo(SessionState.Active, activeAt, transitionPolicy);
+        var repository = CreateRepository(session);
+        var handler = CreateHandler(repository, CreateCurrentUser("kc-operator-42", "Operator"), resolvedUserId: 42);
+        var command = new TransitionSessionStateCommand(session.LiveSessionId, SessionState.Paused, "Break");
+
+        var result = await handler.Handle(command, CancellationToken.None);
+
+        result.CurrentState.Should().Be(nameof(SessionState.Paused));
+        result.Timer.Should().NotBeNull();
+        result.Timer!.RemainingSeconds.Should().Be(2160);
+        result.Timer.TimerStatus.Should().Be("Frozen");
+        result.Timer.IsAdvancing.Should().BeFalse();
+        result.Timer.AdvancingSince.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task Handle_WhenResumingPausedSession_ReturnsAdvancingTimerSnapshotFromFrozenRemainder()
+    {
+        var session = CreateScheduledSession(assignedOperatorUserId: 42, registerTeam: true);
+        var transitionPolicy = new SessionStateTransitionPolicy();
+        var activeAt = Now.AddMinutes(-12);
+        var pausedAt = Now.AddMinutes(-7);
+        session.MoveTo(SessionState.Preparing, activeAt.AddMinutes(-1), transitionPolicy);
+        session.MoveTo(SessionState.Active, activeAt, transitionPolicy);
+        session.MoveTo(SessionState.Paused, pausedAt, transitionPolicy);
+        var repository = CreateRepository(session);
+        var handler = CreateHandler(repository, CreateCurrentUser("kc-operator-42", "Operator"), resolvedUserId: 42);
+        var command = new TransitionSessionStateCommand(session.LiveSessionId, SessionState.Active, "Continue");
+
+        var result = await handler.Handle(command, CancellationToken.None);
+
+        result.CurrentState.Should().Be(nameof(SessionState.Active));
+        result.Timer.Should().NotBeNull();
+        result.Timer!.RemainingSeconds.Should().Be(2400);
+        result.Timer.TimerStatus.Should().Be("Advancing");
+        result.Timer.IsAdvancing.Should().BeTrue();
+        result.Timer.AdvancingSince.Should().Be(Now);
+    }
+
+    [Fact]
     public async Task Handle_WithStructurallyInvalidTransition_ThrowsAndDoesNotPersist()
     {
         var session = CreateScheduledSession(assignedOperatorUserId: 42, registerTeam: true);

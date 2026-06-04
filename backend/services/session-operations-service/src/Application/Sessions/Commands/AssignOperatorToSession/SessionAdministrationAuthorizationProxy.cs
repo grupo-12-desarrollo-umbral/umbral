@@ -25,12 +25,35 @@ public sealed class SessionAdministrationAuthorizationProxy : ISessionAdministra
 
     public async Task<LiveSession> GetAuthorizedSessionAsync(Guid liveSessionId, CancellationToken cancellationToken)
     {
+        var liveSession = await GetAuthorizedSessionInternalAsync(
+            liveSessionId,
+            cancellationToken,
+            _inner.GetAuthorizedSessionAsync);
+
+        return liveSession;
+    }
+
+    public async Task<LiveSession> GetAuthorizedTimerSessionAsync(Guid liveSessionId, CancellationToken cancellationToken)
+    {
+        var liveSession = await GetAuthorizedSessionInternalAsync(
+            liveSessionId,
+            cancellationToken,
+            _inner.GetAuthorizedTimerSessionAsync);
+
+        return liveSession;
+    }
+
+    private async Task<LiveSession> GetAuthorizedSessionInternalAsync(
+        Guid liveSessionId,
+        CancellationToken cancellationToken,
+        Func<Guid, CancellationToken, Task<LiveSession>> loadSessionAsync)
+    {
         if (string.IsNullOrWhiteSpace(_currentUser.Id))
         {
             throw new UnauthorizedAccessException();
         }
 
-        var liveSession = await _inner.GetAuthorizedSessionAsync(liveSessionId, cancellationToken);
+        var liveSession = await loadSessionAsync(liveSessionId, cancellationToken);
 
         if (string.Equals(_currentUser.Role, AdministratorRole, StringComparison.OrdinalIgnoreCase))
         {

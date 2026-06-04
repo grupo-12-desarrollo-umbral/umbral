@@ -43,7 +43,9 @@ public sealed class TransitionSessionStateFacade : ITransitionSessionStateFacade
         // The domain transition re-asserts its own invariant as the last line of defence and
         // raises SessionStateChangedEvent, which the dispatch interceptor turns into the SignalR
         // broadcast on save.
-        liveSession.MoveTo(command.TargetState, _timeProvider.GetUtcNow(), _transitionPolicy, command.Reason);
+        var occurredAt = _timeProvider.GetUtcNow();
+        liveSession.MoveTo(command.TargetState, occurredAt, _transitionPolicy, command.Reason);
+        var timerSnapshot = liveSession.GetAuthoritativeSessionTimerSnapshot(occurredAt);
 
         await _liveSessionRepository.UpdateAsync(liveSession, cancellationToken);
 
@@ -51,6 +53,7 @@ public sealed class TransitionSessionStateFacade : ITransitionSessionStateFacade
             liveSession.LiveSessionId,
             previousState.ToString(),
             liveSession.State.ToString(),
-            liveSession.LastStateChangedAt);
+            liveSession.LastStateChangedAt,
+            SessionTimerSnapshotDtoFactory.Create(liveSession, teamId: null, timerSnapshot));
     }
 }

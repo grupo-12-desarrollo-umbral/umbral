@@ -18,4 +18,10 @@ public sealed class SessionAdministrationAccessResolver : ISessionAdministration
         return await _liveSessionRepository.GetByIdAsync(liveSessionId, cancellationToken)
             ?? throw new NotFoundException(nameof(LiveSession), liveSessionId);
     }
+
+    public async Task<LiveSession> GetAuthorizedTimerSessionAsync(Guid liveSessionId, CancellationToken cancellationToken)
+    {
+        return await _liveSessionRepository.GetTimerSessionByIdAsync(liveSessionId, cancellationToken)
+            ?? throw new NotFoundException(nameof(LiveSession), liveSessionId);
+    }
 }

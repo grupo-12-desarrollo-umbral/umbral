@@ -1,20 +1,23 @@
 'use client';
 
-import { useEffect, useState, useTransition } from 'react';
+import { useEffect, useReducer, useState, useTransition } from 'react';
 import { logout } from '@/app/actions/auth';
 import { refreshSession } from '@/app/actions/session';
 import { getUsersPage, deactivateUser, assignUserRole } from '@/app/actions/users';
-import { listSessionsForOperator, transitionSessionState } from '@/app/actions/sessions';
+import { listSessionsForOperator, transitionSessionState, getSessionTimerSnapshotAction } from '@/app/actions/sessions';
 import { TeamsPanel } from './TeamsPanel'
 import { TriviasPanel } from './TriviasPanel'
 import { SessionsPanel } from './SessionsPanel'
 import { SessionOperatorPanel } from './SessionOperatorPanel'
+import { OperatorSessionTimerPanel } from './OperatorSessionTimerPanel'
 import { createSessionStateRealtimeClient, type SessionRealtimeStatus } from '@/app/lib/realtime/session-state-client'
 import type {
   PagedResult,
   SessionAssignmentSummaryDto,
   SessionLifecycleState,
   SessionStateChangedNotificationDto,
+  SessionTimerSnapshotDto,
+  SessionTimerUpdatedNotificationDto,
   TransitionSessionStateResultDto,
   UserAccessCatalogItemDto,
 } from '@/app/lib/definitions';
@@ -228,6 +231,36 @@ function getNavigationLabel(role: DashboardRole, key: string) {
   )[key] ?? key
 }
 
+interface TimerState {
+  snapshot: SessionTimerSnapshotDto | null
+  error: string | null
+  loading: boolean
+}
+
+type TimerAction =
+  | { type: 'reset' }
+  | { type: 'load' }
+  | { type: 'loaded'; data: SessionTimerSnapshotDto }
+  | { type: 'failed'; error: string }
+  | { type: 'patched'; patch: Partial<SessionTimerSnapshotDto> }
+
+function timerReducer(state: TimerState, action: TimerAction): TimerState {
+  switch (action.type) {
+    case 'reset':
+      return { snapshot: null, error: null, loading: false }
+    case 'load':
+      return { ...state, loading: true, error: null }
+    case 'loaded':
+      return { snapshot: action.data, error: null, loading: false }
+    case 'failed':
+      return { snapshot: null, error: action.error, loading: false }
+    case 'patched':
+      return state.snapshot === null
+        ? state
+        : { ...state, snapshot: { ...state.snapshot, ...action.patch } }
+  }
+}
+
 export default function DashboardClient({
   role: initialRole,
   displayName,
@@ -265,6 +298,7 @@ export default function DashboardClient({
   const [confirmTransition, setConfirmTransition] = useState<SessionLifecycleState | null>(null);
   const [cancelReason, setCancelReason] = useState('');
   const [liveUpdateNote, setLiveUpdateNote] = useState<string | null>(null);
+  const [timerState, dispatchTimer] = useReducer(timerReducer, { snapshot: null, error: null, loading: false })
   const isOperatorSessionsWorkspace = role === 'operator' && activeNav === 'sessions';
 
   useEffect(() => {
@@ -315,6 +349,16 @@ export default function DashboardClient({
   // was stopped during negotiation"). Keying on the id connects once per selected session.
   const selectedRealtimeSessionId = selectedOperatorSession?.liveSessionId ?? null
 
+  async function loadTimerSnapshot(liveSessionId: string) {
+    dispatchTimer({ type: 'load' })
+    const result = await getSessionTimerSnapshotAction(liveSessionId)
+    if ('error' in result) {
+      dispatchTimer({ type: 'failed', error: result.error })
+    } else {
+      dispatchTimer({ type: 'loaded', data: result.data })
+    }
+  }
+
   useEffect(() => {
     if (!selectedRealtimeSessionId) return
 
@@ -337,12 +381,40 @@ export default function DashboardClient({
         )
         setLiveUpdateNote('State updated live from another client or tab.')
       },
+      onTimerUpdated: (notification: SessionTimerUpdatedNotificationDto) => {
+        if (notification.liveSessionId !== selectedRealtimeSessionId) return
+        dispatchTimer({
+          type: 'patched',
+          patch: {
+            remainingSeconds: Math.round(notification.remainingMilliseconds / 1000),
+            totalSeconds: Math.round(notification.totalMilliseconds / 1000),
+            timerStatus: notification.isExpired
+              ? 'Expired'
+              : notification.isPaused
+                ? 'Frozen'
+                : 'Advancing',
+            isAdvancing: !notification.isPaused && !notification.isExpired,
+            isExpired: notification.isExpired,
+            sessionState: notification.sessionState,
+            observedAt: notification.emittedAt,
+          },
+        })
+      },
+      onReconnected: () => {
+        if (selectedRealtimeSessionId) void loadTimerSnapshot(selectedRealtimeSessionId)
+      },
     })
 
     void client.start()
     return () => {
       void client.stop()
     }
+  }, [selectedRealtimeSessionId])
+
+  useEffect(() => {
+    dispatchTimer({ type: 'reset' })
+    if (!selectedRealtimeSessionId) return
+    void loadTimerSnapshot(selectedRealtimeSessionId)
   }, [selectedRealtimeSessionId])
 
   function announce(title: string, body: string) {
@@ -412,6 +484,11 @@ export default function DashboardClient({
       setConfirmTransition(null)
       setCancelReason('')
       announce(`${selectedOperatorSession.title} moved to ${result.currentState}`, 'The backend accepted the lifecycle transition.')
+      if (result.timer) {
+        dispatchTimer({ type: 'loaded', data: result.timer })
+      } else {
+        void loadTimerSnapshot(selectedOperatorSession.liveSessionId)
+      }
     } catch (err) {
       setTransitionError(mapTransitionError(err))
     } finally {
@@ -529,12 +606,22 @@ export default function DashboardClient({
                       onChange={(event) => setSelectedSessionId(event.target.value)}
                       value={selectedSessionId}
                     >
-                      {role === 'operator' && <option value="assigned-list">My sessions</option>}
-                      {sessions.map((session) => (
+                    {role === 'operator' ? (
+                      <>
+                        <option value="assigned-list">My sessions</option>
+                        {operatorSessions.map((session) => (
+                          <option key={session.liveSessionId} value={session.liveSessionId}>
+                            {session.title}
+                          </option>
+                        ))}
+                      </>
+                    ) : (
+                      sessions.map((session) => (
                         <option key={session.id} value={session.id}>
                           {session.title}
                         </option>
-                      ))}
+                      ))
+                    )}
                     </select>
                   </label>
                   <span
@@ -711,6 +798,12 @@ export default function DashboardClient({
                     </div>
                   </div>
                 </div>
+
+                <OperatorSessionTimerPanel
+                  timer={timerState.snapshot}
+                  isLoading={timerState.loading}
+                  error={timerState.error}
+                />
 
                 {liveUpdateNote && (
                   <p className={styles.liveNote} role="status" data-testid="session-live-update-note">

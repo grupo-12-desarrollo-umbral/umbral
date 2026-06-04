@@ -6,7 +6,10 @@ import {
   HubConnectionState,
   LogLevel,
 } from '@microsoft/signalr'
-import type { SessionStateChangedNotificationDto } from '@/app/lib/definitions'
+import type {
+  SessionStateChangedNotificationDto,
+  SessionTimerUpdatedNotificationDto,
+} from '@/app/lib/definitions'
 
 export type SessionRealtimeStatus =
   | 'Connected'
@@ -18,6 +21,8 @@ type SessionStateClientOptions = {
   liveSessionId: string
   onStatusChange: (status: SessionRealtimeStatus) => void
   onStateChanged: (notification: SessionStateChangedNotificationDto) => void
+  onTimerUpdated?: (notification: SessionTimerUpdatedNotificationDto) => void
+  onReconnected?: () => void
 }
 
 export type SessionStateRealtimeClient = {
@@ -56,6 +61,27 @@ function isHubAuthFailure(error: unknown): boolean {
   return error instanceof Error && error.message === HUB_AUTH_FAILED_ERROR
 }
 
+function normalizeTimerNotification(raw: unknown): SessionTimerUpdatedNotificationDto {
+  const n = raw as SessionTimerUpdatedNotificationDto & {
+    LiveSessionId?: string
+    RemainingMilliseconds?: number
+    IsPaused?: boolean
+    EmittedAt?: string
+    TotalMilliseconds?: number
+    IsExpired?: boolean
+    SessionState?: string
+  }
+  return {
+    liveSessionId: n.liveSessionId ?? n.LiveSessionId ?? '',
+    remainingMilliseconds: n.remainingMilliseconds ?? n.RemainingMilliseconds ?? 0,
+    isPaused: n.isPaused ?? n.IsPaused ?? false,
+    emittedAt: n.emittedAt ?? n.EmittedAt ?? '',
+    totalMilliseconds: n.totalMilliseconds ?? n.TotalMilliseconds ?? 0,
+    isExpired: n.isExpired ?? n.IsExpired ?? false,
+    sessionState: n.sessionState ?? n.SessionState ?? '',
+  }
+}
+
 function normalizeNotification(
   notification: SessionStateChangedNotificationDto,
 ): SessionStateChangedNotificationDto {
@@ -87,6 +113,8 @@ export function createSessionStateRealtimeClient({
   liveSessionId,
   onStatusChange,
   onStateChanged,
+  onTimerUpdated,
+  onReconnected,
 }: SessionStateClientOptions): SessionStateRealtimeClient {
   const connection = new HubConnectionBuilder()
     .withUrl(buildHubUrl(), {
@@ -100,12 +128,19 @@ export function createSessionStateRealtimeClient({
     onStateChanged(normalizeNotification(notification))
   })
 
+  if (onTimerUpdated) {
+    connection.on('SessionTimerUpdated', (raw: unknown) => {
+      onTimerUpdated(normalizeTimerNotification(raw))
+    })
+  }
+
   connection.onreconnecting((error) =>
     onStatusChange(isHubAuthFailure(error) ? 'AuthExpired' : 'Reconnecting'),
   )
   connection.onreconnected(async () => {
     onStatusChange('Connected')
     await invokeIfConnected(connection, 'JoinLiveSessionAsOperatorAsync', liveSessionId)
+    onReconnected?.()
   })
   connection.onclose((error) =>
     onStatusChange(isHubAuthFailure(error) ? 'AuthExpired' : 'Offline'),

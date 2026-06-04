@@ -259,4 +259,119 @@ public sealed class LiveSessionTests
         session.StateReason.Should().Be("complete");
         session.LastStateChangedAt.Should().Be(finishedAt);
     }
+
+    [Fact]
+    public void GetAuthoritativeSessionTimerSnapshot_WhenActive_DecrementsFromMaximumTime()
+    {
+        var session = LiveSessionFactory.CreateScheduledTrivia(maximumTimeMinutes: 10);
+        session.RegisterTeam("Alpha", "A-01", 4);
+        var policy = new SessionStateTransitionPolicy();
+        var preparingAt = new DateTimeOffset(2026, 6, 3, 10, 0, 0, TimeSpan.Zero);
+        var activeAt = preparingAt.AddMinutes(1);
+
+        session.MoveTo(SessionState.Preparing, preparingAt, policy);
+        session.MoveTo(SessionState.Active, activeAt, policy);
+
+        var snapshot = session.GetAuthoritativeSessionTimerSnapshot(activeAt.AddMinutes(3));
+
+        snapshot.TotalDuration.Should().Be(TimeSpan.FromMinutes(10));
+        snapshot.RemainingDuration.Should().Be(TimeSpan.FromMinutes(7));
+        snapshot.IsAdvancing.Should().BeTrue();
+        snapshot.IsExpired.Should().BeFalse();
+        snapshot.AdvancingSince.Should().Be(activeAt);
+    }
+
+    [Fact]
+    public void GetAuthoritativeSessionTimerSnapshot_WhenPaused_FreezesRemainingTime()
+    {
+        var session = LiveSessionFactory.CreateScheduledTrivia(maximumTimeMinutes: 10);
+        session.RegisterTeam("Alpha", "A-01", 4);
+        var policy = new SessionStateTransitionPolicy();
+        var preparingAt = new DateTimeOffset(2026, 6, 3, 10, 0, 0, TimeSpan.Zero);
+        var activeAt = preparingAt.AddMinutes(1);
+        var pausedAt = activeAt.AddMinutes(4);
+
+        session.MoveTo(SessionState.Preparing, preparingAt, policy);
+        session.MoveTo(SessionState.Active, activeAt, policy);
+        session.MoveTo(SessionState.Paused, pausedAt, policy);
+
+        var snapshot = session.GetAuthoritativeSessionTimerSnapshot(pausedAt.AddMinutes(8));
+
+        snapshot.RemainingDuration.Should().Be(TimeSpan.FromMinutes(6));
+        snapshot.IsAdvancing.Should().BeFalse();
+        snapshot.IsExpired.Should().BeFalse();
+        snapshot.AdvancingSince.Should().BeNull();
+    }
+
+    [Fact]
+    public void GetAuthoritativeSessionTimerSnapshot_WhenResumed_ContinuesFromFrozenRemainder()
+    {
+        var session = LiveSessionFactory.CreateScheduledTrivia(maximumTimeMinutes: 10);
+        session.RegisterTeam("Alpha", "A-01", 4);
+        var policy = new SessionStateTransitionPolicy();
+        var preparingAt = new DateTimeOffset(2026, 6, 3, 10, 0, 0, TimeSpan.Zero);
+        var firstActiveAt = preparingAt.AddMinutes(1);
+        var pausedAt = firstActiveAt.AddMinutes(4);
+        var resumedAt = pausedAt.AddMinutes(5);
+
+        session.MoveTo(SessionState.Preparing, preparingAt, policy);
+        session.MoveTo(SessionState.Active, firstActiveAt, policy);
+        session.MoveTo(SessionState.Paused, pausedAt, policy);
+        session.MoveTo(SessionState.Active, resumedAt, policy);
+
+        var snapshot = session.GetAuthoritativeSessionTimerSnapshot(resumedAt.AddMinutes(2));
+
+        snapshot.RemainingDuration.Should().Be(TimeSpan.FromMinutes(4));
+        snapshot.IsAdvancing.Should().BeTrue();
+        snapshot.AdvancingSince.Should().Be(resumedAt);
+    }
+
+    [Fact]
+    public void GetAuthoritativeSessionTimerSnapshot_ForReconnect_ReturnsBackendOwnedRemainder()
+    {
+        var session = LiveSessionFactory.CreateScheduledTrivia(maximumTimeMinutes: 10);
+        var team = session.RegisterTeam("Alpha", "A-01", 4);
+        var policy = new SessionStateTransitionPolicy();
+        var joinedAt = new DateTimeOffset(2026, 6, 3, 10, 0, 0, TimeSpan.Zero);
+        var admitted = session.AdmitParticipant(Guid.NewGuid(), "Nora", team.TeamId, joinedAt, _joinPolicy);
+        var activeAt = joinedAt.AddMinutes(2);
+
+        session.MoveTo(SessionState.Preparing, joinedAt.AddMinutes(1), policy);
+        session.MoveTo(SessionState.Active, activeAt, policy);
+        session.DisconnectParticipant(admitted.Participant.SessionParticipantId, activeAt.AddMinutes(3));
+        var reconnected = session.AdmitParticipant(
+            admitted.Participant.ExternalIdentityId,
+            "Nora",
+            team.TeamId,
+            activeAt.AddMinutes(5),
+            _joinPolicy);
+
+        var reconnectSnapshot = session.GetAuthoritativeSessionTimerSnapshot(activeAt.AddMinutes(5));
+
+        reconnected.IsReconnect.Should().BeTrue();
+        reconnectSnapshot.RemainingDuration.Should().Be(TimeSpan.FromMinutes(5));
+        reconnectSnapshot.IsAdvancing.Should().BeTrue();
+    }
+
+    [Fact]
+    public void MarkSessionTimerExpiredIfElapsed_WhenActiveTimerReachesZero_MarksExpiryAndStopsAdvancing()
+    {
+        var session = LiveSessionFactory.CreateScheduledTrivia(maximumTimeMinutes: 10);
+        session.RegisterTeam("Alpha", "A-01", 4);
+        var policy = new SessionStateTransitionPolicy();
+        var preparingAt = new DateTimeOffset(2026, 6, 3, 10, 0, 0, TimeSpan.Zero);
+        var activeAt = preparingAt.AddMinutes(1);
+        var expiredAt = activeAt.AddMinutes(10);
+
+        session.MoveTo(SessionState.Preparing, preparingAt, policy);
+        session.MoveTo(SessionState.Active, activeAt, policy);
+
+        var snapshot = session.MarkSessionTimerExpiredIfElapsed(expiredAt);
+
+        snapshot.RemainingDuration.Should().Be(TimeSpan.Zero);
+        snapshot.IsExpired.Should().BeTrue();
+        snapshot.IsAdvancing.Should().BeFalse();
+        snapshot.ExpiredAt.Should().Be(expiredAt);
+        session.IsSessionTimerAdvancing.Should().BeFalse();
+    }
 }

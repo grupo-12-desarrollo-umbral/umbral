@@ -25,6 +25,13 @@ export function listSessionTeams(
 ): Promise<SessionTeamLobbyDto> {
   return apiClient.get<SessionTeamLobbyDto>(
     `/api/sessions/${encodeURIComponent(sessionCode)}/teams`,
+    {
+      cache: 'no-store',
+      headers: {
+        'Cache-Control': 'no-cache',
+        Pragma: 'no-cache',
+      },
+    },
   );
 }
 
