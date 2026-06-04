@@ -51,4 +51,17 @@ public sealed class JoinPolicyTests
 
         act.Should().Throw<ParticipantAssignedToDifferentTeamException>();
     }
+
+    [Fact]
+    public void EnsureCanReconnect_WhenParticipantAlreadyActiveOnAssignedTeam_AllowsReconnect()
+    {
+        var session = LiveSessionFactory.CreateScheduledTreasureHunt();
+        var alpha = session.RegisterTeam("Alpha", "A-01", 4);
+        var identityId = Guid.NewGuid();
+        var joined = session.AdmitParticipant(identityId, "Nora", alpha.TeamId, DateTimeOffset.UtcNow, _policy);
+
+        var act = () => _policy.EnsureCanReconnect(session, joined.Participant, alpha, alpha.TeamId);
+
+        act.Should().NotThrow();
+    }
 }

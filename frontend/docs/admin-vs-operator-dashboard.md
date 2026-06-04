@@ -21,6 +21,24 @@ Supersession note: for `HU-04`/`HU-05`, Phase 1.5 of `mobile/docs/plan-participa
 | **Score & penalties** (`HU-37`, `HU-38`) | Not visible. | Register penalties with justification, view updated scores. |
 | **Session event history** (`HU-40`) | Global read-only query of any session. | View history of assigned sessions only. |
 
+## Session framing rule
+
+The canonical model is:
+
+- the `Operador` creates the session
+- the creating operator is the initial responsible operator by default
+- the `Administrador` can assign or reassign the responsible operator
+
+Do not frame the operator dashboard as if the administrator must create or pre-allocate the session first. Do not frame it as raw creation-only either. The operator surface should be presented as the place where the operator sees the sessions they are responsible for, creates new ones when needed, prepares them, and runs them live.
+
+Recommended wording for the operator-facing section:
+
+- section label: `My sessions`
+- list heading: `Sessions you're responsible for`
+- create action: `Create session`
+- setup area: `Session setup`
+- live controls area: `Live operation`
+
 ## Implementation principles
 
 1. **Single route:** The web app has a shared layout (`/dashboard`). No `/admin/*` vs `/operator/*` paths.

@@ -20,6 +20,8 @@ public sealed class SessionOperationsApiWebApplicationFactory : WebApplicationFa
 
     public FakeParticipantMembershipAccessClient AccessClient { get; } = new();
 
+    public FakeAssignableSessionOperatorAccessClient AssignableSessionOperatorAccessClient { get; } = new();
+
     public FakePublishedTriviaQuizSource TriviaQuizSource { get; } = new();
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
@@ -30,6 +32,8 @@ public sealed class SessionOperationsApiWebApplicationFactory : WebApplicationFa
         {
             services.RemoveAll<IParticipantMembershipAccessClient>();
             services.AddScoped<IParticipantMembershipAccessClient>(_ => AccessClient);
+            services.RemoveAll<IAssignableSessionOperatorAccessClient>();
+            services.AddScoped<IAssignableSessionOperatorAccessClient>(_ => AssignableSessionOperatorAccessClient);
             services.RemoveAll<IPublishedTriviaQuizSource>();
             services.AddScoped<IPublishedTriviaQuizSource>(_ => TriviaQuizSource);
         });
