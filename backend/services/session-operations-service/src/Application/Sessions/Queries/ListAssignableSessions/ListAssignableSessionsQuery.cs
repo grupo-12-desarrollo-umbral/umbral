@@ -3,6 +3,6 @@ using umbral_backend.Application.Sessions.DTOs;
 
 namespace umbral_backend.Application.Sessions.Queries.ListAssignableSessions;
 
-[Authorize(Roles = "Administrator")]
+[Authorize(Roles = "Administrator,Operator")]
 public sealed record ListAssignableSessionsQuery()
     : IRequest<IReadOnlyList<SessionOperatorSummaryDto>>;

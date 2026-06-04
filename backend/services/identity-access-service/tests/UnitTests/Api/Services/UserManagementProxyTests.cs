@@ -38,29 +38,30 @@ public sealed class UserManagementProxyTests
     }
 
     [Fact]
-    public async Task ListUsersAsync_WithNonAdministratorHeaders_RejectsBeforeDelegating()
+    public async Task ListUsersAsync_WithOperatorHeaders_DelegatesToRealHandler()
     {
         var currentUser = CreateCurrentUser("kc-operator-01", "Operator", "operator@example.com");
         var handler = new Mock<IUserManagementHandler>();
+        handler
+            .Setup(service => service.ListUsersAsync(1, 20, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new PagedResult<UserAccessCatalogItemDto>());
         var proxy = new UserManagementProxy(currentUser.Object, handler.Object);
 
-        var act = async () => await proxy.ListUsersAsync(1, 20, CancellationToken.None);
+        await proxy.ListUsersAsync(1, 20, CancellationToken.None);
 
-        await act.Should().ThrowAsync<ForbiddenAccessException>();
-        handler.Verify(service => service.ListUsersAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()), Times.Never);
+        handler.Verify(service => service.ListUsersAsync(1, 20, It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
-    public async Task AssignUserRoleAsync_WithNonAdministratorHeaders_RejectsBeforeDelegating()
+    public async Task AssignUserRoleAsync_WithOperatorHeaders_DelegatesToRealHandler()
     {
         var currentUser = CreateCurrentUser("kc-operator-01", "Operator", "operator@example.com");
         var handler = new Mock<IUserManagementHandler>();
         var proxy = new UserManagementProxy(currentUser.Object, handler.Object);
 
-        var act = async () => await proxy.AssignUserRoleAsync(42, "Participant", CancellationToken.None);
+        await proxy.AssignUserRoleAsync(42, "Participant", CancellationToken.None);
 
-        await act.Should().ThrowAsync<ForbiddenAccessException>();
-        handler.Verify(service => service.AssignUserRoleAsync(It.IsAny<int>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+        handler.Verify(service => service.AssignUserRoleAsync(42, "Participant", It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]

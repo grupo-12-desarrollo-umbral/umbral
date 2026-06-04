@@ -1,0 +1,65 @@
+# backend/docker-compose.override.yml
+# ─────────────────────────────────────────────────────────────────────────────
+# DEV-ONLY hot-reload loop. Auto-loaded by `docker compose up` on top of
+# docker-compose.yml. Instead of baking a Release publish into an image (which
+# forces a `--build` on every source change), each .NET service runs from the
+# SDK image with its source bind-mounted and `dotnet watch run`. Edit a .cs file
+# on the host → the container recompiles and restarts in place. No docker
+# commands, no rebuilds.
+#
+#   docker compose up        # hot-reload dev (this file applies automatically)
+#   docker compose -f docker-compose.yml up --build   # prod-like, ignores this
+#
+# Infra services (postgres/keycloak/rabbitmq) are unchanged — they're images,
+# not builds, so they have no override here.
+#
+# `build: !reset null` drops the production build stanza from the base file so
+# Compose uses the SDK `image` instead (requires Compose v2.24+).
+# Polling file watcher is forced on: inotify events don't always cross bind
+# mounts, and silent no-reload is worse than a little extra CPU.
+# A shared nuget volume keeps restores warm across restarts.
+# ─────────────────────────────────────────────────────────────────────────────
+
+x-dotnet-watch: &dotnet-watch
+  image: mcr.microsoft.com/dotnet/sdk:10.0-preview
+  build: !reset null
+  command: ["dotnet", "watch", "run", "--no-launch-profile", "--non-interactive"]
+  environment:
+    DOTNET_USE_POLLING_FILE_WATCHER: "true"
+    DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+    DOTNET_NOLOGO: "1"
+
+services:
+  api-gateway:
+    <<: *dotnet-watch
+    working_dir: /src/src
+    volumes:
+      - ./api-gateway/src:/src/src
+      - nuget-packages-gateway:/root/.nuget/packages
+
+  mission-design-service:
+    <<: *dotnet-watch
+    working_dir: /src/src/Api
+    volumes:
+      - ./services/mission-design-service/src:/src/src
+      - nuget-packages-mission:/root/.nuget/packages
+
+  identity-access-service:
+    <<: *dotnet-watch
+    working_dir: /src/src/Api
+    volumes:
+      - ./services/identity-access-service/src:/src/src
+      - nuget-packages-identity:/root/.nuget/packages
+
+  session-operations-service:
+    <<: *dotnet-watch
+    working_dir: /src/src/Api
+    volumes:
+      - ./services/session-operations-service/src:/src/src
+      - nuget-packages-session:/root/.nuget/packages
+
+volumes:
+  nuget-packages-gateway:
+  nuget-packages-mission:
+  nuget-packages-identity:
+  nuget-packages-session:

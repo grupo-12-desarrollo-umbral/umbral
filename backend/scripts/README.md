@@ -4,10 +4,31 @@ Scripts auxiliares para desarrollo, testing y cobertura del backend. Ejecútalos
 
 | Script | Propósito |
 |--------|-----------|
+| [`dev-up.sh`](#pipeline-dev-upsh) | **Pipeline de desarrollo**: levanta la pila y la siembra en un solo comando |
 | [`seed-dev-data.sh`](#seed-dev-datash) | Siembra datos de desarrollo alineados en `identity_access` y `session_operations` |
-| [`seed-teams.sh`](#seed-teamssh) | Crea equipos vía la API de `identity-access-service` a través del gateway |
+| [`seed-users.sh`](#seed-userssh) | Crea usuarios de desarrollo en Keycloak + 4 equipos con participantes, y los aprovisiona en `identity_access` |
 | [`cover.sh`](#coversh) | Ejecuta tests de un servicio y genera el reporte de cobertura HTML |
 | [`cover-gate.sh`](#cover-gatesh) | Gate de cobertura canónico (ADR-0005): mergea coverlet y aplica el umbral |
+
+---
+
+## Pipeline: `dev-up.sh`
+
+El "pipeline" de desarrollo local: recrea la pila con hot-reload y la siembra en **un solo comando**, de modo que el frontend / móvil (`localhost:8000`) siempre tengan datos para usar. Encadena lo que harías a mano:
+
+1. `docker compose down -v --remove-orphans` — borra los volúmenes para empezar de cero (omitir con `--keep`).
+2. `docker compose up -d --wait` — bloquea hasta que los servicios con healthcheck (**postgres**, **keycloak**) estén sanos.
+3. `seed-dev-data.sh` — siembra las sesiones (psql directo; solo necesita postgres).
+4. Espera a que el gateway escuche en `:8000` y ejecuta `seed-users.sh` (usuarios + equipos) **best-effort**: si el gateway aún está compilando, avisa en vez de tumbar la corrida.
+
+**Uso**
+
+```bash
+./backend/scripts/dev-up.sh           # down -v → up --wait → seed (slate limpio)
+./backend/scripts/dev-up.sh --keep    # omite `down -v` (conserva los datos de la BD)
+```
+
+> **No** corre el gate de cobertura. Ese es un flujo aparte del host — `make -C backend gate-all` — que usa Testcontainers y no toca esta pila. No los encadenes: los contenedores de hot-reload corren como root sobre el código montado (*bind mount*), así que dejan `bin/`/`obj/` con dueño root que bloquean un gate posterior corrido en el host (límpialos con `make -C backend clean-all`, o una vez con `sudo find services -type d \( -name bin -o -name obj \) -exec rm -rf {} +`).
 
 ---
 
@@ -49,19 +70,36 @@ PGHOST=192.168.1.50 ./backend/scripts/seed-dev-data.sh
 
 ---
 
-## `seed-teams.sh`
+## `seed-users.sh`
 
-Crea equipos de prueba llamando a `POST /api/teams` de `identity-access-service` **a través del gateway**. Se autentica como el usuario `admin` de Keycloak, obtiene un token y envía cada equipo. Es idempotente: los equipos ya existentes (`409`) se omiten.
+Asegura que las identidades base de desarrollo del realm importado (`admin`, `operator`, `operator2`, `participant`), el operador adicional (`operator3`) y ocho participantes (`participant01` … `participant08`) existan y queden aprovisionados en la aplicación. Para las cuentas ya importadas en el realm, reutiliza la identidad existente; para las nuevas, las crea en **Keycloak** usando la Admin API del realm `master`. Después autentica cada cuenta contra el realm `umbral` para llamar a `POST /api/users/authenticated` a través del gateway. Así quedan alineados tanto la identidad externa como la fila interna en `identity_access.users`.
+
+Después de los usuarios, siembra **4 equipos** (`Delta`, `Echo`, `Bismarck`, `Los Panas`) vía `POST /api/teams` y asigna los ocho participantes **2 por equipo** vía `POST /api/teams/{id}/participants` (resuelve el `UserId` interno con `GET /api/users/me`). Esto requiere un token de app con rol `Administrator`/`Operator` (usa `admin`).
+
+Es **idempotente**: si la identidad ya existe en Keycloak, la reutiliza; los equipos ya existentes (`409`) se reutilizan y las membresías ya existentes (`409`) se omiten; en todos los casos vuelve a sincronizar el rol de realm y reejecuta el bootstrap del usuario en la aplicación.
 
 **Uso**
 
 ```bash
-./backend/scripts/seed-teams.sh
+./backend/scripts/seed-users.sh
 # o apuntando a otra URL base / instancia de Keycloak:
-./backend/scripts/seed-teams.sh http://localhost:8000 http://localhost:8080
+./backend/scripts/seed-users.sh http://localhost:8000 http://localhost:8080
 ```
 
-> Diferencia con `seed-dev-data.sh`: este script ejercita la **API** de identity-access (gateway + Keycloak); `seed-dev-data.sh` escribe directo en las BD y cubre el flujo de sesiones.
+**Variables de entorno**
+
+| Variable | Por defecto |
+|----------|-------------|
+| `REALM` | `umbral` |
+| `WEB_CLIENT_ID` | `umbral-web` |
+| `MASTER_REALM` | `master` |
+| `KEYCLOAK_ADMIN_USERNAME` | `admin` |
+| `KEYCLOAK_ADMIN_PASSWORD` | `admin` |
+| `ADMIN_PASSWORD` | `admin123` |
+| `OPERATOR_PASSWORD` | `operator123` |
+| `PARTICIPANT_PASSWORD` | `participant123` |
+
+> Este script no escribe directo a PostgreSQL. La fuente de verdad de credenciales sigue siendo Keycloak; la fuente de verdad del perfil interno sigue siendo el flujo de bootstrap de `identity-access-service`.
 
 ---
 

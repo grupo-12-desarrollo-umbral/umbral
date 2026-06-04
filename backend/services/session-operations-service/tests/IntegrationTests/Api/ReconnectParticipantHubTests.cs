@@ -78,13 +78,11 @@ public sealed class ReconnectParticipantHubTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task StartAsync_WithOperatorRole_IsRejected()
+    public async Task StartAsync_WithOperatorRole_IsAllowed()
     {
         await using var connection = CreateHubConnection(Guid.NewGuid().ToString(), "Operator", "operator@example.com");
 
-        var act = () => connection.StartAsync();
-
-        await act.Should().ThrowAsync<HttpRequestException>();
+        await connection.StartAsync();
     }
 
     [Fact]

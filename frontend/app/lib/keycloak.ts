@@ -8,6 +8,47 @@ const KEYCLOAK_CLIENT_SECRET = process.env.KEYCLOAK_CLIENT_SECRET
 
 const REDIRECT_URI = `${process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'}/api/auth/callback`
 
+type JwtPayload = Record<string, unknown>
+
+type KeycloakTokenResponse = {
+  access_token?: string
+  expires_in?: number
+  refresh_expires_in?: number
+  refresh_token?: string
+  id_token?: string
+  error?: string
+  error_description?: string
+}
+
+export type KeycloakTokenSet = {
+  accessToken: string
+  refreshToken: string
+  expiresIn: number
+  refreshExpiresIn: number
+}
+
+export type KeycloakExchangeResult = KeycloakTokenSet & {
+  idToken: string
+  displayName: string
+  email: string
+}
+
+export class KeycloakAuthError extends Error {
+  readonly operation: 'exchange_code' | 'refresh_token'
+  readonly status: number | null
+
+  constructor(
+    operation: 'exchange_code' | 'refresh_token',
+    message: string,
+    status: number | null = null,
+  ) {
+    super(message)
+    this.name = 'KeycloakAuthError'
+    this.operation = operation
+    this.status = status
+  }
+}
+
 function assertEnv(): void {
   const missing: string[] = []
   if (!KEYCLOAK_URL) missing.push('KEYCLOAK_URL')
@@ -42,46 +83,37 @@ export function buildAuthorizationUrl(state: string, codeChallenge: string): str
   return url.toString()
 }
 
+export function toExpiresAtMs(expiresInSeconds: number, nowMs: number = Date.now()): number {
+  return nowMs + expiresInSeconds * 1000
+}
+
+export function isExpiredOrNearExpiry(
+  expiresAtMs: number,
+  skewMs: number,
+  nowMs: number = Date.now(),
+): boolean {
+  return expiresAtMs - skewMs <= nowMs
+}
+
 export async function exchangeCode(
   code: string,
   codeVerifier: string
-): Promise<{
-  accessToken: string
-  idToken: string
-  displayName: string
-  email: string
-}> {
+): Promise<KeycloakExchangeResult> {
   assertEnv()
-  const tokenUrl = `${KEYCLOAK_URL}/realms/${KEYCLOAK_REALM}/protocol/openid-connect/token`
-
   const body = new URLSearchParams()
   body.set('grant_type', 'authorization_code')
-  body.set('client_id', KEYCLOAK_CLIENT_ID!)
-  if (KEYCLOAK_CLIENT_SECRET) {
-    body.set('client_secret', KEYCLOAK_CLIENT_SECRET)
-  }
+  appendClientCredentials(body)
   body.set('code', code)
   body.set('redirect_uri', REDIRECT_URI)
   body.set('code_verifier', codeVerifier)
 
-  const response = await fetch(tokenUrl, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: body.toString(),
-  })
+  const data = await requestToken('exchange_code', body)
 
-  if (!response.ok) {
-    throw new Error(`Keycloak token exchange failed: ${response.status}`)
-  }
-
-  const data = await response.json()
-
-  if (!data.access_token || !data.id_token) {
-    throw new Error('Keycloak response missing tokens')
-  }
+  const tokenSet = parseTokenSet(data, 'exchange_code')
+  const idToken = requireString(data.id_token, 'id_token', 'exchange_code')
 
   // Parse id_token claims to extract display name
-  const idTokenPayload = parseJwt(data.id_token)
+  const idTokenPayload = parseJwt(idToken)
   const displayName =
     (idTokenPayload.preferred_username as string) ??
     (idTokenPayload.name as string) ??
@@ -92,16 +124,110 @@ export async function exchangeCode(
   const email = (idTokenPayload.email as string) ?? ''
 
   return {
-    accessToken: data.access_token,
-    idToken: data.id_token,
+    ...tokenSet,
+    idToken,
     displayName,
     email,
   }
 }
 
-function parseJwt(token: string): Record<string, unknown> {
+export async function refreshAccessToken(refreshToken: string): Promise<KeycloakTokenSet> {
+  assertEnv()
+  const body = new URLSearchParams()
+  body.set('grant_type', 'refresh_token')
+  appendClientCredentials(body)
+  body.set('refresh_token', refreshToken)
+
+  const data = await requestToken('refresh_token', body)
+  return parseTokenSet(data, 'refresh_token')
+}
+
+function appendClientCredentials(body: URLSearchParams): void {
+  body.set('client_id', KEYCLOAK_CLIENT_ID!)
+  if (KEYCLOAK_CLIENT_SECRET) {
+    body.set('client_secret', KEYCLOAK_CLIENT_SECRET)
+  }
+}
+
+function getTokenUrl(): string {
+  return `${KEYCLOAK_URL}/realms/${KEYCLOAK_REALM}/protocol/openid-connect/token`
+}
+
+async function requestToken(
+  operation: 'exchange_code' | 'refresh_token',
+  body: URLSearchParams,
+): Promise<KeycloakTokenResponse> {
+  const response = await fetch(getTokenUrl(), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: body.toString(),
+    cache: 'no-store',
+  })
+
+  const data = await parseTokenResponse(response)
+
+  if (!response.ok) {
+    const description = data.error_description ?? data.error ?? 'Request failed'
+    throw new KeycloakAuthError(
+      operation,
+      `Keycloak ${operation === 'exchange_code' ? 'token exchange' : 'token refresh'} failed: ${response.status} ${description}`,
+      response.status,
+    )
+  }
+
+  return data
+}
+
+async function parseTokenResponse(response: Response): Promise<KeycloakTokenResponse> {
+  try {
+    return (await response.json()) as KeycloakTokenResponse
+  } catch {
+    return {}
+  }
+}
+
+function parseTokenSet(
+  data: KeycloakTokenResponse,
+  operation: 'exchange_code' | 'refresh_token',
+): KeycloakTokenSet {
+  return {
+    accessToken: requireString(data.access_token, 'access_token', operation),
+    refreshToken: requireString(data.refresh_token, 'refresh_token', operation),
+    expiresIn: requireNumber(data.expires_in, 'expires_in', operation),
+    refreshExpiresIn: requireNumber(data.refresh_expires_in, 'refresh_expires_in', operation),
+  }
+}
+
+function requireString(
+  value: string | undefined,
+  field: string,
+  operation: 'exchange_code' | 'refresh_token',
+): string {
+  if (typeof value !== 'string' || value.length === 0) {
+    throw new KeycloakAuthError(operation, `Keycloak response missing ${field}`)
+  }
+
+  return value
+}
+
+function requireNumber(
+  value: number | undefined,
+  field: string,
+  operation: 'exchange_code' | 'refresh_token',
+): number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    throw new KeycloakAuthError(operation, `Keycloak response missing ${field}`)
+  }
+
+  return value
+}
+
+function parseJwt(token: string): JwtPayload {
   try {
     const base64Url = token.split('.')[1]
+    if (!base64Url) {
+      return {}
+    }
     const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/')
     const jsonPayload = decodeURIComponent(
       atob(base64)

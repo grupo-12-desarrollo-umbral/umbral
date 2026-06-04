@@ -1,6 +1,7 @@
 using umbral_backend.Application.Common.Exceptions;
 using umbral_backend.Application.Common.Interfaces;
 using umbral_backend.Application.Sessions.Commands.AssignOperatorToSession;
+using umbral_backend.Application.Sessions.DTOs;
 using umbral_backend.Domain.Entities;
 using umbral_backend.Domain.Enums;
 using umbral_backend.Domain.ValueObjects;
@@ -25,7 +26,7 @@ public sealed class SessionAdministrationAuthorizationProxyTests
     {
         var session = CreateScheduledSession();
         session.AssignOperator(27, DateTimeOffset.UtcNow);
-        var proxy = CreateProxy(session, "27", "Operator");
+        var proxy = CreateProxy(session, "kc-operator-27", "Operator", resolvedUserId: 27);
 
         var result = await proxy.GetAuthorizedSessionAsync(session.LiveSessionId, CancellationToken.None);
 
@@ -37,7 +38,7 @@ public sealed class SessionAdministrationAuthorizationProxyTests
     {
         var session = CreateScheduledSession();
         session.AssignOperator(27, DateTimeOffset.UtcNow);
-        var proxy = CreateProxy(session, "31", "Operator");
+        var proxy = CreateProxy(session, "kc-operator-31", "Operator", resolvedUserId: 31);
 
         var act = async () => await proxy.GetAuthorizedSessionAsync(session.LiveSessionId, CancellationToken.None);
 
@@ -55,18 +56,31 @@ public sealed class SessionAdministrationAuthorizationProxyTests
         await act.Should().ThrowAsync<UnauthorizedAccessException>();
     }
 
-    private static SessionAdministrationAuthorizationProxy CreateProxy(LiveSession session, string? id, string? role)
+    private static SessionAdministrationAuthorizationProxy CreateProxy(
+        LiveSession session,
+        string? id,
+        string? role,
+        int resolvedUserId = 99)
     {
         var currentUser = new Mock<ICurrentUser>();
         currentUser.SetupGet(user => user.Id).Returns(id);
         currentUser.SetupGet(user => user.Role).Returns(role);
+
+        var actorClient = new Mock<IAuthenticatedActorProfileAccessClient>();
+        actorClient
+            .Setup(client => client.GetCurrentAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AuthenticatedActorProfileLookupDto(
+                resolvedUserId,
+                id ?? "missing",
+                role ?? "Unknown",
+                true));
 
         var inner = new Mock<ISessionAdministrationAccessExecutor>();
         inner
             .Setup(executor => executor.GetAuthorizedSessionAsync(session.LiveSessionId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(session);
 
-        return new SessionAdministrationAuthorizationProxy(currentUser.Object, inner.Object);
+        return new SessionAdministrationAuthorizationProxy(currentUser.Object, inner.Object, actorClient.Object);
     }
 
     private static LiveSession CreateScheduledSession()

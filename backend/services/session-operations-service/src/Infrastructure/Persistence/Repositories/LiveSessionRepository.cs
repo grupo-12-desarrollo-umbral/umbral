@@ -29,12 +29,22 @@ public sealed class LiveSessionRepository : ILiveSessionRepository
             .SingleOrDefaultAsync(session => session.LiveSessionId == liveSessionId, cancellationToken);
     }
 
-    public async Task<IReadOnlyList<SessionOperatorSummaryDto>> ListAssignableSummariesAsync(CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<SessionOperatorSummaryDto>> ListAssignableSummariesAsync(
+        int? assignedOperatorUserId,
+        CancellationToken cancellationToken)
     {
-        var rows = await _context.LiveSessions
+        var query = _context.LiveSessions
             .AsNoTracking()
             .Where(session => session.State != SessionState.Finished && session.State != SessionState.Cancelled)
-            .OrderByDescending(session => session.ScheduledAt)
+            .OrderByDescending(session => session.ScheduledAt);
+
+        if (assignedOperatorUserId is not null)
+        {
+            query = query.Where(session => session.AssignedOperatorUserId == assignedOperatorUserId.Value)
+                .OrderByDescending(session => session.ScheduledAt);
+        }
+
+        var rows = await query
             .Select(session => new
             {
                 session.LiveSessionId,
@@ -42,7 +52,8 @@ public sealed class LiveSessionRepository : ILiveSessionRepository
                 Title = session.TitleSnapshot,
                 session.State,
                 session.AssignedOperatorUserId,
-                session.ScheduledAt
+                session.ScheduledAt,
+                session.LastStateChangedAt
             })
             .ToListAsync(cancellationToken);
 
@@ -53,7 +64,8 @@ public sealed class LiveSessionRepository : ILiveSessionRepository
                 row.Title,
                 row.State.ToString(),
                 row.AssignedOperatorUserId,
-                row.ScheduledAt))
+                row.ScheduledAt,
+                row.LastStateChangedAt))
             .ToList();
     }
 

@@ -19,7 +19,7 @@ public sealed class AuthenticatedUserLoginProxyTests
         currentUser.SetupGet(user => user.Role).Returns("Operator");
 
         var expectedResult = new AuthenticateUserResultDto(
-            new AuthenticatedActorProfileDto("kc-user-01", "Alice", "alice@example.com", "Operator", true),
+            new AuthenticatedActorProfileDto(27, "kc-user-01", "Alice", "alice@example.com", "Operator", true),
             new ProtectedAccessDecisionDto("AuthenticatedPlatformAccess", true, "allowed"));
 
         var handler = new Mock<IAuthenticatedUserLoginHandler>();

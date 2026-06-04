@@ -3,7 +3,11 @@ set -euo pipefail
 
 # seed-dev-data.sh
 #
-# Seeds aligned dev data across identity_access and session_operations.
+# Seeds dev data across three databases:
+#   - mission_design:  trivia quizzes in various lifecycle states
+#   - identity_access: teams, sessions, and team memberships
+#   - session_operations: live sessions in every lifecycle state
+#
 # Sessions in each lifecycle state so you can validate the mobile UI:
 #
 #   SMOKE2  Active     → "The session has moved on — late join isn't allowed."
@@ -12,6 +16,14 @@ set -euo pipefail
 #   SMOKE5  Paused     → "The session has moved on — late join isn't allowed."
 #   SMOKE6  Finished   → "The session has moved on — late join isn't allowed."
 #   SMOKE7  Cancelled  → "The session has moved on — late join isn't allowed."
+#
+# Trivia quizzes seeded:
+#   - Filosofos de Atenas         (Published, 3 questions)
+#   - Mejores guitarristas...     (Published, 3 questions)
+#   - Peliculas mas vistas...     (Published, 3 questions)
+#   - Musica y su historia        (Draft, 3 questions)
+#   - Capitales del mundo         (Archived, 3 questions)
+#
 #
 # Usage:
 #   ./scripts/seed-dev-data.sh
@@ -45,6 +57,194 @@ declare -A SESSIONS=(
   [SMOKE6]=b1000000-0000-0000-0000-000000000005:Finished:b1000000-0000-0000-0000-000000000014:DV-HTL:Hotel
   [SMOKE7]=b1000000-0000-0000-0000-000000000006:Cancelled:b1000000-0000-0000-0000-000000000015:DV-IND:India
 )
+
+# ---------------------------------------------------------------------------
+echo "Seeding mission_design (trivia quizzes) …"
+psql -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d mission_design -c "
+DELETE FROM \"TriviaOptions\";
+DELETE FROM \"TriviaQuestions\";
+DELETE FROM \"TriviaQuizzes\";
+"
+# Filosofos de Atenas — Published (3 questions)
+psql -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d mission_design -c "
+WITH quiz AS (
+  INSERT INTO \"TriviaQuizzes\" (\"Title\", \"Description\", \"Status\", \"Created\", \"LastModified\")
+  VALUES ('Filosofos de Atenas', 'Los pensadores que marcaron la antiguedad.', 'Published', NOW(), NOW())
+  RETURNING \"Id\"
+),
+q1 AS (
+  INSERT INTO \"TriviaQuestions\" (\"TriviaQuizId\", \"Prompt\", \"SequenceOrder\", \"ScoreValue\", \"TimeLimitSeconds\", \"Explanation\", \"IsActive\")
+  SELECT \"Id\", '¿Quién fue el maestro de Platón?', 1, 100, 30, 'Sócrates fue el maestro de Platón.', true FROM quiz
+  RETURNING \"Id\"
+),
+q2 AS (
+  INSERT INTO \"TriviaQuestions\" (\"TriviaQuizId\", \"Prompt\", \"SequenceOrder\", \"ScoreValue\", \"TimeLimitSeconds\", \"Explanation\", \"IsActive\")
+  SELECT \"Id\", '¿Qué filósofo fundó la Academia de Atenas?', 2, 100, 30, 'Platón fundó la Academia de Atenas.', true FROM quiz
+  RETURNING \"Id\"
+),
+q3 AS (
+  INSERT INTO \"TriviaQuestions\" (\"TriviaQuizId\", \"Prompt\", \"SequenceOrder\", \"ScoreValue\", \"TimeLimitSeconds\", \"Explanation\", \"IsActive\")
+  SELECT \"Id\", '¿Cuál de estos filósofos fue discípulo de Platón?', 3, 100, 30, 'Aristóteles fue discípulo de Platón.', true FROM quiz
+  RETURNING \"Id\"
+)
+INSERT INTO \"TriviaOptions\" (\"TriviaQuestionId\", \"OptionText\", \"SequenceOrder\", \"IsCorrect\")
+SELECT \"Id\", 'Sócrates', 1, true FROM q1
+UNION ALL SELECT \"Id\", 'Aristóteles', 2, false FROM q1
+UNION ALL SELECT \"Id\", 'Pitágoras', 3, false FROM q1
+UNION ALL SELECT \"Id\", 'Demócrito', 4, false FROM q1
+UNION ALL SELECT \"Id\", 'Platón', 1, true FROM q2
+UNION ALL SELECT \"Id\", 'Sócrates', 2, false FROM q2
+UNION ALL SELECT \"Id\", 'Aristóteles', 3, false FROM q2
+UNION ALL SELECT \"Id\", 'Epicuro', 4, false FROM q2
+UNION ALL SELECT \"Id\", 'Aristóteles', 1, true FROM q3
+UNION ALL SELECT \"Id\", 'Sócrates', 2, false FROM q3
+UNION ALL SELECT \"Id\", 'Heráclito', 3, false FROM q3
+UNION ALL SELECT \"Id\", 'Tales', 4, false FROM q3;
+"
+# Mejores guitarristas de la historia — Published (3 questions)
+psql -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d mission_design -c "
+WITH quiz AS (
+  INSERT INTO \"TriviaQuizzes\" (\"Title\", \"Description\", \"Status\", \"Created\", \"LastModified\")
+  VALUES ('Mejores guitarristas de la historia', 'Los maestros de las seis cuerdas.', 'Published', NOW(), NOW())
+  RETURNING \"Id\"
+),
+q1 AS (
+  INSERT INTO \"TriviaQuestions\" (\"TriviaQuizId\", \"Prompt\", \"SequenceOrder\", \"ScoreValue\", \"TimeLimitSeconds\", \"Explanation\", \"IsActive\")
+  SELECT \"Id\", '¿Qué guitarrista es conocido como \"Slowhand\"?', 1, 100, 30, 'Eric Clapton es apodado Slowhand.', true FROM quiz
+  RETURNING \"Id\"
+),
+q2 AS (
+  INSERT INTO \"TriviaQuestions\" (\"TriviaQuizId\", \"Prompt\", \"SequenceOrder\", \"ScoreValue\", \"TimeLimitSeconds\", \"Explanation\", \"IsActive\")
+  SELECT \"Id\", '¿Cuál de estos guitarristas revolucionó el rock con su técnica en los años 60?', 2, 100, 30, 'Jimi Hendrix revolucionó la guitarra eléctrica.', true FROM quiz
+  RETURNING \"Id\"
+),
+q3 AS (
+  INSERT INTO \"TriviaQuestions\" (\"TriviaQuizId\", \"Prompt\", \"SequenceOrder\", \"ScoreValue\", \"TimeLimitSeconds\", \"Explanation\", \"IsActive\")
+  SELECT \"Id\", '¿Qué guitarrista popularizó la técnica del tapping en el rock?', 3, 100, 30, 'Eddie Van Halen popularizó el tapping.', true FROM quiz
+  RETURNING \"Id\"
+)
+INSERT INTO \"TriviaOptions\" (\"TriviaQuestionId\", \"OptionText\", \"SequenceOrder\", \"IsCorrect\")
+SELECT \"Id\", 'Eric Clapton', 1, true FROM q1
+UNION ALL SELECT \"Id\", 'Jimmy Page', 2, false FROM q1
+UNION ALL SELECT \"Id\", 'Jeff Beck', 3, false FROM q1
+UNION ALL SELECT \"Id\", 'B.B. King', 4, false FROM q1
+UNION ALL SELECT \"Id\", 'Jimi Hendrix', 1, true FROM q2
+UNION ALL SELECT \"Id\", 'Eric Clapton', 2, false FROM q2
+UNION ALL SELECT \"Id\", 'Pete Townshend', 3, false FROM q2
+UNION ALL SELECT \"Id\", 'Carlos Santana', 4, false FROM q2
+UNION ALL SELECT \"Id\", 'Eddie Van Halen', 1, true FROM q3
+UNION ALL SELECT \"Id\", 'Steve Vai', 2, false FROM q3
+UNION ALL SELECT \"Id\", 'Joe Satriani', 3, false FROM q3
+UNION ALL SELECT \"Id\", 'Yngwie Malmsteen', 4, false FROM q3;
+"
+# Peliculas mas vistas en los ultimos 5 anos — Published (3 questions)
+psql -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d mission_design -c "
+WITH quiz AS (
+  INSERT INTO \"TriviaQuizzes\" (\"Title\", \"Description\", \"Status\", \"Created\", \"LastModified\")
+  VALUES ('Peliculas mas vistas en los ultimos 5 anos', 'El cine que marco la decada.', 'Published', NOW(), NOW())
+  RETURNING \"Id\"
+),
+q1 AS (
+  INSERT INTO \"TriviaQuestions\" (\"TriviaQuizId\", \"Prompt\", \"SequenceOrder\", \"ScoreValue\", \"TimeLimitSeconds\", \"Explanation\", \"IsActive\")
+  SELECT \"Id\", '¿Cuál fue la película más taquillera de 2023?', 1, 100, 30, 'Barbie fue la película más taquillera de 2023.', true FROM quiz
+  RETURNING \"Id\"
+),
+q2 AS (
+  INSERT INTO \"TriviaQuestions\" (\"TriviaQuizId\", \"Prompt\", \"SequenceOrder\", \"ScoreValue\", \"TimeLimitSeconds\", \"Explanation\", \"IsActive\")
+  SELECT \"Id\", '¿Qué película de 2022 rompió récords como secuela de un clásico de los 80?', 2, 100, 30, 'Top Gun: Maverick fue un éxito masivo en 2022.', true FROM quiz
+  RETURNING \"Id\"
+),
+q3 AS (
+  INSERT INTO \"TriviaQuestions\" (\"TriviaQuizId\", \"Prompt\", \"SequenceOrder\", \"ScoreValue\", \"TimeLimitSeconds\", \"Explanation\", \"IsActive\")
+  SELECT \"Id\", '¿Cuál de estas películas ganó el Oscar a Mejor Película en 2024?', 3, 100, 30, 'Oppenheimer ganó el Oscar a Mejor Película en 2024.', true FROM quiz
+  RETURNING \"Id\"
+)
+INSERT INTO \"TriviaOptions\" (\"TriviaQuestionId\", \"OptionText\", \"SequenceOrder\", \"IsCorrect\")
+SELECT \"Id\", 'Barbie', 1, true FROM q1
+UNION ALL SELECT \"Id\", 'Oppenheimer', 2, false FROM q1
+UNION ALL SELECT \"Id\", 'Super Mario Bros', 3, false FROM q1
+UNION ALL SELECT \"Id\", 'Guardianes de la Galaxia Vol. 3', 4, false FROM q1
+UNION ALL SELECT \"Id\", 'Top Gun: Maverick', 1, true FROM q2
+UNION ALL SELECT \"Id\", 'Avatar: The Way of Water', 2, false FROM q2
+UNION ALL SELECT \"Id\", 'Jurassic World: Dominion', 3, false FROM q2
+UNION ALL SELECT \"Id\", 'Doctor Strange in the Multiverse of Madness', 4, false FROM q2
+UNION ALL SELECT \"Id\", 'Oppenheimer', 1, true FROM q3
+UNION ALL SELECT \"Id\", 'Barbie', 2, false FROM q3
+UNION ALL SELECT \"Id\", 'Killers of the Flower Moon', 3, false FROM q3
+UNION ALL SELECT \"Id\", 'Poor Things', 4, false FROM q3;
+"
+# Musica y su historia — Draft (3 questions)
+psql -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d mission_design -c "
+WITH quiz AS (
+  INSERT INTO \"TriviaQuizzes\" (\"Title\", \"Description\", \"Status\", \"Created\", \"LastModified\")
+  VALUES ('Musica y su historia', 'Un recorrido por los generos musicales.', 'Draft', NOW(), NOW())
+  RETURNING \"Id\"
+),
+q1 AS (
+  INSERT INTO \"TriviaQuestions\" (\"TriviaQuizId\", \"Prompt\", \"SequenceOrder\", \"ScoreValue\", \"TimeLimitSeconds\", \"Explanation\", \"IsActive\")
+  SELECT \"Id\", '¿Qué género musical se originó en Nueva Orleans a principios del siglo XX?', 1, 100, 30, 'El jazz nació en Nueva Orleans.', true FROM quiz
+  RETURNING \"Id\"
+),
+q2 AS (
+  INSERT INTO \"TriviaQuestions\" (\"TriviaQuizId\", \"Prompt\", \"SequenceOrder\", \"ScoreValue\", \"TimeLimitSeconds\", \"Explanation\", \"IsActive\")
+  SELECT \"Id\", '¿Cuál de estos artistas es conocido como el \"Rey del Pop\"?', 2, 100, 30, 'Michael Jackson es el Rey del Pop.', true FROM quiz
+  RETURNING \"Id\"
+),
+q3 AS (
+  INSERT INTO \"TriviaQuestions\" (\"TriviaQuizId\", \"Prompt\", \"SequenceOrder\", \"ScoreValue\", \"TimeLimitSeconds\", \"Explanation\", \"IsActive\")
+  SELECT \"Id\", '¿Qué banda británica lanzó el álbum \"The Dark Side of the Moon\"?', 3, 100, 30, 'Pink Floyd lanzó The Dark Side of the Moon.', true FROM quiz
+  RETURNING \"Id\"
+)
+INSERT INTO \"TriviaOptions\" (\"TriviaQuestionId\", \"OptionText\", \"SequenceOrder\", \"IsCorrect\")
+SELECT \"Id\", 'Jazz', 1, true FROM q1
+UNION ALL SELECT \"Id\", 'Blues', 2, false FROM q1
+UNION ALL SELECT \"Id\", 'Rock and Roll', 3, false FROM q1
+UNION ALL SELECT \"Id\", 'Country', 4, false FROM q1
+UNION ALL SELECT \"Id\", 'Michael Jackson', 1, true FROM q2
+UNION ALL SELECT \"Id\", 'Prince', 2, false FROM q2
+UNION ALL SELECT \"Id\", 'Madonna', 3, false FROM q2
+UNION ALL SELECT \"Id\", 'Elvis Presley', 4, false FROM q2
+UNION ALL SELECT \"Id\", 'Pink Floyd', 1, true FROM q3
+UNION ALL SELECT \"Id\", 'Led Zeppelin', 2, false FROM q3
+UNION ALL SELECT \"Id\", 'The Beatles', 3, false FROM q3
+UNION ALL SELECT \"Id\", 'Queen', 4, false FROM q3;
+"
+# Capitales del mundo — Archived (3 questions)
+psql -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d mission_design -c "
+WITH quiz AS (
+  INSERT INTO \"TriviaQuizzes\" (\"Title\", \"Description\", \"Status\", \"Created\", \"LastModified\")
+  VALUES ('Capitales del mundo', 'Pon a prueba tus conocimientos geograficos.', 'Archived', NOW(), NOW())
+  RETURNING \"Id\"
+),
+q1 AS (
+  INSERT INTO \"TriviaQuestions\" (\"TriviaQuizId\", \"Prompt\", \"SequenceOrder\", \"ScoreValue\", \"TimeLimitSeconds\", \"Explanation\", \"IsActive\")
+  SELECT \"Id\", '¿Cuál es la capital de Francia?', 1, 100, 30, 'París es la capital de Francia.', true FROM quiz
+  RETURNING \"Id\"
+),
+q2 AS (
+  INSERT INTO \"TriviaQuestions\" (\"TriviaQuizId\", \"Prompt\", \"SequenceOrder\", \"ScoreValue\", \"TimeLimitSeconds\", \"Explanation\", \"IsActive\")
+  SELECT \"Id\", '¿Cuál es la capital de Japón?', 2, 100, 30, 'Tokio es la capital de Japón.', true FROM quiz
+  RETURNING \"Id\"
+),
+q3 AS (
+  INSERT INTO \"TriviaQuestions\" (\"TriviaQuizId\", \"Prompt\", \"SequenceOrder\", \"ScoreValue\", \"TimeLimitSeconds\", \"Explanation\", \"IsActive\")
+  SELECT \"Id\", '¿Cuál es la capital de Australia?', 3, 100, 30, 'Canberra es la capital de Australia.', true FROM quiz
+  RETURNING \"Id\"
+)
+INSERT INTO \"TriviaOptions\" (\"TriviaQuestionId\", \"OptionText\", \"SequenceOrder\", \"IsCorrect\")
+SELECT \"Id\", 'París', 1, true FROM q1
+UNION ALL SELECT \"Id\", 'Lyon', 2, false FROM q1
+UNION ALL SELECT \"Id\", 'Marsella', 3, false FROM q1
+UNION ALL SELECT \"Id\", 'Toulouse', 4, false FROM q1
+UNION ALL SELECT \"Id\", 'Tokio', 1, true FROM q2
+UNION ALL SELECT \"Id\", 'Osaka', 2, false FROM q2
+UNION ALL SELECT \"Id\", 'Kioto', 3, false FROM q2
+UNION ALL SELECT \"Id\", 'Yokohama', 4, false FROM q2
+UNION ALL SELECT \"Id\", 'Canberra', 1, true FROM q3
+UNION ALL SELECT \"Id\", 'Sídney', 2, false FROM q3
+UNION ALL SELECT \"Id\", 'Melbourne', 3, false FROM q3
+UNION ALL SELECT \"Id\", 'Brisbane', 4, false FROM q3;
+"
 
 # ---------------------------------------------------------------------------
 echo "Seeding identity_access …"

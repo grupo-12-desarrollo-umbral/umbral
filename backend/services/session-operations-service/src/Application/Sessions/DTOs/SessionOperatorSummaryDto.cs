@@ -6,4 +6,5 @@ public sealed record SessionOperatorSummaryDto(
     string Title,
     string SessionState,
     int? AssignedOperatorUserId,
-    DateTimeOffset ScheduledAt);
+    DateTimeOffset ScheduledAt,
+    DateTimeOffset? LastTransitionedAt);

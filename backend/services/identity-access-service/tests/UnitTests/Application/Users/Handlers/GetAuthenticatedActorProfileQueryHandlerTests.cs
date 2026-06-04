@@ -23,6 +23,7 @@ public sealed class GetAuthenticatedActorProfileQueryHandlerTests
 
         var result = await handler.Handle(new GetAuthenticatedActorProfileQuery(), CancellationToken.None);
 
+        result.UserId.Should().Be(0);
         result.ExternalIdentityId.Should().Be("kc-010");
         result.DisplayName.Should().Be("Jane Doe");
         result.Email.Should().Be("jane@example.com");

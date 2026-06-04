@@ -63,6 +63,7 @@ public sealed class AuthenticateUserCommandHandler : IRequestHandler<Authenticat
     private static AuthenticatedActorProfileDto MapProfile(User user)
     {
         return new AuthenticatedActorProfileDto(
+            user.Id,
             user.ExternalIdentityId,
             user.DisplayName,
             user.Email,

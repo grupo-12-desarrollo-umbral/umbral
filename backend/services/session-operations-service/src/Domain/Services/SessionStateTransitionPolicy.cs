@@ -12,7 +12,15 @@ public sealed class SessionStateTransitionPolicy
             throw new LiveSessionRequiresAtLeastOneTeamException();
         }
 
-        var allowed = currentState switch
+        if (!IsTransitionAllowed(currentState, nextState))
+        {
+            throw new InvalidSessionStateTransitionException(currentState, nextState);
+        }
+    }
+
+    public bool IsTransitionAllowed(SessionState currentState, SessionState nextState)
+    {
+        return currentState switch
         {
             SessionState.Scheduled => nextState is SessionState.Preparing or SessionState.Cancelled,
             SessionState.Preparing => nextState is SessionState.Active or SessionState.Cancelled,
@@ -22,10 +30,5 @@ public sealed class SessionStateTransitionPolicy
             SessionState.Cancelled => false,
             _ => false
         };
-
-        if (!allowed)
-        {
-            throw new InvalidSessionStateTransitionException(currentState, nextState);
-        }
     }
 }

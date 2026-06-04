@@ -3,8 +3,10 @@ using umbral_backend.Api.Services;
 using umbral_backend.Application.Sessions.Commands.AssignOperatorToSession;
 using umbral_backend.Application.Sessions.Commands.CreateTriviaSession;
 using umbral_backend.Application.Sessions.Commands.ReconnectAuthenticatedParticipant;
+using umbral_backend.Application.Sessions.Commands.TransitionSessionState;
 using umbral_backend.Application.Sessions.DTOs;
 using umbral_backend.Application.Sessions.Queries.ListAssignableSessions;
+using umbral_backend.Domain.Enums;
 
 namespace umbral_backend.Api.Endpoints;
 
@@ -15,13 +17,16 @@ public sealed class SessionsEndpoints : IEndpointGroup
         var sessions = groupBuilder.MapGroup("/api/sessions");
 
         sessions.MapPost("/", CreateTriviaSessionAsync)
-            .RequireAuthorization(AuthorizationPolicies.Operator);
+            .RequireAuthorization(AuthorizationPolicies.Administrator);
 
         sessions.MapGet("/", ListAssignableSessionsAsync)
-            .RequireAuthorization(AuthorizationPolicies.Administrator);
+            .RequireAuthorization(AuthorizationPolicies.AdministratorOrOperator);
 
         sessions.MapPatch("/{liveSessionId:guid}/operator-assignment", AssignOperatorAsync)
             .RequireAuthorization(AuthorizationPolicies.Administrator);
+
+        sessions.MapPatch("/{liveSessionId:guid}/state", TransitionSessionStateAsync)
+            .RequireAuthorization(AuthorizationPolicies.Operator);
 
         sessions.MapPost("/{liveSessionId:guid}/participants/reconnect", ReconnectParticipantAsync)
             .RequireAuthorization(AuthorizationPolicies.Participant);
@@ -81,6 +86,28 @@ public sealed class SessionsEndpoints : IEndpointGroup
         return TypedResults.Ok(result);
     }
 
+    private static async Task<Results<Ok<TransitionSessionStateResultDto>, ProblemHttpResult>> TransitionSessionStateAsync(
+        Guid liveSessionId,
+        TransitionSessionStateRequest request,
+        ISender sender,
+        CancellationToken cancellationToken)
+    {
+        if (!Enum.TryParse<SessionState>(request.TargetState, ignoreCase: true, out var targetState) ||
+            !Enum.IsDefined(targetState))
+        {
+            return TypedResults.Problem(
+                detail: $"'{request.TargetState}' is not a valid session state.",
+                statusCode: StatusCodes.Status400BadRequest,
+                title: "Validation failed.");
+        }
+
+        var result = await sender.Send(
+            new TransitionSessionStateCommand(liveSessionId, targetState, request.Reason),
+            cancellationToken);
+
+        return TypedResults.Ok(result);
+    }
+
     public sealed record CreateTriviaSessionRequest(
         int SourceTriviaQuizId,
         string Title,
@@ -93,4 +120,6 @@ public sealed class SessionsEndpoints : IEndpointGroup
         string? Token);
 
     public sealed record AssignOperatorRequest(int OperatorUserId);
+
+    public sealed record TransitionSessionStateRequest(string TargetState, string? Reason);
 }

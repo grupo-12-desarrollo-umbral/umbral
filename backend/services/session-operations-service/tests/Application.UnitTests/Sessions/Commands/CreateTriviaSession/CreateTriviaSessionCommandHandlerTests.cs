@@ -44,6 +44,7 @@ public sealed class CreateTriviaSessionCommandHandlerTests
         persistedSession!.SessionMode.Should().Be(SessionMode.Trivia);
         persistedSession.Source.SourceTriviaQuizId.Should().Be(command.SourceTriviaQuizId);
         persistedSession.Source.SourceType.Should().Be(SessionSourceType.TriviaQuiz);
+        persistedSession.AssignedOperatorUserId.Should().BeNull();
         persistedSession.TriviaSnapshot.Should().NotBeNull();
         persistedSession.TriviaSnapshot!.QuizTitle.Should().Be("Quiz Night");
         persistedSession.TriviaSnapshot.Questions.Should().ContainSingle();

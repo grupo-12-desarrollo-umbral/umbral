@@ -30,6 +30,7 @@ public sealed class GetAuthenticatedActorProfileQueryHandler : IRequestHandler<G
             ?? throw new NotFoundException(nameof(User), _currentUser.Id);
 
         return new AuthenticatedActorProfileDto(
+            user.Id,
             user.ExternalIdentityId,
             user.DisplayName,
             user.Email,

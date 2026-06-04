@@ -5,6 +5,9 @@ using umbral_backend.Application.Common.Interfaces;
 using umbral_backend.Application.Sessions.Commands.AssignOperatorToSession;
 using umbral_backend.Application.Sessions.Commands.CreateTriviaSession;
 using umbral_backend.Application.Sessions.Commands.ReconnectAuthenticatedParticipant;
+using umbral_backend.Application.Sessions.Commands.TransitionSessionState;
+using umbral_backend.Application.Sessions.StateTransitions;
+using umbral_backend.Application.Sessions.StateTransitions.Validators;
 using umbral_backend.Domain.Services;
 
 namespace Microsoft.Extensions.DependencyInjection;
@@ -25,6 +28,7 @@ public static class DependencyInjection
         });
 
         builder.Services.AddSingleton<JoinPolicy>();
+        builder.Services.AddSingleton<SessionStateTransitionPolicy>();
         builder.Services.AddSingleton<TimeProvider>(TimeProvider.System);
 
         builder.Services.AddScoped<ISessionAdministrationAccessExecutor, SessionAdministrationAccessResolver>();
@@ -33,5 +37,13 @@ public static class DependencyInjection
         builder.Services.AddScoped<ICreateTriviaSessionFacade, CreateTriviaSessionFacade>();
         builder.Services.AddScoped<IReconnectAuthenticatedParticipantExecutor, ReconnectAuthenticatedParticipantService>();
         builder.Services.AddScoped<IReconnectAuthenticatedParticipantService, ReconnectAuthenticatedParticipantAuthorizationProxy>();
+        builder.Services.AddScoped<ITransitionSessionStateFacade, TransitionSessionStateFacade>();
+
+        // Chain of Responsibility for session-state transitions. Registration order is the run
+        // order; downstream HUs append a validator here without modifying SessionTransitionChain.
+        builder.Services.AddScoped<SessionTransitionValidator, CurrentStateGate>();
+        builder.Services.AddScoped<SessionTransitionValidator, OperatorAssignmentGate>();
+        builder.Services.AddScoped<SessionTransitionValidator, ParticipantReadinessGate>();
+        builder.Services.AddScoped<SessionTransitionChain>();
     }
 }

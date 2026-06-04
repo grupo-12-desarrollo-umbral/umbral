@@ -5,8 +5,14 @@ import {
   getAssignableOperators,
   listSessionsForAssignment,
   assignSessionOperator,
+  getPublishedTrivias,
+  createTriviaSession,
 } from '@/app/actions/sessions'
-import type { AssignableOperatorDto, SessionAssignmentSummaryDto } from '@/app/lib/definitions'
+import type {
+  AssignableOperatorDto,
+  SessionAssignmentSummaryDto,
+  TriviaQuizSummaryDto,
+} from '@/app/lib/definitions'
 import styles from './dashboard.module.css'
 
 export function SessionOperatorPanel() {
@@ -17,6 +23,21 @@ export function SessionOperatorPanel() {
   const [listError, setListError] = useState<string | null>(null)
   const [assignError, setAssignError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
+
+  const [quizzes, setQuizzes] = useState<TriviaQuizSummaryDto[] | null>(null)
+  const [quizzesError, setQuizzesError] = useState<string | null>(null)
+  const [selectedQuizId, setSelectedQuizId] = useState('')
+  const [title, setTitle] = useState('')
+  const [maxMinutes, setMaxMinutes] = useState('60')
+  const [scheduledAt, setScheduledAt] = useState('')
+  const [formError, setFormError] = useState<string | null>(null)
+  const [isCreating, startCreateTransition] = useTransition()
+
+  useEffect(() => {
+    getPublishedTrivias()
+      .then(setQuizzes)
+      .catch(() => setQuizzesError('Failed to load available quizzes. Reload the page.'))
+  }, [])
 
   useEffect(() => {
     startTransition(async () => {
@@ -88,6 +109,39 @@ export function SessionOperatorPanel() {
             ? 'Administrator role required.'
             : 'Failed to load sessions. Try again.',
         )
+      }
+    })
+  }
+
+  function handleCreate(e: React.FormEvent) {
+    e.preventDefault()
+    setFormError(null)
+    startCreateTransition(async () => {
+      try {
+        await createTriviaSession({
+          sourceTriviaQuizId: Number(selectedQuizId),
+          title: title.trim(),
+          maximumTimeMinutes: Number(maxMinutes),
+          scheduledAt: new Date(scheduledAt).toISOString(),
+        })
+        setSelectedQuizId('')
+        setTitle('')
+        setMaxMinutes('60')
+        setScheduledAt('')
+        refreshSessions()
+      } catch (err) {
+        if (err instanceof Error && err.message === 'quiz_not_published') {
+          setFormError(
+            'The selected quiz is no longer published and cannot be used for session creation. ' +
+            'Choose another quiz or republish it.',
+          )
+        } else if (err instanceof Error && err.message === 'quiz_not_found') {
+          setFormError('The selected quiz was not found. Reload the page and try again.')
+        } else if (err instanceof Error && err.message === 'invalid_input') {
+          setFormError('Invalid session data. Check all fields and try again.')
+        } else {
+          setFormError('Session creation failed. Try again.')
+        }
       }
     })
   }
@@ -216,6 +270,117 @@ export function SessionOperatorPanel() {
           {listError}
         </div>
       )}
+
+      <section className={styles.assignmentCard} aria-labelledby="create-session-heading">
+        <div className={styles.panelHeader}>
+          <div>
+            <h3 id="create-session-heading">Create session</h3>
+            <div className={styles.panelMeta}>
+              Create a session from one published quiz, then assign a responsible operator below.
+            </div>
+          </div>
+        </div>
+
+        {quizzesError && (
+          <div className={styles.errorBanner} role="alert" data-testid="session-quizzes-error">
+            {quizzesError}
+          </div>
+        )}
+
+        {formError && (
+          <div className={styles.errorBanner} role="alert" data-testid="session-form-error">
+            {formError}
+          </div>
+        )}
+
+        <form onSubmit={handleCreate} data-testid="session-create-form">
+          <div className={styles.formGroup}>
+            <label htmlFor="session-quiz-select">Quiz</label>
+            <select
+              id="session-quiz-select"
+              data-testid="session-quiz-select"
+              className={styles.formInput}
+              value={selectedQuizId}
+              onChange={(e) => setSelectedQuizId(e.target.value)}
+              required
+              disabled={isCreating || !quizzes}
+            >
+              <option value="" disabled>— Select a published quiz —</option>
+              {quizzes?.map((q) => (
+                <option key={q.id} value={String(q.id)}>
+                  {q.title}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {quizzes?.length === 0 && (
+            <p className={styles.emptyList} data-testid="session-no-quizzes">
+              No published quizzes available. Publish a quiz before creating a session.
+            </p>
+          )}
+
+          <div className={styles.formGroup}>
+            <label htmlFor="session-title">Session title</label>
+            <input
+              id="session-title"
+              data-testid="session-title-input"
+              className={styles.formInput}
+              type="text"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              required
+              disabled={isCreating}
+            />
+          </div>
+
+          <div className={styles.formGroup}>
+            <label htmlFor="session-max-time">Maximum time (minutes)</label>
+            <input
+              id="session-max-time"
+              data-testid="session-max-time-input"
+              className={styles.formInput}
+              type="number"
+              min="1"
+              max="480"
+              value={maxMinutes}
+              onChange={(e) => setMaxMinutes(e.target.value)}
+              required
+              disabled={isCreating}
+            />
+          </div>
+
+          <div className={styles.formGroup}>
+            <label htmlFor="session-scheduled-at">Scheduled at</label>
+            <input
+              id="session-scheduled-at"
+              data-testid="session-scheduled-at-input"
+              className={styles.formInput}
+              type="datetime-local"
+              value={scheduledAt}
+              onChange={(e) => setScheduledAt(e.target.value)}
+              required
+              disabled={isCreating}
+            />
+          </div>
+
+          <button
+            type="submit"
+            data-testid="session-submit-btn"
+            className={styles.primaryButton}
+            disabled={
+              isCreating ||
+              !selectedQuizId ||
+              !title.trim() ||
+              !maxMinutes ||
+              !scheduledAt ||
+              quizzes?.length === 0
+            }
+          >
+            {isCreating ? 'Creating…' : 'Create session'}
+          </button>
+        </form>
+      </section>
 
       <div className={styles.sessionOperatorList} data-testid="session-operator-list">
         {sessionListContent}
