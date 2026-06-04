@@ -44,7 +44,9 @@ public sealed class ProblemDetailsExceptionHandler : IExceptionHandler
                 or TeamJoinClosedException
                 or ParticipantAlreadyConnectedException
                 or ParticipantAssignedToDifferentTeamException
-                or ParticipantRemovedFromSessionException => new ProblemDetails
+                or ParticipantRemovedFromSessionException
+                or DuplicateTeamAssociationInSessionException
+                or DuplicateTeamCodeInSessionException => new ProblemDetails
             {
                 Title = "Conflict.",
                 Detail = exception.Message,
