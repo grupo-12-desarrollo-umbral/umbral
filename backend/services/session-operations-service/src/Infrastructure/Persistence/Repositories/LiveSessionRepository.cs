@@ -1,6 +1,8 @@
 using Microsoft.EntityFrameworkCore;
 using umbral_backend.Application.Common.Interfaces;
+using umbral_backend.Application.Sessions.DTOs;
 using umbral_backend.Domain.Entities;
+using umbral_backend.Domain.Enums;
 
 namespace umbral_backend.Infrastructure.Persistence.Repositories;
 
@@ -25,6 +27,34 @@ public sealed class LiveSessionRepository : ILiveSessionRepository
                     .ThenInclude(question => question.Options)
             .AsSplitQuery()
             .SingleOrDefaultAsync(session => session.LiveSessionId == liveSessionId, cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<SessionOperatorSummaryDto>> ListAssignableSummariesAsync(CancellationToken cancellationToken)
+    {
+        var rows = await _context.LiveSessions
+            .AsNoTracking()
+            .Where(session => session.State != SessionState.Finished && session.State != SessionState.Cancelled)
+            .OrderByDescending(session => session.ScheduledAt)
+            .Select(session => new
+            {
+                session.LiveSessionId,
+                session.SessionCode,
+                Title = session.TitleSnapshot,
+                session.State,
+                session.AssignedOperatorUserId,
+                session.ScheduledAt
+            })
+            .ToListAsync(cancellationToken);
+
+        return rows
+            .Select(row => new SessionOperatorSummaryDto(
+                row.LiveSessionId,
+                row.SessionCode,
+                row.Title,
+                row.State.ToString(),
+                row.AssignedOperatorUserId,
+                row.ScheduledAt))
+            .ToList();
     }
 
     public async Task UpdateAsync(LiveSession liveSession, CancellationToken cancellationToken)

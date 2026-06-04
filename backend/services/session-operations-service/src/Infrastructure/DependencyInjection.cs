@@ -27,6 +27,12 @@ public static class DependencyInjection
             client.Timeout = TimeSpan.FromSeconds(10);
         });
 
+        builder.Services.AddHttpClient<IAssignableSessionOperatorAccessClient, AssignableSessionOperatorAccessClient>(client =>
+        {
+            client.BaseAddress = new Uri(identityAccessBaseAddress);
+            client.Timeout = TimeSpan.FromSeconds(10);
+        });
+
         builder.Services.Configure<PublishedTriviaQuizSourceOptions>(
             builder.Configuration.GetSection(PublishedTriviaQuizSourceOptions.SectionName));
 

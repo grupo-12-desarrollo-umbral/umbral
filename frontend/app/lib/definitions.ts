@@ -174,6 +174,29 @@ export type TriviaSessionCreatedDto = {
   questionCount: number
 }
 
+export type SessionAssignmentSummaryDto = {
+  liveSessionId: string
+  sessionCode: string
+  title: string
+  sessionState: string
+  assignedOperatorUserId: number | null // null = unassigned
+  scheduledAt: string
+}
+
+// Result of PATCH /api/sessions/{id}/operator-assignment (projection of AssignOperatorToSessionResultDto)
+export type AssignSessionOperatorResultDto = {
+  liveSessionId: string
+  assignedOperatorUserId: number
+}
+
+// A candidate operator derived from the Identity actor-facts catalog (not a new backend type)
+export type AssignableOperatorDto = {
+  id: number
+  displayName: string
+  email: string
+  role: string
+}
+
 export class IdentityError extends Error {
   constructor(
     public code: 'deactivated' | 'unauthorized' | 'network' | 'unknown',

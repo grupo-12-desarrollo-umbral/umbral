@@ -31,6 +31,7 @@ export default defineConfig({
     reuseExistingServer: !process.env.CI,
     env: {
       SESSION_SECRET: TEST_SESSION_SECRET,
+      SESSION_OPERATIONS_SERVICE_URL: 'http://localhost:5003',
     },
   },
 });

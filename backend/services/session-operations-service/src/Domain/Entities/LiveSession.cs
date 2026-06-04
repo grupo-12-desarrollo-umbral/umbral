@@ -239,6 +239,23 @@ public sealed class LiveSession : BaseAuditableEntity
         AddDomainEvent(new SessionStateChangedEvent(LiveSessionId, previousState, nextState, occurredAt));
     }
 
+    public void AssignOperator(int operatorUserId, DateTimeOffset occurredAt)
+    {
+        if (operatorUserId <= 0)
+        {
+            throw new OperatorUserIdMustBePositiveException();
+        }
+
+        var previousOperatorUserId = AssignedOperatorUserId;
+        AssignedOperatorUserId = operatorUserId;
+
+        AddDomainEvent(new LiveSessionOperatorAssignedEvent(
+            LiveSessionId,
+            previousOperatorUserId,
+            AssignedOperatorUserId,
+            occurredAt));
+    }
+
     private Team GetTeam(Guid teamId)
     {
         return _teams.SingleOrDefault(team => team.TeamId == teamId)

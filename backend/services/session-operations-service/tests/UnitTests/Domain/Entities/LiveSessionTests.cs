@@ -1,5 +1,6 @@
 using umbral_backend.Domain.Entities;
 using umbral_backend.Domain.Enums;
+using umbral_backend.Domain.Events;
 using umbral_backend.Domain.Exceptions;
 using umbral_backend.Domain.Services;
 using umbral_backend.Domain.ValueObjects;
@@ -179,6 +180,61 @@ public sealed class LiveSessionTests
 
         session.JoinContexts.Should().ContainSingle().Which.Should().Be(joinContext);
         joinContext.Status.Should().Be(JoinContextStatus.Pending);
+    }
+
+    [Fact]
+    public void AssignOperator_WithPositiveUserId_AssignsResponsibleOperatorAndRaisesAuditFact()
+    {
+        var session = LiveSessionFactory.CreateScheduledTreasureHunt();
+        var occurredAt = new DateTimeOffset(2026, 6, 3, 12, 0, 0, TimeSpan.Zero);
+
+        session.AssignOperator(27, occurredAt);
+
+        session.AssignedOperatorUserId.Should().Be(27);
+        session.DomainEvents.OfType<LiveSessionCreatedEvent>().Should().ContainSingle();
+
+        var assignmentEvent = session.DomainEvents
+            .OfType<LiveSessionOperatorAssignedEvent>()
+            .Single();
+
+        assignmentEvent.LiveSessionId.Should().Be(session.LiveSessionId);
+        assignmentEvent.PreviousOperatorUserId.Should().BeNull();
+        assignmentEvent.AssignedOperatorUserId.Should().Be(27);
+        assignmentEvent.OccurredAt.Should().Be(occurredAt);
+    }
+
+    [Fact]
+    public void AssignOperator_WhenReassignedInActiveSession_ReplacesResponsibleOperatorAndRaisesAuditFact()
+    {
+        var session = LiveSessionFactory.CreateScheduledTreasureHunt();
+        session.RegisterTeam("Alpha", "A-01", 4);
+        var transitionPolicy = new SessionStateTransitionPolicy();
+        session.MoveTo(SessionState.Preparing, DateTimeOffset.UtcNow, transitionPolicy);
+        session.MoveTo(SessionState.Active, DateTimeOffset.UtcNow.AddMinutes(1), transitionPolicy);
+        session.AssignOperator(27, DateTimeOffset.UtcNow.AddMinutes(2));
+        var reassignedAt = DateTimeOffset.UtcNow.AddMinutes(3);
+
+        session.AssignOperator(31, reassignedAt);
+
+        session.AssignedOperatorUserId.Should().Be(31);
+
+        var reassignmentEvent = session.DomainEvents
+            .OfType<LiveSessionOperatorAssignedEvent>()
+            .Last();
+
+        reassignmentEvent.PreviousOperatorUserId.Should().Be(27);
+        reassignmentEvent.AssignedOperatorUserId.Should().Be(31);
+        reassignmentEvent.OccurredAt.Should().Be(reassignedAt);
+    }
+
+    [Fact]
+    public void AssignOperator_WithNonPositiveUserId_ThrowsException()
+    {
+        var session = LiveSessionFactory.CreateScheduledTreasureHunt();
+
+        var act = () => session.AssignOperator(0, DateTimeOffset.UtcNow);
+
+        act.Should().Throw<OperatorUserIdMustBePositiveException>();
     }
 
     [Fact]

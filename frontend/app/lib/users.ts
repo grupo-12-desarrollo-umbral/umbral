@@ -1,5 +1,5 @@
 import 'server-only'
-import { IdentityError, type PagedResult, type UserAccessCatalogItemDto } from './definitions'
+import { IdentityError, type PagedResult, type UserAccessCatalogItemDto, type AssignableOperatorDto } from './definitions'
 import { verifySession } from './dal'
 
 // Direct service URL for BFF-to-service calls (bypasses JWT gateway auth)
@@ -45,6 +45,76 @@ export async function listUsers(
   }
 
   return response.json()
+}
+
+function buildLogicalUserKey(user: Pick<UserAccessCatalogItemDto, 'externalIdentityId' | 'email' | 'id'>): string {
+  const externalIdentityKey = user.externalIdentityId.trim().toLowerCase()
+  if (externalIdentityKey) return `external:${externalIdentityKey}`
+
+  const emailKey = user.email.trim().toLowerCase()
+  if (emailKey) return `email:${emailKey}`
+
+  return `id:${user.id}`
+}
+
+function dedupeUsers(users: UserAccessCatalogItemDto[]): UserAccessCatalogItemDto[] {
+  const uniqueUsers = new Map<string, UserAccessCatalogItemDto>()
+  const seenExternalIdentityIds = new Set<string>()
+  const seenEmails = new Set<string>()
+
+  for (const user of users) {
+    const externalIdentityKey = user.externalIdentityId.trim().toLowerCase()
+    const emailKey = user.email.trim().toLowerCase()
+
+    if (
+      (externalIdentityKey && seenExternalIdentityIds.has(externalIdentityKey))
+      || (emailKey && seenEmails.has(emailKey))
+    ) {
+      continue
+    }
+
+    const logicalKey = buildLogicalUserKey(user)
+    if (externalIdentityKey) seenExternalIdentityIds.add(externalIdentityKey)
+    if (emailKey) seenEmails.add(emailKey)
+
+    if (!uniqueUsers.has(logicalKey)) {
+      uniqueUsers.set(logicalKey, user)
+    }
+  }
+
+  return [...uniqueUsers.values()]
+}
+
+export async function listDedupedUsers(
+  page = 1,
+  pageSize = 20,
+): Promise<PagedResult<UserAccessCatalogItemDto>> {
+  const allUsers: UserAccessCatalogItemDto[] = []
+  let currentPage = 1
+
+  for (;;) {
+    const result = await listUsers(currentPage, 100)
+    allUsers.push(...result.items)
+    if (!result.hasNextPage) break
+    currentPage += 1
+  }
+
+  const dedupedUsers = dedupeUsers(allUsers)
+  const totalCount = dedupedUsers.length
+  const totalPages = Math.max(1, Math.ceil(totalCount / pageSize))
+  const safePage = Math.min(Math.max(page, 1), totalPages)
+  const startIndex = (safePage - 1) * pageSize
+  const items = dedupedUsers.slice(startIndex, startIndex + pageSize)
+
+  return {
+    items,
+    totalCount,
+    page: safePage,
+    pageSize,
+    totalPages,
+    hasPreviousPage: safePage > 1,
+    hasNextPage: safePage < totalPages,
+  }
 }
 
 export async function deactivateUserAccess(id: number): Promise<void> {
@@ -101,4 +171,25 @@ export async function assignUserRole(id: number, role: string): Promise<void> {
   if (!response.ok) {
     throw new IdentityError('unknown', `assignUserRole failed with status ${response.status}`)
   }
+}
+
+export async function listAssignableOperators(): Promise<AssignableOperatorDto[]> {
+  const assignable = new Map<string, AssignableOperatorDto>()
+  const result = await listDedupedUsers(1, Number.MAX_SAFE_INTEGER)
+
+  // The selector should only show active operators from the logical user catalog.
+  for (const u of result.items) {
+    if (!u.isActive || u.role !== 'Operator') continue
+
+    assignable.set(buildLogicalUserKey(u), {
+      id: u.id,
+      displayName: u.displayName,
+      email: u.email,
+      role: u.role,
+    })
+  }
+
+  return [...assignable.values()].sort((left, right) =>
+    left.displayName.localeCompare(right.displayName) || left.email.localeCompare(right.email),
+  )
 }
