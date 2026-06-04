@@ -161,7 +161,7 @@ public sealed class SessionStateBroadcastHubTests : IAsyncLifetime
             "Broadcast Session",
             45,
             createdAt);
-        var team = session.RegisterTeam("Red", "RED-01", 4);
+        var team = session.AssociateTeam(Guid.NewGuid(), "Red", "RED-01", 4);
         session.AssignOperator(OperatorUserId, createdAt.AddMinutes(1));
         var participant = session.AdmitParticipant(
             externalIdentityId,

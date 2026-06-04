@@ -159,7 +159,7 @@ public sealed class ListAssignableSessionsEndpointTests : IAsyncLifetime
 
         if (targetState is SessionState.Preparing or SessionState.Active or SessionState.Paused or SessionState.Finished)
         {
-            session.RegisterTeam("Explorers", "TEAM-01", 4);
+            session.AssociateTeam(Guid.NewGuid(), "Explorers", "TEAM-01", 4);
         }
 
         switch (targetState)

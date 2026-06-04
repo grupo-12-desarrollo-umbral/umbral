@@ -236,6 +236,10 @@ namespace umbral_backend.Infrastructure.Migrations
                                 .HasColumnType("uuid")
                                 .HasColumnName("live_session_id");
 
+                            b1.Property<Guid?>("ReferenceTeamId")
+                                .HasColumnType("uuid")
+                                .HasColumnName("reference_team_id");
+
                             b1.Property<int>("ReleasedClueCount")
                                 .HasColumnType("integer")
                                 .HasColumnName("released_clue_count");
@@ -247,6 +251,9 @@ namespace umbral_backend.Infrastructure.Migrations
                                 .HasColumnName("team_code");
 
                             b1.HasKey("TeamId");
+
+                            b1.HasIndex("LiveSessionId", "ReferenceTeamId")
+                                .IsUnique();
 
                             b1.HasIndex("LiveSessionId", "TeamCode")
                                 .IsUnique();

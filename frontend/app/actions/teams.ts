@@ -10,6 +10,7 @@ import {
   listTeamParticipants,
   assignParticipant as assignParticipantLib,
 } from '@/app/lib/teams'
+import { listActiveTeams } from '@/app/lib/team-catalog'
 import { revalidatePath } from 'next/cache'
 import type { PagedResult, TeamDto, CreateTeamResultDto, TeamMembershipDto } from '@/app/lib/definitions'
 
@@ -22,6 +23,15 @@ export async function getTeamsPage(
     throw new Error('Forbidden')
   }
   return listTeams(page, pageSize)
+}
+
+export async function getActiveTeams(): Promise<TeamDto[]> {
+  const session = await verifySession()
+  if (session.role !== 'Administrator' && session.role !== 'Operator') {
+    throw new Error('Forbidden')
+  }
+
+  return listActiveTeams(listTeams)
 }
 
 export async function getTeam(id: string): Promise<TeamDto> {

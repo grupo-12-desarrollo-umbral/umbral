@@ -10,8 +10,15 @@ import {
   getTeamParticipants,
   assignParticipantToTeam,
 } from '@/app/actions/teams'
+import { listSessionsForOperator, associateTeamToSession } from '@/app/actions/sessions'
 import { getUsersPage } from '@/app/actions/users'
-import type { PagedResult, TeamDto, TeamMembershipDto, UserAccessCatalogItemDto } from '@/app/lib/definitions'
+import type {
+  PagedResult,
+  TeamDto,
+  TeamMembershipDto,
+  UserAccessCatalogItemDto,
+  SessionAssignmentSummaryDto,
+} from '@/app/lib/definitions'
 import styles from './dashboard.module.css'
 
 type DashboardRole = 'operator' | 'admin' | 'participant'
@@ -36,6 +43,14 @@ export function TeamsPanel({ role }: { role: DashboardRole }) {
   const [participantUsers, setParticipantUsers] = useState<UserAccessCatalogItemDto[]>([])
   const [selectedUserId, setSelectedUserId] = useState<number>(0)
   const [assignError, setAssignError] = useState<string | null>(null)
+  const [sessionAssignmentTeam, setSessionAssignmentTeam] = useState<TeamDto | null>(null)
+  const [operatorSessions, setOperatorSessions] = useState<SessionAssignmentSummaryDto[]>([])
+  const [sessionsError, setSessionsError] = useState<string | null>(null)
+  const [sessionAssignError, setSessionAssignError] = useState<string | null>(null)
+  const [isSessionModalPending, startSessionModalTransition] = useTransition()
+  const scheduledOperatorSessions = operatorSessions.filter(
+    (session) => session.sessionState === 'Scheduled',
+  )
 
   useEffect(() => {
     startTransition(async () => {
@@ -50,7 +65,7 @@ export function TeamsPanel({ role }: { role: DashboardRole }) {
   }, [page, refreshKey])
 
   useEffect(() => {
-    if (view !== 'detail' || !selectedTeam) return
+    if (view !== 'detail' || selectedTeam == null) return
     startAssignTransition(async () => {
       setParticipantsError(null)
       try {
@@ -60,7 +75,7 @@ export function TeamsPanel({ role }: { role: DashboardRole }) {
         setParticipantsError('Failed to load participants.')
       }
     })
-  }, [view, selectedTeam?.teamId])
+  }, [view, selectedTeam])
 
   async function handleDeactivate(id: string) {
     startTransition(async () => {
@@ -171,6 +186,55 @@ export function TeamsPanel({ role }: { role: DashboardRole }) {
           setAssignError('The selected user does not have the Participant role.')
         } else {
           setAssignError('Assignment failed. Try again.')
+        }
+      }
+    })
+  }
+
+  function closeSessionAssignmentModal() {
+    setSessionAssignmentTeam(null)
+    setOperatorSessions([])
+    setSessionsError(null)
+    setSessionAssignError(null)
+  }
+
+  function openSessionAssignmentModal(team: TeamDto) {
+    setSessionAssignmentTeam(team)
+    setOperatorSessions([])
+    setSessionsError(null)
+    setSessionAssignError(null)
+
+    startSessionModalTransition(async () => {
+      try {
+        const sessions = await listSessionsForOperator()
+        setOperatorSessions(sessions)
+      } catch {
+        setOperatorSessions([])
+        setSessionsError('Failed to load your assigned sessions.')
+      }
+    })
+  }
+
+  function handleAssociateTeamToSession(liveSessionId: string) {
+    if (!sessionAssignmentTeam) return
+
+    startSessionModalTransition(async () => {
+      setSessionAssignError(null)
+      try {
+        await associateTeamToSession(liveSessionId, sessionAssignmentTeam.teamId)
+        closeSessionAssignmentModal()
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : ''
+        if (msg === 'duplicate_association') {
+          setSessionAssignError('This team is already associated with that session.')
+        } else if (msg === 'inactive_team') {
+          setSessionAssignError('Inactive teams cannot be assigned to a session.')
+        } else if (msg === 'session_not_scheduled') {
+          setSessionAssignError('Only scheduled sessions can accept new teams.')
+        } else if (msg === 'not_found') {
+          setSessionAssignError('The team or session no longer exists.')
+        } else {
+          setSessionAssignError('Failed to assign the team to the selected session.')
         }
       }
     })
@@ -518,6 +582,7 @@ export function TeamsPanel({ role }: { role: DashboardRole }) {
                 <th>Code</th>
                 <th>Status</th>
                 <th>Created</th>
+                {role === 'operator' && <th>Actions</th>}
               </tr>
             </thead>
             <tbody>
@@ -533,9 +598,9 @@ export function TeamsPanel({ role }: { role: DashboardRole }) {
                   }}
                   style={{ cursor: 'pointer' }}
                 >
-                  <td>{team.displayName}</td>
-                  <td>{team.teamCode}</td>
-                  <td>
+                  <td data-label="Name">{team.displayName}</td>
+                  <td data-label="Code">{team.teamCode}</td>
+                  <td data-label="Status">
                     <span
                       className={styles.chip}
                       data-tone={team.isActive ? 'success' : 'critical'}
@@ -543,7 +608,26 @@ export function TeamsPanel({ role }: { role: DashboardRole }) {
                       {team.isActive ? 'Active' : 'Inactive'}
                     </span>
                   </td>
-                  <td>{new Date(team.createdAt).toLocaleDateString()}</td>
+                  <td data-label="Created">{new Date(team.createdAt).toLocaleDateString()}</td>
+                  {role === 'operator' && (
+                    <td data-label="Actions">
+                      <div className={styles.teamRowActions}>
+                        <button
+                          type="button"
+                          className={styles.inlineButton}
+                          data-testid={`team-row-session-actions-${team.teamId}`}
+                          disabled={!team.isActive || isSessionModalPending}
+                          onClick={(event) => {
+                            event.stopPropagation()
+                            openSessionAssignmentModal(team)
+                          }}
+                          aria-label={`Assign ${team.displayName} to one of your sessions`}
+                        >
+                          ...
+                        </button>
+                      </div>
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>
@@ -573,6 +657,110 @@ export function TeamsPanel({ role }: { role: DashboardRole }) {
             </span>
           </div>
         </>
+      )}
+
+      {sessionAssignmentTeam && (
+        <div
+          className={styles.modalScrim}
+          role="presentation"
+          onClick={closeSessionAssignmentModal}
+        >
+          <div
+            className={styles.sessionOperatorModal}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="team-session-assignment-title"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className={styles.panelHeader}>
+              <div>
+                <h2 id="team-session-assignment-title">Assign team to session</h2>
+                <div className={styles.panelMeta}>
+                  {sessionAssignmentTeam.displayName} · {sessionAssignmentTeam.teamCode}
+                </div>
+              </div>
+              <button
+                className={styles.smallButton}
+                type="button"
+                onClick={closeSessionAssignmentModal}
+                disabled={isSessionModalPending}
+                aria-label="Close team session assignment dialog"
+              >
+                Close
+              </button>
+            </div>
+
+            <div className={styles.sessionOperatorModalDetails}>
+              <div className={styles.assignmentCard}>
+                <span className={styles.sessionOperatorLabel}>Team status</span>
+                <strong>{sessionAssignmentTeam.isActive ? 'Active' : 'Inactive'}</strong>
+              </div>
+              <div className={styles.assignmentCard}>
+                <span className={styles.sessionOperatorLabel}>Available sessions</span>
+                <strong>{scheduledOperatorSessions.length}</strong>
+              </div>
+            </div>
+
+            <p className={styles.panelMeta}>
+              Choose one of your scheduled sessions. Sessions already in preparation or live cannot
+              accept new teams.
+            </p>
+
+            {sessionsError && (
+              <div className={styles.errorBanner} role="alert" data-testid="team-session-list-error">
+                {sessionsError}
+              </div>
+            )}
+
+            {sessionAssignError && (
+              <div className={styles.errorBanner} role="alert" data-testid="team-session-assign-error">
+                {sessionAssignError}
+              </div>
+            )}
+
+            {isSessionModalPending && scheduledOperatorSessions.length === 0 && !sessionsError ? (
+              <span className={styles.chip}>Loading…</span>
+            ) : scheduledOperatorSessions.length === 0 ? (
+              <p className={styles.emptyList} data-testid="team-session-empty">
+                You have no scheduled sessions available for this team.
+              </p>
+            ) : (
+              <div className={styles.sessionOperatorList} data-testid="team-session-list">
+                {scheduledOperatorSessions.map((session) => (
+                  <article key={session.liveSessionId} className={styles.sessionOperatorItem}>
+                    <div className={styles.sessionOperatorHeader}>
+                      <div className={styles.sessionOperatorTitleBlock}>
+                        <h3>{session.title}</h3>
+                        <div className={styles.sessionCardMeta}>
+                          <span className={styles.sessionCodePill}>{session.sessionCode}</span>
+                          <span>{new Date(session.scheduledAt).toLocaleString()}</span>
+                        </div>
+                      </div>
+                      <span className={styles.chip} data-tone="muted">
+                        {session.sessionState}
+                      </span>
+                    </div>
+                    <div className={styles.sessionOperatorBody}>
+                      <div className={styles.sessionOperatorInfo}>
+                        <span className={styles.sessionOperatorLabel}>Responsible operator</span>
+                        <strong>You</strong>
+                      </div>
+                      <button
+                        type="button"
+                        className={styles.primaryButton}
+                        data-testid={`team-session-assign-${session.liveSessionId}`}
+                        disabled={isSessionModalPending}
+                        onClick={() => handleAssociateTeamToSession(session.liveSessionId)}
+                      >
+                        Assign to session
+                      </button>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
       )}
     </section>
   )

@@ -22,6 +22,7 @@ public sealed class TeamTests
         var team = Team.Register(Guid.NewGuid(), teamId, "Alpha", "A-01", 4);
 
         team.TeamId.Should().Be(teamId);
+        team.ReferenceTeamId.Should().BeNull();
     }
 
     [Fact]
@@ -38,6 +39,26 @@ public sealed class TeamTests
         var act = () => Team.Register(Guid.NewGuid(), "Alpha", "A-01", 0);
 
         act.Should().Throw<TeamCapacityMustBePositiveException>();
+    }
+
+    [Fact]
+    public void Associate_WithReferenceTeamId_PreservesReferenceCorrelation()
+    {
+        var referenceTeamId = Guid.NewGuid();
+
+        var team = Team.Associate(Guid.NewGuid(), referenceTeamId, "Alpha", "A-01", 2);
+
+        team.TeamId.Should().NotBe(referenceTeamId);
+        team.ReferenceTeamId.Should().Be(referenceTeamId);
+        team.Capacity.Should().Be(2);
+    }
+
+    [Fact]
+    public void Associate_WithEmptyReferenceTeamId_ThrowsException()
+    {
+        var act = () => Team.Associate(Guid.NewGuid(), Guid.Empty, "Alpha", "A-01", 2);
+
+        act.Should().Throw<ReferenceTeamIdRequiredException>();
     }
 
     [Fact]

@@ -167,7 +167,7 @@ public sealed class TransitionSessionStateEndpointTests : IAsyncLifetime
 
         if (registerTeam)
         {
-            liveSession.RegisterTeam("Red", "RED-01", 4);
+            liveSession.AssociateTeam(Guid.NewGuid(), "Red", "RED-01", 4);
         }
 
         liveSession.AssignOperator(OperatorUserId, DateTimeOffset.UtcNow.AddMinutes(-10));

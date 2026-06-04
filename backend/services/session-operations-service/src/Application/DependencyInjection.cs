@@ -2,11 +2,13 @@ using System.Reflection;
 using Microsoft.Extensions.Hosting;
 using umbral_backend.Application.Common.Behaviours;
 using umbral_backend.Application.Common.Interfaces;
+using umbral_backend.Application.Sessions.Commands.AssociateTeamToSession;
 using umbral_backend.Application.Sessions.Commands.AssignOperatorToSession;
 using umbral_backend.Application.Sessions.Commands.CreateTriviaSession;
 using umbral_backend.Application.Sessions.Commands.DisconnectParticipant;
 using umbral_backend.Application.Sessions.Commands.ReconnectAuthenticatedParticipant;
 using umbral_backend.Application.Sessions.Commands.TransitionSessionState;
+using umbral_backend.Application.Sessions.Facades;
 using umbral_backend.Application.Sessions.StateTransitions;
 using umbral_backend.Application.Sessions.StateTransitions.Validators;
 using umbral_backend.Domain.Services;
@@ -34,6 +36,7 @@ public static class DependencyInjection
 
         builder.Services.AddScoped<ISessionAdministrationAccessExecutor, SessionAdministrationAccessResolver>();
         builder.Services.AddScoped<ISessionAdministrationAccessResolver, SessionAdministrationAuthorizationProxy>();
+        builder.Services.AddScoped<ISessionTeamAssociationFacade, SessionTeamAssociationFacade>();
         builder.Services.AddScoped<IAssignOperatorToSessionFacade, AssignOperatorToSessionFacade>();
         builder.Services.AddScoped<ICreateTriviaSessionFacade, CreateTriviaSessionFacade>();
         builder.Services.AddScoped<IDisconnectParticipantExecutor, DisconnectParticipantService>();

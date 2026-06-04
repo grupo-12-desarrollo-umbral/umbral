@@ -159,7 +159,7 @@ public sealed class TransitionSessionStateCommandHandlerTests
 
         if (registerTeam)
         {
-            session.RegisterTeam("Red", "RED-01", 4);
+            session.AssociateTeam(Guid.NewGuid(), "Red", "RED-01", 4);
         }
 
         if (assignedOperatorUserId is not null)

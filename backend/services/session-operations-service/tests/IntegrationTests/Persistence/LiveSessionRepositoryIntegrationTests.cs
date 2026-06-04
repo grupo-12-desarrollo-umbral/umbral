@@ -122,6 +122,33 @@ public sealed class LiveSessionRepositoryIntegrationTests
         reloadedTeam.Members.Should().ContainSingle(member => member.SessionParticipantId == participant.SessionParticipantId);
     }
 
+    [Fact]
+    public async Task GetByIdAsync_RestoresAssociatedTeamReferenceCorrelation()
+    {
+        await using var resetContext = BuildContext();
+        await ResetDatabaseAsync(resetContext);
+
+        var createdAt = DateTimeOffset.UtcNow.AddMinutes(-20);
+        var liveSession = CreateSession(createdAt);
+        var referenceTeamId = Guid.NewGuid();
+        liveSession.AssociateTeam(referenceTeamId, "Aurora", "AUR-01", 3);
+
+        await using (var seedContext = BuildContext())
+        {
+            seedContext.LiveSessions.Add(liveSession);
+            await seedContext.SaveChangesAsync(CancellationToken.None);
+        }
+
+        await using var assertContext = BuildContext();
+        var persistedSession = await new LiveSessionRepository(assertContext)
+            .GetByIdAsync(liveSession.LiveSessionId, CancellationToken.None);
+
+        persistedSession.Should().NotBeNull();
+        persistedSession!.Teams.Should().ContainSingle();
+        persistedSession.Teams.Single().TeamId.Should().NotBe(referenceTeamId);
+        persistedSession.Teams.Single().ReferenceTeamId.Should().Be(referenceTeamId);
+    }
+
 
     [Fact]
     public async Task GetByIdAsync_RestoresAssignedOperatorFromExistingPersistenceColumn()
