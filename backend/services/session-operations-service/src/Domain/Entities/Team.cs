@@ -12,11 +12,18 @@ public sealed class Team : BaseEntity
     {
         TeamId = Guid.Empty;
         LiveSessionId = Guid.Empty;
+        ReferenceTeamId = null;
         TeamCode = null!;
         DisplayName = string.Empty;
     }
 
-    private Team(Guid liveSessionId, Guid teamId, string displayName, TeamCode teamCode, int capacity)
+    private Team(
+        Guid liveSessionId,
+        Guid teamId,
+        Guid? referenceTeamId,
+        string displayName,
+        TeamCode teamCode,
+        int capacity)
     {
         if (teamId == Guid.Empty)
         {
@@ -35,6 +42,7 @@ public sealed class Team : BaseEntity
 
         TeamId = teamId;
         LiveSessionId = liveSessionId;
+        ReferenceTeamId = referenceTeamId;
         TeamCode = teamCode;
         DisplayName = displayName.Trim();
         Capacity = capacity;
@@ -44,6 +52,8 @@ public sealed class Team : BaseEntity
     public Guid TeamId { get; private set; }
 
     public Guid LiveSessionId { get; private set; }
+
+    public Guid? ReferenceTeamId { get; private set; }
 
     public TeamCode TeamCode { get; private set; }
 
@@ -74,7 +84,28 @@ public sealed class Team : BaseEntity
 
     public static Team Register(Guid liveSessionId, Guid teamId, string displayName, string teamCode, int capacity)
     {
-        return new Team(liveSessionId, teamId, displayName, TeamCode.Create(teamCode), capacity);
+        return new Team(liveSessionId, teamId, null, displayName, TeamCode.Create(teamCode), capacity);
+    }
+
+    public static Team Associate(
+        Guid liveSessionId,
+        Guid referenceTeamId,
+        string displayName,
+        string teamCode,
+        int capacity)
+    {
+        if (referenceTeamId == Guid.Empty)
+        {
+            throw new ReferenceTeamIdRequiredException();
+        }
+
+        return new Team(
+            liveSessionId,
+            Guid.NewGuid(),
+            referenceTeamId,
+            displayName,
+            TeamCode.Create(teamCode),
+            capacity);
     }
 
     public void LockNewParticipants()

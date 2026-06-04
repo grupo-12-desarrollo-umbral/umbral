@@ -600,6 +600,11 @@
   vertical-align: middle;
 }
 
+.teamRowActions {
+  display: flex;
+  justify-content: flex-end;
+}
+
 .tableRowAccent td:first-child {
   position: relative;
 }

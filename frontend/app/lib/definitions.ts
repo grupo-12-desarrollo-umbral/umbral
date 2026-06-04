@@ -212,6 +212,29 @@ export type SessionAssignmentSummaryDto = {
   lastTransitionedAt?: string | null
 }
 
+export type AssociatedSessionTeamDto = {
+  runtimeTeamId: string
+  referenceTeamId: string
+  displayName: string
+  teamCode: string
+  joinStatus: string
+}
+
+export type SessionAssociatedTeamsDto = {
+  liveSessionId: string
+  teams: AssociatedSessionTeamDto[]
+}
+
+export type AssociateTeamToSessionResultDto = {
+  liveSessionId: string
+  runtimeTeamId: string
+  referenceTeamId: string
+  displayName: string
+  teamCode: string
+  sessionState: string
+  associatedTeamCount: number
+}
+
 // Result of PATCH /api/sessions/{id}/operator-assignment (projection of AssignOperatorToSessionResultDto)
 export type AssignSessionOperatorResultDto = {
   liveSessionId: string

@@ -341,8 +341,8 @@ public sealed class ReconnectParticipantHubTests : IAsyncLifetime
         var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         var createdAt = DateTimeOffset.UtcNow.AddMinutes(-20);
         var session = CreateSession(createdAt);
-        var team = session.RegisterTeam("Red", "RED-01", 4);
-        var otherTeam = registerSecondTeam ? session.RegisterTeam("Blue", "BLUE-01", 4) : null;
+        var team = session.AssociateTeam(Guid.NewGuid(), "Red", "RED-01", 4);
+        var otherTeam = registerSecondTeam ? session.AssociateTeam(Guid.NewGuid(), "Blue", "BLUE-01", 4) : null;
         var participant = session.AdmitParticipant(
             externalIdentityId,
             "Nova",
@@ -371,7 +371,7 @@ public sealed class ReconnectParticipantHubTests : IAsyncLifetime
         var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         var createdAt = DateTimeOffset.UtcNow.AddMinutes(-20);
         var session = CreateSession(createdAt);
-        var team = session.RegisterTeam("Red", "RED-01", 4);
+        var team = session.AssociateTeam(Guid.NewGuid(), "Red", "RED-01", 4);
         var participant = session.AdmitParticipant(
             externalIdentityId,
             "Nova",
@@ -393,7 +393,7 @@ public sealed class ReconnectParticipantHubTests : IAsyncLifetime
         var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         var createdAt = DateTimeOffset.UtcNow.AddMinutes(-20);
         var session = CreateSession(createdAt);
-        var team = session.RegisterTeam("Red", "RED-01", 4);
+        var team = session.AssociateTeam(Guid.NewGuid(), "Red", "RED-01", 4);
         MoveToState(session, sessionState, createdAt.AddMinutes(2));
 
         dbContext.LiveSessions.Add(session);

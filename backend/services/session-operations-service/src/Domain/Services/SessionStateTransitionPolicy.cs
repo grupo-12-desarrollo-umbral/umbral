@@ -6,9 +6,9 @@ namespace umbral_backend.Domain.Services;
 
 public sealed class SessionStateTransitionPolicy
 {
-    public void EnsureCanTransition(SessionState currentState, SessionState nextState, int teamCount)
+    public void EnsureCanTransition(SessionState currentState, SessionState nextState, int associatedTeamCount)
     {
-        if (nextState == SessionState.Active && teamCount <= 0)
+        if (nextState == SessionState.Active && associatedTeamCount <= 0)
         {
             throw new LiveSessionRequiresAtLeastOneTeamException();
         }

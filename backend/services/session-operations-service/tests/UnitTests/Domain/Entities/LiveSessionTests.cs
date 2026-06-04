@@ -80,6 +80,7 @@ public sealed class LiveSessionTests
         var team = session.RegisterTeam(identityReferenceTeamId, "Alpha", "A-01", 4);
 
         team.TeamId.Should().Be(identityReferenceTeamId);
+        team.ReferenceTeamId.Should().BeNull();
         session.Teams.Should().ContainSingle().Which.TeamId.Should().Be(identityReferenceTeamId);
     }
 
@@ -91,6 +92,47 @@ public sealed class LiveSessionTests
         var act = () => session.RegisterTeam(Guid.Empty, "Alpha", "A-01", 4);
 
         act.Should().Throw<TeamIdentityRequiredException>();
+    }
+
+    [Fact]
+    public void AssociateTeam_WithRegisteredReference_AddsSessionOwnedTeam()
+    {
+        var session = LiveSessionFactory.CreateScheduledTreasureHunt();
+        var referenceTeamId = Guid.NewGuid();
+
+        var team = session.AssociateTeam(referenceTeamId, "Alpha", "A-01", 3);
+
+        session.HasAssociatedTeams.Should().BeTrue();
+        session.AssociatedTeamCount.Should().Be(1);
+        session.Teams.Should().ContainSingle().Which.Should().Be(team);
+        team.TeamId.Should().NotBe(referenceTeamId);
+        team.ReferenceTeamId.Should().Be(referenceTeamId);
+        team.Capacity.Should().Be(3);
+    }
+
+    [Fact]
+    public void AssociateTeam_WithDuplicateReference_ThrowsException()
+    {
+        var session = LiveSessionFactory.CreateScheduledTreasureHunt();
+        var referenceTeamId = Guid.NewGuid();
+        session.AssociateTeam(referenceTeamId, "Alpha", "A-01", 3);
+
+        var act = () => session.AssociateTeam(referenceTeamId, "Beta", "B-01", 2);
+
+        act.Should().Throw<DuplicateTeamAssociationInSessionException>();
+    }
+
+    [Fact]
+    public void AssociateTeam_WhenSessionIsNotScheduled_ThrowsException()
+    {
+        var session = LiveSessionFactory.CreateScheduledTreasureHunt();
+        var policy = new SessionStateTransitionPolicy();
+        session.RegisterTeam("Alpha", "A-01", 4);
+        session.MoveTo(SessionState.Preparing, DateTimeOffset.UtcNow, policy);
+
+        var act = () => session.AssociateTeam(Guid.NewGuid(), "Beta", "B-01", 2);
+
+        act.Should().Throw<TeamAssociationRequiresScheduledSessionException>();
     }
 
     [Fact]
@@ -128,7 +170,7 @@ public sealed class LiveSessionTests
     public void AdmitParticipant_WhenSessionIsActive_RejectsLateJoin()
     {
         var session = LiveSessionFactory.CreateScheduledTreasureHunt();
-        var team = session.RegisterTeam("Alpha", "A-01", 4);
+        var team = session.AssociateTeam(Guid.NewGuid(), "Alpha", "A-01", 4);
         var transitionPolicy = new SessionStateTransitionPolicy();
         session.MoveTo(SessionState.Preparing, DateTimeOffset.UtcNow, transitionPolicy);
         session.MoveTo(SessionState.Active, DateTimeOffset.UtcNow.AddMinutes(1), transitionPolicy);
@@ -207,7 +249,7 @@ public sealed class LiveSessionTests
     public void AssignOperator_WhenReassignedInActiveSession_ReplacesResponsibleOperatorAndRaisesAuditFact()
     {
         var session = LiveSessionFactory.CreateScheduledTreasureHunt();
-        session.RegisterTeam("Alpha", "A-01", 4);
+        session.AssociateTeam(Guid.NewGuid(), "Alpha", "A-01", 4);
         var transitionPolicy = new SessionStateTransitionPolicy();
         session.MoveTo(SessionState.Preparing, DateTimeOffset.UtcNow, transitionPolicy);
         session.MoveTo(SessionState.Active, DateTimeOffset.UtcNow.AddMinutes(1), transitionPolicy);
@@ -241,7 +283,7 @@ public sealed class LiveSessionTests
     public void MoveTo_TracksLifecycleTimestampsAndReason()
     {
         var session = LiveSessionFactory.CreateScheduledTreasureHunt();
-        session.RegisterTeam("Alpha", "A-01", 4);
+        session.AssociateTeam(Guid.NewGuid(), "Alpha", "A-01", 4);
         var policy = new SessionStateTransitionPolicy();
         var preparingAt = new DateTimeOffset(2026, 6, 3, 10, 0, 0, TimeSpan.Zero);
         var activeAt = preparingAt.AddMinutes(1);
@@ -373,5 +415,16 @@ public sealed class LiveSessionTests
         snapshot.IsAdvancing.Should().BeFalse();
         snapshot.ExpiredAt.Should().Be(expiredAt);
         session.IsSessionTimerAdvancing.Should().BeFalse();
+    public void MoveTo_ActiveWithOnlyNonAssociatedRuntimeTeam_ThrowsException()
+    {
+        var session = LiveSessionFactory.CreateScheduledTreasureHunt();
+        session.RegisterTeam("Alpha", "A-01", 4);
+        var policy = new SessionStateTransitionPolicy();
+
+        session.MoveTo(SessionState.Preparing, DateTimeOffset.UtcNow, policy);
+
+        var act = () => session.MoveTo(SessionState.Active, DateTimeOffset.UtcNow.AddMinutes(1), policy);
+
+        act.Should().Throw<LiveSessionRequiresAtLeastOneTeamException>();
     }
 }

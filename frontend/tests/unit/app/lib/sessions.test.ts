@@ -92,4 +92,66 @@ describe('session gateway auth', () => {
 
     expect(global.fetch).not.toHaveBeenCalled()
   })
+
+  it('loads the associated teams for a session through the gateway', async () => {
+    const { getSessionAssociatedTeams } = await import('@/app/lib/sessions')
+    const payload = {
+      liveSessionId: 'session-1',
+      teams: [
+        {
+          runtimeTeamId: 'runtime-team-1',
+          referenceTeamId: 'reference-team-1',
+          displayName: 'Gilded Owls',
+          teamCode: 'OWLS',
+          joinStatus: 'Open',
+        },
+      ],
+    }
+
+    getValidAccessTokenMock.mockResolvedValue('fresh-access-token')
+    vi.mocked(global.fetch).mockResolvedValue(
+      new Response(JSON.stringify(payload), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    )
+
+    await expect(getSessionAssociatedTeams('session-1')).resolves.toEqual(payload)
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      'http://localhost:8000/api/sessions/session-1/teams',
+      expect.objectContaining({
+        cache: 'no-store',
+        headers: expect.any(Headers),
+      }),
+    )
+  })
+
+  it('maps a duplicate association conflict to a stable frontend error', async () => {
+    const { associateTeamToSession } = await import('@/app/lib/sessions')
+
+    getValidAccessTokenMock.mockResolvedValue('fresh-access-token')
+    vi.mocked(global.fetch).mockResolvedValue(
+      new Response(
+        JSON.stringify({ detail: 'Team reference already associated with this session.' }),
+        {
+          status: 409,
+          headers: { 'Content-Type': 'application/json' },
+        },
+      ),
+    )
+
+    await expect(
+      associateTeamToSession('session-1', 'reference-team-1'),
+    ).rejects.toThrowError('duplicate_association')
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      'http://localhost:8000/api/sessions/session-1/teams',
+      expect.objectContaining({
+        method: 'POST',
+        headers: expect.any(Headers),
+        body: JSON.stringify({ referenceTeamId: 'reference-team-1' }),
+      }),
+    )
+  })
 })

@@ -4,6 +4,8 @@ import {
   type CreateTriviaSessionRequest,
   type TriviaSessionCreatedDto,
   type SessionAssignmentSummaryDto,
+  type SessionAssociatedTeamsDto,
+  type AssociateTeamToSessionResultDto,
   type AssignSessionOperatorResultDto,
   type SessionLifecycleState,
   type TransitionSessionStateResultDto,
@@ -169,4 +171,54 @@ export async function getOperatorSessionTimerSnapshot(
   if (!response.ok) throw new IdentityError('unknown', `Timer read failed with status ${response.status}`)
 
   return response.json() as Promise<SessionTimerSnapshotDto>
+export async function getSessionAssociatedTeams(
+  liveSessionId: string,
+): Promise<SessionAssociatedTeamsDto> {
+  await verifySession()
+  const response = await fetch(`${API_GATEWAY_URL}/api/sessions/${liveSessionId}/teams`, {
+    headers: await getGatewayHeaders(),
+    cache: 'no-store',
+  })
+
+  if (response.status === 401) throw new IdentityError('unauthorized', 'Authentication failed.')
+  if (response.status === 403) throw new IdentityError('unauthorized', 'Operator role required.')
+  if (response.status === 404) throw new Error('session_not_found')
+  if (!response.ok) {
+    throw new IdentityError('unknown', `getSessionAssociatedTeams failed with status ${response.status}`)
+  }
+
+  return response.json() as Promise<SessionAssociatedTeamsDto>
+}
+
+export async function associateTeamToSession(
+  liveSessionId: string,
+  referenceTeamId: string,
+): Promise<AssociateTeamToSessionResultDto> {
+  await verifySession()
+  const response = await fetch(`${API_GATEWAY_URL}/api/sessions/${liveSessionId}/teams`, {
+    method: 'POST',
+    headers: await getGatewayHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ referenceTeamId }),
+  })
+
+  if (response.status === 400) throw new Error('inactive_team')
+  if (response.status === 401) throw new IdentityError('unauthorized', 'Authentication failed.')
+  if (response.status === 403) throw new IdentityError('unauthorized', 'Operator role required.')
+  if (response.status === 404) throw new Error('not_found')
+  if (response.status === 409) {
+    const problem = (await response.json().catch(() => null)) as { detail?: string } | null
+    const detail = problem?.detail?.toLowerCase() ?? ''
+    if (detail.includes('already associated')) {
+      throw new Error('duplicate_association')
+    }
+    if (detail.includes('scheduled')) {
+      throw new Error('session_not_scheduled')
+    }
+    throw new Error('association_conflict')
+  }
+  if (!response.ok) {
+    throw new IdentityError('unknown', `associateTeamToSession failed with status ${response.status}`)
+  }
+
+  return response.json() as Promise<AssociateTeamToSessionResultDto>
 }

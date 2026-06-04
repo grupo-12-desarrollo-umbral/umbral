@@ -223,6 +223,9 @@ public sealed class LiveSessionConfiguration : IEntityTypeConfiguration<LiveSess
                 .HasColumnName("live_session_id")
                 .IsRequired();
 
+            teamBuilder.Property(team => team.ReferenceTeamId)
+                .HasColumnName("reference_team_id");
+
             teamBuilder.Property(team => team.DisplayName)
                 .HasColumnName("display_name")
                 .HasMaxLength(200)
@@ -263,6 +266,9 @@ public sealed class LiveSessionConfiguration : IEntityTypeConfiguration<LiveSess
                 .IsRequired();
 
             teamBuilder.HasIndex(team => new { team.LiveSessionId, team.TeamCode })
+                .IsUnique();
+
+            teamBuilder.HasIndex(team => new { team.LiveSessionId, team.ReferenceTeamId })
                 .IsUnique();
 
             teamBuilder.OwnsMany(team => team.Members, memberBuilder =>

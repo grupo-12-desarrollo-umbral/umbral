@@ -6,6 +6,8 @@ import {
   createTriviaSession as createTriviaSessionLib,
   listAssignableSessions as listAssignableSessionsLib,
   listOperatorSessions as listOperatorSessionsLib,
+  getSessionAssociatedTeams as getSessionAssociatedTeamsLib,
+  associateTeamToSession as associateTeamToSessionLib,
   assignSessionOperator as assignSessionOperatorLib,
   transitionSessionState as transitionSessionStateLib,
   getOperatorSessionTimerSnapshot as getOperatorSessionTimerSnapshotLib,
@@ -17,6 +19,8 @@ import type {
   CreateTriviaSessionRequest,
   TriviaSessionCreatedDto,
   SessionAssignmentSummaryDto,
+  SessionAssociatedTeamsDto,
+  AssociateTeamToSessionResultDto,
   AssignSessionOperatorResultDto,
   AssignableOperatorDto,
   SessionLifecycleState,
@@ -96,4 +100,22 @@ export async function getSessionTimerSnapshotAction(
     if (error instanceof IdentityError) return { error: error.message }
     return { error: 'Unexpected error fetching timer snapshot' }
   }
+  
+export async function getSessionAssociatedTeams(
+  liveSessionId: string,
+): Promise<SessionAssociatedTeamsDto> {
+  const session = await verifySession()
+  if (session.role !== 'Operator') throw new Error('Forbidden')
+  return getSessionAssociatedTeamsLib(liveSessionId)
+}
+
+export async function associateTeamToSession(
+  liveSessionId: string,
+  referenceTeamId: string,
+): Promise<AssociateTeamToSessionResultDto> {
+  const session = await verifySession()
+  if (session.role !== 'Operator') throw new Error('Forbidden')
+  const result = await associateTeamToSessionLib(liveSessionId, referenceTeamId)
+  revalidatePath('/dashboard')
+  return result
 }
