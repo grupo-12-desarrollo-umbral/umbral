@@ -19,6 +19,7 @@ public sealed class SessionOperationsApiWebApplicationFactory : WebApplicationFa
     }
 
     public FakeParticipantMembershipAccessClient AccessClient { get; } = new();
+    public FakeTeamReferenceCatalogClient TeamCatalogClient { get; } = new();
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
@@ -28,11 +29,16 @@ public sealed class SessionOperationsApiWebApplicationFactory : WebApplicationFa
         {
             services.RemoveAll<IParticipantMembershipAccessClient>();
             services.AddScoped<IParticipantMembershipAccessClient>(_ => AccessClient);
+
+            services.RemoveAll<ITeamReferenceCatalogClient>();
+            services.AddScoped<ITeamReferenceCatalogClient>(_ => TeamCatalogClient);
         });
     }
 
     public async Task ResetDatabaseAsync()
     {
+        TeamCatalogClient.Reset();
+
         await using var scope = Services.CreateAsyncScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 

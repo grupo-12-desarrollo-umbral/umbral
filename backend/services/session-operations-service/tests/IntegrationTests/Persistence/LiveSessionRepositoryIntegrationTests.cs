@@ -1,5 +1,6 @@
 using umbral_backend.Domain.Entities;
 using umbral_backend.Domain.Enums;
+using umbral_backend.Domain.Exceptions;
 using umbral_backend.Domain.Services;
 using umbral_backend.Domain.ValueObjects;
 using umbral_backend.Infrastructure.Persistence;
@@ -122,6 +123,79 @@ public sealed class LiveSessionRepositoryIntegrationTests
 
         var reloadedTeam = reloadedSession.Teams.Single();
         reloadedTeam.Members.Should().ContainSingle(member => member.SessionParticipantId == participant.SessionParticipantId);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_PersistsAssociatedTeamsAndQueriesThemBackBySession()
+    {
+        await using var resetContext = BuildContext();
+        await ResetDatabaseAsync(resetContext);
+
+        var scheduledAt = DateTimeOffset.UtcNow.AddMinutes(-15);
+        var liveSession = CreateSession(scheduledAt);
+        var referenceTeamId = Guid.NewGuid();
+        var associatedTeam = liveSession.AssociateTeam(referenceTeamId, "Aurora", "AUR-01");
+
+        await using (var seedContext = BuildContext())
+        {
+            seedContext.LiveSessions.Add(liveSession);
+            await seedContext.SaveChangesAsync(CancellationToken.None);
+        }
+
+        await using var assertContext = BuildContext();
+        var persistedSession = await new LiveSessionRepository(assertContext)
+            .GetByIdAsync(liveSession.LiveSessionId, CancellationToken.None);
+
+        persistedSession.Should().NotBeNull();
+        persistedSession!.Teams.Should().ContainSingle(team => team.ReferenceTeamId == referenceTeamId);
+
+        var persistedTeam = persistedSession.Teams.Single();
+        persistedTeam.TeamId.Should().Be(associatedTeam.TeamId);
+        persistedTeam.DisplayName.Should().Be("Aurora");
+        persistedTeam.TeamCode.Value.Should().Be("AUR-01");
+        persistedTeam.ReferenceTeamId.Should().Be(referenceTeamId);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_DuplicateAssociationAttemptLeavesPersistedSessionUnchanged()
+    {
+        await using var resetContext = BuildContext();
+        await ResetDatabaseAsync(resetContext);
+
+        var scheduledAt = DateTimeOffset.UtcNow.AddMinutes(-20);
+        var liveSession = CreateSession(scheduledAt);
+        var referenceTeamId = Guid.NewGuid();
+        liveSession.AssociateTeam(referenceTeamId, "Vector", "VEC-01");
+
+        await using (var seedContext = BuildContext())
+        {
+            seedContext.LiveSessions.Add(liveSession);
+            await seedContext.SaveChangesAsync(CancellationToken.None);
+        }
+
+        await using (var actContext = BuildContext())
+        {
+            var repository = new LiveSessionRepository(actContext);
+            var persistedSession = await repository.GetByIdAsync(liveSession.LiveSessionId, CancellationToken.None);
+
+            persistedSession.Should().NotBeNull();
+
+            var duplicateAttempt = () => persistedSession!.AssociateTeam(referenceTeamId, "Vector", "VEC-01");
+            duplicateAttempt.Should().Throw<DuplicateTeamAssociationInSessionException>();
+
+            await repository.UpdateAsync(persistedSession!, CancellationToken.None);
+        }
+
+        await using var assertContext = BuildContext();
+        var reloadedSession = await new LiveSessionRepository(assertContext)
+            .GetByIdAsync(liveSession.LiveSessionId, CancellationToken.None);
+
+        reloadedSession.Should().NotBeNull();
+        reloadedSession!.Teams.Should().ContainSingle();
+
+        var persistedTeam = reloadedSession.Teams.Single();
+        persistedTeam.ReferenceTeamId.Should().Be(referenceTeamId);
+        persistedTeam.TeamCode.Value.Should().Be("VEC-01");
     }
 
     private ApplicationDbContext BuildContext()
