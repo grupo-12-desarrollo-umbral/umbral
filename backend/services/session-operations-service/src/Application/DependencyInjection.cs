@@ -44,6 +44,8 @@ public static class DependencyInjection
         builder.Services.AddScoped<IReconnectAuthenticatedParticipantExecutor, ReconnectAuthenticatedParticipantService>();
         builder.Services.AddScoped<IReconnectAuthenticatedParticipantService, ReconnectAuthenticatedParticipantAuthorizationProxy>();
         builder.Services.AddScoped<ITransitionSessionStateFacade, TransitionSessionStateFacade>();
+        builder.Services.AddScoped<ITriviaRoundOrchestratorFacade, TriviaRoundOrchestratorFacade>();
+        builder.Services.AddScoped<IQuestionActivationStrategy, SequentialQuestionActivationStrategy>();
 
         // Chain of Responsibility for session-state transitions. Registration order is the run
         // order; downstream HUs append a validator here without modifying SessionTransitionChain.

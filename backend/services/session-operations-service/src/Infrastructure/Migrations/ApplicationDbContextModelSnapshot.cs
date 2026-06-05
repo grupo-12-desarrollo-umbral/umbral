@@ -32,6 +32,10 @@ namespace umbral_backend.Infrastructure.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("assigned_operator_user_id");
 
+                    b.Property<int?>("ActiveQuestionIndex")
+                        .HasColumnType("integer")
+                        .HasColumnName("active_question_index");
+
                     b.Property<DateTimeOffset?>("CancelledAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("cancelled_at");
@@ -100,6 +104,22 @@ namespace umbral_backend.Infrastructure.Migrations
                     b.Property<DateTimeOffset?>("_sessionTimerExpiredAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("session_timer_expired_at");
+
+                    b.Property<DateTimeOffset?>("_questionTimerAdvancingSince")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("question_timer_advancing_since");
+
+                    b.Property<DateTimeOffset?>("_questionTimerExpiredAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("question_timer_expired_at");
+
+                    b.Property<TimeSpan>("_questionTimerRemainingDuration")
+                        .HasColumnType("interval")
+                        .HasColumnName("question_timer_remaining_duration");
+
+                    b.Property<TimeSpan>("_questionTimerTotalDuration")
+                        .HasColumnType("interval")
+                        .HasColumnName("question_timer_total_duration");
 
                     b.Property<TimeSpan>("_sessionTimerRemainingDuration")
                         .HasColumnType("interval")

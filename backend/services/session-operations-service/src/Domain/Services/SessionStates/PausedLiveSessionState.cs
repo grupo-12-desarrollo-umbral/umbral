@@ -15,5 +15,6 @@ internal sealed class PausedLiveSessionState : LiveSessionStateBase
     public override void Enter(LiveSession session, DateTimeOffset occurredAt)
     {
         session.EnterPausedSessionState(occurredAt);
+        session.EnterPausedQuestionTimerState(occurredAt);
     }
 }

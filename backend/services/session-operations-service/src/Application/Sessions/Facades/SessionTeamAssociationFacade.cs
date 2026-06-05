@@ -12,26 +12,73 @@ public sealed class SessionTeamAssociationFacade : ISessionTeamAssociationFacade
 {
     private readonly ILiveSessionRepository _liveSessionRepository;
     private readonly ITeamReferenceCatalogClient _teamReferenceCatalogClient;
+    private readonly ISessionTeamAssociationSyncClient _sessionTeamAssociationSyncClient;
 
     public SessionTeamAssociationFacade(
         ILiveSessionRepository liveSessionRepository,
-        ITeamReferenceCatalogClient teamReferenceCatalogClient)
+        ITeamReferenceCatalogClient teamReferenceCatalogClient,
+        ISessionTeamAssociationSyncClient sessionTeamAssociationSyncClient)
     {
         _liveSessionRepository = liveSessionRepository;
         _teamReferenceCatalogClient = teamReferenceCatalogClient;
+        _sessionTeamAssociationSyncClient = sessionTeamAssociationSyncClient;
     }
 
-    public async Task<AssociateTeamToSessionResultDto> AssociateAsync(
+    public Task<AssociateTeamToSessionResultDto> AssociateAsync(
         AssociateTeamToSessionCommand command,
         CancellationToken cancellationToken)
     {
-        var teamReference = await _teamReferenceCatalogClient.GetByIdAsync(command.ReferenceTeamId, cancellationToken)
-            ?? throw new NotFoundException(nameof(TeamReferenceDto), command.ReferenceTeamId);
+        return AssociateCoreAsync(
+            command.ReferenceTeamId,
+            command.LiveSessionId,
+            ct => _liveSessionRepository.GetByIdAsync(command.LiveSessionId, ct),
+            cancellationToken);
+    }
+
+    public Task<AssociateTeamToSessionResultDto> AssociateByCodeAsync(
+        AssociateTeamToSessionByCodeCommand command,
+        CancellationToken cancellationToken)
+    {
+        return AssociateCoreAsync(
+            command.ReferenceTeamId,
+            command.SessionCode,
+            ct => _liveSessionRepository.GetBySessionCodeAsync(command.SessionCode, ct),
+            cancellationToken);
+    }
+
+    public async Task<SessionAssociatedTeamsDto> GetAssociatedTeamsAsync(
+        GetAssociatedTeamsForSessionQuery query,
+        CancellationToken cancellationToken)
+    {
+        var liveSession = await _liveSessionRepository.GetByIdAsync(query.LiveSessionId, cancellationToken)
+            ?? throw new NotFoundException(nameof(LiveSession), query.LiveSessionId);
+
+        return BuildAssociatedTeams(liveSession);
+    }
+
+    public async Task<SessionAssociatedTeamsDto> GetAssociatedTeamsByCodeAsync(
+        GetAssociatedTeamsForSessionByCodeQuery query,
+        CancellationToken cancellationToken)
+    {
+        var liveSession = await _liveSessionRepository.GetBySessionCodeAsync(query.SessionCode, cancellationToken)
+            ?? throw new NotFoundException(nameof(LiveSession), query.SessionCode);
+
+        return BuildAssociatedTeams(liveSession);
+    }
+
+    private async Task<AssociateTeamToSessionResultDto> AssociateCoreAsync(
+        Guid referenceTeamId,
+        object sessionKey,
+        Func<CancellationToken, Task<LiveSession?>> loadSession,
+        CancellationToken cancellationToken)
+    {
+        var teamReference = await _teamReferenceCatalogClient.GetByIdAsync(referenceTeamId, cancellationToken)
+            ?? throw new NotFoundException(nameof(TeamReferenceDto), referenceTeamId);
 
         EnsureTeamIsActive(teamReference);
 
-        var liveSession = await _liveSessionRepository.GetByIdAsync(command.LiveSessionId, cancellationToken)
-            ?? throw new NotFoundException(nameof(LiveSession), command.LiveSessionId);
+        var liveSession = await loadSession(cancellationToken)
+            ?? throw new NotFoundException(nameof(LiveSession), sessionKey);
 
         var team = liveSession.AssociateTeam(
             teamReference.TeamId,
@@ -40,6 +87,15 @@ public sealed class SessionTeamAssociationFacade : ISessionTeamAssociationFacade
             Math.Max(1, teamReference.ParticipantCount));
 
         await _liveSessionRepository.UpdateAsync(liveSession, cancellationToken);
+
+        // Propagate to identity-access so the participant lobby reflects the association.
+        // Write-time coupling (not a transactional outbox); the sync call is idempotent so the
+        // operator can retry if it hard-fails.
+        await _sessionTeamAssociationSyncClient.SyncAssociationAsync(
+            liveSession.LiveSessionId,
+            liveSession.SessionCode,
+            teamReference.TeamId,
+            cancellationToken);
 
         return new AssociateTeamToSessionResultDto(
             liveSession.LiveSessionId,
@@ -51,13 +107,8 @@ public sealed class SessionTeamAssociationFacade : ISessionTeamAssociationFacade
             liveSession.AssociatedTeamCount);
     }
 
-    public async Task<SessionAssociatedTeamsDto> GetAssociatedTeamsAsync(
-        GetAssociatedTeamsForSessionQuery query,
-        CancellationToken cancellationToken)
+    private static SessionAssociatedTeamsDto BuildAssociatedTeams(LiveSession liveSession)
     {
-        var liveSession = await _liveSessionRepository.GetByIdAsync(query.LiveSessionId, cancellationToken)
-            ?? throw new NotFoundException(nameof(LiveSession), query.LiveSessionId);
-
         var teams = liveSession.Teams
             .Where(team => team.ReferenceTeamId.HasValue)
             .Select(team => new AssociatedSessionTeamDto(

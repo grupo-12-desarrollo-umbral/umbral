@@ -36,6 +36,7 @@ function makeClient() {
       handlers.add(cb);
       return () => handlers.delete(cb);
     },
+    onStateChanged: jest.fn(),
   };
 }
 

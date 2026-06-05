@@ -20,6 +20,7 @@ public sealed class LiveSessionReferenceRepository : ILiveSessionReferenceReposi
     public Task<LiveSessionReference?> GetByIdAsync(Guid liveSessionId, CancellationToken cancellationToken)
     {
         return _context.LiveSessionReferences
+            .Include(liveSessionReference => liveSessionReference.TeamAssociations)
             .SingleOrDefaultAsync(
                 liveSessionReference => liveSessionReference.LiveSessionId == liveSessionId,
                 cancellationToken);
@@ -95,6 +96,12 @@ public sealed class LiveSessionReferenceRepository : ILiveSessionReferenceReposi
     public async Task AddAsync(LiveSessionReference liveSessionReference, CancellationToken cancellationToken)
     {
         await _context.LiveSessionReferences.AddAsync(liveSessionReference, cancellationToken);
+        await _context.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task UpdateAsync(LiveSessionReference liveSessionReference, CancellationToken cancellationToken)
+    {
+        _context.LiveSessionReferences.Update(liveSessionReference);
         await _context.SaveChangesAsync(cancellationToken);
     }
 }

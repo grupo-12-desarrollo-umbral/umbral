@@ -79,6 +79,23 @@ public sealed class LiveSessionConfiguration : IEntityTypeConfiguration<LiveSess
         builder.Property<DateTimeOffset?>("_sessionTimerExpiredAt")
             .HasColumnName("session_timer_expired_at");
 
+        builder.Property(session => session.ActiveQuestionIndex)
+            .HasColumnName("active_question_index");
+
+        builder.Property<TimeSpan>("_questionTimerTotalDuration")
+            .HasColumnName("question_timer_total_duration")
+            .IsRequired();
+
+        builder.Property<TimeSpan>("_questionTimerRemainingDuration")
+            .HasColumnName("question_timer_remaining_duration")
+            .IsRequired();
+
+        builder.Property<DateTimeOffset?>("_questionTimerAdvancingSince")
+            .HasColumnName("question_timer_advancing_since");
+
+        builder.Property<DateTimeOffset?>("_questionTimerExpiredAt")
+            .HasColumnName("question_timer_expired_at");
+
         builder.Property(session => session.AssignedOperatorUserId)
             .HasColumnName("assigned_operator_user_id");
 

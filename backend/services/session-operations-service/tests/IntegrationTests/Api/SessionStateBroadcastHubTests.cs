@@ -162,6 +162,68 @@ public sealed class SessionStateBroadcastHubTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task QuestionBroadcaster_BroadcastsQuestionLifecycleEventsToConnectedParticipant()
+    {
+        var externalIdentityId = Guid.NewGuid();
+        var seeded = await SeedPausedTriviaSessionWithDisconnectedParticipantAsync(externalIdentityId);
+
+        await using var participant = CreateHubConnection(externalIdentityId.ToString(), "Participant", "participant@example.com");
+        await participant.StartAsync();
+
+        await participant.InvokeAsync(
+            nameof(SessionsHub.ReconnectAsync),
+            seeded.LiveSessionId,
+            new SessionsHub.ReconnectParticipantHubRequest(seeded.TeamId, "Nova", null));
+
+        var activated = new TaskCompletionSource<QuestionActivatedNotificationDto>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var closed = new TaskCompletionSource<QuestionClosedNotificationDto>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+
+        participant.On<QuestionActivatedNotificationDto>(
+            SignalRSessionQuestionBroadcaster.QuestionActivatedMethod,
+            notification => activated.TrySetResult(notification));
+        participant.On<QuestionClosedNotificationDto>(
+            SignalRSessionQuestionBroadcaster.QuestionClosedMethod,
+            notification => closed.TrySetResult(notification));
+
+        var activatedAt = DateTimeOffset.UtcNow;
+        var closedAt = activatedAt.AddSeconds(30);
+
+        await using (var scope = _factory.Services.CreateAsyncScope())
+        {
+            var broadcaster = scope.ServiceProvider.GetRequiredService<ISessionQuestionBroadcaster>();
+            await broadcaster.BroadcastQuestionActivatedAsync(
+                new QuestionActivatedNotificationDto(
+                    seeded.LiveSessionId,
+                    QuestionIndex: 0,
+                    SequenceOrder: 1,
+                    Prompt: "Capital of France?",
+                    Options: ["Paris", "Lyon"],
+                    TimeLimitSeconds: 30,
+                    ActivatedAt: activatedAt),
+                CancellationToken.None);
+
+            await broadcaster.BroadcastQuestionClosedAsync(
+                new QuestionClosedNotificationDto(
+                    seeded.LiveSessionId,
+                    QuestionIndex: 0,
+                    ClosedAt: closedAt,
+                    WasExpiredByTimer: true),
+                CancellationToken.None);
+        }
+
+        var activatedCompleted = await Task.WhenAny(activated.Task, Task.Delay(TimeSpan.FromSeconds(5)));
+        activatedCompleted.Should().Be(activated.Task, "question activation must broadcast over SignalR");
+
+        var closedCompleted = await Task.WhenAny(closed.Task, Task.Delay(TimeSpan.FromSeconds(5)));
+        closedCompleted.Should().Be(closed.Task, "question closure must broadcast over SignalR");
+
+        (await activated.Task).Prompt.Should().Be("Capital of France?");
+        (await closed.Task).WasExpiredByTimer.Should().BeTrue();
+    }
+
+    [Fact]
     public async Task NonAssignedOperatorJoin_IsForbidden()
     {
         var seeded = await SeedActiveSessionWithDisconnectedParticipantAsync(Guid.NewGuid());
@@ -256,6 +318,54 @@ public sealed class SessionStateBroadcastHubTests : IAsyncLifetime
         session.MoveTo(SessionState.Preparing, createdAt.AddMinutes(2), transitionPolicy);
         session.MoveTo(SessionState.Active, createdAt.AddMinutes(3), transitionPolicy);
         session.MoveTo(SessionState.Paused, createdAt.AddMinutes(4), transitionPolicy, "Timer test");
+
+        dbContext.LiveSessions.Add(session);
+        await dbContext.SaveChangesAsync();
+
+        return new SeededSession(session.LiveSessionId, team.TeamId);
+    }
+
+    private async Task<SeededSession> SeedPausedTriviaSessionWithDisconnectedParticipantAsync(Guid externalIdentityId)
+    {
+        await using var scope = _factory.Services.CreateAsyncScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var createdAt = DateTimeOffset.UtcNow.AddMinutes(-20);
+
+        var session = LiveSession.CreateTrivia(
+            SessionSource.CreateTriviaQuiz(42),
+            $"SES-{Guid.NewGuid():N}"[..12],
+            "Paused Trivia Session",
+            20,
+            createdAt,
+            TriviaSessionSnapshot.Create(
+                "Trivia Source",
+                [
+                    TriviaQuestionSnapshot.Create(
+                        "Capital of France?",
+                        1,
+                        50,
+                        30,
+                        "Paris is the capital city.",
+                        [
+                            TriviaOptionSnapshot.Create("Paris", 1, true),
+                            TriviaOptionSnapshot.Create("Lyon", 2, false)
+                        ])
+                ]));
+
+        var team = session.RegisterTeam("Red", "RED-01", 4);
+        session.AssignOperator(OperatorUserId, createdAt.AddMinutes(1));
+        var participant = session.AdmitParticipant(
+            externalIdentityId,
+            "Nova",
+            team.TeamId,
+            createdAt.AddMinutes(1),
+            new JoinPolicy()).Participant;
+        session.DisconnectParticipant(participant.SessionParticipantId, createdAt.AddMinutes(5));
+
+        var transitionPolicy = new SessionStateTransitionPolicy();
+        session.MoveTo(SessionState.Preparing, createdAt.AddMinutes(2), transitionPolicy);
+        session.MoveTo(SessionState.Active, createdAt.AddMinutes(3), transitionPolicy);
+        session.MoveTo(SessionState.Paused, createdAt.AddMinutes(4), transitionPolicy, "Trivia test");
 
         dbContext.LiveSessions.Add(session);
         await dbContext.SaveChangesAsync();

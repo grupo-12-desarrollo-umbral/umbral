@@ -10,7 +10,15 @@ public interface ISessionTeamAssociationFacade
         AssociateTeamToSessionCommand command,
         CancellationToken cancellationToken);
 
+    Task<AssociateTeamToSessionResultDto> AssociateByCodeAsync(
+        AssociateTeamToSessionByCodeCommand command,
+        CancellationToken cancellationToken);
+
     Task<SessionAssociatedTeamsDto> GetAssociatedTeamsAsync(
         GetAssociatedTeamsForSessionQuery query,
+        CancellationToken cancellationToken);
+
+    Task<SessionAssociatedTeamsDto> GetAssociatedTeamsByCodeAsync(
+        GetAssociatedTeamsForSessionByCodeQuery query,
         CancellationToken cancellationToken);
 }

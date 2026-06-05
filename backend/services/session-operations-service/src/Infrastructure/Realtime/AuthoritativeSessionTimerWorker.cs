@@ -3,6 +3,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using umbral_backend.Application.Common.Interfaces;
 using umbral_backend.Application.Sessions.DTOs;
+using umbral_backend.Application.Sessions.Facades;
 using umbral_backend.Domain.Entities;
 using umbral_backend.Domain.Enums;
 using umbral_backend.Domain.ValueObjects;
@@ -53,6 +54,7 @@ public sealed class AuthoritativeSessionTimerWorker : BackgroundService
         await using var scope = _scopeFactory.CreateAsyncScope();
         var repository = scope.ServiceProvider.GetRequiredService<ILiveSessionRepository>();
         var broadcaster = scope.ServiceProvider.GetRequiredService<ISessionTimerBroadcaster>();
+        var triviaRoundOrchestratorFacade = scope.ServiceProvider.GetRequiredService<ITriviaRoundOrchestratorFacade>();
         var now = _timeProvider.GetUtcNow();
 
         var liveSessions = await repository.ListActiveTimersAsync(cancellationToken);
@@ -69,6 +71,22 @@ public sealed class AuthoritativeSessionTimerWorker : BackgroundService
             {
                 await repository.UpdateAsync(liveSession, cancellationToken);
             }
+
+            if (liveSession.ActiveQuestionIndex is null || !liveSession.IsQuestionTimerAdvancing)
+            {
+                continue;
+            }
+
+            var questionTimerSnapshot = liveSession.MarkQuestionTimerExpiredIfElapsed(now);
+            if (!questionTimerSnapshot.IsExpired)
+            {
+                continue;
+            }
+
+            await triviaRoundOrchestratorFacade.CloseAndAdvanceAsync(
+                liveSession,
+                now,
+                cancellationToken);
         }
     }
 

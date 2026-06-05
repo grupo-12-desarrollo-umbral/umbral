@@ -29,6 +29,22 @@ public sealed class LiveSessionRepository : ILiveSessionRepository
             .SingleOrDefaultAsync(session => session.LiveSessionId == liveSessionId, cancellationToken);
     }
 
+    public Task<LiveSession?> GetBySessionCodeAsync(string sessionCode, CancellationToken cancellationToken)
+    {
+        var normalizedCode = sessionCode.Trim().ToUpperInvariant();
+
+        return _context.LiveSessions
+            .Include(session => session.Teams)
+                .ThenInclude(team => team.Members)
+            .Include(session => session.Participants)
+            .Include(session => session.JoinContexts)
+            .Include(session => session.TriviaSnapshot!)
+                .ThenInclude(snapshot => snapshot.Questions)
+                    .ThenInclude(question => question.Options)
+            .AsSplitQuery()
+            .SingleOrDefaultAsync(session => session.SessionCode == normalizedCode, cancellationToken);
+    }
+
     public Task<LiveSession?> GetTimerSessionByIdAsync(Guid liveSessionId, CancellationToken cancellationToken)
     {
         return _context.LiveSessions
@@ -80,8 +96,16 @@ public sealed class LiveSessionRepository : ILiveSessionRepository
         return await _context.LiveSessions
             .Where(session =>
                 session.State == SessionState.Active &&
-                EF.Property<DateTimeOffset?>(session, "_sessionTimerAdvancingSince") != null &&
-                EF.Property<DateTimeOffset?>(session, "_sessionTimerExpiredAt") == null)
+                (
+                    (
+                        EF.Property<DateTimeOffset?>(session, "_sessionTimerAdvancingSince") != null &&
+                        EF.Property<DateTimeOffset?>(session, "_sessionTimerExpiredAt") == null
+                    ) ||
+                    (
+                        session.ActiveQuestionIndex != null &&
+                        EF.Property<DateTimeOffset?>(session, "_questionTimerExpiredAt") == null
+                    )
+                ))
             .ToListAsync(cancellationToken);
     }
 

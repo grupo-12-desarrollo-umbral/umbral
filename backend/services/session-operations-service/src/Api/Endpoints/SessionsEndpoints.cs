@@ -38,6 +38,12 @@ public sealed class SessionsEndpoints : IEndpointGroup
         sessions.MapGet("/{liveSessionId:guid}/teams", GetAssociatedTeamsAsync)
             .RequireAuthorization(AuthorizationPolicies.Operator);
 
+        sessions.MapPost("/by-code/{sessionCode}/teams", AssociateTeamByCodeAsync)
+            .RequireAuthorization(AuthorizationPolicies.Operator);
+
+        sessions.MapGet("/by-code/{sessionCode}/teams", GetAssociatedTeamsByCodeAsync)
+            .RequireAuthorization(AuthorizationPolicies.Operator);
+
         sessions.MapPost("/{liveSessionId:guid}/participants/reconnect", ReconnectParticipantAsync)
             .RequireAuthorization(AuthorizationPolicies.Participant);
 
@@ -91,6 +97,31 @@ public sealed class SessionsEndpoints : IEndpointGroup
         CancellationToken cancellationToken)
     {
         var result = await sender.Send(new GetAssociatedTeamsForSessionQuery(liveSessionId), cancellationToken);
+        return TypedResults.Ok(result);
+    }
+
+    private static async Task<Ok<AssociateTeamToSessionResultDto>> AssociateTeamByCodeAsync(
+        string sessionCode,
+        AssociateTeamRequest request,
+        ISender sender,
+        CancellationToken cancellationToken)
+    {
+        var result = await sender.Send(
+            new AssociateTeamToSessionByCodeCommand(sessionCode, request.ReferenceTeamId),
+            cancellationToken);
+
+        return TypedResults.Ok(result);
+    }
+
+    private static async Task<Ok<SessionAssociatedTeamsDto>> GetAssociatedTeamsByCodeAsync(
+        string sessionCode,
+        ISender sender,
+        CancellationToken cancellationToken)
+    {
+        var result = await sender.Send(
+            new GetAssociatedTeamsForSessionByCodeQuery(sessionCode),
+            cancellationToken);
+
         return TypedResults.Ok(result);
     }
 

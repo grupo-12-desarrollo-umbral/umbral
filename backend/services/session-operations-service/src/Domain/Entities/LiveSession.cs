@@ -16,6 +16,10 @@ public sealed class LiveSession : BaseAuditableEntity
     private TimeSpan _sessionTimerRemainingDuration;
     private DateTimeOffset? _sessionTimerAdvancingSince;
     private DateTimeOffset? _sessionTimerExpiredAt;
+    private TimeSpan _questionTimerTotalDuration;
+    private TimeSpan _questionTimerRemainingDuration;
+    private DateTimeOffset? _questionTimerAdvancingSince;
+    private DateTimeOffset? _questionTimerExpiredAt;
 
     private LiveSession()
     {
@@ -27,6 +31,8 @@ public sealed class LiveSession : BaseAuditableEntity
         TriviaSnapshot = null;
         _sessionTimerTotalDuration = TimeSpan.Zero;
         _sessionTimerRemainingDuration = TimeSpan.Zero;
+        _questionTimerTotalDuration = TimeSpan.Zero;
+        _questionTimerRemainingDuration = TimeSpan.Zero;
     }
 
     private LiveSession(
@@ -64,6 +70,8 @@ public sealed class LiveSession : BaseAuditableEntity
         TriviaSnapshot = triviaSnapshot;
         _sessionTimerTotalDuration = TimeSpan.FromMinutes(maximumTime.Minutes);
         _sessionTimerRemainingDuration = _sessionTimerTotalDuration;
+        _questionTimerTotalDuration = TimeSpan.Zero;
+        _questionTimerRemainingDuration = TimeSpan.Zero;
     }
 
     public Guid LiveSessionId { get; private set; }
@@ -96,9 +104,13 @@ public sealed class LiveSession : BaseAuditableEntity
 
     public bool IsSessionTimerAdvancing => LiveSessionStateFactory.For(State).IsSessionTimerAdvancing(this);
 
+    public bool IsQuestionTimerAdvancing => LiveSessionStateFactory.For(State).IsQuestionTimerAdvancing(this);
+
     public int? AssignedOperatorUserId { get; private set; }
 
     public TriviaSessionSnapshot? TriviaSnapshot { get; private set; }
+
+    public int? ActiveQuestionIndex { get; private set; }
 
     public IReadOnlyCollection<Team> Teams => _teams.AsReadOnly();
 
@@ -270,6 +282,56 @@ public sealed class LiveSession : BaseAuditableEntity
         return LiveSessionStateFactory.For(State).MarkTimerExpiredIfElapsed(this, occurredAt);
     }
 
+    public void ActivateQuestion(int questionIndex, DateTimeOffset occurredAt)
+    {
+        EnsureCanActivateQuestion(questionIndex);
+
+        var question = TriviaSnapshot!.Questions.ElementAt(questionIndex);
+        ActiveQuestionIndex = questionIndex;
+        _questionTimerTotalDuration = TimeSpan.FromSeconds(question.TimeLimitSeconds);
+        _questionTimerRemainingDuration = _questionTimerTotalDuration;
+        _questionTimerExpiredAt = null;
+        _questionTimerAdvancingSince = occurredAt;
+
+        AddDomainEvent(new QuestionActivatedEvent(
+            LiveSessionId,
+            questionIndex,
+            question.SequenceOrder,
+            question.TimeLimitSeconds,
+            occurredAt));
+    }
+
+    public AuthoritativeSessionTimerSnapshot GetActiveQuestionTimerSnapshot(DateTimeOffset observedAt)
+    {
+        return LiveSessionStateFactory.For(State).GetQuestionTimerSnapshot(this, observedAt);
+    }
+
+    public AuthoritativeSessionTimerSnapshot MarkQuestionTimerExpiredIfElapsed(DateTimeOffset occurredAt)
+    {
+        return LiveSessionStateFactory.For(State).MarkQuestionTimerExpiredIfElapsed(this, occurredAt);
+    }
+
+    public void CloseActiveQuestion(DateTimeOffset occurredAt)
+    {
+        if (ActiveQuestionIndex is null)
+        {
+            throw new NoActiveQuestionException();
+        }
+
+        var questionIndex = ActiveQuestionIndex.Value;
+        var wasExpiredByTimer = _questionTimerExpiredAt.HasValue ||
+            CalculateAdvancingQuestionTimerRemaining(occurredAt) <= TimeSpan.Zero;
+
+        FreezeQuestionTimer(occurredAt);
+        ActiveQuestionIndex = null;
+
+        AddDomainEvent(new QuestionClosedEvent(
+            LiveSessionId,
+            questionIndex,
+            occurredAt,
+            wasExpiredByTimer));
+    }
+
     public void AssignOperator(int operatorUserId, DateTimeOffset occurredAt)
     {
         if (operatorUserId <= 0)
@@ -294,6 +356,14 @@ public sealed class LiveSession : BaseAuditableEntity
             _sessionTimerRemainingDuration > TimeSpan.Zero;
     }
 
+    internal bool HasAdvancingQuestionTimer()
+    {
+        return ActiveQuestionIndex.HasValue &&
+            _questionTimerAdvancingSince.HasValue &&
+            _questionTimerExpiredAt is null &&
+            _questionTimerRemainingDuration > TimeSpan.Zero;
+    }
+
     internal void EnterActiveSessionState(DateTimeOffset occurredAt)
     {
         StartedAt ??= occurredAt;
@@ -310,21 +380,33 @@ public sealed class LiveSession : BaseAuditableEntity
         _sessionTimerAdvancingSince = occurredAt;
     }
 
+    internal void EnterActiveQuestionTimerState(DateTimeOffset occurredAt)
+    {
+        ResumeQuestionTimer(occurredAt);
+    }
+
     internal void EnterPausedSessionState(DateTimeOffset occurredAt)
     {
         FreezeSessionTimer(occurredAt);
         PausedAt = occurredAt;
     }
 
+    internal void EnterPausedQuestionTimerState(DateTimeOffset occurredAt)
+    {
+        FreezeQuestionTimer(occurredAt);
+    }
+
     internal void EnterFinishedSessionState(DateTimeOffset occurredAt)
     {
         FreezeSessionTimer(occurredAt);
+        FreezeQuestionTimer(occurredAt);
         EndedAt = occurredAt;
     }
 
     internal void EnterCancelledSessionState(DateTimeOffset occurredAt)
     {
         FreezeSessionTimer(occurredAt);
+        FreezeQuestionTimer(occurredAt);
         CancelledAt = occurredAt;
     }
 
@@ -368,6 +450,46 @@ public sealed class LiveSession : BaseAuditableEntity
         return GetFrozenSessionTimerSnapshot(occurredAt);
     }
 
+    internal AuthoritativeSessionTimerSnapshot GetAdvancingQuestionTimerSnapshot(DateTimeOffset observedAt)
+    {
+        var remaining = CalculateAdvancingQuestionTimerRemaining(observedAt);
+        var expired = _questionTimerExpiredAt.HasValue || remaining <= TimeSpan.Zero;
+
+        return AuthoritativeSessionTimerSnapshot.Create(
+            _questionTimerTotalDuration,
+            remaining,
+            isAdvancing: !expired && HasAdvancingQuestionTimer(),
+            observedAt,
+            _questionTimerAdvancingSince,
+            _questionTimerExpiredAt);
+    }
+
+    internal AuthoritativeSessionTimerSnapshot GetFrozenQuestionTimerSnapshot(DateTimeOffset observedAt)
+    {
+        return AuthoritativeSessionTimerSnapshot.Create(
+            _questionTimerTotalDuration,
+            _questionTimerExpiredAt.HasValue ? TimeSpan.Zero : _questionTimerRemainingDuration,
+            isAdvancing: false,
+            observedAt,
+            advancingSince: null,
+            _questionTimerExpiredAt);
+    }
+
+    internal AuthoritativeSessionTimerSnapshot MarkAdvancingQuestionTimerExpiredIfElapsed(DateTimeOffset occurredAt)
+    {
+        var remaining = CalculateAdvancingQuestionTimerRemaining(occurredAt);
+        if (remaining > TimeSpan.Zero)
+        {
+            return GetAdvancingQuestionTimerSnapshot(occurredAt);
+        }
+
+        _questionTimerRemainingDuration = TimeSpan.Zero;
+        _questionTimerAdvancingSince = null;
+        _questionTimerExpiredAt ??= occurredAt;
+
+        return GetFrozenQuestionTimerSnapshot(occurredAt);
+    }
+
     private void FreezeSessionTimer(DateTimeOffset occurredAt)
     {
         if (_sessionTimerAdvancingSince is null)
@@ -382,6 +504,41 @@ public sealed class LiveSession : BaseAuditableEntity
         {
             _sessionTimerRemainingDuration = TimeSpan.Zero;
             _sessionTimerExpiredAt ??= occurredAt;
+        }
+    }
+
+    private void ResumeQuestionTimer(DateTimeOffset occurredAt)
+    {
+        if (ActiveQuestionIndex is null)
+        {
+            return;
+        }
+
+        if (_questionTimerExpiredAt is not null || _questionTimerRemainingDuration <= TimeSpan.Zero)
+        {
+            _questionTimerRemainingDuration = TimeSpan.Zero;
+            _questionTimerAdvancingSince = null;
+            _questionTimerExpiredAt ??= occurredAt;
+            return;
+        }
+
+        _questionTimerAdvancingSince = occurredAt;
+    }
+
+    private void FreezeQuestionTimer(DateTimeOffset occurredAt)
+    {
+        if (_questionTimerAdvancingSince is null)
+        {
+            return;
+        }
+
+        _questionTimerRemainingDuration = CalculateAdvancingQuestionTimerRemaining(occurredAt);
+        _questionTimerAdvancingSince = null;
+
+        if (_questionTimerRemainingDuration <= TimeSpan.Zero)
+        {
+            _questionTimerRemainingDuration = TimeSpan.Zero;
+            _questionTimerExpiredAt ??= occurredAt;
         }
     }
 
@@ -405,6 +562,51 @@ public sealed class LiveSession : BaseAuditableEntity
 
         var remaining = _sessionTimerRemainingDuration - elapsed;
         return remaining > TimeSpan.Zero ? remaining : TimeSpan.Zero;
+    }
+
+    private TimeSpan CalculateAdvancingQuestionTimerRemaining(DateTimeOffset observedAt)
+    {
+        if (_questionTimerExpiredAt.HasValue)
+        {
+            return TimeSpan.Zero;
+        }
+
+        if (_questionTimerAdvancingSince is null)
+        {
+            return _questionTimerRemainingDuration;
+        }
+
+        var elapsed = observedAt - _questionTimerAdvancingSince.Value;
+        if (elapsed <= TimeSpan.Zero)
+        {
+            return _questionTimerRemainingDuration;
+        }
+
+        var remaining = _questionTimerRemainingDuration - elapsed;
+        return remaining > TimeSpan.Zero ? remaining : TimeSpan.Zero;
+    }
+
+    private void EnsureCanActivateQuestion(int questionIndex)
+    {
+        if (State is not SessionState.Active)
+        {
+            throw new QuestionActivationRequiresActiveSessionException(State);
+        }
+
+        if (ActiveQuestionIndex is not null)
+        {
+            throw new QuestionAlreadyActiveException(ActiveQuestionIndex.Value);
+        }
+
+        if (TriviaSnapshot is null)
+        {
+            throw new TriviaSessionSnapshotRequiredException();
+        }
+
+        if (questionIndex < 0 || questionIndex >= TriviaSnapshot.Questions.Count)
+        {
+            throw new QuestionIndexOutOfRangeException(questionIndex);
+        }
     }
 
     private Team GetTeam(Guid teamId)

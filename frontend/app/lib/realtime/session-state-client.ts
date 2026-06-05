@@ -7,6 +7,8 @@ import {
   LogLevel,
 } from '@microsoft/signalr'
 import type {
+  QuestionActivatedNotificationDto,
+  QuestionClosedNotificationDto,
   SessionStateChangedNotificationDto,
   SessionTimerUpdatedNotificationDto,
 } from '@/app/lib/definitions'
@@ -22,6 +24,8 @@ type SessionStateClientOptions = {
   onStatusChange: (status: SessionRealtimeStatus) => void
   onStateChanged: (notification: SessionStateChangedNotificationDto) => void
   onTimerUpdated?: (notification: SessionTimerUpdatedNotificationDto) => void
+  onQuestionActivated?: (notification: QuestionActivatedNotificationDto) => void
+  onQuestionClosed?: (notification: QuestionClosedNotificationDto) => void
   onReconnected?: () => void
 }
 
@@ -100,6 +104,42 @@ function normalizeNotification(
   }
 }
 
+function normalizeQuestionActivated(raw: unknown): QuestionActivatedNotificationDto {
+  const n = raw as QuestionActivatedNotificationDto & {
+    LiveSessionId?: string
+    QuestionIndex?: number
+    SequenceOrder?: number
+    Prompt?: string
+    Options?: string[]
+    TimeLimitSeconds?: number
+    ActivatedAt?: string
+  }
+  return {
+    liveSessionId: n.liveSessionId ?? n.LiveSessionId ?? '',
+    questionIndex: n.questionIndex ?? n.QuestionIndex ?? 0,
+    sequenceOrder: n.sequenceOrder ?? n.SequenceOrder ?? 0,
+    prompt: n.prompt ?? n.Prompt ?? '',
+    options: n.options ?? n.Options ?? [],
+    timeLimitSeconds: n.timeLimitSeconds ?? n.TimeLimitSeconds ?? 0,
+    activatedAt: n.activatedAt ?? n.ActivatedAt ?? '',
+  }
+}
+
+function normalizeQuestionClosed(raw: unknown): QuestionClosedNotificationDto {
+  const n = raw as QuestionClosedNotificationDto & {
+    LiveSessionId?: string
+    QuestionIndex?: number
+    ClosedAt?: string
+    WasExpiredByTimer?: boolean
+  }
+  return {
+    liveSessionId: n.liveSessionId ?? n.LiveSessionId ?? '',
+    questionIndex: n.questionIndex ?? n.QuestionIndex ?? 0,
+    closedAt: n.closedAt ?? n.ClosedAt ?? '',
+    wasExpiredByTimer: n.wasExpiredByTimer ?? n.WasExpiredByTimer ?? false,
+  }
+}
+
 async function invokeIfConnected(
   connection: HubConnection,
   methodName: string,
@@ -114,6 +154,8 @@ export function createSessionStateRealtimeClient({
   onStatusChange,
   onStateChanged,
   onTimerUpdated,
+  onQuestionActivated,
+  onQuestionClosed,
   onReconnected,
 }: SessionStateClientOptions): SessionStateRealtimeClient {
   const connection = new HubConnectionBuilder()
@@ -131,6 +173,18 @@ export function createSessionStateRealtimeClient({
   if (onTimerUpdated) {
     connection.on('SessionTimerUpdated', (raw: unknown) => {
       onTimerUpdated(normalizeTimerNotification(raw))
+    })
+  }
+
+  if (onQuestionActivated) {
+    connection.on('QuestionActivated', (raw: unknown) => {
+      onQuestionActivated(normalizeQuestionActivated(raw))
+    })
+  }
+
+  if (onQuestionClosed) {
+    connection.on('QuestionClosed', (raw: unknown) => {
+      onQuestionClosed(normalizeQuestionClosed(raw))
     })
   }
 

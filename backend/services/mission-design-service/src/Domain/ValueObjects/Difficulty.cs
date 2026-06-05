@@ -4,6 +4,13 @@ namespace umbral_backend.Domain.ValueObjects;
 
 public sealed class Difficulty : ValueObject
 {
+    public static readonly IReadOnlyList<string> AllowedValues =
+    [
+        "Beginner",
+        "Intermediate",
+        "Advanced",
+    ];
+
     private Difficulty()
     {
         Value = string.Empty;
@@ -23,7 +30,14 @@ public sealed class Difficulty : ValueObject
             throw new DifficultyValueRequiredException();
         }
 
-        return new Difficulty(value.Trim());
+        var trimmed = value.Trim();
+
+        if (!AllowedValues.Contains(trimmed, StringComparer.OrdinalIgnoreCase))
+        {
+            throw new InvalidDifficultyValueException(trimmed);
+        }
+
+        return new Difficulty(trimmed);
     }
 
     protected override IEnumerable<object> GetEqualityComponents()

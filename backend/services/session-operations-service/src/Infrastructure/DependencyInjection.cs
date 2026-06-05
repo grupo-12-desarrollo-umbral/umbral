@@ -14,6 +14,7 @@ public static class DependencyInjection
         builder.AddPersistenceServices();
         builder.Services.AddSingleton(TimeProvider.System);
         builder.Services.AddSingleton<ISessionTimerBroadcaster, SignalRSessionTimerBroadcaster>();
+        builder.Services.AddSingleton<ISessionQuestionBroadcaster, SignalRSessionQuestionBroadcaster>();
         builder.Services.AddHostedService<AuthoritativeSessionTimerWorker>();
 
         builder.Services.Configure<ParticipantMembershipAccessClientOptions>(
@@ -37,6 +38,12 @@ public static class DependencyInjection
         });
 
         builder.Services.AddHttpClient<ITeamReferenceCatalogClient, TeamReferenceCatalogClient>(client =>
+        {
+            client.BaseAddress = new Uri(identityAccessBaseAddress);
+            client.Timeout = TimeSpan.FromSeconds(10);
+        });
+
+        builder.Services.AddHttpClient<ISessionTeamAssociationSyncClient, SessionTeamAssociationSyncClient>(client =>
         {
             client.BaseAddress = new Uri(identityAccessBaseAddress);
             client.Timeout = TimeSpan.FromSeconds(10);
