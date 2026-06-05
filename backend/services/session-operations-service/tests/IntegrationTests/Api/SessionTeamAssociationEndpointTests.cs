@@ -66,6 +66,11 @@ public sealed class SessionTeamAssociationEndpointTests : IAsyncLifetime
             team.TeamId == payload.RuntimeTeamId &&
             team.ReferenceTeamId == referenceTeamId &&
             team.Capacity == 3);
+
+        _factory.SessionTeamAssociationSyncClient.SyncedAssociations.Should().ContainSingle(sync =>
+            sync.LiveSessionId == liveSession.LiveSessionId &&
+            sync.SessionCode == liveSession.SessionCode &&
+            sync.TeamId == referenceTeamId);
     }
 
     [Fact]
@@ -188,6 +193,97 @@ public sealed class SessionTeamAssociationEndpointTests : IAsyncLifetime
         var response = await _client.GetAsync($"/api/sessions/{liveSession.LiveSessionId}/teams");
 
         response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+    }
+
+    [Fact]
+    public async Task AssociateTeamByCode_WithOperatorRole_PersistsAssociationAndReturnsPayload()
+    {
+        var liveSession = await SeedScheduledSessionAsync();
+        var referenceTeamId = Guid.NewGuid();
+        _factory.TeamCatalogClient.Seed(new TeamReferenceDto(referenceTeamId, "Aurora", "AUR-01", true, 3));
+        AddTrustedHeaders("operator-123", "Operator", "operator@example.com");
+
+        var response = await _client.PostAsJsonAsync(
+            $"/api/sessions/by-code/{liveSession.SessionCode}/teams",
+            new { referenceTeamId });
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var payload = await response.Content.ReadFromJsonAsync<AssociateTeamToSessionResultDto>();
+        payload.Should().NotBeNull();
+        payload!.LiveSessionId.Should().Be(liveSession.LiveSessionId);
+        payload.ReferenceTeamId.Should().Be(referenceTeamId);
+        payload.DisplayName.Should().Be("Aurora");
+        payload.TeamCode.Should().Be("AUR-01");
+        payload.AssociatedTeamCount.Should().Be(1);
+
+        await using var scope = _factory.Services.CreateAsyncScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var persistedSession = await dbContext.LiveSessions
+            .Include(session => session.Teams)
+            .SingleAsync(session => session.LiveSessionId == liveSession.LiveSessionId);
+
+        persistedSession.Teams.Should().ContainSingle(team =>
+            team.TeamId == payload.RuntimeTeamId &&
+            team.ReferenceTeamId == referenceTeamId &&
+            team.Capacity == 3);
+    }
+
+    [Fact]
+    public async Task AssociateTeamByCode_WithUnknownSessionCode_ReturnsNotFound()
+    {
+        var referenceTeamId = Guid.NewGuid();
+        _factory.TeamCatalogClient.Seed(new TeamReferenceDto(referenceTeamId, "Aurora", "AUR-01", true, 3));
+        AddTrustedHeaders("operator-123", "Operator", "operator@example.com");
+
+        var response = await _client.PostAsJsonAsync(
+            "/api/sessions/by-code/NOSUCHCODE/teams",
+            new { referenceTeamId });
+
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    [Fact]
+    public async Task AssociateTeamByCode_WithParticipantRole_ReturnsForbidden()
+    {
+        var liveSession = await SeedScheduledSessionAsync();
+        AddTrustedHeaders("participant-123", "Participant", "participant@example.com");
+
+        var response = await _client.PostAsJsonAsync(
+            $"/api/sessions/by-code/{liveSession.SessionCode}/teams",
+            new { referenceTeamId = Guid.NewGuid() });
+
+        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+    }
+
+    [Fact]
+    public async Task GetAssociatedTeamsByCode_WithOperatorRole_ReturnsPersistedAssociatedTeams()
+    {
+        var liveSession = await SeedScheduledSessionAsync();
+        var firstReferenceTeamId = Guid.NewGuid();
+        var secondReferenceTeamId = Guid.NewGuid();
+
+        _factory.TeamCatalogClient.Seed(new TeamReferenceDto(firstReferenceTeamId, "Aurora", "AUR-01", true, 3));
+        _factory.TeamCatalogClient.Seed(new TeamReferenceDto(secondReferenceTeamId, "Boreal", "BOR-02", true, 2));
+        AddTrustedHeaders("operator-123", "Operator", "operator@example.com");
+
+        await _client.PostAsJsonAsync(
+            $"/api/sessions/by-code/{liveSession.SessionCode}/teams",
+            new { referenceTeamId = firstReferenceTeamId });
+        await _client.PostAsJsonAsync(
+            $"/api/sessions/by-code/{liveSession.SessionCode}/teams",
+            new { referenceTeamId = secondReferenceTeamId });
+
+        var response = await _client.GetAsync($"/api/sessions/by-code/{liveSession.SessionCode}/teams");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var payload = await response.Content.ReadFromJsonAsync<SessionAssociatedTeamsDto>();
+        payload.Should().NotBeNull();
+        payload!.LiveSessionId.Should().Be(liveSession.LiveSessionId);
+        payload.Teams.Should().HaveCount(2);
+        payload.Teams.Should().Contain(team => team.ReferenceTeamId == firstReferenceTeamId && team.DisplayName == "Aurora");
+        payload.Teams.Should().Contain(team => team.ReferenceTeamId == secondReferenceTeamId && team.DisplayName == "Boreal");
     }
 
     private void AddTrustedHeaders(string userId, string role, string email)

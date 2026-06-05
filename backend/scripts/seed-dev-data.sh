@@ -304,12 +304,14 @@ for CODE in "${!SESSIONS[@]}"; do
   psql -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d session_operations -c "
     INSERT INTO live_session_teams (
       id, live_session_id, team_code, display_name,
-      team_capacity, current_score, released_clue_count, join_status
+      team_capacity, current_score, released_clue_count, join_status,
+      reference_team_id
     ) VALUES (
       '$TID', '$SID', '$TCODE', '$TDISPLAY Team',
-      10, null, 0, 'Open'
+      10, null, 0, 'Open',
+      '$TID'
     )
-    ON CONFLICT (id) DO NOTHING;
+    ON CONFLICT (id) DO UPDATE SET reference_team_id = EXCLUDED.reference_team_id;
   "
 done
 
@@ -343,12 +345,14 @@ for CODE in "${!SECOND_TEAMS[@]}"; do
   psql -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d session_operations -c "
     INSERT INTO live_session_teams (
       id, live_session_id, team_code, display_name,
-      team_capacity, current_score, released_clue_count, join_status
+      team_capacity, current_score, released_clue_count, join_status,
+      reference_team_id
     ) VALUES (
       '$TID', '$SID', '$TCODE', '$TDISPLAY Team',
-      10, null, 0, 'Open'
+      10, null, 0, 'Open',
+      '$TID'
     )
-    ON CONFLICT (id) DO NOTHING;
+    ON CONFLICT (id) DO UPDATE SET reference_team_id = EXCLUDED.reference_team_id;
   "
 done
 

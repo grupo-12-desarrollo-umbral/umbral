@@ -127,7 +127,7 @@ public sealed class LiveSessionTests
     {
         var session = LiveSessionFactory.CreateScheduledTreasureHunt();
         var policy = new SessionStateTransitionPolicy();
-        session.RegisterTeam("Alpha", "A-01", 4);
+        session.AssociateTeam(Guid.NewGuid(), "Alpha", "A-01", 4);
         session.MoveTo(SessionState.Preparing, DateTimeOffset.UtcNow, policy);
 
         var act = () => session.AssociateTeam(Guid.NewGuid(), "Beta", "B-01", 2);
@@ -306,7 +306,7 @@ public sealed class LiveSessionTests
     public void GetAuthoritativeSessionTimerSnapshot_WhenActive_DecrementsFromMaximumTime()
     {
         var session = LiveSessionFactory.CreateScheduledTrivia(maximumTimeMinutes: 10);
-        session.RegisterTeam("Alpha", "A-01", 4);
+        session.AssociateTeam(Guid.NewGuid(), "Alpha", "A-01", 4);
         var policy = new SessionStateTransitionPolicy();
         var preparingAt = new DateTimeOffset(2026, 6, 3, 10, 0, 0, TimeSpan.Zero);
         var activeAt = preparingAt.AddMinutes(1);
@@ -327,7 +327,7 @@ public sealed class LiveSessionTests
     public void GetAuthoritativeSessionTimerSnapshot_WhenPaused_FreezesRemainingTime()
     {
         var session = LiveSessionFactory.CreateScheduledTrivia(maximumTimeMinutes: 10);
-        session.RegisterTeam("Alpha", "A-01", 4);
+        session.AssociateTeam(Guid.NewGuid(), "Alpha", "A-01", 4);
         var policy = new SessionStateTransitionPolicy();
         var preparingAt = new DateTimeOffset(2026, 6, 3, 10, 0, 0, TimeSpan.Zero);
         var activeAt = preparingAt.AddMinutes(1);
@@ -349,7 +349,7 @@ public sealed class LiveSessionTests
     public void GetAuthoritativeSessionTimerSnapshot_WhenResumed_ContinuesFromFrozenRemainder()
     {
         var session = LiveSessionFactory.CreateScheduledTrivia(maximumTimeMinutes: 10);
-        session.RegisterTeam("Alpha", "A-01", 4);
+        session.AssociateTeam(Guid.NewGuid(), "Alpha", "A-01", 4);
         var policy = new SessionStateTransitionPolicy();
         var preparingAt = new DateTimeOffset(2026, 6, 3, 10, 0, 0, TimeSpan.Zero);
         var firstActiveAt = preparingAt.AddMinutes(1);
@@ -372,7 +372,7 @@ public sealed class LiveSessionTests
     public void GetAuthoritativeSessionTimerSnapshot_ForReconnect_ReturnsBackendOwnedRemainder()
     {
         var session = LiveSessionFactory.CreateScheduledTrivia(maximumTimeMinutes: 10);
-        var team = session.RegisterTeam("Alpha", "A-01", 4);
+        var team = session.AssociateTeam(Guid.NewGuid(), "Alpha", "A-01", 4);
         var policy = new SessionStateTransitionPolicy();
         var joinedAt = new DateTimeOffset(2026, 6, 3, 10, 0, 0, TimeSpan.Zero);
         var admitted = session.AdmitParticipant(Guid.NewGuid(), "Nora", team.TeamId, joinedAt, _joinPolicy);
@@ -399,7 +399,7 @@ public sealed class LiveSessionTests
     public void MarkSessionTimerExpiredIfElapsed_WhenActiveTimerReachesZero_MarksExpiryAndStopsAdvancing()
     {
         var session = LiveSessionFactory.CreateScheduledTrivia(maximumTimeMinutes: 10);
-        session.RegisterTeam("Alpha", "A-01", 4);
+        session.AssociateTeam(Guid.NewGuid(), "Alpha", "A-01", 4);
         var policy = new SessionStateTransitionPolicy();
         var preparingAt = new DateTimeOffset(2026, 6, 3, 10, 0, 0, TimeSpan.Zero);
         var activeAt = preparingAt.AddMinutes(1);
@@ -415,6 +415,9 @@ public sealed class LiveSessionTests
         snapshot.IsAdvancing.Should().BeFalse();
         snapshot.ExpiredAt.Should().Be(expiredAt);
         session.IsSessionTimerAdvancing.Should().BeFalse();
+    }
+
+    [Fact]
     public void MoveTo_ActiveWithOnlyNonAssociatedRuntimeTeam_ThrowsException()
     {
         var session = LiveSessionFactory.CreateScheduledTreasureHunt();
@@ -426,5 +429,240 @@ public sealed class LiveSessionTests
         var act = () => session.MoveTo(SessionState.Active, DateTimeOffset.UtcNow.AddMinutes(1), policy);
 
         act.Should().Throw<LiveSessionRequiresAtLeastOneTeamException>();
+    }
+
+    [Fact]
+    public void ActivateQuestion_WhenSessionIsActive_ActivatesQuestionAndStartsTimer()
+    {
+        var session = ActivateTriviaSession();
+        var activatedAt = new DateTimeOffset(2026, 6, 3, 10, 1, 5, TimeSpan.Zero);
+
+        session.ActivateQuestion(0, activatedAt);
+
+        session.ActiveQuestionIndex.Should().Be(0);
+        session.IsQuestionTimerAdvancing.Should().BeTrue();
+
+        var snapshot = session.GetActiveQuestionTimerSnapshot(activatedAt.AddSeconds(10));
+        snapshot.TotalDuration.Should().Be(TimeSpan.FromSeconds(30));
+        snapshot.RemainingDuration.Should().Be(TimeSpan.FromSeconds(20));
+        snapshot.IsAdvancing.Should().BeTrue();
+        snapshot.AdvancingSince.Should().Be(activatedAt);
+
+        var activatedEvent = session.DomainEvents.OfType<QuestionActivatedEvent>().Single();
+        activatedEvent.LiveSessionId.Should().Be(session.LiveSessionId);
+        activatedEvent.QuestionIndex.Should().Be(0);
+        activatedEvent.SequenceOrder.Should().Be(1);
+        activatedEvent.TimeLimitSeconds.Should().Be(30);
+        activatedEvent.ActivatedAt.Should().Be(activatedAt);
+    }
+
+    [Fact]
+    public void ActivateQuestion_WhenSessionIsNotActive_ThrowsException()
+    {
+        var session = LiveSessionFactory.CreateScheduledTrivia();
+
+        var act = () => session.ActivateQuestion(0, DateTimeOffset.UtcNow);
+
+        act.Should().Throw<QuestionActivationRequiresActiveSessionException>();
+    }
+
+    [Fact]
+    public void ActivateQuestion_WhenIndexIsOutOfBounds_ThrowsException()
+    {
+        var session = ActivateTriviaSession();
+
+        var act = () => session.ActivateQuestion(1, DateTimeOffset.UtcNow);
+
+        act.Should().Throw<QuestionIndexOutOfRangeException>();
+    }
+
+    [Fact]
+    public void ActivateQuestion_WhenQuestionIsAlreadyActive_ThrowsException()
+    {
+        var session = ActivateTriviaSession();
+        session.ActivateQuestion(0, DateTimeOffset.UtcNow);
+
+        var act = () => session.ActivateQuestion(0, DateTimeOffset.UtcNow.AddSeconds(1));
+
+        act.Should().Throw<QuestionAlreadyActiveException>();
+    }
+
+    [Fact]
+    public void MarkQuestionTimerExpiredIfElapsed_BeforeTimeRunsOut_ReturnsNotExpiredSnapshot()
+    {
+        var session = ActivateTriviaSession();
+        var activatedAt = new DateTimeOffset(2026, 6, 3, 10, 1, 0, TimeSpan.Zero);
+        session.ActivateQuestion(0, activatedAt);
+
+        var snapshot = session.MarkQuestionTimerExpiredIfElapsed(activatedAt.AddSeconds(20));
+
+        snapshot.RemainingDuration.Should().Be(TimeSpan.FromSeconds(10));
+        snapshot.IsExpired.Should().BeFalse();
+        snapshot.IsAdvancing.Should().BeTrue();
+        snapshot.ExpiredAt.Should().BeNull();
+        session.IsQuestionTimerAdvancing.Should().BeTrue();
+    }
+
+    [Fact]
+    public void MarkQuestionTimerExpiredIfElapsed_WhenElapsed_FreezesAtZero()
+    {
+        var session = ActivateTriviaSession();
+        var activatedAt = new DateTimeOffset(2026, 6, 3, 10, 1, 0, TimeSpan.Zero);
+        var expiredAt = activatedAt.AddSeconds(30);
+        session.ActivateQuestion(0, activatedAt);
+
+        var snapshot = session.MarkQuestionTimerExpiredIfElapsed(expiredAt);
+
+        snapshot.RemainingDuration.Should().Be(TimeSpan.Zero);
+        snapshot.IsExpired.Should().BeTrue();
+        snapshot.IsAdvancing.Should().BeFalse();
+        snapshot.ExpiredAt.Should().Be(expiredAt);
+        session.IsQuestionTimerAdvancing.Should().BeFalse();
+    }
+
+    [Fact]
+    public void CloseActiveQuestion_WhenQuestionIsActive_ClearsActiveQuestionAndRaisesEvent()
+    {
+        var session = ActivateTriviaSession();
+        var activatedAt = new DateTimeOffset(2026, 6, 3, 10, 1, 0, TimeSpan.Zero);
+        var closedAt = activatedAt.AddSeconds(12);
+        session.ActivateQuestion(0, activatedAt);
+
+        session.CloseActiveQuestion(closedAt);
+
+        session.ActiveQuestionIndex.Should().BeNull();
+        session.IsQuestionTimerAdvancing.Should().BeFalse();
+
+        var closedEvent = session.DomainEvents.OfType<QuestionClosedEvent>().Single();
+        closedEvent.LiveSessionId.Should().Be(session.LiveSessionId);
+        closedEvent.QuestionIndex.Should().Be(0);
+        closedEvent.ClosedAt.Should().Be(closedAt);
+        closedEvent.WasExpiredByTimer.Should().BeFalse();
+    }
+
+    [Fact]
+    public void CloseActiveQuestion_WhenQuestionExpired_ReportsTimerExpiry()
+    {
+        var session = ActivateTriviaSession();
+        var activatedAt = new DateTimeOffset(2026, 6, 3, 10, 1, 0, TimeSpan.Zero);
+        var expiredAt = activatedAt.AddSeconds(30);
+        session.ActivateQuestion(0, activatedAt);
+        session.MarkQuestionTimerExpiredIfElapsed(expiredAt);
+
+        session.CloseActiveQuestion(expiredAt);
+
+        session.DomainEvents
+            .OfType<QuestionClosedEvent>()
+            .Single()
+            .WasExpiredByTimer
+            .Should()
+            .BeTrue();
+    }
+
+    [Fact]
+    public void CloseActiveQuestion_WhenNoQuestionIsActive_ThrowsException()
+    {
+        var session = ActivateTriviaSession();
+
+        var act = () => session.CloseActiveQuestion(DateTimeOffset.UtcNow);
+
+        act.Should().Throw<NoActiveQuestionException>();
+    }
+
+    [Fact]
+    public void IsQuestionTimerAdvancing_IsTrueOnlyWhenActiveStateOwnsRunningQuestionTimer()
+    {
+        var session = ActivateTriviaSession();
+        var activatedAt = new DateTimeOffset(2026, 6, 3, 10, 1, 0, TimeSpan.Zero);
+        var pausedAt = activatedAt.AddSeconds(10);
+        session.ActivateQuestion(0, activatedAt);
+
+        session.IsQuestionTimerAdvancing.Should().BeTrue();
+
+        session.MoveTo(SessionState.Paused, pausedAt, new SessionStateTransitionPolicy());
+
+        session.IsQuestionTimerAdvancing.Should().BeFalse();
+    }
+
+    [Fact]
+    public void MoveTo_PausedFreezesQuestionTimerAndResumeRestoresAdvancing()
+    {
+        var session = ActivateTriviaSession();
+        var activatedAt = new DateTimeOffset(2026, 6, 3, 10, 1, 0, TimeSpan.Zero);
+        var pausedAt = activatedAt.AddSeconds(10);
+        var resumedAt = pausedAt.AddSeconds(5);
+        session.ActivateQuestion(0, activatedAt);
+
+        session.MoveTo(SessionState.Paused, pausedAt, new SessionStateTransitionPolicy());
+        var pausedSnapshot = session.GetActiveQuestionTimerSnapshot(pausedAt.AddSeconds(10));
+
+        session.MoveTo(SessionState.Active, resumedAt, new SessionStateTransitionPolicy());
+        var resumedSnapshot = session.GetActiveQuestionTimerSnapshot(resumedAt.AddSeconds(5));
+
+        pausedSnapshot.RemainingDuration.Should().Be(TimeSpan.FromSeconds(20));
+        pausedSnapshot.IsAdvancing.Should().BeFalse();
+        resumedSnapshot.RemainingDuration.Should().Be(TimeSpan.FromSeconds(15));
+        resumedSnapshot.IsAdvancing.Should().BeTrue();
+        resumedSnapshot.AdvancingSince.Should().Be(resumedAt);
+    }
+
+    [Fact]
+    public void SequentialQuestionActivationStrategy_WhenNoQuestionIsActive_ReturnsFirstBySequence()
+    {
+        var session = LiveSessionFactory.CreateScheduledTriviaWithThreeQuestions();
+        var strategy = new SequentialQuestionActivationStrategy();
+
+        var next = strategy.Next(session);
+
+        next.Should().Be(0);
+    }
+
+    [Fact]
+    public void SequentialQuestionActivationStrategy_WhenQuestionIsActive_ReturnsNextBySequence()
+    {
+        var session = ActivateTriviaSessionWithThreeQuestions();
+        var strategy = new SequentialQuestionActivationStrategy();
+        session.ActivateQuestion(0, DateTimeOffset.UtcNow);
+
+        var next = strategy.Next(session);
+
+        next.Should().Be(1);
+    }
+
+    [Fact]
+    public void SequentialQuestionActivationStrategy_WhenLastQuestionIsActive_ReturnsNull()
+    {
+        var session = ActivateTriviaSessionWithThreeQuestions();
+        var strategy = new SequentialQuestionActivationStrategy();
+        session.ActivateQuestion(2, DateTimeOffset.UtcNow);
+
+        var next = strategy.Next(session);
+
+        next.Should().BeNull();
+    }
+
+    private static LiveSession ActivateTriviaSession()
+    {
+        var session = LiveSessionFactory.CreateScheduledTrivia();
+        Activate(session);
+        return session;
+    }
+
+    private static LiveSession ActivateTriviaSessionWithThreeQuestions()
+    {
+        var session = LiveSessionFactory.CreateScheduledTriviaWithThreeQuestions();
+        Activate(session);
+        return session;
+    }
+
+    private static void Activate(LiveSession session)
+    {
+        var policy = new SessionStateTransitionPolicy();
+        var preparingAt = new DateTimeOffset(2026, 6, 3, 10, 0, 0, TimeSpan.Zero);
+        var activeAt = preparingAt.AddMinutes(1);
+
+        session.AssociateTeam(Guid.NewGuid(), "Alpha", "A-01", 4);
+        session.MoveTo(SessionState.Preparing, preparingAt, policy);
+        session.MoveTo(SessionState.Active, activeAt, policy);
     }
 }

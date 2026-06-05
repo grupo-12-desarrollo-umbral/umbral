@@ -10,6 +10,17 @@ internal static class TriviaSessionSnapshotFactory
         return TriviaSessionSnapshot.Create("Foundations of Science", [CreateQuestion()]);
     }
 
+    internal static TriviaSessionSnapshot CreateThreeQuestions()
+    {
+        return TriviaSessionSnapshot.Create(
+            "Foundations of Science",
+            [
+                CreateQuestion(sequenceOrder: 1),
+                CreateQuestion(sequenceOrder: 2),
+                CreateQuestion(sequenceOrder: 3)
+            ]);
+    }
+
     internal static TriviaQuestionSnapshot CreateQuestion(int sequenceOrder = 1)
     {
         return TriviaQuestionSnapshot.Create(

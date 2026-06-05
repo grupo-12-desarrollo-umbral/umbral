@@ -10,7 +10,9 @@ import { TriviasPanel } from './TriviasPanel'
 import { SessionsPanel } from './SessionsPanel'
 import { SessionOperatorPanel } from './SessionOperatorPanel'
 import { OperatorSessionTimerPanel } from './OperatorSessionTimerPanel'
+import { TriviaRoundPanel } from './TriviaRoundPanel'
 import { createSessionStateRealtimeClient, type SessionRealtimeStatus } from '@/app/lib/realtime/session-state-client'
+import { useTriviaRoundState } from '@/app/lib/realtime/use-trivia-round-state'
 import type {
   PagedResult,
   SessionAssignmentSummaryDto,
@@ -299,6 +301,13 @@ export default function DashboardClient({
   const [cancelReason, setCancelReason] = useState('');
   const [liveUpdateNote, setLiveUpdateNote] = useState<string | null>(null);
   const [timerState, dispatchTimer] = useReducer(timerReducer, { snapshot: null, error: null, loading: false })
+  const triviaRound = useTriviaRoundState()
+  const {
+    reset: resetTriviaRound,
+    handlePregameTimerTick,
+    handleQuestionActivated,
+    handleQuestionClosed,
+  } = triviaRound
   const isOperatorSessionsWorkspace = role === 'operator' && activeNav === 'sessions';
 
   useEffect(() => {
@@ -379,10 +388,30 @@ export default function DashboardClient({
               : session
           )
         )
+        if (notification.currentState !== 'Active') {
+          resetTriviaRound()
+        }
         setLiveUpdateNote('State updated live from another client or tab.')
       },
       onTimerUpdated: (notification: SessionTimerUpdatedNotificationDto) => {
         if (notification.liveSessionId !== selectedRealtimeSessionId) return
+
+        // The pre-game countdown reuses SessionTimerUpdated with a short total window.
+        // The session-creation form enforces a 1-minute (60 000 ms) minimum, so a tiny
+        // total while Active can only be the orchestration's pre-game ticks. Route those
+        // to the trivia state machine and do NOT patch the session timer with them.
+        const isPregame =
+          notification.totalMilliseconds <= 10_000 &&
+          notification.sessionState === 'Active'
+
+        if (isPregame) {
+          handlePregameTimerTick(
+            notification.remainingMilliseconds,
+            notification.totalMilliseconds,
+          )
+          return
+        }
+
         dispatchTimer({
           type: 'patched',
           patch: {
@@ -400,6 +429,14 @@ export default function DashboardClient({
           },
         })
       },
+      onQuestionActivated: (notification) => {
+        if (notification.liveSessionId !== selectedRealtimeSessionId) return
+        handleQuestionActivated(notification)
+      },
+      onQuestionClosed: (notification) => {
+        if (notification.liveSessionId !== selectedRealtimeSessionId) return
+        handleQuestionClosed(notification)
+      },
       onReconnected: () => {
         if (selectedRealtimeSessionId) void loadTimerSnapshot(selectedRealtimeSessionId)
       },
@@ -407,9 +444,16 @@ export default function DashboardClient({
 
     void client.start()
     return () => {
+      resetTriviaRound()
       void client.stop()
     }
-  }, [selectedRealtimeSessionId])
+  }, [
+    selectedRealtimeSessionId,
+    resetTriviaRound,
+    handlePregameTimerTick,
+    handleQuestionActivated,
+    handleQuestionClosed,
+  ])
 
   useEffect(() => {
     dispatchTimer({ type: 'reset' })
@@ -569,12 +613,6 @@ export default function DashboardClient({
                     : `Realtime transport: ${transportStatusText}.`
                   : 'SignalR is healthy, validator sync is stable.'}
               </p>
-
-              <div className={styles.eventTime}>
-                <div className={styles.eyebrow}>Event time</div>
-                <div className={styles.clock}>8:00:42 PM</div>
-                <div className={styles.healthText}>May 24, 2026</div>
-              </div>
             </section>
 
             <button className={styles.collapseButton} type="button">
@@ -803,6 +841,13 @@ export default function DashboardClient({
                   timer={timerState.snapshot}
                   isLoading={timerState.loading}
                   error={timerState.error}
+                />
+
+                <TriviaRoundPanel
+                  phase={triviaRound.phase}
+                  pregameSecondsLeft={triviaRound.pregameSecondsLeft}
+                  activeQuestion={triviaRound.activeQuestion}
+                  questionSecondsLeft={triviaRound.questionSecondsLeft}
                 />
 
                 {liveUpdateNote && (

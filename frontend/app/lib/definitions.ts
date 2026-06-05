@@ -282,6 +282,33 @@ export type SessionTimerUpdatedNotificationDto = {
   sessionState: SessionLifecycleState | string
 }
 
+// SignalR "QuestionActivated" hub event payload.
+// Broadcast when the trivia orchestration activates a question server-side.
+export type QuestionActivatedNotificationDto = {
+  liveSessionId: string
+  questionIndex: number // zero-based internal index
+  sequenceOrder: number // one-based display number shown to operator
+  prompt: string
+  options: string[] // answer texts, order preserved — correct option NOT flagged
+  timeLimitSeconds: number
+  activatedAt: string // ISO 8601 UTC
+}
+
+// SignalR "QuestionClosed" hub event payload.
+export type QuestionClosedNotificationDto = {
+  liveSessionId: string
+  questionIndex: number
+  closedAt: string // ISO 8601 UTC
+  wasExpiredByTimer: boolean
+}
+
+// Phases of the automated trivia round, derived from SignalR pushes only.
+export type TriviaRoundPhase =
+  | 'idle'
+  | 'pregame'
+  | 'question-active'
+  | 'between-questions'
+
 export class IdentityError extends Error {
   constructor(
     public code: 'deactivated' | 'unauthorized' | 'network' | 'unknown',

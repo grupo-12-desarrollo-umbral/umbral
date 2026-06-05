@@ -3,6 +3,7 @@ using umbral_backend.Application.Missions.Commands.CreateMission;
 using umbral_backend.Application.Missions.Commands.DeactivateMission;
 using umbral_backend.Application.Missions.Commands.UpdateMission;
 using umbral_backend.Application.Missions.DTOs;
+using umbral_backend.Application.Missions.Queries.GetDifficultyCatalog;
 using umbral_backend.Application.Missions.Queries.GetMissionCatalog;
 using umbral_backend.Application.Missions.Queries.GetMissionDetail;
 
@@ -14,11 +15,24 @@ public sealed class MissionsEndpoints : IEndpointGroup
     {
         var missions = groupBuilder.MapGroup("/api/missions");
 
+        missions.MapGet("/difficulties", GetDifficultyCatalog);
         missions.MapPost("/", CreateMission);
         missions.MapGet("/", GetMissionCatalog);
         missions.MapGet("/{id:int}", GetMissionDetail);
         missions.MapPut("/{id:int}", UpdateMission);
         missions.MapDelete("/{id:int}", DeactivateMission);
+    }
+
+    private static async Task<Ok<IReadOnlyList<DifficultyResponse>>> GetDifficultyCatalog(
+        ISender sender,
+        CancellationToken cancellationToken)
+    {
+        var difficulties = await sender.Send(new GetDifficultyCatalogQuery(), cancellationToken);
+        var response = difficulties
+            .Select(DifficultyResponse.FromDto)
+            .ToList();
+
+        return TypedResults.Ok<IReadOnlyList<DifficultyResponse>>(response);
     }
 
     private static async Task<Created<MissionResponse>> CreateMission(
@@ -146,5 +160,10 @@ public sealed class MissionsEndpoints : IEndpointGroup
                 missionDto.Status,
                 string.Equals(missionDto.Status, "Ready", StringComparison.Ordinal));
         }
+    }
+
+    public sealed record DifficultyResponse(string Value)
+    {
+        public static DifficultyResponse FromDto(DifficultyDto dto) => new(dto.Value);
     }
 }

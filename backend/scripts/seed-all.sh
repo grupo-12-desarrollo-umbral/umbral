@@ -32,24 +32,6 @@ export PGPASSWORD
 
 echo "=== 1/3  Seeding trivia, sessions, and teams (psql) …"
 
-# Wait for EF Core migrations to create the tables in each database
-echo "Waiting for session_operations.live_sessions table …"
-for i in $(seq 1 20); do
-  psql -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d session_operations -c '
-    SELECT 1 FROM live_sessions LIMIT 1;
-  ' &>/dev/null && break
-  echo "  attempt $i/20 — not ready yet, waiting 2s …"
-  sleep 2
-done
-
-# Delete from session_operations first (cascades to teams/participants).
-# identity_access rows are handled by ON CONFLICT DO NOTHING below.
-for CODE in "${!SESSIONS[@]}"; do
-  psql -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d session_operations -c "
-    DELETE FROM live_sessions WHERE session_code = '$CODE';
-  " 2>/dev/null || true
-done
-
 declare -A SESSIONS=(
   [SMOKE1]=b1000000-0000-0000-0000-000000000000:Scheduled:b1000000-0000-0000-0000-000000000016:DV-SOON:Soon
   [SMOKE2]=b1000000-0000-0000-0000-000000000001:Active:b1000000-0000-0000-0000-000000000010:DV-SMK:Smoke
@@ -59,6 +41,29 @@ declare -A SESSIONS=(
   [SMOKE6]=b1000000-0000-0000-0000-000000000005:Finished:b1000000-0000-0000-0000-000000000014:DV-HTL:Hotel
   [SMOKE7]=b1000000-0000-0000-0000-000000000006:Cancelled:b1000000-0000-0000-0000-000000000015:DV-IND:India
 )
+
+# Wait for EF Core migrations to create the tables in each database
+echo "Waiting for session_operations.live_sessions table …"
+_ready=0
+for i in $(seq 1 60); do
+  psql -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d session_operations -c '
+    SELECT 1 FROM live_sessions LIMIT 1;
+  ' &>/dev/null && { _ready=1; break; }
+  echo "  attempt $i/60 — not ready yet, waiting 5s …"
+  sleep 5
+done
+if [[ "$_ready" -eq 0 ]]; then
+  echo "ERROR: session_operations.live_sessions never became available. Aborting." >&2
+  exit 1
+fi
+
+# Delete from session_operations first (cascades to teams/participants).
+# identity_access rows are handled by ON CONFLICT DO NOTHING below.
+for CODE in "${!SESSIONS[@]}"; do
+  psql -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d session_operations -c "
+    DELETE FROM live_sessions WHERE session_code = '$CODE';
+  " 2>/dev/null || true
+done
 
 echo "  mission_design (trivia quizzes) …"
 psql -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d mission_design -c "
@@ -305,12 +310,14 @@ for CODE in "${!SESSIONS[@]}"; do
   psql -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d session_operations -c "
     INSERT INTO live_session_teams (
       id, live_session_id, team_code, display_name,
-      team_capacity, current_score, released_clue_count, join_status
+      team_capacity, current_score, released_clue_count, join_status,
+      reference_team_id
     ) VALUES (
       '$TID', '$SID', '$TCODE', '$TDISPLAY Team',
-      10, null, 0, 'Open'
+      10, null, 0, 'Open',
+      '$TID'
     )
-    ON CONFLICT (id) DO NOTHING;
+    ON CONFLICT (id) DO UPDATE SET reference_team_id = EXCLUDED.reference_team_id;
   "
 done
 
@@ -341,12 +348,14 @@ for CODE in "${!SECOND_TEAMS[@]}"; do
   psql -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d session_operations -c "
     INSERT INTO live_session_teams (
       id, live_session_id, team_code, display_name,
-      team_capacity, current_score, released_clue_count, join_status
+      team_capacity, current_score, released_clue_count, join_status,
+      reference_team_id
     ) VALUES (
       '$TID', '$SID', '$TCODE', '$TDISPLAY Team',
-      10, null, 0, 'Open'
+      10, null, 0, 'Open',
+      '$TID'
     )
-    ON CONFLICT (id) DO NOTHING;
+    ON CONFLICT (id) DO UPDATE SET reference_team_id = EXCLUDED.reference_team_id;
   "
 done
 

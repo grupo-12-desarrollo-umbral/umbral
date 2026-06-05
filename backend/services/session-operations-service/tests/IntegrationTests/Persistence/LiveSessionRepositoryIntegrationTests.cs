@@ -261,6 +261,61 @@ public sealed class LiveSessionRepositoryIntegrationTests
     }
 
     [Fact]
+    public async Task GetByIdAsync_RestoresActiveQuestionAndQuestionTimerState()
+    {
+        await using var resetContext = BuildContext();
+        await ResetDatabaseAsync(resetContext);
+
+        var activatedAt = DateTimeOffset.UtcNow.AddMinutes(-8);
+        var liveSession = CreateTriviaSession(activatedAt.AddMinutes(-4));
+        TransitionTriviaSessionToActive(liveSession, activatedAt.AddMinutes(-2));
+        liveSession.ActivateQuestion(0, activatedAt);
+
+        await using (var seedContext = BuildContext())
+        {
+            seedContext.LiveSessions.Add(liveSession);
+            await seedContext.SaveChangesAsync(CancellationToken.None);
+        }
+
+        await using var assertContext = BuildContext();
+        var persistedSession = await new LiveSessionRepository(assertContext)
+            .GetByIdAsync(liveSession.LiveSessionId, CancellationToken.None);
+
+        persistedSession.Should().NotBeNull();
+        persistedSession!.ActiveQuestionIndex.Should().Be(0);
+
+        var timerSnapshot = persistedSession.GetActiveQuestionTimerSnapshot(activatedAt.AddSeconds(10));
+        timerSnapshot.TotalDuration.Should().Be(TimeSpan.FromSeconds(30));
+        timerSnapshot.RemainingDuration.Should().BeCloseTo(TimeSpan.FromSeconds(20), TimeSpan.FromMilliseconds(1));
+        timerSnapshot.IsExpired.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task ListActiveTimersAsync_ReturnsSessionWithOnlyActiveQuestionTimer()
+    {
+        await using var resetContext = BuildContext();
+        await ResetDatabaseAsync(resetContext);
+
+        var startedAt = DateTimeOffset.UtcNow.AddMinutes(-5);
+        var liveSession = CreateTriviaSession(startedAt.AddMinutes(-2));
+        TransitionTriviaSessionToActive(liveSession, startedAt);
+        liveSession.ActivateQuestion(0, startedAt.AddSeconds(5));
+        liveSession.MarkSessionTimerExpiredIfElapsed(startedAt.AddMinutes(30));
+
+        await using (var seedContext = BuildContext())
+        {
+            seedContext.LiveSessions.Add(liveSession);
+            await seedContext.SaveChangesAsync(CancellationToken.None);
+        }
+
+        await using var assertContext = BuildContext();
+        var sessions = await new LiveSessionRepository(assertContext)
+            .ListActiveTimersAsync(CancellationToken.None);
+
+        sessions.Should().ContainSingle(session => session.LiveSessionId == liveSession.LiveSessionId);
+    }
+
+    [Fact]
     public async Task GetByIdAsync_RestoresAdvancingAuthoritativeTimerState()
     {
         await using var resetContext = BuildContext();
@@ -353,6 +408,48 @@ public sealed class LiveSessionRepositoryIntegrationTests
     private ApplicationDbContext BuildContext()
     {
         return _contextFactory.Create();
+    }
+
+    private static LiveSession CreateTriviaSession(DateTimeOffset scheduledAt)
+    {
+        return LiveSession.CreateTrivia(
+            SessionSource.CreateTriviaQuiz(42),
+            $"SES-{Guid.NewGuid():N}"[..12],
+            "Trivia Night",
+            20,
+            scheduledAt,
+            TriviaSessionSnapshot.Create(
+                "Trivia Source",
+                [
+                    TriviaQuestionSnapshot.Create(
+                        "Capital of France?",
+                        1,
+                        50,
+                        30,
+                        "Paris is the capital city.",
+                        [
+                            TriviaOptionSnapshot.Create("Paris", 1, true),
+                            TriviaOptionSnapshot.Create("Lyon", 2, false)
+                        ]),
+                    TriviaQuestionSnapshot.Create(
+                        "Capital of Spain?",
+                        2,
+                        50,
+                        25,
+                        "Madrid is the capital city.",
+                        [
+                            TriviaOptionSnapshot.Create("Madrid", 1, true),
+                            TriviaOptionSnapshot.Create("Barcelona", 2, false)
+                        ])
+                ]));
+    }
+
+    private static void TransitionTriviaSessionToActive(LiveSession liveSession, DateTimeOffset activeAt)
+    {
+        var transitionPolicy = new SessionStateTransitionPolicy();
+        liveSession.AssociateTeam(Guid.NewGuid(), "Aurora", "AUR-01", 3);
+        liveSession.MoveTo(SessionState.Preparing, activeAt.AddMinutes(-1), transitionPolicy);
+        liveSession.MoveTo(SessionState.Active, activeAt, transitionPolicy);
     }
 
     private static async Task ResetDatabaseAsync(ApplicationDbContext context)

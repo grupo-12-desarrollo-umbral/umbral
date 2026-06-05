@@ -16,6 +16,7 @@ internal sealed class ActiveLiveSessionState : LiveSessionStateBase
     public override void Enter(LiveSession session, DateTimeOffset occurredAt)
     {
         session.EnterActiveSessionState(occurredAt);
+        session.EnterActiveQuestionTimerState(occurredAt);
     }
 
     public override AuthoritativeSessionTimerSnapshot GetTimerSnapshot(LiveSession session, DateTimeOffset observedAt)
@@ -31,5 +32,20 @@ internal sealed class ActiveLiveSessionState : LiveSessionStateBase
     public override bool IsSessionTimerAdvancing(LiveSession session)
     {
         return session.HasAdvancingSessionTimer();
+    }
+
+    public override AuthoritativeSessionTimerSnapshot GetQuestionTimerSnapshot(LiveSession session, DateTimeOffset observedAt)
+    {
+        return session.GetAdvancingQuestionTimerSnapshot(observedAt);
+    }
+
+    public override AuthoritativeSessionTimerSnapshot MarkQuestionTimerExpiredIfElapsed(LiveSession session, DateTimeOffset occurredAt)
+    {
+        return session.MarkAdvancingQuestionTimerExpiredIfElapsed(occurredAt);
+    }
+
+    public override bool IsQuestionTimerAdvancing(LiveSession session)
+    {
+        return session.HasAdvancingQuestionTimer();
     }
 }

@@ -17,4 +17,10 @@ internal interface ILiveSessionState
     AuthoritativeSessionTimerSnapshot MarkTimerExpiredIfElapsed(LiveSession session, DateTimeOffset occurredAt);
 
     bool IsSessionTimerAdvancing(LiveSession session);
+
+    AuthoritativeSessionTimerSnapshot GetQuestionTimerSnapshot(LiveSession session, DateTimeOffset observedAt);
+
+    AuthoritativeSessionTimerSnapshot MarkQuestionTimerExpiredIfElapsed(LiveSession session, DateTimeOffset occurredAt);
+
+    bool IsQuestionTimerAdvancing(LiveSession session);
 }

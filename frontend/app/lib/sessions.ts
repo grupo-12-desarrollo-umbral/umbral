@@ -171,6 +171,8 @@ export async function getOperatorSessionTimerSnapshot(
   if (!response.ok) throw new IdentityError('unknown', `Timer read failed with status ${response.status}`)
 
   return response.json() as Promise<SessionTimerSnapshotDto>
+}
+
 export async function getSessionAssociatedTeams(
   liveSessionId: string,
 ): Promise<SessionAssociatedTeamsDto> {

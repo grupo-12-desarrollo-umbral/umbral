@@ -8,6 +8,7 @@ namespace umbral_backend.Application.Sessions.Commands.CreateTriviaSession;
 
 public sealed class CreateTriviaSessionFacade : ICreateTriviaSessionFacade
 {
+    private const int SessionCodeLength = 6;
     private const string PublishedStatus = "Published";
 
     private readonly ILiveSessionRepository _liveSessionRepository;
@@ -77,6 +78,6 @@ public sealed class CreateTriviaSessionFacade : ICreateTriviaSessionFacade
 
     private static string GenerateSessionCode()
     {
-        return $"SES-{Guid.NewGuid():N}"[..12];
+        return Guid.NewGuid().ToString("N")[..SessionCodeLength].ToUpperInvariant();
     }
 }

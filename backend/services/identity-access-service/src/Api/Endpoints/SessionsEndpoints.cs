@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Http.HttpResults;
 using umbral_backend.Api.Services;
+using umbral_backend.Application.Sessions.Commands.AssociateTeamToSessionReference;
 using umbral_backend.Application.Sessions.Queries.GetSessionTeamsForParticipant;
 
 namespace umbral_backend.Api.Endpoints;
@@ -12,6 +13,8 @@ public sealed class SessionsEndpoints : IEndpointGroup
 
         sessions.MapGet("/{code}/teams", GetSessionTeamsAsync)
             .RequireAuthorization(AuthorizationPolicies.Participant);
+
+        sessions.MapPost("/{code}/teams", AssociateTeamAsync);
     }
 
     private static async Task<Ok<SessionTeamLobbyDto>> GetSessionTeamsAsync(
@@ -25,4 +28,19 @@ public sealed class SessionsEndpoints : IEndpointGroup
 
         return TypedResults.Ok(result);
     }
+
+    private static async Task<Ok> AssociateTeamAsync(
+        string code,
+        AssociateTeamRequest request,
+        ISender sender,
+        CancellationToken cancellationToken)
+    {
+        await sender.Send(
+            new AssociateTeamToSessionReferenceCommand(request.LiveSessionId, code, request.TeamId),
+            cancellationToken);
+
+        return TypedResults.Ok();
+    }
+
+    public sealed record AssociateTeamRequest(Guid LiveSessionId, Guid TeamId);
 }

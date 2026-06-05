@@ -38,10 +38,13 @@ public sealed class CreateTriviaSessionCommandHandlerTests
         result.Title.Should().Be(command.Title);
         result.SourceTriviaQuizId.Should().Be(command.SourceTriviaQuizId);
         result.SessionState.Should().Be(SessionState.Scheduled.ToString());
+        result.SessionCode.Should().MatchRegex("^[A-Z0-9]{6}$");
         result.QuestionCount.Should().Be(1);
 
         persistedSession.Should().NotBeNull();
         persistedSession!.SessionMode.Should().Be(SessionMode.Trivia);
+        persistedSession.SessionCode.Should().Be(result.SessionCode);
+        persistedSession.SessionCode.Should().MatchRegex("^[A-Z0-9]{6}$");
         persistedSession.Source.SourceTriviaQuizId.Should().Be(command.SourceTriviaQuizId);
         persistedSession.Source.SourceType.Should().Be(SessionSourceType.TriviaQuiz);
         persistedSession.AssignedOperatorUserId.Should().BeNull();

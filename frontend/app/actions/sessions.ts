@@ -100,7 +100,8 @@ export async function getSessionTimerSnapshotAction(
     if (error instanceof IdentityError) return { error: error.message }
     return { error: 'Unexpected error fetching timer snapshot' }
   }
-  
+}
+
 export async function getSessionAssociatedTeams(
   liveSessionId: string,
 ): Promise<SessionAssociatedTeamsDto> {

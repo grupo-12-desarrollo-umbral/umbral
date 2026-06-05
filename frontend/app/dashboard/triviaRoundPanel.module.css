@@ -1,0 +1,111 @@
+.panel {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.eyebrow {
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+/* --- Pre-game --- */
+
+.pregameNumeral {
+  margin: 0.35rem 0 0.85rem;
+  text-align: center;
+  font-size: clamp(3.5rem, 12vw, 5.5rem);
+  line-height: 1;
+  font-weight: 600;
+  letter-spacing: -0.05em;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+}
+
+/* --- Question active --- */
+
+.questionHeader {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.timeLeft {
+  font-size: 1.4rem;
+  line-height: 1;
+  font-weight: 600;
+  letter-spacing: -0.04em;
+  font-variant-numeric: tabular-nums;
+  color: var(--accent-strong);
+}
+
+.timeLeft[data-tone="warning"] {
+  color: color-mix(in oklab, var(--warning) 66%, var(--text-primary));
+}
+
+.timeLeft[data-tone="critical"] {
+  color: color-mix(in oklab, var(--critical) 70%, var(--text-primary));
+}
+
+.prompt {
+  margin: 0.5rem 0 0.85rem;
+  font-size: 1rem;
+  line-height: 1.5;
+  color: var(--text-primary);
+}
+
+/* --- Progress / time bar (shared) --- */
+
+.bar {
+  height: 0.35rem;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--surface-raised) 80%, var(--border-subtle));
+  overflow: hidden;
+}
+
+.barFill {
+  height: 100%;
+  border-radius: 999px;
+  transition: width 400ms ease-out;
+  background: var(--accent);
+}
+
+.barFill[data-tone="warning"] {
+  background: var(--warning);
+}
+
+.barFill[data-tone="critical"] {
+  background: var(--critical);
+}
+
+/* --- Between questions --- */
+
+.transition {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 0;
+}
+
+.transitionLine {
+  flex: 1;
+  height: 1px;
+  background: var(--border-subtle);
+}
+
+.transitionText {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .barFill {
+    transition: none;
+  }
+}

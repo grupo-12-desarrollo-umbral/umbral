@@ -28,6 +28,8 @@ public sealed class SessionOperationsApiWebApplicationFactory : WebApplicationFa
 
     public FakeTeamReferenceCatalogClient TeamCatalogClient { get; } = new();
 
+    public FakeSessionTeamAssociationSyncClient SessionTeamAssociationSyncClient { get; } = new();
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment("Development");
@@ -42,6 +44,8 @@ public sealed class SessionOperationsApiWebApplicationFactory : WebApplicationFa
             services.AddScoped<IAuthenticatedActorProfileAccessClient>(_ => AuthenticatedActorProfileAccessClient);
             services.RemoveAll<ITeamReferenceCatalogClient>();
             services.AddScoped<ITeamReferenceCatalogClient>(_ => TeamCatalogClient);
+            services.RemoveAll<ISessionTeamAssociationSyncClient>();
+            services.AddScoped<ISessionTeamAssociationSyncClient>(_ => SessionTeamAssociationSyncClient);
             services.RemoveAll<IPublishedTriviaQuizSource>();
             services.AddScoped<IPublishedTriviaQuizSource>(_ => TriviaQuizSource);
         });

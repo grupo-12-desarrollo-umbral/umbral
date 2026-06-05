@@ -22,4 +22,6 @@ public interface ILiveSessionReferenceRepository
         CancellationToken cancellationToken);
 
     Task AddAsync(LiveSessionReference liveSessionReference, CancellationToken cancellationToken);
+
+    Task UpdateAsync(LiveSessionReference liveSessionReference, CancellationToken cancellationToken);
 }
