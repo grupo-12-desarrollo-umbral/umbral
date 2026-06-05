@@ -42,13 +42,17 @@ declare -A SESSIONS=(
   [SMOKE7]=b1000000-0000-0000-0000-000000000006:Cancelled:b1000000-0000-0000-0000-000000000015:DV-IND:India
 )
 
-# Wait for EF Core migrations to create the tables in each database
-echo "Waiting for session_operations.live_sessions table …"
+# Wait for EF Core migrations to apply all columns (check for the one that
+# is added last among pending migrations — reference_team_id from
+# AddAssociatedTeamReferenceCorrelation).
+echo "Waiting for session_operations migrations (checking reference_team_id) …"
 _ready=0
 for i in $(seq 1 60); do
-  psql -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d session_operations -c '
-    SELECT 1 FROM live_sessions LIMIT 1;
-  ' &>/dev/null && { _ready=1; break; }
+  psql -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d session_operations -c "
+    SELECT column_name
+    FROM information_schema.columns
+    WHERE table_name = 'live_session_teams' AND column_name = 'reference_team_id';
+  " 2>/dev/null | grep -q reference_team_id && { _ready=1; break; }
   echo "  attempt $i/60 — not ready yet, waiting 5s …"
   sleep 5
 done
