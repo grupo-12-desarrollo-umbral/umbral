@@ -473,7 +473,7 @@ public sealed class LiveSessionRepositoryIntegrationTests
     private static LiveSession CreateActiveSession(DateTimeOffset activeAt)
     {
         var liveSession = CreateSession(activeAt.AddMinutes(-10));
-        liveSession.RegisterTeam("Blue", "BLUE-01", 4);
+        liveSession.AssociateTeam(Guid.NewGuid(), "Blue", "BLUE-01", 4);
         var transitionPolicy = new SessionStateTransitionPolicy();
         liveSession.MoveTo(SessionState.Preparing, activeAt.AddMinutes(-1), transitionPolicy);
         liveSession.MoveTo(SessionState.Active, activeAt, transitionPolicy);

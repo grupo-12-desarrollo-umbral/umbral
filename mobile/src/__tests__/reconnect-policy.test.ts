@@ -25,7 +25,7 @@ describe('reconnect-policy', () => {
     });
   });
 
-  test('refreshes persisted reconnect context with the latest server values', () => {
+  test('refreshes persisted reconnect context without replacing the Identity team id', () => {
     const context = {
       liveSessionId: 'session-1',
       teamId: 'team-1',
@@ -47,7 +47,6 @@ describe('reconnect-policy', () => {
     expect(toUpdatedReconnectContext(context, result)).toEqual({
       ...context,
       liveSessionId: 'session-2',
-      teamId: 'team-2',
       displayName: 'Nova Prime',
       lastSeenAt: '2026-06-03T12:05:00.000Z',
     });

@@ -102,7 +102,6 @@ export function toUpdatedReconnectContext(
   return {
     ...context,
     liveSessionId: result.liveSessionId,
-    teamId: result.teamId,
     displayName: result.participantDisplayName,
     lastSeenAt: result.lastSeenAt,
   };

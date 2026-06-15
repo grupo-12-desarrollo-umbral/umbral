@@ -11,4 +11,15 @@ public sealed record SessionTimerSnapshotDto(
     bool IsExpired,
     DateTimeOffset ObservedAt,
     DateTimeOffset? AdvancingSince,
-    DateTimeOffset? ExpiredAt);
+    DateTimeOffset? ExpiredAt,
+    ActiveQuestionSnapshotDto? ActiveQuestion = null);
+
+public sealed record ActiveQuestionSnapshotDto(
+    Guid LiveSessionId,
+    int QuestionIndex,
+    int SequenceOrder,
+    string Prompt,
+    IReadOnlyList<string> Options,
+    int TimeLimitSeconds,
+    int RemainingSeconds,
+    DateTimeOffset ActivatedAt);

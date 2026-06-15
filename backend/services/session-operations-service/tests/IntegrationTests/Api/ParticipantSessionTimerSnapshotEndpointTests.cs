@@ -154,7 +154,7 @@ public sealed class ParticipantSessionTimerSnapshotEndpointTests : IAsyncLifetim
             maximumTimeMinutes: 45,
             createdAt,
             CreateTriviaSnapshot());
-        var team = session.RegisterTeam("Red", "RED-01", 4);
+        var team = session.AssociateTeam(Guid.NewGuid(), "Red", "RED-01", 4);
 
         MoveToRequestedTimerState(session, seedState, createdAt);
 
