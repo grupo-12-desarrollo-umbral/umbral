@@ -108,7 +108,7 @@ const context: ReconnectContext = {
 
 const result: ReconnectParticipantResultDto = {
   liveSessionId: 'session-1',
-  teamId: 'team-1',
+  teamId: 'runtime-team-1',
   teamDisplayName: 'Red',
   sessionParticipantId: 'participant-1',
   participantDisplayName: 'Nova',

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type {
+  ActiveQuestionSnapshotDto,
   QuestionActivatedNotificationDto,
   QuestionClosedNotificationDto,
   TriviaRoundPhase,
@@ -17,6 +18,7 @@ export type TriviaRoundState = {
 export type TriviaRoundHandlers = {
   handlePregameTimerTick: (remainingMs: number, totalMs: number) => void
   handleQuestionActivated: (n: QuestionActivatedNotificationDto) => void
+  hydrateActiveQuestion: (n: ActiveQuestionSnapshotDto) => void
   handleQuestionClosed: (n: QuestionClosedNotificationDto) => void
   reset: () => void
 }
@@ -64,14 +66,14 @@ export function useTriviaRoundState(): TriviaRoundState & TriviaRoundHandlers {
     }))
   }, [clearCountdown])
 
-  const handleQuestionActivated = useCallback(
-    (n: QuestionActivatedNotificationDto) => {
+  const startQuestionCountdown = useCallback(
+    (n: QuestionActivatedNotificationDto, initialSecondsLeft: number) => {
       clearCountdown()
       setState({
         phase: 'question-active',
         pregameSecondsLeft: null,
         activeQuestion: n,
-        questionSecondsLeft: n.timeLimitSeconds,
+        questionSecondsLeft: initialSecondsLeft,
       })
 
       intervalRef.current = setInterval(() => {
@@ -89,6 +91,20 @@ export function useTriviaRoundState(): TriviaRoundState & TriviaRoundHandlers {
       }, 1000)
     },
     [clearCountdown],
+  )
+
+  const handleQuestionActivated = useCallback(
+    (n: QuestionActivatedNotificationDto) => {
+      startQuestionCountdown(n, n.timeLimitSeconds)
+    },
+    [startQuestionCountdown],
+  )
+
+  const hydrateActiveQuestion = useCallback(
+    (n: ActiveQuestionSnapshotDto) => {
+      startQuestionCountdown(n, n.remainingSeconds)
+    },
+    [startQuestionCountdown],
   )
 
   // The notification payload is not needed: closing always moves to the between-questions
@@ -109,6 +125,7 @@ export function useTriviaRoundState(): TriviaRoundState & TriviaRoundHandlers {
     ...state,
     handlePregameTimerTick,
     handleQuestionActivated,
+    hydrateActiveQuestion,
     handleQuestionClosed,
     reset,
   }

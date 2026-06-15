@@ -48,6 +48,10 @@ public sealed class LiveSessionRepository : ILiveSessionRepository
     public Task<LiveSession?> GetTimerSessionByIdAsync(Guid liveSessionId, CancellationToken cancellationToken)
     {
         return _context.LiveSessions
+            .Include(session => session.TriviaSnapshot!)
+                .ThenInclude(snapshot => snapshot.Questions)
+                    .ThenInclude(question => question.Options)
+            .AsSplitQuery()
             .SingleOrDefaultAsync(session => session.LiveSessionId == liveSessionId, cancellationToken);
     }
 

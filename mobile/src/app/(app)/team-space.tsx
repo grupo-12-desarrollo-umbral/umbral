@@ -197,6 +197,7 @@ export default function TeamSpaceScreen() {
             onLeave={leaveToHome}
             client={client}
             reconnectNonce={reconnectNonce}
+            referenceTeamId={context?.teamId ?? outcome.result.teamId}
             token={context?.token}
           />
       ) : phase === 'no-context' ? (
@@ -228,19 +229,21 @@ function LiveTeamSpace({
   onLeave,
   client,
   reconnectNonce,
+  referenceTeamId,
   token,
 }: {
   outcome: Extract<ReconnectOutcome, { kind: 'reconnected' }>;
   onLeave: () => void;
   client: SessionsHubClient;
   reconnectNonce: number;
+  referenceTeamId: string;
   token?: string | null;
 }) {
   const { result } = outcome;
   const { display } = useSessionTimer({
     client,
     liveSessionId: result.liveSessionId,
-    teamId: result.teamId,
+    teamId: referenceTeamId,
     token,
     isReconnected: true,
     reconnectNonce,

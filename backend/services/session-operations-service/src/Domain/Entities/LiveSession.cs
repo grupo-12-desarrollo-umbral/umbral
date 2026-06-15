@@ -238,7 +238,7 @@ public sealed class LiveSession : BaseAuditableEntity
             throw new ParticipantRemovedFromSessionException(existingParticipant.SessionParticipantId);
         }
 
-        joinPolicy.EnsureCanReconnect(this, existingParticipant, existingTeam, teamId);
+        joinPolicy.EnsureCanReconnect(this, existingParticipant, existingTeam, team.TeamId);
         existingParticipant.RefreshPresence(occurredAt);
         return (existingParticipant, existingTeam, true);
     }
@@ -611,7 +611,9 @@ public sealed class LiveSession : BaseAuditableEntity
 
     private Team GetTeam(Guid teamId)
     {
-        return _teams.SingleOrDefault(team => team.TeamId == teamId)
+        return _teams.SingleOrDefault(team =>
+                team.TeamId == teamId ||
+                team.ReferenceTeamId == teamId)
             ?? throw new TeamNotFoundException(teamId);
     }
 

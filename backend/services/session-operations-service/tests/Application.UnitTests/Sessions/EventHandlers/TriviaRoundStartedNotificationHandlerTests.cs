@@ -119,7 +119,7 @@ public sealed class TriviaRoundStartedNotificationHandlerTests
 
     private static LiveSession CreateTriviaSession()
     {
-        return LiveSession.CreateTrivia(
+        var session = LiveSession.CreateTrivia(
             SessionSource.CreateTriviaQuiz(42),
             $"TRV-{Guid.NewGuid():N}"[..12],
             "Trivia Session",
@@ -139,6 +139,13 @@ public sealed class TriviaRoundStartedNotificationHandlerTests
                             TriviaOptionSnapshot.Create("Option 1B", 2, false)
                         ])
                 ]));
+
+        session.AssociateTeam(Guid.NewGuid(), "Alpha", "A-01", 4);
+        var transitionPolicy = new SessionStateTransitionPolicy();
+        session.MoveTo(SessionState.Preparing, Now.AddMinutes(-2), transitionPolicy);
+        session.MoveTo(SessionState.Active, Now.AddMinutes(-1), transitionPolicy);
+
+        return session;
     }
 
     private static LiveSession CreateTreasureHuntSession()
