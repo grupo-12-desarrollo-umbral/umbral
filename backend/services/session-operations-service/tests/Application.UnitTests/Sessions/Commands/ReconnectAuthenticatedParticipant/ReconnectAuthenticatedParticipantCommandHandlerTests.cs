@@ -56,11 +56,13 @@ public sealed class ReconnectAuthenticatedParticipantCommandHandlerTests
     {
         var session = CreateScheduledSession();
         var identityReferenceTeamId = Guid.NewGuid();
-        var team = session.RegisterTeam(identityReferenceTeamId, "Alpha", "A-01", 4);
+        var team = session.AssociateTeam(identityReferenceTeamId, "Alpha", "A-01", 4);
         var participantIdentity = Guid.NewGuid();
         var joinedAt = new DateTimeOffset(2026, 6, 3, 10, 0, 0, TimeSpan.Zero);
         var activeAt = joinedAt.AddMinutes(2);
         var reconnectAt = activeAt.AddMinutes(5);
+        // The mobile/Identity lobby hands the participant the Identity reference id, not the
+        // runtime TeamId. Drive the whole reconnect with that id to exercise the real contract.
         var firstAdmission = session.AdmitParticipant(
             participantIdentity,
             "Nora",
