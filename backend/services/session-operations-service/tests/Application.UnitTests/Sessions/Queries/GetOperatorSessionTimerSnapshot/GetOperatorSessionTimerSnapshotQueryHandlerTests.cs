@@ -87,6 +87,27 @@ public sealed class GetOperatorSessionTimerSnapshotQueryHandlerTests
     }
 
     [Fact]
+    public async Task Handle_WhenTriviaQuestionIsActive_ReturnsActiveQuestionSnapshot()
+    {
+        var activatedAt = StartsAt.AddMinutes(2);
+        var session = CreateActiveTriviaSession(activatedAt);
+        var handler = CreateHandler(session, observedAt: activatedAt.AddSeconds(5));
+
+        var result = await handler.Handle(
+            new GetOperatorSessionTimerSnapshotQuery(session.LiveSessionId),
+            CancellationToken.None);
+
+        result.ActiveQuestion.Should().NotBeNull();
+        result.ActiveQuestion!.QuestionIndex.Should().Be(0);
+        result.ActiveQuestion.SequenceOrder.Should().Be(1);
+        result.ActiveQuestion.Prompt.Should().Be("What is the closest planet to the Sun?");
+        result.ActiveQuestion.Options.Should().Equal("Mercury", "Venus");
+        result.ActiveQuestion.TimeLimitSeconds.Should().Be(30);
+        result.ActiveQuestion.RemainingSeconds.Should().Be(25);
+        result.ActiveQuestion.ActivatedAt.Should().Be(activatedAt);
+    }
+
+    [Fact]
     public async Task Handle_WhenSessionNotFound_PropagatesNotFoundException()
     {
         var liveSessionId = Guid.NewGuid();
@@ -129,12 +150,49 @@ public sealed class GetOperatorSessionTimerSnapshotQueryHandlerTests
             maximumTimeMinutes,
             StartsAt);
 
-        session.RegisterTeam("Alpha", "A-01", 4);
+        session.AssociateTeam(Guid.NewGuid(), "Alpha", "A-01", 4);
         var transitionPolicy = new SessionStateTransitionPolicy();
         session.MoveTo(SessionState.Preparing, activeAt.AddMinutes(-1), transitionPolicy);
         session.MoveTo(SessionState.Active, activeAt, transitionPolicy);
 
         return session;
+    }
+
+    private static LiveSession CreateActiveTriviaSession(DateTimeOffset activatedAt)
+    {
+        var session = LiveSession.CreateTrivia(
+            SessionSource.CreateTriviaQuiz(42),
+            $"TRI-{Guid.NewGuid():N}"[..12],
+            "Operator Trivia Session",
+            10,
+            StartsAt,
+            CreateTriviaSnapshot());
+
+        session.AssociateTeam(Guid.NewGuid(), "Alpha", "A-01", 4);
+        var transitionPolicy = new SessionStateTransitionPolicy();
+        session.MoveTo(SessionState.Preparing, activatedAt.AddMinutes(-1), transitionPolicy);
+        session.MoveTo(SessionState.Active, activatedAt.AddSeconds(-1), transitionPolicy);
+        session.ActivateQuestion(0, activatedAt);
+
+        return session;
+    }
+
+    private static TriviaSessionSnapshot CreateTriviaSnapshot()
+    {
+        return TriviaSessionSnapshot.Create(
+            "Foundations of Science",
+            [
+                TriviaQuestionSnapshot.Create(
+                    "What is the closest planet to the Sun?",
+                    1,
+                    100,
+                    30,
+                    "Mercury is the closest planet.",
+                    [
+                        TriviaOptionSnapshot.Create("Mercury", 1, true),
+                        TriviaOptionSnapshot.Create("Venus", 2, false)
+                    ])
+            ]);
     }
 
     private static LiveSession CreatePausedSession()
