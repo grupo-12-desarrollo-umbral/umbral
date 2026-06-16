@@ -220,7 +220,7 @@ Internal entities and value objects:
 - `SessionParticipant`
 - `TeamMember`
 - `JoinContext`
-- `EvidenceSubmission` (generic base; first delivery ships only the QR mode — see `docs/adr/0010-evidence-qr-only-first-delivery.md`)
+- `EvidenceSubmission`
 - `TreasureEvidenceSubmission`
 - `TargetResolution`
 - `TriviaAnswerSubmission`
@@ -229,6 +229,13 @@ Internal entities and value objects:
 - `SessionState`
 - `SessionSource`
 - `TeamCode`
+
+> *Evidence* is the generic umbrella term for a team submission that proves or
+> resolves progress in the active mission substage. `EvidenceSubmission` is the
+> umbrella base, specialized into exactly two forms:
+> `TreasureEvidenceSubmission` (the QR/token scan in treasure-hunt substages)
+> and `TriviaAnswerSubmission` (the team answer in trivia substages). Each form
+> keeps its own concrete validation and events.
 
 ### `ScoringMonitoring`
 
