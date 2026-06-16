@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useReducer, useState, useTransition } from 'react';
+import { useCallback, useEffect, useReducer, useState, useTransition } from 'react';
 import { logout } from '@/app/actions/auth';
 import { refreshSession } from '@/app/actions/session';
 import { getUsersPage, deactivateUser, assignUserRole } from '@/app/actions/users';
@@ -306,6 +306,7 @@ export default function DashboardClient({
     reset: resetTriviaRound,
     handlePregameTimerTick,
     handleQuestionActivated,
+    hydrateActiveQuestion,
     handleQuestionClosed,
   } = triviaRound
   const isOperatorSessionsWorkspace = role === 'operator' && activeNav === 'sessions';
@@ -358,15 +359,20 @@ export default function DashboardClient({
   // was stopped during negotiation"). Keying on the id connects once per selected session.
   const selectedRealtimeSessionId = selectedOperatorSession?.liveSessionId ?? null
 
-  async function loadTimerSnapshot(liveSessionId: string) {
+  const loadTimerSnapshot = useCallback(async (liveSessionId: string) => {
     dispatchTimer({ type: 'load' })
     const result = await getSessionTimerSnapshotAction(liveSessionId)
     if ('error' in result) {
       dispatchTimer({ type: 'failed', error: result.error })
     } else {
       dispatchTimer({ type: 'loaded', data: result.data })
+      if (result.data.activeQuestion) {
+        hydrateActiveQuestion(result.data.activeQuestion)
+      } else if (result.data.sessionState !== 'Active') {
+        resetTriviaRound()
+      }
     }
-  }
+  }, [hydrateActiveQuestion, resetTriviaRound])
 
   useEffect(() => {
     if (!selectedRealtimeSessionId) return
@@ -449,9 +455,11 @@ export default function DashboardClient({
     }
   }, [
     selectedRealtimeSessionId,
+    loadTimerSnapshot,
     resetTriviaRound,
     handlePregameTimerTick,
     handleQuestionActivated,
+    hydrateActiveQuestion,
     handleQuestionClosed,
   ])
 
@@ -459,7 +467,7 @@ export default function DashboardClient({
     dispatchTimer({ type: 'reset' })
     if (!selectedRealtimeSessionId) return
     void loadTimerSnapshot(selectedRealtimeSessionId)
-  }, [selectedRealtimeSessionId])
+  }, [selectedRealtimeSessionId, loadTimerSnapshot])
 
   function announce(title: string, body: string) {
     setToast({ title, body });
@@ -530,6 +538,11 @@ export default function DashboardClient({
       announce(`${selectedOperatorSession.title} moved to ${result.currentState}`, 'The backend accepted the lifecycle transition.')
       if (result.timer) {
         dispatchTimer({ type: 'loaded', data: result.timer })
+        if (result.timer.activeQuestion) {
+          hydrateActiveQuestion(result.timer.activeQuestion)
+        } else if (result.timer.sessionState !== 'Active') {
+          resetTriviaRound()
+        }
       } else {
         void loadTimerSnapshot(selectedOperatorSession.liveSessionId)
       }

@@ -209,7 +209,7 @@ public sealed class GetParticipantSessionTimerSnapshotQueryHandlerTests
             maximumTimeMinutes,
             StartsAt);
 
-        session.RegisterTeam("Alpha", "A-01", 4);
+        session.AssociateTeam(Guid.NewGuid(), "Alpha", "A-01", 4);
         var transitionPolicy = new SessionStateTransitionPolicy();
         session.MoveTo(SessionState.Preparing, activeAt.AddMinutes(-1), transitionPolicy);
         session.MoveTo(SessionState.Active, activeAt, transitionPolicy);

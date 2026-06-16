@@ -38,10 +38,23 @@ To find your LAN IP on Linux: `ip route get 1 | awk '{print $7; exit}'`
 
 ```bash
 npm install
-npx expo start
+npm start
 ```
 
 Scan the QR code with Expo Go, or press `i` for the iOS simulator / `a` for Android emulator.
+
+This project includes `expo-dev-client` for internal development builds. Use
+`npm run start:dev-client` only when you have a matching development build
+installed; the default `npm start` intentionally targets Expo Go.
+
+`npm start` also sets Expo's advertised LAN host before the QR is generated. This
+prevents Expo from choosing Docker/WSL bridge addresses such as `172.21.0.1`,
+which a physical Android device cannot reach. If auto-detection picks the wrong
+adapter, override it explicitly:
+
+```bash
+REACT_NATIVE_PACKAGER_HOSTNAME=<LAN-IP> npm start
+```
 
 ## Backend stack
 

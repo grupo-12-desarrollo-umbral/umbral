@@ -30,6 +30,9 @@ PGUSER="${PGUSER:-postgres}"
 PGPASSWORD="${PGPASSWORD:-postgres}"
 export PGPASSWORD
 
+SEEDED_LIVE_TRIVIA_TITLE="Seeded Live Trivia"
+SEEDED_LIVE_TRIVIA_SOURCE_TITLE="Filosofos de Atenas"
+
 echo "=== 1/3  Seeding trivia, sessions, and teams (psql) …"
 
 declare -A SESSIONS=(
@@ -42,13 +45,17 @@ declare -A SESSIONS=(
   [SMOKE7]=b1000000-0000-0000-0000-000000000006:Cancelled:b1000000-0000-0000-0000-000000000015:DV-IND:India
 )
 
-# Wait for EF Core migrations to create the tables in each database
-echo "Waiting for session_operations.live_sessions table …"
+# Wait for EF Core migrations to apply all columns (check for the one that
+# is added last among pending migrations — reference_team_id from
+# AddAssociatedTeamReferenceCorrelation).
+echo "Waiting for session_operations migrations (checking reference_team_id) …"
 _ready=0
 for i in $(seq 1 60); do
-  psql -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d session_operations -c '
-    SELECT 1 FROM live_sessions LIMIT 1;
-  ' &>/dev/null && { _ready=1; break; }
+  psql -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d session_operations -c "
+    SELECT column_name
+    FROM information_schema.columns
+    WHERE table_name = 'live_session_teams' AND column_name = 'reference_team_id';
+  " 2>/dev/null | grep -q reference_team_id && { _ready=1; break; }
   echo "  attempt $i/60 — not ready yet, waiting 5s …"
   sleep 5
 done
@@ -64,6 +71,20 @@ for CODE in "${!SESSIONS[@]}"; do
     DELETE FROM live_sessions WHERE session_code = '$CODE';
   " 2>/dev/null || true
 done
+
+while IFS= read -r live_session_id; do
+  [[ -z "$live_session_id" ]] && continue
+  psql -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d identity_access -c "
+    DELETE FROM session_team_associations WHERE live_session_id = '$live_session_id';
+    DELETE FROM live_sessions WHERE id = '$live_session_id';
+  " 2>/dev/null || true
+done < <(psql -At -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d session_operations -c "
+  SELECT id FROM live_sessions WHERE title_snapshot = '$SEEDED_LIVE_TRIVIA_TITLE';
+" 2>/dev/null || true)
+
+psql -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d session_operations -c "
+  DELETE FROM live_sessions WHERE title_snapshot = '$SEEDED_LIVE_TRIVIA_TITLE';
+" 2>/dev/null || true
 
 echo "  mission_design (trivia quizzes) …"
 psql -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d mission_design -c "
@@ -276,6 +297,11 @@ done
 echo "  session_operations (live sessions + teams) …"
 for CODE in "${!SESSIONS[@]}"; do
   IFS=: read -r SID STATE TID TCODE TDISPLAY <<< "${SESSIONS[$CODE]}"
+  # The runtime TeamId (session-operations) is independent of the Identity team id.
+  # A real association mints a fresh runtime id and stores the Identity id separately
+  # in reference_team_id; mirror that here (c-prefixed) instead of reusing $TID for both,
+  # so seeded sessions exercise the same team-resolution path as API-created ones.
+  RUNTIME_TID="c${TID:1}"
   SCHEDULED_AT="now()"
   [[ "$CODE" == "SMOKE1" ]] && SCHEDULED_AT="now() + interval '3 minutes'"
 
@@ -313,7 +339,7 @@ for CODE in "${!SESSIONS[@]}"; do
       team_capacity, current_score, released_clue_count, join_status,
       reference_team_id
     ) VALUES (
-      '$TID', '$SID', '$TCODE', '$TDISPLAY Team',
+      '$RUNTIME_TID', '$SID', '$TCODE', '$TDISPLAY Team',
       10, null, 0, 'Open',
       '$TID'
     )
@@ -334,6 +360,7 @@ declare -A SECOND_TEAMS=(
 for CODE in "${!SECOND_TEAMS[@]}"; do
   IFS=: read -r TID TCODE TDISPLAY <<< "${SECOND_TEAMS[$CODE]}"
   IFS=: read -r SID _ _ _ _ <<< "${SESSIONS[$CODE]}"
+  RUNTIME_TID="c${TID:1}"
 
   psql -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d identity_access -c "
     INSERT INTO teams (id, display_name, team_code, is_active, created_at, updated_at)
@@ -351,7 +378,7 @@ for CODE in "${!SECOND_TEAMS[@]}"; do
       team_capacity, current_score, released_clue_count, join_status,
       reference_team_id
     ) VALUES (
-      '$TID', '$SID', '$TCODE', '$TDISPLAY Team',
+      '$RUNTIME_TID', '$SID', '$TCODE', '$TDISPLAY Team',
       10, null, 0, 'Open',
       '$TID'
     )
@@ -543,6 +570,76 @@ app_assign_participant() {
     -d "{\"userId\":$user_id}"
 }
 
+app_create_trivia_session() {
+  local token="$1" source_trivia_quiz_id="$2" title="$3"
+  local scheduled_at resp http body
+  scheduled_at="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+  resp="$(curl -sS -w $'\n%{http_code}' -X POST "$BASE_URL/api/sessions" \
+    -H "Authorization: Bearer $token" \
+    -H "Content-Type: application/json" \
+    -d "{\"sourceTriviaQuizId\":$source_trivia_quiz_id,\"title\":\"$title\",\"maximumTimeMinutes\":10,\"scheduledAt\":\"$scheduled_at\"}")"
+  http="${resp##*$'\n'}"
+  body="${resp%$'\n'*}"
+  if [[ "$http" != "201" ]]; then
+    echo "  FAILED ($http): could not create live trivia session" >&2
+    echo "$body" >&2
+    return 1
+  fi
+
+  sed -n 's/.*"liveSessionId":"\([^"]*\)".*/\1/p' <<<"$body"
+}
+
+app_assign_operator_to_session() {
+  local token="$1" live_session_id="$2" operator_user_id="$3"
+  local resp http body
+  resp="$(curl -sS -w $'\n%{http_code}' -X PATCH \
+    "$BASE_URL/api/sessions/$live_session_id/operator-assignment" \
+    -H "Authorization: Bearer $token" \
+    -H "Content-Type: application/json" \
+    -d "{\"operatorUserId\":$operator_user_id}")"
+  http="${resp##*$'\n'}"
+  body="${resp%$'\n'*}"
+  if [[ "$http" != "200" ]]; then
+    echo "  FAILED ($http): could not assign operator to live trivia session" >&2
+    echo "$body" >&2
+    return 1
+  fi
+}
+
+app_associate_team_to_session() {
+  local token="$1" live_session_id="$2" reference_team_id="$3"
+  local resp http body
+  resp="$(curl -sS -w $'\n%{http_code}' -X POST \
+    "$BASE_URL/api/sessions/$live_session_id/teams" \
+    -H "Authorization: Bearer $token" \
+    -H "Content-Type: application/json" \
+    -d "{\"referenceTeamId\":\"$reference_team_id\"}")"
+  http="${resp##*$'\n'}"
+  body="${resp%$'\n'*}"
+  if [[ "$http" != "200" ]]; then
+    echo "  FAILED ($http): could not associate team to live trivia session" >&2
+    echo "$body" >&2
+    return 1
+  fi
+}
+
+app_transition_session() {
+  local token="$1" live_session_id="$2" target_state="$3"
+  local resp http body
+  resp="$(curl -sS -w $'\n%{http_code}' -X PATCH \
+    "$BASE_URL/api/sessions/$live_session_id/state" \
+    -H "Authorization: Bearer $token" \
+    -H "Content-Type: application/json" \
+    -d "{\"targetState\":\"$target_state\"}")"
+  http="${resp##*$'\n'}"
+  body="${resp%$'\n'*}"
+  if [[ "$http" != "200" ]]; then
+    echo "  FAILED ($http): could not transition live trivia session to $target_state" >&2
+    echo "$body" >&2
+    return 1
+  fi
+}
+
 declare -A PARTICIPANT_IDS
 
 ADMIN_TOKEN="$(auth_admin)"
@@ -602,6 +699,8 @@ declare -a TEAMS=(
   "Los Panas|PANAS|participant07 participant08"
 )
 
+DELTA_TEAM_ID=""
+
 for spec in "${TEAMS[@]}"; do
   IFS='|' read -r tdisplay tcode tmembers <<<"$spec"
 
@@ -611,6 +710,7 @@ for spec in "${TEAMS[@]}"; do
     exit 1
   fi
   echo "  team ready: $tdisplay ($tcode)"
+  [[ "$tcode" == "DELTA" ]] && DELTA_TEAM_ID="$team_id"
 
   for member in $tmembers; do
     uid="${PARTICIPANT_IDS[$member]:-}"
@@ -627,9 +727,59 @@ for spec in "${TEAMS[@]}"; do
   done
 done
 
+echo "  live trivia session fixture …"
+
+SOURCE_TRIVIA_QUIZ_ID="$(psql -At -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d mission_design -c "
+  SELECT \"Id\"
+  FROM \"TriviaQuizzes\"
+  WHERE \"Title\" = '$SEEDED_LIVE_TRIVIA_SOURCE_TITLE'
+    AND \"Status\" = 'Published'
+  ORDER BY \"Id\" DESC
+  LIMIT 1;
+" | tr -d '[:space:]')"
+
+if [[ -z "$SOURCE_TRIVIA_QUIZ_ID" ]]; then
+  echo "  FAILED: could not resolve published trivia quiz '$SEEDED_LIVE_TRIVIA_SOURCE_TITLE'"
+  exit 1
+fi
+
+if [[ -z "$DELTA_TEAM_ID" ]]; then
+  echo "  FAILED: could not resolve seeded Delta team id"
+  exit 1
+fi
+
+OPERATOR_TOKEN="$(auth_user operator "$OPERATOR_PASSWORD" || true)"
+if [[ -z "$OPERATOR_TOKEN" ]]; then
+  echo "  ERROR: could not obtain an app token for 'operator' to start the live trivia fixture."
+  exit 1
+fi
+
+OPERATOR_USER_ID="$(app_user_id "$OPERATOR_TOKEN" || true)"
+if [[ -z "$OPERATOR_USER_ID" ]]; then
+  echo "  ERROR: could not resolve app user id for seeded operator."
+  exit 1
+fi
+
+SEEDED_LIVE_TRIVIA_ID="$(app_create_trivia_session "$APP_ADMIN_TOKEN" "$SOURCE_TRIVIA_QUIZ_ID" "$SEEDED_LIVE_TRIVIA_TITLE")"
+if [[ -z "$SEEDED_LIVE_TRIVIA_ID" ]]; then
+  echo "  FAILED: live trivia session API returned no liveSessionId"
+  exit 1
+fi
+
+app_assign_operator_to_session "$APP_ADMIN_TOKEN" "$SEEDED_LIVE_TRIVIA_ID" "$OPERATOR_USER_ID"
+app_associate_team_to_session "$OPERATOR_TOKEN" "$SEEDED_LIVE_TRIVIA_ID" "$DELTA_TEAM_ID"
+app_transition_session "$OPERATOR_TOKEN" "$SEEDED_LIVE_TRIVIA_ID" "Preparing"
+app_transition_session "$OPERATOR_TOKEN" "$SEEDED_LIVE_TRIVIA_ID" "Active"
+
+SEEDED_LIVE_TRIVIA_CODE="$(psql -At -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d session_operations -c "
+  SELECT session_code FROM live_sessions WHERE id = '$SEEDED_LIVE_TRIVIA_ID';
+" | tr -d '[:space:]')"
+echo "  live trivia ready: ${SEEDED_LIVE_TRIVIA_CODE:-$SEEDED_LIVE_TRIVIA_ID} → Active"
+
 echo ""
 echo "Done.  Sessions seeded:"
 for CODE in "${!SESSIONS[@]}"; do
   IFS=: read -r SID STATE TID TCODE TDISPLAY <<< "${SESSIONS[$CODE]}"
   echo "  $CODE  → $STATE"
 done
+echo "  ${SEEDED_LIVE_TRIVIA_CODE:-$SEEDED_LIVE_TRIVIA_ID}  → Active (Trivia)"

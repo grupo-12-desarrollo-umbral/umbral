@@ -268,6 +268,7 @@ export type SessionTimerSnapshotDto = {
   observedAt: string
   advancingSince: string | null
   expiredAt: string | null
+  activeQuestion: ActiveQuestionSnapshotDto | null
 }
 
 // SignalR "SessionTimerUpdated" hub event payload.
@@ -292,6 +293,10 @@ export type QuestionActivatedNotificationDto = {
   options: string[] // answer texts, order preserved — correct option NOT flagged
   timeLimitSeconds: number
   activatedAt: string // ISO 8601 UTC
+}
+
+export type ActiveQuestionSnapshotDto = QuestionActivatedNotificationDto & {
+  remainingSeconds: number
 }
 
 // SignalR "QuestionClosed" hub event payload.

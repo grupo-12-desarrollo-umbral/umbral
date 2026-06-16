@@ -167,7 +167,7 @@ public sealed class OperatorSessionTimerSnapshotEndpointTests : IAsyncLifetime
             createdAt,
             CreateTriviaSnapshot());
 
-        session.RegisterTeam("Blue", "BLU-01", 4);
+        session.AssociateTeam(Guid.NewGuid(), "Blue", "BLU-01", 4);
         session.AssignOperator(OperatorUserId, createdAt);
 
         MoveToRequestedTimerState(session, seedState, createdAt);
@@ -192,7 +192,7 @@ public sealed class OperatorSessionTimerSnapshotEndpointTests : IAsyncLifetime
             maximumTimeMinutes: 45,
             createdAt);
 
-        session.RegisterTeam("Blue", "BLU-01", 4);
+        session.AssociateTeam(Guid.NewGuid(), "Blue", "BLU-01", 4);
         session.AssignOperator(OperatorUserId, createdAt);
 
         MoveToRequestedTimerState(session, seedState, createdAt);

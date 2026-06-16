@@ -10,6 +10,8 @@ public static class SessionTimerSnapshotDtoFactory
         Guid? teamId,
         AuthoritativeSessionTimerSnapshot snapshot)
     {
+        var activeQuestion = CreateActiveQuestionSnapshot(liveSession, snapshot.ObservedAt);
+
         return new SessionTimerSnapshotDto(
             liveSession.LiveSessionId,
             teamId,
@@ -21,7 +23,36 @@ public static class SessionTimerSnapshotDtoFactory
             snapshot.IsExpired,
             snapshot.ObservedAt,
             snapshot.AdvancingSince,
-            snapshot.ExpiredAt);
+            snapshot.ExpiredAt,
+            activeQuestion);
+    }
+
+    private static ActiveQuestionSnapshotDto? CreateActiveQuestionSnapshot(
+        LiveSession liveSession,
+        DateTimeOffset observedAt)
+    {
+        if (liveSession.ActiveQuestionIndex is null || liveSession.TriviaSnapshot is null)
+        {
+            return null;
+        }
+
+        var questionIndex = liveSession.ActiveQuestionIndex.Value;
+        var question = liveSession.TriviaSnapshot.Questions.ElementAt(questionIndex);
+        var questionTimer = liveSession.GetActiveQuestionTimerSnapshot(observedAt);
+        var options = question.Options
+            .OrderBy(option => option.SequenceOrder)
+            .Select(option => option.OptionText)
+            .ToArray();
+
+        return new ActiveQuestionSnapshotDto(
+            liveSession.LiveSessionId,
+            questionIndex,
+            question.SequenceOrder,
+            question.Prompt,
+            options,
+            question.TimeLimitSeconds,
+            ToWholeSeconds(questionTimer.RemainingDuration),
+            questionTimer.AdvancingSince ?? observedAt);
     }
 
     private static string ResolveStatus(AuthoritativeSessionTimerSnapshot snapshot)
