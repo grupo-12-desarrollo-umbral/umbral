@@ -220,7 +220,7 @@ Internal entities and value objects:
 - `SessionParticipant`
 - `TeamMember`
 - `JoinContext`
-- `EvidenceSubmission`
+- `EvidenceSubmission` (generic base; first delivery ships only the QR mode — see `docs/adr/0010-evidence-qr-only-first-delivery.md`)
 - `TreasureEvidenceSubmission`
 - `TargetResolution`
 - `TriviaAnswerSubmission`
