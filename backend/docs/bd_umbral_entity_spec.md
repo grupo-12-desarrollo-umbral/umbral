@@ -298,6 +298,7 @@ Key constraints:
 - Type: child entity of `LiveSession`
 - Scope: academic core
 - Why it exists: preserves the canonical academic record of evidence submitted by a team for a mission node
+- Delivery scope: this generic model (text, photo, QR, answer) is canon, but the first delivery implements only the QR mode (`TreasureEvidenceSubmission` + `Target` + `TargetResolution`); non-QR modes and the operator-mediated review path are deferred — see `docs/adr/0010-evidence-qr-only-first-delivery.md`
 
 Suggested fields:
 
