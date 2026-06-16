@@ -345,6 +345,11 @@ export default function DashboardClient({
     role === 'operator'
       ? operatorSessions.find((session) => session.liveSessionId === selectedSessionId) ?? null
       : null
+  // HU-20 criterion 4: switcher and overview lists stay focused on active sessions;
+  // finished/cancelled sessions are reviewed read-only from the Sessions panel.
+  const activeOperatorSessions = operatorSessions.filter(
+    (session) => session.sessionState !== 'Finished' && session.sessionState !== 'Cancelled',
+  )
   const selectedOperatorState = selectedOperatorSession
     ? toLifecycleState(selectedOperatorSession.sessionState)
     : null
@@ -660,7 +665,7 @@ export default function DashboardClient({
                     {role === 'operator' ? (
                       <>
                         <option value="assigned-list">My sessions</option>
-                        {operatorSessions.map((session) => (
+                        {activeOperatorSessions.map((session) => (
                           <option key={session.liveSessionId} value={session.liveSessionId}>
                             {session.title}
                           </option>
@@ -770,7 +775,7 @@ export default function DashboardClient({
               </div>
 
               <div className={styles.sessionCards}>
-                {operatorSessions.map((session) => {
+                {activeOperatorSessions.map((session) => {
                   const sessionState = toLifecycleState(session.sessionState);
 
                   return (
@@ -798,7 +803,7 @@ export default function DashboardClient({
               </div>
 
               <div className={styles.emptyActions}>
-                <button className={styles.primaryButton} onClick={() => operatorSessions[0] && setSelectedSessionId(operatorSessions[0].liveSessionId)} type="button" disabled={operatorSessions.length === 0}>
+                <button className={styles.primaryButton} onClick={() => activeOperatorSessions[0] && setSelectedSessionId(activeOperatorSessions[0].liveSessionId)} type="button" disabled={activeOperatorSessions.length === 0}>
                   Open live session
                 </button>
               </div>

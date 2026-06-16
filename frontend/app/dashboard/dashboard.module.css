@@ -1094,6 +1094,20 @@ html[data-theme="dark"] .cluePreview::after {
   background: color-mix(in oklab, var(--surface-raised) 78%, var(--accent-soft));
 }
 
+.concludedSessions {
+  margin-top: 1rem;
+  border-top: 1px solid var(--border-subtle);
+  padding-top: 1rem;
+  display: grid;
+  gap: 0.75rem;
+}
+
+.concludedSessionsSummary {
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
 .sessionOperatorList {
   display: grid;
   gap: 1rem;

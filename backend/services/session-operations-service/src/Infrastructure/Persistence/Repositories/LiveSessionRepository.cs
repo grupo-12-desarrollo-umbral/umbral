@@ -57,12 +57,19 @@ public sealed class LiveSessionRepository : ILiveSessionRepository
 
     public async Task<IReadOnlyList<SessionOperatorSummaryDto>> ListAssignableSummariesAsync(
         int? assignedOperatorUserId,
+        bool includeConcluded,
         CancellationToken cancellationToken)
     {
         var query = _context.LiveSessions
             .AsNoTracking()
-            .Where(session => session.State != SessionState.Finished && session.State != SessionState.Cancelled)
             .OrderByDescending(session => session.ScheduledAt);
+
+        if (!includeConcluded)
+        {
+            query = query.Where(session =>
+                    session.State != SessionState.Finished && session.State != SessionState.Cancelled)
+                .OrderByDescending(session => session.ScheduledAt);
+        }
 
         if (assignedOperatorUserId is not null)
         {

@@ -35,6 +35,7 @@ public sealed class ListAssignableSessionsQueryHandler
         {
             return await _repository.ListAssignableSummariesAsync(
                 assignedOperatorUserId: null,
+                includeConcluded: false,
                 cancellationToken);
         }
 
@@ -45,6 +46,9 @@ public sealed class ListAssignableSessionsQueryHandler
 
         var actor = await _authenticatedActorProfileAccessClient.GetCurrentAsync(cancellationToken);
 
-        return await _repository.ListAssignableSummariesAsync(actor.UserId, cancellationToken);
+        return await _repository.ListAssignableSummariesAsync(
+            actor.UserId,
+            includeConcluded: true,
+            cancellationToken);
     }
 }
