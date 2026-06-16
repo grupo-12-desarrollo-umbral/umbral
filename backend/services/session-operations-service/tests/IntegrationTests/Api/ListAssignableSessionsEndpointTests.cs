@@ -77,7 +77,7 @@ public sealed class ListAssignableSessionsEndpointTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task ListAssignableSessions_WithAssignedOperatorCaller_ReturnsOnlyOwnedNonTerminalSessions()
+    public async Task ListAssignableSessions_WithAssignedOperatorCaller_ReturnsOwnedSessionsIncludingConcluded()
     {
         var owned = await SeedSessionAsync(
             scheduledAt: new DateTimeOffset(2026, 6, 4, 12, 0, 0, TimeSpan.Zero),
@@ -87,11 +87,16 @@ public sealed class ListAssignableSessionsEndpointTests : IAsyncLifetime
             scheduledAt: new DateTimeOffset(2026, 6, 4, 11, 0, 0, TimeSpan.Zero),
             assignedOperatorUserId: 99,
             title: "Other Operator Session");
-        await SeedSessionAsync(
+        var finished = await SeedSessionAsync(
             scheduledAt: new DateTimeOffset(2026, 6, 4, 10, 0, 0, TimeSpan.Zero),
             assignedOperatorUserId: 27,
             state: SessionState.Finished,
             title: "Finished Session");
+        var cancelled = await SeedSessionAsync(
+            scheduledAt: new DateTimeOffset(2026, 6, 4, 9, 0, 0, TimeSpan.Zero),
+            assignedOperatorUserId: 27,
+            state: SessionState.Cancelled,
+            title: "Cancelled Session");
 
         AddTrustedHeaders(_client, "kc-operator-27", "Operator", "operator@example.com");
 
@@ -101,9 +106,14 @@ public sealed class ListAssignableSessionsEndpointTests : IAsyncLifetime
 
         var payload = await response.Content.ReadFromJsonAsync<List<SessionOperatorSummaryResponse>>();
         payload.Should().NotBeNull();
-        payload!.Should().ContainSingle();
-        payload[0].LiveSessionId.Should().Be(owned.LiveSessionId);
-        payload[0].AssignedOperatorUserId.Should().Be(27);
+        payload!.Should().HaveCount(3);
+        payload.Select(item => item.LiveSessionId)
+            .Should()
+            .ContainInOrder(owned.LiveSessionId, finished.LiveSessionId, cancelled.LiveSessionId);
+        payload.Should().OnlyContain(item => item.AssignedOperatorUserId == 27);
+        payload.Select(item => item.SessionState)
+            .Should()
+            .BeEquivalentTo(new[] { "Scheduled", "Finished", "Cancelled" });
     }
 
     [Fact]

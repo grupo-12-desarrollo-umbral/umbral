@@ -33,6 +33,12 @@ function getLifecycleTone(state: string) {
   return lifecycleTones[state as SessionLifecycleState] ?? 'muted'
 }
 
+const concludedStates = new Set<SessionLifecycleState>(['Finished', 'Cancelled'])
+
+function isConcludedSession(session: SessionAssignmentSummaryDto) {
+  return concludedStates.has(session.sessionState as SessionLifecycleState)
+}
+
 function formatDateTime(value: string) {
   return new Date(value).toLocaleString()
 }
@@ -49,6 +55,12 @@ export function SessionsPanel({
     selectedSessionId == null
       ? null
       : assignedSessions.find((session) => session.liveSessionId === selectedSessionId) ?? null
+  // HU-20 criterion 4: keep the primary list focused on active sessions and
+  // surface finished/cancelled ones in a separate, read-only section.
+  const activeSessions = assignedSessions.filter((session) => !isConcludedSession(session))
+  const concludedSessions = assignedSessions.filter(isConcludedSession)
+  const selectedIsConcluded =
+    selectedAssignedSession != null && isConcludedSession(selectedAssignedSession)
   const selectedLiveSessionId = selectedAssignedSession?.liveSessionId ?? null
   const [associatedTeams, setAssociatedTeams] = useState<SessionAssociatedTeamsDto | null>(null)
   const [catalogTeams, setCatalogTeams] = useState<TeamDto[]>([])
@@ -169,13 +181,15 @@ export function SessionsPanel({
 
           {isLoadingAssignedSessions ? (
             <p className={styles.emptyStateCopy}>Loading assigned sessions...</p>
-          ) : assignedSessions.length === 0 ? (
+          ) : activeSessions.length === 0 ? (
             <p className={styles.emptyStateCopy} data-testid="session-empty-state">
-              You have no assigned sessions yet. Ask an administrator to assign one to you.
+              {concludedSessions.length === 0
+                ? 'You have no assigned sessions yet. Ask an administrator to assign one to you.'
+                : 'You have no active sessions right now. Past sessions are available below.'}
             </p>
           ) : (
             <div className={styles.sessionCards} data-testid="assigned-sessions-list">
-              {assignedSessions.map((session) => (
+              {activeSessions.map((session) => (
                 <button
                   key={session.liveSessionId}
                   type="button"
@@ -201,6 +215,44 @@ export function SessionsPanel({
                 </button>
               ))}
             </div>
+          )}
+
+          {concludedSessions.length > 0 && (
+            <details className={styles.concludedSessions} data-testid="concluded-sessions-section">
+              <summary className={styles.concludedSessionsSummary}>
+                Past sessions ({concludedSessions.length})
+              </summary>
+              <div className={styles.panelMeta}>
+                Finished and cancelled sessions are read-only. Select one to review it.
+              </div>
+              <div className={styles.sessionCards} data-testid="concluded-sessions-list">
+                {concludedSessions.map((session) => (
+                  <button
+                    key={session.liveSessionId}
+                    type="button"
+                    className={styles.sessionButton}
+                    data-current={selectedAssignedSession?.liveSessionId === session.liveSessionId}
+                    onClick={() => onSelectSession(session.liveSessionId)}
+                    data-testid="concluded-session-button"
+                  >
+                    <div className={styles.sessionCardHeader}>
+                      <div>
+                        <h3>{session.title}</h3>
+                        <div className={styles.sessionCardMeta}>
+                          {session.sessionCode} • Scheduled {formatDateTime(session.scheduledAt)}
+                        </div>
+                      </div>
+                      <span
+                        className={styles.chip}
+                        data-tone={getLifecycleTone(session.sessionState)}
+                      >
+                        {session.sessionState}
+                      </span>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </details>
           )}
         </section>
 
@@ -281,6 +333,7 @@ export function SessionsPanel({
                 )}
               </section>
 
+              {!selectedIsConcluded && (
               <section className={styles.assignmentCard} data-testid="session-team-catalog-card">
                 <div className={styles.panelHeader}>
                   <div>
@@ -322,14 +375,22 @@ export function SessionsPanel({
                   </div>
                 )}
               </section>
+              )}
 
-              <button
-                type="button"
-                className={styles.primaryButton}
-                onClick={() => onOpenLiveOperation(selectedAssignedSession.liveSessionId)}
-              >
-                Open live operation
-              </button>
+              {selectedIsConcluded ? (
+                <p className={styles.emptyStateCopy} data-testid="concluded-session-readonly-note">
+                  This session is {selectedAssignedSession.sessionState.toLowerCase()} and can only be
+                  reviewed in read-only mode.
+                </p>
+              ) : (
+                <button
+                  type="button"
+                  className={styles.primaryButton}
+                  onClick={() => onOpenLiveOperation(selectedAssignedSession.liveSessionId)}
+                >
+                  Open live operation
+                </button>
+              )}
             </div>
           ) : (
             <p className={styles.emptyStateCopy}>No session selected yet.</p>

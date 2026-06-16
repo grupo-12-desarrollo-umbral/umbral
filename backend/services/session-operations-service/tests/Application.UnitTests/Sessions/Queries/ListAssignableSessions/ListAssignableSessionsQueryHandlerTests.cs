@@ -24,7 +24,7 @@ public sealed class ListAssignableSessionsQueryHandlerTests
 
         var repository = new Mock<ILiveSessionRepository>();
         repository
-            .Setup(repo => repo.ListAssignableSummariesAsync(null, It.IsAny<CancellationToken>()))
+            .Setup(repo => repo.ListAssignableSummariesAsync(null, false, It.IsAny<CancellationToken>()))
             .ReturnsAsync(expected);
         var currentUser = CreateCurrentUser("kc-admin-01", "Administrator");
         var actorClient = CreateActorClient(99, "kc-admin-01", "Administrator");
@@ -34,7 +34,7 @@ public sealed class ListAssignableSessionsQueryHandlerTests
         var result = await handler.Handle(new ListAssignableSessionsQuery(), CancellationToken.None);
 
         result.Should().BeEquivalentTo(expected);
-        repository.Verify(repo => repo.ListAssignableSummariesAsync(null, It.IsAny<CancellationToken>()), Times.Once);
+        repository.Verify(repo => repo.ListAssignableSummariesAsync(null, false, It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
@@ -54,7 +54,7 @@ public sealed class ListAssignableSessionsQueryHandlerTests
 
         var repository = new Mock<ILiveSessionRepository>();
         repository
-            .Setup(repo => repo.ListAssignableSummariesAsync(27, It.IsAny<CancellationToken>()))
+            .Setup(repo => repo.ListAssignableSummariesAsync(27, true, It.IsAny<CancellationToken>()))
             .ReturnsAsync(expected);
         var currentUser = CreateCurrentUser("kc-operator-27", "Operator");
         var actorClient = CreateActorClient(27, "kc-operator-27", "Operator");
@@ -64,7 +64,7 @@ public sealed class ListAssignableSessionsQueryHandlerTests
         var result = await handler.Handle(new ListAssignableSessionsQuery(), CancellationToken.None);
 
         result.Should().BeEquivalentTo(expected);
-        repository.Verify(repo => repo.ListAssignableSummariesAsync(27, It.IsAny<CancellationToken>()), Times.Once);
+        repository.Verify(repo => repo.ListAssignableSummariesAsync(27, true, It.IsAny<CancellationToken>()), Times.Once);
     }
 
     private static Mock<ICurrentUser> CreateCurrentUser(string? id, string? role)

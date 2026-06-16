@@ -13,6 +13,7 @@ public interface ILiveSessionRepository
 
     Task<IReadOnlyList<SessionOperatorSummaryDto>> ListAssignableSummariesAsync(
         int? assignedOperatorUserId,
+        bool includeConcluded,
         CancellationToken cancellationToken);
 
     Task<IReadOnlyList<LiveSession>> ListActiveTimersAsync(CancellationToken cancellationToken);
