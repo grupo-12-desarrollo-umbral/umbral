@@ -1,18 +1,50 @@
-# Evidence model stays generic; first delivery ships only the QR mode
+# Evidence is the umbrella term with exactly two forms: QR and trivia answer
 
-The canonical domain (`bd_umbral_entity_spec.md`, `ddd_solution_model.md`, `umbral_user_stories.md`, `session-operations-service/CONTEXT.md`) models `EvidenceSubmission` as a generic base with a `submissionType` enum (text, photo, QR, answer), `TreasureEvidenceSubmission` as the QR specialization, and `TriviaAnswerSubmission` as a separate sibling — not a kind of evidence. We keep that model intact and treat "evidence is QR-only" as a **delivery scope** statement, not a model change: the first delivery of `session-operations-service` implements only the QR/token evidence mode (`TreasureEvidenceSubmission` + `Target` + `TargetResolution`). The text/photo evidence modes and the operator-mediated review path are modeled but out of scope for this delivery.
+The canonical domain (`bd_umbral_entity_spec.md`, `ddd_solution_model.md`,
+`umbral_user_stories.md`, `session-operations-service/CONTEXT.md`) models
+`EvidenceSubmission` as the umbrella base for a team submission that proves or
+resolves progress in the active mission substage.
 
-We chose this over rewriting the canon to be QR-only because the `submissionType` enum and base/specialization split exist precisely to host more modes later, and a QR-only base cannot cleanly host the trivia-answer sibling. Narrowing the model would delete a deliberately-general structure we expect to need again.
+That umbrella has exactly two concrete forms:
+
+- `TreasureEvidenceSubmission`: the QR/token scan used in treasure-hunt
+  substages
+- `TriviaAnswerSubmission`: the team answer used in trivia substages
+
+This replaces the prior "QR-only evidence" framing. Trivia answers are evidence.
+Text/photo evidence modes are not part of the current canonical model.
 
 ## Decisions in scope
 
-- **Two distinct facts in the QR flow, in order.** Intake publishes the generic `EvidenceSubmissionRegistered`; a successful target match then publishes `TargetResolved` (`TargetResolution`). "Submitted" is not "resolved." The single-event `QrTargetResolved` rename is rejected — it collapsed these two facts and stole the generic base event's name.
-- **Intake is unconditional; QR resolution is automatic.** Every scan registers an `EvidenceSubmission` (`EvidenceValidationState = pending`). The system resolves target match itself: a correct scan becomes `accepted` with `TargetResolved`; a wrong scan is auto-`rejected`. Wrong scans are persisted for audit/anti-cheat history.
-- **Operator-mediated review is deferred for the QR/treasure-hunt path.** `EvidenceReviewQueueProjection`, `EvidenceSubmission.reviewedByUserId`/`reviewedAt`, `EvidenceAcceptancePolicy`, and the operator review story (RF-09/RF-18) stay modeled in canon but are not exercised by QR evidence, which is system-resolved with no human in the loop. They ship with the deferred non-QR modes that actually need human review.
+- **Evidence is generic, but only across two committed forms.**
+  `EvidenceSubmission` is the shared base for QR evidence and trivia-answer
+  evidence. There are no additional text/photo extension points in the current
+  model.
+- **Two distinct facts still exist in the QR flow, in order.** Intake publishes
+  `EvidenceSubmissionRegistered`; a successful target match then publishes
+  `TargetResolved` (`TargetResolution`). "Submitted" is not "resolved."
+- **QR resolution is automatic.** Every valid QR intake registers an
+  `EvidenceSubmission`. The system resolves target match itself: a correct scan
+  becomes accepted with `TargetResolved`; a wrong scan is rejected and retained
+  for audit history.
+- **Trivia answers keep their own concrete flow under the same umbrella.**
+  `TriviaAnswerSubmission` specializes `EvidenceSubmission` but keeps its own
+  validation, acceptance, correctness, and scoring behavior.
+- **Operator-mediated human review is out of scope for both current forms.**
+  The canonical traceability and rejection fields remain modeled, but both
+  current evidence forms are system-resolved in first delivery.
 
 ## Consequences
 
-- `session-operations-service/CONTEXT.md` needs no change — its glossary already keeps `EvidenceSubmission` (generic), `TreasureEvidenceSubmission` (QR), `TargetResolution` (QR success), and `TriviaAnswerSubmission` (sibling) distinct.
-- The canonical model docs keep the generic evidence model and carry a one-line pointer to this ADR rather than scattering scope carve-outs.
-- Linear tickets that were edited under the discarded "rewrite the model to QR-only" reading need reconciling to this decision: the `QrTargetResolved` rename reverts to `EvidenceSubmissionRegistered` + `TargetResolved`; DES-43 (HU-32) operator review is deferred with the operator-review path.
-- DES-39 (HU-29, generic evidence intake) and DES-40 (HU-30A, generic evidence context validation) are **cancelled — absorbed into HU-31**. QR is the only treasure-hunt evidence mode, so HU-31 (`TreasureEvidenceSubmission`) is a superset of their intake/validation, and trivia answers are the `TriviaAnswerSubmission` sibling (HU-34A/34B), not evidence. We keep the generic model as an extension point but plan no non-QR evidence mode; reopen those tickets only if text/photo evidence becomes a requirement. Downstream blockers that pointed at HU-30A (DES-41 HU-30B, DES-51 HU-37A) are re-anchored to HU-31.
+- `session-operations-service/CONTEXT.md` needs no terminology change; its
+  glossary already keeps `EvidenceSubmission`, `TreasureEvidenceSubmission`,
+  `TargetResolution`, and `TriviaAnswerSubmission` distinct.
+- Canonical docs must describe `EvidenceSubmission` as the umbrella base and
+  remove text/photo-extension framing.
+- DES-39 (HU-29) and DES-40 (HU-30A) are active backlog items again as the
+  generic evidence intake and shared context-validation stories under the
+  umbrella model.
+- DES-41 (HU-30B), DES-42 (HU-31), DES-43 (HU-32), DES-46/DES-47 (HU-34A/B),
+  DES-51 (HU-37A), DES-56 (HU-40A), DES-60, and DES-70 must be interpreted
+  with the umbrella terminology: treasure-hunt QR evidence is one form, trivia
+  answer submission is the other.

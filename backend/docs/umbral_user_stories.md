@@ -128,12 +128,13 @@ Este backlog está organizado por secciones para seguir un flujo más natural de
 | ScoreEntry         | HU-37, HU-38               |
 | SessionEvent       | HU-21, HU-24, HU-26, HU-40 |
 
-> Nota de alcance de entrega: `EvidenceSubmission` se mantiene como modelo
-> genérico (texto, foto, QR, respuesta), pero la primera entrega implementa
-> únicamente el modo QR (`TreasureEvidenceSubmission` + `Target` +
-> `TargetResolution`). HU-29/HU-30 (intake genérico y validación de contexto) y
-> la revisión mediada por operador de HU-32 quedan diferidas, no descartadas.
-> Ver `docs/adr/0010-evidence-qr-only-first-delivery.md`.
+> Nota canónica de dominio: `EvidenceSubmission` es el término paraguas para la
+> evidencia que prueba o resuelve el progreso del equipo en la subetapa activa.
+> Tiene exactamente dos formas concretas: `TreasureEvidenceSubmission` para el
+> flujo QR de misión (`HU-29` a `HU-32`) y `TriviaAnswerSubmission` para el
+> flujo de respuesta de trivia (`HU-34`). No existen modos texto/foto en el
+> modelo canónico actual. Ver
+> `docs/adr/0010-evidence-qr-only-first-delivery.md`.
 
 
 ## Alineación con bounded contexts

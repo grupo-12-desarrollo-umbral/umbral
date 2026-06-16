@@ -297,8 +297,18 @@ Key constraints:
 
 - Type: child entity of `LiveSession`
 - Scope: academic core
-- Why it exists: preserves the canonical academic record of evidence submitted by a team for a mission node
-- Delivery scope: this generic model (text, photo, QR, answer) is canon, but the first delivery implements only the QR mode (`TreasureEvidenceSubmission` + `Target` + `TargetResolution`); non-QR modes and the operator-mediated review path are deferred — see `docs/adr/0010-evidence-qr-only-first-delivery.md`
+- Why it exists: preserves the canonical academic record of *evidence* — the
+  generic term for a team submission that proves or resolves progress in the
+  active mission substage. It is the umbrella base specialized by
+  `TreasureEvidenceSubmission` (the QR/token scan in treasure-hunt substages)
+  and `TriviaAnswerSubmission` (the team answer in trivia substages). Both
+  forms keep their own concrete fields, validation rules, and events under this
+  base.
+- Delivery scope: the first delivery implements exactly the two committed forms
+  under this umbrella — QR evidence in treasure-hunt substages and trivia
+  answers in trivia substages. Text/photo evidence modes are out of scope and
+  not part of the current canonical model — see
+  `docs/adr/0010-evidence-qr-only-first-delivery.md`
 
 Suggested fields:
 
@@ -307,9 +317,9 @@ Suggested fields:
 | `evidenceSubmissionId`     | Stable submission identity                         |
 | `liveSessionId`            | Session reference                                  |
 | `teamId`                   | Team reference                                     |
-| `missionNodeId`            | Target mission node reference                      |
+| `activeSubstageId`         | Active substage reference: a `MissionNode` in treasure-hunt substages, a `TriviaQuestion` in trivia substages |
 | `submittedByParticipantId` | Optional submitting participant reference          |
-| `submissionType`           | Evidence mode, for example text, photo, QR, answer |
+| `submissionType`           | Evidence mode: QR scan (treasure hunt) or trivia answer |
 | `payloadReference`         | Logical pointer to evidence content                |
 | `submittedAt`              | Submission timestamp                               |
 | `validationState`          | `EvidenceValidationState` enum                     |
@@ -321,11 +331,17 @@ Relationships:
 
 - one `EvidenceSubmission` belongs to exactly one `LiveSession`
 - one `EvidenceSubmission` belongs to exactly one `Team`
-- one `EvidenceSubmission` belongs to exactly one `MissionNode`
+- one `EvidenceSubmission` belongs to exactly one active substage: a
+  `MissionNode` in treasure-hunt substages or a `TriviaQuestion` in trivia
+  substages
+- one `EvidenceSubmission` is specialized by exactly one
+  `TreasureEvidenceSubmission` (QR) or one `TriviaAnswerSubmission` (trivia)
 
 Key constraints:
 
-- every submission must reference exactly one `Team`, one `LiveSession`, and one `MissionNode`
+- every submission must reference exactly one `Team`, one `LiveSession`, and
+  one active substage (a `MissionNode` in treasure-hunt substages or a
+  `TriviaQuestion` in trivia substages)
 - submissions cannot be accepted when `SessionState` is `Paused`, `Finished`, or `Cancelled`
 - `validationState` must follow allowed transitions such as pending to accepted or rejected
 
@@ -417,7 +433,9 @@ Key constraints:
 
 - Type: child entity of `LiveSession`
 - Scope: committed refinement
-- Why it exists: specializes evidence handling for QR-supported clue submissions
+- Why it exists: the treasure-hunt form of evidence, specializing
+  `EvidenceSubmission` for QR-supported clue submissions (the parallel of
+  `TriviaAnswerSubmission` for trivia substages)
 
 Suggested fields:
 
@@ -474,13 +492,17 @@ Key constraints:
 
 - Type: child entity of `LiveSession`
 - Scope: committed refinement
-- Why it exists: records the final accepted team answer for one trivia question during a live session
+- Why it exists: records the final accepted team answer for one trivia question
+  during a live session. It is the trivia form of evidence, specializing
+  `EvidenceSubmission` (the parallel of `TreasureEvidenceSubmission` for
+  treasure-hunt substages).
 
 Suggested fields:
 
 | Field                      | Purpose                                                        |
 | -------------------------- | -------------------------------------------------------------- |
-| `triviaAnswerSubmissionId` | Stable answer identity                                         |
+| `triviaAnswerSubmissionId` | Stable specialized identity                                    |
+| `evidenceSubmissionId`     | Base evidence reference                                        |
 | `liveSessionId`            | Session reference                                              |
 | `teamId`                   | Team reference                                                 |
 | `triviaQuestionId`         | Question reference                                             |
@@ -493,12 +515,14 @@ Suggested fields:
 
 Relationships:
 
+- one `TriviaAnswerSubmission` extends exactly one `EvidenceSubmission`
 - one `TriviaAnswerSubmission` belongs to exactly one `LiveSession`
 - one `TriviaAnswerSubmission` belongs to exactly one `Team`
 - one `TriviaAnswerSubmission` references exactly one `TriviaQuestion`
 
 Key constraints:
 
+- specialized trivia evidence must reference a base `EvidenceSubmission`
 - only one final accepted answer should exist per `Team` and `TriviaQuestion` in the same `LiveSession`
 
 ### `JoinContext`
@@ -856,7 +880,7 @@ Interpretación de `Cobertura actual del entity spec`:
 | `RB-02` | `SessionOperations`                   | Sí                               | Invariante de `LiveSession` y `SessionStateTransitionPolicy`                                 | La restricción de no activar sesión sin equipos ya está declarada.       |
 | `RB-03` | `SessionOperations`                   | Sí                               | `EvidenceValidationState`, `EvidenceAcceptancePolicy`, restricciones de `EvidenceSubmission` | La regla de rechazo por estado de sesión ya quedó defendida.             |
 | `RB-04` | `SessionOperations`                   | Sí                               | `ClueReleaseRecord`, `ClueReleasePolicy`                                                     | La prevención de doble liberación ya está modelada de forma explícita.   |
-| `RB-05` | `SessionOperations`                   | Sí                               | `EvidenceSubmission` con `liveSessionId`, `teamId`, `missionNodeId`                          | La asociación exacta de la evidencia está claramente definida.           |
+| `RB-05` | `SessionOperations`                   | Sí                               | `EvidenceSubmission` con `liveSessionId`, `teamId`, `activeSubstageId` (`MissionNode` o `TriviaQuestion`) | La asociación exacta de la evidencia está claramente definida.           |
 | `RB-06` | `ScoringMonitoring`                   | Sí                               | `Penalty.penaltyReason`, `Penalty.appliedAt`                                                 | La obligación de registrar motivo y timestamp ya quedó cubierta.         |
 | `RB-07` | `ScoringMonitoring`                   | Sí                               | `ScoreEntry`, `sourceEntityType`, `sourceEntityId`                                           | La trazabilidad del puntaje se sostiene completamente en el spec actual. |
 | `RB-08` | `ScoringMonitoring`                   | Sí                               | `Ranking.resolutionTime`, `ResolutionTime`                                                   | El criterio de desempate ya quedó explícito.                             |

@@ -267,14 +267,6 @@ context:
   `TriviaQuiz` as responsibilities of `MissionDesign`
 - hybrid sessions that combine `Mission` and `TriviaQuiz`
 - a generic configurable workflow engine beyond `TreasureHunt` and `Trivia`
-- non-QR evidence modes: the canonical `EvidenceSubmission` model stays generic
-  (text, photo, QR, answer), but this delivery implements only the QR/token mode
-  (`TreasureEvidenceSubmission` + `Target` + `TargetResolution`); text/photo
-  modes are modeled but out of scope — see ADR-0010
-- the operator-mediated evidence review path (`EvidenceReviewQueueProjection`,
-  `reviewedByUserId`/`reviewedAt`, `EvidenceAcceptancePolicy`, RF-09/RF-18) for
-  the QR/treasure-hunt path: QR evidence is system-resolved (intake then
-  automatic target match), so it is deferred with the non-QR modes — see ADR-0010
 - backlog outside `HU-15` to `HU-36`, even when adjacent HUs are related
 
 ## Further Notes
@@ -287,15 +279,12 @@ context:
 - The most sensitive boundary for this service is ownership: `SessionOperations`
   decides what may happen and when inside a live session. Integrations with
   other contexts must preserve that authority.
-- 2026-06-15 scope decision (ADR-0010): evidence is QR-only for this delivery,
-  but the model stays generic. The QR flow is two ordered facts —
-  `EvidenceSubmissionRegistered` (unconditional intake) then `TargetResolved`
-  (automatic target match; a wrong scan is auto-rejected). The `QrTargetResolved`
-  single-event rename is rejected. `HU-29`/`HU-30A` are cancelled — absorbed into
-  `HU-31`, since QR is the only treasure-hunt evidence mode and trivia answers are
-  the `TriviaAnswerSubmission` sibling (HU-34A/34B); their tickets DES-39/DES-40
-  are cancelled, not deferred. The `HU-32` operator-review path is deferred (out of
-  scope) with the non-QR modes, not retired as wrong. The generic `EvidenceSubmission`
-  model is retained as an extension point — reopen only if a non-QR evidence mode
-  (text/photo) ever becomes a requirement.
+- 2026-06-16 decision update (ADR-0010): `EvidenceSubmission` is the umbrella
+  term for exactly two committed forms — `TreasureEvidenceSubmission`
+  (QR/token scan in treasure-hunt substages) and `TriviaAnswerSubmission`
+  (team answer in trivia substages). The QR flow remains two ordered facts:
+  `EvidenceSubmissionRegistered` then `TargetResolved`. Trivia answers are
+  evidence too, but keep their own concrete validation and scoring behavior.
+  Text/photo evidence modes are not part of the current canonical model, and
+  operator-mediated human review is out of scope for both current forms.
 - This local file is the authoritative PRD copy for generator and driver flows.
