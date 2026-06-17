@@ -1,5 +1,9 @@
 # HU-19 Context — Session Operator Assignment
 
+> Updated on 2026-06-16 for the mission-runtime restructure. Any references to
+> HU-16's direct trivia-session creation are historical. Current session setup
+> starts from an active mission and immutable `MissionRuntimeSnapshot`.
+
 > Paste this section into any agent session that needs context for HU-19.
 > Last updated: 2026-06-03 | Branch: `feature/hu-19-session-operator-assignment`
 >

@@ -1,5 +1,13 @@
 # Prompt Example — HU-33A Trivia Round Orchestration / Thin Slice (Feature Slice)
 
+> Superseded on 2026-06-16 by
+> `backend/docs/grilling-session-mission-restructure.md`,
+> `backend/docs/ddd_solution_model.md`, and
+> `backend/docs/bd_umbral_entity_spec.md`.
+> Do not drive this prompt as written where it assumes a standalone trivia
+> session. Rebuild around trivia substages inside `MissionRuntimeSnapshot`,
+> synchronized active question windows, and strict substage advancement.
+
 Concrete prompt sequence for driving HU-33A through a full feature slice on
 `feature/hu-33a-trivia-round-orchestration`. Follows the pattern in
 [workflow_for_prompts.md](./workflow_for_prompts.md). Context:

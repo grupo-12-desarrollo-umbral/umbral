@@ -23,6 +23,9 @@ Text/photo evidence modes are not part of the current canonical model.
 - **Two distinct facts still exist in the QR flow, in order.** Intake publishes
   `EvidenceSubmissionRegistered`; a successful target match then publishes
   `TargetResolved` (`TargetResolution`). "Submitted" is not "resolved."
+- **Treasure-hunt progression is target-based, not clue-based.** A `Target` is
+  the QR-validated objective. A `Clue` is optional guidance associated with a
+  target; clue visibility is not required for target resolution.
 - **QR resolution is automatic.** Every valid QR intake registers an
   `EvidenceSubmission`. The system resolves target match itself: a correct scan
   becomes accepted with `TargetResolved`; a wrong scan is rejected and retained

@@ -1,5 +1,15 @@
 # Prompt Example — HU-16 Trivia Session Creation (Feature Slice)
 
+> Superseded on 2026-06-16 by
+> `backend/docs/grilling-session-mission-restructure.md`,
+> `backend/docs/ddd_solution_model.md`,
+> `backend/docs/bd_umbral_entity_spec.md`, and
+> `backend/docs/prd/DES-70-primera-implementacion-de-session-operations-service-hu-15-a-hu-36.md`.
+> Do not drive this prompt as written. It assumes direct trivia-session creation
+> from a published `TriviaQuiz`, `Scheduled`, and quiz-as-session-source. The
+> rebuilt slice must create `LiveSession` from a ready `Mission` and persist an
+> immutable `MissionRuntimeSnapshot`.
+
 Concrete prompt sequence for driving HU-16 through a full feature slice on `feature/hu-16-trivia-session-creation`. Follows the pattern in [workflow_for_prompts.md](./workflow_for_prompts.md). Context: [hu16-context.md](./hu16-context.md).
 
 **Key difference from HU-07A/07B:** those slices established the `LiveSession` aggregate and the *participant* runtime (admission, reconnect, presence). HU-16 is the first **operator session-creation** slice: it does not touch participants — it selects a **published** trivia quiz, generates a **fixed copy** of it, and opens a `LiveSession` (`Scheduled`) bound to that single quiz source. Because the quiz content lives in `mission-design-service`, HU-16 is dual-service: session-ops orchestrates and owns the session + snapshot; mission-design is read as the source of truth for the published quiz.

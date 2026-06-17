@@ -1,5 +1,9 @@
 # Prompt Example — HU-19 Session Operator Assignment (Feature Slice)
 
+> Updated on 2026-06-16 for the mission-runtime restructure. Any references to
+> `CreateTriviaSessionFacade` are historical precedents only. Current session
+> creation is mission-only and persists `MissionRuntimeSnapshot`.
+
 Concrete prompt sequence for driving HU-19 through a full feature slice on
 `feature/hu-19-session-operator-assignment`. Follows the pattern in
 [workflow_for_prompts.md](./workflow_for_prompts.md). Context:

@@ -1,5 +1,9 @@
 # HU-13 Context — Duplicación y retiro de quizzes usados
 
+> Updated on 2026-06-16 for the mission-runtime restructure. A used quiz is one
+> referenced by a mission trivia `Substage` or frozen in a
+> `MissionRuntimeSnapshot`, not one that directly created a `LiveSession`.
+
 > Paste this section into any agent session that needs context for HU-13.
 > Last updated: 2026-06-03 | Branch: `feature/hu-13-trivia-quiz-duplication-and-retirement`
 
@@ -58,7 +62,7 @@
 |---|---|
 | Quiz duplication | Duplicate an existing `TriviaQuiz` so its reusable structure becomes a new authoring copy rather than mutating the historical source quiz |
 | Historical lineage | Preserve traceability between the duplicated quiz and the original quiz so historical use of the original remains intact |
-| Used-quiz retirement | Prevent destructive removal of quizzes that have already been used in sessions; route withdrawal-from-use through archive or equivalent deactivation semantics instead |
+| Used-quiz retirement | Prevent destructive removal of quizzes already referenced by missions or runtime snapshots; route withdrawal-from-use through archive or equivalent deactivation semantics instead |
 | State-aware reuse | Ensure a duplicated quiz can continue through the existing authoring/publication flow as a separate quiz while the original keeps its historical identity |
 | Backend contract | Extend the trivia API contract with duplication and used-quiz retirement/rejection behavior needed by verified consumers; do not invent unrelated hard-delete scope |
 | Frontend flow | Extend trivia administration UI with duplicate action, retirement messaging, and clear historical-vs-copy cues aligned to the verified backend contract |

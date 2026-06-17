@@ -4,7 +4,7 @@
 
 - [Identity Access](./services/identity-access-service/CONTEXT.md) — handles authentication and access-related flows for administrators, operators, and participants
 - [Mission Design](./services/mission-design-service/CONTEXT.md) — manages mission and trivia authoring and prepares content for live use
-- [Session Operations](./services/session-operations-service/CONTEXT.md) — runs live sessions, team participation, clue progression, and evidence intake
+- [Session Operations](./services/session-operations-service/CONTEXT.md) — runs live sessions, team participation, target progression, clue visibility, and evidence intake
 - [Scoring Monitoring](./services/scoring-monitoring-service/CONTEXT.md) — calculates scoring outcomes and exposes ranking, audit, and monitoring views
 
 ## Relationships

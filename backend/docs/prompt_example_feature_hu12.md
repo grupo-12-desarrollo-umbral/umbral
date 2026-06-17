@@ -1,8 +1,13 @@
 # Prompt Example — HU-12 Publicación y archivado de quizzes de trivia (Feature Slice)
 
+> Updated on 2026-06-16 for the mission-runtime restructure. Keep the quiz
+> publication lifecycle, but reinterpret "source-ready" as selectable by a
+> mission trivia `Substage`. A published `TriviaQuiz` is not a direct
+> `SessionSource` and cannot create a `LiveSession`.
+
 Concrete prompt sequence for driving HU-12 through a full feature slice on `feature/hu-12-trivia-quiz-publication-and-archive`. Follows the pattern in [workflow_for_prompts.md](./workflow_for_prompts.md).
 
-**Key difference from HU-14A/HU-14B:** HU-11, HU-14A, and HU-14B established the trivia authoring baseline and question validity rules. HU-12 moves the existing `TriviaQuiz` model into controlled lifecycle transitions so only valid, published quizzes become source-ready for trivia sessions, while draft and archived quizzes remain unavailable for new session creation.
+**Key difference from HU-14A/HU-14B:** HU-11, HU-14A, and HU-14B established the trivia authoring baseline and question validity rules. HU-12 moves the existing `TriviaQuiz` model into controlled lifecycle transitions so only valid, published quizzes can be selected by mission trivia substages, while draft and archived quizzes remain unavailable for new selections.
 
 When working from the monorepo root, make the target workload explicit in each prompt.
 For backend steps, point to `@backend/.agents/backend-agent.md`. For frontend steps,

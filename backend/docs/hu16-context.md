@@ -1,5 +1,15 @@
 # HU-16 Context — Trivia Session Creation
 
+> Superseded on 2026-06-16 by
+> `backend/docs/grilling-session-mission-restructure.md`,
+> `backend/docs/ddd_solution_model.md`,
+> `backend/docs/bd_umbral_entity_spec.md`, and
+> `backend/docs/prd/DES-70-primera-implementacion-de-session-operations-service-hu-15-a-hu-36.md`.
+> Do not drive this prompt as written. HU-16 must be rebuilt around
+> mission-only `LiveSession` creation and immutable `MissionRuntimeSnapshot`;
+> `TriviaQuiz` is reusable authoring content selected into a trivia `Substage`,
+> not a direct `SessionSource`.
+
 > Paste this section into any agent session that needs context for HU-16.
 > Last updated: 2026-06-03 | Branch: `feature/hu-16-trivia-session-creation`
 >

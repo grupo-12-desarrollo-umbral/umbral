@@ -1,5 +1,14 @@
 # HU-22 Context — Authoritative Session Timer
 
+> Superseded on 2026-06-16 by
+> `backend/docs/grilling-session-mission-restructure.md`,
+> `backend/docs/ddd_solution_model.md`, and
+> `backend/docs/bd_umbral_entity_spec.md`.
+> Keep the authoritative timer direction, but rebuild it around mission
+> substages. Paused trivia freezes the active question timer and resumes the
+> same question; synchronized trivia question timers are substage behavior, not
+> a standalone trivia-session lifecycle.
+
 > Paste this section into any agent session that needs context for HU-22.
 > Last updated: 2026-06-04 | Branch: `feature/hu-22-temporizador-autoritativo-de-sesion`
 >

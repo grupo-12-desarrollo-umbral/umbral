@@ -29,40 +29,40 @@ _Avoid_: `TeamMembership`
 ### Live Runtime
 
 **LiveSession**:
-The main aggregate for the live execution of one active source, typically a `Mission` and optionally a `TriviaQuiz` in the committed scope.
-_Avoid_: session, room, match, game
+The main aggregate for the live execution of one active `Mission` source.
+_Avoid_: session, room, match, game, session mode
 
 **SessionState**:
 The lifecycle state of a `LiveSession` that governs valid operations and transitions.
 _Avoid_: status, phase, mode
 
-**Scheduled**:
-The `SessionState` in which the session exists but has not entered preparation.
-_Avoid_: planned
-
 **Preparing**:
-The `SessionState` in which the session is being readied before activation.
-_Avoid_: setup, staging
+The initial `SessionState` created with a `LiveSession`, in which the session has its immutable `MissionRuntimeSnapshot` and is being readied before activation.
+_Avoid_: setup, staging, scheduled
 
 **Active**:
-The `SessionState` in which teams can receive clues and submit evidence.
+The `SessionState` in which live play is running. Entering `Active` from `Preparing` immediately starts the first `Substage`.
 _Avoid_: running, live
 
 **Paused**:
-The `SessionState` in which live progression is temporarily stopped.
+The `SessionState` entered only from `Active`, in which live progression is temporarily stopped. Target submissions and trivia answer submissions are not accepted while paused; trivia resumes on the same active question when the session returns to `Active`.
 _Avoid_: on hold, stopped
 
 **Finished**:
-The `SessionState` in which the session has ended normally.
-_Avoid_: completed, closed
+The terminal `SessionState` reached only through `SessionCompletion` when the final `Substage` completes normally.
+_Avoid_: completed, closed, manually finished
 
 **Cancelled**:
-The `SessionState` in which the session is terminated without normal completion.
+The terminal `SessionState` in which the session is terminated without normal completion from `Preparing`, `Active`, or `Paused`. Cancelled sessions accept no target submissions or trivia answers, do not advance substages, and do not calculate a `SessionTeamWinner`; existing score history remains visible for audit.
 _Avoid_: aborted
 
 **SessionSource**:
-The value object that states whether a `LiveSession` originates from a `Mission` or a `TriviaQuiz`.
+The value object that states which active `Mission` a `LiveSession` originates from.
 _Avoid_: mode source, origin type
+
+**MissionRuntimeSnapshot**:
+The immutable mission runtime plan copied into a `LiveSession` when the session is created, including stages, substages, play modes, target content, clue guidance, scoring values, and trivia question snapshots needed for live play. It cannot be edited after session creation, and target QR identifiers must be unique within it.
+_Avoid_: live authoring lookup, mutable mission reference
 
 **Team**:
 The entity associated with a `LiveSession` that holds shared progress, score, and participation state.
@@ -73,11 +73,11 @@ The value object that uniquely identifies a `Team` in business interactions.
 _Avoid_: team id, join code
 
 **ClueRelease**:
-The business action of making a `Clue` available to a `Team` during a `LiveSession`.
-_Avoid_: unlock, reveal, dispatch
+The business action of making optional `Clue` guidance available during a `Substage`, either automatically to all teams from its `ClueVisibilityPolicy` or by operator release to all teams or specific teams.
+_Avoid_: unlock, reveal, dispatch, target progression
 
 **ClueReleaseRecord**:
-The traceable record that one `Clue` was released to one `Team` in one `LiveSession`.
+The traceable record that one `Clue` became visible to a specific `Team` in one `LiveSession`; all-team release creates or implies visibility for every team.
 _Avoid_: release row, clue unlock log
 
 **SessionEvent**:
@@ -95,16 +95,88 @@ The business state that indicates whether an `EvidenceSubmission` is pending, ac
 _Avoid_: review status, decision
 
 **TreasureEvidenceSubmission**:
-The QR or target-oriented refinement of an `EvidenceSubmission` used when treasure-hunt runtime needs target validation.
+The QR-based refinement of an `EvidenceSubmission` used for treasure-hunt `Target` validation.
 _Avoid_: qr submission, target scan record
 
 **TargetResolution**:
 The runtime fact that a `Target` was successfully resolved by a `Team` in a `LiveSession`.
 _Avoid_: checkpoint clear, qr success
 
+**DuplicateTargetResolution**:
+A later resolution attempt for a `Target` after the same `Team` already has one successful `TargetResolution` for that target.
+_Avoid_: target retry, repeated checkpoint
+
+**TargetProgression**:
+The treasure-hunt progression model where all targets in the active treasure-hunt `Substage` are active immediately and a `Team` advances by resolving them in any order; resolving all targets in that substage is required before the team can win that substage. Target resolution does not require clue visibility.
+_Avoid_: clue progression, clue completion
+
+**TreasureHuntSubstageWinner**:
+The first `Team` to resolve all targets in a treasure-hunt `Substage`.
+_Avoid_: clue winner, checkpoint winner
+
+**TreasureHuntSubstageScore**:
+The snapshotted `ScoreValue` awarded to the `TreasureHuntSubstageWinner`; non-winning teams receive zero for that treasure-hunt `Substage`.
+_Avoid_: target partial score, clue score
+
+**SubstageAdvancement**:
+The runtime transition that moves teams from one `Substage` to the next by strict mission order and play-mode rules. In a treasure-hunt `Substage`, all teams advance when the `TreasureHuntSubstageWinner` is decided; operators cannot manually force substage advancement.
+_Avoid_: manual skip, operator-forced advancement, team-only progression
+
+**TriviaQuestionTimer**:
+The authoritative runtime duration for one snapshotted `TriviaQuestion` during a trivia `Substage`.
+_Avoid_: client timer, participant timer
+
+**TriviaQuestionAdvancement**:
+The runtime transition from one snapshotted `TriviaQuestion` to the next available question when the `TriviaQuestionTimer` expires.
+_Avoid_: participant-paced question flow
+
+**SynchronizedTriviaQuestion**:
+The single active snapshotted `TriviaQuestion` presented to all teams during the same authoritative timer window in a trivia `Substage`.
+_Avoid_: team-specific active question, participant-paced question
+
+**TriviaSubstageCompletion**:
+The runtime completion of a trivia `Substage` when the final snapshotted `TriviaQuestion` timer expires. All teams advance to the next `Substage` when one exists.
+_Avoid_: team-completed trivia, participant-paced completion
+
 **TriviaAnswerSubmission**:
-The answer record submitted by a `Team` for a `TriviaQuestion` during a trivia `LiveSession`.
+The answer record submitted by a `Team` for a snapshotted `TriviaQuestion` during a trivia substage of a `LiveSession`. Only one accepted answer is allowed per team per question, and it must arrive during the active question's authoritative timer window.
 _Avoid_: quiz answer row, response option
+
+**DuplicateTriviaAnswer**:
+A later answer attempt for a snapshotted `TriviaQuestion` after the same `Team` already has one accepted `TriviaAnswerSubmission` for that question.
+_Avoid_: answer update, answer retry
+
+**LateTriviaAnswer**:
+An answer attempt for a snapshotted `TriviaQuestion` after that question's authoritative timer window has expired.
+_Avoid_: delayed score, expired answer
+
+**TriviaQuestionScore**:
+The snapshotted `ScoreValue` awarded to a `Team` for a correct `TriviaAnswerSubmission`; wrong or missing answers award zero.
+_Avoid_: speed bonus, partial credit
+
+**TriviaSubstageWinner**:
+Any `Team` with the highest trivia score in a trivia `Substage` after the final `TriviaQuestionTimer` expires; ties are allowed.
+_Avoid_: fastest trivia team, first completed trivia team
+
+**SessionTeamWinner**:
+The top-ranked `Team` after a `LiveSession` finishes, based on total score and applicable solution-time tie-breaking.
+_Avoid_: participant winner, most substages won
+
+**SessionRanking**:
+The ordered team result for a finished `LiveSession`: higher total score ranks first, lower comparable `SolutionTime` breaks score ties, and teams share rank when solution time is not comparable or is equal.
+_Avoid_: leaderboard guess, fastest-only ranking
+
+**ScoreEntry**:
+The traceable scoring fact that explains a score change for a `Team` in a `LiveSession`. Total score and ranking are derived from score entries rather than direct score mutation.
+_Avoid_: hidden score update, mutable total
+
+**SolutionTime**:
+The elapsed active play time from `LiveSession` activation until a `Team` completes the final applicable objective used for ranking; time spent in `Paused` does not count.
+_Avoid_: wall-clock duration, trivia timer score
+
+**SessionCompletion**:
+The automatic transition to `Finished` when the final `Substage` completes, followed by calculation of the `SessionTeamWinner`.
+_Avoid_: operator-finished session, manual finalization
 
 ## Boundary Rules
 
@@ -123,7 +195,7 @@ Session orchestration should be exposed through a narrow coordination service th
 _Avoid_: endpoint-level orchestration or handlers that manually coordinate every side effect
 
 **State**:
-`LiveSession` lifecycle behavior must enforce valid transitions such as `Scheduled`, `Preparing`, `Active`, `Paused`, and `Finished`, with additional trivia-specific internal phases only when they remain subordinate to the same lifecycle model.
+`LiveSession` lifecycle behavior must enforce valid transitions such as `Preparing`, `Active`, `Paused`, `Finished`, and `Cancelled`, with play-mode-specific internal phases only when they remain subordinate to the same lifecycle model.
 _Avoid_: free-form status mutation or transition rules encoded as scattered conditionals
 
 **Chain of Responsibility**:
