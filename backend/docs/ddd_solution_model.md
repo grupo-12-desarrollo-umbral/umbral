@@ -239,7 +239,7 @@ Internal entities and value objects:
 - `SessionState`
 - `SessionSource`
 - `SubstageAdvancement`
-- `SolutionTime`
+- `ResolutionTime`
 - `TeamCode`
 
 > *Evidence* is the generic umbrella term for a team submission that proves or
@@ -266,7 +266,7 @@ Supporting value objects and policies:
 
 - `ScoreValue`
 - `PenaltyReason`
-- `SolutionTime`
+- `ResolutionTime`
 - `ScorePolicy`
 
 ### `Identity`

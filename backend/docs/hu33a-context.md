@@ -83,7 +83,7 @@ All of this is on `feature/hu-22-timer-session` (which includes `develop`).
   `ScoreValue`, and `Explanation` — the question-level timer duration is already
   stored in the snapshot
 - `SessionState` enum with `Scheduled`, `Preparing`, `Active`, `Paused`,
-  `Finished`, `Cancelled`
+  `Finished`, `Cancelled`; `LiveSession.Create` sets `State = Scheduled`
 - `LiveSession.MoveTo()` + `SessionStateTransitionPolicy` + `SessionTransitionChain`
   (extensible CoR pipeline — HU-33A can add a `NoActiveQuestionGate` for `HU-34A`
   without modifying the pipeline)

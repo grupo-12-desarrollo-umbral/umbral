@@ -30,13 +30,13 @@ Canonical language source (do not contradict): `backend/docs/grilling-session-mi
 - Trivia substage references an ordered `TriviaQuestionSelection` from one published `TriviaQuiz`.
 
 **Lifecycle**
-- Canonical `SessionState`s: `Preparing → Active → Paused → Finished → Cancelled`. **`Scheduled` is removed.** `LiveSession` is created directly in `Preparing`.
+- Canonical `SessionState`s: `Scheduled → Preparing → Active → Paused → Finished → Cancelled`. `LiveSession` is created in `Scheduled`; team association is allowed only while `Scheduled`; operator-driven readiness moves it to `Preparing` before it can go `Active`.
 
 **Evidence (#28)**
 - `EvidenceSubmission` is the umbrella with exactly two concrete forms: `TreasureEvidenceSubmission` (QR, HU-29–32) and `TriviaAnswerSubmission` (HU-34). No text/photo modes.
 
 **Scoring & ranking**
-- One ranking per session, derived from traceable `ScoreEntry` records (not direct total mutation), sorted high→low, tie-broken by `SolutionTime` (active play time, pauses excluded); equal/incomparable times share rank.
+- One ranking per session, derived from traceable `ScoreEntry` records (not direct total mutation), sorted high→low, tie-broken by `ResolutionTime` (active play time, pauses excluded); equal/incomparable times share rank.
 
 ## How to find these in Linear
 
@@ -57,7 +57,7 @@ Legend: ✅ aligned · 📝 canon-drift comment added · 🔨 rebuild ticket fil
 | DES-28 | HU-21A | Done (cycle 1) | 🔨 rebuilt as **DES-76** |
 | DES-30 | HU-22 | Done (cycle 1) | 🔨 rebuilt as **DES-77** |
 | DES-44 | HU-33A | Done (cycle 1) | 🔨 rebuilt as **DES-78** |
-| DES-25 | HU-18 | Done (cycle 1) | 📝 wording (Scheduled → Preparing) |
+| DES-25 | HU-18 | Done (cycle 1) | 📝 wording (team association is allowed in `Scheduled`) |
 | DES-12 | HU-07B | Done (cycle 1) | 📝 wording (trivia-as-session → substage) |
 | DES-18 | HU-12 | Done (cycle 1) | 📝 wording (quiz selectable into substage) |
 | DES-19 | HU-13 | Done (cycle 1) | 📝 wording ("used quiz" redefinition) |
@@ -88,13 +88,13 @@ Dependencies come from each ticket's *Blocked by* plus the realignment links
 | 2 | Session creation | **DES-22** (HU-15) | Create `LiveSession` from an active mission; immutable `MissionRuntimeSnapshot` | Phase 1 |
 | 3 | Session creation | **DES-24** (HU-17) | Single-source rule = mission-wrapper (drop "trivia session from quiz") | DES-22 |
 | 4 | Session creation | **DES-75** (HU-16 realign) | Trivia selection as a `Substage` (`TriviaQuestionSelection`), not a session | DES-22, DES-24 |
-| 5 | Lifecycle | **DES-76** (HU-21A realign) | State machine `Preparing/Active/Paused/Finished/Cancelled`, no `Scheduled` | DES-22, DES-24 |
+| 5 | Lifecycle | **DES-76** (HU-21A realign) | State machine `Scheduled/Preparing/Active/Paused/Finished/Cancelled` | DES-22, DES-24 |
 | 6 | Lifecycle | **DES-77** (HU-22 realign) | Authoritative timer keyed off active `SubstagePlayMode` | DES-22, DES-24 |
-| 7 | Setup | **DES-25** (HU-18 reword) | Attach teams during `Preparing` | DES-76 |
+| 7 | Setup | **DES-25** (HU-18 reword) | Attach teams during `Scheduled` (before `Preparing`) | DES-76 |
 | 8 | Treasure-hunt play | HU-29/30A/30B/31/32 (DES-39/40/41/42/43) | Evidence intake + QR `Target` resolution + traceability (already canon-aligned) | DES-75/76 |
 | 9 | Clue model (decision first) | **DES-36** (HU-26), **DES-37** (HU-27), **DES-38** (HU-28) | Operator clue release per team; decide fate of rule-based auto-release & runtime-authored clues | Phase 8 |
 | 10 | Trivia play | **DES-78** (HU-33A realign), HU-33B/34A/34B/35/36A/36B | Synchronized trivia substage orchestration + answer registration/rejection | DES-75/76 |
-| 11 | Scoring & ranking | HU-37A/B, HU-38, **DES-54** (HU-39A unified), **DES-55** (HU-39B subsume), HU-40A/B | `ScoreEntry` ledger + single session ranking with `SolutionTime` tie-break | Phases 8 & 10 |
+| 11 | Scoring & ranking | HU-37A/B, HU-38, **DES-54** (HU-39A unified), **DES-55** (HU-39B subsume), HU-40A/B | `ScoreEntry` ledger + single session ranking with `ResolutionTime` tie-break | Phases 8 & 10 |
 | 12 | Boards & queries | **DES-31** (HU-23), HU-24A/B, HU-25A/B | Live team/operator boards over the target-based + ranking model | Phase 11 |
 
 ### Open decisions blocking clean implementation

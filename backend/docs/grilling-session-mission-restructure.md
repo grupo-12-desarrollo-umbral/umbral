@@ -15,8 +15,8 @@ This document records the domain decisions made during the grilling session for 
 - Selecting the entire quiz means selecting all questions in quiz order.
 - A `LiveSession` snapshots the full mission runtime plan at creation time.
 - The snapshot is immutable after `LiveSession` creation.
-- `LiveSession` creation immediately creates the session in `Preparing`.
-- `Scheduled` is not part of the canonical `SessionState` model.
+- `LiveSession` creation immediately creates the session in `Scheduled`.
+- `Scheduled` is the initial `SessionState`; team association is only allowed while `Scheduled`. `Preparing` is the operator-readiness state entered from `Scheduled`.
 - Target QR identifiers must be unique within a single `MissionRuntimeSnapshot`.
 
 ## Mission Hierarchy And Play Modes
@@ -73,6 +73,7 @@ This document records the domain decisions made during the grilling session for 
 
 Canonical `SessionState`s:
 
+- `Scheduled`
 - `Preparing`
 - `Active`
 - `Paused`
@@ -81,11 +82,13 @@ Canonical `SessionState`s:
 
 Lifecycle rules:
 
+- `LiveSession` is created in `Scheduled`; team association is only allowed while `Scheduled`.
+- `Scheduled -> Preparing` moves the session into operator readiness.
 - `Preparing -> Active` immediately starts the first substage.
 - Pause flow is only `Active -> Paused -> Active`.
 - While paused, target submissions and trivia answers are not accepted.
 - During paused trivia, the active question timer stops and resumes on the same question.
-- Cancellation is allowed from `Preparing`, `Active`, or `Paused`.
+- Cancellation is allowed from `Scheduled`, `Preparing`, `Active`, or `Paused`.
 - `Finished -> Cancelled` is not allowed.
 - `Cancelled -> anything` is not allowed.
 - `Finished` only happens through normal `SessionCompletion` when the final substage completes.
@@ -102,11 +105,11 @@ Lifecycle rules:
 - Score totals and ranking derive from traceable `ScoreEntry` records.
 - Direct mutation of total score is not the canonical scoring model.
 - Ranking is sorted from highest to lowest total score.
-- If total score ties, lower comparable `SolutionTime` ranks first.
-- If `SolutionTime` is not comparable or is equal, teams share rank.
-- `SolutionTime` means elapsed active play time from `LiveSession` activation until a team completes the final applicable objective used for ranking.
-- Paused time does not count toward `SolutionTime`.
-- In synchronized trivia, solution time often will not break ties because all teams share timer-driven completion.
+- If total score ties, lower comparable `ResolutionTime` ranks first.
+- If `ResolutionTime` is not comparable or is equal, teams share rank.
+- `ResolutionTime` means elapsed active play time from `LiveSession` activation until a team completes the final applicable objective used for ranking.
+- Paused time does not count toward `ResolutionTime`.
+- In synchronized trivia, resolution time often will not break ties because all teams share timer-driven completion.
 
 ## Mission Readiness
 

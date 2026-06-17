@@ -5,9 +5,10 @@
 > `backend/docs/ddd_solution_model.md`, and
 > `backend/docs/bd_umbral_entity_spec.md`.
 > Keep the explicit `State` pattern guidance, but rebuild lifecycle assumptions
-> around canonical states `Preparing`, `Active`, `Paused`, `Finished`, and
-> `Cancelled`. `Scheduled` is no longer canonical; `Finished` is reached only
-> by normal final-substage completion.
+> around canonical states `Scheduled`, `Preparing`, `Active`, `Paused`,
+> `Finished`, and `Cancelled`. `Scheduled` is the initial state set at
+> `LiveSession` creation; `Finished` is reached only by normal final-substage
+> completion.
 
 > Paste this section into any agent session that needs context for HU-21A.
 > Last updated: 2026-06-04 | Branch: `feature/hu-21-valid-session-transactions`

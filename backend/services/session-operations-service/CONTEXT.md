@@ -36,9 +36,13 @@ _Avoid_: session, room, match, game, session mode
 The lifecycle state of a `LiveSession` that governs valid operations and transitions.
 _Avoid_: status, phase, mode
 
+**Scheduled**:
+The initial `SessionState` set on a `LiveSession` at creation. The session holds its immutable `MissionRuntimeSnapshot` from this point, and team association is only allowed while `Scheduled`. A `Scheduled` session may transition to `Preparing` or be `Cancelled`.
+_Avoid_: draft, pending
+
 **Preparing**:
-The initial `SessionState` created with a `LiveSession`, in which the session has its immutable `MissionRuntimeSnapshot` and is being readied before activation.
-_Avoid_: setup, staging, scheduled
+The `SessionState` entered from `Scheduled` in which the session is readied for activation (operator assignment verified, teams confirmed). A `Preparing` session may transition to `Active` or be `Cancelled`.
+_Avoid_: setup, staging
 
 **Active**:
 The `SessionState` in which live play is running. Entering `Active` from `Preparing` immediately starts the first `Substage`.
@@ -53,7 +57,7 @@ The terminal `SessionState` reached only through `SessionCompletion` when the fi
 _Avoid_: completed, closed, manually finished
 
 **Cancelled**:
-The terminal `SessionState` in which the session is terminated without normal completion from `Preparing`, `Active`, or `Paused`. Cancelled sessions accept no target submissions or trivia answers, do not advance substages, and do not calculate a `SessionTeamWinner`; existing score history remains visible for audit.
+The terminal `SessionState` in which the session is terminated without normal completion from `Scheduled`, `Preparing`, `Active`, or `Paused`. Cancelled sessions accept no target submissions or trivia answers, do not advance substages, and do not calculate a `SessionTeamWinner`; existing score history remains visible for audit.
 _Avoid_: aborted
 
 **SessionSource**:
@@ -71,10 +75,6 @@ _Avoid_: squad, group
 **TeamCode**:
 The value object that uniquely identifies a `Team` in business interactions.
 _Avoid_: team id, join code
-
-**ClueRelease**:
-The business action of making optional `Clue` guidance available during a `Substage`, either automatically to all teams from its `ClueVisibilityPolicy` or by operator release to all teams or specific teams.
-_Avoid_: unlock, reveal, dispatch, target progression
 
 **ClueReleaseRecord**:
 The traceable record that one `Clue` became visible to a specific `Team` in one `LiveSession`; all-team release creates or implies visibility for every team.
@@ -159,18 +159,18 @@ Any `Team` with the highest trivia score in a trivia `Substage` after the final 
 _Avoid_: fastest trivia team, first completed trivia team
 
 **SessionTeamWinner**:
-The top-ranked `Team` after a `LiveSession` finishes, based on total score and applicable solution-time tie-breaking.
+The top-ranked `Team` after a `LiveSession` finishes, based on total score and applicable resolution-time tie-breaking.
 _Avoid_: participant winner, most substages won
 
 **SessionRanking**:
-The ordered team result for a finished `LiveSession`: higher total score ranks first, lower comparable `SolutionTime` breaks score ties, and teams share rank when solution time is not comparable or is equal.
+The ordered team result for a finished `LiveSession`: higher total score ranks first, lower comparable `ResolutionTime` breaks score ties, and teams share rank when `ResolutionTime` is not comparable or is equal.
 _Avoid_: leaderboard guess, fastest-only ranking
 
 **ScoreEntry**:
 The traceable scoring fact that explains a score change for a `Team` in a `LiveSession`. Total score and ranking are derived from score entries rather than direct score mutation.
 _Avoid_: hidden score update, mutable total
 
-**SolutionTime**:
+**ResolutionTime**:
 The elapsed active play time from `LiveSession` activation until a `Team` completes the final applicable objective used for ranking; time spent in `Paused` does not count.
 _Avoid_: wall-clock duration, trivia timer score
 
@@ -195,7 +195,7 @@ Session orchestration should be exposed through a narrow coordination service th
 _Avoid_: endpoint-level orchestration or handlers that manually coordinate every side effect
 
 **State**:
-`LiveSession` lifecycle behavior must enforce valid transitions such as `Preparing`, `Active`, `Paused`, `Finished`, and `Cancelled`, with play-mode-specific internal phases only when they remain subordinate to the same lifecycle model.
+`LiveSession` lifecycle behavior must enforce valid transitions such as `Scheduled`, `Preparing`, `Active`, `Paused`, `Finished`, and `Cancelled`, with play-mode-specific internal phases only when they remain subordinate to the same lifecycle model.
 _Avoid_: free-form status mutation or transition rules encoded as scattered conditionals
 
 **Chain of Responsibility**:
