@@ -1,5 +1,13 @@
 # Prompt Example — HU-22 Authoritative Session Timer (Feature Slice)
 
+> Superseded on 2026-06-16 by
+> `backend/docs/grilling-session-mission-restructure.md`,
+> `backend/docs/ddd_solution_model.md`, and
+> `backend/docs/bd_umbral_entity_spec.md`.
+> Do not drive this prompt as written if it assumes session-level trivia mode or
+> `Scheduled`. Rebuild the timer slice around mission snapshots, canonical
+> session states, and substage-specific timer behavior.
+
 Concrete prompt sequence for driving HU-22 through a full feature slice on
 `feature/hu-22-temporizador-autoritativo-de-sesion`. Follows the pattern in
 [workflow_for_prompts.md](./workflow_for_prompts.md). Context:

@@ -1,5 +1,14 @@
 # Sprint 1 — Trivia completo
 
+> Superseded on 2026-06-16 by
+> `backend/docs/grilling-session-mission-restructure.md`,
+> `backend/docs/ddd_solution_model.md`,
+> `backend/docs/bd_umbral_entity_spec.md`, and
+> `backend/docs/prd/DES-70-primera-implementacion-de-session-operations-service-hu-15-a-hu-36.md`.
+> Do not use this sprint plan as written. It excludes mission/treasure-hunt
+> work, but the current runtime model requires trivia to run as substages inside
+> mission-based sessions.
+
 Tickets necesarios para implementar trivia de extremo a extremo (frontend + backend + mobile).
 Excluye todo lo relacionado con TreasureHunt/misión.
 

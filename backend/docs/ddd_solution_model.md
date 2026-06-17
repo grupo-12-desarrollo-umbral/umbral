@@ -53,7 +53,8 @@ The current committed scope is:
 - `Administrador` and `Operador` use the web client
 - participant teams use the mobile client
 - the platform supports `TreasureHunt` and `Trivia`
-- every `LiveSession` belongs to exactly one mode
+- every `LiveSession` is created from exactly one active `Mission`
+- each mission `Substage` carries exactly one play mode: `TreasureHunt` or `Trivia`
 - scoring, ranking, monitoring, and audit remain shared platform concerns
 
 ## 2. Subdomains
@@ -74,9 +75,11 @@ Owns:
 - `Mission`
 - `MissionNode`
 - `Target`
+- `Clue`
 - `TriviaQuiz`
 - `TriviaQuestion`
 - `TriviaOption`
+- `TriviaQuestionSelection`
 - `MissionActivation`
 - source-content readiness for live use
 
@@ -85,7 +88,7 @@ Main use-case focus:
 - mission authoring
 - mission structure updates
 - trivia authoring
-- source publication or activation
+- mission readiness and activation
 
 ### `SessionOperations`
 
@@ -97,6 +100,7 @@ Main use-case focus:
 Owns:
 
 - `LiveSession`
+- `MissionRuntimeSnapshot`
 - `Team` (runtime — see note above)
 - `SessionParticipant`
 - `TeamMember`
@@ -107,10 +111,11 @@ Owns:
 - `TriviaAnswerSubmission`
 - `ClueReleaseRecord`
 - `SessionEvent`
+- `ScoreEntry` references needed to explain runtime scoring facts
 
 Main use-case focus:
 
-- session creation and lifecycle
+- mission-based session creation and lifecycle
 - team assignment to live sessions (runtime)
 - participant join and reconnection
 - clue release and runtime progression
@@ -202,8 +207,12 @@ Internal entities and value objects:
 
 - `MissionNode`
 - `Target`
+- `Clue`
+- `SubstagePlayMode`
+- `ClueVisibilityPolicy`
 - `TriviaQuestion`
 - `TriviaOption`
+- `TriviaQuestionSelection`
 - `Difficulty`
 - `MaximumTime`
 - `MissionActivation`
@@ -217,6 +226,7 @@ Aggregate roots:
 Internal entities and value objects:
 
 - `Team`
+- `MissionRuntimeSnapshot`
 - `SessionParticipant`
 - `TeamMember`
 - `JoinContext`
@@ -228,6 +238,8 @@ Internal entities and value objects:
 - `SessionEvent`
 - `SessionState`
 - `SessionSource`
+- `SubstageAdvancement`
+- `SolutionTime`
 - `TeamCode`
 
 > *Evidence* is the generic umbrella term for a team submission that proves or
@@ -254,7 +266,7 @@ Supporting value objects and policies:
 
 - `ScoreValue`
 - `PenaltyReason`
-- `ResolutionTime`
+- `SolutionTime`
 - `ScorePolicy`
 
 ### `Identity`
@@ -282,8 +294,12 @@ Field-level logical detail remains in `docs/bd_umbral_entity_spec.md`.
 - `MissionNodeAdded`
 - `MissionNodeUpdated`
 - `MissionNodeRemoved`
-- `TargetAttachedToClue`
-- `TargetRemovedFromClue`
+- `SubstagePlayModeAssigned`
+- `TargetAddedToSubstage`
+- `TargetUpdated`
+- `TargetRemovedFromSubstage`
+- `ClueAssociatedWithTarget`
+- `ClueVisibilityPolicyChanged`
 - `MissionActivated`
 - `MissionDeactivated`
 - `TriviaQuizCreated`
@@ -297,7 +313,7 @@ Field-level logical detail remains in `docs/bd_umbral_entity_spec.md`.
 ### `SessionOperations`
 
 - `LiveSessionCreated`
-- `LiveSessionScheduled`
+- `MissionRuntimeSnapshotCreated`
 - `LiveSessionStarted`
 - `LiveSessionPaused`
 - `LiveSessionResumed`
@@ -311,7 +327,12 @@ Field-level logical detail remains in `docs/bd_umbral_entity_spec.md`.
 - `EvidenceSubmissionAccepted`
 - `EvidenceSubmissionRejected`
 - `TargetResolved`
+- `TreasureHuntSubstageWon`
+- `SubstageAdvanced`
 - `TriviaAnswerSubmitted`
+- `TriviaQuestionActivated`
+- `TriviaQuestionClosed`
+- `TriviaSubstageCompleted`
 - `SessionStateChanged`
 - `SessionEventRecorded`
 
@@ -394,33 +415,38 @@ Required implementation patterns from ADR-0004 apply here:
 
 - `MissionActivationPolicy`
   - decides whether a mission is ready for live use
+  - requires at least one stage, at least one substage per stage, exactly one play mode per substage, target and winner-score readiness for treasure hunt, and published question selections for trivia substages
 - `MissionStructurePolicy`
   - protects mission hierarchy invariants
 - `TriviaPublicationPolicy`
   - decides whether a trivia quiz is publishable
-  - should keep a stable validation workflow and delegate variant steps through `Template Method` where mode-specific checks differ
+  - validates reusable trivia content for selection into trivia substages; it does not make a quiz a session source
 
 Pattern mapping:
 
 - `Composite`
-  - `Mission` owns a tree of `MissionNode` elements representing `Stage`, `Substage`, and `Clue`
+  - `Mission` owns a tree of `MissionNode` elements representing `Stage`, `Substage`, and `Clue`; substages may own optional clue guidance, and treasure-hunt substages additionally own target objectives
 - `Template Method`
   - structural and publication validation should keep one stable flow while allowing specialized checks
 
 ### `SessionOperations`
 
 - `SessionCreationPolicy`
-  - validates whether a `LiveSession` may be created from a source aggregate
+  - validates whether a `LiveSession` may be created from an active, runtime-ready `Mission`
 - `SessionStateTransitionPolicy`
   - governs valid lifecycle transitions
 - `ClueReleasePolicy`
-  - prevents invalid or duplicate clue release
+  - prevents invalid or duplicate clue visibility changes
 - `JoinPolicy`
   - validates participant access, team membership, late join, and reconnection rules
 - `EvidenceValidationPolicy`
   - validates whether an evidence submission can be accepted or rejected
 - `TargetResolutionPolicy`
   - prevents duplicate or invalid target resolution
+- `SubstageAdvancementPolicy`
+  - advances by strict mission order; treasure-hunt substages advance when the first team resolves all targets, and trivia substages advance when the final question timer expires
+- `TriviaQuestionTimerPolicy`
+  - controls synchronized question activation, pause/resume behavior, close, and duplicate or late answer rejection
 
 Pattern mapping:
 
@@ -491,6 +517,7 @@ Backlog alignment:
 ### `SessionOperations`
 
 - `CreateLiveSession`
+- `CreateMissionRuntimeSnapshot`
 - `AssignOperatorToSession`
 - `RegisterTeamInSession`
 - `JoinParticipantToSession`
@@ -498,12 +525,15 @@ Backlog alignment:
 - `StartSession`
 - `PauseSession`
 - `ResumeSession`
-- `FinishSession`
 - `CancelSession`
-- `ReleaseClueToTeam`
+- `ReleaseClue`
 - `RegisterEvidenceSubmission`
 - `AcceptEvidenceSubmission`
 - `RejectEvidenceSubmission`
+- `ResolveTarget`
+- `AdvanceSubstage`
+- `ActivateTriviaQuestion`
+- `CloseTriviaQuestion`
 - `SubmitTriviaAnswer`
 - `GetSessionBoard`
 - `GetTeamBoard`
@@ -553,12 +583,12 @@ The DDD rule is ownership first.
 
 - mission summary and mission snapshot contracts
 - mission activation status
-- trivia quiz summary and trivia snapshot contracts
-- source availability facts for session creation
+- published trivia quiz question contracts for mission readiness and trivia-substage selections
+- mission readiness facts for session creation
 
 `SessionOperations` exposes:
 
-- live-session summary and snapshot contracts
+- live-session summary and `MissionRuntimeSnapshot` contracts
 - team progress and team board contracts
 - join-context views
 - runtime completion facts that may affect scoring or monitoring

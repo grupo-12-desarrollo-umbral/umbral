@@ -1,5 +1,14 @@
 # Sprint 1 (Trivia) — Final Ticket Scope
 
+> Superseded on 2026-06-16 by
+> `backend/docs/grilling-session-mission-restructure.md`,
+> `backend/docs/ddd_solution_model.md`,
+> `backend/docs/bd_umbral_entity_spec.md`, and
+> `backend/docs/prd/DES-70-primera-implementacion-de-session-operations-service-hu-15-a-hu-36.md`.
+> Do not use this final scope as current planning input without rebuilding
+> DES-22/DES-23/DES-24 and related trivia tickets around mission snapshots and
+> trivia substages.
+
 Final, scoped ticket list for **Trivia Sprint 1**, reconciled against the live Linear
 backlog. Decides exactly which HUs are **still to do**, which are **already done**, and
 which are **deferred out of this sprint** while keeping trivia fully operable.

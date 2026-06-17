@@ -1,5 +1,9 @@
 # Prompt Example — HU-13 Duplicación y retiro de quizzes usados (Feature Slice)
 
+> Updated on 2026-06-16 for the mission-runtime restructure. Reinterpret "used in
+> a session" as referenced by a mission trivia `Substage` or frozen in a
+> `MissionRuntimeSnapshot`; `TriviaQuiz` is not a direct `SessionSource`.
+
 Concrete prompt sequence for driving HU-13 through a full feature slice on `feature/hu-13-trivia-quiz-duplication-and-retirement`. Follows the pattern in [workflow_for_prompts.md](./workflow_for_prompts.md).
 
 **Key difference from HU-12:** HU-12 established controlled publish/archive lifecycle transitions on `TriviaQuiz`. HU-13 builds on that baseline to preserve historical identity once a quiz has been used, so reuse happens through duplication into a new authoring copy and withdrawal-from-use happens without destructive deletion of the original record.

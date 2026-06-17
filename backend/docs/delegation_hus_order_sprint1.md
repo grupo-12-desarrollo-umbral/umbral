@@ -1,5 +1,14 @@
 # Sprint 1 — Delegation & HU Order (§0 realistic 8-hour cut)
 
+> Superseded on 2026-06-16 by
+> `backend/docs/grilling-session-mission-restructure.md`,
+> `backend/docs/ddd_solution_model.md`,
+> `backend/docs/bd_umbral_entity_spec.md`, and
+> `backend/docs/prd/DES-70-primera-implementacion-de-session-operations-service-hu-15-a-hu-36.md`.
+> Rebuild this order before assigning new work. It contains old trivia-session
+> and `Scheduled` assumptions that conflict with mission snapshots and canonical
+> session states.
+
 Two-person execution plan for the **§0 "8-hour cut"** of the Trivia sprint. This is the
 *realistic* one-day scope, not the full §2 DAG. Source of truth for scope:
 [`sprint_1_final_tickets.md`](./sprint_1_final_tickets.md) §0. Source for build order &

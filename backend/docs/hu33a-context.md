@@ -1,5 +1,14 @@
 # HU-33A Context — Trivia Round Orchestration (Thin Slice)
 
+> Superseded on 2026-06-16 by
+> `backend/docs/grilling-session-mission-restructure.md`,
+> `backend/docs/ddd_solution_model.md`, and
+> `backend/docs/bd_umbral_entity_spec.md`.
+> Keep synchronized question orchestration, but rebuild it as trivia `Substage`
+> behavior inside a mission `LiveSession`. A `TriviaQuiz` is not a direct
+> session source, and after the final question timer expires the runtime advances
+> to the next substage or completes the session.
+
 > Paste this section into any agent session that needs context for HU-33A.
 > Last updated: 2026-06-04 | Branch: `feature/hu-33a-trivia-round-orchestration`
 >

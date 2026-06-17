@@ -1,5 +1,14 @@
 # Trivia Ticket Graph
 
+> Superseded on 2026-06-16 by
+> `backend/docs/grilling-session-mission-restructure.md`,
+> `backend/docs/ddd_solution_model.md`,
+> `backend/docs/bd_umbral_entity_spec.md`, and
+> `backend/docs/prd/DES-70-primera-implementacion-de-session-operations-service-hu-15-a-hu-36.md`.
+> Do not use this graph to schedule new work as written. It assumes standalone
+> trivia sessions; tickets must be rebuilt around mission-only session creation,
+> `MissionRuntimeSnapshot`, and trivia substages.
+
 Last verified against Linear backlog on 2026-05-29 for team `umbral-equipo-12`.
 
 ## Scope

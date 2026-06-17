@@ -1,5 +1,14 @@
 # Prompt Example — HU-21A Valid Session State Transitions (Feature Slice)
 
+> Superseded on 2026-06-16 by
+> `backend/docs/grilling-session-mission-restructure.md`,
+> `backend/docs/ddd_solution_model.md`, and
+> `backend/docs/bd_umbral_entity_spec.md`.
+> Do not drive transition lists in this prompt as written. Rebuild around
+> `Preparing`, `Active`, `Paused`, `Finished`, and `Cancelled`; remove
+> `Scheduled`, operator-forced finish, and any transition that conflicts with
+> final-substage completion.
+
 Concrete prompt sequence for driving HU-21A through a full feature slice on
 `feature/hu-21-valid-session-transactions`. Follows the pattern in
 [workflow_for_prompts.md](./workflow_for_prompts.md). Context:
