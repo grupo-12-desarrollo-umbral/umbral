@@ -51,6 +51,9 @@ public sealed class MissionConfiguration : IEntityTypeConfiguration<Mission>
                 .IsRequired();
         });
 
+        // Phase X.3 owns the MissionNode/Target persistence model and migration.
+        builder.Ignore(mission => mission.Stages);
+
         builder.HasIndex(mission => mission.IsActive);
     }
 }
