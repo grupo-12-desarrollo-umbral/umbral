@@ -76,7 +76,7 @@
 | 9eef83a | X.2 Application | Mission management application layer (commands/queries/handlers/validators/DTOs) |
 | 2954fe3 | X.2 follow-up | Rename `TriviaQuestionSelection` → `TriviaQuizSelection` |
 | see git log | X.3 Infrastructure | EF owned-type config, `AddMissionCompositePersistence` migration, repository round-trip, ADR-0005 gate green |
-| — | X.4 Api | **Pending** — rebuilt `/api/missions` contract not yet committed |
+| see git log | X.4 Api | `/api/missions` full contract, exception mapping, endpoint + response unit tests, ADR-0005 gate green (95.46%) |
 
 ## Known quirks / gotchas
 

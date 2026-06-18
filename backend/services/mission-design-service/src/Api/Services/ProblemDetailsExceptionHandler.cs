@@ -96,6 +96,43 @@ public sealed class ProblemDetailsExceptionHandler : IExceptionHandler
                 Detail = exception.Message,
                 Status = StatusCodes.Status404NotFound
             },
+            MissionNotReadyForActivationException => new ProblemDetails
+            {
+                Title = "Validation failed.",
+                Detail = exception.Message,
+                Status = StatusCodes.Status400BadRequest
+            },
+            MissionNodeNotFoundException or TargetNotFoundException => new ProblemDetails
+            {
+                Title = "Mission resource not found.",
+                Detail = exception.Message,
+                Status = StatusCodes.Status404NotFound
+            },
+            MissionAlreadyActiveException or MissionAlreadyDeactivatedException => new ProblemDetails
+            {
+                Title = "Mission cannot change activation state from its current state.",
+                Detail = exception.Message,
+                Status = StatusCodes.Status409Conflict
+            },
+            SubstagePlayModeMismatchException
+                or SubstageRequiresPlayModeException
+                or ClueMustBelongToSameSubstageException
+                or TargetMayReferenceAtMostOneClueException
+                or InvalidMissionNodeChildException
+                or MissionNameRequiredException
+                or MissionDescriptionRequiredException
+                or MissionNodeTitleRequiredException
+                or MissionNodeSequenceOrderMustBePositiveException
+                or TargetNameRequiredException
+                or TargetQrCodeRequiredException
+                or TargetSequenceOrderMustBePositiveException
+                or ScoreValueExceedsMaximumException
+                or ScoreValueMustBePositiveException => new ProblemDetails
+                {
+                    Title = "Invalid mission authoring operation.",
+                    Detail = exception.Message,
+                    Status = StatusCodes.Status400BadRequest
+                },
             _ => new ProblemDetails
             {
                 Title = "An unexpected error occurred.",

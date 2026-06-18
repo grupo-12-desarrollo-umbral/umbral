@@ -197,6 +197,132 @@ public sealed class MissionEndpointsTests : IClassFixture<PostgreSqlFixture>, IA
         problem.Title.Should().Be("Validation failed.");
     }
 
+    [Fact]
+    public async Task MissionAuthoringEndpoints_BuildTreeExposeReadinessAndActivateReadyMission()
+    {
+        AddAdministratorHeaders();
+
+        var missionId = await CreateMissionAsync("Mission Runtime Plan");
+
+        var addStageResponse = await _client.PostAsJsonAsync(
+            $"/api/missions/{missionId}/nodes",
+            new
+            {
+                nodeType = "Stage",
+                title = "Stage 1",
+                sequenceOrder = 1
+            });
+        addStageResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var missionAfterStage = await addStageResponse.Content.ReadFromJsonAsync<MissionsEndpoints.MissionResponse>();
+        missionAfterStage.Should().NotBeNull();
+        var stageId = missionAfterStage!.Stages.Single().Id;
+
+        var addSubstageResponse = await _client.PostAsJsonAsync(
+            $"/api/missions/{missionId}/nodes",
+            new
+            {
+                nodeType = "Substage",
+                title = "Treasure Hunt",
+                sequenceOrder = 1,
+                stageId,
+                playMode = "TreasureHunt"
+            });
+        addSubstageResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var missionAfterSubstage = await addSubstageResponse.Content.ReadFromJsonAsync<MissionsEndpoints.MissionResponse>();
+        missionAfterSubstage.Should().NotBeNull();
+        var substageId = missionAfterSubstage!.Stages.Single().Substages.Single().Id;
+
+        var readinessBeforeTargetsResponse = await _client.GetAsync($"/api/missions/{missionId}/readiness");
+        readinessBeforeTargetsResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var readinessBeforeTargets = await readinessBeforeTargetsResponse.Content.ReadFromJsonAsync<MissionsEndpoints.MissionReadinessResponse>();
+        readinessBeforeTargets.Should().NotBeNull();
+        readinessBeforeTargets!.IsReady.Should().BeFalse();
+        readinessBeforeTargets.Failures.Should().Contain(failure => failure.Contains("must have at least one active target", StringComparison.Ordinal));
+        readinessBeforeTargets.Failures.Should().Contain(failure => failure.Contains("must define a winner score", StringComparison.Ordinal));
+
+        var addClueResponse = await _client.PostAsJsonAsync(
+            $"/api/missions/{missionId}/nodes",
+            new
+            {
+                nodeType = "Clue",
+                title = "Clue 1",
+                sequenceOrder = 1,
+                stageId,
+                substageId,
+                clueText = "Look near the old gate."
+            });
+        addClueResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var missionAfterClue = await addClueResponse.Content.ReadFromJsonAsync<MissionsEndpoints.MissionResponse>();
+        missionAfterClue.Should().NotBeNull();
+        var clueId = missionAfterClue!.Stages.Single().Substages.Single().Clues.Single().Id;
+
+        var addTargetResponse = await _client.PostAsJsonAsync(
+            $"/api/missions/{missionId}/stages/{stageId}/substages/{substageId}/targets",
+            new
+            {
+                name = "Target 1",
+                qrCode = "QR-001",
+                sequenceOrder = 1,
+                isActive = true,
+                winnerScore = 35
+            });
+        addTargetResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var missionAfterTarget = await addTargetResponse.Content.ReadFromJsonAsync<MissionsEndpoints.MissionResponse>();
+        missionAfterTarget.Should().NotBeNull();
+        var targetId = missionAfterTarget!.Stages.Single().Substages.Single().Targets.Single().Id;
+        missionAfterTarget.Stages.Single().Substages.Single().WinnerScore.Should().Be(35);
+
+        var associateClueResponse = await _client.PostAsJsonAsync(
+            $"/api/missions/{missionId}/stages/{stageId}/substages/{substageId}/targets/{targetId}/clue-association",
+            new
+            {
+                clueId
+            });
+        associateClueResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var detailResponse = await _client.GetAsync($"/api/missions/{missionId}");
+        detailResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var detail = await detailResponse.Content.ReadFromJsonAsync<MissionsEndpoints.MissionResponse>();
+        detail.Should().NotBeNull();
+        detail!.Stages.Should().ContainSingle();
+        detail.Stages[0].Substages.Should().ContainSingle();
+        detail.Stages[0].Substages[0].PlayMode.Should().Be("TreasureHunt");
+        detail.Stages[0].Substages[0].Targets.Should().ContainSingle();
+        detail.Stages[0].Substages[0].Targets[0].ClueId.Should().Be(clueId);
+        detail.Stages[0].Substages[0].Clues.Should().ContainSingle();
+
+        var activateResponse = await _client.PostAsync($"/api/missions/{missionId}/activate", content: null);
+        activateResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var activatedMission = await activateResponse.Content.ReadFromJsonAsync<MissionsEndpoints.MissionResponse>();
+        activatedMission.Should().NotBeNull();
+        activatedMission!.ActivationState.Should().Be("Ready");
+        activatedMission.IsSourceReady.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task ActivateMission_WhenRuntimePlanIsIncomplete_ReturnsBadRequest()
+    {
+        AddAdministratorHeaders();
+
+        var missionId = await CreateMissionAsync("Incomplete Mission");
+
+        var response = await _client.PostAsync($"/api/missions/{missionId}/activate", content: null);
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+
+        var problem = await response.Content.ReadFromJsonAsync<ProblemDetails>();
+        problem.Should().NotBeNull();
+        problem!.Status.Should().Be(StatusCodes.Status400BadRequest);
+        problem.Title.Should().Be("Validation failed.");
+    }
+
     private void AddAdministratorHeaders()
     {
         _client.DefaultRequestHeaders.Remove("X-User-Id");
