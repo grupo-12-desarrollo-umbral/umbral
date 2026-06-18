@@ -208,43 +208,18 @@ Move DES-14 to In Progress if the team process requires reopening rebuild work, 
 
 ```text
 Use @backend/.agents/backend-agent.md.
-Implement backend phase X.1 for HU-09 rebuild in mission-design-service.
-Use DES-62 plus @backend/docs/canon-realignment-after-mission-runtime-rewrite.md and canonical docs.
-
-Before writing anything, inspect existing Mission domain code and remove/reconcile stale mission-session assumptions.
-Do not create parallel Mission or MissionNode types.
-
-Scope:
-- rebuild Mission as a source-content wrapper aggregate, not a runtime session
-- implement the mandated Composite:
-  Mission owns ordered MissionNode elements for Stage, Substage, and Clue
-- model Stage as top-level ordered node with one or more Substage children for readiness
-- model Substage as child of Stage with exactly one SubstagePlayMode: TreasureHunt or Trivia
-- model Target as the QR-validated treasure-hunt objective owned by a TreasureHunt Substage
-- enforce treasure-hunt progress as Target based, not clue based
-- model Clue as optional guidance under a Substage; a Target may reference max one Clue from the same Substage
-- ensure clue visibility/release never advances a target or substage
-- model trivia Substage selection as TriviaQuizSelection from one published TriviaQuiz
-- ensure TriviaQuiz is reusable authoring content, not SessionSource
-- ensure there is no SessionMode in MissionDesign
-- add or complete domain events needed by rebuilt mission authoring:
-  MissionCreated, MissionDetailsUpdated, MissionStructureChanged, MissionNodeAdded,
-  MissionNodeUpdated, MissionNodeRemoved, TargetAddedToSubstage, TargetUpdated,
-  TargetRemovedFromSubstage, ClueAssociatedWithTarget, MissionActivated, MissionDeactivated
-- implement MissionActivationPolicy so readiness/activation validates the runtime plan:
-  every stage has substages, every substage has exactly one play mode, TreasureHunt substages
-  have active targets and winner score, Trivia substages have valid published question selections
-- keep activation/readiness distinct from runtime LiveSession lifecycle
+Implement backend phase X.1 for HU-09 in mission-design-service, per the
+**X.1 derivation block in @backend/docs/hu09-context.md** (your spec — do not
+re-read the canon or re-inspect the tree; open a cited canon section only to
+fill a gap the block leaves open).
 
 Gate:
-- Domain build passes
-- New domain invariants are expressed as unit tests on Mission, MissionNode, Target, and MissionActivationPolicy
-- Gate: Composite is structurally present as Mission -> MissionNode(Stage/Substage/Clue), not flattened records or handler traversal
-- Gate: each Substage has exactly one SubstagePlayMode: TreasureHunt or Trivia
-- Gate: treasure-hunt progression is Target based; Clue is optional guidance and max one per target
-- Gate: readiness/activation validates the runtime plan
-- Gate: no SessionMode exists in MissionDesign
-- Gate: TriviaQuiz is not modeled as SessionSource
+- Domain build passes; unit test per new domain type (Mission, MissionNode, Target, MissionActivationPolicy)
+- Composite structurally present as Mission -> MissionNode(Stage/Substage/Clue), not flattened records or handler traversal
+- each Substage has exactly one SubstagePlayMode: TreasureHunt or Trivia
+- treasure-hunt progression is Target based; Clue optional, max one per target
+- readiness/activation validates the runtime plan
+- no SessionMode exists in MissionDesign; TriviaQuiz is not modeled as SessionSource
 
 Do not touch other backend layers or frontend.
 ```
@@ -267,38 +242,16 @@ Then run: `/debrief`
 
 ```text
 Use @backend/.agents/backend-agent.md.
-Implement backend phase X.2 for HU-09 rebuild in mission-design-service.
-Use DES-62 plus @backend/docs/canon-realignment-after-mission-runtime-rewrite.md and canonical docs.
-
-Before writing anything, inspect current Application/Missions code and remove/reconcile commands,
-queries, validators, or DTOs that expose stale mission-session assumptions.
-
-Scope:
-- repository interfaces for the rebuilt Mission aggregate and read models:
-  IMissionRepository and IMissionReadModelRepository if missing or stale
-- commands + handlers + validators:
-  CreateMission, UpdateMission, DeactivateMission
-- structure commands + handlers + validators needed for the rebuilt runtime plan:
-  add/update/remove MissionNode, assign SubstagePlayMode, add/update/remove Target,
-  associate/unassociate optional Clue to Target, set/update TriviaQuizSelection
-- activation/readiness command/query:
-  validate runtime plan and activate/source-ready Mission only through MissionActivationPolicy
-- queries + handlers:
-  GetMissionCatalog and GetMissionDetail with Stage/Substage/Target/Clue/TriviaQuizSelection shape
-- authorization boundary:
-  mission mutations and activation are Administrator-only through existing authorization plumbing
-- validation:
-  required mission authored fields, hierarchy rules, exactly one SubstagePlayMode per Substage,
-  Target ownership, max one Clue per Target, published TriviaQuiz selection, not-found handling
-- reject or avoid any command/DTO shape that introduces SessionMode or TriviaQuiz as SessionSource
+Implement backend phase X.2 for HU-09 in mission-design-service, per the
+**X.2 derivation block in @backend/docs/hu09-context.md** (your spec — do not
+re-read the canon or re-inspect the tree; open a cited canon section only to
+fill a gap the block leaves open).
 
 Gate:
-- clean build passes
-- handler and validator unit tests cover valid path plus rejection/error branches
-- Gate: application use cases preserve the Composite and do not flatten traversal logic into handlers
-- Gate: activation/readiness handlers validate the runtime plan through domain policy
-- Gate: no SessionMode appears in commands, DTOs, handlers, or validators
-- Gate: no command treats TriviaQuiz as SessionSource
+- clean build passes; handler + validator unit tests cover valid path plus rejection/error branches
+- application use cases preserve the Composite — no flattened traversal logic in handlers
+- activation/readiness handlers validate the runtime plan through MissionActivationPolicy
+- no SessionMode in commands/DTOs/handlers/validators; no command treats TriviaQuiz as SessionSource
 - application layer does not leak infrastructure concerns
 
 Do not touch Infrastructure, Api, or frontend.
@@ -322,33 +275,16 @@ Then run: `/debrief`
 
 ```text
 Use @backend/.agents/backend-agent.md.
-Implement backend phase X.3 for HU-09 rebuild in mission-design-service.
-Use DES-62 plus @backend/docs/canon-realignment-after-mission-runtime-rewrite.md and canonical docs.
-
-Before writing anything, inspect current persistence scaffold:
-- ApplicationDbContext
-- MissionConfiguration
-- MissionNode/Target configurations if present
-- existing migrations and model snapshot
-
-Scope:
-- replace or migrate stale Mission persistence to the rebuilt aggregate shape
-- persist Mission wrapper metadata, activation/readiness state, deactivation/archive timestamp
-- persist MissionNode Composite data: Stage, Substage, Clue, parent/child relationship, sequence order
-- persist exactly one SubstagePlayMode for every Substage
-- persist Target under TreasureHunt Substage, including validation type/expected value/active flag
-- persist optional Clue association with max one Clue per Target and same-Substage constraint
-- persist TriviaQuizSelection reference for Trivia Substage without treating TriviaQuiz as SessionSource
-- update read-model repository queries so Mission detail returns the runtime-plan shape needed by API/frontend
-- create EF migration if the current snapshot does not match rebuilt canon; do not preserve stale schema to avoid migration work
-- integration tests for persistence and read model reconstruction across Stage/Substage/Target/Clue/Trivia selection
+Implement backend phase X.3 for HU-09 in mission-design-service, per the
+**X.3 derivation block in @backend/docs/hu09-context.md** (your spec — do not
+re-read the canon or re-inspect the tree; grep the model snapshot rather than
+full-reading it, as the block instructs).
 
 Gate:
 - build passes
 - EF migration/snapshot accurately represents Mission wrapper, MissionNode Composite, Target, optional Clue association, SubstagePlayMode, and TriviaQuizSelection
-- repository integration tests prove round-trip persistence for the rebuilt runtime plan
-- Gate: database/read models contain no SessionMode concept
-- Gate: no persistence model treats TriviaQuiz as SessionSource
+- repository integration tests prove round-trip persistence of the rebuilt runtime plan
+- database/read models contain no SessionMode; no persistence model treats TriviaQuiz as SessionSource
 
 Do not touch Api or frontend.
 ```
@@ -371,30 +307,16 @@ Then run: `/debrief`
 
 ```text
 Use @backend/.agents/backend-agent.md.
-Implement backend phase X.4 for HU-09 rebuild in mission-design-service.
-Use DES-62 plus @backend/docs/canon-realignment-after-mission-runtime-rewrite.md and canonical docs.
-
-Before writing anything, inspect the current MissionsEndpoints contract and identify stale response/request shapes.
-Replace stale contract surfaces rather than adding parallel endpoints for the same behavior.
-
-Scope:
-- rebuild /api/missions create, list, detail, update, deactivate endpoints around Mission wrapper metadata
-- expose runtime-plan authoring endpoints or nested payloads for:
-  Stage, Substage, SubstagePlayMode, Target, optional Clue, and TriviaQuizSelection
-- expose activation/readiness endpoint or response field that reports runtime-plan validation failures
-- endpoint policy: Administrator-only for mission mutations and activation/readiness mutation
-- response shape: Mission detail includes ordered stages, ordered substages, exact play mode, targets,
-  optional clue association, trivia selection, activation/readiness state
-- reject stale API shapes that contain SessionMode or direct TriviaQuiz SessionSource
-- map domain/application validation errors to appropriate ProblemDetails responses
-- maintain existing mission catalog/detail semantics for frontend consumers, updated to rebuilt shape
+Implement backend phase X.4 for HU-09 in mission-design-service, per the
+**X.4 derivation block in @backend/docs/hu09-context.md** (your spec — do not
+re-read the canon or re-inspect the tree; open a cited canon section only to
+fill a gap the block leaves open).
 
 Gate:
-- endpoint tests pass for create/update/deactivate/detail/readiness and at least one invalid runtime-plan rejection
-- Gate: API detail proves Mission as wrapper, MissionNode Composite, exactly one SubstagePlayMode, Target-based treasure hunt, optional Clue max one per target
-- Gate: no API request/response contains SessionMode
-- Gate: no API request/response treats TriviaQuiz as SessionSource
-- service coverage reaches the repo gate target
+- endpoint tests pass for create/update/deactivate/detail/readiness + at least one invalid runtime-plan rejection
+- API detail proves Mission as wrapper, MissionNode Composite, exactly one SubstagePlayMode, Target-based treasure hunt, optional Clue max one per target
+- no API request/response contains SessionMode or treats TriviaQuiz as SessionSource
+- service coverage reaches the repo gate target (ADR-0005)
 
 Do not touch frontend.
 ```

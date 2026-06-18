@@ -72,7 +72,11 @@
 
 | Commit | Phase | Description |
 |---|---|---|
-| - | - | No commits yet |
+| c561867 | X.1 Domain | Mission/MissionNode Composite, play modes, targets, clues, activation policy |
+| 9eef83a | X.2 Application | Mission management application layer (commands/queries/handlers/validators/DTOs) |
+| 2954fe3 | X.2 follow-up | Rename `TriviaQuestionSelection` → `TriviaQuizSelection` |
+| — | X.3 Infrastructure | **Pending** — Composite persistence config + migration not yet committed |
+| — | X.4 Api | **Pending** — rebuilt `/api/missions` contract not yet committed |
 
 ## Known quirks / gotchas
 
@@ -82,3 +86,46 @@
 - A `Clue` is still a `MissionNode`, but it is guidance, not an objective. The objective is `Target`.
 - Readiness/activation is not a runtime state transition. It is a `MissionDesign` source-readiness decision over the authored runtime plan.
 - HU-10A/DES-15 remains the follow-on hierarchy authoring ticket, but DES-14 rebuild must establish enough correct model shape that DES-15 extends canon instead of repairing stale assumptions again.
+
+## Per-phase derivation — authoritative for implementation
+
+> Primary source for the phase subagent (per `backend-agent.md` "Read first").
+> Derived from `ddd_solution_model.md` §MissionDesign, `services/mission-design-service/CONTEXT.md`,
+> `bd_umbral_entity_spec.md` §Mission/Target/Clue, and `canon-realignment-after-mission-runtime-rewrite.md`.
+> X.1/X.2 are already committed — those blocks describe the as-built canon shape (the
+> reference X.3/X.4 must match). Open a canonical doc only to fill a gap a block leaves open.
+
+### Phase X.1 — Domain  *(committed — reference only)*
+**Derive** (`bd_umbral_entity_spec.md` §Mission, realignment overlay):
+- `Mission` aggregate — source-content wrapper (`Difficulty`, `MaximumTime`, `MissionActivation`), **not** a runtime session; owns ordered `MissionNode`s.
+- `MissionNode` Composite — `Stage` → `Substage` → optional `Clue` (`MissionNodeType` enum). Child rules enforced via `InvalidMissionNodeChildException`.
+- `Substage` — exactly one `SubstagePlayMode` (`TreasureHunt`|`Trivia`); enforced by `SubstageRequiresPlayModeException` / `SubstagePlayModeMismatchException`. No `SessionMode`.
+- `Target` — QR objective under a TreasureHunt substage; progress is target-based. Max one `Clue` per target (`TargetMayReferenceAtMostOneClueException`), same substage (`ClueMustBelongToSameSubstageException`).
+- `MissionActivationPolicy` (domain service) — validates the runtime plan; `MissionNotReadyForActivationException` / `MissionAlreadyActiveException`.
+
+**Files:** `Domain/Entities/{Mission,MissionNode,Stage,Substage,Target,Clue}.cs`, `Domain/Enums/{SubstagePlayMode,MissionNodeType,MissionActivation,ClueVisibilityPolicy}.cs`, `Domain/Services/MissionActivationPolicy.cs`, `Domain/Events/Mission*.cs` + `Target*.cs` + `ClueAssociatedWithTargetEvent.cs`, `Domain/Exceptions/*`.
+**Pattern:** `Composite` (structural — not flattened records).
+**Gate:** unit test per new domain type; Composite structurally present; one play mode per substage; target-based progress; readiness validated; no `SessionMode`; `TriviaQuiz` not a `SessionSource`.
+
+### Phase X.2 — Application  *(committed — reference only)*
+**Derive** (`ddd_solution_model.md` §MissionDesign application services):
+- Mission commands: Create/Update/Deactivate; structure: Add/Update/Remove `MissionNode`, `AssignSubstagePlayMode`, Add/Update/Remove `Target`, Associate/Unassociate `Clue`, Set/Update `TriviaQuizSelection`; `ActivateMission`.
+- Queries: `GetMissionCatalog`, `GetMissionDetail`, `GetMissionReadiness`, `GetDifficultyCatalog`.
+- Composite traversal centralized in `MissionStructureEditor` / `MissionCommandHandlerBase` — **not** flattened into handlers. `TriviaQuizSelectionGuard` validates published-quiz selection.
+
+**Files:** `Application/Missions/{Commands,Handlers,Queries,DTOs}/*`, `Application/Missions/Common/{MissionStructureEditor,MissionCommandHandlerBase,MissionDtoMapper,TriviaQuizSelectionGuard}.cs`, `Application/Common/Interfaces/{IMissionRepository,IMissionReadModelRepository}.cs`.
+**Pattern:** `Composite` preserved; Administrator-only via existing `AuthorizationBehaviour`.
+**Gate:** handler + validator tests (valid + rejection branches); no `SessionMode` in commands/DTOs; no `TriviaQuiz` as `SessionSource`.
+
+### Phase X.3 — Infrastructure  *(PENDING — the real remaining work)*
+**Derive:** persist the Composite as EF **owned types** under `Mission`: `MissionNode` (Stage/Substage/Clue + sequence order), `Target` (qr/validation/active/score), clue association (max-one, same-substage), `SubstagePlayMode`, `TriviaQuizSelection`. No stale mission-session schema.
+**Files:** edit `Infrastructure/Persistence/Configurations/MissionConfiguration.cs` (owned-type config — mirror `TriviaQuizConfiguration.cs`); `Repositories/{MissionRepository,MissionReadModelRepository}.cs` (read-model reconstructs the full tree); **new** migration under `Infrastructure/Persistence/Migrations/` — none exists for the rebuilt model yet.
+- Check the snapshot by **grep `MissionNode`/`Target` in `ApplicationDbContextModelSnapshot.cs`** — do not full-read it.
+**Pattern:** none.
+**Gate:** `ef migrations add` succeeds and represents the Composite; repository integration test proves round-trip of Stage/Substage/Target/Clue/TriviaQuizSelection; no `SessionMode` in schema/read models.
+
+### Phase X.4 — Api  *(PENDING)*
+**Derive:** rebuild `/api/missions` — create/list/detail/update/deactivate around `Mission` metadata; nested authoring payloads for Stage/Substage/PlayMode/Target/optional Clue/TriviaQuizSelection; readiness endpoint/field reporting runtime-plan validation failures. Administrator-only mutations.
+**Files:** edit `Api/Endpoints/MissionsEndpoints.cs` (mirror `TriviasEndpoints.cs`); map new domain exceptions in `Api/Services/ProblemDetailsExceptionHandler.cs`.
+**Pattern:** `Composite` visible in the detail contract.
+**Gate:** endpoint tests for create/update/deactivate/detail/readiness + one invalid-plan rejection; ≥ repo coverage gate (ADR-0005); no `SessionMode`, no `TriviaQuiz` as `SessionSource` in any payload.
