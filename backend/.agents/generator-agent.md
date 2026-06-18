@@ -249,6 +249,30 @@ Leave both files in the `develop` worktree — do not commit them. The driver
 copies them into the feature worktree during pre-flight (driver-agent.md step 5),
 since a fresh worktree branched off `<base>` does not see them otherwise.
 
+### Responding to Stop 1 feedback
+
+When the human reviews the files and replies, classify the feedback before
+touching anything — the two cases get opposite treatment:
+
+- **Defect** (a mandated pattern is missing from a phase gate, a required section
+  is absent, the wrong PRD/predecessor was resolved, or the canon source set is
+  wrong). The derivation is structurally unsound, so **regenerate** from the
+  corrected inputs — re-run the affected resolution steps and rewrite the files.
+  Do not hand-patch around a structural defect. This is the
+  `workflow_refactor.md` "regenerate, don't proceed" posture.
+
+- **Refinement** (the human corrects or adds detail to *one* derivation block,
+  one gate line, or one scope row). Make a **surgical edit to only that span**.
+  Do **not** re-run step 6 across the whole HU and do **not** re-summarize blocks
+  the human did not flag — a second pass over the same canon silently re-phrases
+  invariants, drops citations, or shifts gate lines you already approved, so the
+  gate the driver ends up enforcing is no longer the gate the human signed off
+  on. Leave every approved derivation block and phase-gate table byte-for-byte
+  unchanged; touch only what was called out.
+
+If you are unsure which case applies, ask — do not default to a full regenerate,
+because that is the path that mutates approved content.
+
 ---
 
 ## Constraints
@@ -272,3 +296,7 @@ since a fresh worktree branched off `<base>` does not see them otherwise.
    inventing it. In realignment-rebuild mode the block must also carry the
    keep/delete/decide classification, and mirror-anchors may point only at code
    classified `keep`.
+8. On a *refinement* at Stop 1, never re-derive an approved derivation block or
+   phase-gate table — edit only the flagged span (see "Responding to Stop 1
+   feedback"). Full regenerate is for structural *defects* only; using it for a
+   one-line refinement silently drifts content the human already approved.
