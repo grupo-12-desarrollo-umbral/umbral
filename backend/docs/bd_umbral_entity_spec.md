@@ -209,13 +209,15 @@ Suggested fields:
 Relationships:
 
 - one `TriviaQuestion` belongs to exactly one `TriviaQuiz`
-- one `TriviaQuestion` contains two or more `TriviaOption`
+- one `TriviaQuestion` contains between 2 and 4 `TriviaOption` (ADR-0002)
 
-Key constraints:
+Key constraints (numeric ranges fixed by **ADR-0002**, accepted):
 
-- a `TriviaQuestion` must define at least two `TriviaOption`
+- a `TriviaQuestion` must define between **2 and 4** `TriviaOption`s, with exactly one marked `isCorrect`
+- `scoreValue` is an integer in **[1, 100]** (see `ScoreValue` value object)
+- `timeLimit` is an integer number of seconds in **[5, 120]** (see `QuestionTimer` value object)
 - `sequenceOrder` must be unique within the quiz
-- published questions selected into a mission must have a valid `scoreValue` and `timeLimit`
+- published questions selected into a mission must have a valid `scoreValue` and `timeLimit` within the ranges above
 
 ### `TriviaOption`
 

@@ -40,16 +40,26 @@ Canonical language source (do not contradict): `backend/docs/grilling-session-mi
 
 ## How to find these in Linear
 
-Every issue touched by this realignment carries the **`canon-realign`** label
-(team `umbral-equipo-12`). Filter the project by that label to see the full set
-(18 issues: 4 created + 14 commented). The 4 rebuild tickets also carry
-`needs-rebuild`. Each commented issue has a comment starting with
-`⚠️ Deuda de canon` or `⚠️ Nota de canon`. DES-16 (HU-10B) is archived and
-intentionally unlabeled.
+Every issue **commented or rebuilt** by this realignment carries the **`canon-realign`**
+label (team `umbral-equipo-12`): 18 issues from the initial pass (4 rebuild tickets
+DES-75–78 + 14 commented), plus 3 drift fixes from a 2026-06-17 second review (DES-67,
+DES-40, DES-42) and 4 superseded Done tickets labeled in the same pass (DES-23/28/30/44 —
+see the addendum at the end). The 4 rebuild tickets also carry `needs-rebuild`.
+Each commented issue has a comment starting with `⚠️ Deuda de canon` or `⚠️ Nota de canon`.
+
+Labeling is **selective, not uniform**. Untagged rows: the ✅ #28-umbrella issues
+(DES-39/41/43/46/47/56, realigned directly by commit `df06e54`); DES-26 (✅ historical note,
+behavior unaffected); the foundation / `needs-rebuild` rows DES-22 and DES-24; and the
+archived DES-16 (HU-10B, intentionally unlabeled).
 
 ## Ticket disposition
 
-Legend: ✅ aligned · 📝 canon-drift comment added · 🔨 rebuild ticket filed · 🗄️ archived · 🏷️ all rows below are tagged `canon-realign` (except the archived DES-16)
+Legend: ✅ aligned · 📝 canon-drift comment added · 🔨 rebuild ticket filed · 🗄️ archived
+
+> Rows are **not** uniformly tagged `canon-realign`: see the selective-labeling note above
+> and the 2026-06-17 addendum below. The ✅-#28, DES-26, DES-22/24 and archived rows
+> carry no label; the 📝 rows, the 4 rebuild tickets (DES-75–78), and the 🔨 superseded
+> Done tickets (DES-23/28/30/44, labeled 2026-06-17) do.
 
 | Ticket | HU | Status | Disposition |
 |---|---|---|---|
@@ -75,7 +85,7 @@ Legend: ✅ aligned · 📝 canon-drift comment added · 🔨 rebuild ticket fil
 | DES-62 | PRD HU-09–14 | Backlog | 📝 authority pointer to rewritten entity/DDD docs |
 | DES-22 | HU-15 | Todo | foundation (mission→session) — see order below |
 | DES-24 | HU-17 | Todo | `needs-rebuild`: single-source = mission-wrapper |
-| DES-39/40/41/42/43/46/47/56 | HU-29–32/34/40A | Backlog/Todo | ✅ already realigned to `EvidenceSubmission` umbrella (#28) |
+| DES-39/40/41/42/43/46/47/56 | HU-29–32/34/40A | Backlog/Todo | ✅ already realigned to `EvidenceSubmission` umbrella (#28). DES-40 & DES-42 also received 📝 binding-target drift comments + `canon-realign` on 2026-06-17 (see addendum) |
 
 ## What to implement next, in order
 
@@ -101,3 +111,49 @@ Dependencies come from each ticket's *Blocked by* plus the realignment links
 - **DES-37 (HU-27):** rule-based automatic clue release is not in canon — eliminate, merge into HU-26, or redefine.
 - **DES-38 (HU-28):** operator-authored runtime clues conflict with the immutable snapshot — model as an explicit exception or reinterpret as *release* of pre-snapshotted clues.
 - **DES-54/DES-55 (HU-39A/B):** confirm the merge into a single session ranking before rewriting AC.
+
+## Addendum — second-review drift fixes (2026-06-17)
+
+A second review against the canon docs surfaced three residual mismatches not
+covered by the #28 / #29 passes above. Each was labeled `canon-realign` and given
+a `⚠️ Deuda de canon` comment; the two living HU issues also had their acceptance
+criteria reworded. DES-62's `2–4` options was confirmed a **false positive**
+(backed by accepted ADR-0002) — no ticket change, only a doc cross-ref added to
+`bd_umbral_entity_spec.md` (TriviaQuestion constraints now cite ADR-0002 for the
+options / score / timer ranges).
+
+| Issue | HU | Fix | Canon source |
+|---|---|---|---|
+| **DES-67** | PRD HU-01–08 | 📝 only (PRD is a historical artifact; ADR-0001 overrides). HU-04/05 assignment to Identity stays correct; the "nunca doble ownership" wording is superseded — Identity owns the reference-data `Team` + `TeamMembership`, SessionOperations owns the runtime `Team` (two aggregates with different shapes, not double ownership). | ADR-0001, `ddd_solution_model.md:151` |
+| **DES-40** | HU-30A | 📝 + AC reword. Binding AC changed from "etapa, subetapa, pista" to exactly one `MissionNode` of the active substage, form-agnostic (trivia → active question; treasure-hunt → target scope of the substage). | `requisitos` BR-05 / FR-08, `bd_umbral_entity_spec.md` |
+| **DES-42** | HU-31 | 📝 + AC reword. (a) binding → active treasure-hunt `Substage` / `MissionNode`; (b) **Target↔Clue inversion fixed** — validate the scanned QR against the `Target` (which owns an optional `Clue`), never "against the active clue"; releasing a clue does not advance the substage. | `canon-realignment…:29`, `grilling-session-mission-restructure.md:47`, `hu09-context.md:82` |
+
+This brings the `canon-realign`-labeled set to 25 issues (18 initial + 3 drift fixes above
++ 4 superseded Done tickets below). No code changed in this pass; only Linear issues and
+these docs.
+
+### Backlog hygiene — superseded Done tickets (same pass)
+
+The 4 🔨 superseded Done tickets were labeled `canon-realign` + given a `⚠️ Nota de canon`
+supersession comment pointing at their rebuild ticket, so the Linear filter is honest and no
+agent picks up pre-canon ACs:
+
+| Issue | HU | Rebuilt as | Pre-canon drift |
+|---|---|---|---|
+| DES-23 | HU-16 | DES-75 | "sesión de trivia" (quiz as `SessionSource`) → trivia `Substage` |
+| DES-28 | HU-21A | DES-76 | state machine realigned to canonical `Scheduled → … → Cancelled` |
+| DES-30 | HU-22 | DES-77 | timer keyed off active `SubstagePlayMode`, not session-level mode |
+| DES-44 | HU-33A | DES-78 | trivia orchestration as `Substage`, not a standalone session |
+
+These remain in `Done` state — **archiving is not exposed via the Linear MCP tools**, so
+full removal from active views needs the Linear UI. The `ready-for-agent` label still on
+DES-23/30/44 is now stale (superseded issues should not be agent-picked) and can be stripped
+in that same UI pass.
+
+### DES-71–74 — verified subsumed, already archived
+
+The four were suspected orphaned AC-fragment sub-issues of HU-07A. Verified: each has
+`parentId: DES-11`, an empty description, and a title that is **verbatim AC text** from
+DES-11 (HU-07A, Done 2026-06-03, all 6 ACs checked `[X]`) — pure fragments, no independent
+scope. They were **already archived** on 2026-06-15 (`archivedAt` set) shortly after
+creation. No action needed.
