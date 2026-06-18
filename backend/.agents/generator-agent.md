@@ -120,13 +120,42 @@ section of the context file and the per-phase **scope + gate** of the prompt
 file (see below). A mandated pattern that does not appear in a phase gate is a
 generation defect — do not ship the files without it.
 
+### 6. Resolve per-phase derivation
+
+This is the step that lets phase subagents skip the canon. You read the canon
+**once, here**, and write the result into the context file's **Per-phase
+derivation** section so the four phase subagents never re-load it.
+
+The canon source set and precedence depend on the mode:
+
+- **Feature flow** — canon source is the standard doc set; precedence per
+  `backend-agent.md` (`ddd_solution_model.md` → `CONTEXT.md` → `structure.md` →
+  `bd_umbral_entity_spec.md` → `plans/...`). Read only the section(s) for this
+  HU's aggregate(s).
+- **Realignment rebuild** (HU is `needs-rebuild` / named in a realignment map) —
+  follow `canon-realignment-workflow.md`. Canon source is the realignment map's
+  canon-delta + per-service glossary + cited ADRs; authority chain is
+  `canon docs > tracker AC > existing code`. In this mode each per-phase block
+  MUST also carry:
+  - a **keep / delete / decide** classification of the existing code in scope
+    (realignment-workflow step 3), and
+  - **mirror-anchors only to code classified `keep`** — never cite a
+    canon-contradicting file as a pattern to copy.
+
+For each phase X.1–X.4, distill the exact types/fields/invariants this HU adds at
+that layer, the target files (each with an existing file to mirror), the pattern
+the phase owns (step 5), and the gate. **Cite the canon section each derivation
+came from.** Derive only what this HU touches — do not transcribe whole entities.
+
 ---
 
 ## What you produce
 
 ### `backend/docs/hu<NN>-context.md`
 
-Follow the structure of `backend/docs/hu03-context.md` exactly:
+Follow the structure of `backend/docs/hu09-context.md` exactly — it is the
+current exemplar and the only context file that carries the **Per-phase
+derivation** section. Produce all of these sections:
 
 - **State block** — DES-N status + labels, predecessor DES ids, PRD DES id,
   branch name + base
@@ -140,10 +169,35 @@ Follow the structure of `backend/docs/hu03-context.md` exactly:
 - **Committed phases** — empty table (no commits yet)
 - **Known quirks / gotchas** — non-obvious conventions, namespace collision
   risks, migration notes, coverage gaps
+- **Per-phase derivation (X.1–X.4)** — the authoritative implementation spec per
+  phase, from resolution step 6. This is what lets the phase subagent skip the
+  full-canon read — if it is thin, every phase re-reads the 1000+-line entity
+  spec instead. Fill one block per phase using this template:
+
+  > ### Phase X.N — \<layer>
+  > **Derive** (cite canon — e.g. `bd_umbral_entity_spec.md` §\<aggregate>,
+  > `ddd_solution_model.md` §\<svc>):
+  > - \<type / method / event / exception this HU adds at this layer> — \<invariants / behaviour>
+  >
+  > **Target files** (create | edit — file to mirror):
+  > - \<create|edit> `\<path>` — mirror `\<existing canon-aligned file>`
+  >
+  > **Pattern this phase owns:** \<pattern from step 5, or none>
+  > **Gate:** \<the phase gate — unit test per new type / handler + validator
+  > tests / migration no-op + repo test / endpoint + coverage>
+  >
+  > _Realignment-rebuild mode only — also add:_
+  > **Existing code (keep / delete / decide):**
+  > - delete `\<path>` — \<canon-contradicting concept it carries>
+  > - keep   `\<path>` — \<why canon-aligned; safe to mirror>
+  > - decide `\<path>` — \<canon silent; resolve before building>
 
 ### `backend/docs/prompt_example_feature_hu<NN>.md`
 
-Follow the structure of `backend/docs/prompt_example_feature_hu03.md` exactly:
+Follow the structure of `backend/docs/prompt_example_feature_hu09.md` exactly —
+it is the current exemplar; its Steps 5–8 are the thin, derivation-referencing
+shape (point at the `hu<NN>-context.md` X.N block + gate + commit, no inline
+scope). Produce these sections:
 
 | Section | Content |
 |---|---|
@@ -155,7 +209,7 @@ Follow the structure of `backend/docs/prompt_example_feature_hu03.md` exactly:
 | Step 2: Label DES-N | `ready-for-agent` via Linear MCP |
 | Step 3: Confirm readiness | Both labels confirmed, acceptance criteria output |
 | Step 4: Start the slice | Branch, move to In Progress, output scope |
-| Steps 5–8: Phases X.1–X.4 | Each with `@backend/.agents/backend-agent.md` reference, scope, gate, commit message. **For the phase(s) that own a mandated pattern, the pattern must appear as an explicit scope bullet AND as an explicit gate line** (e.g. "Gate: access is enforced through a `Proxy`-style guard — `AuthorizationBehaviour`/endpoint policy — with no ad-hoc role `if` checks in handlers or endpoints"). A pattern named only in prose, never in a gate, does not count. |
+| Steps 5–8: Phases X.1–X.4 | Each step is **thin**: the `@backend/.agents/backend-agent.md` reference, one line pointing the subagent at the **X.N derivation block in `hu<NN>-context.md`** as its spec, the gate, and the commit message. Do **not** re-list the per-type scope here, and do **not** tell the subagent to "use canonical docs" or "inspect existing code" each phase — that scope lives once in the derivation block; duplicating it causes drift and makes every phase re-read the full canon (the cost this whole flow exists to avoid). **The pattern the phase owns must still appear as an explicit gate line** (e.g. "Gate: access enforced through a `Proxy`-style guard — `AuthorizationBehaviour`/endpoint policy — no ad-hoc role `if` checks"). A pattern named only in prose, never in a gate, does not count. |
 | Step 8.5: Docker rebuild | `docker compose build` + `docker compose up -d` + curl smoke |
 | Step 9: Frontend slice | Begin the step with a plan-generation instruction, then the `@frontend/AGENTS.md` reference, scope, gate, commit message. The plan-generation line must read: "Generate a multi phase plan in a markdown file, like the one in `@frontend/plans/hu-03-frontend-role-permission-assignment.md`, save it in `@frontend/plans/` for the following:" immediately followed by `Use @frontend/AGENTS.md` |
 | Step 10: Close-out | Acceptance criteria + `gh pr create` command |
@@ -212,3 +266,9 @@ since a fresh worktree branched off `<base>` does not see them otherwise.
 6. Never ship the files if a pattern mandated by
    `trivia_sprint_required_patterns_matrix.md` for this HU is missing from a
    phase gate — that is the defect that let HU-01/02/03 ship without `Proxy`
+7. The **Per-phase derivation** section is mandatory and every block must cite
+   its canon source — a derivation with no citation is unverifiable and must not
+   ship. If the canon genuinely lacks a detail, say so in the block rather than
+   inventing it. In realignment-rebuild mode the block must also carry the
+   keep/delete/decide classification, and mirror-anchors may point only at code
+   classified `keep`.
