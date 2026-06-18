@@ -147,8 +147,12 @@ agent picks up pre-canon ACs:
 
 These remain in `Done` state — **archiving is not exposed via the Linear MCP tools**, so
 full removal from active views needs the Linear UI. The `ready-for-agent` label still on
-DES-23/30/44 is now stale (superseded issues should not be agent-picked) and can be stripped
-in that same UI pass.
+DES-23/30/44 is now stale (superseded issues should not be agent-picked) and should be
+stripped in that same UI pass — but stripping it is **hygiene, not the safety mechanism**.
+The generator-agent stops on any ticket in the superseded column above **regardless of
+`ready-for-agent`** (`generator-agent.md` resolution step 1), and excludes superseded Done
+tickets from the predecessor set (step 3), so a missed strip cannot cause a stale ticket to
+be agent-picked or cited as a predecessor.
 
 ### DES-71–74 — verified subsumed, already archived
 

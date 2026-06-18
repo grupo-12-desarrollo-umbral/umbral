@@ -25,7 +25,7 @@ is resolved from Linear and local files.
 
 ## Resolution steps (run before writing anything)
 
-### 1. Verify the HU ticket is ready
+### 1. Verify the HU ticket is ready — and classify it
 
 Query Linear for `DES-N`. Confirm it carries both:
 
@@ -34,6 +34,32 @@ Query Linear for `DES-N`. Confirm it carries both:
 
 If either label is missing, **stop** — do not generate files for an unlabeled
 ticket. Report which label is missing and wait.
+
+`ready-for-agent` alone is **not** proof the ticket is live. A superseded Done
+ticket can still carry it — the realignment hygiene pass that strips it is
+manual and may not have run (this is the exact case the ledger flags as
+"stale `ready-for-agent` can be stripped"). The generator must not depend on
+that strip having happened. So classify the ticket here, at the front door:
+
+1. **Check supersession.** If a `canon-realign`/`needs-rebuild` cycle touched
+   this service, read the realignment map's supersession table. **If `DES-N`
+   appears in the superseded ("old") column → STOP**, even if it carries
+   `ready-for-agent`. Report: "DES-N is superseded by DES-M — run the rebuild
+   ticket, not this one." Do not generate files for a superseded ticket.
+2. **Resolve mode.** Read the target's `canon-realign` / `needs-rebuild`
+   labels:
+   - `needs-rebuild`, or named as a rebuild ticket in the realignment map →
+     **mode = realignment-rebuild**. Record this in the context file's state
+     block; step 6 reads it rather than re-inferring it.
+   - `canon-realign` without `needs-rebuild` → comment-only reword. The issue
+     body / AC checklist may be stale — the real scope lives in the ticket's
+     `⚠️ Deuda de canon` / `⚠️ Nota de canon` comment. Tighten the AC against
+     canon (per `canon-realignment-workflow.md` step 2) before building.
+   - neither label → **mode = feature flow**.
+
+When mode = realignment-rebuild (or any realignment label is present in the
+service), the realignment map is a **required input** for the rest of
+resolution — declare it now; do not defer first contact to step 6.
 
 ### 2. Resolve the PRD ref
 
@@ -55,7 +81,15 @@ one. If the local PRD file does not exist, stop and report.
 Query Linear for all tickets with the same `svc:<service>` label in state
 **Done** or **In Progress**.
 
-For each predecessor, in order:
+**Filter out superseded tickets first.** If a realignment cycle touched this
+service, drop any Done ticket that appears in the realignment map's superseded
+("old") column — and if it has a rebuild successor, substitute that successor.
+A superseded Done ticket is **not** a predecessor: its code is the stale model
+this work tears out, so citing it under "what predecessors landed" anchors the
+new HU on the model it is meant to replace. Never rely on `ready-for-agent`
+having been manually stripped to catch this — filter against the map.
+
+For each surviving predecessor, in order:
 1. Read `backend/docs/hu<NN>-context.md` if it exists (fast path — already
    summarised)
 2. Fall back to `backend/services/<service>/README.md` if context files are
@@ -126,13 +160,14 @@ This is the step that lets phase subagents skip the canon. You read the canon
 **once, here**, and write the result into the context file's **Per-phase
 derivation** section so the four phase subagents never re-load it.
 
-The canon source set and precedence depend on the mode:
+The canon source set and precedence depend on the mode **already resolved in
+step 1** — do not re-infer it here, just branch on it:
 
 - **Feature flow** — canon source is the standard doc set; precedence per
   `backend-agent.md` (`ddd_solution_model.md` → `CONTEXT.md` → `structure.md` →
   `bd_umbral_entity_spec.md` → `plans/...`). Read only the section(s) for this
   HU's aggregate(s).
-- **Realignment rebuild** (HU is `needs-rebuild` / named in a realignment map) —
+- **Realignment rebuild** (mode set in step 1) —
   follow `canon-realignment-workflow.md`. Canon source is the realignment map's
   canon-delta + per-service glossary + cited ADRs; authority chain is
   `canon docs > tracker AC > existing code`. In this mode each per-phase block
@@ -157,8 +192,10 @@ Follow the structure of `backend/docs/hu09-context.md` exactly — it is the
 current exemplar and the only context file that carries the **Per-phase
 derivation** section. Produce all of these sections:
 
-- **State block** — DES-N status + labels, predecessor DES ids, PRD DES id,
-  branch name + base
+- **State block** — DES-N status + labels, **resolved mode** (feature flow /
+  realignment-rebuild, from resolution step 1) and, if superseded handling
+  applied, which predecessor ids were dropped or substituted, predecessor DES
+  ids, PRD DES id, branch name + base
 - **Required design patterns** — the pattern(s) resolved in resolution step 5,
   each with its "Why" line, the phase that owns it, and the concrete obligation.
   If none is mandated, say so explicitly (and note any applies-where `Proxy`).
@@ -285,7 +322,10 @@ because that is the path that mutates approved content.
 3. If the PRD is ambiguous for this HU's specific scope, note the ambiguity in
    the prompt file's rationale section rather than guessing
 4. If the HU ticket is missing `ready-for-agent` or `svc:<service>`, stop and
-   report — do not generate files for an unlabeled ticket
+   report — do not generate files for an unlabeled ticket. Likewise, if the
+   ticket is in the realignment map's superseded column, stop **regardless of
+   `ready-for-agent`** — never trust a manual hygiene strip to have caught it
+   (resolution step 1)
 5. Single HU only — parallel dependent-pair coordination is out of scope
 6. Never ship the files if a pattern mandated by
    `trivia_sprint_required_patterns_matrix.md` for this HU is missing from a
