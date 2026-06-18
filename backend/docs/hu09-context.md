@@ -25,7 +25,7 @@
 
 **Domain layer**
 - Existing `Mission` authoring baseline was implemented before the mission-runtime rewrite and must be rebuilt around `Mission` as a wrapper, not a runtime session.
-- `MissionDesign` owns `Mission`, `MissionNode`, `Target`, `Clue`, `TriviaQuiz`, `TriviaQuestionSelection`, `Difficulty`, `MaximumTime`, and `MissionActivation`.
+- `MissionDesign` owns `Mission`, `MissionNode`, `Target`, `Clue`, `TriviaQuiz`, `TriviaQuizSelection`, `Difficulty`, `MaximumTime`, and `MissionActivation`.
 - `TriviaQuiz` authoring, question/option management, validation, publication/archive, and duplication/retirement have landed in later HUs; `TriviaQuiz` is reusable authoring content selected into trivia substages, not a session source.
 - Current canon requires each `Substage` to have exactly one `SubstagePlayMode`: `TreasureHunt` or `Trivia`.
 - Treasure-hunt progress is `Target` based, not clue based. `Clue` is optional player guidance and at most one clue can guide a target.
@@ -56,7 +56,7 @@
 | Substage play mode | Require every `Substage` to declare exactly one `SubstagePlayMode`: `TreasureHunt` or `Trivia`; there is no session-level `SessionMode`. |
 | Target-based treasure hunt | Model treasure-hunt progress through `Target` objectives under treasure-hunt substages, not through clues. |
 | Optional clue guidance | Keep `Clue` as optional guidance, with max one clue associated to a target; clue release/visibility does not advance the substage. |
-| Trivia substages | A trivia `Substage` references an ordered `TriviaQuestionSelection` from one published `TriviaQuiz`; `TriviaQuiz` is not a `SessionSource`. |
+| Trivia substages | A trivia `Substage` references one whole published `TriviaQuiz` through a `TriviaQuizSelection`; `TriviaQuiz` is not a `SessionSource`. |
 | Readiness/activation | `MissionActivationPolicy` validates the full runtime plan before a mission can be activated/source-ready: stages, substages, play modes, treasure targets/winner score, and trivia selections. |
 | Backend contract | Rebuild `/api/missions` request/response shapes around mission wrapper metadata plus stage/substage/target/clue/trivia-selection authoring and readiness feedback. |
 | Frontend flow | Rebuild mission-management UI so administrators can create, edit, inspect, deactivate, and readiness-check the mission runtime plan. |

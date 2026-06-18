@@ -27,7 +27,7 @@ Canonical language source (do not contradict): `backend/docs/grilling-session-mi
 **Mission hierarchy**
 - `Mission` (wrapper) → ordered `Stage`s → ordered `Substage`s. Each `Substage` has exactly one `SubstagePlayMode`: `TreasureHunt` or `Trivia`.
 - Treasure-hunt progression is **target-based, not clue-based**. `Target` is the QR-validated objective. `Clue` is **optional** guidance attached to a `Target` (max one per target); releasing a clue does **not** advance the substage.
-- Trivia substage references an ordered `TriviaQuestionSelection` from one published `TriviaQuiz`.
+- Trivia substage references one whole published `TriviaQuiz` through a `TriviaQuizSelection`.
 
 **Lifecycle**
 - Canonical `SessionState`s: `Scheduled → Preparing → Active → Paused → Finished → Cancelled`. `LiveSession` is created in `Scheduled`; team association is allowed only while `Scheduled`; operator-driven readiness moves it to `Preparing` before it can go `Active`.
@@ -97,7 +97,7 @@ Dependencies come from each ticket's *Blocked by* plus the realignment links
 | 1 | Mission authoring | **DES-14** (HU-09 rebuild), **DES-15** (HU-10A) | Mission wrapper + `Stage`/`Substage`/`SubstagePlayMode`/`Target`/optional `Clue`; structural validations & readiness rules | — |
 | 2 | Session creation | **DES-22** (HU-15) | Create `LiveSession` from an active mission; immutable `MissionRuntimeSnapshot` | Phase 1 |
 | 3 | Session creation | **DES-24** (HU-17) | Single-source rule = mission-wrapper (drop "trivia session from quiz") | DES-22 |
-| 4 | Session creation | **DES-75** (HU-16 realign) | Trivia selection as a `Substage` (`TriviaQuestionSelection`), not a session | DES-22, DES-24 |
+| 4 | Session creation | **DES-75** (HU-16 realign) | Trivia selection as a `Substage` (`TriviaQuizSelection`), not a session | DES-22, DES-24 |
 | 5 | Lifecycle | **DES-76** (HU-21A realign) | State machine `Scheduled/Preparing/Active/Paused/Finished/Cancelled` | DES-22, DES-24 |
 | 6 | Lifecycle | **DES-77** (HU-22 realign) | Authoritative timer keyed off active `SubstagePlayMode` | DES-22, DES-24 |
 | 7 | Setup | **DES-25** (HU-18 reword) | Attach teams during `Scheduled` (before `Preparing`) | DES-76 |

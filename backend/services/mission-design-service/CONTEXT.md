@@ -56,9 +56,9 @@ _Avoid_: publishing, enabling, release
 The reusable trivia authoring aggregate that defines questions and options for trivia content attached to a `Substage`. It is not a `SessionSource`.
 _Avoid_: questionnaire, game form, session source
 
-**TriviaQuestionSelection**:
-An ordered selection of questions from one published `TriviaQuiz` for use by a trivia `Substage`. Selecting the entire quiz means selecting all questions in quiz order.
-_Avoid_: loose question reference, embedded mini quiz
+**TriviaQuizSelection**:
+The selection of one whole published `TriviaQuiz` for use by a trivia `Substage`. The entire quiz is selected in authored question order; `TriviaQuiz` is reusable authoring content, not a `SessionSource`.
+_Avoid_: loose question reference, embedded mini quiz, partial question subset
 
 **TriviaQuestion**:
 The authored question belonging to a `TriviaQuiz`.

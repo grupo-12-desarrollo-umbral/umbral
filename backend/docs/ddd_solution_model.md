@@ -79,7 +79,7 @@ Owns:
 - `TriviaQuiz`
 - `TriviaQuestion`
 - `TriviaOption`
-- `TriviaQuestionSelection`
+- `TriviaQuizSelection`
 - `MissionActivation`
 - source-content readiness for live use
 
@@ -212,7 +212,7 @@ Internal entities and value objects:
 - `ClueVisibilityPolicy`
 - `TriviaQuestion`
 - `TriviaOption`
-- `TriviaQuestionSelection`
+- `TriviaQuizSelection`
 - `Difficulty`
 - `MaximumTime`
 - `MissionActivation`

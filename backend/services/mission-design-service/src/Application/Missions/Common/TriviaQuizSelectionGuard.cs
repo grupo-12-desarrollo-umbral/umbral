@@ -5,7 +5,7 @@ using ApplicationNotFoundException = umbral_backend.Application.Common.Exception
 
 namespace umbral_backend.Application.Missions.Common;
 
-internal static class TriviaQuestionSelectionGuard
+internal static class TriviaQuizSelectionGuard
 {
     public static async Task EnsurePublishedSelectionAsync(
         ITriviaQuizRepository triviaQuizRepository,
@@ -19,7 +19,7 @@ internal static class TriviaQuestionSelectionGuard
         {
             throw MissionStructureEditor.ValidationFailure(
                 "TriviaQuizId",
-                "TriviaQuestionSelection must reference a published TriviaQuiz.");
+                "TriviaQuizSelection must reference a published TriviaQuiz.");
         }
 
         // Canon: the whole published quiz is selected. Every question must be runtime-ready.
@@ -32,7 +32,7 @@ internal static class TriviaQuestionSelectionGuard
         {
             throw MissionStructureEditor.ValidationFailure(
                 "TriviaQuizId",
-                "TriviaQuestionSelection must reference a quiz with at least one question.");
+                "TriviaQuizSelection must reference a quiz with at least one question.");
         }
 
         if (triviaQuiz.Questions.Any(question =>

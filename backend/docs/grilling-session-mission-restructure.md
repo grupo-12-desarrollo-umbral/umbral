@@ -11,8 +11,8 @@ This document records the domain decisions made during the grilling session for 
 
 - `Mission` is the only source for a `LiveSession`.
 - `TriviaQuiz` remains reusable authoring content in `MissionDesign`, but is no longer a `SessionSource`.
-- A trivia `Substage` references an ordered `TriviaQuestionSelection` from one published `TriviaQuiz`.
-- Selecting the entire quiz means selecting all questions in quiz order.
+- A trivia `Substage` references one whole published `TriviaQuiz` through a `TriviaQuizSelection`.
+- The entire quiz is selected in authored question order; there is no partial or ordered-subset selection.
 - A `LiveSession` snapshots the full mission runtime plan at creation time.
 - The snapshot is immutable after `LiveSession` creation.
 - `LiveSession` creation immediately creates the session in `Scheduled`.
@@ -128,7 +128,7 @@ Treasure-hunt substage readiness:
 
 Trivia substage readiness:
 
-- Has a `TriviaQuestionSelection` from a published `TriviaQuiz`.
+- Has a `TriviaQuizSelection` from a published `TriviaQuiz`.
 - Selection has at least one question.
 - Every selected question has `ScoreValue`.
 - Every selected question has `TimeLimitSeconds`.

@@ -3,7 +3,7 @@ using umbral_backend.Application.Missions.Commands.AddMissionNode;
 using umbral_backend.Application.Missions.Commands.AddTarget;
 using umbral_backend.Application.Missions.Commands.AssignSubstagePlayMode;
 using umbral_backend.Application.Missions.Commands.AssociateClueWithTarget;
-using umbral_backend.Application.Missions.Commands.SetTriviaQuestionSelection;
+using umbral_backend.Application.Missions.Commands.SetTriviaQuizSelection;
 
 namespace umbral_backend.Application.UnitTests.Application.Missions.Commands;
 
@@ -62,23 +62,23 @@ public sealed class MissionRuntimePlanCommandValidatorTests
     }
 
     [Fact]
-    public void SetTriviaQuestionSelection_AcceptsWholeQuizReference()
+    public void SetTriviaQuizSelection_AcceptsWholeQuizReference()
     {
-        var validator = new SetTriviaQuestionSelectionCommandValidator();
+        var validator = new SetTriviaQuizSelectionCommandValidator();
 
-        var result = validator.Validate(new SetTriviaQuestionSelectionCommand(1, 2, 3, 4));
+        var result = validator.Validate(new SetTriviaQuizSelectionCommand(1, 2, 3, 4));
 
         result.IsValid.Should().BeTrue();
     }
 
     [Fact]
-    public void SetTriviaQuestionSelection_RejectsNonPositiveTriviaQuizId()
+    public void SetTriviaQuizSelection_RejectsNonPositiveTriviaQuizId()
     {
-        var validator = new SetTriviaQuestionSelectionCommandValidator();
+        var validator = new SetTriviaQuizSelectionCommandValidator();
 
-        var result = validator.Validate(new SetTriviaQuestionSelectionCommand(1, 2, 3, 0));
+        var result = validator.Validate(new SetTriviaQuizSelectionCommand(1, 2, 3, 0));
 
-        result.Errors.Should().Contain(error => error.PropertyName == nameof(SetTriviaQuestionSelectionCommand.TriviaQuizId));
+        result.Errors.Should().Contain(error => error.PropertyName == nameof(SetTriviaQuizSelectionCommand.TriviaQuizId));
     }
 
     [Fact]

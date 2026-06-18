@@ -39,7 +39,7 @@ public static class MissionDtoMapper
             substage.WinnerScore?.Points,
             substage.TriviaQuizId is null
                 ? null
-                : new TriviaQuestionSelectionDto(substage.TriviaQuizId.Value),
+                : new TriviaQuizSelectionDto(substage.TriviaQuizId.Value),
             substage.Targets.Select(MapTarget).ToList(),
             substage.Clues
                 .OrderBy(clue => clue.SequenceOrder)

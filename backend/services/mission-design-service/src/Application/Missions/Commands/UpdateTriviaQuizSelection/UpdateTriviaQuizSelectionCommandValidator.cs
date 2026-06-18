@@ -1,8 +1,8 @@
-namespace umbral_backend.Application.Missions.Commands.SetTriviaQuestionSelection;
+namespace umbral_backend.Application.Missions.Commands.UpdateTriviaQuizSelection;
 
-public sealed class SetTriviaQuestionSelectionCommandValidator : AbstractValidator<SetTriviaQuestionSelectionCommand>
+public sealed class UpdateTriviaQuizSelectionCommandValidator : AbstractValidator<UpdateTriviaQuizSelectionCommand>
 {
-    public SetTriviaQuestionSelectionCommandValidator()
+    public UpdateTriviaQuizSelectionCommandValidator()
     {
         RuleFor(command => command.MissionId).GreaterThan(0);
         RuleFor(command => command.StageId).GreaterThan(0);

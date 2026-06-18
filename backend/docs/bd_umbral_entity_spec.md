@@ -86,7 +86,7 @@ Relationships:
 - one `Stage` node contains one or more `Substage` nodes
 - one `Substage` may contain `Clue` nodes
 - one treasure-hunt `Substage` contains one or more `Target`
-- one trivia `Substage` contains one `TriviaQuestionSelection`
+- one trivia `Substage` contains one `TriviaQuizSelection`
 
 Key constraints:
 
@@ -243,32 +243,30 @@ Key constraints:
 
 - exactly one option should be marked correct unless the quiz mode explicitly allows multiple correct answers
 
-### `TriviaQuestionSelection`
+### `TriviaQuizSelection`
 
 - Type: value object or child entity of a trivia `Substage`
 - Scope: committed refinement
-- Why it exists: records the ordered set of published trivia questions selected for a mission substage
+- Why it exists: records which whole published `TriviaQuiz` a trivia `Substage` plays
 
 Suggested fields:
 
-| Field                       | Purpose                                      |
-| --------------------------- | -------------------------------------------- |
-| `triviaQuestionSelectionId` | Stable selection identity                     |
-| `substageNodeId`            | Owning trivia substage reference              |
-| `triviaQuizId`              | Published quiz used as the question source    |
-| `selectedQuestionIds`       | Ordered question identities                   |
-| `selectionMode`             | Entire quiz or explicit ordered subset        |
+| Field                    | Purpose                                      |
+| ------------------------ | -------------------------------------------- |
+| `triviaQuizSelectionId`  | Stable selection identity                    |
+| `substageNodeId`         | Owning trivia substage reference             |
+| `triviaQuizId`           | Published quiz selected in full              |
 
 Relationships:
 
-- one `TriviaQuestionSelection` belongs to exactly one trivia `Substage`
-- one `TriviaQuestionSelection` references exactly one published `TriviaQuiz`
+- one `TriviaQuizSelection` belongs to exactly one trivia `Substage`
+- one `TriviaQuizSelection` references exactly one published `TriviaQuiz`
 
 Key constraints:
 
-- the selection must contain at least one question
-- selecting the whole quiz means selecting all questions in quiz order
-- every selected question must have valid options, a correct answer, `ScoreValue`, and `TimeLimitSeconds`
+- the whole published quiz is selected; there is no partial or ordered-subset selection
+- the referenced quiz must contain at least one question
+- every question in the referenced quiz must have valid options, a correct answer, `ScoreValue`, and `TimeLimitSeconds`
 
 ## SessionOperations
 
@@ -948,7 +946,7 @@ This section is intentionally compact. It identifies which model elements should
 
 | Requirement area             | Main model elements to reference                                            |
 | ---------------------------- | --------------------------------------------------------------------------- |
-| Mission CRUD and structure   | `Mission`, `MissionNode`, `SubstagePlayMode`, `Target`, `Clue`, `TriviaQuestionSelection`, `MissionActivation`, `MaximumTime`, `Difficulty` |
+| Mission CRUD and structure   | `Mission`, `MissionNode`, `SubstagePlayMode`, `Target`, `Clue`, `TriviaQuizSelection`, `MissionActivation`, `MaximumTime`, `Difficulty` |
 | Session lifecycle            | `LiveSession`, `MissionRuntimeSnapshot`, `SessionState`, `SessionStateTransitionPolicy` |
 | Team participation           | `Team`, `SessionParticipant`, `TeamMember`, `JoinContext`, `JoinToken`      |
 | Evidence flow                | `EvidenceSubmission`, `EvidenceValidationState`, `EvidenceAcceptancePolicy` |

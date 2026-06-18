@@ -3,7 +3,7 @@ using umbral_backend.Application.Missions.Commands.ActivateMission;
 using umbral_backend.Application.Missions.Commands.AddMissionNode;
 using umbral_backend.Application.Missions.Commands.AddTarget;
 using umbral_backend.Application.Missions.Commands.AssociateClueWithTarget;
-using umbral_backend.Application.Missions.Commands.SetTriviaQuestionSelection;
+using umbral_backend.Application.Missions.Commands.SetTriviaQuizSelection;
 using umbral_backend.Application.Missions.Commands.UnassociateClueFromTarget;
 using umbral_backend.Application.Missions.Handlers;
 using umbral_backend.Application.Missions.Queries.GetMissionReadiness;
@@ -96,7 +96,7 @@ public sealed class MissionStructureCommandHandlerTests
     }
 
     [Fact]
-    public async Task SetTriviaQuestionSelection_WhenQuizIsPublished_SelectsQuizForTriviaSubstage()
+    public async Task SetTriviaQuizSelection_WhenQuizIsPublished_SelectsQuizForTriviaSubstage()
     {
         var missionRepository = new InMemoryMissionRepository();
         var quizRepository = new InMemoryTriviaQuizRepository();
@@ -104,29 +104,29 @@ public sealed class MissionStructureCommandHandlerTests
         var quiz = CreatePublishedTriviaQuiz();
         quizRepository.Seed(quiz);
 
-        var handler = new SetTriviaQuestionSelectionCommandHandler(missionRepository, quizRepository);
+        var handler = new SetTriviaQuizSelectionCommandHandler(missionRepository, quizRepository);
 
         var result = await handler.Handle(
-            new SetTriviaQuestionSelectionCommand(mission.Id, stage.Id, substage.Id, quiz.Id),
+            new SetTriviaQuizSelectionCommand(mission.Id, stage.Id, substage.Id, quiz.Id),
             CancellationToken.None);
 
-        var selection = result.Stages!.Single().Substages!.Single().TriviaQuestionSelection;
+        var selection = result.Stages!.Single().Substages!.Single().TriviaQuizSelection;
         selection.Should().NotBeNull();
         selection!.TriviaQuizId.Should().Be(quiz.Id);
     }
 
     [Fact]
-    public async Task SetTriviaQuestionSelection_WhenQuizIsNotPublished_ThrowsValidationException()
+    public async Task SetTriviaQuizSelection_WhenQuizIsNotPublished_ThrowsValidationException()
     {
         var missionRepository = new InMemoryMissionRepository();
         var quizRepository = new InMemoryTriviaQuizRepository();
         var mission = CreateMissionWithTriviaSubstage(missionRepository, out var stage, out var substage);
         var quiz = TriviaQuiz.Create("Draft quiz", "Draft description", [CreateTriviaQuestion()]);
         quizRepository.Seed(quiz);
-        var handler = new SetTriviaQuestionSelectionCommandHandler(missionRepository, quizRepository);
+        var handler = new SetTriviaQuizSelectionCommandHandler(missionRepository, quizRepository);
 
         var act = () => handler.Handle(
-            new SetTriviaQuestionSelectionCommand(mission.Id, stage.Id, substage.Id, quiz.Id),
+            new SetTriviaQuizSelectionCommand(mission.Id, stage.Id, substage.Id, quiz.Id),
             CancellationToken.None);
 
         await act.Should().ThrowAsync<ValidationException>();

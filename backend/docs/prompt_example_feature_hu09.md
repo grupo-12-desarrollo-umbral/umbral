@@ -50,7 +50,7 @@ DES-14 (HU-09) itself is **Done** but marked `needs-rebuild` and `canon-realign`
 **Domain layer**
 
 - Old mission baseline exists, but it must be rebuilt around `Mission` as wrapper/source content, not runtime session.
-- `MissionDesign` owns `Mission`, `MissionNode`, `Target`, `Clue`, `TriviaQuiz`, `TriviaQuestionSelection`, `Difficulty`, `MaximumTime`, and `MissionActivation`.
+- `MissionDesign` owns `Mission`, `MissionNode`, `Target`, `Clue`, `TriviaQuiz`, `TriviaQuizSelection`, `Difficulty`, `MaximumTime`, and `MissionActivation`.
 - `MissionNode` must be a Composite over `Stage`, `Substage`, and `Clue`.
 - Each `Substage` has exactly one `SubstagePlayMode`: `TreasureHunt` or `Trivia`; there is no `SessionMode`.
 - Treasure-hunt progression is `Target` based, not clue based; `Clue` is optional guidance and max one clue can guide a target.
@@ -60,7 +60,7 @@ DES-14 (HU-09) itself is **Done** but marked `needs-rebuild` and `canon-realign`
 
 - Existing mission create/update/deactivate/catalog/detail flows may exist, but command/query shapes must be reconciled with the rebuilt runtime-plan model.
 - `AuthorizationBehaviour` and `ValidationBehaviour` already exist in the service pipeline.
-- Trivia-side published quiz behavior exists from later HUs and can be used to validate `TriviaQuestionSelection`; do not let it become direct session creation scope.
+- Trivia-side published quiz behavior exists from later HUs and can be used to validate `TriviaQuizSelection`; do not let it become direct session creation scope.
 
 **Infrastructure / API**
 
@@ -85,7 +85,7 @@ DES-14 (HU-09) itself is **Done** but marked `needs-rebuild` and `canon-realign`
 | Play mode | Every `Substage` declares exactly one `SubstagePlayMode`: `TreasureHunt` or `Trivia`; no `SessionMode`. |
 | Treasure hunt | `Target` is the QR-validated objective; progress is target-based. |
 | Clues | Optional guidance only, max one clue per target; clue visibility/release does not advance progress. |
-| Trivia substages | Reference an ordered `TriviaQuestionSelection` from one published `TriviaQuiz`; no `TriviaQuiz` as `SessionSource`. |
+| Trivia substages | Reference one whole published `TriviaQuiz` through a `TriviaQuizSelection`; no `TriviaQuiz` as `SessionSource`. |
 | Readiness/activation | Validate the full runtime plan before source readiness/activation: stages, substages, play modes, targets/winner score, trivia selections. |
 | Backend contract | Rebuilt `/api/missions` payloads for mission metadata, nodes, targets, clues, trivia selections, deactivation, and readiness. |
 | Frontend flow | Admin UI for authoring and inspecting the rebuilt mission runtime plan. |
@@ -224,7 +224,7 @@ Scope:
 - enforce treasure-hunt progress as Target based, not clue based
 - model Clue as optional guidance under a Substage; a Target may reference max one Clue from the same Substage
 - ensure clue visibility/release never advances a target or substage
-- model trivia Substage selection as TriviaQuestionSelection from one published TriviaQuiz
+- model trivia Substage selection as TriviaQuizSelection from one published TriviaQuiz
 - ensure TriviaQuiz is reusable authoring content, not SessionSource
 - ensure there is no SessionMode in MissionDesign
 - add or complete domain events needed by rebuilt mission authoring:
@@ -280,11 +280,11 @@ Scope:
   CreateMission, UpdateMission, DeactivateMission
 - structure commands + handlers + validators needed for the rebuilt runtime plan:
   add/update/remove MissionNode, assign SubstagePlayMode, add/update/remove Target,
-  associate/unassociate optional Clue to Target, set/update TriviaQuestionSelection
+  associate/unassociate optional Clue to Target, set/update TriviaQuizSelection
 - activation/readiness command/query:
   validate runtime plan and activate/source-ready Mission only through MissionActivationPolicy
 - queries + handlers:
-  GetMissionCatalog and GetMissionDetail with Stage/Substage/Target/Clue/TriviaQuestionSelection shape
+  GetMissionCatalog and GetMissionDetail with Stage/Substage/Target/Clue/TriviaQuizSelection shape
 - authorization boundary:
   mission mutations and activation are Administrator-only through existing authorization plumbing
 - validation:
@@ -338,14 +338,14 @@ Scope:
 - persist exactly one SubstagePlayMode for every Substage
 - persist Target under TreasureHunt Substage, including validation type/expected value/active flag
 - persist optional Clue association with max one Clue per Target and same-Substage constraint
-- persist TriviaQuestionSelection reference for Trivia Substage without treating TriviaQuiz as SessionSource
+- persist TriviaQuizSelection reference for Trivia Substage without treating TriviaQuiz as SessionSource
 - update read-model repository queries so Mission detail returns the runtime-plan shape needed by API/frontend
 - create EF migration if the current snapshot does not match rebuilt canon; do not preserve stale schema to avoid migration work
 - integration tests for persistence and read model reconstruction across Stage/Substage/Target/Clue/Trivia selection
 
 Gate:
 - build passes
-- EF migration/snapshot accurately represents Mission wrapper, MissionNode Composite, Target, optional Clue association, SubstagePlayMode, and TriviaQuestionSelection
+- EF migration/snapshot accurately represents Mission wrapper, MissionNode Composite, Target, optional Clue association, SubstagePlayMode, and TriviaQuizSelection
 - repository integration tests prove round-trip persistence for the rebuilt runtime plan
 - Gate: database/read models contain no SessionMode concept
 - Gate: no persistence model treats TriviaQuiz as SessionSource
@@ -380,7 +380,7 @@ Replace stale contract surfaces rather than adding parallel endpoints for the sa
 Scope:
 - rebuild /api/missions create, list, detail, update, deactivate endpoints around Mission wrapper metadata
 - expose runtime-plan authoring endpoints or nested payloads for:
-  Stage, Substage, SubstagePlayMode, Target, optional Clue, and TriviaQuestionSelection
+  Stage, Substage, SubstagePlayMode, Target, optional Clue, and TriviaQuizSelection
 - expose activation/readiness endpoint or response field that reports runtime-plan validation failures
 - endpoint policy: Administrator-only for mission mutations and activation/readiness mutation
 - response shape: Mission detail includes ordered stages, ordered substages, exact play mode, targets,
@@ -445,7 +445,7 @@ Scope:
 - update mission-management data client/types to match the rebuilt backend contract
 - mission catalog/detail remain administrator-facing but show rebuilt readiness/activation state
 - mission editor supports Mission wrapper metadata and ordered runtime-plan authoring:
-  Stage, Substage, SubstagePlayMode, Target, optional Clue, and TriviaQuestionSelection
+  Stage, Substage, SubstagePlayMode, Target, optional Clue, and TriviaQuizSelection
 - Substage editor forces exactly one play mode: TreasureHunt or Trivia
 - TreasureHunt editor manages Target objectives and optional clue guidance; do not present clues as progress objectives
 - Trivia editor selects published TriviaQuiz questions for a Trivia Substage; do not create a trivia session from a quiz

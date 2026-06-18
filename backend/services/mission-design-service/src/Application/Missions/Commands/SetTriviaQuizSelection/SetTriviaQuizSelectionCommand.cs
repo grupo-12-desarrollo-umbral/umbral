@@ -2,10 +2,10 @@ using umbral_backend.Application.Common.Security;
 using umbral_backend.Application.Missions.DTOs;
 using umbral_backend.Domain.Constants;
 
-namespace umbral_backend.Application.Missions.Commands.UpdateTriviaQuestionSelection;
+namespace umbral_backend.Application.Missions.Commands.SetTriviaQuizSelection;
 
 [Authorize(Roles = Roles.Administrator)]
-public sealed record UpdateTriviaQuestionSelectionCommand(
+public sealed record SetTriviaQuizSelectionCommand(
     int MissionId,
     int StageId,
     int SubstageId,

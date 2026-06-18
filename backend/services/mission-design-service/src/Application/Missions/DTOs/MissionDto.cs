@@ -21,7 +21,7 @@ public sealed record MissionSubstageDto(
     int SequenceOrder,
     string PlayMode,
     int? WinnerScore,
-    TriviaQuestionSelectionDto? TriviaQuestionSelection,
+    TriviaQuizSelectionDto? TriviaQuizSelection,
     IReadOnlyList<MissionTargetDto>? Targets = null,
     IReadOnlyList<MissionClueDto>? Clues = null);
 
@@ -40,5 +40,5 @@ public sealed record MissionClueDto(
     string Text,
     string VisibilityPolicy);
 
-public sealed record TriviaQuestionSelectionDto(
+public sealed record TriviaQuizSelectionDto(
     int TriviaQuizId);
