@@ -11,8 +11,6 @@ namespace umbral_backend.Domain.Entities;
 /// </summary>
 public abstract class MissionNode : BaseEntity
 {
-    private readonly List<MissionNode> _children = [];
-
     protected MissionNode()
     {
         Title = string.Empty;
@@ -30,22 +28,29 @@ public abstract class MissionNode : BaseEntity
 
     public abstract MissionNodeType NodeType { get; }
 
+    /// <summary>
+    /// The node's children, held in a strongly typed backing list on each concrete
+    /// node so EF Core can map the owned collection by its element type. The base
+    /// Composite operations project over this sequence rather than owning storage.
+    /// </summary>
+    protected abstract IEnumerable<MissionNode> ChildNodes { get; }
+
     public IReadOnlyList<MissionNode> Children =>
-        _children.OrderBy(child => child.SequenceOrder).ToList().AsReadOnly();
+        ChildNodes.OrderBy(child => child.SequenceOrder).ToList().AsReadOnly();
 
     public MissionNode AddChild(MissionNode child)
     {
         ArgumentNullException.ThrowIfNull(child);
         EnsureChildIsAllowed(child.NodeType);
 
-        _children.Add(child);
+        AddChildNode(child);
         return child;
     }
 
     public void RemoveChild(MissionNode child)
     {
         ArgumentNullException.ThrowIfNull(child);
-        _children.Remove(child);
+        RemoveChildNode(child);
     }
 
     public void Rename(string title, int sequenceOrder)
@@ -60,7 +65,7 @@ public abstract class MissionNode : BaseEntity
     /// </summary>
     public IEnumerable<MissionNode> Descendants()
     {
-        foreach (var child in _children)
+        foreach (var child in ChildNodes)
         {
             yield return child;
 
@@ -70,6 +75,12 @@ public abstract class MissionNode : BaseEntity
             }
         }
     }
+
+    /// <summary>Append a type-validated child to the concrete backing list.</summary>
+    protected abstract void AddChildNode(MissionNode child);
+
+    /// <summary>Remove a child from the concrete backing list, if present.</summary>
+    protected abstract void RemoveChildNode(MissionNode child);
 
     protected abstract bool CanContain(MissionNodeType childType);
 

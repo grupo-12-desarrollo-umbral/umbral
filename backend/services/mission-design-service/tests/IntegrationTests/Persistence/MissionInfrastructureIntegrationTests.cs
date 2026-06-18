@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using MediatR;
 using umbral_backend.Application.Common.Interfaces;
+using umbral_backend.Application.Missions.Common;
 using umbral_backend.Application.Missions.Commands.CreateMission;
 using umbral_backend.Application.Missions.Commands.DeactivateMission;
 using umbral_backend.Application.Missions.Commands.UpdateMission;
@@ -23,6 +24,7 @@ using umbral_backend.Application.Trivias.Queries.GetTriviaDetail;
 using umbral_backend.Domain.Enums;
 using umbral_backend.Domain.Events;
 using umbral_backend.Domain.Exceptions;
+using umbral_backend.Domain.Services;
 using umbral_backend.Infrastructure.Persistence;
 using umbral_backend.Infrastructure.Persistence.Interceptors;
 using umbral_backend.Infrastructure.Persistence.Repositories;
@@ -173,6 +175,77 @@ public sealed class MissionInfrastructureIntegrationTests : IClassFixture<Postgr
         detail.Difficulty.Should().Be("Intermediate");
         detail.MaximumTimeMinutes.Should().Be(30);
         detail.Status.Should().Be("Inactive");
+    }
+
+    [Fact]
+    public async Task MissionRepositoryAndReadModelRepository_RoundTripMissionComposite()
+    {
+        await using var setupContext = BuildContext();
+        await ResetDatabaseAsync(setupContext);
+
+        var triviaRepository = new TriviaQuizRepository(setupContext);
+        var publishedQuiz = Domain.Entities.TriviaQuiz.Create(
+            "Published quiz",
+            "Available for trivia substages",
+            [
+                Domain.Entities.TriviaQuestion.Create(
+                    "Question",
+                    1,
+                    100,
+                    20,
+                    null,
+                    [
+                        Domain.Entities.TriviaOption.Create("Correct", 1, true),
+                        Domain.Entities.TriviaOption.Create("Incorrect", 2, false)
+                    ])
+            ]);
+        publishedQuiz.Publish(new DateTimeOffset(2026, 6, 17, 10, 0, 0, TimeSpan.Zero));
+        await triviaRepository.AddAsync(publishedQuiz, CancellationToken.None);
+
+        var missionRepository = new MissionRepository(setupContext);
+        var mission = Domain.Entities.Mission.Create("Mission Tree", "Composite persistence", "Advanced", 60);
+
+        var stage = mission.AddStage("Stage 1", 1);
+        var treasureSubstage = mission.AddSubstage(stage.Id, Domain.Entities.Substage.CreateTreasureHunt("Treasure", 1));
+        var clue = mission.AddClue(stage.Id, treasureSubstage.Id, Domain.Entities.Clue.Create("Clue 1", 1, "Look under the bridge."));
+        var target = mission.AddTarget(stage.Id, treasureSubstage.Id, "Target 1", "QR-001", 1);
+        mission.SetTreasureHuntWinnerScore(stage.Id, treasureSubstage.Id, 40);
+
+        // Persist the treasure substage first so EF assigns the DB identities that the
+        // remaining authoring steps look nodes up by. The API flow saves per step, so
+        // each node already carries its id before the next operation references it;
+        // building the whole tree in one in-memory graph would leave every node at id 0.
+        await missionRepository.AddAsync(mission, CancellationToken.None);
+
+        mission.AssociateClueWithTarget(stage.Id, treasureSubstage.Id, target.Id, clue);
+
+        var triviaSubstage = mission.AddSubstage(stage.Id, Domain.Entities.Substage.CreateTrivia("Trivia", 2));
+        mission.SelectTriviaQuiz(stage.Id, triviaSubstage.Id, publishedQuiz.Id);
+
+        await missionRepository.UpdateAsync(mission, CancellationToken.None);
+
+        await using var assertContext = BuildContext();
+        var reloadedMission = await new MissionRepository(assertContext).GetByIdAsync(mission.Id, CancellationToken.None);
+        reloadedMission.Should().NotBeNull();
+        reloadedMission!.Stages.Should().ContainSingle();
+        reloadedMission.Stages[0].Substages.Should().HaveCount(2);
+        reloadedMission.Stages[0].Substages.ElementAt(0).Targets.Should().ContainSingle();
+        reloadedMission.Stages[0].Substages.ElementAt(0).WinnerScore!.Points.Should().Be(40);
+        reloadedMission.Stages[0].Substages.ElementAt(0).Clues.Should().ContainSingle();
+        reloadedMission.Stages[0].Substages.ElementAt(0).Targets[0].ClueId.Should().Be(reloadedMission.Stages[0].Substages.ElementAt(0).Clues.Single().Id);
+        reloadedMission.Stages[0].Substages.ElementAt(1).TriviaQuizId.Should().Be(publishedQuiz.Id);
+
+        var detail = await new MissionReadModelRepository(assertContext)
+            .GetMissionDetailAsync(mission.Id, CancellationToken.None);
+
+        detail.Should().NotBeNull();
+        detail!.Stages.Should().ContainSingle();
+        detail.Stages![0].Title.Should().Be("Stage 1");
+        detail.Stages[0].Substages!.Select(substage => substage.Title).Should().Equal("Treasure", "Trivia");
+        detail.Stages[0].Substages[0].Targets!.Single().QrCode.Should().Be("QR-001");
+        detail.Stages[0].Substages[0].Clues!.Single().Text.Should().Be("Look under the bridge.");
+        detail.Stages[0].Substages[1].TriviaQuizSelection!.TriviaQuizId.Should().Be(publishedQuiz.Id);
+        MissionActivationPolicy.EvaluateReadiness(reloadedMission).Should().BeEmpty();
     }
 
     [Fact]

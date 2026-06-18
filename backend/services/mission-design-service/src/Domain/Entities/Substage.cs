@@ -19,6 +19,7 @@ namespace umbral_backend.Domain.Entities;
 public sealed class Substage : MissionNode
 {
     private readonly List<Target> _targets = [];
+    private readonly List<Clue> _clues = [];
 
     private Substage()
     {
@@ -43,7 +44,8 @@ public sealed class Substage : MissionNode
     // Trivia content: identity of the single published TriviaQuiz selected in full.
     public int? TriviaQuizId { get; private set; }
 
-    public IEnumerable<Clue> Clues => Children.OfType<Clue>();
+    public IEnumerable<Clue> Clues =>
+        _clues.OrderBy(clue => clue.SequenceOrder).ToList().AsReadOnly();
 
     public static Substage CreateTreasureHunt(string title, int sequenceOrder)
     {
@@ -119,6 +121,21 @@ public sealed class Substage : MissionNode
         }
 
         TriviaQuizId = triviaQuizId;
+    }
+
+    protected override IEnumerable<MissionNode> ChildNodes => _clues;
+
+    protected override void AddChildNode(MissionNode child)
+    {
+        _clues.Add((Clue)child);
+    }
+
+    protected override void RemoveChildNode(MissionNode child)
+    {
+        if (child is Clue clue)
+        {
+            _clues.Remove(clue);
+        }
     }
 
     protected override bool CanContain(MissionNodeType childType)

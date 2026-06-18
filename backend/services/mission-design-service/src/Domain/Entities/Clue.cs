@@ -1,4 +1,5 @@
 using umbral_backend.Domain.Enums;
+using umbral_backend.Domain.Exceptions;
 
 namespace umbral_backend.Domain.Entities;
 
@@ -34,6 +35,20 @@ public sealed class Clue : MissionNode
         ClueVisibilityPolicy visibility = ClueVisibilityPolicy.HiddenUntilOperatorRelease)
     {
         return new Clue(title, sequenceOrder, text ?? string.Empty, visibility);
+    }
+
+    protected override IEnumerable<MissionNode> ChildNodes => [];
+
+    protected override void AddChildNode(MissionNode child)
+    {
+        // Unreachable: CanContain rejects every child before this is called. A clue
+        // is a leaf node, so reaching here would be a programming error.
+        throw new InvalidMissionNodeChildException(NodeType, child.NodeType);
+    }
+
+    protected override void RemoveChildNode(MissionNode child)
+    {
+        // A clue has no children to remove.
     }
 
     protected override bool CanContain(MissionNodeType childType)

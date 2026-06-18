@@ -16,6 +16,7 @@ public sealed class MissionRepository : IMissionRepository
     public Task<Mission?> GetByIdAsync(int missionId, CancellationToken cancellationToken)
     {
         return _context.Missions
+            .AsSplitQuery()
             .SingleOrDefaultAsync(mission => mission.Id == missionId, cancellationToken);
     }
 

@@ -8,6 +8,8 @@ namespace umbral_backend.Domain.Entities;
 /// </summary>
 public sealed class Stage : MissionNode
 {
+    private readonly List<Substage> _substages = [];
+
     private Stage()
     {
     }
@@ -19,7 +21,8 @@ public sealed class Stage : MissionNode
 
     public override MissionNodeType NodeType => MissionNodeType.Stage;
 
-    public IEnumerable<Substage> Substages => Children.OfType<Substage>();
+    public IEnumerable<Substage> Substages =>
+        _substages.OrderBy(substage => substage.SequenceOrder).ToList().AsReadOnly();
 
     public static Stage Create(string title, int sequenceOrder)
     {
@@ -30,6 +33,21 @@ public sealed class Stage : MissionNode
     {
         AddChild(substage);
         return substage;
+    }
+
+    protected override IEnumerable<MissionNode> ChildNodes => _substages;
+
+    protected override void AddChildNode(MissionNode child)
+    {
+        _substages.Add((Substage)child);
+    }
+
+    protected override void RemoveChildNode(MissionNode child)
+    {
+        if (child is Substage substage)
+        {
+            _substages.Remove(substage);
+        }
     }
 
     protected override bool CanContain(MissionNodeType childType)

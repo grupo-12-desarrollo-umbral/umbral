@@ -32,13 +32,10 @@ public sealed class MissionReadModelRepository : IMissionReadModelRepository
         return _context.Missions
             .AsNoTracking()
             .Where(mission => mission.Id == missionId)
-            .Select(mission => new MissionDto(
-                mission.Id,
-                mission.Name,
-                mission.Description,
-                mission.Difficulty.Value,
-                mission.MaximumTime.Minutes,
-                mission.ActivationState.ToString()))
-            .SingleOrDefaultAsync(cancellationToken);
+            .Select(mission => mission)
+            .SingleOrDefaultAsync(cancellationToken)
+            .ContinueWith(
+                task => task.Result is null ? null : Application.Missions.Common.MissionDtoMapper.Map(task.Result),
+                cancellationToken);
     }
 }

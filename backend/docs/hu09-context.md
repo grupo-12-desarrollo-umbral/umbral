@@ -75,7 +75,7 @@
 | c561867 | X.1 Domain | Mission/MissionNode Composite, play modes, targets, clues, activation policy |
 | 9eef83a | X.2 Application | Mission management application layer (commands/queries/handlers/validators/DTOs) |
 | 2954fe3 | X.2 follow-up | Rename `TriviaQuestionSelection` → `TriviaQuizSelection` |
-| — | X.3 Infrastructure | **Pending** — Composite persistence config + migration not yet committed |
+| see git log | X.3 Infrastructure | EF owned-type config, `AddMissionCompositePersistence` migration, repository round-trip, ADR-0005 gate green |
 | — | X.4 Api | **Pending** — rebuilt `/api/missions` contract not yet committed |
 
 ## Known quirks / gotchas
