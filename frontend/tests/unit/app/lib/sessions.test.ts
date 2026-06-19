@@ -127,6 +127,94 @@ describe('session gateway auth', () => {
     )
   })
 
+  it('maps a mission-not-eligible 409 to mission_not_eligible', async () => {
+    const { createTriviaSession } = await import('@/app/lib/sessions')
+
+    getValidAccessTokenMock.mockResolvedValue('token')
+    vi.mocked(global.fetch).mockResolvedValue(
+      new Response(
+        JSON.stringify({ type: 'mission-not-eligible-for-session', detail: 'Mission 1 is inactive.' }),
+        { status: 409, headers: { 'Content-Type': 'application/json' } },
+      ),
+    )
+
+    await expect(
+      createTriviaSession({
+        missionId: 1,
+        sourceTriviaQuizId: 5,
+        title: 'Test',
+        maximumTimeMinutes: 60,
+        scheduledAt: '2026-12-01T10:00:00Z',
+      }),
+    ).rejects.toThrowError('mission_not_eligible')
+  })
+
+  it('maps a generic 409 to quiz_not_published', async () => {
+    const { createTriviaSession } = await import('@/app/lib/sessions')
+
+    getValidAccessTokenMock.mockResolvedValue('token')
+    vi.mocked(global.fetch).mockResolvedValue(
+      new Response(
+        JSON.stringify({ detail: 'Quiz is not published.' }),
+        { status: 409, headers: { 'Content-Type': 'application/json' } },
+      ),
+    )
+
+    await expect(
+      createTriviaSession({
+        missionId: 1,
+        sourceTriviaQuizId: 5,
+        title: 'Test',
+        maximumTimeMinutes: 60,
+        scheduledAt: '2026-12-01T10:00:00Z',
+      }),
+    ).rejects.toThrowError('quiz_not_published')
+  })
+
+  it('maps a mission 404 to mission_not_found', async () => {
+    const { createTriviaSession } = await import('@/app/lib/sessions')
+
+    getValidAccessTokenMock.mockResolvedValue('token')
+    vi.mocked(global.fetch).mockResolvedValue(
+      new Response(
+        JSON.stringify({ detail: 'Entity "Mission" (1) was not found.' }),
+        { status: 404, headers: { 'Content-Type': 'application/json' } },
+      ),
+    )
+
+    await expect(
+      createTriviaSession({
+        missionId: 1,
+        sourceTriviaQuizId: 5,
+        title: 'Test',
+        maximumTimeMinutes: 60,
+        scheduledAt: '2026-12-01T10:00:00Z',
+      }),
+    ).rejects.toThrowError('mission_not_found')
+  })
+
+  it('maps a quiz 404 to quiz_not_found', async () => {
+    const { createTriviaSession } = await import('@/app/lib/sessions')
+
+    getValidAccessTokenMock.mockResolvedValue('token')
+    vi.mocked(global.fetch).mockResolvedValue(
+      new Response(
+        JSON.stringify({ detail: 'Entity "TriviaQuiz" (5) was not found.' }),
+        { status: 404, headers: { 'Content-Type': 'application/json' } },
+      ),
+    )
+
+    await expect(
+      createTriviaSession({
+        missionId: 1,
+        sourceTriviaQuizId: 5,
+        title: 'Test',
+        maximumTimeMinutes: 60,
+        scheduledAt: '2026-12-01T10:00:00Z',
+      }),
+    ).rejects.toThrowError('quiz_not_found')
+  })
+
   it('maps a duplicate association conflict to a stable frontend error', async () => {
     const { associateTeamToSession } = await import('@/app/lib/sessions')
 

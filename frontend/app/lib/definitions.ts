@@ -158,6 +158,7 @@ export type TriviaQuizDto = {
 }
 
 export type CreateTriviaSessionRequest = {
+  missionId: number
   sourceTriviaQuizId: number
   title: string
   maximumTimeMinutes: number

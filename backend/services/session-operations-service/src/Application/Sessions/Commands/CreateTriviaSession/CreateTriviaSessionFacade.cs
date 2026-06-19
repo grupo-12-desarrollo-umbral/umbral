@@ -2,6 +2,7 @@ using umbral_backend.Application.Common.Exceptions;
 using umbral_backend.Application.Common.Interfaces;
 using umbral_backend.Application.Sessions.DTOs;
 using umbral_backend.Domain.Entities;
+using umbral_backend.Domain.Services;
 using umbral_backend.Domain.ValueObjects;
 
 namespace umbral_backend.Application.Sessions.Commands.CreateTriviaSession;
@@ -13,19 +14,35 @@ public sealed class CreateTriviaSessionFacade : ICreateTriviaSessionFacade
 
     private readonly ILiveSessionRepository _liveSessionRepository;
     private readonly IPublishedTriviaQuizSource _publishedTriviaQuizSource;
+    private readonly IMissionReadinessSource _missionReadinessSource;
+    private readonly SessionCreationPolicy _sessionCreationPolicy;
 
     public CreateTriviaSessionFacade(
         ILiveSessionRepository liveSessionRepository,
-        IPublishedTriviaQuizSource publishedTriviaQuizSource)
+        IPublishedTriviaQuizSource publishedTriviaQuizSource,
+        IMissionReadinessSource missionReadinessSource,
+        SessionCreationPolicy sessionCreationPolicy)
     {
         _liveSessionRepository = liveSessionRepository;
         _publishedTriviaQuizSource = publishedTriviaQuizSource;
+        _missionReadinessSource = missionReadinessSource;
+        _sessionCreationPolicy = sessionCreationPolicy;
     }
 
     public async Task<CreateTriviaSessionResultDto> CreateAsync(
         CreateTriviaSessionCommand command,
         CancellationToken cancellationToken)
     {
+        // AC4 — a deactivated (or not-yet-runtime-ready) mission may not spawn a new
+        // session. Guard on the mission's readiness facts before touching the quiz.
+        var missionReadiness = await _missionReadinessSource.GetByIdAsync(command.MissionId, cancellationToken)
+            ?? throw new NotFoundException("Mission", command.MissionId);
+
+        _sessionCreationPolicy.EnsureMissionEligible(
+            missionReadiness.MissionId,
+            missionReadiness.IsActive,
+            missionReadiness.IsReady);
+
         var triviaQuiz = await _publishedTriviaQuizSource.GetByIdAsync(command.SourceTriviaQuizId, cancellationToken)
             ?? throw new NotFoundException("TriviaQuiz", command.SourceTriviaQuizId);
 

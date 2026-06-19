@@ -68,5 +68,19 @@ public static class DependencyInjection
             client.BaseAddress = new Uri(missionDesignBaseAddress);
             client.Timeout = TimeSpan.FromSeconds(10);
         });
+
+        builder.Services.Configure<MissionReadinessSourceOptions>(
+            builder.Configuration.GetSection(MissionReadinessSourceOptions.SectionName));
+
+        var missionReadinessBaseAddress = builder.Configuration
+            .GetSection(MissionReadinessSourceOptions.SectionName)
+            .GetValue<string>(nameof(MissionReadinessSourceOptions.BaseAddress))
+            ?? missionDesignBaseAddress;
+
+        builder.Services.AddHttpClient<IMissionReadinessSource, MissionReadinessSource>(client =>
+        {
+            client.BaseAddress = new Uri(missionReadinessBaseAddress);
+            client.Timeout = TimeSpan.FromSeconds(10);
+        });
     }
 }

@@ -61,6 +61,7 @@ public sealed class SessionsEndpoints : IEndpointGroup
     {
         var result = await sender.Send(
             new CreateTriviaSessionCommand(
+                request.MissionId,
                 request.SourceTriviaQuizId,
                 request.Title,
                 request.MaximumTimeMinutes,
@@ -204,6 +205,7 @@ public sealed class SessionsEndpoints : IEndpointGroup
     }
 
     public sealed record CreateTriviaSessionRequest(
+        int MissionId,
         int SourceTriviaQuizId,
         string Title,
         int MaximumTimeMinutes,

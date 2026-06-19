@@ -9,6 +9,8 @@ namespace umbral_backend.Infrastructure.IntegrationTests.Api;
 [Collection(PostgreSqlCollection.Name)]
 public sealed class CreateTriviaSessionEndpointTests : IAsyncLifetime
 {
+    private const int MissionId = 7;
+
     private readonly PostgreSqlFixture _fixture;
     private SessionOperationsApiWebApplicationFactory _factory = null!;
     private HttpClient _client = null!;
@@ -37,12 +39,14 @@ public sealed class CreateTriviaSessionEndpointTests : IAsyncLifetime
         const int sourceTriviaQuizId = 42;
         var scheduledAt = new DateTimeOffset(2026, 6, 4, 15, 0, 0, TimeSpan.Zero);
         _factory.TriviaQuizSource.Quiz = CreateQuiz(sourceTriviaQuizId, "Published");
+        _factory.MissionReadinessSource.Readiness = EligibleMission();
         AddTrustedHeaders(_client, "kc-admin-1", "Administrator", "admin@example.com");
 
         var response = await _client.PostAsJsonAsync(
             "/api/sessions",
             new
             {
+                missionId = MissionId,
                 sourceTriviaQuizId,
                 title = "Smoke Trivia",
                 maximumTimeMinutes = 10,
@@ -82,12 +86,14 @@ public sealed class CreateTriviaSessionEndpointTests : IAsyncLifetime
         const int sourceTriviaQuizId = 42;
         var scheduledAt = new DateTimeOffset(2026, 6, 4, 15, 0, 0, TimeSpan.Zero);
         _factory.TriviaQuizSource.Quiz = CreateQuiz(sourceTriviaQuizId, "Published");
+        _factory.MissionReadinessSource.Readiness = EligibleMission();
         AddTrustedHeaders(_client, "kc-admin-1", "Administrator", "admin@example.com");
 
         var createResponse = await _client.PostAsJsonAsync(
             "/api/sessions",
             new
             {
+                missionId = MissionId,
                 sourceTriviaQuizId,
                 title = "Unassigned Smoke Trivia",
                 maximumTimeMinutes = 10,
@@ -117,12 +123,14 @@ public sealed class CreateTriviaSessionEndpointTests : IAsyncLifetime
     public async Task CreateTriviaSession_AsOperator_ReturnsForbidden()
     {
         _factory.TriviaQuizSource.Quiz = CreateQuiz(42, "Published");
+        _factory.MissionReadinessSource.Readiness = EligibleMission();
         AddTrustedHeaders(_client, "kc-operator-27", "Operator", "operator@example.com");
 
         var response = await _client.PostAsJsonAsync(
             "/api/sessions",
             new
             {
+                missionId = MissionId,
                 sourceTriviaQuizId = 42,
                 title = "Smoke Trivia",
                 maximumTimeMinutes = 10,
@@ -139,12 +147,14 @@ public sealed class CreateTriviaSessionEndpointTests : IAsyncLifetime
     {
         const int sourceTriviaQuizId = 42;
         _factory.TriviaQuizSource.Quiz = CreateQuiz(sourceTriviaQuizId, status);
+        _factory.MissionReadinessSource.Readiness = EligibleMission();
         AddTrustedHeaders(_client, "kc-admin-1", "Administrator", "admin@example.com");
 
         var response = await _client.PostAsJsonAsync(
             "/api/sessions",
             new
             {
+                missionId = MissionId,
                 sourceTriviaQuizId,
                 title = "Smoke Trivia",
                 maximumTimeMinutes = 10,
@@ -160,14 +170,68 @@ public sealed class CreateTriviaSessionEndpointTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task CreateTriviaSession_WithoutTrustedHeaders_ReturnsUnauthorized()
+    public async Task CreateTriviaSession_WithDeactivatedMission_ReturnsConflictAndPersistsNothing()
     {
-        _factory.TriviaQuizSource.Quiz = CreateQuiz(42, "Published");
+        const int sourceTriviaQuizId = 42;
+        _factory.TriviaQuizSource.Quiz = CreateQuiz(sourceTriviaQuizId, "Published");
+        _factory.MissionReadinessSource.Readiness =
+            new MissionReadinessDto(MissionId, "Inactive", IsActive: false, IsReady: false, []);
+        AddTrustedHeaders(_client, "kc-admin-1", "Administrator", "admin@example.com");
 
         var response = await _client.PostAsJsonAsync(
             "/api/sessions",
             new
             {
+                missionId = MissionId,
+                sourceTriviaQuizId,
+                title = "Smoke Trivia",
+                maximumTimeMinutes = 10,
+                scheduledAt = new DateTimeOffset(2026, 6, 4, 15, 0, 0, TimeSpan.Zero)
+            });
+
+        response.StatusCode.Should().Be(HttpStatusCode.Conflict);
+
+        var problem = await response.Content.ReadFromJsonAsync<ProblemDetails>();
+        problem.Should().NotBeNull();
+        problem!.Title.Should().Be("Conflict.");
+
+        await using var scope = _factory.Services.CreateAsyncScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        (await dbContext.LiveSessions.AnyAsync()).Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task CreateTriviaSession_WithUnknownMission_ReturnsNotFound()
+    {
+        _factory.TriviaQuizSource.Quiz = CreateQuiz(42, "Published");
+        _factory.MissionReadinessSource.Readiness = null;
+        AddTrustedHeaders(_client, "kc-admin-1", "Administrator", "admin@example.com");
+
+        var response = await _client.PostAsJsonAsync(
+            "/api/sessions",
+            new
+            {
+                missionId = MissionId,
+                sourceTriviaQuizId = 42,
+                title = "Smoke Trivia",
+                maximumTimeMinutes = 10,
+                scheduledAt = new DateTimeOffset(2026, 6, 4, 15, 0, 0, TimeSpan.Zero)
+            });
+
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    [Fact]
+    public async Task CreateTriviaSession_WithoutTrustedHeaders_ReturnsUnauthorized()
+    {
+        _factory.TriviaQuizSource.Quiz = CreateQuiz(42, "Published");
+        _factory.MissionReadinessSource.Readiness = EligibleMission();
+
+        var response = await _client.PostAsJsonAsync(
+            "/api/sessions",
+            new
+            {
+                missionId = MissionId,
                 sourceTriviaQuizId = 42,
                 title = "Smoke Trivia",
                 maximumTimeMinutes = 10,
@@ -181,12 +245,14 @@ public sealed class CreateTriviaSessionEndpointTests : IAsyncLifetime
     public async Task CreateTriviaSession_WithParticipantRole_ReturnsForbidden()
     {
         _factory.TriviaQuizSource.Quiz = CreateQuiz(42, "Published");
+        _factory.MissionReadinessSource.Readiness = EligibleMission();
         AddTrustedHeaders(_client, Guid.NewGuid().ToString(), "Participant", "participant@example.com");
 
         var response = await _client.PostAsJsonAsync(
             "/api/sessions",
             new
             {
+                missionId = MissionId,
                 sourceTriviaQuizId = 42,
                 title = "Smoke Trivia",
                 maximumTimeMinutes = 10,
@@ -194,6 +260,11 @@ public sealed class CreateTriviaSessionEndpointTests : IAsyncLifetime
             });
 
         response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+    }
+
+    private static MissionReadinessDto EligibleMission()
+    {
+        return new MissionReadinessDto(MissionId, "Ready", IsActive: true, IsReady: true, []);
     }
 
     private static PublishedTriviaQuizDto CreateQuiz(int triviaQuizId, string status)
