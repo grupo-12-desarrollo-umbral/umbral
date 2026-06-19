@@ -6,6 +6,7 @@ import {
   getMission,
   createMission,
   updateMission,
+  activateMission,
   deactivateMission,
 } from '@/app/actions/missions'
 import type { MissionSummaryDto, MissionDto } from '@/app/lib/definitions'
@@ -22,6 +23,7 @@ export function MissionsPanel({ role }: { role: DashboardRole }) {
   const [listError, setListError] = useState<string | null>(null)
   const [formError, setFormError] = useState<string | null>(null)
   const [deactivateError, setDeactivateError] = useState<string | null>(null)
+  const [activateError, setActivateError] = useState<string | null>(null)
   const [confirmDeactivate, setConfirmDeactivate] = useState(false)
   const [refreshKey, setRefreshKey] = useState(0)
 
@@ -44,6 +46,7 @@ export function MissionsPanel({ role }: { role: DashboardRole }) {
         setSelectedMission(mission)
         setConfirmDeactivate(false)
         setDeactivateError(null)
+        setActivateError(null)
         setView('detail')
       } catch {
         setListError('Failed to load mission details.')
@@ -119,6 +122,25 @@ export function MissionsPanel({ role }: { role: DashboardRole }) {
     })
   }
 
+  async function handleActivate(id: number) {
+    startTransition(async () => {
+      setActivateError(null)
+      try {
+        const updated = await activateMission(id)
+        setSelectedMission(updated)
+        setRefreshKey((k) => k + 1)
+      } catch (err) {
+        // The lib surfaces the backend readiness failures verbatim in the error message;
+        // fall back to a generic line for unexpected failures.
+        const message =
+          err instanceof Error && err.message && err.message !== 'mission_not_found'
+            ? err.message
+            : 'Activation failed. Try again.'
+        setActivateError(message)
+      }
+    })
+  }
+
   if (view === 'detail' && selectedMission !== null) {
     const activationTone =
       selectedMission.activationState === 'Ready'
@@ -135,6 +157,7 @@ export function MissionsPanel({ role }: { role: DashboardRole }) {
             setView('list')
             setConfirmDeactivate(false)
             setDeactivateError(null)
+            setActivateError(null)
           }}
           type="button"
         >
@@ -180,6 +203,20 @@ export function MissionsPanel({ role }: { role: DashboardRole }) {
             Edit
           </button>
 
+          {selectedMission.isActive &&
+            selectedMission.activationState === 'Draft' &&
+            !confirmDeactivate && (
+            <button
+              className={styles.primaryButton}
+              data-testid="activate-mission-btn"
+              disabled={isPending}
+              onClick={() => handleActivate(selectedMission.id)}
+              type="button"
+            >
+              Activate
+            </button>
+          )}
+
           {selectedMission.isActive && !confirmDeactivate && (
             <button
               className={styles.inlineButton}
@@ -216,6 +253,11 @@ export function MissionsPanel({ role }: { role: DashboardRole }) {
           )}
         </div>
         {deactivateError && <p className={styles.formError} role="alert">{deactivateError}</p>}
+        {activateError && (
+          <p className={styles.formError} role="alert" data-testid="activate-mission-error">
+            {activateError}
+          </p>
+        )}
       </section>
     )
   }

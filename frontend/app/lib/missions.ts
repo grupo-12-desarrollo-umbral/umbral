@@ -128,6 +128,43 @@ export async function updateMission(
   return response.json()
 }
 
+export async function activateMission(id: number): Promise<MissionDto> {
+  const session = await verifySession()
+  const response = await fetch(`${MISSION_DESIGN_SERVICE_URL}/api/missions/${id}/activate`, {
+    method: 'POST',
+    headers: getIdentityHeaders(session),
+  })
+
+  if (response.status === 400) {
+    // Readiness validation failures come back as a ProblemDetails body whose `detail`
+    // lists the runtime-plan gaps blocking activation. Surface it verbatim to the admin.
+    let detail = 'Mission is not ready for activation.'
+    try {
+      const problem = await response.json()
+      if (typeof problem?.detail === 'string' && problem.detail.length > 0) {
+        detail = problem.detail
+      }
+    } catch {
+      /* keep fallback message */
+    }
+    throw new Error(detail)
+  }
+  if (response.status === 401) {
+    throw new IdentityError('unauthorized', 'Authentication failed.')
+  }
+  if (response.status === 403) {
+    throw new IdentityError('unauthorized', 'Forbidden. Administrator role required.')
+  }
+  if (response.status === 404) {
+    throw new Error('mission_not_found')
+  }
+  if (!response.ok) {
+    throw new IdentityError('unknown', `activateMission failed with status ${response.status}`)
+  }
+
+  return response.json()
+}
+
 export async function deactivateMission(id: number): Promise<void> {
   const session = await verifySession()
   const response = await fetch(`${MISSION_DESIGN_SERVICE_URL}/api/missions/${id}`, {
