@@ -5,6 +5,7 @@ namespace umbral_backend.Application.Sessions.Commands.CreateTriviaSession;
 
 [Authorize(Roles = "Administrator")]
 public sealed record CreateTriviaSessionCommand(
+    int MissionId,
     int SourceTriviaQuizId,
     string Title,
     int MaximumTimeMinutes,

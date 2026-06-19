@@ -50,8 +50,16 @@ export async function createTriviaSession(
   if (response.status === 400) throw new Error('invalid_input')
   if (response.status === 401) throw new IdentityError('unauthorized', 'Authentication failed.')
   if (response.status === 403) throw new IdentityError('unauthorized', 'Operator role required.')
-  if (response.status === 404) throw new Error('quiz_not_found')
-  if (response.status === 409) throw new Error('quiz_not_published')
+  if (response.status === 404) {
+    const problem = (await response.json().catch(() => null)) as { detail?: string } | null
+    if (problem?.detail?.includes('Mission')) throw new Error('mission_not_found')
+    throw new Error('quiz_not_found')
+  }
+  if (response.status === 409) {
+    const problem = (await response.json().catch(() => null)) as { type?: string } | null
+    if (problem?.type === 'mission-not-eligible-for-session') throw new Error('mission_not_eligible')
+    throw new Error('quiz_not_published')
+  }
   if (!response.ok) {
     throw new IdentityError('unknown', `createTriviaSession failed with status ${response.status}`)
   }

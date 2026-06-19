@@ -52,6 +52,13 @@ public sealed class ProblemDetailsExceptionHandler : IExceptionHandler
                 Detail = exception.Message,
                 Status = StatusCodes.Status409Conflict
             },
+            MissionNotEligibleForSessionCreationException => new ProblemDetails
+            {
+                Type = "mission-not-eligible-for-session",
+                Title = "Conflict.",
+                Detail = exception.Message,
+                Status = StatusCodes.Status409Conflict
+            },
             // Transition failures share a 409 but carry a stable Type so the client can render a
             // specific message instead of one ambiguous "invalid transition" catch-all.
             LiveSessionRequiresAtLeastOneTeamException => new ProblemDetails

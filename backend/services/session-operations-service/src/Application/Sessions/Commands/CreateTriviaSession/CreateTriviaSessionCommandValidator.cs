@@ -4,6 +4,9 @@ public sealed class CreateTriviaSessionCommandValidator : AbstractValidator<Crea
 {
     public CreateTriviaSessionCommandValidator()
     {
+        RuleFor(command => command.MissionId)
+            .GreaterThan(0);
+
         RuleFor(command => command.SourceTriviaQuizId)
             .GreaterThan(0);
 
