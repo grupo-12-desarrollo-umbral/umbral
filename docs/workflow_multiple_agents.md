@@ -173,7 +173,7 @@ session's tokens will be spent debugging pre-existing breakage.
 ### Sessions 6-N — Run agent A (HU-04)
 
 In the `../umbral-hu-04` worktree, start a **new session** for each phase.
-After each phase the agent commits and runs `/debrief`.
+After each phase the agent commits.
 
 **Phase X.1 — Domain layer:**
 ```
@@ -219,7 +219,7 @@ Implement the HU-04 frontend slice.
 ### Sessions 6-N — Run agent B (HU-05)
 
 In the `../umbral-hu-05` worktree, start a **new session** for each phase.
-After each phase the agent commits and runs `/debrief`.
+After each phase the agent commits.
 
 **Phase Y.1 — Domain layer** (may start after X.1 is committed):
 ```

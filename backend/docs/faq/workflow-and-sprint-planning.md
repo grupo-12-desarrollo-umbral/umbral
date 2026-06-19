@@ -28,7 +28,7 @@ When ready:
 2. **Create feature branch**: `git checkout -b feature/identity-access develop`
 3. **Fetch the ready backlog for the service** in Linear (`svc:identity-access-service` + `ready-for-agent`) and resolve only the HU ticket(s) for the slice you are starting.
 4. **Move only those resolved HU ticket(s) to In Progress** in Linear.
-5. **Run 4 phases** in order for that slice — each phase: implement → gate passes → commit with `Ref: HU-XX` for the resolved slice ticket(s) → `/debrief`.
+5. **Run 4 phases** in order for that slice — each phase: implement → gate passes → commit with `Ref: HU-XX` for the resolved slice ticket(s).
 6. **After phase 1.4**: coverage gate (≥95%) → open draft PR → verify the resolved slice ticket(s)' acceptance criteria → move only covered ticket(s) to Done.
 
 ---
@@ -45,9 +45,8 @@ HU-09 is part of `mission-design-service` (HU-09 to HU-14). PRD DES-62 already e
    feat(mission-design): phase 1.1 — domain layer
    Ref: HU-09, HU-10, HU-11, HU-12, HU-13, HU-14
    ```
-   → run `/debrief`
-3. **Phase 1.2** — Application layer → build clean + handler unit test green → commit + `/debrief`
-4. **Phase 1.3** — Infrastructure → EF migration succeeds + repo integration test green → commit + `/debrief`
+3. **Phase 1.2** — Application layer → build clean + handler unit test green → commit
+4. **Phase 1.3** — Infrastructure → EF migration succeeds + repo integration test green → commit
 5. **Phase 1.4** — Api layer → endpoint responds + run coverage gate:
    ```bash
    dotnet test --coverage --coverage-output-format cobertura

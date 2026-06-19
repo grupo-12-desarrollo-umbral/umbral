@@ -200,8 +200,7 @@ Select a phase to implement (X.1 / X.2 / X.3 / X.4):
 
 Wait for the human to reply. Do not proceed until a phase is chosen.
 
-When all four phases are `[✓]`, note that the human may run `/debrief` at any
-point if they want a decision log, then proceed automatically to the docker
+When all four phases are `[✓]`, proceed automatically to the docker
 rebuild + curl smoke step below.
 
 ---

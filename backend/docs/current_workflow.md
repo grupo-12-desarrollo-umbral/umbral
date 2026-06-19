@@ -12,7 +12,6 @@ This document defines the end-to-end workflow for building Umbral by feature sli
 - Linear tracks **HU tickets**. Do not create phase issues in Linear.
 - Backend implementation still happens **one phase at a time** and **one service at a time**.
 - Every backend commit carries `Ref: HU-XX, HU-YY, ...` linking back to the user stories.
-- `/debrief` records non-obvious backend decisions after every backend phase commit.
 
 ## What counts as a slice
 
@@ -159,8 +158,6 @@ Execute one backend phase
 Verification gate passes
     ↓
 Commit backend changes
-    ↓
-/debrief
 ```
 
 ### Verification gates
