@@ -125,6 +125,180 @@ namespace umbral_backend.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("umbral_backend.Domain.Entities.Mission", b =>
                 {
+                    b.OwnsMany("umbral_backend.Domain.Entities.Stage", "_stages", b1 =>
+                        {
+                            b1.Property<int>("Id")
+                                .ValueGeneratedOnAdd()
+                                .HasColumnType("integer");
+
+                            NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b1.Property<int>("Id"));
+
+                            b1.Property<int>("MissionId")
+                                .HasColumnType("integer");
+
+                            b1.Property<int>("SequenceOrder")
+                                .HasColumnType("integer");
+
+                            b1.Property<string>("Title")
+                                .IsRequired()
+                                .HasMaxLength(200)
+                                .HasColumnType("character varying(200)");
+
+                            b1.HasKey("Id");
+
+                            b1.HasIndex("MissionId", "SequenceOrder")
+                                .IsUnique();
+
+                            b1.ToTable("MissionStages", (string)null);
+
+                            b1.WithOwner()
+                                .HasForeignKey("MissionId");
+
+                            b1.OwnsMany("umbral_backend.Domain.Entities.Substage", "_substages", b2 =>
+                                {
+                                    b2.Property<int>("Id")
+                                        .ValueGeneratedOnAdd()
+                                        .HasColumnType("integer");
+
+                                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b2.Property<int>("Id"));
+
+                                    b2.Property<string>("PlayMode")
+                                        .IsRequired()
+                                        .HasMaxLength(50)
+                                        .HasColumnType("character varying(50)");
+
+                                    b2.Property<int>("SequenceOrder")
+                                        .HasColumnType("integer");
+
+                                    b2.Property<int>("StageId")
+                                        .HasColumnType("integer");
+
+                                    b2.Property<string>("Title")
+                                        .IsRequired()
+                                        .HasMaxLength(200)
+                                        .HasColumnType("character varying(200)");
+
+                                    b2.Property<int?>("TriviaQuizId")
+                                        .HasColumnType("integer");
+
+                                    b2.HasKey("Id");
+
+                                    b2.HasIndex("StageId", "SequenceOrder")
+                                        .IsUnique();
+
+                                    b2.ToTable("MissionSubstages", (string)null);
+
+                                    b2.WithOwner()
+                                        .HasForeignKey("StageId");
+
+                                    b2.OwnsMany("umbral_backend.Domain.Entities.Clue", "_clues", b3 =>
+                                        {
+                                            b3.Property<int>("Id")
+                                                .ValueGeneratedOnAdd()
+                                                .HasColumnType("integer");
+
+                                            NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b3.Property<int>("Id"));
+
+                                            b3.Property<int>("SequenceOrder")
+                                                .HasColumnType("integer");
+
+                                            b3.Property<int>("SubstageId")
+                                                .HasColumnType("integer");
+
+                                            b3.Property<string>("Text")
+                                                .IsRequired()
+                                                .HasMaxLength(2000)
+                                                .HasColumnType("character varying(2000)");
+
+                                            b3.Property<string>("Title")
+                                                .IsRequired()
+                                                .HasMaxLength(200)
+                                                .HasColumnType("character varying(200)");
+
+                                            b3.Property<string>("Visibility")
+                                                .IsRequired()
+                                                .HasMaxLength(50)
+                                                .HasColumnType("character varying(50)");
+
+                                            b3.HasKey("Id");
+
+                                            b3.HasIndex("SubstageId", "SequenceOrder")
+                                                .IsUnique();
+
+                                            b3.ToTable("MissionClues", (string)null);
+
+                                            b3.WithOwner()
+                                                .HasForeignKey("SubstageId");
+                                        });
+
+                                    b2.OwnsMany("umbral_backend.Domain.Entities.Target", "_targets", b3 =>
+                                        {
+                                            b3.Property<int>("Id")
+                                                .ValueGeneratedOnAdd()
+                                                .HasColumnType("integer");
+
+                                            NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b3.Property<int>("Id"));
+
+                                            b3.Property<int?>("ClueId")
+                                                .HasColumnType("integer");
+
+                                            b3.Property<bool>("IsActive")
+                                                .HasColumnType("boolean");
+
+                                            b3.Property<string>("Name")
+                                                .IsRequired()
+                                                .HasMaxLength(200)
+                                                .HasColumnType("character varying(200)");
+
+                                            b3.Property<string>("QrCode")
+                                                .IsRequired()
+                                                .HasMaxLength(500)
+                                                .HasColumnType("character varying(500)");
+
+                                            b3.Property<int>("SequenceOrder")
+                                                .HasColumnType("integer");
+
+                                            b3.Property<int>("SubstageId")
+                                                .HasColumnType("integer");
+
+                                            b3.HasKey("Id");
+
+                                            b3.HasIndex("SubstageId", "SequenceOrder")
+                                                .IsUnique();
+
+                                            b3.ToTable("MissionTargets", (string)null);
+
+                                            b3.WithOwner()
+                                                .HasForeignKey("SubstageId");
+                                        });
+
+                                    b2.OwnsOne("umbral_backend.Domain.ValueObjects.ScoreValue", "WinnerScore", b3 =>
+                                        {
+                                            b3.Property<int>("SubstageId")
+                                                .HasColumnType("integer");
+
+                                            b3.Property<int>("Points")
+                                                .HasColumnType("integer")
+                                                .HasColumnName("WinnerScore");
+
+                                            b3.HasKey("SubstageId");
+
+                                            b3.ToTable("MissionSubstages");
+
+                                            b3.WithOwner()
+                                                .HasForeignKey("SubstageId");
+                                        });
+
+                                    b2.Navigation("WinnerScore");
+
+                                    b2.Navigation("_clues");
+
+                                    b2.Navigation("_targets");
+                                });
+
+                            b1.Navigation("_substages");
+                        });
+
                     b.OwnsOne("umbral_backend.Domain.ValueObjects.Difficulty", "Difficulty", b1 =>
                         {
                             b1.Property<int>("MissionId")
@@ -166,6 +340,8 @@ namespace umbral_backend.Infrastructure.Persistence.Migrations
 
                     b.Navigation("MaximumTime")
                         .IsRequired();
+
+                    b.Navigation("_stages");
                 });
 
             modelBuilder.Entity("umbral_backend.Domain.Entities.TriviaQuiz", b =>

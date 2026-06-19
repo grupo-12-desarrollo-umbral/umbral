@@ -1,4 +1,3 @@
-using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Http;
@@ -140,6 +139,162 @@ public class ProblemDetailsExceptionHandlerTests
         problem.Status.Should().Be(409);
         problem.Title.Should().Be("Trivia quiz cannot be retired without usage history.");
         httpContext.Response.StatusCode.Should().Be(409);
+    }
+
+    [Fact]
+    public async Task TryHandleAsync_TriviaQuizCannotBeArchivedInCurrentStateException_Returns409()
+    {
+        var httpContext = CreateHttpContext();
+        var problem = await InvokeHandlerAndReadProblemDetails(
+            httpContext,
+            new TriviaQuizCannotBeArchivedInCurrentStateException(TriviaQuizStatus.Draft));
+
+        problem.Status.Should().Be(409);
+        problem.Title.Should().Be("Trivia quiz cannot be archived in its current state.");
+        httpContext.Response.StatusCode.Should().Be(409);
+    }
+
+    [Fact]
+    public async Task TryHandleAsync_TriviaQuestionScoreValueRequiredToPublishException_Returns409()
+    {
+        var httpContext = CreateHttpContext();
+        var problem = await InvokeHandlerAndReadProblemDetails(
+            httpContext,
+            new TriviaQuestionScoreValueRequiredToPublishException(1));
+
+        problem.Status.Should().Be(409);
+        problem.Title.Should().Be("Trivia quiz is not ready for publication.");
+        httpContext.Response.StatusCode.Should().Be(409);
+    }
+
+    [Fact]
+    public async Task TryHandleAsync_TriviaQuestionTimeLimitRequiredToPublishException_Returns409()
+    {
+        var httpContext = CreateHttpContext();
+        var problem = await InvokeHandlerAndReadProblemDetails(
+            httpContext,
+            new TriviaQuestionTimeLimitRequiredToPublishException(1));
+
+        problem.Status.Should().Be(409);
+        problem.Title.Should().Be("Trivia quiz is not ready for publication.");
+        httpContext.Response.StatusCode.Should().Be(409);
+    }
+
+    [Fact]
+    public async Task TryHandleAsync_TriviaQuestionSequenceOrderMustBeUniqueException_Returns409()
+    {
+        var httpContext = CreateHttpContext();
+        var problem = await InvokeHandlerAndReadProblemDetails(
+            httpContext,
+            new TriviaQuestionSequenceOrderMustBeUniqueException(2));
+
+        problem.Status.Should().Be(409);
+        problem.Title.Should().Be("Question sequence order conflict.");
+        httpContext.Response.StatusCode.Should().Be(409);
+    }
+
+    [Fact]
+    public async Task TryHandleAsync_TriviaQuestionNotFoundException_Returns404()
+    {
+        var httpContext = CreateHttpContext();
+        var problem = await InvokeHandlerAndReadProblemDetails(
+            httpContext,
+            new TriviaQuestionNotFoundException(42));
+
+        problem.Status.Should().Be(404);
+        problem.Title.Should().Be("Trivia question not found.");
+        httpContext.Response.StatusCode.Should().Be(404);
+    }
+
+    [Fact]
+    public async Task TryHandleAsync_MissionNotReadyForActivationException_Returns400()
+    {
+        var httpContext = CreateHttpContext();
+        var problem = await InvokeHandlerAndReadProblemDetails(
+            httpContext,
+            new MissionNotReadyForActivationException(["Mission must have at least one stage."]));
+
+        problem.Status.Should().Be(400);
+        problem.Title.Should().Be("Validation failed.");
+        httpContext.Response.StatusCode.Should().Be(400);
+    }
+
+    [Fact]
+    public async Task TryHandleAsync_MissionNodeNotFoundException_Returns404()
+    {
+        var httpContext = CreateHttpContext();
+        var problem = await InvokeHandlerAndReadProblemDetails(
+            httpContext,
+            new MissionNodeNotFoundException(7));
+
+        problem.Status.Should().Be(404);
+        problem.Title.Should().Be("Mission resource not found.");
+        httpContext.Response.StatusCode.Should().Be(404);
+    }
+
+    [Fact]
+    public async Task TryHandleAsync_TargetNotFoundException_Returns404()
+    {
+        var httpContext = CreateHttpContext();
+        var problem = await InvokeHandlerAndReadProblemDetails(
+            httpContext,
+            new TargetNotFoundException(9));
+
+        problem.Status.Should().Be(404);
+        problem.Title.Should().Be("Mission resource not found.");
+        httpContext.Response.StatusCode.Should().Be(404);
+    }
+
+    [Fact]
+    public async Task TryHandleAsync_MissionAlreadyActiveException_Returns409()
+    {
+        var httpContext = CreateHttpContext();
+        var problem = await InvokeHandlerAndReadProblemDetails(
+            httpContext,
+            new MissionAlreadyActiveException());
+
+        problem.Status.Should().Be(409);
+        problem.Title.Should().Be("Mission cannot change activation state from its current state.");
+        httpContext.Response.StatusCode.Should().Be(409);
+    }
+
+    [Fact]
+    public async Task TryHandleAsync_MissionAlreadyDeactivatedException_Returns409()
+    {
+        var httpContext = CreateHttpContext();
+        var problem = await InvokeHandlerAndReadProblemDetails(
+            httpContext,
+            new MissionAlreadyDeactivatedException());
+
+        problem.Status.Should().Be(409);
+        problem.Title.Should().Be("Mission cannot change activation state from its current state.");
+        httpContext.Response.StatusCode.Should().Be(409);
+    }
+
+    [Fact]
+    public async Task TryHandleAsync_SubstagePlayModeMismatchException_Returns400()
+    {
+        var httpContext = CreateHttpContext();
+        var problem = await InvokeHandlerAndReadProblemDetails(
+            httpContext,
+            new SubstagePlayModeMismatchException(SubstagePlayMode.Trivia, SubstagePlayMode.TreasureHunt));
+
+        problem.Status.Should().Be(400);
+        problem.Title.Should().Be("Invalid mission authoring operation.");
+        httpContext.Response.StatusCode.Should().Be(400);
+    }
+
+    [Fact]
+    public async Task TryHandleAsync_MissionNameRequiredException_Returns400()
+    {
+        var httpContext = CreateHttpContext();
+        var problem = await InvokeHandlerAndReadProblemDetails(
+            httpContext,
+            new MissionNameRequiredException());
+
+        problem.Status.Should().Be(400);
+        problem.Title.Should().Be("Invalid mission authoring operation.");
+        httpContext.Response.StatusCode.Should().Be(400);
     }
 
     [Fact]

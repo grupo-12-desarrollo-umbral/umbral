@@ -93,9 +93,9 @@ context:
     teams, so I know what I may operate.
 11. As an Operator, I want unauthorized actions against sessions blocked, so
     operational policies are respected.
-12. As an Operator, I want to move a session through `Preparing`, `Active`,
-    `Paused`, `Finished`, and `Cancelled`, so the runtime matches the real
-    stage of operation.
+12. As an Operator, I want to move a session through `Scheduled`, `Preparing`,
+    `Active`, `Paused`, `Finished`, and `Cancelled`, so the runtime matches the
+    real stage of operation.
 13. As an Operator, I want invalid transitions rejected with a reason, so the
     runtime state is not corrupted.
 14. As an Operator, I want every state change recorded with actor, time, and

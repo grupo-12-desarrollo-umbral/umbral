@@ -1,8 +1,8 @@
-# Prompt Example — HU-09 Mission Management (Feature Slice)
+# Prompt Example - HU-09 Gestion de misiones rebuild (Feature Slice)
 
-Concrete prompt sequence for driving HU-09 through a full feature slice on `feature/hu-09-mission-management`. Follows the pattern in [workflow_for_prompts.md](./workflow_for_prompts.md).
+Concrete prompt sequence for driving the DES-14 rebuild of HU-09 through a full feature slice on `feature/hu-09-mission-management-rebuild`. Follows the pattern in [workflow_for_prompts.md](./workflow_for_prompts.md).
 
-**Key difference for HU-09:** this is the first documented `mission-design-service` slice, so there is no same-service predecessor context to extend. The slice establishes the basic `Mission` authoring baseline first, while explicitly keeping source-readiness and mission-structure completion separate for later HUs (`HU-10A` and `HU-10B`). The frontend starts with mission management only; runtime mission-session behavior remains outside this slice.
+**Key difference for the DES-14 rebuild:** the old HU-09 mission-management baseline predates the mission-runtime rewrite. This slice is not an additive patch. It rebuilds mission management around `Mission` as a source-content wrapper and around a runtime-ready mission plan: ordered `Stage`s, `Substage`s with exactly one `SubstagePlayMode`, target-based treasure-hunt objectives, optional clues, and trivia substages that select published trivia questions. Runtime session creation remains outside this slice.
 
 When working from the monorepo root, make the target workload explicit in each prompt.
 For backend steps, point to `@backend/.agents/backend-agent.md`. For frontend steps,
@@ -12,88 +12,130 @@ verified API contract.
 
 ---
 
-## Pre-resolved orient (as of 2026-05-31)
+## Stop 1 acceptance guard
 
-> Step 1 has already been run. Paste this section into any agent session that needs context
-> before picking up a phase — no need to re-run the orient prompt.
+Reject this generated prompt before implementation if it does not explicitly scope all of the following:
 
-### What predecessors have already landed (reuse candidates for HU-09)
-
-No prior `mission-design-service` HU slice is currently tracked in Linear as **Done** or **In Progress**, so HU-09 is the first documented feature slice for this bounded context.
-
-**Domain layer**
-
-- `Mission`, `MissionNode`, `MissionActivation`, `Difficulty`, and `MaximumTime` are already defined as normative domain concepts by the local PRD, DDD solution model, entity spec, and service context
-- `MissionActivation` is a source-readiness concept inside `MissionDesign`, not a runtime session lifecycle state
-
-**Application layer**
-
-- The canonical mission-side application services begin with `CreateMission`, `UpdateMission`, `DeactivateMission`, `GetMissionCatalog`, and `GetMissionDetail`
-
-**Infrastructure / API**
-
-- No predecessor HU context has established a stable mission authoring contract yet
-
-**Frontend**
-
-- No predecessor mission-authoring frontend slice is documented yet
-
-**Coverage:** no predecessor HU context establishes a baseline percentage for `mission-design-service`; verify the real aggregate line coverage during phase X.4.
-
-### What HU-09 adds on top (per PRD DES-62)
-
-| Concern | New work |
-|---|---|
-| `Mission` authoring baseline | Create a mission with basic authored data (`title/name`, `description/briefing`, `difficulty`, `maximumTime`) |
-| Mission inspection | Mission catalog and mission detail queries so administrators can consult existing missions |
-| Mission maintenance | Update existing mission details without recreating the mission |
-| Mission deactivation | Soft-deactivate a mission while preserving history |
-| Source readiness boundary | A deactivated mission must not be usable as the source of a new mission session |
-| Backend contract | Mission create/list/detail/update/deactivate API surface under `/api/missions` |
-| Frontend flow | Admin mission-management UI for create, browse, edit, and deactivate actions |
-
-### Branch state and prerequisite
-
-`feature/hu-09-mission-management` should be branched from `develop`. No same-service predecessor is currently **In Progress**, so there is no feature-branch base dependency to inherit first.
-
-**Branch naming note:** older repo workflow docs still mention `feature/mission-design-service`, but this prompt follows the newer feature-scoped branch pattern from `workflow_for_prompts.md` and the current HU templates.
-
-**Before starting implementation:** inspect the current mission-design service source and confirm whether scaffolded mission types/endpoints already exist. Extend and reconcile them with DES-62 instead of recreating parallel copies.
-
-### Linear state (as of 2026-05-31)
-
-- DES-14 (HU-09): **Backlog**, labels: `Feature`, `ready-for-agent`, `svc:mission-design-service`
-- No same-service predecessor HU is currently **Done** or **In Progress**
-- DES-62 (PRD): **Backlog**, labels: `ready-for-agent`
-
-> Linear live state may have changed. Use the Linear MCP to verify DES-14 status and labels if needed, but do not re-fetch PRD scope — read the local file at `@backend/docs/prd/DES-62-mission-design-service-baseline.md` instead.
+- `Mission` as wrapper, not runtime session
+- `MissionNode` Composite: `Stage`, `Substage`, `Clue`
+- each `Substage` has exactly one `SubstagePlayMode`: `TreasureHunt` or `Trivia`
+- treasure-hunt progress is `Target` based, not clue based
+- `Clue` is optional guidance, max one per target
+- readiness/activation validates the runtime plan
+- no `SessionMode`
+- no `TriviaQuiz` as `SessionSource`
 
 ---
 
-## 1. Orient — read service state and PRD before planning
+## Required design patterns
+
+- `Composite`
+  - Why: `Mission` owns the hierarchical runtime-plan authoring structure, and `MissionNode` must model the `Stage`, `Substage`, and `Clue` tree coherently while treasure-hunt `Target`s stay attached to their owning `Substage`.
+  - Phase owner: X.1 Domain, carried through X.2 Application and X.4 API contract shape.
+  - Gate obligation: the rebuilt mission model must be a real Composite over ordered `MissionNode`s (`Stage` -> `Substage` -> optional `Clue`), with traversal/readiness rules centralized in domain policy rather than flattened records or handler conditionals.
+
+> Resolution note: `backend/docs/trivia_sprint_required_patterns_matrix.md` omits HU-09 because mission authoring was excluded from that trivia sprint matrix. For this DES-14 rebuild, the mandatory `Composite` obligation comes from `backend/docs/adr/0004-required-domain-patterns.md`, `backend/services/mission-design-service/CONTEXT.md`, `backend/docs/ddd_solution_model.md`, and the 2026-06-16 realignment overlay.
+
+---
+
+## Pre-resolved orient (as of 2026-06-16)
+
+> Step 1 has already been run. Paste this section into any agent session that needs context
+> before picking up a phase - no need to re-run the orient prompt.
+
+### What predecessors have already landed
+
+DES-14 (HU-09) itself is **Done** but marked `needs-rebuild` and `canon-realign`. Treat the existing mission-management implementation as stale baseline code to inspect, delete, or reconcile, not as authoritative scope. Later same-service trivia slices are also Done: DES-17 (HU-11), DES-20 (HU-14A), DES-21 (HU-14B), DES-18 (HU-12), and DES-19 (HU-13). There are no same-service In Progress predecessors, so the branch base is `develop`.
+
+**Domain layer**
+
+- Old mission baseline exists, but it must be rebuilt around `Mission` as wrapper/source content, not runtime session.
+- `MissionDesign` owns `Mission`, `MissionNode`, `Target`, `Clue`, `TriviaQuiz`, `TriviaQuizSelection`, `Difficulty`, `MaximumTime`, and `MissionActivation`.
+- `MissionNode` must be a Composite over `Stage`, `Substage`, and `Clue`.
+- Each `Substage` has exactly one `SubstagePlayMode`: `TreasureHunt` or `Trivia`; there is no `SessionMode`.
+- Treasure-hunt progression is `Target` based, not clue based; `Clue` is optional guidance and max one clue can guide a target.
+- Trivia substages select questions from a published `TriviaQuiz`; `TriviaQuiz` is not a `SessionSource`.
+
+**Application layer**
+
+- Existing mission create/update/deactivate/catalog/detail flows may exist, but command/query shapes must be reconciled with the rebuilt runtime-plan model.
+- `AuthorizationBehaviour` and `ValidationBehaviour` already exist in the service pipeline.
+- Trivia-side published quiz behavior exists from later HUs and can be used to validate `TriviaQuizSelection`; do not let it become direct session creation scope.
+
+**Infrastructure / API**
+
+- EF Core persistence, repositories, and `/api/missions` endpoints exist from old HU-09.
+- The rebuild likely changes mission persistence shape for `MissionNode`, `Target`, clue association, play mode, and readiness/activation state.
+- API contract must expose mission wrapper metadata plus runtime-plan authoring and readiness feedback.
+
+**Frontend**
+
+- Mission-management UI exists from old HU-09 and must be realigned to the new mission runtime-plan contract.
+- Trivia administration UI exists and may support published quiz selection for trivia substages.
+
+**Coverage:** no stable aggregate percentage is captured in predecessor docs for `mission-design-service`; verify real service coverage during phase X.4.
+
+### What HU-09 rebuild adds on top (per DES-14, DES-62, and the realignment overlay)
+
+| Concern | New work |
+|---|---|
+| Rebuild posture | Rebuild mission management instead of patching stale mission-session assumptions. |
+| Mission wrapper | `Mission` is source content for future `LiveSession` creation; it is not a runtime session. |
+| `MissionNode` Composite | Ordered `Stage`, `Substage`, and optional `Clue` nodes under one aggregate. |
+| Play mode | Every `Substage` declares exactly one `SubstagePlayMode`: `TreasureHunt` or `Trivia`; no `SessionMode`. |
+| Treasure hunt | `Target` is the QR-validated objective; progress is target-based. |
+| Clues | Optional guidance only, max one clue per target; clue visibility/release does not advance progress. |
+| Trivia substages | Reference one whole published `TriviaQuiz` through a `TriviaQuizSelection`; no `TriviaQuiz` as `SessionSource`. |
+| Readiness/activation | Validate the full runtime plan before source readiness/activation: stages, substages, play modes, targets/winner score, trivia selections. |
+| Backend contract | Rebuilt `/api/missions` payloads for mission metadata, nodes, targets, clues, trivia selections, deactivation, and readiness. |
+| Frontend flow | Admin UI for authoring and inspecting the rebuilt mission runtime plan. |
+
+### Branch state and prerequisite
+
+`feature/hu-09-mission-management-rebuild` should be branched from `develop`. No same-service predecessor is currently **In Progress**, so there is no feature-branch dependency to inherit first.
+
+**Before starting implementation:** inspect the current mission-design source and identify stale mission-session assumptions. Reconcile or delete conflicting code; do not create parallel mission types.
+
+### Linear state (as of 2026-06-16)
+
+- DES-14 (HU-09): **Done**, labels: `Feature`, `Validate criteria`, `ready-for-agent`, `svc:mission-design-service`, `missing-mission-sprint`, `canon-realign`, `needs-rebuild`
+- DES-62 (PRD): **Backlog**, labels: `ready-for-agent`, `canon-realign`
+- Same-service Done issues: DES-17, DES-20, DES-21, DES-18, DES-19
+- Same-service In Progress issues: none
+
+> Linear live state may have changed. Use the Linear MCP to verify DES-14 status and labels if needed, but do not re-fetch PRD scope - read the local file at `@backend/docs/prd/DES-62-mission-design-service-baseline.md` and overlay `@backend/docs/canon-realignment-after-mission-runtime-rewrite.md`.
+
+> Note: the local PRD file is authoritative for original HU-09/HU-14 scope, but the realignment overlay supersedes stale PRD lines that made detailed `Target` modeling out of scope or implied trivia as a session source.
+
+---
+
+## 1. Orient - read service state, PRD, and realignment overlay
 
 > **Skip this step if you have read the pre-resolved orient section above.** Run it only
-> if the README, mission-design scaffold, or Linear state may have changed since 2026-05-31.
+> if the service source, README, or Linear state may have changed since 2026-06-16.
 
-```
+```text
 Read the following files and summarise what has been decided and implemented so far:
-- @backend/services/mission-design-service/README.md — current service status
-- @backend/services/mission-design-service/CONTEXT.md — bounded-context language and boundary rules
-- @backend/docs/prd/DES-62-mission-design-service-baseline.md — the authoritative PRD for HU-09 to HU-14
+- @backend/services/mission-design-service/README.md - current service status
+- @backend/services/mission-design-service/CONTEXT.md - bounded-context language and pattern expectations
+- @backend/docs/prd/DES-62-mission-design-service-baseline.md - original PRD for HU-09 to HU-14
+- @backend/docs/canon-realignment-after-mission-runtime-rewrite.md - realignment overlay; it supersedes stale DES-62 assumptions for DES-14
+- @backend/docs/hu09-context.md - the pre-resolved HU-09 rebuild context
 
-Then inspect the existing mission-design source only enough to confirm whether a partial
-mission scaffold already exists:
-- @backend/services/mission-design-service/src/Domain/Entities/Mission.cs
+Then inspect the existing mission-design source only enough to identify stale or reusable baseline code:
+- @backend/services/mission-design-service/src/Domain/
 - @backend/services/mission-design-service/src/Application/Missions/
+- @backend/services/mission-design-service/src/Infrastructure/Persistence/
 - @backend/services/mission-design-service/src/Api/Endpoints/MissionsEndpoints.cs
 
 Then use the Linear MCP to fetch only the current live state of:
-- DES-14 (HU-09 — Gestión de misiones) — status and labels
+- DES-14 (HU-09 - Gestion de misiones) - status and labels
+- DES-62 (PRD - MissionDesign service) - status and labels
 
 Output:
-- the normative domain concepts HU-09 depends on (Mission, MissionActivation, Difficulty, MaximumTime)
-- what HU-09 adds on top per the PRD: create, consult, update, deactivate, and source-readiness denial for inactive missions
-- whether the current source already contains a mission scaffold that should be extended rather than recreated
+- which current Mission concepts are stale and must be rebuilt
+- the canonical rebuilt scope: Mission wrapper, MissionNode Composite, Stage/Substage/Clue, SubstagePlayMode, Target, optional Clue, readiness/activation
+- confirmation that there is no SessionMode and no TriviaQuiz as SessionSource in this slice
 - current Linear status and labels for DES-14
 
 Do not start planning or implementing yet.
@@ -103,91 +145,89 @@ Do not start planning or implementing yet.
 
 ## 2. Label DES-14 as ready-for-agent
 
-> DES-14 already carries `ready-for-agent` as of 2026-05-31. Use this step to confirm the label remains present before execution.
+> DES-14 already carries `ready-for-agent` as of 2026-06-16. Use this step to confirm the label remains present before execution.
 
-```
+```text
 Use the Linear MCP to confirm DES-14 still carries the label ready-for-agent.
 If it is missing, add it.
-Output the updated DES-14 ticket state and labels.
+Output the updated DES-14 ticket state and labels, including canon-realign and needs-rebuild.
 ```
 
 ---
 
 ## 3. Confirm slice readiness
 
-```
+```text
 Use the Linear MCP to confirm DES-14 carries both svc:mission-design-service
 and ready-for-agent labels and output its current status and acceptance criteria.
 
 The PRD scope is already in the local file at
-@backend/docs/prd/DES-62-mission-design-service-baseline.md —
-do not re-fetch the PRD from Linear; read the local file if you need implementation decisions.
+@backend/docs/prd/DES-62-mission-design-service-baseline.md.
+The realignment overlay is in
+@backend/docs/canon-realignment-after-mission-runtime-rewrite.md.
+Do not re-fetch PRD scope from Linear; read local files if you need implementation decisions.
 
-Output the confirmed HU id, title, acceptance criteria, and labels before planning the slice.
+Before planning, explicitly confirm the Stop 1 acceptance guard:
+- Mission as wrapper, not runtime session
+- MissionNode Composite: Stage, Substage, Clue
+- each Substage has exactly one SubstagePlayMode: TreasureHunt or Trivia
+- treasure-hunt progress is Target based, not clue based
+- Clue is optional guidance, max one per target
+- readiness/activation validates the runtime plan
+- no SessionMode
+- no TriviaQuiz as SessionSource
+
+Output the confirmed HU id, title, acceptance criteria, labels, and the guard confirmation before planning the slice.
 ```
 
-In the remaining examples below, `HU-09` and `DES-14` are the resolved values for this slice. `DES-62` is the shared PRD reference for `mission-design-service`; its content lives in the local file above.
+In the remaining examples below, `HU-09` and `DES-14` are the resolved values for this slice. `DES-62` is the shared PRD reference for `mission-design-service`; its content lives in the local file above and is overlaid by the canon realignment document.
 
 ---
 
 ## 4. Start the slice
 
-```
-Prepare the mission-management slice on branch feature/hu-09-mission-management.
+```text
+Prepare the mission-management rebuild slice on branch feature/hu-09-mission-management-rebuild.
 Use the HU id and DES id resolved from Linear in the previous step.
 This slice affects backend mission-design-service and frontend.
 
-The pre-resolved orient at the top of this document lists what HU-09 adds.
-Do not re-read the PRD for scoping.
+The pre-resolved orient at the top of this document lists what existing code may have
+landed and what the DES-14 rebuild adds. Do not re-read the PRD for scoping unless
+you need to resolve a precise implementation detail.
 
-Before implementation, confirm whether the current branch source already contains
-Mission scaffold code. If it does, extend and reconcile it; do not create parallel types.
+Before implementation, inspect whether current Mission source code contradicts the realigned canon.
+Treat DES-14 as a rebuild: delete, replace, or reconcile stale model/code paths instead of layering
+new types beside old assumptions.
 
-Move DES-14 to In Progress and output the exact scope, branch name, and touched surfaces.
+Move DES-14 to In Progress if the team process requires reopening rebuild work, and output the exact scope, branch name, base branch, and touched surfaces.
 ```
 
 ---
 
-## 5. Backend phase X.1 — Domain layer
+## 5. Backend phase X.1 - Domain layer
 
-```
+```text
 Use @backend/.agents/backend-agent.md.
-Implement backend phase X.1 for HU-09 in mission-design-service.
-Use the service PRD (DES-62) and canonical docs.
-
-Before writing anything, inspect the current Mission aggregate and related mission
-value objects/events in the service source. Extend the existing baseline rather than
-recreating Mission concepts under new names.
-
-Scope:
-- formalize the Mission authoring baseline aggregate behavior for HU-09:
-  create mission, update mission details, deactivate mission
-- ensure Mission captures the basic authored fields required by HU-09:
-  name/title, description/briefing, difficulty, maximum time, activation/readiness state
-- add or complete the HU-09 domain events:
-  MissionCreated, MissionDetailsUpdated, MissionDeactivated
-- add any mission deactivation invariant exception needed by the canonical docs
-- ensure a deactivated mission cannot be considered source-ready
-- keep mission readiness distinct from runtime session lifecycle
-
-Important ambiguity to resolve explicitly:
-- bd_umbral_entity_spec.md says a Mission must have at least one MissionNode,
-  but HU-09 only covers basic mission authoring before HU-10A/HU-10B add structure.
-  Implement HU-09 so a newly created mission remains a non-ready draft baseline
-  rather than inventing structure during this slice.
+Implement backend phase X.1 for HU-09 in mission-design-service, per the
+**X.1 derivation block in @backend/docs/hu09-context.md** (your spec — do not
+re-read the canon or re-inspect the tree; open a cited canon section only to
+fill a gap the block leaves open).
 
 Gate:
-- Domain build passes
-- New domain invariants are expressed as unit tests on Mission
-- No mission-structure behavior for HU-10A/HU-10B is prematurely implemented here
+- Domain build passes; unit test per new domain type (Mission, MissionNode, Target, MissionActivationPolicy)
+- Composite structurally present as Mission -> MissionNode(Stage/Substage/Clue), not flattened records or handler traversal
+- each Substage has exactly one SubstagePlayMode: TreasureHunt or Trivia
+- treasure-hunt progression is Target based; Clue optional, max one per target
+- readiness/activation validates the runtime plan
+- no SessionMode exists in MissionDesign; TriviaQuiz is not modeled as SessionSource
 
 Do not touch other backend layers or frontend.
 ```
 
 Commit:
 
-```
-feat(mission-design): phase X.1 — domain layer (HU-09)
+```text
+feat(mission-design): phase X.1 - domain layer (HU-09)
 
 Ref: HU-09
 Ref: DES-14
@@ -198,33 +238,20 @@ Then run: `/debrief`
 
 ---
 
-## 6. Backend phase X.2 — Application layer
+## 6. Backend phase X.2 - Application layer
 
-```
+```text
 Use @backend/.agents/backend-agent.md.
-Implement backend phase X.2 for HU-09 in mission-design-service.
-Use the service PRD (DES-62) and canonical docs.
-
-Before writing anything, inspect the existing Application/Missions scaffold and
-extend the current command/query names if they already match the PRD.
-
-Scope:
-- repository interfaces for the HU-09 mission baseline:
-  IMissionRepository and IMissionReadModelRepository if missing
-- commands + handlers + validators:
-  CreateMission, UpdateMission, DeactivateMission
-- queries + handlers:
-  GetMissionCatalog, GetMissionDetail
-- DTOs/projections for mission summary and mission detail
-- authorization boundary:
-  mission mutations are Administrator-only
-- validation:
-  required mission authored fields, difficulty value rules, maximum time rules,
-  and not-found handling for update/detail/deactivate paths
+Implement backend phase X.2 for HU-09 in mission-design-service, per the
+**X.2 derivation block in @backend/docs/hu09-context.md** (your spec — do not
+re-read the canon or re-inspect the tree; open a cited canon section only to
+fill a gap the block leaves open).
 
 Gate:
-- clean build passes
-- handler and validator unit tests cover valid path plus rejection/error branches
+- clean build passes; handler + validator unit tests cover valid path plus rejection/error branches
+- application use cases preserve the Composite — no flattened traversal logic in handlers
+- activation/readiness handlers validate the runtime plan through MissionActivationPolicy
+- no SessionMode in commands/DTOs/handlers/validators; no command treats TriviaQuiz as SessionSource
 - application layer does not leak infrastructure concerns
 
 Do not touch Infrastructure, Api, or frontend.
@@ -232,8 +259,8 @@ Do not touch Infrastructure, Api, or frontend.
 
 Commit:
 
-```
-feat(mission-design): phase X.2 — application layer (HU-09)
+```text
+feat(mission-design): phase X.2 - application layer (HU-09)
 
 Ref: HU-09
 Ref: DES-14
@@ -244,46 +271,28 @@ Then run: `/debrief`
 
 ---
 
-## 7. Backend phase X.3 — Infrastructure layer
+## 7. Backend phase X.3 - Infrastructure layer
 
-```
+```text
 Use @backend/.agents/backend-agent.md.
-Implement backend phase X.3 for HU-09 in mission-design-service.
-Use the service PRD (DES-62) and canonical docs.
-
-Before writing anything, inspect the current persistence scaffold:
-- ApplicationDbContext
-- MissionConfiguration
-- existing Init migration and snapshot
-
-Scope:
-- persist the HU-09 Mission baseline cleanly in EF Core
-- implement Mission repository/read-model repository support if the application
-  layer introduced those abstractions
-- add or update the migration only for HU-09's mission baseline requirements
-- integration coverage for:
-  create mission
-  update mission details
-  deactivate mission
-  list/detail queries reflecting current activation/readiness state
-- keep the database surface limited to the HU-09 mission baseline;
-  do not add MissionNode persistence before HU-10A/HU-10B
-
-Database isolation:
-- each integration test must clear shared mission data before its scenario
+Implement backend phase X.3 for HU-09 in mission-design-service, per the
+**X.3 derivation block in @backend/docs/hu09-context.md** (your spec — do not
+re-read the canon or re-inspect the tree; grep the model snapshot rather than
+full-reading it, as the block instructs).
 
 Gate:
-- dotnet build passes on the solution
-- migration is coherent with the current snapshot
-- repository/integration tests pass for create, update, deactivate, and read paths
+- build passes
+- EF migration/snapshot accurately represents Mission wrapper, MissionNode Composite, Target, optional Clue association, SubstagePlayMode, and TriviaQuizSelection
+- repository integration tests prove round-trip persistence of the rebuilt runtime plan
+- database/read models contain no SessionMode; no persistence model treats TriviaQuiz as SessionSource
 
 Do not touch Api or frontend.
 ```
 
 Commit:
 
-```
-feat(mission-design): phase X.3 — infrastructure layer (HU-09)
+```text
+feat(mission-design): phase X.3 - infrastructure layer (HU-09)
 
 Ref: HU-09
 Ref: DES-14
@@ -294,40 +303,28 @@ Then run: `/debrief`
 
 ---
 
-## 8. Backend phase X.4 — API layer
+## 8. Backend phase X.4 - API layer
 
-```
+```text
 Use @backend/.agents/backend-agent.md.
-Implement backend phase X.4 for HU-09 in mission-design-service.
-Use the service PRD (DES-62) and canonical docs.
-
-Before writing anything, inspect the current MissionsEndpoints scaffold and extend it
-instead of creating a second endpoint group for the same feature.
-
-Scope:
-- expose the HU-09 mission management API surface under /api/missions:
-  create mission
-  list missions
-  get mission detail
-  update mission
-  deactivate mission
-- ensure response DTOs expose the mission authored fields plus activation/readiness state
-- proof that a deactivated mission is surfaced as unavailable for new-session source use
-- proof that update and deactivate paths handle not-found and validation errors correctly
-- keep runtime session creation behavior out of this service; only expose mission-authoring facts
+Implement backend phase X.4 for HU-09 in mission-design-service, per the
+**X.4 derivation block in @backend/docs/hu09-context.md** (your spec — do not
+re-read the canon or re-inspect the tree; open a cited canon section only to
+fill a gap the block leaves open).
 
 Gate:
-- endpoint tests pass for create, list/detail, update, and deactivate paths
-- no regression on any existing mission endpoints already present in the scaffold
-- service line coverage reaches 93%
+- endpoint tests pass for create/update/deactivate/detail/readiness + at least one invalid runtime-plan rejection
+- API detail proves Mission as wrapper, MissionNode Composite, exactly one SubstagePlayMode, Target-based treasure hunt, optional Clue max one per target
+- no API request/response contains SessionMode or treats TriviaQuiz as SessionSource
+- service coverage reaches the repo gate target (ADR-0005)
 
 Do not touch frontend.
 ```
 
 Commit:
 
-```
-feat(mission-design): phase X.4 — api layer (HU-09)
+```text
+feat(mission-design): phase X.4 - api layer (HU-09)
 
 Ref: HU-09
 Ref: DES-14
@@ -340,78 +337,102 @@ Then run: `/debrief`
 
 ## 8.5. Docker rebuild and smoke
 
-```
-From the monorepo root, rebuild and restart the mission-design-service stack:
+```text
+From the monorepo root, rebuild and restart the backend stack after the API phase:
 
-docker compose build mission-design-service
-docker compose up -d mission-design-service
+docker compose build mission-design-service api-gateway
+docker compose up -d mission-design-service api-gateway
 
-Then run a minimal smoke against the mission endpoints:
-- create a mission
-- fetch the mission catalog
-- fetch the mission detail
-- deactivate the mission
-- confirm the deactivated mission is reflected correctly in the API response
+Run curl smoke checks through the gateway for:
+- mission catalog
+- mission detail for a rebuilt mission
+- readiness/activation validation response
 
-Output the exact commands used and the relevant HTTP status codes.
+Output:
+- container status
+- smoke command results
+- any API contract changes that the frontend phase must consume
 ```
 
 ---
 
 ## 9. Frontend slice
 
-```
+```text
+Generate a multi phase plan in a markdown file, like the one in `@frontend/plans/hu-03-frontend-role-permission-assignment.md`, save it in `@frontend/plans/` for the following:
 Use @frontend/AGENTS.md.
-Implement the frontend slice for HU-09 against the verified backend mission API.
+Implement the frontend slice for HU-09 mission-management rebuild.
 
 Scope:
-- administrator mission catalog view
-- mission create flow
-- mission detail/edit flow
-- mission deactivate action with confirmation
-- UI state that reflects whether a mission is active or inactive
+- update mission-management data client/types to match the rebuilt backend contract
+- mission catalog/detail remain administrator-facing but show rebuilt readiness/activation state
+- mission editor supports Mission wrapper metadata and ordered runtime-plan authoring:
+  Stage, Substage, SubstagePlayMode, Target, optional Clue, and TriviaQuizSelection
+- Substage editor forces exactly one play mode: TreasureHunt or Trivia
+- TreasureHunt editor manages Target objectives and optional clue guidance; do not present clues as progress objectives
+- Trivia editor selects published TriviaQuiz questions for a Trivia Substage; do not create a trivia session from a quiz
+- readiness UI displays runtime-plan validation failures from backend
+- remove or rewrite stale UI copy/types that mention SessionMode or TriviaQuiz as SessionSource
 
 Gate:
-- frontend uses the backend contract verified in phase X.4
-- no invented runtime session behavior
-- mission-management flows cover create, browse, edit, and deactivate acceptance paths
+- frontend typecheck/build passes
+- mission-management flow exercises create/edit/detail/deactivate/readiness against the rebuilt API contract
+- Gate: UI exposes Mission as wrapper, MissionNode Composite, exactly one SubstagePlayMode, Target-based treasure hunt, optional Clue max one per target
+- Gate: no UI type/copy introduces SessionMode
+- Gate: no UI type/copy treats TriviaQuiz as SessionSource
 
-Commit message:
+Do not modify backend code in this step.
+```
 
-feat(frontend): mission management — HU-09
+Commit:
+
+```text
+feat(frontend): rebuild mission management runtime plan - HU-09
 
 Ref: HU-09
 Ref: DES-14
 Ref: DES-62
 ```
 
+Then run: `/debrief`
+
 ---
 
 ## 10. Close-out
 
-```
-Verify HU-09 acceptance criteria explicitly against the implemented slice:
-- administrator can create a mission with its basic data
-- administrator can consult and edit existing missions
-- administrator can deactivate a mission without deleting its usage history
-- a deactivated mission cannot be used to create new mission sessions
+```text
+Use the Linear MCP to re-check DES-14 acceptance criteria and labels.
+Verify the final implementation against the Stop 1 acceptance guard:
+- Mission as wrapper, not runtime session
+- MissionNode Composite: Stage, Substage, Clue
+- each Substage has exactly one SubstagePlayMode: TreasureHunt or Trivia
+- treasure-hunt progress is Target based, not clue based
+- Clue is optional guidance, max one per target
+- readiness/activation validates the runtime plan
+- no SessionMode
+- no TriviaQuiz as SessionSource
 
-Then prepare the draft PR:
+Run final backend and frontend verification required by the repo instructions.
+Summarise:
+- commits created
+- backend API contract changes
+- frontend plan/file produced
+- tests and gates run
+- any unresolved ambiguity for DES-15 follow-up
 
-gh pr create --draft --title "feat: HU-09 mission management" --body-file <PR_BODY_FILE>
+Create the PR:
 
-Output:
-- acceptance-criteria checklist with evidence
-- branch name
-- PR title
-- any unresolved ambiguity that should be reviewed before merge
+gh pr create \
+  --base develop \
+  --head feature/hu-09-mission-management-rebuild \
+  --title "feat(mission-design): rebuild HU-09 mission management" \
+  --body "Rebuilds DES-14/HU-09 mission management around the realigned mission runtime model: Mission wrapper, MissionNode Composite, SubstagePlayMode, Target-based treasure hunt, optional Clue guidance, and runtime-plan readiness/activation."
 ```
 
 ---
 
 ## Rationale
 
-- HU-09 is the first documented `mission-design-service` slice, so the prompt sequence cannot assume a same-service predecessor context file the way HU-03/HU-05 did.
-- The repo currently mixes two branching stories: older workflow docs still point to `feature/mission-design-service`, while newer prompt workflow docs require feature-scoped branches. This sequence follows the newer feature-scoped pattern and names the branch `feature/hu-09-mission-management`.
-- The strongest ambiguity in the canonical docs is the `Mission`-must-have-nodes rule versus HU-09's basic authoring scope. The prompt resolves that tension by treating HU-09 missions as authored drafts that remain non-ready until HU-10A/HU-10B introduce and validate structure, instead of inventing premature node behavior.
-- The local mission-design source already contains scaffolded mission code and `/api/missions` endpoints. The driver should reconcile and extend that baseline rather than build a parallel implementation that duplicates names or routes.
+The old HU-09 prompt treated mission management as a basic CRUD baseline and deferred detailed `Target` modeling. That is no longer safe after the 2026-06-16 mission-runtime rewrite. DES-14 is tagged `needs-rebuild` because downstream session creation now depends on `Mission` as the only source for `LiveSession`, with an immutable runtime snapshot derived from the authored mission plan. If HU-09 keeps stale assumptions, later DES-15, DES-22, DES-24, and the rebuilt session tickets will inherit the wrong source model.
+
+The required pattern also differs from the trivia slices. HU-11 through HU-14 primarily use `Template Method` for quiz validation flows. DES-14 rebuild is about hierarchical mission authoring, so the controlling obligation is `Composite`: `Mission` owns a `MissionNode` tree for `Stage`, `Substage`, and `Clue`, while treasure-hunt `Target`s remain target objectives under the owning treasure-hunt `Substage`. Readiness/activation then validates that complete runtime plan without introducing runtime session state, `SessionMode`, or `TriviaQuiz` as a direct session source.

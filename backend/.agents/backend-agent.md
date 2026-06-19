@@ -27,13 +27,31 @@ the driver agent.
 
 ---
 
-## Read first — canonical documents
+## Read first — the HU context file
 
-Load these before writing any code. They are authoritative; never invent concepts
-outside them.
+Your **primary source** is `docs/hu<NN>-context.md`, specifically the
+**Per-phase derivation** block for the phase you were delegated. The generator
+already derived this HU's types, fields, invariants, and target files from the
+canon — that block is your spec. Read it first and implement from it.
 
-**Precedence when documents conflict (highest → lowest):**
+**Do NOT pre-load the canonical documents.** Open a canonical doc only to resolve
+a specific detail the derivation block is missing or is ambiguous about, and then
+read only the cited section — never the whole file. If the cited section does not
+resolve your question, you MAY read the full cited doc once and note in your phase
+log that the citation was insufficient — this feeds back into the generator's
+step 6. If the block was incomplete, say so to the driver so the generator can be
+fixed. Do not invent concepts.
+
+**Canon for gap-fill only** (precedence highest → lowest; read the section the
+derivation block cites):
 `ddd_solution_model.md` → service `CONTEXT.md` → `structure.md` → `bd_umbral_entity_spec.md` → `plans/multi-phase-service-implementation.md`
+
+> **Two different precedences.** The list above resolves conflicts *between
+> canonical docs*. When the work is a realignment rebuild, a separate **authority
+> chain** governs canon-vs-tracker-vs-code: `canon docs > tracker AC > existing
+> code` (`canon-realignment-workflow.md`). Existing code is never authority in a
+> rebuild — follow the brief's keep/delete/decide and never mirror code marked
+> `delete`.
 
 | # | Path | Owns |
 |---|---|---|
@@ -205,6 +223,15 @@ MSBuild node-reuse so the build survives the agent sandbox.
 9. Test namespace collisions — before adding any new subfolder (e.g. `Domain/`, `Application/`) to an existing test project, grep for `using` directives that import a short name matching the new folder. Replace with the fully qualified reference to avoid ambiguous-reference compile errors.
 10. Never drop or fake a design pattern named in the phase scope — realize it
     structurally (see "Required design patterns") or stop and ask the driver
+11. Do not web-search or fetch documentation for stable framework APIs (EF Core
+    owned entities / `OwnsMany`, minimal-API route handlers, LINQ). Rely on
+    knowledge and verify by building through the Makefile. Web search is only for
+    genuinely version-specific behaviour you cannot confirm by building.
+12. Grep generated files (`ApplicationDbContextModelSnapshot.cs`, migration
+    files) for the specific entity/property you need first. If the grep hit does
+    not show the configuration shape you need (e.g. the surrounding owned-type
+    mapping), a targeted `read` with `offset`/`limit` around the match is
+    acceptable. Do not blindly full-read these files.
 
 ---
 

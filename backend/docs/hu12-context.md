@@ -2,7 +2,7 @@
 
 > Updated on 2026-06-16 for the mission-runtime restructure. Published
 > `TriviaQuiz` content is selectable into trivia `Substage`s through
-> `TriviaQuestionSelection`; it is not a direct `SessionSource` and does not
+> `TriviaQuizSelection`; it is not a direct `SessionSource` and does not
 > create `LiveSession`s by itself.
 
 > Paste this section into any agent session that needs context for HU-12.
@@ -83,6 +83,6 @@
 
 - `DES-62` is the authoritative PRD and has the local file `backend/docs/prd/DES-62-mission-design-service-baseline.md`, but the Linear PRD ticket does not currently carry `svc:mission-design-service`. Use the local PRD file and the resolved DES-18 relation as authority for this slice.
 - The predecessor fast path is incomplete for this service: there is no dedicated `backend/docs/hu09-context.md` or `backend/docs/hu14b-context.md`, and the service README is sparse. Treat HU-11 and HU-14A context files as the authoritative documented reuse baseline, and verify the exact HU-14B landed state in source before extending it.
-- `DES-62` makes `SessionOperations` a consumer of mission-readiness facts rather than an owner of mission-design content. HU-12 must expose or preserve published quiz facts for `TriviaQuestionSelection`, but it must not introduce runtime session orchestration or cross-context mutations.
+- `DES-62` makes `SessionOperations` a consumer of mission-readiness facts rather than an owner of mission-design content. HU-12 must expose or preserve published quiz facts for `TriviaQuizSelection`, but it must not introduce runtime session orchestration or cross-context mutations.
 - HU-13 is the dedicated follow-on slice for duplication and retirement of used quizzes. HU-12 should publish and archive quizzes cleanly, but it must not smuggle duplication flow or destructive-delete rules into this slice.
 - The mandated `Template Method` must appear explicitly in phase X.1 and X.2 scope and gate lines. If it drops out of those phase gates, the generated plan is defective.

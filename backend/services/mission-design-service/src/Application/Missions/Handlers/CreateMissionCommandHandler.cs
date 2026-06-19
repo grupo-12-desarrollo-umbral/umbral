@@ -1,6 +1,7 @@
 using umbral_backend.Application.Common.Interfaces;
-using umbral_backend.Application.Missions.DTOs;
 using umbral_backend.Application.Missions.Commands.CreateMission;
+using umbral_backend.Application.Missions.Common;
+using umbral_backend.Application.Missions.DTOs;
 using umbral_backend.Domain.Entities;
 
 namespace umbral_backend.Application.Missions.Handlers;
@@ -24,12 +25,6 @@ public sealed class CreateMissionCommandHandler : IRequestHandler<CreateMissionC
 
         await _missionRepository.AddAsync(mission, cancellationToken);
 
-        return new MissionDto(
-            mission.Id,
-            mission.Name,
-            mission.Description,
-            mission.Difficulty.Value,
-            mission.MaximumTime.Minutes,
-            mission.ActivationState.ToString());
+        return MissionDtoMapper.Map(mission);
     }
 }

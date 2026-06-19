@@ -86,7 +86,7 @@ Relationships:
 - one `Stage` node contains one or more `Substage` nodes
 - one `Substage` may contain `Clue` nodes
 - one treasure-hunt `Substage` contains one or more `Target`
-- one trivia `Substage` contains one `TriviaQuestionSelection`
+- one trivia `Substage` contains one `TriviaQuizSelection`
 
 Key constraints:
 
@@ -209,13 +209,15 @@ Suggested fields:
 Relationships:
 
 - one `TriviaQuestion` belongs to exactly one `TriviaQuiz`
-- one `TriviaQuestion` contains two or more `TriviaOption`
+- one `TriviaQuestion` contains between 2 and 4 `TriviaOption` (ADR-0002)
 
-Key constraints:
+Key constraints (numeric ranges fixed by **ADR-0002**, accepted):
 
-- a `TriviaQuestion` must define at least two `TriviaOption`
+- a `TriviaQuestion` must define between **2 and 4** `TriviaOption`s, with exactly one marked `isCorrect`
+- `scoreValue` is an integer in **[1, 100]** (see `ScoreValue` value object)
+- `timeLimit` is an integer number of seconds in **[5, 120]** (see `QuestionTimer` value object)
 - `sequenceOrder` must be unique within the quiz
-- published questions selected into a mission must have a valid `scoreValue` and `timeLimit`
+- published questions selected into a mission must have a valid `scoreValue` and `timeLimit` within the ranges above
 
 ### `TriviaOption`
 
@@ -241,32 +243,30 @@ Key constraints:
 
 - exactly one option should be marked correct unless the quiz mode explicitly allows multiple correct answers
 
-### `TriviaQuestionSelection`
+### `TriviaQuizSelection`
 
 - Type: value object or child entity of a trivia `Substage`
 - Scope: committed refinement
-- Why it exists: records the ordered set of published trivia questions selected for a mission substage
+- Why it exists: records which whole published `TriviaQuiz` a trivia `Substage` plays
 
 Suggested fields:
 
-| Field                       | Purpose                                      |
-| --------------------------- | -------------------------------------------- |
-| `triviaQuestionSelectionId` | Stable selection identity                     |
-| `substageNodeId`            | Owning trivia substage reference              |
-| `triviaQuizId`              | Published quiz used as the question source    |
-| `selectedQuestionIds`       | Ordered question identities                   |
-| `selectionMode`             | Entire quiz or explicit ordered subset        |
+| Field                    | Purpose                                      |
+| ------------------------ | -------------------------------------------- |
+| `triviaQuizSelectionId`  | Stable selection identity                    |
+| `substageNodeId`         | Owning trivia substage reference             |
+| `triviaQuizId`           | Published quiz selected in full              |
 
 Relationships:
 
-- one `TriviaQuestionSelection` belongs to exactly one trivia `Substage`
-- one `TriviaQuestionSelection` references exactly one published `TriviaQuiz`
+- one `TriviaQuizSelection` belongs to exactly one trivia `Substage`
+- one `TriviaQuizSelection` references exactly one published `TriviaQuiz`
 
 Key constraints:
 
-- the selection must contain at least one question
-- selecting the whole quiz means selecting all questions in quiz order
-- every selected question must have valid options, a correct answer, `ScoreValue`, and `TimeLimitSeconds`
+- the whole published quiz is selected; there is no partial or ordered-subset selection
+- the referenced quiz must contain at least one question
+- every question in the referenced quiz must have valid options, a correct answer, `ScoreValue`, and `TimeLimitSeconds`
 
 ## SessionOperations
 
@@ -313,10 +313,10 @@ Key constraints:
 
 - a `LiveSession` cannot enter `Active` without at least one `Team`
 - valid state changes must follow the `SessionStateTransitionPolicy`
-- canonical states are `Preparing`, `Active`, `Paused`, `Finished`, and `Cancelled`
-- creation immediately places the session in `Preparing`
-- `Scheduled` is not part of the canonical lifecycle
-- `Preparing -> Active` immediately starts the first substage
+- canonical states are `Scheduled`, `Preparing`, `Active`, `Paused`, `Finished`, and `Cancelled`
+- creation immediately places the session in `Scheduled`
+- team association is allowed only while `Scheduled`
+- `Scheduled → Preparing` moves the session into operator readiness; `Preparing → Active` immediately starts the first substage
 - only `Active -> Paused -> Active` is valid for pause/resume
 - `Finished` happens only through normal completion of the final substage
 - early stop uses `Cancelled` and does not calculate a `SessionTeamWinner`
@@ -377,7 +377,7 @@ Suggested fields:
 | `currentSubstageId`     | Current substage reference from the runtime snapshot   |
 | `visibleClueIds`        | Optional clue guidance visible to the team             |
 | `releasedClueCount`     | Cached count of clues already made visible to the team |
-| `solutionTime`          | Derived active play time used for final ranking when comparable |
+| `resolutionTime`          | Derived active play time used for final ranking when comparable |
 | `lastScoreCalculatedAt` | Timestamp of the latest score projection refresh       |
 | `joinStatus`            | Operational state for participant join flow            |
 | `createdAt`             | Audit creation timestamp                               |
@@ -779,7 +779,7 @@ Suggested projected row fields:
 | `teamId`         | Ranked team reference            |
 | `position`       | Ordered placement                |
 | `totalScore`     | Derived total score              |
-| `solutionTime`   | `SolutionTime` tie-break value   |
+| `resolutionTime`   | `ResolutionTime` tie-break value   |
 
 Relationships:
 
@@ -789,8 +789,8 @@ Relationships:
 Key constraints:
 
 - ordering is by descending score
-- if total score ties, lower comparable `SolutionTime` ranks first
-- if `SolutionTime` is not comparable or is equal, teams share rank
+- if total score ties, lower comparable `ResolutionTime` ranks first
+- if `ResolutionTime` is not comparable or is equal, teams share rank
 
 ## Access and Authentication Supporting Concepts
 
@@ -895,7 +895,7 @@ These concepts should be referenced by the entities above even when they are not
 | `TeamCode`                | Value Object | `Team`                                   | Supports team identification and join flow.       |
 | `ScoreValue`              | Value Object | `ScoreEntry`, treasure-hunt substage winner award, `TriviaQuestion` | Keeps score quantities explicit and rule-safe.    |
 | `PenaltyReason`           | Value Object | `Penalty`                                | Supports traceability and justified penalties.    |
-| `SolutionTime`            | Value Object | `Ranking`                                | Supports tie-break rule using active play time.   |
+| `ResolutionTime`            | Value Object | `Ranking`                                | Supports tie-break rule using active play time.   |
 | `QuestionTimer`           | Value Object | `TriviaQuestion`                         | Supports trivia answer time limits.               |
 | `ClueVisibilityPolicy`    | Value Object | `Target`/`Clue`                          | Controls visible-at-start vs operator-release guidance. |
 | `GeoPoint`                | Value Object | `Target` metadata                        | Supports optional geolocation metadata.           |
@@ -946,14 +946,14 @@ This section is intentionally compact. It identifies which model elements should
 
 | Requirement area             | Main model elements to reference                                            |
 | ---------------------------- | --------------------------------------------------------------------------- |
-| Mission CRUD and structure   | `Mission`, `MissionNode`, `SubstagePlayMode`, `Target`, `Clue`, `TriviaQuestionSelection`, `MissionActivation`, `MaximumTime`, `Difficulty` |
+| Mission CRUD and structure   | `Mission`, `MissionNode`, `SubstagePlayMode`, `Target`, `Clue`, `TriviaQuizSelection`, `MissionActivation`, `MaximumTime`, `Difficulty` |
 | Session lifecycle            | `LiveSession`, `MissionRuntimeSnapshot`, `SessionState`, `SessionStateTransitionPolicy` |
 | Team participation           | `Team`, `SessionParticipant`, `TeamMember`, `JoinContext`, `JoinToken`      |
 | Evidence flow                | `EvidenceSubmission`, `EvidenceValidationState`, `EvidenceAcceptancePolicy` |
 | Treasure-hunt QR refinement  | `Target`, `Clue`, `ClueReleaseRecord`, `TreasureEvidenceSubmission`, `TargetResolution` |
 | Trivia refinement            | `TriviaQuiz`, `TriviaQuestion`, `TriviaOption`, `TriviaAnswerSubmission`    |
 | Scoring and penalties        | `ScoreEntry`, `Penalty`, `ScorePolicy`, `ScoreValue`                        |
-| Ranking and monitoring       | `Ranking`, `SolutionTime`, `SessionEvent`                                   |
+| Ranking and monitoring       | `Ranking`, `ResolutionTime`, `SessionEvent`                                   |
 | `Identity` and authorization | `User`, `Role`, `IdentityProviderSession`, `OperatorAssignmentPolicy`       |
 
 ## Anexo. Estado actual del entity spec frente a RF y RB
@@ -1000,7 +1000,7 @@ Interpretación de `Cobertura actual del entity spec`:
 | `RB-05` | `SessionOperations`                   | Sí                               | `EvidenceSubmission` con `liveSessionId`, `teamId`, `activeSubstageId` y, para trivia, `triviaQuestionSnapshotId` | La asociación exacta de la evidencia está claramente definida.           |
 | `RB-06` | `ScoringMonitoring`                   | Sí                               | `Penalty.penaltyReason`, `Penalty.appliedAt`                                                 | La obligación de registrar motivo y timestamp ya quedó cubierta.         |
 | `RB-07` | `ScoringMonitoring`                   | Sí                               | `ScoreEntry`, `sourceEntityType`, `sourceEntityId`                                           | La trazabilidad del puntaje se sostiene completamente en el spec actual. |
-| `RB-08` | `ScoringMonitoring`                   | Sí                               | `Ranking.solutionTime`, `SolutionTime`                                                       | El criterio de desempate ya quedó explícito.                             |
+| `RB-08` | `ScoringMonitoring`                   | Sí                               | `Ranking.resolutionTime`, `ResolutionTime`                                                       | El criterio de desempate ya quedó explícito.                             |
 | `RB-09` | `SessionOperations`                   | Sí                               | `SessionStateTransitionPolicy`, `lastStateChangedAt`, `stateReason`                          | Las transiciones válidas ya están explícitas y auditables.               |
 | `RB-10` | `Identity` + `SessionOperations`      | Sí                               | `User.role`, `LiveSession.assignedOperatorUserId`, `OperatorAssignmentPolicy`                | La restricción por operador asignado ya tiene soporte lógico de dominio. |
 

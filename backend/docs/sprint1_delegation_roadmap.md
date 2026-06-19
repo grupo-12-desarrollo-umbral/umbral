@@ -6,8 +6,8 @@
 > `backend/docs/bd_umbral_entity_spec.md`, and
 > `backend/docs/prd/DES-70-primera-implementacion-de-session-operations-service-hu-15-a-hu-36.md`.
 > Rebuild delegation order before assigning new work. The old roadmap assumes
-> standalone trivia-session creation and `Scheduled`; the current model uses
-> mission-only `LiveSession` creation in `Preparing`.
+> standalone trivia-session creation; the current model uses mission-only
+> `LiveSession` creation in `Scheduled`.
 
 Splits the remaining **Trivia Sprint 1** work between **Samuel** (the hardest + foundational
 HUs) and **Salomon** (downstream leaves).

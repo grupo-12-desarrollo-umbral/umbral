@@ -79,7 +79,7 @@ Owns:
 - `TriviaQuiz`
 - `TriviaQuestion`
 - `TriviaOption`
-- `TriviaQuestionSelection`
+- `TriviaQuizSelection`
 - `MissionActivation`
 - source-content readiness for live use
 
@@ -212,7 +212,7 @@ Internal entities and value objects:
 - `ClueVisibilityPolicy`
 - `TriviaQuestion`
 - `TriviaOption`
-- `TriviaQuestionSelection`
+- `TriviaQuizSelection`
 - `Difficulty`
 - `MaximumTime`
 - `MissionActivation`
@@ -239,7 +239,7 @@ Internal entities and value objects:
 - `SessionState`
 - `SessionSource`
 - `SubstageAdvancement`
-- `SolutionTime`
+- `ResolutionTime`
 - `TeamCode`
 
 > *Evidence* is the generic umbrella term for a team submission that proves or
@@ -266,7 +266,7 @@ Supporting value objects and policies:
 
 - `ScoreValue`
 - `PenaltyReason`
-- `SolutionTime`
+- `ResolutionTime`
 - `ScorePolicy`
 
 ### `Identity`
