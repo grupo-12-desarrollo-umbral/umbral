@@ -6,6 +6,7 @@ import {
   getMissionById,
   createMission as createMissionLib,
   updateMission as updateMissionLib,
+  activateMission as activateMissionLib,
   deactivateMission as deactivateMissionLib,
 } from '@/app/lib/missions'
 import { revalidatePath } from 'next/cache'
@@ -54,6 +55,16 @@ export async function updateMission(
     throw new Error('Forbidden')
   }
   const result = await updateMissionLib(id, name, description, difficulty, maximumTimeMinutes)
+  revalidatePath('/dashboard')
+  return result
+}
+
+export async function activateMission(id: number): Promise<MissionDto> {
+  const session = await verifySession()
+  if (session.role !== 'Administrator') {
+    throw new Error('Forbidden')
+  }
+  const result = await activateMissionLib(id)
   revalidatePath('/dashboard')
   return result
 }
