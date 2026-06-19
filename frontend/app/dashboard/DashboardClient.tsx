@@ -7,6 +7,7 @@ import { getUsersPage, deactivateUser, assignUserRole } from '@/app/actions/user
 import { listSessionsForOperator, transitionSessionState, getSessionTimerSnapshotAction } from '@/app/actions/sessions';
 import { TeamsPanel } from './TeamsPanel'
 import { TriviasPanel } from './TriviasPanel'
+import { MissionsPanel } from './MissionsPanel'
 import { SessionsPanel } from './SessionsPanel'
 import { SessionOperatorPanel } from './SessionOperatorPanel'
 import { OperatorSessionTimerPanel } from './OperatorSessionTimerPanel'
@@ -66,6 +67,7 @@ const navigation = [
   { key: 'operator', icon: '◌' },
   { key: 'teams', icon: '◫' },
   { key: 'trivias', icon: '▤' },
+  { key: 'missions', icon: '⚑' },
   { key: 'sessions', icon: '▶' },
   { key: 'users', icon: '⊞' },
 ];
@@ -228,6 +230,7 @@ function getNavigationLabel(role: DashboardRole, key: string) {
       operator: 'Operator',
       teams: 'Teams',
       trivias: 'Trivias',
+      missions: 'Missions',
       users: 'Users',
     } satisfies Record<string, string>
   )[key] ?? key
@@ -574,7 +577,8 @@ export default function DashboardClient({
     if (role === 'participant') return item.key === 'overview'
     // HU-19: admins get the sessions nav for operator assignment; operator stub is dead
     if (role === 'admin') return item.key !== 'operator'
-    if (role === 'operator') return item.key !== 'trivias' && item.key !== 'operator'
+    // HU-09 (DES-14): mission authoring is admin-only; operators never see the missions nav
+    if (role === 'operator') return item.key !== 'trivias' && item.key !== 'operator' && item.key !== 'missions'
     return true
   })
 
@@ -749,6 +753,8 @@ export default function DashboardClient({
             <TeamsPanel role={role} />
           ) : activeNav === 'trivias' ? (
             <TriviasPanel role={role} />
+          ) : activeNav === 'missions' ? (
+            <MissionsPanel role={role} />
           ) : activeNav === 'sessions' ? (
             role === 'admin'
               ? <SessionOperatorPanel />

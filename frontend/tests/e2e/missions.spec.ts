@@ -154,6 +154,47 @@ test('admin deactivate confirm cancel dismisses without change', async ({ adminP
   await expect(page.locator('[data-testid="mission-detail-status"]')).toHaveText('Draft')
 })
 
+// --- Activate flow ---
+
+test('admin can activate a runtime-ready draft mission', async ({ adminPage: page }) => {
+  await page.goto('/dashboard')
+  await page.click('[data-testid="nav-missions"]')
+
+  // The seeded "E2E Activatable Mission" is Draft but has a complete runtime plan.
+  const row = page.locator('[data-testid^="mission-row-"]', { hasText: 'E2E Activatable Mission' })
+  await row.locator('[data-testid^="view-mission-btn-"]').click()
+
+  await expect(page.locator('[data-testid="mission-detail-name"]')).toContainText('E2E Activatable Mission')
+  await expect(page.locator('[data-testid="mission-detail-status"]')).toContainText('Draft')
+
+  await page.click('[data-testid="activate-mission-btn"]')
+
+  await expect(page.locator('[data-testid="mission-detail-status"]')).toContainText('Ready')
+  await expect(page.locator('[data-testid="activate-mission-btn"]')).toHaveCount(0)
+})
+
+test('activating a mission with no runtime plan surfaces readiness errors', async ({ adminPage: page }) => {
+  await page.goto('/dashboard')
+  await page.click('[data-testid="nav-missions"]')
+
+  // A freshly created mission has no stages, so it cannot be activated yet.
+  await page.click('[data-testid="create-mission-btn"]')
+  await page.fill('[data-testid="mission-name-input"]', 'Unready Mission')
+  await page.fill('[data-testid="mission-description-input"]', 'No stages yet.')
+  await page.selectOption('[data-testid="mission-difficulty-input"]', 'Beginner')
+  await page.fill('[data-testid="mission-time-input"]', '20')
+  await page.click('[data-testid="mission-submit-btn"]')
+
+  await expect(page.locator('[data-testid="mission-detail-status"]')).toContainText('Draft')
+
+  await page.click('[data-testid="activate-mission-btn"]')
+
+  await expect(page.locator('[data-testid="activate-mission-error"]')).toBeVisible()
+  await expect(page.locator('[data-testid="activate-mission-error"]')).toContainText('at least one stage')
+  // Activation was rejected — the mission stays Draft.
+  await expect(page.locator('[data-testid="mission-detail-status"]')).toContainText('Draft')
+})
+
 // --- Status badge in catalog ---
 
 test('mission status chip reflects activation state', async ({ adminPage: page }) => {

@@ -2,6 +2,7 @@
 
 import { verifySession } from '@/app/lib/dal'
 import { listTriviaQuizzes } from '@/app/lib/trivias'
+import { listMissions } from '@/app/lib/missions'
 import {
   createTriviaSession as createTriviaSessionLib,
   listAssignableSessions as listAssignableSessionsLib,
@@ -15,6 +16,7 @@ import {
 import { listAssignableOperators as listAssignableOperatorsLib } from '@/app/lib/users'
 import { revalidatePath } from 'next/cache'
 import type {
+  MissionSummaryDto,
   TriviaQuizSummaryDto,
   CreateTriviaSessionRequest,
   TriviaSessionCreatedDto,
@@ -34,6 +36,13 @@ export async function getPublishedTrivias(): Promise<TriviaQuizSummaryDto[]> {
   if (session.role !== 'Administrator') throw new Error('Forbidden')
   const all = await listTriviaQuizzes()
   return all.filter((q) => q.status === 'Published')
+}
+
+export async function getActiveMissions(): Promise<MissionSummaryDto[]> {
+  const session = await verifySession()
+  if (session.role !== 'Administrator') throw new Error('Forbidden')
+  const all = await listMissions()
+  return all.filter((m) => m.isActive)
 }
 
 export async function createTriviaSession(

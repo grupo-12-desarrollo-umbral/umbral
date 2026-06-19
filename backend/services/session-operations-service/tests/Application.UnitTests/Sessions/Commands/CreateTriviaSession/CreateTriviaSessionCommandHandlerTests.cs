@@ -5,15 +5,20 @@ using umbral_backend.Application.Sessions.DTOs;
 using umbral_backend.Application.Sessions.Handlers;
 using umbral_backend.Domain.Entities;
 using umbral_backend.Domain.Enums;
+using umbral_backend.Domain.Exceptions;
+using umbral_backend.Domain.Services;
 
 namespace umbral_backend.Application.UnitTests.Sessions.Commands.CreateTriviaSession;
 
 public sealed class CreateTriviaSessionCommandHandlerTests
 {
+    private const int MissionId = 7;
+
     [Fact]
     public async Task Handle_WhenQuizIsPublished_CreatesTriviaSessionWithFixedSnapshot()
     {
         var command = new CreateTriviaSessionCommand(
+            MissionId,
             42,
             "Smoke Trivia",
             15,
@@ -31,7 +36,7 @@ public sealed class CreateTriviaSessionCommandHandlerTests
             .Setup(source => source.GetByIdAsync(command.SourceTriviaQuizId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(CreatePublishedQuiz(command.SourceTriviaQuizId));
 
-        var handler = CreateHandler(repository, triviaQuizSource);
+        var handler = CreateHandler(repository, triviaQuizSource, EligibleMissionSource(command.MissionId));
 
         var result = await handler.Handle(command, CancellationToken.None);
 
@@ -57,16 +62,72 @@ public sealed class CreateTriviaSessionCommandHandlerTests
     }
 
     [Fact]
+    public async Task Handle_WhenMissionIsInactive_ThrowsNotEligibleAndDoesNotPersist()
+    {
+        var command = CreateCommand();
+        var repository = new Mock<ILiveSessionRepository>();
+        var triviaQuizSource = new Mock<IPublishedTriviaQuizSource>();
+        var missionSource = MissionSource(
+            new MissionReadinessDto(command.MissionId, "Inactive", IsActive: false, IsReady: false, []));
+
+        var handler = CreateHandler(repository, triviaQuizSource, missionSource);
+
+        var act = async () => await handler.Handle(command, CancellationToken.None);
+
+        await act.Should().ThrowAsync<MissionNotEligibleForSessionCreationException>();
+        triviaQuizSource.Verify(
+            source => source.GetByIdAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+        repository.Verify(repo => repo.UpdateAsync(It.IsAny<LiveSession>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task Handle_WhenMissionIsActiveButNotReady_ThrowsNotEligibleAndDoesNotPersist()
+    {
+        var command = CreateCommand();
+        var repository = new Mock<ILiveSessionRepository>();
+        var triviaQuizSource = new Mock<IPublishedTriviaQuizSource>();
+        var missionSource = MissionSource(
+            new MissionReadinessDto(command.MissionId, "Draft", IsActive: true, IsReady: false, ["No nodes"]));
+
+        var handler = CreateHandler(repository, triviaQuizSource, missionSource);
+
+        var act = async () => await handler.Handle(command, CancellationToken.None);
+
+        await act.Should().ThrowAsync<MissionNotEligibleForSessionCreationException>();
+        repository.Verify(repo => repo.UpdateAsync(It.IsAny<LiveSession>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task Handle_WhenMissionIsMissing_ThrowsNotFoundException()
+    {
+        var command = CreateCommand();
+        var repository = new Mock<ILiveSessionRepository>();
+        var triviaQuizSource = new Mock<IPublishedTriviaQuizSource>();
+        var missionSource = new Mock<IMissionReadinessSource>();
+        missionSource
+            .Setup(source => source.GetByIdAsync(command.MissionId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((MissionReadinessDto?)null);
+
+        var handler = CreateHandler(repository, triviaQuizSource, missionSource);
+
+        var act = async () => await handler.Handle(command, CancellationToken.None);
+
+        await act.Should().ThrowAsync<NotFoundException>();
+        repository.Verify(repo => repo.UpdateAsync(It.IsAny<LiveSession>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
     public async Task Handle_WhenQuizIsDraft_ThrowsNotPublishedException()
     {
-        var command = new CreateTriviaSessionCommand(42, "Smoke Trivia", 15, DateTimeOffset.UtcNow);
+        var command = CreateCommand();
         var repository = new Mock<ILiveSessionRepository>();
         var triviaQuizSource = new Mock<IPublishedTriviaQuizSource>();
         triviaQuizSource
             .Setup(source => source.GetByIdAsync(command.SourceTriviaQuizId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(CreateQuiz(command.SourceTriviaQuizId, "Draft"));
 
-        var handler = CreateHandler(repository, triviaQuizSource);
+        var handler = CreateHandler(repository, triviaQuizSource, EligibleMissionSource(command.MissionId));
 
         var act = async () => await handler.Handle(command, CancellationToken.None);
 
@@ -77,14 +138,14 @@ public sealed class CreateTriviaSessionCommandHandlerTests
     [Fact]
     public async Task Handle_WhenQuizIsArchived_ThrowsNotPublishedException()
     {
-        var command = new CreateTriviaSessionCommand(42, "Smoke Trivia", 15, DateTimeOffset.UtcNow);
+        var command = CreateCommand();
         var repository = new Mock<ILiveSessionRepository>();
         var triviaQuizSource = new Mock<IPublishedTriviaQuizSource>();
         triviaQuizSource
             .Setup(source => source.GetByIdAsync(command.SourceTriviaQuizId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(CreateQuiz(command.SourceTriviaQuizId, "Archived"));
 
-        var handler = CreateHandler(repository, triviaQuizSource);
+        var handler = CreateHandler(repository, triviaQuizSource, EligibleMissionSource(command.MissionId));
 
         var act = async () => await handler.Handle(command, CancellationToken.None);
 
@@ -95,14 +156,14 @@ public sealed class CreateTriviaSessionCommandHandlerTests
     [Fact]
     public async Task Handle_WhenQuizIsMissing_ThrowsNotFoundException()
     {
-        var command = new CreateTriviaSessionCommand(42, "Smoke Trivia", 15, DateTimeOffset.UtcNow);
+        var command = CreateCommand();
         var repository = new Mock<ILiveSessionRepository>();
         var triviaQuizSource = new Mock<IPublishedTriviaQuizSource>();
         triviaQuizSource
             .Setup(source => source.GetByIdAsync(command.SourceTriviaQuizId, It.IsAny<CancellationToken>()))
             .ReturnsAsync((PublishedTriviaQuizDto?)null);
 
-        var handler = CreateHandler(repository, triviaQuizSource);
+        var handler = CreateHandler(repository, triviaQuizSource, EligibleMissionSource(command.MissionId));
 
         var act = async () => await handler.Handle(command, CancellationToken.None);
 
@@ -110,12 +171,42 @@ public sealed class CreateTriviaSessionCommandHandlerTests
         repository.Verify(repo => repo.UpdateAsync(It.IsAny<LiveSession>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
+    private static CreateTriviaSessionCommand CreateCommand()
+    {
+        return new CreateTriviaSessionCommand(
+            MissionId,
+            42,
+            "Smoke Trivia",
+            15,
+            new DateTimeOffset(2026, 6, 4, 15, 0, 0, TimeSpan.Zero));
+    }
+
     private static CreateTriviaSessionCommandHandler CreateHandler(
         Mock<ILiveSessionRepository> repository,
-        Mock<IPublishedTriviaQuizSource> triviaQuizSource)
+        Mock<IPublishedTriviaQuizSource> triviaQuizSource,
+        Mock<IMissionReadinessSource> missionReadinessSource)
     {
-        var facade = new CreateTriviaSessionFacade(repository.Object, triviaQuizSource.Object);
+        var facade = new CreateTriviaSessionFacade(
+            repository.Object,
+            triviaQuizSource.Object,
+            missionReadinessSource.Object,
+            new SessionCreationPolicy());
         return new CreateTriviaSessionCommandHandler(facade);
+    }
+
+    private static Mock<IMissionReadinessSource> EligibleMissionSource(int missionId)
+    {
+        return MissionSource(
+            new MissionReadinessDto(missionId, "Ready", IsActive: true, IsReady: true, []));
+    }
+
+    private static Mock<IMissionReadinessSource> MissionSource(MissionReadinessDto readiness)
+    {
+        var source = new Mock<IMissionReadinessSource>();
+        source
+            .Setup(s => s.GetByIdAsync(readiness.MissionId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(readiness);
+        return source;
     }
 
     private static PublishedTriviaQuizDto CreatePublishedQuiz(int triviaQuizId)

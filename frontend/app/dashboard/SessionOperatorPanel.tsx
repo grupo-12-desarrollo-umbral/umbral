@@ -6,10 +6,12 @@ import {
   listSessionsForAssignment,
   assignSessionOperator,
   getPublishedTrivias,
+  getActiveMissions,
   createTriviaSession,
 } from '@/app/actions/sessions'
 import type {
   AssignableOperatorDto,
+  MissionSummaryDto,
   SessionAssignmentSummaryDto,
   TriviaQuizSummaryDto,
 } from '@/app/lib/definitions'
@@ -24,6 +26,9 @@ export function SessionOperatorPanel() {
   const [assignError, setAssignError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
 
+  const [missions, setMissions] = useState<MissionSummaryDto[] | null>(null)
+  const [missionsError, setMissionsError] = useState<string | null>(null)
+  const [selectedMissionId, setSelectedMissionId] = useState('')
   const [quizzes, setQuizzes] = useState<TriviaQuizSummaryDto[] | null>(null)
   const [quizzesError, setQuizzesError] = useState<string | null>(null)
   const [selectedQuizId, setSelectedQuizId] = useState('')
@@ -34,6 +39,9 @@ export function SessionOperatorPanel() {
   const [isCreating, startCreateTransition] = useTransition()
 
   useEffect(() => {
+    getActiveMissions()
+      .then(setMissions)
+      .catch(() => setMissionsError('Failed to load available missions. Reload the page.'))
     getPublishedTrivias()
       .then(setQuizzes)
       .catch(() => setQuizzesError('Failed to load available quizzes. Reload the page.'))
@@ -119,18 +127,27 @@ export function SessionOperatorPanel() {
     startCreateTransition(async () => {
       try {
         await createTriviaSession({
+          missionId: Number(selectedMissionId),
           sourceTriviaQuizId: Number(selectedQuizId),
           title: title.trim(),
           maximumTimeMinutes: Number(maxMinutes),
           scheduledAt: new Date(scheduledAt).toISOString(),
         })
+        setSelectedMissionId('')
         setSelectedQuizId('')
         setTitle('')
         setMaxMinutes('60')
         setScheduledAt('')
         refreshSessions()
       } catch (err) {
-        if (err instanceof Error && err.message === 'quiz_not_published') {
+        if (err instanceof Error && err.message === 'mission_not_eligible') {
+          setFormError(
+            'The selected mission is inactive or not runtime-ready and cannot be used for session creation. ' +
+            'Activate the mission and ensure all stages, substages, and quiz selections are configured.',
+          )
+        } else if (err instanceof Error && err.message === 'mission_not_found') {
+          setFormError('The selected mission was not found. Reload the page and try again.')
+        } else if (err instanceof Error && err.message === 'quiz_not_published') {
           setFormError(
             'The selected quiz is no longer published and cannot be used for session creation. ' +
             'Choose another quiz or republish it.',
@@ -276,10 +293,16 @@ export function SessionOperatorPanel() {
           <div>
             <h3 id="create-session-heading">Create session</h3>
             <div className={styles.panelMeta}>
-              Create a session from one published quiz, then assign a responsible operator below.
+              Create a session from an active mission, then assign a responsible operator below.
             </div>
           </div>
         </div>
+
+        {missionsError && (
+          <div className={styles.errorBanner} role="alert" data-testid="session-missions-error">
+            {missionsError}
+          </div>
+        )}
 
         {quizzesError && (
           <div className={styles.errorBanner} role="alert" data-testid="session-quizzes-error">
@@ -294,6 +317,32 @@ export function SessionOperatorPanel() {
         )}
 
         <form onSubmit={handleCreate} data-testid="session-create-form">
+          <div className={styles.formGroup}>
+            <label htmlFor="session-mission-select">Mission</label>
+            <select
+              id="session-mission-select"
+              data-testid="session-mission-select"
+              className={styles.formInput}
+              value={selectedMissionId}
+              onChange={(e) => setSelectedMissionId(e.target.value)}
+              required
+              disabled={isCreating || !missions}
+            >
+              <option value="" disabled>— Select an active mission —</option>
+              {missions?.map((m) => (
+                <option key={m.id} value={String(m.id)}>
+                  {m.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {missions?.length === 0 && (
+            <p className={styles.emptyList} data-testid="session-no-missions">
+              No active missions available. Activate a mission before creating a session.
+            </p>
+          )}
+
           <div className={styles.formGroup}>
             <label htmlFor="session-quiz-select">Quiz</label>
             <select
@@ -370,6 +419,7 @@ export function SessionOperatorPanel() {
             className={styles.primaryButton}
             disabled={
               isCreating ||
+              !selectedMissionId ||
               !selectedQuizId ||
               !title.trim() ||
               !maxMinutes ||

@@ -10,6 +10,7 @@ public sealed class CreateTriviaSessionCommandValidatorTests
     public async Task Validate_WhenCommandIsValid_Passes()
     {
         var command = new CreateTriviaSessionCommand(
+            7,
             42,
             "Smoke Trivia",
             15,
@@ -21,9 +22,24 @@ public sealed class CreateTriviaSessionCommandValidatorTests
     }
 
     [Fact]
+    public async Task Validate_WhenMissionIdIsNotPositive_Fails()
+    {
+        var result = await _validator.ValidateAsync(new CreateTriviaSessionCommand(
+            0,
+            42,
+            "Smoke Trivia",
+            15,
+            DateTimeOffset.UtcNow));
+
+        result.IsValid.Should().BeFalse();
+        result.Errors.Should().ContainSingle(error => error.PropertyName == nameof(CreateTriviaSessionCommand.MissionId));
+    }
+
+    [Fact]
     public async Task Validate_WhenSourceTriviaQuizIdIsNotPositive_Fails()
     {
         var result = await _validator.ValidateAsync(new CreateTriviaSessionCommand(
+            7,
             0,
             "Smoke Trivia",
             15,
@@ -37,6 +53,7 @@ public sealed class CreateTriviaSessionCommandValidatorTests
     public async Task Validate_WhenTitleIsEmpty_Fails()
     {
         var result = await _validator.ValidateAsync(new CreateTriviaSessionCommand(
+            7,
             42,
             string.Empty,
             15,
@@ -50,6 +67,7 @@ public sealed class CreateTriviaSessionCommandValidatorTests
     public async Task Validate_WhenMaximumTimeMinutesIsNotPositive_Fails()
     {
         var result = await _validator.ValidateAsync(new CreateTriviaSessionCommand(
+            7,
             42,
             "Smoke Trivia",
             0,
@@ -63,6 +81,7 @@ public sealed class CreateTriviaSessionCommandValidatorTests
     public async Task Validate_WhenScheduledAtIsDefault_Fails()
     {
         var result = await _validator.ValidateAsync(new CreateTriviaSessionCommand(
+            7,
             42,
             "Smoke Trivia",
             15,
