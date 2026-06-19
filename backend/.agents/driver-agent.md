@@ -420,28 +420,26 @@ New API contract for frontend:
 ```
 ─── Close-out commands (run after frontend is done) ────────────────
 
-# 1. Squash all phase commits into one
-git -C ../umbral-hu-NN reset --soft \
-  "$(git -C ../umbral-hu-NN merge-base develop HEAD)"
-git -C ../umbral-hu-NN commit -m "feat(<svc>): <hu-slug> (HU-NN)
+# NOTE: do NOT squash by hand. develop is squash-merge-only, so GitHub
+# collapses every phase commit (X.1–X.4) into a single commit when the PR
+# is merged with "Squash and merge". Keeping the phase commits intact until
+# then preserves phase-by-phase reviewability. The HU/DES refs live in the
+# PR body below and become the squashed commit's message at merge time.
 
-Ref: HU-NN
-Ref: DES-N
-Ref: DES-PRD"
-
-# 2. Open draft PR
+# 1. Open draft PR (phase commits intact — GitHub squashes on merge)
 gh pr create --draft --base develop \
   --title "feat: <hu-title> — HU-NN" \
   --body "Closes DES-N
+Ref: HU-NN
 Ref: DES-PRD
 
 Touched: backend/services/<service>/, frontend/"
 
-# 3. Move HU to Done in Linear
+# 2. Move HU to Done in Linear
 #    (only after all acceptance criteria verified end-to-end)
 #    [Linear MCP — move DES-N to Done]
 
-# 4. Remove worktree
+# 3. Remove worktree
 git worktree remove ../umbral-hu-NN
 ────────────────────────────────────────────────────────────────────
 
