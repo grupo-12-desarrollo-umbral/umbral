@@ -153,8 +153,6 @@ Ref: HU-11, HU-14A, HU-14B, HU-12, HU-13
 Ref: #<slice-issue>
 ```
 
-Then run: `/debrief`
-
 ---
 
 ## Backend Phase 2.2 — Application layer
@@ -208,8 +206,6 @@ Ref: HU-11, HU-14A, HU-14B, HU-12, HU-13
 Ref: #<slice-issue>
 ```
 
-Then run: `/debrief`
-
 ---
 
 ## Backend Phase 2.3 — Infrastructure layer
@@ -257,8 +253,6 @@ Ref: HU-11, HU-14A, HU-14B, HU-12, HU-13
 Ref: #<slice-issue>
 ```
 
-Then run: `/debrief`
-
 ---
 
 ## Backend Phase 2.4 — API layer plus coverage gate
@@ -303,8 +297,6 @@ feat(mission-design): phase 2.4 — api layer
 Ref: HU-11, HU-14A, HU-14B, HU-12, HU-13
 Ref: #<slice-issue>
 ```
-
-Then run: `/debrief`
 
 ---
 

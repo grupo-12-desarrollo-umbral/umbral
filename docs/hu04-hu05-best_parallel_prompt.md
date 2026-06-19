@@ -256,8 +256,6 @@ Ref: DES-8
 Ref: DES-67
 ```
 
-Then run: `/debrief`
-
 ---
 
 ## 5. Backend phase X.2 — Application layer
@@ -310,8 +308,6 @@ Ref: HU-04
 Ref: DES-8
 Ref: DES-67
 ```
-
-Then run: `/debrief`
 
 > **HU-05 sync point:** After this commit is pushed, the HU-05 agent may check out
 > `feature/hu-04-team-registration` and start phases Y.1 and Y.2 in parallel.
@@ -375,8 +371,6 @@ Ref: DES-8
 Ref: DES-67
 ```
 
-Then run: `/debrief`
-
 > **HU-05 sync point:** After this commit is pushed and the gate passes, rebase the
 > HU-05 worktree on top of this commit, then proceed to phase Y.3.
 
@@ -432,8 +426,6 @@ Ref: HU-04
 Ref: DES-8
 Ref: DES-67
 ```
-
-Then run: `/debrief`
 
 > **HU-05 sync point:** After this commit is pushed, the HU-05 agent may proceed to Y.4.
 
@@ -703,8 +695,6 @@ Ref: DES-9
 Ref: DES-67
 ```
 
-Then run: `/debrief`
-
 ---
 
 ## 6. Backend phase Y.2 — Application layer
@@ -764,8 +754,6 @@ Ref: HU-05
 Ref: DES-9
 Ref: DES-67
 ```
-
-Then run: `/debrief`
 
 > **Migration sync point — Stop here.**
 >
@@ -847,8 +835,6 @@ Ref: DES-9
 Ref: DES-67
 ```
 
-Then run: `/debrief`
-
 ---
 
 ## 8. Backend phase Y.4 — API layer
@@ -904,8 +890,6 @@ Ref: HU-05
 Ref: DES-9
 Ref: DES-67
 ```
-
-Then run: `/debrief`
 
 ---
 

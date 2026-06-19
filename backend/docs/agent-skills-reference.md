@@ -30,7 +30,6 @@ Implementation authority. Executes one phase at a time per `plans/multi-phase-se
 
 | Skill | Folder | Purpose |
 |---|---|---|
-| `debrief` | `.agents/skills/debrief/` | Appends a structured decision entry to `services/<svc>/decisions/untracked.md` after finishing a phase. Captures what was built, why, what was skipped, which HU tickets were advanced, and what the next session needs to know. Run as `/debrief`. |
 | `split-commits-git-flow` | `.agents/skills/split-commits-git-flow/` | Splits a dirty worktree into coherent commits aligned to git-flow. |
 | `zoom-out` | `.agents/skills/zoom-out/` | Produces a module map using the domain glossary vocabulary. Use when unfamiliar with an area. |
 
@@ -72,7 +71,7 @@ Implementation authority. Executes one phase at a time per `plans/multi-phase-se
 
 **One prompt = one phase = one commit.**
 
-- Finish a phase → gate passes → commit → run `/debrief`.
+- Finish a phase → gate passes → commit.
 - Commit format: `feat(<service-short-name>): phase X.Y — <layer name>`
 - Commit body must include two `Ref:` lines:
   ```

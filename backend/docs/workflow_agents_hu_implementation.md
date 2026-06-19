@@ -30,9 +30,9 @@ You type               Agent runs              You decide
                     └───────────────────────────┘
                             │
                             ▼
-                       docker rebuild + curl      (optional: /debrief
-                            │                      any time after
-                            ▼                    Stop 2:  all phases)
+                       docker rebuild + curl
+                            │
+                            ▼
                        driver reports  →   review API contract
                        + close-out         say "run commands"
                          commands           (or not yet)
@@ -203,7 +203,6 @@ driver runs cover.sh (report only, coverage already enforced):
 
 driver presents commit → you approve → driver commits phase X.4
 → all four [✓] — driver proceeds to docker rebuild
-  (you may run /debrief any time if you want a decision log)
 ```
 
 ### Docker rebuild + curl smoke (driver, not you)
@@ -320,8 +319,7 @@ cleanup. It confirms each one succeeded and gives you the PR URL.
 | Close-out           | `Run the close-out commands.` in the driver session                                                        |
 
 Roughly a dozen interactions for a full HU — four phase picks plus four commit
-approvals are the bulk of it. `/debrief` is optional and can be run any time
-after all phases are done.
+approvals are the bulk of it.
 
 ---
 
