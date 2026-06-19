@@ -4,7 +4,7 @@ description: Compact the current conversation into a handoff document for anothe
 argument-hint: "What will the next session be used for?"
 ---
 
-Write a handoff document summarising the current conversation so a fresh agent can continue the work. Save to the temporary directory of the user's OS - not the current workspace.
+Write a handoff document summarising the current conversation so a fresh agent can continue the work. Save it as `HANDOFF.md` at the root of the current git worktree — resolve the path with `git rev-parse --show-toplevel` — so a fresh session started in that worktree finds it without being told where to look. The file is gitignored (`/HANDOFF.md`), so it never reaches a commit or PR. If the working directory is not inside a git worktree, fall back to the temporary directory of the user's OS.
 
 Include a "suggested skills" section in the document, which suggests skills that the agent should invoke.
 

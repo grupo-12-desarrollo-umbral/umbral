@@ -3,3 +3,7 @@ coverage/
 .dotnet-cli/
 .nuget/
 /appsettings.Development.json
+
+# Ephemeral agent handoff scratch — written per worktree by the handoff skill,
+# never committed (see backend/.agents/skills/handoff/SKILL.md)
+/HANDOFF.md
