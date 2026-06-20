@@ -80,6 +80,90 @@ export type MissionSummaryDto = {
   isSourceReady: boolean
 }
 
+// --- HU-10A mission hierarchy (Phase 1) ---
+export type MissionClueDto = {
+  id: number
+  sequenceOrder: number
+  title: string
+  text: string
+  visibilityPolicy: string
+}
+
+export type MissionTargetDto = {
+  id: number
+  name: string
+  qrCode: string
+  sequenceOrder: number
+  isActive: boolean
+  clueId: number | null
+}
+
+export type TriviaQuizSelectionDto = { triviaQuizId: number }
+
+export type MissionSubstageDto = {
+  id: number
+  title: string
+  sequenceOrder: number
+  playMode: 'TreasureHunt' | 'Trivia' // JSON string enum
+  winnerScore: number | null
+  triviaQuizSelection: TriviaQuizSelectionDto | null
+  targets: MissionTargetDto[]
+  clues: MissionClueDto[]
+}
+
+export type MissionStageDto = {
+  id: number
+  title: string
+  sequenceOrder: number
+  substages: MissionSubstageDto[]
+}
+
+export type MissionReadinessDto = {
+  missionId: number
+  activationState: string
+  isReady: boolean
+  failures: string[]
+}
+
+// --- HU-10A request payloads (added in P1, consumed 2.1–2.3) ---
+export type AddMissionNodeRequest = {
+  nodeType: 'Stage' | 'Substage' | 'Clue'
+  title: string
+  sequenceOrder: number
+  stageId?: number // parent when nodeType === 'Substage'
+  substageId?: number // parent when nodeType === 'Clue'
+  playMode?: 'TreasureHunt' | 'Trivia'
+  clueText?: string
+  clueVisibilityPolicy?: string
+}
+
+export type UpdateMissionNodeRequest = {
+  title: string
+  sequenceOrder: number
+  clueText?: string
+  clueVisibilityPolicy?: string
+}
+
+export type AssignPlayModeRequest = { playMode: 'TreasureHunt' | 'Trivia' }
+
+export type AddTargetRequest = {
+  name: string
+  qrCode: string
+  sequenceOrder: number
+  isActive?: boolean
+  winnerScore?: number
+}
+
+export type UpdateTargetRequest = {
+  name: string
+  qrCode: string
+  sequenceOrder: number
+  isActive: boolean
+  winnerScore?: number
+}
+
+export type TriviaQuizSelectionRequest = { triviaQuizId: number }
+
 export type MissionDto = {
   id: number
   name: string
@@ -89,6 +173,7 @@ export type MissionDto = {
   isActive: boolean
   activationState: string
   isSourceReady: boolean
+  stages: MissionStageDto[] // ← added in P1
 }
 
 export type TeamMembershipDto = {

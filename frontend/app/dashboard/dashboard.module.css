@@ -1477,6 +1477,27 @@ html[data-theme="dark"] .cluePreview::after {
   gap: 0.35rem;
 }
 
+.missionTree {
+  margin: 0 0 1.5rem;
+  padding: 1rem 1.25rem;
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.1));
+  border-radius: 0.75rem;
+  background: var(--surface-muted, rgba(255, 255, 255, 0.02));
+}
+
+.missionTree section {
+  margin-bottom: 1rem;
+}
+
+.missionTree h3,
+.missionTree h4 {
+  margin: 0.5rem 0;
+}
+
+.missionTree ul {
+  margin: 0.25rem 0 0.75rem 1.25rem;
+}
+
 .missionDetailActions {
   display: flex;
   align-items: center;

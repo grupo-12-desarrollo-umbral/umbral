@@ -158,6 +158,17 @@ export async function activateMission(id: number): Promise<MissionDto> {
   if (response.status === 404) {
     throw new Error('mission_not_found')
   }
+  if (response.status === 409) {
+    // Mission already active. ProblemDetails `detail` carries the conflict message.
+    let detail = 'Mission is already active.'
+    try {
+      const problem = await response.json()
+      if (typeof problem?.detail === 'string' && problem.detail.length > 0) detail = problem.detail
+    } catch {
+      /* keep fallback */
+    }
+    throw new Error(detail)
+  }
   if (!response.ok) {
     throw new IdentityError('unknown', `activateMission failed with status ${response.status}`)
   }
@@ -181,8 +192,19 @@ export async function deactivateMission(id: number): Promise<void> {
   if (response.status === 404) {
     throw new Error('mission_not_found')
   }
+  if (response.status === 409) {
+    // Backend now maps MissionAlreadyDeactivatedException → 409 (HU-09). Surface the
+    // ProblemDetails `detail` verbatim instead of the old generic failure.
+    let detail = 'Mission is already deactivated.'
+    try {
+      const problem = await response.json()
+      if (typeof problem?.detail === 'string' && problem.detail.length > 0) detail = problem.detail
+    } catch {
+      /* keep fallback */
+    }
+    throw new Error(detail)
+  }
   if (!response.ok) {
-    // Covers 500 from MissionAlreadyDeactivatedException (not mapped by the exception handler)
-    throw new Error('deactivation_failed')
+    throw new IdentityError('unknown', `deactivateMission failed with status ${response.status}`)
   }
 }

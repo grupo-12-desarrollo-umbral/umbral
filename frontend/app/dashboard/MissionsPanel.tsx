@@ -10,6 +10,7 @@ import {
   deactivateMission,
 } from '@/app/actions/missions'
 import type { MissionSummaryDto, MissionDto } from '@/app/lib/definitions'
+import { MissionTree } from './mission/MissionTree'
 import styles from './dashboard.module.css'
 
 type DashboardRole = 'operator' | 'admin' | 'participant'
@@ -115,8 +116,14 @@ export function MissionsPanel({ role }: { role: DashboardRole }) {
         )
         setConfirmDeactivate(false)
         setRefreshKey((k) => k + 1)
-      } catch {
-        setDeactivateError('Deactivation failed. Try again.')
+      } catch (err) {
+        // Backend surfaces the 409 (already-deactivated) message verbatim; fall back to a
+        // generic line for unexpected failures.
+        const message =
+          err instanceof Error && err.message && err.message !== 'mission_not_found'
+            ? err.message
+            : 'Deactivation failed. Try again.'
+        setDeactivateError(message)
         setConfirmDeactivate(false)
       }
     })
@@ -191,6 +198,8 @@ export function MissionsPanel({ role }: { role: DashboardRole }) {
             </span>
           </span>
         </div>
+
+        <MissionTree mission={selectedMission} onMutated={setSelectedMission} />
 
         <div className={styles.missionDetailActions}>
           <button
