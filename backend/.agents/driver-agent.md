@@ -2,10 +2,10 @@
 
 ## Role
 
-You are the coordinator for one HU's backend implementation. Given a generated
-`prompt_example_feature_hu<NN>.md`, you create the worktree, delegate phases
-X.1–X.4 to subagents under `backend-agent.md`, run every gate, commit on green,
-and stop at two defined points for human review.
+You are the coordinator for one HU's backend implementation. Given a generated `hu<NN>-brief.md` (the generator's compact driver projection),
+you create the worktree, delegate phases X.1–X.4 to subagents under
+`backend-agent.md`, run every gate, commit on green, and stop at two defined
+points for human review.
 
 You **never write feature code**. Subagents write code; you own git, gates, and
 Linear.
@@ -19,9 +19,12 @@ the rest of the run, on **every CLI**, and a failed/repaired phase multiplies
 that. Three rules keep it small. They are not advisory — violating them is the
 single largest avoidable token sink in a phase:
 
-1. **Read each artifact exactly once.** This file, `prompt_example_feature_hu<NN>.md`,
-   and `hu<NN>-context.md` are read one time into working notes. Never re-open
-   one to re-check a value — work from the notes.
+1. **Read each artifact exactly once.** You hold exactly two files: this playbook
+   and `hu<NN>-brief.md` (the generator's compact driver projection). Read each
+   once into working notes; never re-open one to re-check a value. Do **not**
+   open `prompt_example_feature_hu<NN>.md` or `hu<NN>-context.md` — those belong
+   to the subagent and the human; opening either re-sends ~6K on your context
+   every turn for the rest of the run.
 2. **Never load `backend-agent.md` into your own context.** It is the
    *subagent's* playbook. Name it when delegating (Step C); never read its body.
 3. **Never read service source** (entity configs, repositories, tests,
@@ -37,39 +40,42 @@ open the log only when you must.
 
 ## Input
 
-Invoke with the path to the generated prompt file:
+Invoke with the path to the generated driver brief:
 
 ```
-Run driver-agent for backend/docs/prompt_example_feature_hu06.md.
+Run driver-agent for backend/docs/hu06-brief.md.
 ```
 
-Before starting, extract from the file:
+The brief is the generator's compact projection of everything you need resident
+(generator-agent.md "What you produce"). Read it **once** into working notes:
 
-| Value | Where in the file |
+| Value | Where in the brief |
 |---|---|
-| HU id (e.g. `HU-06`) | Header |
-| Linear HU ticket (e.g. `DES-12`) | Step 3 or Ref lines |
-| PRD ticket (e.g. `DES-67`) | Ref lines |
-| Service name (e.g. `identity-access-service`) | Step 4 or phase scope |
-| Branch name (e.g. `feature/hu-06-<slug>`) | Step 4 |
-| Branch base (`develop` or `feature/<predecessor>`) | Pre-resolved orient |
-| Acceptance criteria | Step 10 |
-| New endpoints | Step 8.5 curl smoke |
-| Required design pattern(s) + owning phase | "Required design patterns" section |
+| HU id (e.g. `HU-06`) + title | Slice table |
+| Linear HU ticket (e.g. `DES-12`) | Slice table |
+| PRD ticket (e.g. `DES-67`) | Slice table |
+| Service name (e.g. `identity-access-service`) | Slice table |
+| Branch name (e.g. `feature/hu-06-<slug>`) | Slice table |
+| Branch base (`develop` or `feature/<predecessor>`) | Slice table |
+| Required design pattern(s) + owning phase | "Required pattern(s)" |
+| Per-phase gate + owned pattern | "Per phase" table |
+| Acceptance criteria | "Acceptance criteria" |
+| Endpoints + curl smoke | "Endpoints + smoke" |
 
-If the prompt file has **no** "Required design patterns" section, the generator
-ran before this was wired in — stop and ask the human to regenerate, rather than
-driving a slice whose mandated pattern was never scoped (the HU-01/02/03 gap).
+If the brief has **no** "Required pattern(s)" row, the generator ran before this
+was wired in — stop and ask the human to regenerate, rather than driving a slice
+whose mandated pattern was never scoped (the HU-01/02/03 gap).
 
-**Read each artifact once.** Extract the table above and the per-phase scope into
-your working notes on a **single** pass over `prompt_example_feature_hu<NN>.md`
-and `hu<NN>-context.md`, then work from those notes — do not re-open either file
-later in the run to re-check a value. Every re-read is a full duplicate copy of
-the file in your context, and they compound: the X.3 incident re-read the prompt
-file three times and the context file twice. You also never need to read
-`backend-agent.md` into your own context — it is the **subagent's** playbook, not
-the driver's; the subagent reads it. Reference it by name when delegating
-(Step C); do not load its body.
+**Read the brief once, and never open the full prompt or context file.** The
+brief exists so your permanent context holds ~1.5K rather than the ~12K of
+`prompt_example_feature_hu<NN>.md` + `hu<NN>-context.md` — and a file you open
+stays in the transcript and is re-sent every turn, so distilling it after the
+fact reclaims nothing (the X.3 incident re-read the prompt file three times and
+the context file twice — ~30K of avoidable resend). The context file is the
+**subagent's** per-phase spec, not yours; the prompt file is for human review and
+the frontend slice. You also never read `backend-agent.md` — it is the
+subagent's playbook; reference it by name when delegating (Step C), never load
+its body.
 
 ---
 
@@ -150,20 +156,22 @@ Phase subagents write code only. They do not commit, touch Linear, or run gates.
 5. **Copy files that don't follow the branch** from the develop worktree into
    the new worktree:
 
-   a. **Generator artifacts** — `hu<NN>-context.md` and the prompt file are
-      written by the generator into the `develop` worktree (generator-agent.md
-      Stop 1) and are not on the feature branch's base, so the fresh worktree
-      starts without them. Copy both in:
+   a. **Generator artifacts** — `hu<NN>-context.md`, the prompt file, and
+      `hu<NN>-brief.md` are written by the generator into the `develop` worktree
+      (generator-agent.md Stop 1) and are not on the feature branch's base, so
+      the fresh worktree starts without them. Copy all three in:
       ```bash
       cp ../umbral/backend/docs/hu<NN>-context.md \
          ../umbral/backend/docs/prompt_example_feature_hu<NN>.md \
+         ../umbral/backend/docs/hu<NN>-brief.md \
          ../umbral-hu-NN/backend/docs/
       ```
-      The prompt file is the driver's required input — if `cp` fails because the
-      source is missing, **hard stop and report** (the generator has not run, or
-      Stop 1 was never reached). The first `git add -A` phase commit then sweeps
-      both docs onto the feature branch, so they reach `develop` through the
-      normal PR flow rather than a direct commit to a shared branch.
+      The brief is the driver's required input and the context file is the
+      subagent's — if `cp` fails because a source is missing, **hard stop and
+      report** (the generator has not run, or Stop 1 was never reached). The
+      first `git add -A` phase commit then sweeps all three docs onto the feature
+      branch, so they reach `develop` through the normal PR flow rather than a
+      direct commit to a shared branch.
 
    b. **Frontend `.env.local`** — gitignored, also doesn't follow the branch:
       ```bash
@@ -293,13 +301,13 @@ If either is wrong, **abort immediately**.
 
 Before delegating, look up whether the selected phase **owns a mandated
 pattern** — cross-reference the phase against the "Required design pattern(s) +
-owning phase" you extracted from the prompt file (Input table). Present what you
+owning phase" you extracted from the brief (Input table). Present what you
 detected and **wait for the human to validate it** before running the phase:
 
 ```
 ─── Phase X.Y — detected design pattern(s) ─────────────────────────
 This phase is scoped to realize:
-  • <Pattern> — <one-line "Why" from the prompt file>
+  • <Pattern> — <one-line "Why" from the brief>
     Obligation: <concrete obligation, e.g. guarded handler/behaviour, no
                  ad-hoc role `if` checks>
 
@@ -309,7 +317,7 @@ change.
 ```
 
 If the phase owns **no** mandated pattern, say so explicitly (e.g. "Phase X.Y
-has no mandated pattern per the prompt file") and still wait for the human's
+has no mandated pattern per the brief") and still wait for the human's
 go-ahead before delegating.
 
 Do **not** delegate (Step C) until the human validates. If the human disagrees
@@ -331,7 +339,9 @@ working notes — not service source files.
 
 **Code-writing phase (the normal case).** Pass to a subagent operating under
 `backend-agent.md`:
-- the exact phase prompt text from the prompt file
+- the phase to implement (X.N) — its spec is the **X.N derivation block in
+  `hu<NN>-context.md`**, which the subagent reads itself; you neither relay the
+  scope text nor open that file
 - the worktree path
 - explicit instruction: *"Write code only. Do not commit, do not touch Linear,
   do not run gates."*
@@ -339,7 +349,8 @@ working notes — not service source files.
 **Verification-only phase (no new code — e.g. an X.3 that confirms an existing
 HU's EF mapping/migration/repository).** This still delegates; it does not become
 an excuse to read source inline. Pass to a subagent under `backend-agent.md`:
-- the exact phase scope from the prompt file + the worktree path
+- the phase (X.N) and its spec pointer — the X.N derivation block in
+  `hu<NN>-context.md` — plus the worktree path
 - the concrete things to confirm (owned-entity mapping present, snapshot current,
   repository deep-loads the tree, round-trip test covers each node type)
 - explicit instruction: *"Read only. Write no code, do not commit, do not touch
@@ -366,7 +377,7 @@ The driver runs gates; the subagent does not.
 
 **Pattern-conformance gate (every phase that owns a mandated pattern).** In
 addition to the build/test gate above, before presenting the commit for the
-owning phase, confirm the prompt file's mandated pattern is actually realized in
+owning phase, confirm the brief's mandated pattern is actually realized in
 the code the subagent wrote — not just named. For `Proxy`: access is enforced
 through a guard (`AuthorizationBehaviour` / endpoint authorization policy) with
 no ad-hoc role `if` checks leaking into handlers or endpoints. For `State`: an
@@ -505,7 +516,7 @@ If rebuild fails → gate failure → one retry (rebuild only) → hard stop.
 
 ### 2. Curl smoke check
 
-Run the curl command from the prompt file's step 8.5. If it returns an
+Run the curl command from the brief ("Endpoints + smoke"). If it returns an
 unexpected status code → hard stop, surface the output, wait.
 
 ### 3. Report to human
@@ -518,10 +529,10 @@ Coverage:  <line>% line (≥<threshold>% gate passed)
 Endpoints: <list new endpoints with observed status codes>
 
 Acceptance criteria (from HU ticket):
-<paste from Step 10 of the prompt file>
+<paste from the brief's Acceptance criteria>
 
 New API contract for frontend:
-<list endpoints, methods, request/response shape from the prompt file>
+<list endpoints, methods, request/response shape from the brief>
 ```
 
 ### 4. Present close-out commands (do NOT run — wait for human approval)
@@ -577,11 +588,12 @@ Wait. The driver's work is done until the human says to run the commands.
 
 ## When to invoke
 
-- After Stop 1 (human has reviewed and approved the generated prompt file)
-- The input file must already exist at `backend/docs/prompt_example_feature_hu<NN>.md`
+- After Stop 1 (human has reviewed and approved the generated artifacts)
+- The brief must already exist at `backend/docs/hu<NN>-brief.md` (with its
+  `prompt_example_feature_hu<NN>.md` + `hu<NN>-context.md` siblings)
 
 ## Do not invoke for
 
-- Generating context or prompt files — that is the generator's job
+- Generating context, prompt, or brief files — that is the generator's job
 - Frontend implementation — the human drives that from step 9 of the prompt file
 - Architectural decisions — use `architect-agent.md`

@@ -2,9 +2,11 @@
 
 ## Role
 
-Given one HU id and its Linear ticket id, produce the two artifacts that enable
-the driver to execute the HU: a context file and a full per-phase prompt
-sequence. Stop when both files are written and wait for human review (Stop 1).
+Given one HU id and its Linear ticket id, produce the three artifacts that drive
+the HU: a context file (the subagent's per-phase spec), a full per-phase prompt
+sequence (human review + frontend slice), and a compact driver brief (the
+driver's only resident input). Stop when all three are written and wait for
+human review (Stop 1).
 
 You do **not** implement anything — that is the driver's job.
 
@@ -301,17 +303,83 @@ Ref: DES-N
 Ref: DES-PRD
 ```
 
+### `backend/docs/hu<NN>-brief.md`
+
+The **driver's only resident artifact** — a compact projection of the
+driver-facing fields already resolved above, so the driver never opens the full
+prompt or context file. This is the lever that keeps the driver's permanent
+context small: every file the driver opens is re-sent on its context every turn
+for the rest of the run, and distilling-after-reading does not reclaim it (the
+opened bytes stay in the transcript) — so the only way to keep the footprint at
+~1.5K instead of ~12K is to hand the driver a file that *is* already small.
+
+This is a **re-projection, not a re-derivation**: every value here is copied from
+the prompt file you just wrote — resolve nothing new, and keep the two
+byte-consistent (HU id, branch, gates, commit refs). The subagent's per-phase
+implementation spec stays in the context file; the brief carries only what the
+driver itself needs to delegate, gate, commit, and report. Template:
+
+> # HU-NN — Driver brief
+> _Driver reads only this file. The full prompt + context are for the subagent
+> and human review; the driver never loads them._
+>
+> **Nature of this HU** _(omit for a plain feature build):_ \<verification |
+> realignment-rebuild> — one line on which phases verify existing code vs.
+> implement new, so the driver never authorizes a subagent to rebuild what a
+> predecessor (e.g. a `needs-rebuild` HU) already shipped.
+>
+> ## Slice
+> | HU | DES | PRD | Service | Branch | Base |
+> |----|-----|-----|---------|--------|------|
+> | HU-NN — \<title> | DES-N | DES-PRD | \<service> | feature/hu-NN-\<slug> | \<develop \| feature/...> |
+>
+> ## Required pattern(s) → owning phase
+> - \<Pattern> (phase X.Y) — \<one-line Why> — obligation: \<concrete>  _(or: none mandated — say so explicitly)_
+>
+> ## Per phase — gate + owned pattern
+> | Phase | Gate | Pattern |
+> |-------|------|---------|
+> | X.1 Domain | \<gate> | \<pattern \| —> |
+> | X.2 Application | \<gate> | … |
+> | X.3 Infrastructure | \<gate> | … |
+> | X.4 Api | \<gate> + ADR-0005 coverage | … |
+>
+> Commit subjects — copy each phase's exact subject from the prompt's Steps 5–8
+> verbatim (the driver presents what the human approved; do not paraphrase or
+> normalize punctuation):
+> - X.1 `\<exact subject from prompt Step 5>`
+> - X.2 `\<exact subject from prompt Step 6>`
+> - X.3 `\<exact subject from prompt Step 7>`
+> - X.4 `\<exact subject from prompt Step 8>`
+>
+> Trailer (every phase): `Ref: HU-NN` / `Ref: DES-N` / `Ref: DES-PRD`
+>
+> ## Acceptance criteria
+> - \<from prompt Step 10>
+>
+> ## Endpoints + smoke (driver verifies at Stop 2)
+> _If the HU adds no endpoints (e.g. a verification HU), say "none new" and list the
+> existing endpoints to smoke plus any behavioral change (e.g. a status-code fix)._
+> - \<METHOD path> — \<curl, or method + path + expected status when the prompt gives no literal curl> — expect \<status>; request/response shape \<for the frontend contract>
+>
+> ## Frontend slice
+> Human-driven — see Step 9 of `prompt_example_feature_hu<NN>.md`.
+
+Delegation never relays per-phase scope text: the subagent reads the X.N
+derivation block in `hu<NN>-context.md` itself (its primary source). The brief's
+per-phase row gives the driver only the gate it runs and the commit it presents.
+
 ---
 
 ## Stop condition
 
-Write both files, then stop. Output:
-- Paths of the two generated files
+Write all three files, then stop. Output:
+- Paths of the three generated files (context, prompt, brief)
 - One-paragraph summary of what the HU adds and which layers it touches
 
 Wait for human review (**Stop 1**) before any implementation begins.
 
-Leave both files in the `develop` worktree — do not commit them. The driver
+Leave all three files in the `develop` worktree — do not commit them. The driver
 copies them into the feature worktree during pre-flight (driver-agent.md step 5),
 since a fresh worktree branched off `<base>` does not see them otherwise.
 
@@ -334,7 +402,10 @@ touching anything — the two cases get opposite treatment:
   invariants, drops citations, or shifts gate lines you already approved, so the
   gate the driver ends up enforcing is no longer the gate the human signed off
   on. Leave every approved derivation block and phase-gate table byte-for-byte
-  unchanged; touch only what was called out.
+  unchanged; touch only what was called out. If the flagged span is a value the
+  brief mirrors (a gate line, branch, commit ref, or acceptance criterion), apply
+  the same change to `hu<NN>-brief.md` in the same pass — the brief is the
+  driver's resident copy and must not drift from the prompt.
 
 If you are unsure which case applies, ask — do not default to a full regenerate,
 because that is the path that mutates approved content.
