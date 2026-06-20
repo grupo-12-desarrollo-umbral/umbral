@@ -16,15 +16,17 @@ Linear.
 
 Your context is **permanent**: every file you open is re-sent on every turn for
 the rest of the run, on **every CLI**, and a failed/repaired phase multiplies
-that. Three rules keep it small. They are not advisory — violating them is the
-single largest avoidable token sink in a phase:
+that — distilling a file *after* opening it reclaims nothing, the bytes are
+already in the transcript. These rules are not advisory; they are the single
+largest avoidable token sink in a phase. The X.3 incident broke all three — the
+driver read both generator files and four source files inline — and cost ~100K.
 
 1. **Read each artifact exactly once.** You hold exactly two files: this playbook
    and `hu<NN>-brief.md` (the generator's compact driver projection). Read each
    once into working notes; never re-open one to re-check a value. Do **not**
-   open `prompt_example_feature_hu<NN>.md` or `hu<NN>-context.md` — those belong
-   to the subagent and the human; opening either re-sends ~6K on your context
-   every turn for the rest of the run.
+   open `prompt_example_feature_hu<NN>.md` (human review + frontend slice) or
+   `hu<NN>-context.md` (the subagent's per-phase spec) — they belong to the
+   subagent and the human, not you.
 2. **Never load `backend-agent.md` into your own context.** It is the
    *subagent's* playbook. Name it when delegating (Step C); never read its body.
 3. **Never read service source** (entity configs, repositories, tests,
@@ -66,17 +68,6 @@ If the brief has **no** "Required pattern(s)" row, the generator ran before this
 was wired in — stop and ask the human to regenerate, rather than driving a slice
 whose mandated pattern was never scoped (the HU-01/02/03 gap).
 
-**Read the brief once, and never open the full prompt or context file.** The
-brief exists so your permanent context holds ~1.5K rather than the ~12K of
-`prompt_example_feature_hu<NN>.md` + `hu<NN>-context.md` — and a file you open
-stays in the transcript and is re-sent every turn, so distilling it after the
-fact reclaims nothing (the X.3 incident re-read the prompt file three times and
-the context file twice — ~30K of avoidable resend). The context file is the
-**subagent's** per-phase spec, not yours; the prompt file is for human review and
-the frontend slice. You also never read `backend-agent.md` — it is the
-subagent's playbook; reference it by name when delegating (Step C), never load
-its body.
-
 ---
 
 ## Sole authority
@@ -96,32 +87,29 @@ Phase subagents write code only. They do not commit, touch Linear, or run gates.
 
 ## Pre-flight
 
-1. **Sandbox-safe toolchain via `make`** — a sandbox blocks MSBuild's
-   named-pipe node-reuse workers, which crashes `dotnet` before it does any
-   work. Rather than prefix every call, route the whole toolchain through
-   `backend/Makefile`, which exports `MSBUILDDISABLENODEREUSE=1` (plus
-   `DOTNET_CLI_TELEMETRY_OPTOUT=1`) once for every recipe and child process:
+1. **Sandbox-safe toolchain via `make`** — a sandbox blocks MSBuild's named-pipe
+   node-reuse workers and crashes `dotnet`. Route the whole toolchain through the
+   committed `backend/Makefile`, which exports `MSBUILDDISABLENODEREUSE=1` and
+   `DOTNET_CLI_TELEMETRY_OPTOUT=1` once for every recipe and child process:
    - `make -C backend build SVC=<service>`
    - `make -C backend test  SVC=<service>`
    - `make -C backend gate  SVC=<service>`  (wraps `cover-gate.sh`, Phase X.4)
    - `make -C backend ef    SVC=<service> ARGS="migrations add <Name>"`
 
-   The Makefile is committed, so any agent or human gets the same behaviour
-   without per-call prefixes. The repo's `.claude/settings.json` also lists
-   `make`/`dotnet`/`docker` in `sandbox.excludedCommands`, so they run outside
-   the sandbox and never hit the fail-then-retry loop.
+   The repo's `.claude/settings.json` also lists `make`/`dotnet`/`docker` in
+   `sandbox.excludedCommands`, so they run outside the sandbox and skip the
+   fail-then-retry loop.
 
    **Codex / non-Claude harnesses:** `sandbox.excludedCommands` is Claude-only,
-   so under Codex/other runners the toolchain must be pre-authorized first or
-   every `make`/`docker`/`git` call is blocked-then-rerun and each verbose dump
-   lands in context 2–3× — see `backend/docs/codex-sandbox-setup.md` for the
-   one-time config. **If you cannot pre-authorize, say so and stop** — do not
-   absorb the doubled output silently.
+   so the toolchain must be pre-authorized first or every `make`/`docker`/`git`
+   call is blocked-then-rerun and each verbose dump lands in context 2–3× — see
+   `backend/docs/codex-sandbox-setup.md`. **If you cannot pre-authorize, say so
+   and stop** — do not absorb the doubled output silently.
 
-   If a `dotnet test` still fails on a loopback socket despite that, the **host**
-   sandbox is broken (missing `socat`, or `apparmor_restrict_unprivileged_userns=1`
-   with no `bwrap` profile) — an environment problem, not a gate problem; surface
-   it rather than editing the gate.
+   If `dotnet test` still fails on a loopback socket, the **host** sandbox is
+   broken (missing `socat`, or `apparmor_restrict_unprivileged_userns=1` with no
+   `bwrap` profile) — an environment problem, not a gate problem; surface it
+   rather than editing the gate.
 
 2. **Verify labels** — query Linear for the HU ticket (DES-N). Confirm it
    carries both `svc:<service>` and `ready-for-agent`. If either is missing,
@@ -328,14 +316,11 @@ section in Input).
 ### Step C — Delegate to phase subagent
 
 **Always delegate the file-touching work — never read source into your own
-context.** The subagent runs in a throwaway context that is discarded when it
-returns; the driver's context is permanent. Anything the driver reads (entity
+context** (hard rule 3). The subagent runs in a throwaway context discarded when
+it returns; the driver's context is permanent, so any source it reads (entity
 configs, repositories, migrations, tests) stays resident for the rest of the run.
-Reading source inline is what made the X.3 verification-only phase cost ~100k:
-the driver read `MissionConfiguration.cs`, `MissionRepository.cs`, the
-integration tests, and `BaseAuditableEntity.cs` into its own context instead of
-delegating. Don't. The driver opens **only** git/gate command output and its own
-working notes — not service source files.
+The driver opens **only** git/gate command output and its own working notes —
+not service source files.
 
 **Code-writing phase (the normal case).** Pass to a subagent operating under
 `backend-agent.md`:
