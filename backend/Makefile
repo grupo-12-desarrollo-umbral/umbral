@@ -25,6 +25,15 @@ export DOTNET_NOLOGO := 1
 SVC ?= identity-access-service
 SVCDIR := services/$(SVC)
 
+# Verbose dotnet output (restore/build/per-test spew) goes to a log file; the
+# recipes echo only a compact summary. An agent driving the toolchain reads the
+# exit code + summary and opens the log only on failure, so its *resident*
+# context stays tiny on any CLI — the verbose stream is the single largest token
+# sink in a verification phase, and amplification (the context is re-sent every
+# turn) multiplies it. Absolute path, because `gate` cd's into the service dir.
+# Gitignored.
+LOGDIR := $(CURDIR)/.make-logs
+
 # Project discovery — service-agnostic, mirrors cover.sh. There is no .sln, so
 # Api (the composition root) plus the test projects span the whole build graph.
 API_PROJECT          := $(wildcard $(SVCDIR)/src/Api/*.csproj)
@@ -51,26 +60,57 @@ help:
 	@echo "  clean   remove bin/obj for SVC (resets stale build artifacts)"
 	@echo "  clean-all remove bin/obj across every service"
 	@echo "  ef      dotnet ef passthrough — also pass ARGS=\"migrations add ...\""
+	@echo "  (build/test/gate echo a compact summary; full dotnet output → $(LOGDIR)/<target>-<svc>.log)"
 
 build:
-	@for p in $(API_PROJECT) $(UNIT_PROJECTS) $(INTEGRATION_PROJECTS); do \
-	  echo ">> dotnet build $$p"; dotnet build "$$p" || exit 1; \
-	done
+	@mkdir -p $(LOGDIR); log="$(LOGDIR)/build-$(SVC).log"; : > "$$log"; \
+	for p in $(API_PROJECT) $(UNIT_PROJECTS) $(INTEGRATION_PROJECTS); do \
+	  echo ">> dotnet build $$p"; \
+	  if ! dotnet build "$$p" >>"$$log" 2>&1; then \
+	    echo "BUILD FAILED: $$p"; tail -n 40 "$$log"; \
+	    echo "(full log: $$log)"; exit 1; \
+	  fi; \
+	done; \
+	echo "build OK ($(SVC)) — full log: $$log"
 
 test:
-	@for p in $(UNIT_PROJECTS) $(INTEGRATION_PROJECTS); do \
-	  echo ">> dotnet test $$p"; dotnet test "$$p" || exit 1; \
-	done
+	@mkdir -p $(LOGDIR); log="$(LOGDIR)/test-$(SVC).log"; : > "$$log"; \
+	for p in $(UNIT_PROJECTS) $(INTEGRATION_PROJECTS); do \
+	  echo ">> dotnet test $$p"; \
+	  if ! dotnet test "$$p" >>"$$log" 2>&1; then \
+	    echo "TEST FAILED: $$p"; \
+	    grep -hE 'Failed |Error Message|Expected:|Actual:|Assert\.' "$$log" | tail -n 60 || true; \
+	    echo "(full log: $$log)"; exit 1; \
+	  fi; \
+	done; \
+	grep -hE 'Passed!' "$$log" || true; \
+	echo "test OK ($(SVC)) — full log: $$log"
 
 # Run from the service directory so cover-gate.sh resolves its relative project
 # paths and writes coverage/gate/ under the service (unchanged from the prior
 # hand-invocation). The integration project is passed last — it enforces the
 # threshold, per ADR-0005.
+# Full cover-gate.sh output → log; echo only the per-project pass counts, the
+# Gate GREEN/FAILED verdict, and the line-coverage number. On a red gate, print
+# a bounded failing-test excerpt the driver can hand straight to the subagent
+# (Step E). The gate verdict is still the EXIT CODE (preserved via $$rc) — the
+# summary is a convenience, never the source of truth.
 gate:
-	@cd $(SVCDIR) && \
+	@mkdir -p $(LOGDIR); log="$(LOGDIR)/gate-$(SVC).log"; \
+	cd $(SVCDIR) && \
 	  units=$$(find tests -maxdepth 3 -name '*UnitTests*.csproj'        2>/dev/null | sort) && \
 	  integ=$$(find tests -maxdepth 3 -name '*IntegrationTests*.csproj' 2>/dev/null | sort) && \
-	  ../../scripts/cover-gate.sh $$units $$integ
+	  ../../scripts/cover-gate.sh $$units $$integ >"$$log" 2>&1; rc=$$?; \
+	  grep -hE 'Passed!|Failed!|Gate (GREEN|FAILED)' "$$log" || true; \
+	  [ -f coverage/gate/Summary.txt ] && grep -E 'Line coverage' coverage/gate/Summary.txt | head -n1 || true; \
+	  if [ $$rc -ne 0 ]; then \
+	    echo "── failing tests (excerpt) ──"; \
+	    grep -hE 'Failed |Error Message|Expected:|Actual:|Assert\.' "$$log" | tail -n 60 || true; \
+	    echo "gate FAILED ($(SVC)) — full log: $$log"; \
+	  else \
+	    echo "gate GREEN ($(SVC)) — report: $(SVCDIR)/coverage/gate/index.html, full log: $$log"; \
+	  fi; \
+	  exit $$rc
 
 # Automates what the driver runs by hand after each Phase X.4: the same
 # per-service gate (ADR-0005) for every gateable service, one merged report each
