@@ -279,9 +279,36 @@ scope). Produce these sections:
 | Step 4: Start the slice | Branch, move to In Progress, output scope |
 | Steps 5–8: Phases X.1–X.4 | Each step is **thin**: the `@backend/.agents/backend-agent.md` reference, one line pointing the subagent at the **X.N derivation block in `hu<NN>-context.md`** as its spec, the gate, and the commit message. Do **not** re-list the per-type scope here, and do **not** tell the subagent to "use canonical docs" or "inspect existing code" each phase — that scope lives once in the derivation block; duplicating it causes drift and makes every phase re-read the full canon (the cost this whole flow exists to avoid). **The pattern the phase owns must still appear as an explicit gate line** (e.g. "Gate: access enforced through a `Proxy`-style guard — `AuthorizationBehaviour`/endpoint policy — no ad-hoc role `if` checks"). A pattern named only in prose, never in a gate, does not count. |
 | Step 8.5: Docker rebuild | `docker compose build` + `docker compose up -d` + curl smoke |
-| Step 9: Frontend slice | Begin the step with a plan-generation instruction, then the `@frontend/AGENTS.md` reference, scope, gate, commit message. The plan-generation line must read: "Generate a multi phase plan in a markdown file, like the one in `@frontend/plans/hu-03-frontend-role-permission-assignment.md`, save it in `@frontend/plans/` for the following:" immediately followed by `Use @frontend/AGENTS.md` |
+| Step 9: Frontend slice | Begin the step with a plan-generation instruction, then the `@frontend/AGENTS.md` reference, scope, gate, commit message. The plan-generation line must read: "Generate a multi phase plan in a markdown file — following the **frontend plan concreteness rule** (below), modelled on the exemplar closest to this slice's shape (`@frontend/plans/hu-03-frontend-role-permission-assignment.md` for a small 1–few-endpoint surface; `@frontend/plans/hu-10a-frontend-mission-hierarchy-authoring.md` for a large/multi-endpoint or partially-blocked surface) — save it in `@frontend/plans/` for the following:" immediately followed by `Use @frontend/AGENTS.md`. The Step must then embed the four-point concreteness rule verbatim (see "Frontend plan concreteness rule" below). |
 | Step 10: Close-out | Acceptance criteria + `gh pr create` command |
 | Rationale section | Why this HU's pattern differs from its predecessor |
+
+#### Frontend plan concreteness rule (Step 9)
+
+Step 9 must embed this four-point rule **verbatim** in the prompt file, so the frontend plan's
+altitude tracks the slice instead of blindly copying one exemplar. hu-03 is near-executable because
+it is a 1-endpoint, ~4-file feature; emitting that uniform code-completeness for a 13-endpoint slice
+produces large, speculative scope, and emitting hu-10a's contract-table altitude for a 1-endpoint
+slice underspecifies it. The exemplar is chosen by shape (see the Step 9 row); the rule below makes
+the choice operational:
+
+1. **Proportion concreteness to certainty.** Write code-complete detail — exact DTO/request types,
+   real component skeletons, exact client-fn + server-action bodies, a `data-testid` contract — only
+   for the **fully-knowable near-term increments** (typically the foundation + first authoring
+   increment). Keep later, large, or blocked increments at **contract + gate altitude**: a contract
+   table, scope, and gate, with no invented bodies. Never write code for an increment blocked on an
+   open question.
+2. **Verify every code anchor against the real source before writing it.** Open the files the plan
+   names — exported vs. private helpers, exact signatures, the const/env it reads, the line a refactor
+   targets — and write only what the source actually supports. A confident-but-wrong anchor (e.g.
+   "reuse `getIdentityHeaders`" when it is not exported) is worse than an altitude note. If a detail
+   is not verifiable, state the assumption under Open Questions rather than inventing it.
+3. **Required sections** (both exemplars carry these; a plan missing one is a defect): Context ·
+   Verified Backend Contract (endpoint/shape table) · Architecture Decisions · **Environment**
+   (env vars / config consts reused) · **data-testid contract** · phased Scope + Gate per increment ·
+   **Acceptance-criteria → test mapping** · Open Questions / Dependencies · Out of Scope.
+4. **Final forms only, sequential by default.** Write only the final version of each anchor — no
+   "wrong → revised" trails — and keep increments sequential unless the slice genuinely parallelizes.
 
 **Commit message format for every backend phase:**
 
@@ -440,3 +467,9 @@ because that is the path that mutates approved content.
    phase-gate table — edit only the flagged span (see "Responding to Stop 1
    feedback"). Full regenerate is for structural *defects* only; using it for a
    one-line refinement silently drifts content the human already approved.
+9. Step 9 must carry the **frontend plan concreteness rule** (proportion
+   concreteness to certainty; verify every anchor against source; required
+   sections; final-forms-only) and pick the plan exemplar by slice shape
+   (hu-03 = small surface, hu-10a = large/blocked surface). Pointing at a single
+   exemplar without the rule is a generation defect — it propagates that
+   exemplar's altitude onto a slice of a different shape.
