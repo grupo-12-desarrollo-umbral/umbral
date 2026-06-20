@@ -2,7 +2,7 @@
 
 Concrete prompt sequence for driving DES-15 (HU-10A) through a full feature slice on `feature/hu-10a-mission-hierarchy-structure`. Follows the pattern in [workflow_for_prompts.md](./workflow_for_prompts.md).
 
-**Key difference for HU-10A:** HU-09's rebuild (DES-14, Done 2026-06-19) already implemented the **entire backend** — the full `MissionNode` Composite model (`Stage`/`Substage`/`Clue`), `SubstagePlayMode` enforcement, `Target`-based treasure hunt, optional `Clue` guidance, `MissionActivationPolicy` readiness, all application commands/handlers/validators, the EF migration, the `/api/missions` endpoint set, and comprehensive tests (95.46% coverage). HU-10A's backend phases are **verification and minor refinement** (one exception-mapping fix), not new implementation. The **main new work is the frontend** — the hierarchy authoring UI that HU-09's frontend plan explicitly deferred. HU-10B (structural validations, DES-16) was archived and folded into HU-10A per the realignment map.
+**Key difference for HU-10A:** HU-09's rebuild (DES-14, Done 2026-06-19) already implemented the **entire backend** — the full `MissionNode` Composite model (`Stage`/`Substage`/`Clue`), `SubstagePlayMode` enforcement, `Target`-based treasure hunt, optional `Clue` guidance, `MissionActivationPolicy` readiness, all application commands/handlers/validators, the EF migration, the `/api/missions` endpoint set, and comprehensive tests (95.46% coverage). HU-10A's backend phases are **verification only** (the planned exception-mapping refinement rested on a stale premise — already 409 Conflict, no code change), not new implementation. The **main new work is the frontend** — the hierarchy authoring UI that HU-09's frontend plan explicitly deferred. HU-10B (structural validations, DES-16) was archived and folded into HU-10A per the realignment map.
 
 When working from the monorepo root, make the target workload explicit in each prompt.
 For backend steps, point to `@backend/.agents/backend-agent.md`. For frontend steps,
@@ -98,7 +98,7 @@ There are no same-service In Progress predecessors, so the branch base is `devel
 
 `feature/hu-10a-mission-hierarchy-structure` should be branched from `develop`. No same-service predecessor is currently **In Progress**, so there is no feature-branch dependency to inherit first.
 
-**Before starting implementation:** run the existing backend test suite and confirm all HU-10A AC items are already satisfied by HU-09's rebuild. The backend phases are verification + one exception-mapping fix, not new implementation.
+**Before starting implementation:** run the existing backend test suite and confirm all HU-10A AC items are already satisfied by HU-09's rebuild. The backend phases are verification only (no code change — the planned exception-mapping fix rested on a stale premise), not new implementation.
 
 ### Linear state (as of 2026-06-19)
 
@@ -139,7 +139,7 @@ Then use the Linear MCP to fetch only the current live state of:
 Output:
 - confirmation that HU-09's rebuild already implemented the full backend Composite model
 - the list of AC items from DES-15 and whether each is already satisfied by existing code
-- the remaining work: frontend hierarchy authoring UI + exception mapping fix
+- the remaining work: frontend hierarchy authoring UI (the exception mapping was a stale premise — already 409 Conflict, no code change)
 - current Linear status and labels for DES-15
 
 Do not start planning or implementing yet.
@@ -203,8 +203,8 @@ already landed (HU-09's full rebuild) and what HU-10A adds. Do not re-read the P
 scoping unless you need to resolve a precise implementation detail.
 
 Before implementation, run the existing backend test suite and confirm all HU-10A AC items
-are already satisfied by HU-09's rebuild. The backend phases are verification + one
-exception-mapping fix, not new implementation. Do not create new domain types that
+are already satisfied by HU-09's rebuild. The backend phases are verification only (no code
+change — the planned exception-mapping fix rested on a stale premise), not new implementation. Do not create new domain types that
 already exist and pass tests.
 
 Move DES-15 to In Progress (it already is), and output the exact scope, branch name, base branch, and touched surfaces.
@@ -336,12 +336,12 @@ fill a gap the block leaves open).
 
 This phase is VERIFICATION ONLY — HU-09's rebuild already exposed all structure
 endpoints under /api/missions. Run existing endpoint tests and confirm all AC
-items pass. Verify the MissionAlreadyDeactivatedException mapping fix from X.2
-works at the endpoint level.
+items pass. Verify the existing MissionAlreadyDeactivatedException -> 409 Conflict
+mapping (from HU-09; no code change) works at the endpoint level.
 
 Gate:
 - existing endpoint tests pass for create/update/deactivate/detail/readiness + full structure authoring flow (nodes, play-mode, targets, clue-association, trivia-quiz-selection, activate)
-- MissionAlreadyDeactivatedException returns 400 (verified at endpoint level)
+- MissionAlreadyDeactivatedException returns 409 Conflict (verified at endpoint level; mapped by HU-09)
 - API detail proves Mission as wrapper, MissionNode Composite, exactly one SubstagePlayMode, Target-based treasure hunt, optional Clue max one per target
 - no API request/response contains SessionMode or treats TriviaQuiz as SessionSource
 - service coverage reaches the repo gate target (ADR-0005)
@@ -375,7 +375,7 @@ Run curl smoke checks through the gateway for:
 - mission detail for a mission with hierarchy (stages, substages, targets, clues)
 - add a stage / substage / clue via the structure endpoints
 - readiness/activation validation response
-- deactivate an already-deactivated mission (verify 400, not 500)
+- deactivate an already-deactivated mission (verify 409 Conflict)
 
 Output:
 - container status
@@ -470,7 +470,7 @@ Run final backend and frontend verification required by the repo instructions.
 Summarise:
 - commits created
 - backend verification results (all AC items satisfied by HU-09's rebuild)
-- exception mapping fix
+- exception mapping: verified MissionAlreadyDeactivatedException -> 409 Conflict (stale "fix to 400" premise; no code change)
 - frontend plan/file produced
 - tests and gates run
 - any unresolved ambiguity

@@ -77,7 +77,7 @@
 
 ## Touched surfaces
 
-- `backend/services/mission-design-service` — minor: exception mapping fix only (all other backend layers are already complete from HU-09)
+- `backend/services/mission-design-service` — verification only; no code change (the planned exception-mapping fix rested on a stale premise — already 409 Conflict). All other backend layers are already complete from HU-09
 - `frontend/` — main work: mission hierarchy authoring UI, types, API client, server actions
 - `backend/frontend` API contract boundary: no contract changes — the existing `/api/missions` contract from HU-09 is the surface the frontend consumes
 - Future backend integration boundary: `SessionOperations` consumes mission readiness facts; unchanged by this HU
@@ -188,11 +188,11 @@
   - `POST .../activate` — activate mission (runs readiness policy)
   - `MissionResponse` includes full Composite tree (stages -> substages -> targets/clues)
   - All mutations `Administrator`-only via `[Authorize]` + `AuthorizationBehaviour`
-  - Exception mapping: `MissionAlreadyDeactivatedException` now returns 400 (fixed in X.2)
+  - Exception mapping: `MissionAlreadyDeactivatedException` returns 409 Conflict (already mapped by HU-09; verified in X.2, no code change)
 
 **Target files** (no new files — verify existing):
 - verify `Api/Endpoints/MissionsEndpoints.cs` — full endpoint set matches AC
-- verify `Api/Services/ProblemDetailsExceptionHandler.cs` — exception mapping includes `MissionAlreadyDeactivatedException` (fixed in X.2)
+- verify `Api/Services/ProblemDetailsExceptionHandler.cs` — `MissionAlreadyDeactivatedException` -> 409 Conflict (already mapped by HU-09, shared arm with `MissionAlreadyActiveException`; verify only, no code change)
 
 **Pattern this phase owns:** `Composite` visible in the detail contract (verify — `MissionResponse` -> `MissionStageResponse` -> `MissionSubstageResponse` -> `MissionTargetResponse` / `MissionClueResponse`)
-**Gate:** run existing endpoint tests (`MissionEndpointsTests`); confirm all AC items pass; Composite visible in the detail contract (`MissionResponse` -> `MissionStageResponse` -> `MissionSubstageResponse` -> `MissionTargetResponse` / `MissionClueResponse`, not flattened); `MissionAlreadyDeactivatedException` returns 400; service coverage >= repo gate (ADR-0005); no `SessionMode` in any payload
+**Gate:** run existing endpoint tests (`MissionEndpointsTests`); confirm all AC items pass; Composite visible in the detail contract (`MissionResponse` -> `MissionStageResponse` -> `MissionSubstageResponse` -> `MissionTargetResponse` / `MissionClueResponse`, not flattened); `MissionAlreadyDeactivatedException` returns 409 Conflict; service coverage >= repo gate (ADR-0005); no `SessionMode` in any payload
