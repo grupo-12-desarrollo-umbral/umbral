@@ -493,3 +493,6 @@ $RECYCLE.BIN/
 *.db
 *.db-shm
 *.db-wal
+
+# Compact-summary build/test/gate logs (make routes verbose dotnet output here)
+.make-logs/
