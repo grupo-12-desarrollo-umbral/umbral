@@ -449,6 +449,29 @@ Ref: DES-62
 
 ---
 
+## 9b. Implement the frontend plan
+
+> Run only after the Step 9 plan is written and reviewed. The plan is the source of
+> truth and supersedes the Step 9 seed scope — including Step 9's single seed commit:
+> commit per the plan's own per-phase Commit Sequence, not the one above.
+
+```text
+Use @frontend/AGENTS.md. Implement @frontend/plans/hu-10a-frontend-mission-hierarchy-authoring.md,
+phase by phase per the plan's own Scope / Gate / Commit Sequence.
+
+For each phase: implement only that phase, run its Gate (build + typecheck, plus any e2e the
+phase lands), then commit with the exact subject from the plan's Commit Sequence for that phase.
+
+Order: P1 → 2.1 → 2.2 → 2.3 → P3.
+
+STOP at 2.3 — it is blocked on the trivia-quiz picker Open Question in the plan. Do not invent
+the blocked behaviour; surface the question and wait.
+
+Do not re-generate the plan. Do not modify backend code in this step.
+```
+
+---
+
 ## 10. Close-out
 
 ```text
