@@ -2,6 +2,26 @@
 
 For monorepo boundaries, read `../AGENTS.md` and `../CONTEXT-MAP.md`, the frontend only communicates via the api-gateway.
 
+## Verify against source before you assert it
+
+This is a hard gate for both **plans** and **code**. Before citing any existing symbol — a helper to
+"reuse", a function signature, an exported vs. private member, the const/env a module reads, or the
+line a refactor targets — **open the file and confirm it**. Do not write anchors from memory or by
+pattern-matching a sibling file.
+
+- "Reuse `X`" is only valid if `X` is actually importable from where you claim. A private helper
+  (e.g. one duplicated across modules rather than exported) must be replicated locally, not imported —
+  say so explicitly.
+- Mirror an existing module's real error mapping / headers / base URL, not an assumed one.
+- If a detail can't be verified against source, record it under **Open Questions** in the plan rather
+  than inventing it. A confident-but-wrong anchor is worse than a flagged unknown — it compiles-fails
+  on the first line the implementer writes.
+
+When authoring a frontend plan, also proportion concreteness to certainty: code-complete detail for
+the fully-knowable near-term increments, contract+gate altitude for large or blocked ones, and no
+code for an increment blocked on an open question. See `frontend/plans/` for exemplars
+(`hu-03-…` = small surface, `hu-10a-…` = large/blocked surface).
+
 <!-- BEGIN:nextjs-agent-rules -->
 
 ## This is NOT the Next.js you know
