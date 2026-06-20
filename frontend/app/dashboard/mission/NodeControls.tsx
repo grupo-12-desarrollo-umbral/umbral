@@ -17,7 +17,7 @@ type ClueVisibility = (typeof CLUE_VISIBILITY_POLICIES)[number]
 type OnMutated = (updated: MissionDto) => void
 
 export function nextSequenceOrder(siblings: { sequenceOrder: number }[]): number {
-  return siblings.length === 0 ? 0 : Math.max(...siblings.map((s) => s.sequenceOrder)) + 1
+  return siblings.length === 0 ? 1 : Math.max(...siblings.map((s) => s.sequenceOrder)) + 1
 }
 
 // ---------------------------------------------------------------------------
@@ -33,6 +33,7 @@ function AddNodeControl({
   triggerTestId,
   confirmTestId,
   triggerLabel,
+  playMode,
   onMutated,
 }: {
   missionId: number
@@ -43,6 +44,7 @@ function AddNodeControl({
   triggerTestId: string
   confirmTestId: string
   triggerLabel: string
+  playMode?: 'TreasureHunt' | 'Trivia'
   onMutated: OnMutated
 }) {
   const isClue = nodeType === 'Clue'
@@ -71,7 +73,7 @@ function AddNodeControl({
           sequenceOrder: nextOrder,
           // A Substage carries its parent stageId; a Clue carries BOTH stageId and
           // substageId (the backend handler dereferences both — verified against source).
-          ...(nodeType === 'Substage' ? { stageId } : {}),
+          ...(nodeType === 'Substage' ? { stageId, playMode } : {}),
           ...(nodeType === 'Clue'
             ? { stageId, substageId, clueText, clueVisibilityPolicy: visibility }
             : {}),
@@ -194,6 +196,7 @@ export function AddSubstageControl({
       triggerTestId={`add-substage-btn-${stageId}`}
       confirmTestId={`confirm-add-substage-btn-${stageId}`}
       triggerLabel="+ Add substage"
+      playMode="TreasureHunt"
       onMutated={onMutated}
     />
   )
