@@ -47,7 +47,8 @@ Worked examples from the order list:
 - Phase 3 rebuild: `Run generator-agent for HU-17 DES-24.` — the realign id, never
   the superseded Done ticket it replaces.
 
-→ Produces `hu<NN>-context.md` + `prompt_example_feature_hu<NN>.md`.
+→ Produces `hu<NN>-context.md` + `prompt_example_feature_hu<NN>.md` +
+   `hu<NN>-brief.md` (the driver's compact resident brief).
 → **Stop 1:** review both files before driving. A mandated design pattern missing
    from a phase gate is a generation defect — regenerate, don't proceed.
 
@@ -116,7 +117,7 @@ One full pass, generate → close-out. `<NN>` is the HU number, `<N>` the Linear
 | Pattern validate × 4 | Confirm the detected design pattern when the driver presents it (driver Step B) |
 | Commit approval × 4 | Approve each phase's commit when the gate is green (driver Step F) |
 | Stop 2 | Confirm acceptance criteria end-to-end against the API contract |
-| Frontend slice | Paste Step 9 from the prompt file into a new session with `@frontend/AGENTS.md` |
+| Frontend slice | **Step 9** — paste into a new session with `@frontend/AGENTS.md` to generate the plan under `frontend/plans/`; **review the plan** (right altitude, source-verified anchors) as a frontend Stop 1; then **Step 9b** — paste to implement it phase by phase per the plan's own Scope/Gate/Commit Sequence |
 | Close-out | `Run the close-out commands.` — draft PR to `develop` (GitHub squash-merges the phase commits on merge), move DES to **Done**, remove the worktree |
 
 Roughly a dozen interactions per HU — the four phase picks, four pattern
