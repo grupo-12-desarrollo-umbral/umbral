@@ -38,6 +38,16 @@ If the prompt file has **no** "Required design patterns" section, the generator
 ran before this was wired in — stop and ask the human to regenerate, rather than
 driving a slice whose mandated pattern was never scoped (the HU-01/02/03 gap).
 
+**Read each artifact once.** Extract the table above and the per-phase scope into
+your working notes on a **single** pass over `prompt_example_feature_hu<NN>.md`
+and `hu<NN>-context.md`, then work from those notes — do not re-open either file
+later in the run to re-check a value. Every re-read is a full duplicate copy of
+the file in your context, and they compound: the X.3 incident re-read the prompt
+file three times and the context file twice. You also never need to read
+`backend-agent.md` into your own context — it is the **subagent's** playbook, not
+the driver's; the subagent reads it. Reference it by name when delegating
+(Step C); do not load its body.
+
 ---
 
 ## Sole authority
@@ -72,6 +82,24 @@ Phase subagents write code only. They do not commit, touch Linear, or run gates.
    `make`/`dotnet`/`docker` in `sandbox.excludedCommands`, so they run outside
    the sandbox and never hit the fail-then-retry loop.
 
+   **Codex / non-Claude harnesses — required first, or every gate runs twice.**
+   `sandbox.excludedCommands` is a Claude Code mechanism; it does **not** apply
+   under Codex or other runners. Without an equivalent, each `make`/`docker`/`git`
+   call is blocked once, surfaced for approval, then re-run — so every verbose
+   build and test dump lands in context **two or three times**, which is the
+   single largest token sink in a verification-only phase. Before running any
+   gate under such a harness, pre-authorize the toolchain so it runs first-try:
+   - Allow `make`, `dotnet`, `docker`, and `git` to run without the per-call
+     approval round-trip (e.g. Codex `--full-auto`/approved-commands, or the
+     harness's allow-list equivalent).
+   - Make the worktree's git metadata writable: a `git worktree` keeps its index
+     under the **main** repo's `.git/worktrees/umbral-hu-NN/`, so a sandbox whose
+     writable root is only the worktree dir will fail `git add` with
+     `Read-only file system` on `index.lock`. Grant write to the main repo's
+     `.git/worktrees/` path too.
+   If you cannot pre-authorize, **say so and stop** — do not absorb the doubled
+   output silently; a half-sandboxed run inflates the phase by 2–3× for nothing.
+
    If a `dotnet test` still fails on a loopback socket (vstest testhost ↔
    console) despite the above, the **host** sandbox is broken (missing `socat`,
    or `apparmor_restrict_unprivileged_userns=1` with no `bwrap` profile) — that
@@ -82,8 +110,26 @@ Phase subagents write code only. They do not commit, touch Linear, or run gates.
    carries both `svc:<service>` and `ready-for-agent`. If either is missing,
    stop and report.
 
-3. **Check for existing worktree** — run `ls ../umbral-hu-NN`. If it exists,
-   stop and ask the user whether to reuse or remove it.
+3. **Check for existing worktree** — run `ls ../umbral-hu-NN`. If it exists:
+
+   a. **If it contains `HANDOFF.md` at its root** (`../umbral-hu-NN/HANDOFF.md`),
+      read it first — it is the resume record written by a previous driver
+      session. It states which pre-flight steps already completed, the Linear
+      reachability caveat, the validated design-pattern obligation, and which
+      phases are committed. On resume:
+      - **Skip the stateful pre-flight steps it marks done** — worktree/branch
+        creation (step 4), artifact copy (step 5), the Linear "In Progress" move
+        (step 6). Do not recreate the worktree or re-copy docs.
+      - **Still re-run the cheap read-only verifications** — build green (step 7),
+        Docker (step 10), EF tooling (step 8) — a fresh environment may differ
+        from the one HANDOFF.md was written in.
+      - **Never skip an interactive stop** — still show the phase menu, still
+        run Step A/B, still get commit approval at Step F. HANDOFF.md shortcuts
+        completed *work*, never the human gates.
+      Then continue from the phase the HANDOFF.md names as next.
+
+   b. **If there is no `HANDOFF.md`**, stop and ask the user whether to reuse or
+      remove the worktree.
 
 4. **Create worktree and branch:**
    ```bash
@@ -166,6 +212,17 @@ Phase subagents write code only. They do not commit, touch Linear, or run gates.
    `make -C backend ef SVC=<service> ARGS="migrations add <Name>"`
    For the fallback form, call `dotnet ef` directly with
    `--startup-project src/Infrastructure --project src/Infrastructure --no-build`.
+
+12. **Write `HANDOFF.md` at the worktree root** (`../umbral-hu-NN/HANDOFF.md`)
+    once pre-flight is green, so a cleared/fresh session can resume via step 3a
+    without redoing stateful work. Record: HU id + DES + PRD + service, branch +
+    base + worktree path, the pre-flight steps completed, the Linear
+    reachability caveat (note when the Linear MCP was unavailable and status
+    moves must be done by hand), the validated design-pattern obligation, the
+    per-phase `[✓]/[ ]` status, and the next action. Keep it uncommitted at the
+    worktree root (it is a working note, not a feature artifact) — the phase
+    `git add -A` commits should not sweep it in; add it to the worktree's
+    `.git/info/exclude` if needed.
 
 ---
 
@@ -251,11 +308,39 @@ section in Input).
 
 ### Step C — Delegate to phase subagent
 
-Pass to a subagent operating under `backend-agent.md`:
+**Always delegate the file-touching work — never read source into your own
+context.** The subagent runs in a throwaway context that is discarded when it
+returns; the driver's context is permanent. Anything the driver reads (entity
+configs, repositories, migrations, tests) stays resident for the rest of the run.
+Reading source inline is what made the X.3 verification-only phase cost ~100k:
+the driver read `MissionConfiguration.cs`, `MissionRepository.cs`, the
+integration tests, and `BaseAuditableEntity.cs` into its own context instead of
+delegating. Don't. The driver opens **only** git/gate command output and its own
+working notes — not service source files.
+
+**Code-writing phase (the normal case).** Pass to a subagent operating under
+`backend-agent.md`:
 - the exact phase prompt text from the prompt file
 - the worktree path
 - explicit instruction: *"Write code only. Do not commit, do not touch Linear,
   do not run gates."*
+
+**Verification-only phase (no new code — e.g. an X.3 that confirms an existing
+HU's EF mapping/migration/repository).** This still delegates; it does not become
+an excuse to read source inline. Pass to a subagent under `backend-agent.md`:
+- the exact phase scope from the prompt file + the worktree path
+- the concrete things to confirm (owned-entity mapping present, snapshot current,
+  repository deep-loads the tree, round-trip test covers each node type)
+- explicit instruction: *"Read only. Write no code, do not commit, do not touch
+  Linear, do not run gates. Return a short verdict — for each item: confirmed /
+  not-confirmed + the file:line evidence — and nothing else."*
+
+The subagent returns a compact verdict (a dozen lines), not the file bodies. The
+driver then runs the gate (Step D) against that verdict — build, tests, and the
+EF no-op check (`migrations has-pending-model-changes`) are the objective proof;
+the verdict just says where to expect green. If a verification phase ends with no
+file changes, the commit is an empty phase-marker commit (`git commit
+--allow-empty`), matching X.1/X.2's phase-tracking flow.
 
 ### Step D — Run the gate
 
@@ -314,12 +399,17 @@ Reply to approve, or tell me what to change.
 ────────────────────────────────────────────────────────────────────
 ```
 
+For a **verification-only phase** `git status --short` is empty (no file
+changes) — that is expected, not a failure. Say so in the panel and note the
+commit will be an empty phase-marker (`--allow-empty`, Step G).
+
 Do **not** run the commit until the human approves. Do not re-display the phase
 menu or move to another phase while this approval is pending.
 
 ### Step G — On approval: commit, verify it landed, then re-display the menu
 
 ```bash
+# add --allow-empty when the phase was verification-only (no file changes)
 git -C ../umbral-hu-NN commit -m "feat(<svc>): phase X.Y — <layer> (HU-NN)
 
 Ref: HU-NN
@@ -331,7 +421,9 @@ git -C ../umbral-hu-NN log --oneline -1
 Confirm the top log line contains `phase X.Y` — the `[✓]` detection keys off the
 commit message, so an un-run commit silently leaves the phase looking undone. If
 it is not there, the commit did not happen; run it before doing anything else.
-Only once the commit is verified do you re-display the phase menu and wait.
+Once the commit is verified, **update `HANDOFF.md`** (pre-flight step 12) to flip
+this phase to `[✓]` and set the next action, so a resumed session sees accurate
+state. Only then re-display the phase menu and wait.
 
 ---
 
