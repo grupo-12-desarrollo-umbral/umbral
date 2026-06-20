@@ -280,6 +280,7 @@ scope). Produce these sections:
 | Steps 5–8: Phases X.1–X.4 | Each step is **thin**: the `@backend/.agents/backend-agent.md` reference, one line pointing the subagent at the **X.N derivation block in `hu<NN>-context.md`** as its spec, the gate, and the commit message. Do **not** re-list the per-type scope here, and do **not** tell the subagent to "use canonical docs" or "inspect existing code" each phase — that scope lives once in the derivation block; duplicating it causes drift and makes every phase re-read the full canon (the cost this whole flow exists to avoid). **The pattern the phase owns must still appear as an explicit gate line** (e.g. "Gate: access enforced through a `Proxy`-style guard — `AuthorizationBehaviour`/endpoint policy — no ad-hoc role `if` checks"). A pattern named only in prose, never in a gate, does not count. |
 | Step 8.5: Docker rebuild | `docker compose build` + `docker compose up -d` + curl smoke |
 | Step 9: Frontend slice | Begin the step with a plan-generation instruction, then the `@frontend/AGENTS.md` reference, scope, gate, commit message. The plan-generation line must read: "Generate a multi phase plan in a markdown file — following the **frontend plan concreteness rule** (below), modelled on the exemplar closest to this slice's shape (`@frontend/plans/hu-03-frontend-role-permission-assignment.md` for a small 1–few-endpoint surface; `@frontend/plans/hu-10a-frontend-mission-hierarchy-authoring.md` for a large/multi-endpoint or partially-blocked surface) — save it in `@frontend/plans/` for the following:" immediately followed by `Use @frontend/AGENTS.md`. The Step must then embed the four-point concreteness rule verbatim (see "Frontend plan concreteness rule" below). |
+| Step 9b: Implement frontend plan | A **thin** prompt, run only after the Step 9 plan is written and reviewed: `Use @frontend/AGENTS.md` + the Step 9 plan path, then "implement phase by phase in the plan's order, per the plan's own Scope / Gate / Commit Sequence." The plan is the source of truth and **supersedes the Step 9 seed scope**. Must also say: stop at any increment the plan marks blocked on an Open Question (name it), do **not** re-generate the plan, do **not** modify backend code. Do **not** restate per-phase scope or commit subjects — the plan owns them; duplicating them causes drift (same thin-by-reference rule as backend Steps 5–8). |
 | Step 10: Close-out | Acceptance criteria + `gh pr create` command |
 | Rationale section | Why this HU's pattern differs from its predecessor |
 
@@ -390,7 +391,8 @@ driver itself needs to delegate, gate, commit, and report. Template:
 > - \<METHOD path> — \<curl, or method + path + expected status when the prompt gives no literal curl> — expect \<status>; request/response shape \<for the frontend contract>
 >
 > ## Frontend slice
-> Human-driven — see Step 9 of `prompt_example_feature_hu<NN>.md`.
+> Human-driven — see Steps 9 (generate plan) + 9b (implement it) of
+> `prompt_example_feature_hu<NN>.md`.
 
 Delegation never relays per-phase scope text: the subagent reads the X.N
 derivation block in `hu<NN>-context.md` itself (its primary source). The brief's
@@ -473,3 +475,9 @@ because that is the path that mutates approved content.
    (hu-03 = small surface, hu-10a = large/blocked surface). Pointing at a single
    exemplar without the rule is a generation defect — it propagates that
    exemplar's altitude onto a slice of a different shape.
+10. Step 9b (implement the frontend plan) must stay **thin**: point at
+    `@frontend/AGENTS.md` + the Step 9 plan path and defer to the plan's own
+    Scope / Gate / Commit Sequence. Restating per-phase scope or commit subjects
+    in 9b is a defect — it duplicates what the plan owns and drifts from it. 9b
+    must also halt at any increment the plan flags blocked on an Open Question
+    rather than inventing the blocked behaviour.
