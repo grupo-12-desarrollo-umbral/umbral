@@ -323,6 +323,11 @@ driver itself needs to delegate, gate, commit, and report. Template:
 > _Driver reads only this file. The full prompt + context are for the subagent
 > and human review; the driver never loads them._
 >
+> **Nature of this HU** _(omit for a plain feature build):_ \<verification |
+> realignment-rebuild> — one line on which phases verify existing code vs.
+> implement new, so the driver never authorizes a subagent to rebuild what a
+> predecessor (e.g. a `needs-rebuild` HU) already shipped.
+>
 > ## Slice
 > | HU | DES | PRD | Service | Branch | Base |
 > |----|-----|-----|---------|--------|------|
@@ -339,13 +344,23 @@ driver itself needs to delegate, gate, commit, and report. Template:
 > | X.3 Infrastructure | \<gate> | … |
 > | X.4 Api | \<gate> + ADR-0005 coverage | … |
 >
-> Commit (every phase): `feat(\<svc>): phase X.Y — \<layer> (HU-NN)` + `Ref: HU-NN` / `Ref: DES-N` / `Ref: DES-PRD`
+> Commit subjects — copy each phase's exact subject from the prompt's Steps 5–8
+> verbatim (the driver presents what the human approved; do not paraphrase or
+> normalize punctuation):
+> - X.1 `\<exact subject from prompt Step 5>`
+> - X.2 `\<exact subject from prompt Step 6>`
+> - X.3 `\<exact subject from prompt Step 7>`
+> - X.4 `\<exact subject from prompt Step 8>`
+>
+> Trailer (every phase): `Ref: HU-NN` / `Ref: DES-N` / `Ref: DES-PRD`
 >
 > ## Acceptance criteria
 > - \<from prompt Step 10>
 >
-> ## New endpoints + smoke (driver verifies at Stop 2)
-> - \<METHOD path> — \<curl> — expect \<status>; request/response shape \<for the frontend contract>
+> ## Endpoints + smoke (driver verifies at Stop 2)
+> _If the HU adds no endpoints (e.g. a verification HU), say "none new" and list the
+> existing endpoints to smoke plus any behavioral change (e.g. a status-code fix)._
+> - \<METHOD path> — \<curl, or method + path + expected status when the prompt gives no literal curl> — expect \<status>; request/response shape \<for the frontend contract>
 >
 > ## Frontend slice
 > Human-driven — see Step 9 of `prompt_example_feature_hu<NN>.md`.

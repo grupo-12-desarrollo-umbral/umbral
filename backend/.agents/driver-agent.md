@@ -60,7 +60,7 @@ The brief is the generator's compact projection of everything you need resident
 | Required design pattern(s) + owning phase | "Required pattern(s)" |
 | Per-phase gate + owned pattern | "Per phase" table |
 | Acceptance criteria | "Acceptance criteria" |
-| New endpoints + curl smoke | "New endpoints + smoke" |
+| Endpoints + curl smoke | "Endpoints + smoke" |
 
 If the brief has **no** "Required pattern(s)" row, the generator ran before this
 was wired in — stop and ask the human to regenerate, rather than driving a slice
@@ -516,7 +516,7 @@ If rebuild fails → gate failure → one retry (rebuild only) → hard stop.
 
 ### 2. Curl smoke check
 
-Run the curl command from the brief ("New endpoints + smoke"). If it returns an
+Run the curl command from the brief ("Endpoints + smoke"). If it returns an
 unexpected status code → hard stop, surface the output, wait.
 
 ### 3. Report to human
