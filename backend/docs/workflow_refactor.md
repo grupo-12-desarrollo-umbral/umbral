@@ -32,6 +32,21 @@ Run this once for each ticket in the order list below.
 ### 1. Generate — `generator-agent`
 Invoke `generator-agent` for the ticket. **For rebuilds, use the realign DES id**
 (DES-75/76/77/78/24), not the superseded Done ticket.
+
+**Prompt** — `<NN>` is the HU number, `<N>` the Linear id; both come straight from
+the order table below:
+
+```text
+Read @backend/.agents/generator-agent.md.
+
+Run generator-agent for HU-<NN> DES-<N>.
+```
+
+Worked examples from the order list:
+- Phase 2 (first full run): `Run generator-agent for HU-15 DES-22.`
+- Phase 3 rebuild: `Run generator-agent for HU-17 DES-24.` — the realign id, never
+  the superseded Done ticket it replaces.
+
 → Produces `hu<NN>-context.md` + `prompt_example_feature_hu<NN>.md`.
 → **Stop 1:** review both files before driving. A mandated design pattern missing
    from a phase gate is a generation defect — regenerate, don't proceed.
@@ -39,7 +54,16 @@ Invoke `generator-agent` for the ticket. **For rebuilds, use the realign DES id*
 ### 2. Drive — `driver-agent`
 Invoke `driver-agent` on the generated prompt file. It creates the worktree +
 branch, then builds four layers, gating and asking for your commit-approval at
-each:
+each.
+
+**Kick off the driver** — once per ticket; runs pre-flight (worktree, branch,
+labels, green base) and stops at the phase menu:
+
+```text
+Read @backend/.agents/driver-agent.md.
+
+Run driver-agent for backend/docs/prompt_example_feature_hu<NN>.md.
+```
 
 | Phase | Layer | Gate |
 |---|---|---|
@@ -47,6 +71,26 @@ each:
 | X.2 | Application | handler + validator tests pass all paths |
 | X.3 | Infrastructure | migration succeeds; repository integration tests pass |
 | X.4 | Api | endpoint smoke (200/201) + ADR-0005 coverage gate |
+
+**Drive one phase at a time** in order X.1 → X.2 → X.3 → X.4. Per phase the loop
+is three replies:
+
+```text
+# 1 — pick the phase (just reply "X.1" if the driver session is already live)
+Run @backend/.agents/driver-agent.md and select X.1 from the phase menu.
+
+# 2 — validate the detected design pattern (driver Step B)
+Confirmed — proceed with X.1.
+
+# 3 — approve the commit once the gate is green (driver Step F)
+Approved — commit X.1.
+```
+
+Swap `X.1` for `X.2` / `X.3` / `X.4` on each pass; the driver re-shows the menu
+with `[✓]` after every committed phase, then proceeds to the docker rebuild +
+curl smoke (Stop 2) once all four are checked. If you disagree with the pattern
+at reply 2, or a gate fails twice, the driver **hard-stops** — surface it, don't
+push past it.
 
 For **rebuild** tickets: X.3 **deletes/replaces** the pre-canon schema — do not
 migrate stale schema forward.
@@ -58,6 +102,25 @@ criteria end-to-end.
 ### 4. Close out
 Squash phase commits → draft PR to `develop` → move DES to **Done** in Linear →
 remove the worktree.
+
+### At a glance — what you type per ticket
+
+One full pass, generate → close-out. `<NN>` is the HU number, `<N>` the Linear id.
+
+| When | You type |
+|---|---|
+| Generate | `Read @backend/.agents/generator-agent.md. Run generator-agent for HU-<NN> DES-<N>.` |
+| Stop 1 | Review both generated files; regenerate on a defect, otherwise proceed |
+| Drive | `Read @backend/.agents/driver-agent.md. Run driver-agent for backend/docs/prompt_example_feature_hu<NN>.md.` |
+| Phase pick × 4 | `X.1` → `X.2` → `X.3` → `X.4` (one reply per phase) |
+| Pattern validate × 4 | Confirm the detected design pattern when the driver presents it (driver Step B) |
+| Commit approval × 4 | Approve each phase's commit when the gate is green (driver Step F) |
+| Stop 2 | Confirm acceptance criteria end-to-end against the API contract |
+| Frontend slice | Paste Step 9 from the prompt file into a new session with `@frontend/AGENTS.md` |
+| Close-out | `Run the close-out commands.` — draft PR to `develop` (GitHub squash-merges the phase commits on merge), move DES to **Done**, remove the worktree |
+
+Roughly a dozen interactions per HU — the four phase picks, four pattern
+validations, and four commit approvals are the bulk of it.
 
 ---
 

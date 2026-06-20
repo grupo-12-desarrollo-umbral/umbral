@@ -6,7 +6,7 @@ Before writing any service code, read `.agents/backend-agent.md`. It defines the
 
 ## Commit & PR Standards
 
-When the user asks to commit changes or create a PR, always invoke the `/commit-and-pr` skill before running any `git commit` or `gh pr create` commands.
+When the user asks to commit changes, always invoke the `/conventional-commits` skill before running `git commit`. When creating a PR, always invoke the `/safe-pr-creator` skill before running `gh pr create`.
 
 ## Structure Enforcement
 

@@ -177,6 +177,17 @@ step 1** — do not re-infer it here, just branch on it:
   - **mirror-anchors only to code classified `keep`** — never cite a
     canon-contradicting file as a pattern to copy.
 
+**Read canon by section, never whole-file.** `bd_umbral_entity_spec.md` is ~64KB
+and `ddd_solution_model.md` is large; full-reading either per ticket is the
+generator's single biggest avoidable token cost (and this runs once per ticket
+across the whole backlog). For each, `grep` the aggregate/service heading first,
+then read **only that heading's line range** — never the whole file. The same
+applies to the cited ADRs and `CONTEXT.md`: open the cited section, not the whole
+document. If a needed detail isn't under the expected heading, widen the range;
+do not fall back to a full-file read. This is the generator-side complement to
+the per-phase derivation block — the block keeps the four subagents from
+re-reading canon; sectioned reads keep the generator itself from over-reading it.
+
 For each phase X.1–X.4, distill the exact types/fields/invariants this HU adds at
 that layer, the target files (each with an existing file to mirror), the pattern
 the phase owns (step 5), and the gate. **Cite the canon section each derivation

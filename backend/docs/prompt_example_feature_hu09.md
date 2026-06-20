@@ -234,8 +234,6 @@ Ref: DES-14
 Ref: DES-62
 ```
 
-Then run: `/debrief`
-
 ---
 
 ## 6. Backend phase X.2 - Application layer
@@ -267,8 +265,6 @@ Ref: DES-14
 Ref: DES-62
 ```
 
-Then run: `/debrief`
-
 ---
 
 ## 7. Backend phase X.3 - Infrastructure layer
@@ -299,8 +295,6 @@ Ref: DES-14
 Ref: DES-62
 ```
 
-Then run: `/debrief`
-
 ---
 
 ## 8. Backend phase X.4 - API layer
@@ -330,8 +324,6 @@ Ref: HU-09
 Ref: DES-14
 Ref: DES-62
 ```
-
-Then run: `/debrief`
 
 ---
 
@@ -393,8 +385,6 @@ Ref: HU-09
 Ref: DES-14
 Ref: DES-62
 ```
-
-Then run: `/debrief`
 
 ---
 
