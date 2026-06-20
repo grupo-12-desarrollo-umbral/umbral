@@ -2,6 +2,7 @@ import 'server-only'
 import {
   IdentityError,
   type MissionDto,
+  type MissionReadinessDto,
   type AddMissionNodeRequest,
   type UpdateMissionNodeRequest,
   type AssignPlayModeRequest,
@@ -196,5 +197,58 @@ export async function unassociateClueFromTarget(
     { method: 'DELETE', headers: getIdentityHeaders(session) },
   )
   if (!response.ok) await mapStructureError(response, 'unassociateClueFromTarget')
+  return response.json()
+}
+
+// --- 2.3: trivia-quiz selection + readiness ---
+// POST sets a selection on a substage with none; PUT replaces an existing one. Both
+// handlers are identical server-side (validate published + SelectTriviaQuiz), so the
+// verb is dispatched purely on whether a selection already exists.
+
+export async function setTriviaQuizSelection(
+  missionId: number,
+  stageId: number,
+  substageId: number,
+  triviaQuizId: number,
+): Promise<MissionDto> {
+  const session = await verifySession()
+  const response = await fetch(
+    `${substageBase(missionId, stageId, substageId)}/trivia-quiz-selection`,
+    {
+      method: 'POST',
+      headers: { ...getIdentityHeaders(session), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ triviaQuizId }),
+    },
+  )
+  if (!response.ok) await mapStructureError(response, 'setTriviaQuizSelection')
+  return response.json()
+}
+
+export async function updateTriviaQuizSelection(
+  missionId: number,
+  stageId: number,
+  substageId: number,
+  triviaQuizId: number,
+): Promise<MissionDto> {
+  const session = await verifySession()
+  const response = await fetch(
+    `${substageBase(missionId, stageId, substageId)}/trivia-quiz-selection`,
+    {
+      method: 'PUT',
+      headers: { ...getIdentityHeaders(session), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ triviaQuizId }),
+    },
+  )
+  if (!response.ok) await mapStructureError(response, 'updateTriviaQuizSelection')
+  return response.json()
+}
+
+export async function getMissionReadiness(missionId: number): Promise<MissionReadinessDto> {
+  const session = await verifySession()
+  const response = await fetch(
+    `${MISSION_DESIGN_SERVICE_URL}/api/missions/${missionId}/readiness`,
+    { headers: getIdentityHeaders(session), cache: 'no-store' },
+  )
+  if (!response.ok) await mapStructureError(response, 'getMissionReadiness')
   return response.json()
 }

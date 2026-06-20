@@ -11,10 +11,14 @@ import {
   removeTarget as removeTargetLib,
   associateClueWithTarget as associateClueWithTargetLib,
   unassociateClueFromTarget as unassociateClueFromTargetLib,
+  setTriviaQuizSelection as setTriviaQuizSelectionLib,
+  updateTriviaQuizSelection as updateTriviaQuizSelectionLib,
+  getMissionReadiness as getMissionReadinessLib,
 } from '@/app/lib/mission-structure'
 import { revalidatePath } from 'next/cache'
 import type {
   MissionDto,
+  MissionReadinessDto,
   AddMissionNodeRequest,
   UpdateMissionNodeRequest,
   AssignPlayModeRequest,
@@ -131,4 +135,36 @@ export async function unassociateClueFromTarget(
   const result = await unassociateClueFromTargetLib(missionId, stageId, substageId, targetId)
   revalidatePath('/dashboard')
   return result
+}
+
+export async function setTriviaQuizSelection(
+  missionId: number,
+  stageId: number,
+  substageId: number,
+  triviaQuizId: number,
+): Promise<MissionDto> {
+  const session = await verifySession()
+  if (session.role !== 'Administrator') throw new Error('Forbidden')
+  const result = await setTriviaQuizSelectionLib(missionId, stageId, substageId, triviaQuizId)
+  revalidatePath('/dashboard')
+  return result
+}
+
+export async function updateTriviaQuizSelection(
+  missionId: number,
+  stageId: number,
+  substageId: number,
+  triviaQuizId: number,
+): Promise<MissionDto> {
+  const session = await verifySession()
+  if (session.role !== 'Administrator') throw new Error('Forbidden')
+  const result = await updateTriviaQuizSelectionLib(missionId, stageId, substageId, triviaQuizId)
+  revalidatePath('/dashboard')
+  return result
+}
+
+export async function getMissionReadiness(missionId: number): Promise<MissionReadinessDto> {
+  const session = await verifySession()
+  if (session.role !== 'Administrator') throw new Error('Forbidden')
+  return getMissionReadinessLib(missionId)
 }

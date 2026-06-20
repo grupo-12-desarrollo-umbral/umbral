@@ -1548,6 +1548,20 @@ html[data-theme="dark"] .cluePreview::after {
   gap: 0.5rem;
 }
 
+.activationBar {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin: 0 0 1.5rem;
+}
+
+.readinessFailures {
+  margin: 0;
+  padding-left: 1.25rem;
+  color: var(--text-warning, #d08a3a);
+  font-size: 0.9rem;
+}
+
 .missionDetailActions {
   display: flex;
   align-items: center;

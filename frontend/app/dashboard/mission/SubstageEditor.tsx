@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useTransition } from 'react'
-import type { MissionDto, MissionSubstageDto } from '@/app/lib/definitions'
+import { useEffect, useState, useTransition } from 'react'
+import type { MissionDto, MissionSubstageDto, TriviaQuizSummaryDto } from '@/app/lib/definitions'
 import {
   assignSubstagePlayMode,
   addTarget,
@@ -9,7 +9,10 @@ import {
   removeTarget,
   associateClueWithTarget,
   unassociateClueFromTarget,
+  setTriviaQuizSelection,
+  updateTriviaQuizSelection,
 } from '@/app/actions/mission-structure'
+import { getTriviaQuizzes } from '@/app/actions/trivias'
 import { nextSequenceOrder } from './NodeControls'
 import styles from '../dashboard.module.css'
 
@@ -58,6 +61,120 @@ export function SubstageEditor({
             onMutated={onMutated}
           />
         </div>
+      )}
+
+      {substage.playMode === 'Trivia' && (
+        <TriviaSelectionControl
+          missionId={missionId}
+          stageId={stageId}
+          substage={substage}
+          onMutated={onMutated}
+        />
+      )}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Trivia selection (Trivia play-mode only). A Trivia substage carries ONLY a
+// published-quiz selection — winnerScore is a TreasureHunt concept (set via the
+// target form), so it is intentionally absent here. The picker reuses the
+// existing trivia client, filtered to Published quizzes.
+// ---------------------------------------------------------------------------
+
+function TriviaSelectionControl({
+  missionId,
+  stageId,
+  substage,
+  onMutated,
+}: {
+  missionId: number
+  stageId: number
+  substage: MissionSubstageDto
+  onMutated: OnMutated
+}) {
+  const current = substage.triviaQuizSelection?.triviaQuizId ?? null
+  const [quizzes, setQuizzes] = useState<TriviaQuizSummaryDto[] | null>(null)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [selected, setSelected] = useState<string>(current === null ? '' : String(current))
+  const [error, setError] = useState<string | null>(null)
+  const [isPending, startTransition] = useTransition()
+
+  useEffect(() => {
+    let active = true
+    getTriviaQuizzes()
+      .then((all) => {
+        if (active) setQuizzes(all.filter((q) => q.status === 'Published'))
+      })
+      .catch(() => {
+        if (active) setLoadError('Could not load trivia quizzes.')
+      })
+    return () => {
+      active = false
+    }
+  }, [])
+
+  function save() {
+    const quizId = Number(selected)
+    if (selected === '' || Number.isNaN(quizId)) {
+      setError('Select a published quiz.')
+      return
+    }
+    startTransition(async () => {
+      setError(null)
+      try {
+        const updated =
+          current === null
+            ? await setTriviaQuizSelection(missionId, stageId, substage.id, quizId)
+            : await updateTriviaQuizSelection(missionId, stageId, substage.id, quizId)
+        onMutated(updated)
+      } catch (e) {
+        // Selecting a non-published / missing quiz is API-enforced; surfaced verbatim.
+        setError(e instanceof Error ? e.message : 'Could not save quiz selection.')
+      }
+    })
+  }
+
+  return (
+    <div className={styles.playModeRow}>
+      <label>
+        Trivia quiz{' '}
+        <select
+          className={styles.inlineInput}
+          data-testid={`trivia-quiz-select-${substage.id}`}
+          value={selected}
+          disabled={isPending || quizzes === null}
+          onChange={(e) => setSelected(e.target.value)}
+        >
+          <option value="">{quizzes === null ? 'Loading…' : 'Select quiz…'}</option>
+          {(quizzes ?? []).map((quiz) => (
+            <option key={quiz.id} value={quiz.id}>
+              {quiz.title}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      <button
+        className={styles.smallButton}
+        disabled={isPending || selected === ''}
+        onClick={save}
+        type="button"
+      >
+        {current === null ? 'Select quiz' : 'Change quiz'}
+      </button>
+
+      {current !== null && <span> · selected quiz #{current}</span>}
+
+      {loadError && (
+        <p className={styles.formError} role="alert" data-testid="node-error">
+          {loadError}
+        </p>
+      )}
+      {error && (
+        <p className={styles.formError} role="alert" data-testid="node-error">
+          {error}
+        </p>
       )}
     </div>
   )
