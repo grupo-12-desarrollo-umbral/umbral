@@ -1514,6 +1514,40 @@ html[data-theme="dark"] .cluePreview::after {
   font-size: 0.85rem;
 }
 
+.inlineCheck {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.85rem;
+}
+
+.substageEditor {
+  margin: 0.5rem 0 0.75rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.playModeRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.treasureHunt {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.targetRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
 .missionDetailActions {
   display: flex;
   align-items: center;

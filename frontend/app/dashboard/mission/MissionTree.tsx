@@ -8,6 +8,7 @@ import {
   NodeRowControls,
   nextSequenceOrder,
 } from './NodeControls'
+import { SubstageEditor } from './SubstageEditor'
 import styles from '../dashboard.module.css'
 
 export function MissionTree({
@@ -56,15 +57,13 @@ export function MissionTree({
                   />
                 </h4>
 
-                {/* TreasureHunt side-content */}
-                <ul>
-                  {substage.targets.map((target) => (
-                    <li key={target.id} data-testid={`target-node-${target.id}`}>
-                      {target.name} · {target.qrCode}
-                      {target.clueId !== null && <span> · clue #{target.clueId}</span>}
-                    </li>
-                  ))}
-                </ul>
+                {/* Play-mode + TreasureHunt target authoring (side-content) */}
+                <SubstageEditor
+                  missionId={mission.id}
+                  stageId={stage.id}
+                  substage={substage}
+                  onMutated={onMutated}
+                />
 
                 {/* Clue children */}
                 <ul>
