@@ -23,7 +23,7 @@ Reject this generated prompt before implementation if it does not explicitly sco
 - `Clue` is optional guidance, max one per target, same substage — already implemented, verify
 - every rejection informs parent and child node types — already implemented, verify
 - readiness/activation validates the runtime plan — already implemented, verify
-- `MissionAlreadyDeactivatedException` mapped to 400 (minor fix)
+- `MissionAlreadyDeactivatedException` already mapped to 409 Conflict by HU-09 (verify; the "map to 400" premise was stale — corrected 2026-06-19)
 - frontend hierarchy authoring UI consumes the existing backend contract
 - no `SessionMode`
 - no `TriviaQuiz` as `SessionSource`
@@ -87,7 +87,7 @@ There are no same-service In Progress predecessors, so the branch base is `devel
 | Concern | New work |
 |---|---|
 | Backend verification | Verify HU-09's rebuild satisfies all AC items — no new domain types. |
-| Exception mapping fix | Map `MissionAlreadyDeactivatedException` to 400 (currently 500). |
+| Exception mapping (verify) | `MissionAlreadyDeactivatedException` already mapped to 409 Conflict by HU-09 (the "map to 400 / currently 500" premise was stale — corrected 2026-06-19; no code change). |
 | Frontend hierarchy authoring | Build mission structure editor UI consuming the existing backend contract. |
 | Frontend types | Extend `definitions.ts` with hierarchy response types. |
 | Frontend API client | Extend `app/lib/missions.ts` with structure endpoint functions. |
@@ -179,7 +179,7 @@ Before planning, explicitly confirm the Stop 1 acceptance guard:
 - Clue is optional guidance, max one per target, same substage - already implemented, verify
 - every rejection informs parent and child node types - already implemented, verify
 - readiness/activation validates the runtime plan - already implemented, verify
-- MissionAlreadyDeactivatedException mapped to 400 (minor fix)
+- MissionAlreadyDeactivatedException already mapped to 409 Conflict by HU-09 (verify; "map to 400" premise was stale, no code change)
 - frontend hierarchy authoring UI consumes the existing backend contract
 - no SessionMode
 - no TriviaQuiz as SessionSource
@@ -259,17 +259,20 @@ Implement backend phase X.2 for HU-10A in mission-design-service, per the
 re-read the canon or re-inspect the tree; open a cited canon section only to
 fill a gap the block leaves open).
 
-This phase is VERIFICATION + ONE REFINEMENT. HU-09's rebuild already implemented
-all structure commands/handlers/validators. Run existing application tests and
-confirm all AC items pass. The only new work is mapping
-MissionAlreadyDeactivatedException in ProblemDetailsExceptionHandler to return
-400 (currently falls through to 500).
+This phase is VERIFICATION ONLY (corrected 2026-06-19). HU-09's rebuild already
+implemented all structure commands/handlers/validators. Run existing application
+tests and confirm all AC items pass. The originally-planned "refinement" (map
+MissionAlreadyDeactivatedException to 400, said to fall through to 500) was based
+on a STALE premise: HU-09 already maps MissionAlreadyDeactivatedException to 409
+Conflict (shared arm with MissionAlreadyActiveException), with a passing test.
+409 is the correct state-conflict status and stays consistent with its sibling.
+No code change — verify the existing mapping + test.
 
 Gate:
 - clean build passes; existing handler + validator unit tests cover valid path plus rejection/error branches
 - application use cases preserve the Composite — no flattened traversal logic in handlers
 - activation/readiness handlers validate the runtime plan through MissionActivationPolicy
-- MissionAlreadyDeactivatedException mapped to 400 in ProblemDetailsExceptionHandler (new test for this)
+- MissionAlreadyDeactivatedException already mapped to 409 in ProblemDetailsExceptionHandler, verified by existing test (no code change)
 - no SessionMode in commands/DTOs/handlers/validators; no command treats TriviaQuiz as SessionSource
 - no new commands/handlers created
 
@@ -279,7 +282,7 @@ Do not touch Infrastructure, Api, or frontend.
 Commit:
 
 ```text
-feat(mission-design): phase X.2 - application layer verification + exception mapping fix (HU-10A)
+feat(mission-design): phase X.2 - application layer verification (HU-10A)
 
 Ref: HU-10A
 Ref: DES-15
@@ -458,7 +461,7 @@ Verify the final implementation against the Stop 1 acceptance guard:
 - Clue is optional guidance, max one per target, same substage - verified
 - every rejection informs parent and child node types - verified
 - readiness/activation validates the runtime plan - verified
-- MissionAlreadyDeactivatedException mapped to 400 - fixed and verified
+- MissionAlreadyDeactivatedException already mapped to 409 Conflict by HU-09 - verified (the "map to 400" premise was stale; no code change)
 - frontend hierarchy authoring UI consumes the existing backend contract - implemented
 - no SessionMode
 - no TriviaQuiz as SessionSource
@@ -478,7 +481,7 @@ gh pr create \
   --base develop \
   --head feature/hu-10a-mission-hierarchy-structure \
   --title "feat(mission-design): HU-10A mission hierarchy structure + frontend authoring" \
-  --body "HU-10A (DES-15): verifies HU-09's rebuild satisfies all hierarchy AC items, fixes MissionAlreadyDeactivatedException mapping (500 -> 400), and builds the frontend hierarchy authoring UI (stage/substage/clue tree, play-mode selection, target authoring, clue association, trivia-quiz selection, readiness display, activation) on top of the existing /api/missions contract."
+  --body "HU-10A (DES-15): verifies HU-09's rebuild satisfies all hierarchy AC items (including MissionAlreadyDeactivatedException already mapped to 409 Conflict — the planned 500->400 fix was a stale premise, no code change), and builds the frontend hierarchy authoring UI (stage/substage/clue tree, play-mode selection, target authoring, clue association, trivia-quiz selection, readiness display, activation) on top of the existing /api/missions contract."
 ```
 
 ---
@@ -489,6 +492,6 @@ HU-10A's pattern differs from its predecessor HU-09 in a fundamental way: HU-09 
 
 The original PRD (DES-62) split mission authoring into three tickets: HU-09 (CRUD), HU-10A (hierarchy structure), and HU-10B (structural validations). HU-09's `needs-rebuild` cycle absorbed all three into a single rebuild, implementing the full Composite model, containment rules, play-mode enforcement, target-based treasure hunt, optional clue guidance, readiness validation, all commands/handlers/validators, the EF migration, and the full API endpoint set. HU-10B (DES-16) was archived and folded into HU-10A per the realignment map.
 
-This left HU-10A as primarily a **frontend slice** — the hierarchy authoring UI that HU-09's frontend plan explicitly deferred. The backend phases are verification (confirm HU-09's rebuild satisfies HU-10A's AC) with one minor refinement (mapping `MissionAlreadyDeactivatedException` to 400 instead of 500). The mandated `Composite` pattern is structurally present in the existing domain code and does not need to be rebuilt — it needs to be verified and then consumed by the frontend.
+This left HU-10A as primarily a **frontend slice** — the hierarchy authoring UI that HU-09's frontend plan explicitly deferred. The backend phases are pure verification (confirm HU-09's rebuild satisfies HU-10A's AC). The originally-planned "minor refinement" (mapping `MissionAlreadyDeactivatedException` to 400 instead of 500) turned out to rest on a stale premise — HU-09 already maps it to 409 Conflict with a test, so no code change was made (corrected 2026-06-19). The mandated `Composite` pattern is structurally present in the existing domain code and does not need to be rebuilt — it needs to be verified and then consumed by the frontend.
 
 The required `Composite` pattern comes from ADR-0004 and the service's `CONTEXT.md`, not from the trivia sprint patterns matrix (which excludes mission HUs). The pattern is already implemented: `MissionNode` is an abstract base with `CanContain`, `Stage` admits only `Substage`, `Substage` admits only `Clue`, `Clue` is a leaf, and `Target` is side-content owned by `Substage` (not a node type). The frontend's job is to surface this structure for administrator authoring and display the domain's explicit rejection messages when invalid structures are attempted.

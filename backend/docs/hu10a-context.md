@@ -68,7 +68,7 @@
 | Concern | New work |
 |---|---|
 | Backend verification | Verify that HU-09's rebuild satisfies all of HU-10A's AC items — containment rules, play-mode enforcement, target operations, clue association, readiness. No new backend domain types. |
-| Exception mapping fix | Map `MissionAlreadyDeactivatedException` in `ProblemDetailsExceptionHandler` (currently falls through to 500; should return 400). |
+| Exception mapping (already done — verify) | `MissionAlreadyDeactivatedException` is **already mapped to 409 Conflict** in `ProblemDetailsExceptionHandler` by HU-09 (shared arm with `MissionAlreadyActiveException`), with a passing test (`ProblemDetailsExceptionHandlerTests.TryHandleAsync_MissionAlreadyDeactivatedException_Returns409`). The original "falls through to 500 / map to 400" premise was **stale** — corrected by the HU-10A driver (X.2, 2026-06-19). No code change needed; verify only. 409 is the correct state-conflict status and stays consistent with its sibling exception. |
 | Frontend hierarchy authoring | Build the mission structure authoring UI: stage/substage/clue tree editor, play-mode selection, target authoring, clue association, trivia-quiz selection, readiness display, and mission activation. |
 | Frontend types | Extend `definitions.ts` with hierarchy response types (stages, substages, targets, clues, trivia selection, readiness) matching the existing backend contract. |
 | Frontend API client | Extend `app/lib/missions.ts` with functions for all structure endpoints (nodes, play-mode, targets, clue-association, trivia-quiz-selection, readiness, activate). |
@@ -94,7 +94,7 @@
 - The `ready-for-agent` label was missing from DES-15 and was added during generation. The ticket was already In Progress (moved 2026-06-18).
 - The canon comment on DES-15 mentions `TriviaQuestionSelection`, but the canon authority is `TriviaQuizSelection` (renamed in HU-09's X.2 follow-up, commit 2954fe3). The ticket body uses the correct term ("quiz publicado por identidad").
 - `MissionStructureEditor.AssignPlayMode` rebuilds the substage on mode switch and only copies **clues** — targets, winner score, and trivia-quiz selection are lost. This is by design (play-mode is immutable per `Substage` instance) but the frontend should warn the user before a mode switch.
-- `MissionAlreadyDeactivatedException` is not mapped in `ProblemDetailsExceptionHandler` — it falls through to 500. HU-09's frontend plan notes this and treats it as a generic deactivation error. HU-10A should fix the mapping to return 400.
+- ~~`MissionAlreadyDeactivatedException` is not mapped — falls through to 500; HU-10A should map to 400.~~ **Corrected (HU-10A driver, X.2, 2026-06-19):** this premise was stale. HU-09 already maps `MissionAlreadyDeactivatedException` to **409 Conflict** (shared arm with `MissionAlreadyActiveException` in `ProblemDetailsExceptionHandler.cs`), covered by a passing test. It does NOT fall through to 500. 409 is the correct status (state conflict) and is consistent with the sibling exception; forcing 400 would break the test and split identical semantics. No code change made.
 - `MissionStructureEditor.RefreshReadiness` works by re-calling `mission.UpdateDetails` with unchanged values purely for the `RefreshActivationState` side effect. This is a code smell but functional.
 - Clue rename via `MissionStructureEditor.RenameNode` recreates the `Clue` entity to update text/visibility, which does not raise `MissionNodeUpdatedEvent`. This is a known gap but not an AC item.
 - HU-10B (DES-16, "Validaciones estructurales de misión") was archived and folded into HU-10A per the realignment map. HU-10A's AC now covers both hierarchy structure and structural validations.
@@ -145,15 +145,15 @@
   - `AssociateClueWithTargetCommand`/`UnassociateClueFromTargetCommand` enforce same-substage + max-one — `MissionStructureCommandHandlerTests.cs`
   - `SetTriviaQuizSelectionCommand` validates published quiz via `TriviaQuizSelectionGuard` — `MissionStructureCommandHandlerTests.cs`
   - `ActivateMissionCommand` runs `MissionActivationPolicy` and returns readiness failures — `MissionStructureCommandHandlerTests.cs`
-- **Refinement:** map `MissionAlreadyDeactivatedException` in `Api/Services/ProblemDetailsExceptionHandler.cs` to return 400 (currently falls through to 500).
+- **~~Refinement~~ — NO CODE CHANGE (corrected by HU-10A driver, 2026-06-19):** the block originally said to map `MissionAlreadyDeactivatedException` to 400 "currently falls through to 500". That premise is **stale**: HU-09 already maps it to **409 Conflict** in `Api/Services/ProblemDetailsExceptionHandler.cs` (shared arm with `MissionAlreadyActiveException`), with a passing test (`ProblemDetailsExceptionHandlerTests.TryHandleAsync_MissionAlreadyDeactivatedException_Returns409`). 409 is the correct state-conflict status and stays consistent with the sibling exception. X.2 is therefore **verification-only** — verify the existing 409 mapping + test, do not change it.
 
-**Target files** (edit — file to mirror):
-- edit `Api/Services/ProblemDetailsExceptionHandler.cs` — add `MissionAlreadyDeactivatedException` mapping (mirror existing `MissionAlreadyActiveException` mapping pattern)
+**Target files** (verify only — no edits):
+- verify `Api/Services/ProblemDetailsExceptionHandler.cs` — `MissionAlreadyDeactivatedException` already mapped to 409 (shared arm with `MissionAlreadyActiveException`); no edit
 - verify `Application/Missions/{Commands,Handlers,Validators}/*` — canon-aligned, no changes needed
 - verify `Application/Missions/Common/{MissionStructureEditor,MissionCommandHandlerBase,MissionDtoMapper,TriviaQuizSelectionGuard}.cs` — canon-aligned
 
 **Pattern this phase owns:** `Composite` preserved in handlers (verify — no flattened traversal logic in handlers)
-**Gate:** run existing application unit tests (`MissionStructureCommandHandlerTests`, `MissionMutationCommandHandlerTests`, validator tests); confirm all AC items pass; Composite preserved in handlers (no flattened traversal logic — structure mutation stays in `MissionStructureEditor`); exception mapping fix verified with a new test for `MissionAlreadyDeactivatedException` -> 400; no `SessionMode` in commands/DTOs
+**Gate:** run existing application unit tests (`MissionStructureCommandHandlerTests`, `MissionMutationCommandHandlerTests`, validator tests); confirm all AC items pass; Composite preserved in handlers (no flattened traversal logic — structure mutation stays in `MissionStructureEditor`); exception mapping verified by the existing `MissionAlreadyDeactivatedException` -> 409 test; no `SessionMode` in commands/DTOs
 
 ### Phase X.3 — Infrastructure *(verification — existing HU-09 implementation satisfies AC)*
 **Derive** (`bd_umbral_entity_spec.md` §Mission/§MissionNode/§Target/§Clue persistence; `ddd_solution_model.md` §MissionDesign repositories (lines 368-373)):
