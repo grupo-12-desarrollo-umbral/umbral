@@ -12,6 +12,29 @@ Linear.
 
 ---
 
+## Context budget — three hard rules (read first)
+
+Your context is **permanent**: every file you open is re-sent on every turn for
+the rest of the run, on **every CLI**, and a failed/repaired phase multiplies
+that. Three rules keep it small. They are not advisory — violating them is the
+single largest avoidable token sink in a phase:
+
+1. **Read each artifact exactly once.** This file, `prompt_example_feature_hu<NN>.md`,
+   and `hu<NN>-context.md` are read one time into working notes. Never re-open
+   one to re-check a value — work from the notes.
+2. **Never load `backend-agent.md` into your own context.** It is the
+   *subagent's* playbook. Name it when delegating (Step C); never read its body.
+3. **Never read service source** (entity configs, repositories, tests,
+   migrations) yourself. Delegate every file-touching read to a subagent
+   (Step C). You open only git/gate command output and your own notes.
+
+Gate output is already compact by construction: `make build|test|gate` echo a
+few summary lines and write the verbose `dotnet` stream to
+`backend/.make-logs/<target>-<svc>.log`. Read the exit code and the summary;
+open the log only when you must.
+
+---
+
 ## Input
 
 Invoke with the path to the generated prompt file:
@@ -82,29 +105,17 @@ Phase subagents write code only. They do not commit, touch Linear, or run gates.
    `make`/`dotnet`/`docker` in `sandbox.excludedCommands`, so they run outside
    the sandbox and never hit the fail-then-retry loop.
 
-   **Codex / non-Claude harnesses — required first, or every gate runs twice.**
-   `sandbox.excludedCommands` is a Claude Code mechanism; it does **not** apply
-   under Codex or other runners. Without an equivalent, each `make`/`docker`/`git`
-   call is blocked once, surfaced for approval, then re-run — so every verbose
-   build and test dump lands in context **two or three times**, which is the
-   single largest token sink in a verification-only phase. Before running any
-   gate under such a harness, pre-authorize the toolchain so it runs first-try:
-   - Allow `make`, `dotnet`, `docker`, and `git` to run without the per-call
-     approval round-trip (e.g. Codex `--full-auto`/approved-commands, or the
-     harness's allow-list equivalent).
-   - Make the worktree's git metadata writable: a `git worktree` keeps its index
-     under the **main** repo's `.git/worktrees/umbral-hu-NN/`, so a sandbox whose
-     writable root is only the worktree dir will fail `git add` with
-     `Read-only file system` on `index.lock`. Grant write to the main repo's
-     `.git/worktrees/` path too.
-   If you cannot pre-authorize, **say so and stop** — do not absorb the doubled
-   output silently; a half-sandboxed run inflates the phase by 2–3× for nothing.
+   **Codex / non-Claude harnesses:** `sandbox.excludedCommands` is Claude-only,
+   so under Codex/other runners the toolchain must be pre-authorized first or
+   every `make`/`docker`/`git` call is blocked-then-rerun and each verbose dump
+   lands in context 2–3× — see `backend/docs/codex-sandbox-setup.md` for the
+   one-time config. **If you cannot pre-authorize, say so and stop** — do not
+   absorb the doubled output silently.
 
-   If a `dotnet test` still fails on a loopback socket (vstest testhost ↔
-   console) despite the above, the **host** sandbox is broken (missing `socat`,
-   or `apparmor_restrict_unprivileged_userns=1` with no `bwrap` profile) — that
-   is an environment problem, not a gate problem; surface it rather than editing
-   the gate.
+   If a `dotnet test` still fails on a loopback socket despite that, the **host**
+   sandbox is broken (missing `socat`, or `apparmor_restrict_unprivileged_userns=1`
+   with no `bwrap` profile) — an environment problem, not a gate problem; surface
+   it rather than editing the gate.
 
 2. **Verify labels** — query Linear for the HU ticket (DES-N). Confirm it
    carries both `svc:<service>` and `ready-for-agent`. If either is missing,
@@ -432,6 +443,13 @@ state. Only then re-display the phase menu and wait.
 Gate = `backend/scripts/cover-gate.sh`, which runs `dotnet test` with the
 chained coverlet threshold. Driver reads **exit code only** — 0 = green,
 non-zero = gate fails. No `Summary.txt` parsing.
+
+`make gate` echoes only a compact summary — per-project pass counts, the
+`Gate GREEN/FAILED` line, and the line-coverage number — and writes the full
+`dotnet test` output to `backend/.make-logs/gate-<service>.log`. On a red gate it
+also prints a bounded failing-test excerpt; hand that straight to the subagent
+(Step E) and open the log only if the excerpt is insufficient. Do not paste the
+full log into your context.
 
 Invoke it through the Makefile, which `cd`s into the service directory,
 discovers every test project, and passes the integration project last (it
