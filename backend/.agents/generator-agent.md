@@ -89,11 +89,27 @@ this work tears out, so citing it under "what predecessors landed" anchors the
 new HU on the model it is meant to replace. Never rely on `ready-for-agent`
 having been manually stripped to catch this — filter against the map.
 
-For each surviving predecessor, in order:
-1. Read `backend/docs/hu<NN>-context.md` if it exists (fast path — already
-   summarised)
-2. Fall back to `backend/services/<service>/README.md` if context files are
-   missing or incomplete
+**Cap the full reads to the predecessors this HU builds on.** Full-reading every
+surviving predecessor's context file is the back half of the backlog's biggest
+avoidable cost: by the late tickets a service can carry a dozen Done/In-Progress
+predecessors, so full-reading each `hu<NN>-context.md` taxes the heaviest tickets
+hardest — yet most predecessors touch a different aggregate and never inform a
+single line of this HU's derivation. Using this HU's target aggregate(s) (from
+the PRD scope resolved in step 2), classify each surviving predecessor:
+
+- **Build-on** — it landed surface this HU depends on: the same aggregate, **or**
+  a cross-aggregate seam this HU consumes (a shared base class, an auth guard, an
+  API contract, an event). Read its full context file (fast path — already
+  summarised), falling back to `backend/services/<service>/README.md` if the
+  context file is missing or incomplete.
+- **Unrelated** — it touches only aggregates this HU does not build on. Do **not**
+  full-read it; record a one-line "landed, untouched by this HU" note from its
+  state block alone.
+
+The filter is **build-on, not same-name**: when unsure whether a predecessor
+landed a seam this HU consumes, treat it as build-on and read it. A dropped
+dependency anchors the HU on a stale or incomplete model — the same failure the
+supersession filter guards against — and costs far more than one extra read.
 
 Build the "what predecessors have already landed" section from these sources
 only. Do not re-read the PRD for predecessor scope.
@@ -211,7 +227,9 @@ derivation** section. Produce all of these sections:
   each with its "Why" line, the phase that owns it, and the concrete obligation.
   If none is mandated, say so explicitly (and note any applies-where `Proxy`).
 - **What predecessors have already landed** — domain, application,
-  infrastructure/API, frontend, coverage %
+  infrastructure/API, frontend, coverage %. Full detail for the **build-on**
+  predecessors (resolution step 3); a one-line "landed, untouched by this HU"
+  note for the **unrelated** ones — do not pad them out to full detail.
 - **What this HU adds** — table of concern → new work, derived from the PRD
 - **Touched surfaces** — backend service, frontend, API contract boundary
 - **Committed phases** — empty table (no commits yet)
