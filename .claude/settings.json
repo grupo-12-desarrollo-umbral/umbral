@@ -6,7 +6,9 @@
       "Bash(dotnet test:*)",
       "Bash(dotnet ef:*)",
       "Bash(dotnet tool:*)",
-      "Bash(docker:*)"
+      "Bash(docker:*)",
+      "Bash(git:*)",
+      "Bash(gh:*)"
     ]
   },
   "sandbox": {
@@ -14,7 +16,9 @@
     "excludedCommands": [
       "make *",
       "dotnet *",
-      "docker *"
+      "docker *",
+      "git *",
+      "gh *"
     ]
   }
 }
