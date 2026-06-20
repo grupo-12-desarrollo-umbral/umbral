@@ -198,6 +198,26 @@ public sealed class MissionEndpointsTests : IClassFixture<PostgreSqlFixture>, IA
     }
 
     [Fact]
+    public async Task DeactivateMission_WhenMissionIsAlreadyInactive_ReturnsConflict()
+    {
+        AddAdministratorHeaders();
+
+        var missionId = await CreateMissionAsync("Double Deactivate Mission");
+
+        var firstResponse = await _client.DeleteAsync($"/api/missions/{missionId}");
+        firstResponse.StatusCode.Should().Be(HttpStatusCode.NoContent);
+
+        var secondResponse = await _client.DeleteAsync($"/api/missions/{missionId}");
+
+        secondResponse.StatusCode.Should().Be(HttpStatusCode.Conflict);
+
+        var problem = await secondResponse.Content.ReadFromJsonAsync<ProblemDetails>();
+        problem.Should().NotBeNull();
+        problem!.Status.Should().Be(StatusCodes.Status409Conflict);
+        problem.Title.Should().Be("Mission cannot change activation state from its current state.");
+    }
+
+    [Fact]
     public async Task MissionAuthoringEndpoints_BuildTreeExposeReadinessAndActivateReadyMission()
     {
         AddAdministratorHeaders();
@@ -307,6 +327,147 @@ public sealed class MissionEndpointsTests : IClassFixture<PostgreSqlFixture>, IA
     }
 
     [Fact]
+    public async Task MissionNodeEndpoints_UpdateAndDeleteNodes_ReturnUpdatedStructure()
+    {
+        AddAdministratorHeaders();
+
+        var missionId = await CreateMissionAsync("Node Editing Mission");
+        var (stageId, _) = await CreateTreasureHuntStructureAsync(missionId);
+        var removableStageId = await AddStageAsync(missionId, "Removable Stage", 2);
+
+        var updateStageResponse = await _client.PutAsJsonAsync(
+            $"/api/missions/{missionId}/nodes/{stageId}",
+            new
+            {
+                title = "Updated Stage",
+                sequenceOrder = 3
+            });
+        updateStageResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var missionAfterStageUpdate = await updateStageResponse.Content.ReadFromJsonAsync<MissionsEndpoints.MissionResponse>();
+        missionAfterStageUpdate.Should().NotBeNull();
+        missionAfterStageUpdate!.Stages.Single(stage => stage.Id == stageId).Title.Should().Be("Updated Stage");
+        missionAfterStageUpdate.Stages.Single(stage => stage.Id == stageId).SequenceOrder.Should().Be(3);
+
+        var deleteStageResponse = await _client.DeleteAsync($"/api/missions/{missionId}/nodes/{removableStageId}");
+        deleteStageResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var missionAfterStageDelete = await deleteStageResponse.Content.ReadFromJsonAsync<MissionsEndpoints.MissionResponse>();
+        missionAfterStageDelete.Should().NotBeNull();
+        missionAfterStageDelete!.Stages.Should().ContainSingle(stage => stage.Id == stageId);
+        missionAfterStageDelete.Stages.Should().NotContain(stage => stage.Id == removableStageId);
+    }
+
+    [Fact]
+    public async Task MissionStructureEndpoints_AssignPlayModeUpdateDeleteTargetAndUnassociateClue()
+    {
+        AddAdministratorHeaders();
+
+        var missionId = await CreateMissionAsync("Treasure Editing Mission");
+        var (stageId, substageId) = await CreateTriviaStructureAsync(missionId);
+        await AddClueAsync(missionId, stageId, substageId, "Guidance Clue", 1);
+
+        var assignPlayModeResponse = await _client.PutAsJsonAsync(
+            $"/api/missions/{missionId}/stages/{stageId}/substages/{substageId}/play-mode",
+            new
+            {
+                playMode = "TreasureHunt"
+            });
+        assignPlayModeResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var missionAfterPlayModeAssign = await assignPlayModeResponse.Content.ReadFromJsonAsync<MissionsEndpoints.MissionResponse>();
+        missionAfterPlayModeAssign.Should().NotBeNull();
+        var treasureSubstage = missionAfterPlayModeAssign!.Stages.Single().Substages.Single();
+        treasureSubstage.PlayMode.Should().Be("TreasureHunt");
+        treasureSubstage.Clues.Should().BeEmpty();
+
+        var clueId = await AddClueAsync(missionId, stageId, substageId, "Post-Switch Clue", 1);
+        var targetId = await AddTargetAsync(missionId, stageId, substageId);
+
+        var updateTargetResponse = await _client.PutAsJsonAsync(
+            $"/api/missions/{missionId}/stages/{stageId}/substages/{substageId}/targets/{targetId}",
+            new
+            {
+                name = "Updated Target",
+                qrCode = "QR-UPDATED",
+                sequenceOrder = 4,
+                isActive = false,
+                winnerScore = 50
+            });
+        updateTargetResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var missionAfterTargetUpdate = await updateTargetResponse.Content.ReadFromJsonAsync<MissionsEndpoints.MissionResponse>();
+        missionAfterTargetUpdate.Should().NotBeNull();
+        var updatedTarget = missionAfterTargetUpdate!.Stages.Single().Substages.Single().Targets.Single();
+        updatedTarget.Name.Should().Be("Updated Target");
+        updatedTarget.QrCode.Should().Be("QR-UPDATED");
+        updatedTarget.SequenceOrder.Should().Be(4);
+        updatedTarget.IsActive.Should().BeFalse();
+        missionAfterTargetUpdate.Stages.Single().Substages.Single().WinnerScore.Should().Be(50);
+
+        var associateClueResponse = await _client.PostAsJsonAsync(
+            $"/api/missions/{missionId}/stages/{stageId}/substages/{substageId}/targets/{targetId}/clue-association",
+            new
+            {
+                clueId
+            });
+        associateClueResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var unassociateClueResponse = await _client.DeleteAsync(
+            $"/api/missions/{missionId}/stages/{stageId}/substages/{substageId}/targets/{targetId}/clue-association");
+        unassociateClueResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var missionAfterClueUnassociation = await unassociateClueResponse.Content.ReadFromJsonAsync<MissionsEndpoints.MissionResponse>();
+        missionAfterClueUnassociation.Should().NotBeNull();
+        missionAfterClueUnassociation!.Stages.Single().Substages.Single().Targets.Single().ClueId.Should().BeNull();
+
+        var deleteTargetResponse = await _client.DeleteAsync(
+            $"/api/missions/{missionId}/stages/{stageId}/substages/{substageId}/targets/{targetId}");
+        deleteTargetResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var missionAfterTargetDelete = await deleteTargetResponse.Content.ReadFromJsonAsync<MissionsEndpoints.MissionResponse>();
+        missionAfterTargetDelete.Should().NotBeNull();
+        missionAfterTargetDelete!.Stages.Single().Substages.Single().Targets.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task MissionTriviaQuizSelectionEndpoints_SetAndUpdateSelection()
+    {
+        AddAdministratorHeaders();
+
+        var firstTriviaQuizId = await CreatePublishedTriviaQuizAsync("First Published Quiz");
+        var secondTriviaQuizId = await CreatePublishedTriviaQuizAsync("Second Published Quiz");
+        var missionId = await CreateMissionAsync("Trivia Selection Mission");
+        var (stageId, substageId) = await CreateTriviaStructureAsync(missionId);
+
+        var setSelectionResponse = await _client.PostAsJsonAsync(
+            $"/api/missions/{missionId}/stages/{stageId}/substages/{substageId}/trivia-quiz-selection",
+            new
+            {
+                triviaQuizId = firstTriviaQuizId
+            });
+        setSelectionResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var missionAfterSelectionSet = await setSelectionResponse.Content.ReadFromJsonAsync<MissionsEndpoints.MissionResponse>();
+        missionAfterSelectionSet.Should().NotBeNull();
+        missionAfterSelectionSet!.Stages.Single().Substages.Single().TriviaQuizSelection.Should().NotBeNull();
+        missionAfterSelectionSet.Stages.Single().Substages.Single().TriviaQuizSelection!.TriviaQuizId.Should().Be(firstTriviaQuizId);
+
+        var updateSelectionResponse = await _client.PutAsJsonAsync(
+            $"/api/missions/{missionId}/stages/{stageId}/substages/{substageId}/trivia-quiz-selection",
+            new
+            {
+                triviaQuizId = secondTriviaQuizId
+            });
+        updateSelectionResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var missionAfterSelectionUpdate = await updateSelectionResponse.Content.ReadFromJsonAsync<MissionsEndpoints.MissionResponse>();
+        missionAfterSelectionUpdate.Should().NotBeNull();
+        missionAfterSelectionUpdate!.Stages.Single().Substages.Single().TriviaQuizSelection.Should().NotBeNull();
+        missionAfterSelectionUpdate.Stages.Single().Substages.Single().TriviaQuizSelection!.TriviaQuizId.Should().Be(secondTriviaQuizId);
+    }
+
+    [Fact]
     public async Task ActivateMission_WhenRuntimePlanIsIncomplete_ReturnsBadRequest()
     {
         AddAdministratorHeaders();
@@ -349,5 +510,147 @@ public sealed class MissionEndpointsTests : IClassFixture<PostgreSqlFixture>, IA
         payload.Should().NotBeNull();
 
         return payload!.Id;
+    }
+
+    private async Task<(int StageId, int SubstageId)> CreateTreasureHuntStructureAsync(int missionId)
+    {
+        var stageId = await AddStageAsync(missionId, "Stage 1", 1);
+        var substageId = await AddSubstageAsync(missionId, stageId, "Treasure Hunt", "TreasureHunt", 1);
+
+        return (stageId, substageId);
+    }
+
+    private async Task<(int StageId, int SubstageId)> CreateTriviaStructureAsync(int missionId)
+    {
+        var stageId = await AddStageAsync(missionId, "Stage 1", 1);
+        var substageId = await AddSubstageAsync(missionId, stageId, "Trivia", "Trivia", 1);
+
+        return (stageId, substageId);
+    }
+
+    private async Task<int> AddStageAsync(int missionId, string title, int sequenceOrder)
+    {
+        var response = await _client.PostAsJsonAsync(
+            $"/api/missions/{missionId}/nodes",
+            new
+            {
+                nodeType = "Stage",
+                title,
+                sequenceOrder
+            });
+
+        response.EnsureSuccessStatusCode();
+
+        var payload = await response.Content.ReadFromJsonAsync<MissionsEndpoints.MissionResponse>();
+        payload.Should().NotBeNull();
+
+        return payload!.Stages.Single(stage => stage.Title == title).Id;
+    }
+
+    private async Task<int> AddSubstageAsync(
+        int missionId,
+        int stageId,
+        string title,
+        string playMode,
+        int sequenceOrder)
+    {
+        var response = await _client.PostAsJsonAsync(
+            $"/api/missions/{missionId}/nodes",
+            new
+            {
+                nodeType = "Substage",
+                title,
+                sequenceOrder,
+                stageId,
+                playMode
+            });
+
+        response.EnsureSuccessStatusCode();
+
+        var payload = await response.Content.ReadFromJsonAsync<MissionsEndpoints.MissionResponse>();
+        payload.Should().NotBeNull();
+
+        return payload!.Stages.Single(stage => stage.Id == stageId).Substages.Single(substage => substage.Title == title).Id;
+    }
+
+    private async Task<int> AddClueAsync(int missionId, int stageId, int substageId, string title, int sequenceOrder)
+    {
+        var response = await _client.PostAsJsonAsync(
+            $"/api/missions/{missionId}/nodes",
+            new
+            {
+                nodeType = "Clue",
+                title,
+                sequenceOrder,
+                stageId,
+                substageId,
+                clueText = "Look near the old gate."
+            });
+
+        response.EnsureSuccessStatusCode();
+
+        var payload = await response.Content.ReadFromJsonAsync<MissionsEndpoints.MissionResponse>();
+        payload.Should().NotBeNull();
+
+        return payload!.Stages.Single().Substages.Single().Clues.Single(clue => clue.Title == title).Id;
+    }
+
+    private async Task<int> AddTargetAsync(int missionId, int stageId, int substageId)
+    {
+        var response = await _client.PostAsJsonAsync(
+            $"/api/missions/{missionId}/stages/{stageId}/substages/{substageId}/targets",
+            new
+            {
+                name = "Target 1",
+                qrCode = "QR-001",
+                sequenceOrder = 1,
+                isActive = true,
+                winnerScore = 35
+            });
+
+        response.EnsureSuccessStatusCode();
+
+        var payload = await response.Content.ReadFromJsonAsync<MissionsEndpoints.MissionResponse>();
+        payload.Should().NotBeNull();
+
+        return payload!.Stages.Single().Substages.Single().Targets.Single(target => target.Name == "Target 1").Id;
+    }
+
+    private async Task<int> CreatePublishedTriviaQuizAsync(string title)
+    {
+        var createResponse = await _client.PostAsJsonAsync(
+            "/api/trivias/",
+            new
+            {
+                title,
+                description = "Trivia briefing.",
+                questions = new[]
+                {
+                    new
+                    {
+                        prompt = $"{title} question?",
+                        sequenceOrder = 1,
+                        scoreValue = 100,
+                        timeLimitSeconds = 45,
+                        explanation = "Published quiz setup.",
+                        isActive = true,
+                        options = new[]
+                        {
+                            new { optionText = "Correct", sequenceOrder = 1, isCorrect = true },
+                            new { optionText = "Incorrect", sequenceOrder = 2, isCorrect = false }
+                        }
+                    }
+                }
+            });
+
+        createResponse.EnsureSuccessStatusCode();
+
+        var payload = await createResponse.Content.ReadFromJsonAsync<TriviasEndpoints.TriviaQuizResponse>();
+        payload.Should().NotBeNull();
+
+        var publishResponse = await _client.PostAsync($"/api/trivias/{payload!.Id}/publish", content: null);
+        publishResponse.EnsureSuccessStatusCode();
+
+        return payload.Id;
     }
 }
