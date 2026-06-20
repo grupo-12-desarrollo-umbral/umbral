@@ -1,6 +1,13 @@
 'use client'
 
 import type { MissionDto } from '@/app/lib/definitions'
+import {
+  AddStageControl,
+  AddSubstageControl,
+  AddClueControl,
+  NodeRowControls,
+  nextSequenceOrder,
+} from './NodeControls'
 import styles from '../dashboard.module.css'
 
 export function MissionTree({
@@ -10,8 +17,6 @@ export function MissionTree({
   mission: MissionDto
   onMutated: (updated: MissionDto) => void
 }) {
-  void onMutated // consumed by NodeControls in 2.1
-
   return (
     <div className={styles.missionTree} data-testid="mission-tree">
       {mission.stages.length === 0 ? (
@@ -19,7 +24,18 @@ export function MissionTree({
       ) : (
         mission.stages.map((stage) => (
           <section key={stage.id} data-testid={`stage-node-${stage.id}`}>
-            <h3>{stage.title}</h3>
+            <h3>
+              {stage.title}{' '}
+              <NodeRowControls
+                missionId={mission.id}
+                nodeId={stage.id}
+                nodeKind="Stage"
+                initialTitle={stage.title}
+                initialSequenceOrder={stage.sequenceOrder}
+                onMutated={onMutated}
+              />
+            </h3>
+
             {stage.substages.map((substage) => (
               <div key={substage.id} data-testid={`substage-node-${substage.id}`}>
                 <h4>
@@ -29,7 +45,15 @@ export function MissionTree({
                   </span>
                   {substage.playMode === 'Trivia' && substage.winnerScore !== null && (
                     <span> · winnerScore {substage.winnerScore}</span>
-                  )}
+                  )}{' '}
+                  <NodeRowControls
+                    missionId={mission.id}
+                    nodeId={substage.id}
+                    nodeKind="Substage"
+                    initialTitle={substage.title}
+                    initialSequenceOrder={substage.sequenceOrder}
+                    onMutated={onMutated}
+                  />
                 </h4>
 
                 {/* TreasureHunt side-content */}
@@ -46,15 +70,46 @@ export function MissionTree({
                 <ul>
                   {substage.clues.map((clue) => (
                     <li key={clue.id} data-testid={`clue-node-${clue.id}`}>
-                      {clue.title} — {clue.text} ({clue.visibilityPolicy})
+                      {clue.title} — {clue.text} ({clue.visibilityPolicy}){' '}
+                      <NodeRowControls
+                        missionId={mission.id}
+                        nodeId={clue.id}
+                        nodeKind="Clue"
+                        initialTitle={clue.title}
+                        initialSequenceOrder={clue.sequenceOrder}
+                        initialClueText={clue.text}
+                        initialVisibility={clue.visibilityPolicy}
+                        onMutated={onMutated}
+                      />
                     </li>
                   ))}
                 </ul>
+
+                <AddClueControl
+                  missionId={mission.id}
+                  stageId={stage.id}
+                  substageId={substage.id}
+                  nextOrder={nextSequenceOrder(substage.clues)}
+                  onMutated={onMutated}
+                />
               </div>
             ))}
+
+            <AddSubstageControl
+              missionId={mission.id}
+              stageId={stage.id}
+              nextOrder={nextSequenceOrder(stage.substages)}
+              onMutated={onMutated}
+            />
           </section>
         ))
       )}
+
+      <AddStageControl
+        missionId={mission.id}
+        nextOrder={nextSequenceOrder(mission.stages)}
+        onMutated={onMutated}
+      />
     </div>
   )
 }

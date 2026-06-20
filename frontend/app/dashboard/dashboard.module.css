@@ -1498,6 +1498,22 @@ html[data-theme="dark"] .cluePreview::after {
   margin: 0.25rem 0 0.75rem 1.25rem;
 }
 
+.nodeControls {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-left: 0.5rem;
+}
+
+.inlineInput {
+  padding: 0.35rem 0.55rem;
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.15));
+  border-radius: 0.4rem;
+  background: var(--surface, rgba(255, 255, 255, 0.04));
+  color: inherit;
+  font-size: 0.85rem;
+}
+
 .missionDetailActions {
   display: flex;
   align-items: center;
