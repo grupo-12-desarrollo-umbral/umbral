@@ -496,6 +496,161 @@ public sealed class MissionEndpointsTests : IClassFixture<PostgreSqlFixture>, IA
     }
 
     [Fact]
+    public async Task GetMissionRuntimePlan_ReturnsResolvedMixedModeMissionInStrictOrder()
+    {
+        AddAdministratorHeaders();
+
+        var createTriviaResponse = await _client.PostAsJsonAsync(
+            "/api/trivias/",
+            new
+            {
+                title = "Runtime Trivia",
+                description = "Resolved quiz for runtime consumers.",
+                questions = new[]
+                {
+                    new
+                    {
+                        prompt = "Second question",
+                        sequenceOrder = 2,
+                        scoreValue = 35,
+                        timeLimitSeconds = 20,
+                        explanation = "Second explanation.",
+                        isActive = true,
+                        options = new[]
+                        {
+                            new { optionText = "Wrong", sequenceOrder = 2, isCorrect = false },
+                            new { optionText = "Right", sequenceOrder = 1, isCorrect = true }
+                        }
+                    },
+                    new
+                    {
+                        prompt = "First question",
+                        sequenceOrder = 1,
+                        scoreValue = 50,
+                        timeLimitSeconds = 30,
+                        explanation = "First explanation.",
+                        isActive = true,
+                        options = new[]
+                        {
+                            new { optionText = "First correct", sequenceOrder = 1, isCorrect = true },
+                            new { optionText = "First wrong", sequenceOrder = 2, isCorrect = false }
+                        }
+                    }
+                }
+            });
+        createTriviaResponse.EnsureSuccessStatusCode();
+
+        var createdTriviaQuiz = await createTriviaResponse.Content.ReadFromJsonAsync<TriviasEndpoints.TriviaQuizResponse>();
+        createdTriviaQuiz.Should().NotBeNull();
+
+        var publishTriviaResponse = await _client.PostAsync($"/api/trivias/{createdTriviaQuiz!.Id}/publish", content: null);
+        publishTriviaResponse.EnsureSuccessStatusCode();
+
+        var missionId = await CreateMissionAsync("Mission Runtime Plan");
+
+        var triviaStageId = await AddStageAsync(missionId, "Stage 2", 2);
+        var triviaSubstageId = await AddSubstageAsync(missionId, triviaStageId, "Trivia Round", "Trivia", 1);
+
+        var setTriviaSelectionResponse = await _client.PostAsJsonAsync(
+            $"/api/missions/{missionId}/stages/{triviaStageId}/substages/{triviaSubstageId}/trivia-quiz-selection",
+            new
+            {
+                triviaQuizId = createdTriviaQuiz.Id
+            });
+        setTriviaSelectionResponse.EnsureSuccessStatusCode();
+
+        var treasureStageId = await AddStageAsync(missionId, "Stage 1", 1);
+        var treasureSubstageId = await AddSubstageAsync(missionId, treasureStageId, "Treasure Hunt", "TreasureHunt", 1);
+
+        var addClueResponse = await _client.PostAsJsonAsync(
+            $"/api/missions/{missionId}/nodes",
+            new
+            {
+                nodeType = "Clue",
+                title = "Treasure Clue",
+                sequenceOrder = 1,
+                stageId = treasureStageId,
+                substageId = treasureSubstageId,
+                clueText = "Look beneath the arch.",
+                clueVisibilityPolicy = "VisibleWhenSubstageStarts"
+            });
+        addClueResponse.EnsureSuccessStatusCode();
+
+        var missionAfterClue = await addClueResponse.Content.ReadFromJsonAsync<MissionsEndpoints.MissionResponse>();
+        missionAfterClue.Should().NotBeNull();
+        var clueId = missionAfterClue!.Stages
+            .Single(stage => stage.Id == treasureStageId)
+            .Substages.Single(substage => substage.Id == treasureSubstageId)
+            .Clues.Single()
+            .Id;
+
+        var addTargetResponse = await _client.PostAsJsonAsync(
+            $"/api/missions/{missionId}/stages/{treasureStageId}/substages/{treasureSubstageId}/targets",
+            new
+            {
+                name = "Beacon",
+                qrCode = "QR-BEACON",
+                sequenceOrder = 1,
+                isActive = true,
+                winnerScore = 40
+            });
+        addTargetResponse.EnsureSuccessStatusCode();
+
+        var missionAfterTarget = await addTargetResponse.Content.ReadFromJsonAsync<MissionsEndpoints.MissionResponse>();
+        missionAfterTarget.Should().NotBeNull();
+        var targetId = missionAfterTarget!.Stages
+            .Single(stage => stage.Id == treasureStageId)
+            .Substages.Single(substage => substage.Id == treasureSubstageId)
+            .Targets.Single()
+            .Id;
+
+        var associateClueResponse = await _client.PostAsJsonAsync(
+            $"/api/missions/{missionId}/stages/{treasureStageId}/substages/{treasureSubstageId}/targets/{targetId}/clue-association",
+            new
+            {
+                clueId
+            });
+        associateClueResponse.EnsureSuccessStatusCode();
+
+        var activateMissionResponse = await _client.PostAsync($"/api/missions/{missionId}/activate", content: null);
+        activateMissionResponse.EnsureSuccessStatusCode();
+
+        var runtimePlanResponse = await _client.GetAsync($"/api/missions/{missionId}/runtime-plan");
+        runtimePlanResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var runtimePlan = await runtimePlanResponse.Content.ReadFromJsonAsync<MissionsEndpoints.MissionRuntimePlanResponse>();
+        runtimePlan.Should().NotBeNull();
+        runtimePlan!.Title.Should().Be("Mission Runtime Plan");
+        runtimePlan.MaximumTime.Should().Be(45);
+        runtimePlan.Stages.Should().HaveCount(2);
+
+        var treasureSubstage = runtimePlan.Stages[0].Substages.Should().ContainSingle().Which;
+        treasureSubstage.PlayMode.Should().Be("TreasureHunt");
+        treasureSubstage.WinnerScore.Should().Be(40);
+        treasureSubstage.TriviaQuestions.Should().BeEmpty();
+        treasureSubstage.Targets.Should().ContainSingle();
+        treasureSubstage.Targets[0].Name.Should().Be("Beacon");
+        treasureSubstage.Targets[0].QrCode.Should().Be("QR-BEACON");
+        treasureSubstage.Targets[0].SequenceOrder.Should().Be(1);
+        treasureSubstage.Targets[0].IsActive.Should().BeTrue();
+        treasureSubstage.Targets[0].Clue.Should().NotBeNull();
+        treasureSubstage.Targets[0].Clue!.Text.Should().Be("Look beneath the arch.");
+        treasureSubstage.Targets[0].Clue!.VisibilityPolicy.Should().Be("VisibleWhenSubstageStarts");
+
+        var triviaSubstage = runtimePlan.Stages[1].Substages.Should().ContainSingle().Which;
+        triviaSubstage.PlayMode.Should().Be("Trivia");
+        triviaSubstage.WinnerScore.Should().BeNull();
+        triviaSubstage.Targets.Should().BeEmpty();
+        triviaSubstage.TriviaQuestions.Select(question => question.Prompt).Should().Equal("First question", "Second question");
+        triviaSubstage.TriviaQuestions.Select(question => question.ScoreValue).Should().Equal(50, 35);
+        triviaSubstage.TriviaQuestions.Select(question => question.TimeLimitSeconds).Should().Equal(30, 20);
+        triviaSubstage.TriviaQuestions[0].Options.Select(option => option.OptionText).Should().Equal("First correct", "First wrong");
+        triviaSubstage.TriviaQuestions[0].Options.Select(option => option.IsCorrect).Should().Equal(true, false);
+        triviaSubstage.TriviaQuestions[1].Options.Select(option => option.OptionText).Should().Equal("Right", "Wrong");
+        triviaSubstage.TriviaQuestions[1].Options.Select(option => option.IsCorrect).Should().Equal(true, false);
+    }
+
+    [Fact]
     public async Task ActivateMission_WhenRuntimePlanIsIncomplete_ReturnsBadRequest()
     {
         AddAdministratorHeaders();

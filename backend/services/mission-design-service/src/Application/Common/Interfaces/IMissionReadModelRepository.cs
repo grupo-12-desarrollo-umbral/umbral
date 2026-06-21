@@ -7,4 +7,6 @@ public interface IMissionReadModelRepository
     Task<IReadOnlyList<MissionSummaryDto>> GetMissionCatalogAsync(CancellationToken cancellationToken);
 
     Task<MissionDto?> GetMissionDetailAsync(int missionId, CancellationToken cancellationToken);
+
+    Task<MissionRuntimePlanDto?> GetMissionRuntimePlanAsync(int missionId, CancellationToken cancellationToken);
 }

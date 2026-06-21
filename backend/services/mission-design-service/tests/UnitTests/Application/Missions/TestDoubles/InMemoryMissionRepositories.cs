@@ -54,14 +54,18 @@ internal sealed class InMemoryMissionReadModelRepository : IMissionReadModelRepo
 {
     private readonly IReadOnlyList<MissionSummaryDto> _catalog;
     private readonly Dictionary<int, MissionDto> _details;
+    private readonly Dictionary<int, MissionRuntimePlanDto> _runtimePlans;
 
     public InMemoryMissionReadModelRepository(
         IReadOnlyList<MissionSummaryDto>? catalog = null,
-        IReadOnlyDictionary<int, MissionDto>? details = null)
+        IReadOnlyDictionary<int, MissionDto>? details = null,
+        IReadOnlyDictionary<int, MissionRuntimePlanDto>? runtimePlans = null)
     {
         _catalog = catalog ?? Array.Empty<MissionSummaryDto>();
         _details = details?.ToDictionary(pair => pair.Key, pair => pair.Value)
             ?? new Dictionary<int, MissionDto>();
+        _runtimePlans = runtimePlans?.ToDictionary(pair => pair.Key, pair => pair.Value)
+            ?? new Dictionary<int, MissionRuntimePlanDto>();
     }
 
     public Task<IReadOnlyList<MissionSummaryDto>> GetMissionCatalogAsync(CancellationToken cancellationToken)
@@ -73,6 +77,12 @@ internal sealed class InMemoryMissionReadModelRepository : IMissionReadModelRepo
     {
         _details.TryGetValue(missionId, out var mission);
         return Task.FromResult(mission);
+    }
+
+    public Task<MissionRuntimePlanDto?> GetMissionRuntimePlanAsync(int missionId, CancellationToken cancellationToken)
+    {
+        _runtimePlans.TryGetValue(missionId, out var missionRuntimePlan);
+        return Task.FromResult(missionRuntimePlan);
     }
 }
 

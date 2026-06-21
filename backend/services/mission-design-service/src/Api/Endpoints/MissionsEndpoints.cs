@@ -19,6 +19,7 @@ using umbral_backend.Application.Missions.Queries.GetDifficultyCatalog;
 using umbral_backend.Application.Missions.Queries.GetMissionCatalog;
 using umbral_backend.Application.Missions.Queries.GetMissionDetail;
 using umbral_backend.Application.Missions.Queries.GetMissionReadiness;
+using umbral_backend.Application.Missions.Queries.GetMissionRuntimePlan;
 
 namespace umbral_backend.Web.Endpoints;
 
@@ -32,6 +33,7 @@ public sealed class MissionsEndpoints : IEndpointGroup
         missions.MapPost("/", CreateMission);
         missions.MapGet("/", GetMissionCatalog);
         missions.MapGet("/{id:int}", GetMissionDetail);
+        missions.MapGet("/{id:int}/runtime-plan", GetMissionRuntimePlan);
         missions.MapPut("/{id:int}", UpdateMission);
         missions.MapDelete("/{id:int}", DeactivateMission);
         missions.MapPost("/{id:int}/activate", ActivateMission);
@@ -112,6 +114,15 @@ public sealed class MissionsEndpoints : IEndpointGroup
     {
         var mission = await sender.Send(new GetMissionDetailQuery(id), cancellationToken);
         return TypedResults.Ok(MissionResponse.FromDto(mission));
+    }
+
+    private static async Task<Ok<MissionRuntimePlanResponse>> GetMissionRuntimePlan(
+        ISender sender,
+        int id,
+        CancellationToken cancellationToken)
+    {
+        var missionRuntimePlan = await sender.Send(new GetMissionRuntimePlanQuery(id), cancellationToken);
+        return TypedResults.Ok(MissionRuntimePlanResponse.FromDto(missionRuntimePlan));
     }
 
     private static async Task<Ok<MissionResponse>> UpdateMission(
@@ -557,6 +568,104 @@ public sealed class MissionsEndpoints : IEndpointGroup
                 dto.ActivationState,
                 dto.IsReady,
                 dto.Failures?.ToList() ?? []);
+        }
+    }
+
+    public sealed record MissionRuntimePlanResponse(
+        string Title,
+        int MaximumTime,
+        IReadOnlyList<MissionRuntimeStageResponse> Stages)
+    {
+        public static MissionRuntimePlanResponse FromDto(MissionRuntimePlanDto dto)
+        {
+            return new MissionRuntimePlanResponse(
+                dto.Title,
+                dto.MaximumTime,
+                dto.Stages.Select(MissionRuntimeStageResponse.FromDto).ToList());
+        }
+    }
+
+    public sealed record MissionRuntimeStageResponse(
+        IReadOnlyList<MissionRuntimeSubstageResponse> Substages)
+    {
+        public static MissionRuntimeStageResponse FromDto(MissionRuntimePlanStageDto dto)
+        {
+            return new MissionRuntimeStageResponse(
+                dto.Substages.Select(MissionRuntimeSubstageResponse.FromDto).ToList());
+        }
+    }
+
+    public sealed record MissionRuntimeSubstageResponse(
+        string PlayMode,
+        int? WinnerScore,
+        IReadOnlyList<MissionRuntimeTargetResponse> Targets,
+        IReadOnlyList<MissionRuntimeTriviaQuestionResponse> TriviaQuestions)
+    {
+        public static MissionRuntimeSubstageResponse FromDto(MissionRuntimePlanSubstageDto dto)
+        {
+            return new MissionRuntimeSubstageResponse(
+                dto.PlayMode,
+                dto.WinnerScore,
+                dto.Targets.Select(MissionRuntimeTargetResponse.FromDto).ToList(),
+                dto.TriviaQuestions.Select(MissionRuntimeTriviaQuestionResponse.FromDto).ToList());
+        }
+    }
+
+    public sealed record MissionRuntimeTargetResponse(
+        string Name,
+        string QrCode,
+        int SequenceOrder,
+        bool IsActive,
+        MissionRuntimeClueResponse? Clue)
+    {
+        public static MissionRuntimeTargetResponse FromDto(MissionRuntimePlanTargetDto dto)
+        {
+            return new MissionRuntimeTargetResponse(
+                dto.Name,
+                dto.QrCode,
+                dto.SequenceOrder,
+                dto.IsActive,
+                dto.Clue is null ? null : MissionRuntimeClueResponse.FromDto(dto.Clue));
+        }
+    }
+
+    public sealed record MissionRuntimeClueResponse(
+        string Text,
+        string VisibilityPolicy)
+    {
+        public static MissionRuntimeClueResponse FromDto(MissionRuntimePlanClueDto dto)
+        {
+            return new MissionRuntimeClueResponse(
+                dto.Text,
+                dto.VisibilityPolicy);
+        }
+    }
+
+    public sealed record MissionRuntimeTriviaQuestionResponse(
+        string Prompt,
+        IReadOnlyList<MissionRuntimeTriviaOptionResponse> Options,
+        int ScoreValue,
+        int TimeLimitSeconds)
+    {
+        public static MissionRuntimeTriviaQuestionResponse FromDto(MissionRuntimePlanTriviaQuestionDto dto)
+        {
+            return new MissionRuntimeTriviaQuestionResponse(
+                dto.Prompt,
+                dto.Options.Select(MissionRuntimeTriviaOptionResponse.FromDto).ToList(),
+                dto.ScoreValue,
+                dto.TimeLimitSeconds);
+        }
+    }
+
+    public sealed record MissionRuntimeTriviaOptionResponse(
+        string OptionText,
+        bool IsCorrect)
+    {
+        public static MissionRuntimeTriviaOptionResponse FromDto(MissionRuntimePlanTriviaOptionDto dto)
+        {
+            return new MissionRuntimeTriviaOptionResponse(
+                dto.OptionText,
+                dto.IsCorrect);
         }
     }
 }
