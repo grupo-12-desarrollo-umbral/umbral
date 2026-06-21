@@ -49,7 +49,29 @@ INTEGRATION_PROJECTS := $(shell find $(SVCDIR)/tests -maxdepth 3 -name '*Integra
 # behavioural gate, not a coverlet report).
 GATEABLE_SERVICES := $(sort $(foreach p,$(wildcard services/*/tests/IntegrationTests/*.csproj),$(word 2,$(subst /, ,$(p)))))
 
-.PHONY: help build test gate gate-all clean clean-all ef
+.PHONY: help build test gate gate-all clean clean-all clean-artifacts guard-artifacts ef
+
+# Fail fast (before any dotnet call) when this service's bin/obj are owned by
+# someone other than you — the #1 cause of the confusing NuGet "Access to the
+# path '…/obj/<guid>.tmp' is denied / Permission denied" failure. A
+# containerized `dotnet watch` dev stack (docker compose) rebuilds obj as
+# root/nobody on every file change, and a sandboxed agent (Codex bwrap) writes
+# them as nobody too; either leaves the host build unable to write. Surface the
+# exact remedy instead of a stack trace. CI is unaffected (it builds fresh as a
+# single user, so nothing is foreign-owned). See docs/codex-sandbox-setup.md.
+guard-artifacts:
+	@foreign=$$(find $(SVCDIR) -type d \( -name bin -o -name obj \) ! -user "$$(id -un)" 2>/dev/null); \
+	  if [ -n "$$foreign" ]; then \
+	    echo "✗ pre-flight: bin/obj under $(SVC) are owned by another user (not $$(id -un)):"; \
+	    printf '    %s\n' $$foreign | head -5; \
+	    echo "  Likely a containerized 'dotnet watch' dev stack or a sandboxed agent wrote them."; \
+	    echo "  Fix:  docker compose down              # if the dev stack is up (check: docker ps)"; \
+	    echo "        make -C backend clean-artifacts   # reclaim the foreign-owned trees"; \
+	    echo "  Details: backend/docs/codex-sandbox-setup.md"; \
+	    exit 1; \
+	  fi
+
+build test gate: guard-artifacts
 
 help:
 	@echo "Targets (pass SVC=<service>):"
@@ -59,7 +81,9 @@ help:
 	@echo "  gate-all  run gate for every gateable service (one report each)"
 	@echo "  clean   remove bin/obj for SVC (resets stale build artifacts)"
 	@echo "  clean-all remove bin/obj across every service"
+	@echo "  clean-artifacts reclaim stale + foreign-owned (Codex nobody:nogroup) bin/obj incl. api-gateway; uses sudo if needed"
 	@echo "  ef      dotnet ef passthrough — also pass ARGS=\"migrations add ...\""
+	@echo "  (build/test/gate pre-flight-check bin/obj ownership; foreign-owned → fail fast with the fix)"
 	@echo "  (build/test/gate echo a compact summary; full dotnet output → $(LOGDIR)/<target>-<svc>.log)"
 
 build:
@@ -131,12 +155,11 @@ gate-all:
 	if [ -n "$$failed" ]; then echo "Gate FAILED for:$$failed" >&2; exit 1; fi; \
 	echo "All gates GREEN."
 
-# Remove build artifacts so the next build/gate starts from a clean tree. The
-# hot-reload override runs `dotnet watch` as root over the bind-mounted source,
-# so its bin/obj land back here owned by root and block a later host-run gate
-# (UnauthorizedAccessException on *.deps.json). This clears the host-owned ones;
-# a root-owned remnant from the containers still needs a one-time
-# `sudo find services -type d \( -name bin -o -name obj \) -exec rm -rf {} +`.
+# Remove build artifacts so the next build/gate starts from a clean tree. This
+# is the fast recovery path when a sandboxed toolchain run leaves `bin/` or
+# `obj/` with bad ownership metadata (for example `nobody:nogroup` from a bwrap
+# user namespace) and the next host-side run refuses to rewrite them. It also
+# clears the normal host-owned trees.
 clean:
 	@find $(SVCDIR) -type d \( -name bin -o -name obj \) -prune -exec rm -rf {} + 2>/dev/null; \
 	  echo "Cleaned bin/obj under $(SVCDIR)."
@@ -144,6 +167,30 @@ clean:
 clean-all:
 	@find services -type d \( -name bin -o -name obj \) -prune -exec rm -rf {} + 2>/dev/null; \
 	  echo "Cleaned bin/obj across all services."
+
+# Cross-service recovery for poisoned/stale build artifacts. Unlike clean-all,
+# this also covers api-gateway (outside services/) AND reclaims FOREIGN-OWNED
+# trees — the nobody:nogroup bin/obj that Codex's bwrap sandbox leaves behind
+# (see docs/codex-sandbox-setup.md). Those dirs lack the write bit for the
+# current user, so a plain rm can't empty them; sudo is required, and only works
+# from a real host shell (a sandbox can't escalate — "no new privileges"). The
+# recipe escalates ONLY when such trees survive the ordinary pass, and FAILS
+# LOUDLY with the exact manual command rather than echoing a false success.
+clean-artifacts:
+	@find services api-gateway -type d \( -name bin -o -name obj \) -prune -exec rm -rf {} + 2>/dev/null; \
+	  foreign=$$(find services api-gateway -type d \( -name bin -o -name obj \) ! -user "$$(id -un)" 2>/dev/null); \
+	  if [ -n "$$foreign" ]; then \
+	    echo "Foreign-owned artifacts remain (e.g. Codex nobody:nogroup) — escalating with sudo…"; \
+	    sudo find services api-gateway -type d \( -name bin -o -name obj \) -prune -exec rm -rf {} + 2>/dev/null || true; \
+	    foreign=$$(find services api-gateway -type d \( -name bin -o -name obj \) ! -user "$$(id -un)" 2>/dev/null); \
+	  fi; \
+	  if [ -n "$$foreign" ]; then \
+	    echo "clean-artifacts FAILED — could not remove these (run from a host shell with sudo):"; \
+	    printf '  %s\n' "$$foreign"; \
+	    echo "  sudo find backend -type d \\( -name bin -o -name obj \\) -prune -exec rm -rf {} +"; \
+	    exit 1; \
+	  fi; \
+	  echo "Cleaned bin/obj across all services (and api-gateway)."
 
 ef:
 	dotnet ef $(ARGS) \
