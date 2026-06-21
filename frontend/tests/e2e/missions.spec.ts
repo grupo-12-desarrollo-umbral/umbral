@@ -167,6 +167,9 @@ test('admin can activate a runtime-ready draft mission', async ({ adminPage: pag
   await expect(page.locator('[data-testid="mission-detail-name"]')).toContainText('E2E Activatable Mission')
   await expect(page.locator('[data-testid="mission-detail-status"]')).toContainText('Draft')
 
+  // ActivationBar loads readiness asynchronously — wait for the button to be enabled.
+  await expect(page.locator('[data-testid="activate-mission-btn"]')).toBeEnabled({ timeout: 10000 })
+
   await page.click('[data-testid="activate-mission-btn"]')
 
   await expect(page.locator('[data-testid="mission-detail-status"]')).toContainText('Ready')
@@ -187,11 +190,11 @@ test('activating a mission with no runtime plan surfaces readiness errors', asyn
 
   await expect(page.locator('[data-testid="mission-detail-status"]')).toContainText('Draft')
 
-  await page.click('[data-testid="activate-mission-btn"]')
-
-  await expect(page.locator('[data-testid="activate-mission-error"]')).toBeVisible()
-  await expect(page.locator('[data-testid="activate-mission-error"]')).toContainText('at least one stage')
-  // Activation was rejected — the mission stays Draft.
+  // ActivationBar loads readiness asynchronously — wait for failures to appear.
+  await expect(page.locator('[data-testid="readiness-failure"]').first()).toBeVisible({ timeout: 10000 })
+  // Button is disabled because readiness fails.
+  await expect(page.locator('[data-testid="activate-mission-btn"]')).toBeDisabled()
+  // Mission stays Draft.
   await expect(page.locator('[data-testid="mission-detail-status"]')).toContainText('Draft')
 })
 

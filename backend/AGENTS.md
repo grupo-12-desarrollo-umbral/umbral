@@ -36,6 +36,7 @@ Run the .NET toolchain through the sandbox-hardened Makefile — never call
     make -C backend test  SVC=<service>   # run unit + integration tests
     make -C backend gate  SVC=<service>   # ADR-0005 coverage gate
     make -C backend ef    SVC=<service> ARGS="migrations add Foo"
+    make -C backend clean-artifacts SVC=<service>   # reclaim foreign-owned bin/obj if a build/test pre-flight fails
 
 The Makefile opts out of the first-run telemetry network call and disables
 MSBuild node-reuse so the build survives the agent sandbox. This host

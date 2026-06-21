@@ -40,6 +40,26 @@ public class MissionTests
     }
 
     [Fact]
+    public void RecordStructureChanged_RaisesStructureEventWithoutRevalidatingDetails()
+    {
+        var mission = Mission.Create("Mission One", "Briefing", "Advanced", 45);
+        var stage = mission.AddStage("Stage 1", 1);
+        stage.Id = 10;
+        var substage = mission.AddSubstage(stage.Id, Substage.CreateTreasureHunt("Substage 1", 1));
+        substage.Id = 20;
+        mission.AddTarget(stage.Id, substage.Id, "Target 1", "QR-1", 1);
+        mission.SetTreasureHuntWinnerScore(stage.Id, substage.Id, 25);
+        mission.Activate();
+        mission.ClearDomainEvents();
+
+        mission.RecordStructureChanged();
+
+        mission.ActivationState.Should().Be(MissionActivation.Ready);
+        mission.DomainEvents.Should().ContainSingle(e => e is MissionStructureChangedEvent);
+        mission.DomainEvents.Should().NotContain(e => e is MissionDetailsUpdatedEvent);
+    }
+
+    [Fact]
     public void Deactivate_MarksMissionInactiveAndRaisesDeactivatedEvent()
     {
         var mission = Mission.Create("Mission One", "Briefing", "Advanced", 45);

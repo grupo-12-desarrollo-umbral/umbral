@@ -63,6 +63,53 @@ Testcontainers integration tests. So:
   ever round-trips on a `docker` step (e.g. a host with a different/rootless
   socket path, or `network_access` turned off).
 
+## Known side effect: `bin/obj` owned by `nobody:nogroup`
+
+`make -C backend test SVC=…` fails with NuGet `Access to the path
+'…/obj/<guid>.tmp' is denied / Permission denied` when a service's `bin/obj`
+trees are owned by `nobody:nogroup`. They lack the write bit for "other", so
+`dotnet` as your real user can't write into them and `make clean` can't remove
+them. Two writers produce these:
+
+1. **The `docker compose` dev stack (most common — confirmed 2026-06-20).** The
+   services run as `dotnet watch run` inside `mcr.microsoft.com/dotnet/sdk`
+   containers (root) that bind-mount this source tree. On any file change the
+   watcher rebuilds `obj` as the container user → `nobody` on the host. This
+   races a host build in lockstep: `clean-artifacts` deletes `obj` → the watcher
+   instantly rebuilds it as `nobody` → your host `make test` can't write → fails
+   again seconds later. **A live `dotnet watch` stack and a host-shell build
+   cannot share the same tree.** Run `docker ps`; if `backend-*-service-1` are
+   up, `docker compose down` before host testing (the Docker *daemon* stays up,
+   so Testcontainers integration tests still work), then `docker compose up -d`
+   when you want the live services back.
+2. **Codex** (verified `codex-cli 0.141.0`) sandboxes shell commands in a
+   **bubblewrap (`bwrap`) user namespace** with no UID map back to the host, so
+   its `make`/`dotnet` writes also land as the overflow id `65534 = nobody`. The
+   Codex run itself succeeds; the breakage surfaces on the *next* host build.
+
+Neither is a write-time failure — it's a silent ownership side effect, easy to
+misdiagnose as a dotnet/make bug. (Diagnose the live writer from a real host
+shell: a `ps` from inside a CLI sandbox can't see host processes.)
+
+There is **no `excludedCommands` equivalent in Codex** (that is a Claude-only
+mechanism — see above), so `dotnet` cannot be cleanly exempted from the bwrap
+sandbox via `~/.codex/config.toml`. Until a newer `codex-cli` maps the host UID
+into the namespace, mitigate by one of:
+
+- Run backend `make build/test` from **Claude Code** (where `make`/`dotnet` are in
+  `.claude/settings.json` `sandbox.excludedCommands`, so they run as your real
+  user and produce correctly-owned artifacts), and let Codex drive edits.
+- Or reclaim the poisoned trees with `make -C backend clean-artifacts` (run from
+  a **host shell** — it escalates with `sudo` when it finds foreign-owned trees,
+  which the sandbox itself can't do; it fails loudly rather than reporting a
+  false success). Equivalent manual one-liner:
+
+  ```sh
+  sudo find backend -type d \( -name bin -o -name obj \) -prune -exec rm -rf {} +
+  ```
+
+  `dotnet` then regenerates them under your own UID on the next build.
+
 ## Notes
 
 - `on-failure` is a safety net, not a wide-open door: the worst case is one retry
