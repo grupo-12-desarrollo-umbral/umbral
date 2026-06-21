@@ -206,6 +206,12 @@ public sealed class Mission : BaseAuditableEntity
         RefreshActivationState();
     }
 
+    public void RecordStructureChanged()
+    {
+        AddDomainEvent(new MissionStructureChangedEvent(this));
+        RefreshActivationState();
+    }
+
     // ---- Activation / readiness ---------------------------------------------
 
     public void Activate()
@@ -266,8 +272,7 @@ public sealed class Mission : BaseAuditableEntity
     private void RecordStructureChange(BaseEvent nodeEvent)
     {
         AddDomainEvent(nodeEvent);
-        AddDomainEvent(new MissionStructureChangedEvent(this));
-        RefreshActivationState();
+        RecordStructureChanged();
     }
 
     private Stage FindStage(int stageId)

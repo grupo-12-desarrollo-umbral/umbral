@@ -173,11 +173,7 @@ internal static class MissionStructureEditor
 
     public static void RefreshReadiness(Mission mission)
     {
-        mission.UpdateDetails(
-            mission.Name,
-            mission.Description,
-            mission.Difficulty.Value,
-            mission.MaximumTime.Minutes);
+        mission.RecordStructureChanged();
     }
 
     public static ApplicationValidationException ValidationFailure(string propertyName, string message)

@@ -431,6 +431,34 @@ public sealed class MissionEndpointsTests : IClassFixture<PostgreSqlFixture>, IA
     }
 
     [Fact]
+    public async Task AssignPlayMode_WithLegacyDifficulty_AllowsSwitchToTrivia()
+    {
+        AddAdministratorHeaders();
+
+        var missionId = await CreateMissionAsync("Legacy Difficulty Mission");
+        var stageId = await AddStageAsync(missionId, "Stage 1", 1);
+        var substageId = await AddSubstageAsync(missionId, stageId, "Treasure Hunt", "TreasureHunt", 1);
+        await AddTargetAsync(missionId, stageId, substageId);
+        await SetMissionDifficultyAsync(missionId, "Easy");
+
+        var assignPlayModeResponse = await _client.PutAsJsonAsync(
+            $"/api/missions/{missionId}/stages/{stageId}/substages/{substageId}/play-mode",
+            new
+            {
+                playMode = "Trivia"
+            });
+        assignPlayModeResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var missionAfterPlayModeAssign = await assignPlayModeResponse.Content.ReadFromJsonAsync<MissionsEndpoints.MissionResponse>();
+        missionAfterPlayModeAssign.Should().NotBeNull();
+        var triviaSubstage = missionAfterPlayModeAssign!.Stages.Single().Substages.Single();
+        missionAfterPlayModeAssign.Difficulty.Should().Be("Easy");
+        triviaSubstage.PlayMode.Should().Be("Trivia");
+        triviaSubstage.Targets.Should().BeEmpty();
+        triviaSubstage.WinnerScore.Should().BeNull();
+    }
+
+    [Fact]
     public async Task MissionTriviaQuizSelectionEndpoints_SetAndUpdateSelection()
     {
         AddAdministratorHeaders();
@@ -652,5 +680,14 @@ public sealed class MissionEndpointsTests : IClassFixture<PostgreSqlFixture>, IA
         publishResponse.EnsureSuccessStatusCode();
 
         return payload.Id;
+    }
+
+    private async Task SetMissionDifficultyAsync(int missionId, string difficulty)
+    {
+        await using var scope = _factory.Services.CreateAsyncScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+        await dbContext.Database.ExecuteSqlInterpolatedAsync(
+            $"UPDATE \"Missions\" SET \"Difficulty\" = {difficulty} WHERE \"Id\" = {missionId};");
     }
 }
