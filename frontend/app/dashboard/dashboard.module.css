@@ -1485,19 +1485,6 @@ html[data-theme="dark"] .cluePreview::after {
   background: var(--surface-muted, rgba(255, 255, 255, 0.02));
 }
 
-.missionTree section {
-  margin-bottom: 1rem;
-}
-
-.missionTree h3,
-.missionTree h4 {
-  margin: 0.5rem 0;
-}
-
-.missionTree ul {
-  margin: 0.25rem 0 0.75rem 1.25rem;
-}
-
 .nodeControls {
   display: inline-flex;
   align-items: center;
@@ -1522,29 +1509,16 @@ html[data-theme="dark"] .cluePreview::after {
 }
 
 .substageEditor {
-  margin: 0.5rem 0 0.75rem 1rem;
+  margin: 0;
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: 0.85rem;
 }
 
 .playModeRow {
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.treasureHunt {
-  display: flex;
-  flex-direction: column;
-  gap: 0.4rem;
-}
-
-.targetRow {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
+  align-items: flex-end;
   gap: 0.5rem;
 }
 
@@ -1975,4 +1949,280 @@ html[data-theme="dark"] .cluePreview::after {
   .tableRowAccent::before {
     display: none;
   }
+}
+
+/* =========================================================================
+   HU-10A-UX: Phase 0 — mission-tree layout seam (additive only).
+   Consumed by Phase A (tree restructure), B (node forms), C (qr field).
+   Reuses existing tokens (--accent, --border-subtle, --surface-raised, …)
+   and existing classes (.chip, .inlineButton, .smallButton, .fieldLabel).
+   ========================================================================= */
+
+/* --- Stage / substage / section structure (Phase A) --- */
+.treeStage {
+  border: 1px solid var(--border-subtle);
+  border-radius: 0.85rem;
+  background: color-mix(in oklab, var(--surface-raised) 55%, transparent);
+  padding: 1rem 1.15rem;
+  margin-bottom: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.treeStageHead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.treeEyebrow {
+  display: block;
+  color: var(--text-muted);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.treeNodeTitle {
+  margin: 0.1rem 0 0;
+  font-size: 1.1rem;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  font-weight: 650;
+}
+
+.treeActions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.treeSubstageRail {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-left: 0.4rem;
+  padding-left: 0.95rem;
+  border-left: 2px solid color-mix(in oklab, var(--accent) 35%, var(--border-subtle));
+}
+
+.treeSubstage {
+  border: 1px solid var(--border-subtle);
+  border-radius: 0.7rem;
+  background: color-mix(in oklab, var(--surface-raised) 35%, transparent);
+  padding: 0.8rem 0.9rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+}
+
+.treeSubstageHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.treeSubstageTitleGroup {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  flex-wrap: wrap;
+}
+
+.treeSection {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.treeSectionLabel {
+  display: block;
+  color: var(--text-muted);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.treeClue {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  padding: 0.4rem 0.55rem;
+  border-radius: 0.5rem;
+  background: color-mix(in oklab, var(--surface-raised) 28%, transparent);
+}
+
+.treeClueTitle {
+  font-weight: 600;
+}
+
+.treeClueText {
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+}
+
+.treeEmpty {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  font-style: italic;
+}
+
+.treeAddRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+
+/* --- Contained add/edit forms (Phase B & C) --- */
+.nodeForm {
+  border: 1px solid var(--border-subtle);
+  border-radius: 0.6rem;
+  background: color-mix(in oklab, var(--surface-raised) 45%, transparent);
+  padding: 0.8rem 0.9rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.nodeFormGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+  gap: 0.75rem;
+}
+
+.nodeField {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.nodeFormActions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+/* --- QR field + preview add-on (Phase C) --- */
+.qrField {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  grid-column: 1 / -1;
+}
+
+.qrInputRow {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.qrInputRow .inlineInput {
+  flex: 1 1 12rem;
+}
+
+.qrHelp {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  line-height: 1.4;
+}
+
+.qrPreviewToggle {
+  align-self: flex-start;
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--accent-strong);
+  font-size: 0.82rem;
+  font-weight: 600;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.qrPreviewToggle:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.qrPreview {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.85rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: 0.6rem;
+  background: var(--surface-raised);
+  width: fit-content;
+}
+
+.qrPreviewCode {
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: 0.85rem;
+  letter-spacing: 0.04em;
+  color: var(--text-secondary);
+}
+
+.qrPreviewChip {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 8rem;
+  min-height: 8rem;
+  padding: 1rem;
+  border: 2px dashed var(--border-subtle);
+  border-radius: 0.5rem;
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: 1.05rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-align: center;
+  word-break: break-all;
+  color: var(--text-primary);
+}
+
+/* HU-10A-UX: Phase A — accent chip tone for the Trivia play-mode badge. */
+.chip[data-tone="accent"] {
+  color: color-mix(in oklab, var(--accent) 70%, var(--text-primary));
+  border-color: color-mix(in oklab, var(--accent) 32%, var(--border-subtle));
+  background: color-mix(in oklab, var(--accent) 12%, transparent);
+}
+
+/* HU-10A-UX: target rows mirror .treeClue — clean info/actions split, QR preview drops below. */
+.treeTarget {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.4rem 0.55rem;
+  border-radius: 0.5rem;
+  background: color-mix(in oklab, var(--surface-raised) 28%, transparent);
+}
+
+.treeTargetMain {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.treeTargetInfo {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.55rem;
+  flex-wrap: wrap;
 }

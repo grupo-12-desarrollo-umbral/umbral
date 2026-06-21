@@ -7,12 +7,12 @@ import {
   updateMissionNode,
   removeMissionNode,
 } from '@/app/actions/mission-structure'
+import {
+  CLUE_VISIBILITY_POLICIES,
+  clueVisibilityLabel,
+  type ClueVisibility,
+} from './labels'
 import styles from '../dashboard.module.css'
-
-// Backend enum (Domain/Enums/ClueVisibilityPolicy.cs) — sent as the string name and
-// parsed with Enum.Parse on the server. The UI never invents values outside this set.
-const CLUE_VISIBILITY_POLICIES = ['VisibleWhenSubstageStarts', 'HiddenUntilOperatorRelease'] as const
-type ClueVisibility = (typeof CLUE_VISIBILITY_POLICIES)[number]
 
 type OnMutated = (updated: MissionDto) => void
 
@@ -101,50 +101,65 @@ function AddNodeControl({
     )
   }
 
+  const titleLabel = isClue ? 'Clue title' : `${nodeType} title`
+
   return (
-    <div className={styles.confirmRow}>
-      <input
-        className={styles.inlineInput}
-        data-testid="node-title-input"
-        value={title}
-        onChange={(e) => setTitle(e.target.value)}
-        placeholder={`${nodeType} title`}
-      />
-      {isClue && (
-        <>
+    <div className={styles.nodeForm}>
+      <div className={styles.nodeFormGrid}>
+        <label className={styles.nodeField}>
+          <span className={styles.fieldLabel}>{titleLabel}</span>
           <input
             className={styles.inlineInput}
-            data-testid="clue-text-input"
-            value={clueText}
-            onChange={(e) => setClueText(e.target.value)}
-            placeholder="Clue text"
+            data-testid="node-title-input"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder={titleLabel}
           />
-          <select
-            className={styles.inlineInput}
-            data-testid="clue-visibility-input"
-            value={visibility}
-            onChange={(e) => setVisibility(e.target.value as ClueVisibility)}
-          >
-            {CLUE_VISIBILITY_POLICIES.map((p) => (
-              <option key={p} value={p}>
-                {p}
-              </option>
-            ))}
-          </select>
-        </>
-      )}
-      <button
-        className={styles.smallButton}
-        data-testid={confirmTestId}
-        disabled={isPending || title.trim() === ''}
-        onClick={submit}
-        type="button"
-      >
-        Save
-      </button>
-      <button className={styles.inlineButton} disabled={isPending} onClick={reset} type="button">
-        Cancel
-      </button>
+        </label>
+        {isClue && (
+          <>
+            <label className={styles.nodeField}>
+              <span className={styles.fieldLabel}>Clue text</span>
+              <input
+                className={styles.inlineInput}
+                data-testid="clue-text-input"
+                value={clueText}
+                onChange={(e) => setClueText(e.target.value)}
+                placeholder="Clue text"
+              />
+            </label>
+            <label className={styles.nodeField}>
+              <span className={styles.fieldLabel}>Clue visibility</span>
+              <select
+                className={styles.inlineInput}
+                data-testid="clue-visibility-input"
+                value={visibility}
+                onChange={(e) => setVisibility(e.target.value as ClueVisibility)}
+              >
+                {CLUE_VISIBILITY_POLICIES.map((p) => (
+                  <option key={p} value={p}>
+                    {clueVisibilityLabel(p)}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </>
+        )}
+      </div>
+      <div className={styles.nodeFormActions}>
+        <button
+          className={styles.smallButton}
+          data-testid={confirmTestId}
+          disabled={isPending || title.trim() === ''}
+          onClick={submit}
+          type="button"
+        >
+          Save
+        </button>
+        <button className={styles.inlineButton} disabled={isPending} onClick={reset} type="button">
+          Cancel
+        </button>
+      </div>
       {error && (
         <p className={styles.formError} role="alert" data-testid="node-error">
           {error}
@@ -304,69 +319,85 @@ export function NodeRowControls({
 
   if (editing) {
     return (
-      <span className={styles.confirmRow}>
-        <input
-          className={styles.inlineInput}
-          data-testid="node-title-input"
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          placeholder="Title"
-        />
-        <input
-          className={styles.inlineInput}
-          data-testid="node-sequence-input"
-          type="number"
-          value={sequenceOrder}
-          onChange={(e) => setSequenceOrder(e.target.value)}
-        />
-        {isClue && (
-          <>
+      <div className={styles.nodeForm}>
+        <div className={styles.nodeFormGrid}>
+          <label className={styles.nodeField}>
+            <span className={styles.fieldLabel}>{isClue ? 'Clue title' : 'Title'}</span>
             <input
               className={styles.inlineInput}
-              data-testid="clue-text-input"
-              value={clueText}
-              onChange={(e) => setClueText(e.target.value)}
-              placeholder="Clue text"
+              data-testid="node-title-input"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="Title"
             />
-            <select
+          </label>
+          <label className={styles.nodeField}>
+            <span className={styles.fieldLabel}>Order</span>
+            <input
               className={styles.inlineInput}
-              data-testid="clue-visibility-input"
-              value={visibility}
-              onChange={(e) => setVisibility(e.target.value as ClueVisibility)}
-            >
-              {CLUE_VISIBILITY_POLICIES.map((p) => (
-                <option key={p} value={p}>
-                  {p}
-                </option>
-              ))}
-            </select>
-          </>
-        )}
-        <button
-          className={styles.smallButton}
-          disabled={isPending || title.trim() === ''}
-          onClick={saveEdit}
-          type="button"
-        >
-          Save
-        </button>
-        <button
-          className={styles.inlineButton}
-          disabled={isPending}
-          onClick={() => {
-            setEditing(false)
-            setError(null)
-          }}
-          type="button"
-        >
-          Cancel
-        </button>
+              data-testid="node-sequence-input"
+              type="number"
+              value={sequenceOrder}
+              onChange={(e) => setSequenceOrder(e.target.value)}
+            />
+          </label>
+          {isClue && (
+            <>
+              <label className={styles.nodeField}>
+                <span className={styles.fieldLabel}>Clue text</span>
+                <input
+                  className={styles.inlineInput}
+                  data-testid="clue-text-input"
+                  value={clueText}
+                  onChange={(e) => setClueText(e.target.value)}
+                  placeholder="Clue text"
+                />
+              </label>
+              <label className={styles.nodeField}>
+                <span className={styles.fieldLabel}>Clue visibility</span>
+                <select
+                  className={styles.inlineInput}
+                  data-testid="clue-visibility-input"
+                  value={visibility}
+                  onChange={(e) => setVisibility(e.target.value as ClueVisibility)}
+                >
+                  {CLUE_VISIBILITY_POLICIES.map((p) => (
+                    <option key={p} value={p}>
+                      {clueVisibilityLabel(p)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </>
+          )}
+        </div>
+        <div className={styles.nodeFormActions}>
+          <button
+            className={styles.smallButton}
+            disabled={isPending || title.trim() === ''}
+            onClick={saveEdit}
+            type="button"
+          >
+            Save
+          </button>
+          <button
+            className={styles.inlineButton}
+            disabled={isPending}
+            onClick={() => {
+              setEditing(false)
+              setError(null)
+            }}
+            type="button"
+          >
+            Cancel
+          </button>
+        </div>
         {error && (
           <p className={styles.formError} role="alert" data-testid="node-error">
             {error}
           </p>
         )}
-      </span>
+      </div>
     )
   }
 

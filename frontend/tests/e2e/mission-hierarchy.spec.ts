@@ -70,12 +70,14 @@ async function setPlayMode(
   targetMode: string,
 ) {
   const badge = page.locator(`[data-testid="substage-playmode-${substageId}"]`)
-  const currentMode = (await badge.innerText()).trim()
+  // The badge shows a friendly label ("Treasure Hunt"/"Trivia") but carries the raw
+  // enum token on data-playmode — assert against the attribute, not the visible text.
+  const currentMode = await badge.getAttribute('data-playmode')
   if (currentMode === targetMode) return
   await page.selectOption(`[data-testid="playmode-select-${substageId}"]`, targetMode)
   await expect(page.locator('[data-testid="playmode-switch-warning"]')).toBeVisible()
   await page.locator('button:has-text("Confirm switch")').click()
-  await expect(badge).toContainText(targetMode, { timeout: 5000 })
+  await expect(badge).toHaveAttribute('data-playmode', targetMode, { timeout: 5000 })
 }
 
 async function addTarget(
@@ -188,7 +190,7 @@ test('switching play mode warns the other mode content is discarded', async ({ a
   await page.locator('button:has-text("Cancel")').last().click()
   await expect(page.locator('[data-testid="playmode-switch-warning"]')).toHaveCount(0)
   // Mode should still be TreasureHunt
-  await expect(page.locator(`[data-testid="substage-playmode-${substageId}"]`)).toContainText('TreasureHunt')
+  await expect(page.locator(`[data-testid="substage-playmode-${substageId}"]`)).toHaveAttribute('data-playmode', 'TreasureHunt')
 })
 
 // ---------------------------------------------------------------------------

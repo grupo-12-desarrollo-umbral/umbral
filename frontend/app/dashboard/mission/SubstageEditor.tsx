@@ -14,10 +14,15 @@ import {
 } from '@/app/actions/mission-structure'
 import { getTriviaQuizzes } from '@/app/actions/trivias'
 import { nextSequenceOrder } from './NodeControls'
+import { QrPreview } from './QrPreview'
+import {
+  PLAY_MODES,
+  PLAY_MODE_LABELS,
+  TARGET_QR_HELP,
+  generateTargetQrCode,
+  type PlayMode,
+} from './labels'
 import styles from '../dashboard.module.css'
-
-const PLAY_MODES = ['TreasureHunt', 'Trivia'] as const
-type PlayMode = (typeof PLAY_MODES)[number]
 
 type OnMutated = (updated: MissionDto) => void
 
@@ -42,34 +47,44 @@ export function SubstageEditor({
       />
 
       {substage.playMode === 'TreasureHunt' && (
-        <div className={styles.treasureHunt}>
-          {substage.targets.map((target) => (
-            <TargetRow
-              key={target.id}
+        <div className={styles.treeSection}>
+          <span className={styles.treeSectionLabel}>Targets</span>
+          {substage.targets.length === 0 ? (
+            <p className={styles.treeEmpty}>No targets yet.</p>
+          ) : (
+            substage.targets.map((target) => (
+              <TargetRow
+                key={target.id}
+                missionId={missionId}
+                stageId={stageId}
+                substage={substage}
+                target={target}
+                onMutated={onMutated}
+              />
+            ))
+          )}
+          <div className={styles.treeAddRow}>
+            <AddTargetControl
               missionId={missionId}
               stageId={stageId}
-              substage={substage}
-              target={target}
+              substageId={substage.id}
+              nextOrder={nextSequenceOrder(substage.targets)}
               onMutated={onMutated}
             />
-          ))}
-          <AddTargetControl
-            missionId={missionId}
-            stageId={stageId}
-            substageId={substage.id}
-            nextOrder={nextSequenceOrder(substage.targets)}
-            onMutated={onMutated}
-          />
+          </div>
         </div>
       )}
 
       {substage.playMode === 'Trivia' && (
-        <TriviaSelectionControl
-          missionId={missionId}
-          stageId={stageId}
-          substage={substage}
-          onMutated={onMutated}
-        />
+        <div className={styles.treeSection}>
+          <span className={styles.treeSectionLabel}>Trivia quiz</span>
+          <TriviaSelectionControl
+            missionId={missionId}
+            stageId={stageId}
+            substage={substage}
+            onMutated={onMutated}
+          />
+        </div>
       )}
     </div>
   )
@@ -137,8 +152,8 @@ function TriviaSelectionControl({
 
   return (
     <div className={styles.playModeRow}>
-      <label>
-        Trivia quiz{' '}
+      <label className={styles.nodeField}>
+        <span className={styles.fieldLabel}>Quiz</span>
         <select
           className={styles.inlineInput}
           data-testid={`trivia-quiz-select-${substage.id}`}
@@ -164,7 +179,11 @@ function TriviaSelectionControl({
         {current === null ? 'Select quiz' : 'Change quiz'}
       </button>
 
-      {current !== null && <span> · selected quiz #{current}</span>}
+      {current !== null && (
+        <span>
+          Selected: {quizzes?.find((q) => q.id === current)?.title ?? `#${current}`}
+        </span>
+      )}
 
       {loadError && (
         <p className={styles.formError} role="alert" data-testid="node-error">
@@ -225,8 +244,8 @@ function PlayModeControl({
 
   return (
     <div className={styles.playModeRow}>
-      <label>
-        Play mode{' '}
+      <label className={styles.nodeField}>
+        <span className={styles.fieldLabel}>Play mode</span>
         <select
           className={styles.inlineInput}
           data-testid={`playmode-select-${substage.id}`}
@@ -236,7 +255,7 @@ function PlayModeControl({
         >
           {PLAY_MODES.map((m) => (
             <option key={m} value={m}>
-              {m}
+              {PLAY_MODE_LABELS[m]}
             </option>
           ))}
         </select>
@@ -245,8 +264,8 @@ function PlayModeControl({
       {pending !== null && (
         <span className={styles.confirmRow}>
           <span role="alert" data-testid="playmode-switch-warning">
-            Switching to {pending} discards the other mode&rsquo;s content (targets, clue
-            associations, trivia selection, and winner score).
+            Switching to {PLAY_MODE_LABELS[pending]} discards the other mode&rsquo;s content
+            (targets, clue associations, trivia selection, and winner score).
           </span>
           <button
             className={styles.dangerButton}
@@ -352,49 +371,75 @@ function AddTargetControl({
   }
 
   return (
-    <div className={styles.confirmRow}>
-      <input
-        className={styles.inlineInput}
-        data-testid="target-name-input"
-        value={name}
-        onChange={(e) => setName(e.target.value)}
-        placeholder="Target name"
-      />
-      <input
-        className={styles.inlineInput}
-        data-testid="target-qrcode-input"
-        value={qrCode}
-        onChange={(e) => setQrCode(e.target.value)}
-        placeholder="QR code"
-      />
-      <input
-        className={styles.inlineInput}
-        data-testid="target-winnerscore-input"
-        type="number"
-        value={winnerScore}
-        onChange={(e) => setWinnerScore(e.target.value)}
-        placeholder="Winner score (optional)"
-      />
-      <label className={styles.inlineCheck}>
-        <input
-          data-testid="target-active-input"
-          type="checkbox"
-          checked={isActive}
-          onChange={(e) => setIsActive(e.target.checked)}
-        />{' '}
-        Active
-      </label>
-      <button
-        className={styles.smallButton}
-        disabled={isPending || name.trim() === '' || qrCode.trim() === ''}
-        onClick={submit}
-        type="button"
-      >
-        Save
-      </button>
-      <button className={styles.inlineButton} disabled={isPending} onClick={reset} type="button">
-        Cancel
-      </button>
+    <div className={styles.nodeForm}>
+      <div className={styles.nodeFormGrid}>
+        <label className={styles.nodeField}>
+          <span className={styles.fieldLabel}>Target name</span>
+          <input
+            className={styles.inlineInput}
+            data-testid="target-name-input"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Target name"
+          />
+        </label>
+        <label className={styles.nodeField}>
+          <span className={styles.fieldLabel}>Winner score (optional)</span>
+          <input
+            className={styles.inlineInput}
+            data-testid="target-winnerscore-input"
+            type="number"
+            value={winnerScore}
+            onChange={(e) => setWinnerScore(e.target.value)}
+            placeholder="Winner score (optional)"
+          />
+        </label>
+        <label className={styles.inlineCheck}>
+          <input
+            data-testid="target-active-input"
+            type="checkbox"
+            checked={isActive}
+            onChange={(e) => setIsActive(e.target.checked)}
+          />{' '}
+          Active
+        </label>
+        <div className={styles.qrField}>
+          <span className={styles.fieldLabel}>QR code</span>
+          <div className={styles.qrInputRow}>
+            <input
+              className={styles.inlineInput}
+              data-testid="target-qrcode-input"
+              value={qrCode}
+              onChange={(e) => setQrCode(e.target.value)}
+              placeholder="QR code"
+            />
+            <button
+              className={styles.smallButton}
+              data-testid="generate-qr-btn-new"
+              disabled={isPending}
+              onClick={() => setQrCode(generateTargetQrCode())}
+              type="button"
+            >
+              Generate
+            </button>
+          </div>
+          <p className={styles.qrHelp}>{TARGET_QR_HELP}</p>
+          <QrPreview code={qrCode} testId="qr-preview-new" />
+        </div>
+      </div>
+      <div className={styles.nodeFormActions}>
+        <button
+          className={styles.smallButton}
+          disabled={isPending || name.trim() === '' || qrCode.trim() === ''}
+          onClick={submit}
+          type="button"
+        >
+          Save
+        </button>
+        <button className={styles.inlineButton} disabled={isPending} onClick={reset} type="button">
+          Cancel
+        </button>
+      </div>
       {error && (
         <p className={styles.formError} role="alert" data-testid="node-error">
           {error}
@@ -502,56 +547,82 @@ function TargetRow({
 
   if (editing) {
     return (
-      <div className={styles.confirmRow} data-testid={`target-node-${target.id}`}>
-        <input
-          className={styles.inlineInput}
-          data-testid="target-name-input"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="Target name"
-        />
-        <input
-          className={styles.inlineInput}
-          data-testid="target-qrcode-input"
-          value={qrCode}
-          onChange={(e) => setQrCode(e.target.value)}
-          placeholder="QR code"
-        />
-        <input
-          className={styles.inlineInput}
-          data-testid="target-sequence-input"
-          type="number"
-          value={sequenceOrder}
-          onChange={(e) => setSequenceOrder(e.target.value)}
-        />
-        <label className={styles.inlineCheck}>
-          <input
-            data-testid="target-active-input"
-            type="checkbox"
-            checked={isActive}
-            onChange={(e) => setIsActive(e.target.checked)}
-          />{' '}
-          Active
-        </label>
-        <button
-          className={styles.smallButton}
-          disabled={isPending || name.trim() === '' || qrCode.trim() === ''}
-          onClick={saveEdit}
-          type="button"
-        >
-          Save
-        </button>
-        <button
-          className={styles.inlineButton}
-          disabled={isPending}
-          onClick={() => {
-            setEditing(false)
-            setError(null)
-          }}
-          type="button"
-        >
-          Cancel
-        </button>
+      <div className={styles.nodeForm} data-testid={`target-node-${target.id}`}>
+        <div className={styles.nodeFormGrid}>
+          <label className={styles.nodeField}>
+            <span className={styles.fieldLabel}>Target name</span>
+            <input
+              className={styles.inlineInput}
+              data-testid="target-name-input"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Target name"
+            />
+          </label>
+          <label className={styles.nodeField}>
+            <span className={styles.fieldLabel}>Order</span>
+            <input
+              className={styles.inlineInput}
+              data-testid="target-sequence-input"
+              type="number"
+              value={sequenceOrder}
+              onChange={(e) => setSequenceOrder(e.target.value)}
+            />
+          </label>
+          <label className={styles.inlineCheck}>
+            <input
+              data-testid="target-active-input"
+              type="checkbox"
+              checked={isActive}
+              onChange={(e) => setIsActive(e.target.checked)}
+            />{' '}
+            Active
+          </label>
+          <div className={styles.qrField}>
+            <span className={styles.fieldLabel}>QR code</span>
+            <div className={styles.qrInputRow}>
+              <input
+                className={styles.inlineInput}
+                data-testid="target-qrcode-input"
+                value={qrCode}
+                onChange={(e) => setQrCode(e.target.value)}
+                placeholder="QR code"
+              />
+              <button
+                className={styles.smallButton}
+                data-testid={`generate-qr-btn-${target.id}`}
+                disabled={isPending}
+                onClick={() => setQrCode(generateTargetQrCode())}
+                type="button"
+              >
+                Generate
+              </button>
+            </div>
+            <p className={styles.qrHelp}>{TARGET_QR_HELP}</p>
+            <QrPreview code={qrCode} testId={`qr-preview-${target.id}`} />
+          </div>
+        </div>
+        <div className={styles.nodeFormActions}>
+          <button
+            className={styles.smallButton}
+            disabled={isPending || name.trim() === '' || qrCode.trim() === ''}
+            onClick={saveEdit}
+            type="button"
+          >
+            Save
+          </button>
+          <button
+            className={styles.inlineButton}
+            disabled={isPending}
+            onClick={() => {
+              setEditing(false)
+              setError(null)
+            }}
+            type="button"
+          >
+            Cancel
+          </button>
+        </div>
         {error && (
           <p className={styles.formError} role="alert" data-testid="node-error">
             {error}
@@ -561,15 +632,31 @@ function TargetRow({
     )
   }
 
-  return (
-    <div className={styles.targetRow} data-testid={`target-node-${target.id}`}>
-      <span>
-        {target.name} · {target.qrCode}
-        {!target.isActive && <span> · inactive</span>}
-        {target.clueId !== null && <span> · clue #{target.clueId}</span>}
-      </span>
+  const associatedClueTitle =
+    target.clueId !== null
+      ? substage.clues.find((c) => c.id === target.clueId)?.title ?? null
+      : null
 
-      <span className={styles.nodeControls}>
+  return (
+    <div className={styles.treeTarget} data-testid={`target-node-${target.id}`}>
+      <div className={styles.treeTargetMain}>
+        <span className={styles.treeTargetInfo}>
+          <span className={styles.treeClueTitle}>{target.name}</span>
+          <span className={styles.qrPreviewCode}>{target.qrCode}</span>
+          {!target.isActive && (
+            <span className={styles.chip} data-tone="muted">
+              Inactive
+            </span>
+          )}
+          {target.clueId !== null && (
+            <span className={styles.treeClueText}>
+              clue #{target.clueId}
+              {associatedClueTitle ? ` — ${associatedClueTitle}` : ''}
+            </span>
+          )}
+        </span>
+
+        <span className={styles.nodeControls}>
         <button
           className={styles.inlineButton}
           data-testid={`edit-target-btn-${target.id}`}
@@ -653,7 +740,10 @@ function TargetRow({
             </button>
           </>
         )}
-      </span>
+        </span>
+      </div>
+
+      <QrPreview code={target.qrCode} testId={`qr-preview-${target.id}`} />
 
       {error && (
         <p className={styles.formError} role="alert" data-testid="node-error">
