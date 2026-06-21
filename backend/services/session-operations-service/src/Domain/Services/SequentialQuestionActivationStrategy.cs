@@ -8,38 +8,29 @@ public sealed class SequentialQuestionActivationStrategy : IQuestionActivationSt
     {
         ArgumentNullException.ThrowIfNull(session);
 
-        if (session.TriviaSnapshot is null)
-        {
-            return null;
-        }
+        // Indices are positions into the questions ordered by SequenceOrder — the same
+        // ordering every consumer applies (LiveSession.ActivateQuestion,
+        // SessionTimerSnapshotDtoFactory, TriviaRoundOrchestratorFacade). ActiveQuestionIndex
+        // therefore stores an ordered position, not a position in the stored collection.
+        var questionCount = session.MissionRuntimeSnapshot.TriviaQuestionSnapshots.Count;
 
-        var orderedQuestions = session.TriviaSnapshot.Questions
-            .Select((Question, Index) => new QuestionOrder(Index, Question.SequenceOrder))
-            .OrderBy(question => question.SequenceOrder)
-            .ThenBy(question => question.Index)
-            .ToArray();
-
-        if (orderedQuestions.Length == 0)
+        if (questionCount == 0)
         {
             return null;
         }
 
         if (session.ActiveQuestionIndex is null)
         {
-            return orderedQuestions[0].Index;
+            return 0;
         }
 
-        var currentPosition = Array.FindIndex(
-            orderedQuestions,
-            question => question.Index == session.ActiveQuestionIndex.Value);
+        var currentPosition = session.ActiveQuestionIndex.Value;
 
-        if (currentPosition < 0 || currentPosition == orderedQuestions.Length - 1)
+        if (currentPosition < 0 || currentPosition >= questionCount - 1)
         {
             return null;
         }
 
-        return orderedQuestions[currentPosition + 1].Index;
+        return currentPosition + 1;
     }
-
-    private readonly record struct QuestionOrder(int Index, int SequenceOrder);
 }

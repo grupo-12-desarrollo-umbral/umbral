@@ -55,15 +55,15 @@ public static class DependencyInjection
             client.Timeout = TimeSpan.FromSeconds(10);
         });
 
-        builder.Services.Configure<PublishedTriviaQuizSourceOptions>(
-            builder.Configuration.GetSection(PublishedTriviaQuizSourceOptions.SectionName));
+        builder.Services.Configure<MissionRuntimeSourceOptions>(
+            builder.Configuration.GetSection(MissionRuntimeSourceOptions.SectionName));
 
         var missionDesignBaseAddress = builder.Configuration
-            .GetSection(PublishedTriviaQuizSourceOptions.SectionName)
-            .GetValue<string>(nameof(PublishedTriviaQuizSourceOptions.BaseAddress))
-            ?? new PublishedTriviaQuizSourceOptions().BaseAddress;
+            .GetSection(MissionRuntimeSourceOptions.SectionName)
+            .GetValue<string>(nameof(MissionRuntimeSourceOptions.BaseAddress))
+            ?? new MissionRuntimeSourceOptions().BaseAddress;
 
-        builder.Services.AddHttpClient<IPublishedTriviaQuizSource, PublishedTriviaQuizSource>(client =>
+        builder.Services.AddHttpClient<IMissionRuntimeSource, MissionRuntimeSource>(client =>
         {
             client.BaseAddress = new Uri(missionDesignBaseAddress);
             client.Timeout = TimeSpan.FromSeconds(10);

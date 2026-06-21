@@ -22,9 +22,9 @@ public sealed class SessionOperationsApiWebApplicationFactory : WebApplicationFa
 
     public FakeAssignableSessionOperatorAccessClient AssignableSessionOperatorAccessClient { get; } = new();
 
-    public FakePublishedTriviaQuizSource TriviaQuizSource { get; } = new();
-
     public FakeMissionReadinessSource MissionReadinessSource { get; } = new();
+
+    public FakeMissionRuntimeSource MissionRuntimeSource { get; } = new();
 
     public FakeAuthenticatedActorProfileAccessClient AuthenticatedActorProfileAccessClient { get; } = new();
 
@@ -48,10 +48,10 @@ public sealed class SessionOperationsApiWebApplicationFactory : WebApplicationFa
             services.AddScoped<ITeamReferenceCatalogClient>(_ => TeamCatalogClient);
             services.RemoveAll<ISessionTeamAssociationSyncClient>();
             services.AddScoped<ISessionTeamAssociationSyncClient>(_ => SessionTeamAssociationSyncClient);
-            services.RemoveAll<IPublishedTriviaQuizSource>();
-            services.AddScoped<IPublishedTriviaQuizSource>(_ => TriviaQuizSource);
             services.RemoveAll<IMissionReadinessSource>();
             services.AddScoped<IMissionReadinessSource>(_ => MissionReadinessSource);
+            services.RemoveAll<IMissionRuntimeSource>();
+            services.AddScoped<IMissionRuntimeSource>(_ => MissionRuntimeSource);
         });
     }
 

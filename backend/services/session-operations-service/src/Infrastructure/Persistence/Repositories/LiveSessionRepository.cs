@@ -22,8 +22,13 @@ public sealed class LiveSessionRepository : ILiveSessionRepository
                 .ThenInclude(team => team.Members)
             .Include(session => session.Participants)
             .Include(session => session.JoinContexts)
-            .Include(session => session.TriviaSnapshot!)
-                .ThenInclude(snapshot => snapshot.Questions)
+            .Include(session => session.MissionRuntimeSnapshot)
+                .ThenInclude(snapshot => snapshot.StageSnapshots)
+                    .ThenInclude(stage => stage.SubstageSnapshots)
+            .Include(session => session.MissionRuntimeSnapshot)
+                .ThenInclude(snapshot => snapshot.TargetSnapshots)
+            .Include(session => session.MissionRuntimeSnapshot)
+                .ThenInclude(snapshot => snapshot.TriviaQuestionSnapshots)
                     .ThenInclude(question => question.Options)
             .AsSplitQuery()
             .SingleOrDefaultAsync(session => session.LiveSessionId == liveSessionId, cancellationToken);
@@ -38,8 +43,13 @@ public sealed class LiveSessionRepository : ILiveSessionRepository
                 .ThenInclude(team => team.Members)
             .Include(session => session.Participants)
             .Include(session => session.JoinContexts)
-            .Include(session => session.TriviaSnapshot!)
-                .ThenInclude(snapshot => snapshot.Questions)
+            .Include(session => session.MissionRuntimeSnapshot)
+                .ThenInclude(snapshot => snapshot.StageSnapshots)
+                    .ThenInclude(stage => stage.SubstageSnapshots)
+            .Include(session => session.MissionRuntimeSnapshot)
+                .ThenInclude(snapshot => snapshot.TargetSnapshots)
+            .Include(session => session.MissionRuntimeSnapshot)
+                .ThenInclude(snapshot => snapshot.TriviaQuestionSnapshots)
                     .ThenInclude(question => question.Options)
             .AsSplitQuery()
             .SingleOrDefaultAsync(session => session.SessionCode == normalizedCode, cancellationToken);
@@ -48,8 +58,8 @@ public sealed class LiveSessionRepository : ILiveSessionRepository
     public Task<LiveSession?> GetTimerSessionByIdAsync(Guid liveSessionId, CancellationToken cancellationToken)
     {
         return _context.LiveSessions
-            .Include(session => session.TriviaSnapshot!)
-                .ThenInclude(snapshot => snapshot.Questions)
+            .Include(session => session.MissionRuntimeSnapshot)
+                .ThenInclude(snapshot => snapshot.TriviaQuestionSnapshots)
                     .ThenInclude(question => question.Options)
             .AsSplitQuery()
             .SingleOrDefaultAsync(session => session.LiveSessionId == liveSessionId, cancellationToken);

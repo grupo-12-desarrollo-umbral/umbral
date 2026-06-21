@@ -147,13 +147,14 @@ public sealed class ParticipantSessionTimerSnapshotEndpointTests : IAsyncLifetim
         var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
         var createdAt = DateTimeOffset.UtcNow.AddMinutes(-20);
-        var session = LiveSession.CreateTrivia(
-            SessionSource.CreateTriviaQuiz(42),
+        var sourceMissionId = Guid.NewGuid();
+        var session = LiveSession.Create(
+            SessionSource.Create(sourceMissionId),
             $"TRV-{Guid.NewGuid():N}"[..12],
             "Authoritative Timer Trivia",
             maximumTimeMinutes: 45,
             createdAt,
-            CreateTriviaSnapshot());
+            CreateTriviaSnapshot(sourceMissionId));
         var team = session.AssociateTeam(Guid.NewGuid(), "Red", "RED-01", 4);
 
         MoveToRequestedTimerState(session, seedState, createdAt);
@@ -189,12 +190,21 @@ public sealed class ParticipantSessionTimerSnapshotEndpointTests : IAsyncLifetim
         session.MoveTo(SessionState.Active, createdAt.AddMinutes(14), transitionPolicy);
     }
 
-    private static TriviaSessionSnapshot CreateTriviaSnapshot()
+    private static MissionRuntimeSnapshot CreateTriviaSnapshot(Guid sourceMissionId)
     {
-        return TriviaSessionSnapshot.Create(
+        var triviaSubstage = SubstageSnapshot.CreateTrivia("Trivia Round", 1);
+
+        return MissionRuntimeSnapshot.Create(
+            sourceMissionId,
             "Timer Quiz",
+            MaximumTime.Create(45),
+            [
+                StageSnapshot.Create("Stage One", 1, [triviaSubstage])
+            ],
+            [],
             [
                 TriviaQuestionSnapshot.Create(
+                    triviaSubstage.SubstageSnapshotId,
                     "What is the closest planet to the Sun?",
                     1,
                     100,

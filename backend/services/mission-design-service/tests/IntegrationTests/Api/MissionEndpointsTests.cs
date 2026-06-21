@@ -667,6 +667,42 @@ public sealed class MissionEndpointsTests : IClassFixture<PostgreSqlFixture>, IA
         problem.Title.Should().Be("Validation failed.");
     }
 
+    [Fact]
+    public async Task GetMissionReadiness_WhenSelectedQuizArchivedAfterActivation_BecomesNotReady()
+    {
+        AddAdministratorHeaders();
+
+        var triviaQuizId = await CreatePublishedTriviaQuizAsync("Archivable Quiz");
+        var missionId = await CreateMissionAsync("Archived Quiz Readiness Mission");
+        var (stageId, substageId) = await CreateTriviaStructureAsync(missionId);
+
+        var setSelectionResponse = await _client.PostAsJsonAsync(
+            $"/api/missions/{missionId}/stages/{stageId}/substages/{substageId}/trivia-quiz-selection",
+            new
+            {
+                triviaQuizId
+            });
+        setSelectionResponse.EnsureSuccessStatusCode();
+
+        var activateResponse = await _client.PostAsync($"/api/missions/{missionId}/activate", content: null);
+        activateResponse.EnsureSuccessStatusCode();
+
+        var readinessBeforeArchive = await _client.GetFromJsonAsync<MissionsEndpoints.MissionReadinessResponse>(
+            $"/api/missions/{missionId}/readiness");
+        readinessBeforeArchive.Should().NotBeNull();
+        readinessBeforeArchive!.IsReady.Should().BeTrue();
+
+        var archiveResponse = await _client.PostAsync($"/api/trivias/{triviaQuizId}/archive", content: null);
+        archiveResponse.EnsureSuccessStatusCode();
+
+        var readinessAfterArchive = await _client.GetFromJsonAsync<MissionsEndpoints.MissionReadinessResponse>(
+            $"/api/missions/{missionId}/readiness");
+        readinessAfterArchive.Should().NotBeNull();
+        readinessAfterArchive!.IsReady.Should().BeFalse();
+        readinessAfterArchive.Failures.Should().Contain(
+            failure => failure.Contains("must select a published trivia quiz", StringComparison.Ordinal));
+    }
+
     private void AddAdministratorHeaders()
     {
         _client.DefaultRequestHeaders.Remove("X-User-Id");

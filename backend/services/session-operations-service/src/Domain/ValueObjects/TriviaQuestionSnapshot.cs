@@ -8,10 +8,12 @@ public sealed class TriviaQuestionSnapshot : ValueObject
 
     private TriviaQuestionSnapshot()
     {
+        SubstageSnapshotId = Guid.Empty;
         Prompt = string.Empty;
     }
 
     private TriviaQuestionSnapshot(
+        Guid substageSnapshotId,
         string prompt,
         int sequenceOrder,
         int scoreValue,
@@ -19,6 +21,11 @@ public sealed class TriviaQuestionSnapshot : ValueObject
         string? explanation,
         IEnumerable<TriviaOptionSnapshot> options)
     {
+        if (substageSnapshotId == Guid.Empty)
+        {
+            throw new SubstageSnapshotIdRequiredException();
+        }
+
         var normalizedOptions = options?.ToArray() ?? [];
         if (normalizedOptions.Length < 2)
         {
@@ -30,6 +37,7 @@ public sealed class TriviaQuestionSnapshot : ValueObject
             throw new TriviaQuestionSnapshotRequiresCorrectOptionException();
         }
 
+        SubstageSnapshotId = substageSnapshotId;
         Prompt = prompt.Trim();
         SequenceOrder = sequenceOrder;
         ScoreValue = scoreValue;
@@ -37,6 +45,8 @@ public sealed class TriviaQuestionSnapshot : ValueObject
         Explanation = string.IsNullOrWhiteSpace(explanation) ? null : explanation.Trim();
         _options.AddRange(normalizedOptions);
     }
+
+    public Guid SubstageSnapshotId { get; }
 
     public string Prompt { get; }
 
@@ -58,11 +68,31 @@ public sealed class TriviaQuestionSnapshot : ValueObject
         string? explanation,
         IEnumerable<TriviaOptionSnapshot> options)
     {
-        return new TriviaQuestionSnapshot(prompt, sequenceOrder, scoreValue, timeLimitSeconds, explanation, options);
+        return Create(Guid.NewGuid(), prompt, sequenceOrder, scoreValue, timeLimitSeconds, explanation, options);
+    }
+
+    public static TriviaQuestionSnapshot Create(
+        Guid substageSnapshotId,
+        string prompt,
+        int sequenceOrder,
+        int scoreValue,
+        int timeLimitSeconds,
+        string? explanation,
+        IEnumerable<TriviaOptionSnapshot> options)
+    {
+        return new TriviaQuestionSnapshot(
+            substageSnapshotId,
+            prompt,
+            sequenceOrder,
+            scoreValue,
+            timeLimitSeconds,
+            explanation,
+            options);
     }
 
     protected override IEnumerable<object?> GetEqualityComponents()
     {
+        yield return SubstageSnapshotId;
         yield return Prompt;
         yield return SequenceOrder;
         yield return ScoreValue;

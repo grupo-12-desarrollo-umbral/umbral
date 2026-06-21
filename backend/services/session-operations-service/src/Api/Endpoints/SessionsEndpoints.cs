@@ -2,7 +2,7 @@ using Microsoft.AspNetCore.Http.HttpResults;
 using umbral_backend.Api.Services;
 using umbral_backend.Application.Sessions.Commands.AssociateTeamToSession;
 using umbral_backend.Application.Sessions.Commands.AssignOperatorToSession;
-using umbral_backend.Application.Sessions.Commands.CreateTriviaSession;
+using umbral_backend.Application.Sessions.Commands.CreateSession;
 using umbral_backend.Application.Sessions.Commands.ReconnectAuthenticatedParticipant;
 using umbral_backend.Application.Sessions.Commands.TransitionSessionState;
 using umbral_backend.Application.Sessions.DTOs;
@@ -20,7 +20,7 @@ public sealed class SessionsEndpoints : IEndpointGroup
     {
         var sessions = groupBuilder.MapGroup("/api/sessions");
 
-        sessions.MapPost("/", CreateTriviaSessionAsync)
+        sessions.MapPost("/", CreateSessionAsync)
             .RequireAuthorization(AuthorizationPolicies.Administrator);
 
         sessions.MapGet("/", ListAssignableSessionsAsync)
@@ -54,15 +54,14 @@ public sealed class SessionsEndpoints : IEndpointGroup
             .RequireAuthorization(AuthorizationPolicies.Operator);
     }
 
-    private static async Task<Created<CreateTriviaSessionResultDto>> CreateTriviaSessionAsync(
-        CreateTriviaSessionRequest request,
+    private static async Task<Created<CreateSessionResultDto>> CreateSessionAsync(
+        CreateSessionRequest request,
         ISender sender,
         CancellationToken cancellationToken)
     {
         var result = await sender.Send(
-            new CreateTriviaSessionCommand(
+            new CreateSessionCommand(
                 request.MissionId,
-                request.SourceTriviaQuizId,
                 request.Title,
                 request.MaximumTimeMinutes,
                 request.ScheduledAt),
@@ -204,9 +203,8 @@ public sealed class SessionsEndpoints : IEndpointGroup
         return TypedResults.Ok(result);
     }
 
-    public sealed record CreateTriviaSessionRequest(
+    public sealed record CreateSessionRequest(
         int MissionId,
-        int SourceTriviaQuizId,
         string Title,
         int MaximumTimeMinutes,
         DateTimeOffset ScheduledAt);

@@ -119,26 +119,12 @@ public sealed class TriviaRoundStartedNotificationHandlerTests
 
     private static LiveSession CreateTriviaSession()
     {
-        var session = LiveSession.CreateTrivia(
-            SessionSource.CreateTriviaQuiz(42),
+        var session = LiveSessionTestFactory.CreateScheduledTrivia(
             $"TRV-{Guid.NewGuid():N}"[..12],
             "Trivia Session",
             45,
-            Now.AddHours(1),
-            TriviaSessionSnapshot.Create(
-                "Quiz",
-                [
-                    TriviaQuestionSnapshot.Create(
-                        "Question 1",
-                        1,
-                        100,
-                        30,
-                        null,
-                        [
-                            TriviaOptionSnapshot.Create("Option 1A", 1, true),
-                            TriviaOptionSnapshot.Create("Option 1B", 2, false)
-                        ])
-                ]));
+            1,
+            Now.AddHours(1));
 
         session.AssociateTeam(Guid.NewGuid(), "Alpha", "A-01", 4);
         var transitionPolicy = new SessionStateTransitionPolicy();
@@ -150,9 +136,7 @@ public sealed class TriviaRoundStartedNotificationHandlerTests
 
     private static LiveSession CreateTreasureHuntSession()
     {
-        return LiveSession.Create(
-            SessionMode.TreasureHunt,
-            SessionSource.Create(SessionSourceType.Mission, Guid.NewGuid()),
+        return LiveSessionTestFactory.CreateScheduledTreasureHunt(
             $"SES-{Guid.NewGuid():N}"[..12],
             "Treasure Session",
             45,

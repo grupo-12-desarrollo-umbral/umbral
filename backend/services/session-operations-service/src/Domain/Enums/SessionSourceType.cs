@@ -2,6 +2,5 @@ namespace umbral_backend.Domain.Enums;
 
 public enum SessionSourceType
 {
-    Mission = 1,
-    TriviaQuiz = 2
+    Mission = 1
 }

@@ -13,51 +13,54 @@ public sealed class LiveSessionTests
     private readonly JoinPolicy _joinPolicy = new();
 
     [Fact]
-    public void CreateTrivia_WithMismatchedSource_ThrowsException()
+    public void Create_WithMissionSource_SetsScheduledStateAndOwnsRuntimeSnapshot()
     {
-        var act = () => LiveSession.CreateTrivia(
-            SessionSource.Create(SessionSourceType.Mission, Guid.NewGuid()),
-            "abc123",
+        var runtimeSnapshot = MissionRuntimeSnapshotFactory.CreateTriviaSnapshot();
+
+        var session = LiveSession.Create(
+            SessionSource.Create(runtimeSnapshot.SourceMissionId),
+            "tri-123",
             "Trivia Session",
             30,
             DateTimeOffset.UtcNow,
-            TriviaSessionSnapshotFactory.CreateSingleQuestion());
+            runtimeSnapshot);
 
-        act.Should().Throw<SessionSourceDoesNotMatchModeException>();
+        session.State.Should().Be(SessionState.Scheduled);
+        session.MissionRuntimeSnapshot.Should().Be(runtimeSnapshot);
+        session.MissionRuntimeSnapshot.TriviaQuestionSnapshots.Should().ContainSingle();
     }
 
     [Fact]
-    public void Create_WithTriviaModeWithoutSnapshot_ThrowsException()
+    public void Create_WithEmptyMissionSource_ThrowsException()
     {
+        var runtimeSnapshot = MissionRuntimeSnapshotFactory.CreateTreasureHuntSnapshot();
+
         var act = () => LiveSession.Create(
-            SessionMode.Trivia,
-            SessionSource.CreateTriviaQuiz(42),
-            "tri-123",
-            "Trivia Session",
+            SessionSource.Create(Guid.Empty),
+            "ses-123",
+            "Mission Session",
             30,
-            DateTimeOffset.UtcNow);
+            DateTimeOffset.UtcNow,
+            runtimeSnapshot);
 
-        act.Should().Throw<TriviaSessionSnapshotRequiredException>();
+        act.Should().Throw<SessionSourceEntityRequiredException>();
     }
 
     [Fact]
-    public void CreateTrivia_WithSnapshot_AttachesFixedCopy()
+    public void Create_WithAssignedOperator_PreservesOptionalAssignment()
     {
-        var snapshot = TriviaSessionSnapshotFactory.CreateSingleQuestion();
+        var runtimeSnapshot = MissionRuntimeSnapshotFactory.CreateTriviaSnapshot();
 
-        var session = LiveSession.CreateTrivia(
-            SessionSource.CreateTriviaQuiz(42),
+        var session = LiveSession.Create(
+            SessionSource.Create(runtimeSnapshot.SourceMissionId),
             "tri-123",
             "Trivia Session",
             30,
             DateTimeOffset.UtcNow,
-            snapshot);
+            runtimeSnapshot,
+            assignedOperatorUserId: 27);
 
-        session.SessionMode.Should().Be(SessionMode.Trivia);
-        session.Source.SourceTriviaQuizId.Should().Be(42);
-        session.TriviaSnapshot.Should().NotBeNull();
-        session.TriviaSnapshot!.Questions.Should().ContainSingle();
-        session.TriviaSnapshot.QuizTitle.Should().Be("Foundations of Science");
+        session.AssignedOperatorUserId.Should().Be(27);
     }
 
     [Fact]
@@ -183,13 +186,15 @@ public sealed class LiveSessionTests
     [Fact]
     public void Create_WithBlankSessionCode_ThrowsException()
     {
+        var runtimeSnapshot = MissionRuntimeSnapshotFactory.CreateTreasureHuntSnapshot(maximumTimeMinutes: 30);
+
         var act = () => LiveSession.Create(
-            SessionMode.TreasureHunt,
-            SessionSource.Create(SessionSourceType.Mission, Guid.NewGuid()),
+            SessionSource.Create(runtimeSnapshot.SourceMissionId),
             " ",
             "Treasure Session",
             30,
-            DateTimeOffset.UtcNow);
+            DateTimeOffset.UtcNow,
+            runtimeSnapshot);
 
         act.Should().Throw<LiveSessionCodeRequiredException>();
     }
@@ -197,13 +202,15 @@ public sealed class LiveSessionTests
     [Fact]
     public void Create_WithBlankTitle_ThrowsException()
     {
+        var runtimeSnapshot = MissionRuntimeSnapshotFactory.CreateTreasureHuntSnapshot(maximumTimeMinutes: 30);
+
         var act = () => LiveSession.Create(
-            SessionMode.TreasureHunt,
-            SessionSource.Create(SessionSourceType.Mission, Guid.NewGuid()),
+            SessionSource.Create(runtimeSnapshot.SourceMissionId),
             "ses-123",
             " ",
             30,
-            DateTimeOffset.UtcNow);
+            DateTimeOffset.UtcNow,
+            runtimeSnapshot);
 
         act.Should().Throw<LiveSessionTitleRequiredException>();
     }

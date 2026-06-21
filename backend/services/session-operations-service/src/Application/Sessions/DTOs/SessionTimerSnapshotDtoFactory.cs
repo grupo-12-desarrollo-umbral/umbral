@@ -31,13 +31,15 @@ public static class SessionTimerSnapshotDtoFactory
         LiveSession liveSession,
         DateTimeOffset observedAt)
     {
-        if (liveSession.ActiveQuestionIndex is null || liveSession.TriviaSnapshot is null)
+        if (liveSession.ActiveQuestionIndex is null)
         {
             return null;
         }
 
         var questionIndex = liveSession.ActiveQuestionIndex.Value;
-        var question = liveSession.TriviaSnapshot.Questions.ElementAt(questionIndex);
+        var question = liveSession.MissionRuntimeSnapshot.TriviaQuestionSnapshots
+            .OrderBy(snapshot => snapshot.SequenceOrder)
+            .ElementAt(questionIndex);
         var questionTimer = liveSession.GetActiveQuestionTimerSnapshot(observedAt);
         var options = question.Options
             .OrderBy(option => option.SequenceOrder)

@@ -1,5 +1,4 @@
 using umbral_backend.Domain.Entities;
-using umbral_backend.Domain.Enums;
 using umbral_backend.Domain.ValueObjects;
 
 namespace umbral_backend.SessionOperations.UnitTests.Domain.TestData;
@@ -8,34 +7,40 @@ internal static class LiveSessionFactory
 {
     internal static LiveSession CreateScheduledTreasureHunt()
     {
+        var missionRuntimeSnapshot = MissionRuntimeSnapshotFactory.CreateTreasureHuntSnapshot();
+
         return LiveSession.Create(
-            SessionMode.TreasureHunt,
-            SessionSource.Create(SessionSourceType.Mission, Guid.NewGuid()),
+            SessionSource.Create(missionRuntimeSnapshot.SourceMissionId),
             "abc123",
             "Museum Hunt",
             45,
-            new DateTimeOffset(2026, 6, 3, 10, 0, 0, TimeSpan.Zero));
+            new DateTimeOffset(2026, 6, 3, 10, 0, 0, TimeSpan.Zero),
+            missionRuntimeSnapshot);
     }
 
     internal static LiveSession CreateScheduledTrivia(int maximumTimeMinutes = 10)
     {
-        return LiveSession.CreateTrivia(
-            SessionSource.CreateTriviaQuiz(42),
+        var missionRuntimeSnapshot = MissionRuntimeSnapshotFactory.CreateTriviaSnapshot(maximumTimeMinutes);
+
+        return LiveSession.Create(
+            SessionSource.Create(missionRuntimeSnapshot.SourceMissionId),
             "tri-123",
             "Trivia Session",
             maximumTimeMinutes,
             new DateTimeOffset(2026, 6, 3, 10, 0, 0, TimeSpan.Zero),
-            TriviaSessionSnapshotFactory.CreateSingleQuestion());
+            missionRuntimeSnapshot);
     }
 
     internal static LiveSession CreateScheduledTriviaWithThreeQuestions(int maximumTimeMinutes = 10)
     {
-        return LiveSession.CreateTrivia(
-            SessionSource.CreateTriviaQuiz(42),
+        var missionRuntimeSnapshot = MissionRuntimeSnapshotFactory.CreateTriviaSnapshotWithThreeQuestions(maximumTimeMinutes);
+
+        return LiveSession.Create(
+            SessionSource.Create(missionRuntimeSnapshot.SourceMissionId),
             "tri-123",
             "Trivia Session",
             maximumTimeMinutes,
             new DateTimeOffset(2026, 6, 3, 10, 0, 0, TimeSpan.Zero),
-            TriviaSessionSnapshotFactory.CreateThreeQuestions());
+            missionRuntimeSnapshot);
     }
 }

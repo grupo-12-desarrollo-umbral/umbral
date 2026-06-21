@@ -19,12 +19,6 @@ public sealed class LiveSessionConfiguration : IEntityTypeConfiguration<LiveSess
             .HasColumnName("id")
             .ValueGeneratedNever();
 
-        builder.Property(session => session.SessionMode)
-            .HasColumnName("session_mode")
-            .HasConversion<string>()
-            .HasMaxLength(32)
-            .IsRequired();
-
         builder.Property(session => session.SessionCode)
             .HasColumnName("session_code")
             .HasMaxLength(64)
@@ -118,9 +112,6 @@ public sealed class LiveSessionConfiguration : IEntityTypeConfiguration<LiveSess
             sourceBuilder.Property(source => source.SourceEntityId)
                 .HasColumnName("source_entity_id")
                 .IsRequired();
-
-            sourceBuilder.Property(source => source.SourceTriviaQuizId)
-                .HasColumnName("source_trivia_quiz_id");
         });
 
         builder.OwnsOne(session => session.MaximumTime, maximumTimeBuilder =>
@@ -130,9 +121,9 @@ public sealed class LiveSessionConfiguration : IEntityTypeConfiguration<LiveSess
                 .IsRequired();
         });
 
-        builder.OwnsOne(session => session.TriviaSnapshot, snapshotBuilder =>
+        builder.OwnsOne(session => session.MissionRuntimeSnapshot, snapshotBuilder =>
         {
-            snapshotBuilder.ToTable("live_session_trivia_snapshots");
+            snapshotBuilder.ToTable("live_session_mission_runtime_snapshots");
             snapshotBuilder.WithOwner().HasForeignKey("live_session_id");
 
             snapshotBuilder.Ignore(snapshot => snapshot.Id);
@@ -142,24 +133,163 @@ public sealed class LiveSessionConfiguration : IEntityTypeConfiguration<LiveSess
 
             snapshotBuilder.HasKey("live_session_id");
 
-            snapshotBuilder.Property(snapshot => snapshot.QuizTitle)
-                .HasColumnName("quiz_title")
+            snapshotBuilder.Property(snapshot => snapshot.MissionRuntimeSnapshotId)
+                .HasColumnName("id")
+                .ValueGeneratedNever();
+
+            snapshotBuilder.Property(snapshot => snapshot.SourceMissionId)
+                .HasColumnName("source_mission_id")
+                .IsRequired();
+
+            snapshotBuilder.Property(snapshot => snapshot.MissionTitle)
+                .HasColumnName("mission_title")
                 .HasMaxLength(200)
                 .IsRequired();
 
-            snapshotBuilder.OwnsMany(snapshot => snapshot.Questions, questionBuilder =>
+            snapshotBuilder.OwnsOne(snapshot => snapshot.MaximumTime, maximumTimeBuilder =>
             {
-                questionBuilder.ToTable("live_session_trivia_snapshot_questions");
-                questionBuilder.WithOwner().HasForeignKey("trivia_snapshot_live_session_id");
+                maximumTimeBuilder.Property(maximumTime => maximumTime.Minutes)
+                    .HasColumnName("maximum_time_minutes")
+                    .IsRequired();
+            });
+
+            snapshotBuilder.OwnsMany(snapshot => snapshot.StageSnapshots, stageBuilder =>
+            {
+                stageBuilder.ToTable("live_session_mission_runtime_snapshot_stages");
+                stageBuilder.WithOwner().HasForeignKey("mission_runtime_snapshot_live_session_id");
+
+                stageBuilder.Property<Guid>("mission_runtime_snapshot_live_session_id")
+                    .HasColumnName("live_session_id");
+
+                stageBuilder.Property(stage => stage.StageSnapshotId)
+                    .HasColumnName("id")
+                    .ValueGeneratedNever();
+
+                stageBuilder.HasKey(stage => stage.StageSnapshotId);
+
+                stageBuilder.Property(stage => stage.Title)
+                    .HasColumnName("title")
+                    .HasMaxLength(200)
+                    .IsRequired();
+
+                stageBuilder.Property(stage => stage.SequenceOrder)
+                    .HasColumnName("sequence_order")
+                    .IsRequired();
+
+                stageBuilder.HasIndex("mission_runtime_snapshot_live_session_id", nameof(Domain.ValueObjects.StageSnapshot.SequenceOrder))
+                    .IsUnique();
+
+                stageBuilder.OwnsMany(stage => stage.SubstageSnapshots, substageBuilder =>
+                {
+                    substageBuilder.ToTable("live_session_mission_runtime_snapshot_substages");
+                    substageBuilder.WithOwner().HasForeignKey("stage_snapshot_id");
+
+                    substageBuilder.Property<Guid>("stage_snapshot_id")
+                        .HasColumnName("stage_snapshot_id");
+
+                    substageBuilder.Property(substage => substage.SubstageSnapshotId)
+                        .HasColumnName("id")
+                        .ValueGeneratedNever();
+
+                    substageBuilder.HasKey(substage => substage.SubstageSnapshotId);
+
+                    substageBuilder.Property(substage => substage.Title)
+                        .HasColumnName("title")
+                        .HasMaxLength(200)
+                        .IsRequired();
+
+                    substageBuilder.Property(substage => substage.SequenceOrder)
+                        .HasColumnName("sequence_order")
+                        .IsRequired();
+
+                    substageBuilder.Property(substage => substage.PlayMode)
+                        .HasColumnName("play_mode")
+                        .HasConversion<string>()
+                        .HasMaxLength(32)
+                        .IsRequired();
+
+                    substageBuilder.Property(substage => substage.WinnerScore)
+                        .HasColumnName("winner_score");
+
+                    substageBuilder.HasIndex("stage_snapshot_id", nameof(Domain.ValueObjects.SubstageSnapshot.SequenceOrder))
+                        .IsUnique();
+                });
+
+                stageBuilder.Navigation(stage => stage.SubstageSnapshots)
+                    .UsePropertyAccessMode(PropertyAccessMode.Field);
+            });
+
+            snapshotBuilder.OwnsMany(snapshot => snapshot.TargetSnapshots, targetBuilder =>
+            {
+                targetBuilder.ToTable("live_session_mission_runtime_snapshot_targets");
+                targetBuilder.WithOwner().HasForeignKey("mission_runtime_snapshot_live_session_id");
+
+                targetBuilder.Property<Guid>("mission_runtime_snapshot_live_session_id")
+                    .HasColumnName("live_session_id");
+
+                targetBuilder.Property(target => target.TargetSnapshotId)
+                    .HasColumnName("id")
+                    .ValueGeneratedNever();
+
+                targetBuilder.HasKey(target => target.TargetSnapshotId);
+
+                targetBuilder.Property(target => target.SubstageSnapshotId)
+                    .HasColumnName("substage_snapshot_id")
+                    .IsRequired();
+
+                targetBuilder.Property(target => target.Name)
+                    .HasColumnName("name")
+                    .HasMaxLength(200)
+                    .IsRequired();
+
+                targetBuilder.Property(target => target.QrCode)
+                    .HasColumnName("qr_code")
+                    .HasMaxLength(200)
+                    .IsRequired();
+
+                targetBuilder.Property(target => target.SequenceOrder)
+                    .HasColumnName("sequence_order")
+                    .IsRequired();
+
+                targetBuilder.Property(target => target.IsActive)
+                    .HasColumnName("is_active")
+                    .IsRequired();
+
+                targetBuilder.Property(target => target.ClueText)
+                    .HasColumnName("clue_text")
+                    .HasMaxLength(4000);
+
+                targetBuilder.Property(target => target.ClueVisibilityPolicy)
+                    .HasColumnName("clue_visibility_policy")
+                    .HasMaxLength(128);
+
+                targetBuilder.HasIndex("mission_runtime_snapshot_live_session_id", nameof(Domain.ValueObjects.TargetSnapshot.QrCode))
+                    .IsUnique();
+
+                targetBuilder.HasIndex(
+                        "mission_runtime_snapshot_live_session_id",
+                        nameof(Domain.ValueObjects.TargetSnapshot.SubstageSnapshotId),
+                        nameof(Domain.ValueObjects.TargetSnapshot.SequenceOrder))
+                    .IsUnique();
+            });
+
+            snapshotBuilder.OwnsMany(snapshot => snapshot.TriviaQuestionSnapshots, questionBuilder =>
+            {
+                questionBuilder.ToTable("live_session_mission_runtime_snapshot_trivia_questions");
+                questionBuilder.WithOwner().HasForeignKey("mission_runtime_snapshot_live_session_id");
 
                 questionBuilder.Property<int>("id")
                     .HasColumnName("id")
                     .ValueGeneratedOnAdd();
 
-                questionBuilder.Property<Guid>("trivia_snapshot_live_session_id")
+                questionBuilder.Property<Guid>("mission_runtime_snapshot_live_session_id")
                     .HasColumnName("live_session_id");
 
                 questionBuilder.HasKey("id");
+
+                questionBuilder.Property(question => question.SubstageSnapshotId)
+                    .HasColumnName("substage_snapshot_id")
+                    .IsRequired();
 
                 questionBuilder.Property(question => question.Prompt)
                     .HasColumnName("prompt")
@@ -182,12 +312,15 @@ public sealed class LiveSessionConfiguration : IEntityTypeConfiguration<LiveSess
                     .HasColumnName("explanation")
                     .HasMaxLength(4000);
 
-                questionBuilder.HasIndex("trivia_snapshot_live_session_id", nameof(Domain.ValueObjects.TriviaQuestionSnapshot.SequenceOrder))
+                questionBuilder.HasIndex(
+                        "mission_runtime_snapshot_live_session_id",
+                        nameof(Domain.ValueObjects.TriviaQuestionSnapshot.SubstageSnapshotId),
+                        nameof(Domain.ValueObjects.TriviaQuestionSnapshot.SequenceOrder))
                     .IsUnique();
 
                 questionBuilder.OwnsMany(question => question.Options, optionBuilder =>
                 {
-                    optionBuilder.ToTable("live_session_trivia_snapshot_options");
+                    optionBuilder.ToTable("live_session_mission_runtime_snapshot_trivia_options");
                     optionBuilder.WithOwner().HasForeignKey("trivia_question_snapshot_id");
 
                     optionBuilder.Property<int>("id")
@@ -220,7 +353,13 @@ public sealed class LiveSessionConfiguration : IEntityTypeConfiguration<LiveSess
                     .UsePropertyAccessMode(PropertyAccessMode.Field);
             });
 
-            snapshotBuilder.Navigation(snapshot => snapshot.Questions)
+            snapshotBuilder.Navigation(snapshot => snapshot.StageSnapshots)
+                .UsePropertyAccessMode(PropertyAccessMode.Field);
+
+            snapshotBuilder.Navigation(snapshot => snapshot.TargetSnapshots)
+                .UsePropertyAccessMode(PropertyAccessMode.Field);
+
+            snapshotBuilder.Navigation(snapshot => snapshot.TriviaQuestionSnapshots)
                 .UsePropertyAccessMode(PropertyAccessMode.Field);
         });
 
@@ -423,8 +562,8 @@ public sealed class LiveSessionConfiguration : IEntityTypeConfiguration<LiveSess
         builder.Navigation(session => session.JoinContexts)
             .UsePropertyAccessMode(PropertyAccessMode.Field);
 
-        builder.Navigation(session => session.TriviaSnapshot)
-            .IsRequired(false);
+        builder.Navigation(session => session.MissionRuntimeSnapshot)
+            .IsRequired();
 
         builder.HasIndex(session => session.SessionCode)
             .IsUnique();

@@ -154,13 +154,38 @@ public sealed class ListAssignableSessionsEndpointTests : IAsyncLifetime
 
     private static LiveSession CreateSession(DateTimeOffset scheduledAt, string title)
     {
+        var sourceMissionId = Guid.NewGuid();
         return LiveSession.Create(
-            SessionMode.TreasureHunt,
-            SessionSource.Create(SessionSourceType.Mission, Guid.NewGuid()),
+            SessionSource.Create(sourceMissionId),
             $"SES-{Guid.NewGuid():N}"[..12],
             title,
             45,
-            scheduledAt);
+            scheduledAt,
+            CreateTreasureHuntSnapshot(sourceMissionId));
+    }
+
+    private static MissionRuntimeSnapshot CreateTreasureHuntSnapshot(Guid sourceMissionId)
+    {
+        var treasureHuntSubstage = SubstageSnapshot.CreateTreasureHunt("Treasure Hunt", 1, 100);
+
+        return MissionRuntimeSnapshot.Create(
+            sourceMissionId,
+            "Seeded Mission",
+            MaximumTime.Create(45),
+            [
+                StageSnapshot.Create("Stage One", 1, [treasureHuntSubstage])
+            ],
+            [
+                TargetSnapshot.Create(
+                    treasureHuntSubstage.SubstageSnapshotId,
+                    "Target Alpha",
+                    "QR-ALPHA",
+                    1,
+                    true,
+                    "Look under the stairs",
+                    "AfterPreviousTarget")
+            ],
+            []);
     }
 
     private static void MoveToState(LiveSession session, SessionState targetState, DateTimeOffset occurredAt)

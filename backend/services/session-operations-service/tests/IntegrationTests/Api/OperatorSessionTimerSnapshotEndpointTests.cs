@@ -159,13 +159,14 @@ public sealed class OperatorSessionTimerSnapshotEndpointTests : IAsyncLifetime
         var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
         var createdAt = DateTimeOffset.UtcNow.AddMinutes(-20);
-        var session = LiveSession.CreateTrivia(
-            SessionSource.CreateTriviaQuiz(42),
+        var sourceMissionId = Guid.NewGuid();
+        var session = LiveSession.Create(
+            SessionSource.Create(sourceMissionId),
             $"TRV-{Guid.NewGuid():N}"[..12],
             "Operator Timer Trivia",
             maximumTimeMinutes: 45,
             createdAt,
-            CreateTriviaSnapshot());
+            CreateTriviaSnapshot(sourceMissionId));
 
         session.AssociateTeam(Guid.NewGuid(), "Blue", "BLU-01", 4);
         session.AssignOperator(OperatorUserId, createdAt);
@@ -184,13 +185,14 @@ public sealed class OperatorSessionTimerSnapshotEndpointTests : IAsyncLifetime
         var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
         var createdAt = DateTimeOffset.UtcNow.AddMinutes(-20);
+        var sourceMissionId = Guid.NewGuid();
         var session = LiveSession.Create(
-            SessionMode.TreasureHunt,
-            SessionSource.Create(SessionSourceType.Mission, Guid.NewGuid()),
+            SessionSource.Create(sourceMissionId),
             $"HNT-{Guid.NewGuid():N}"[..12],
             "Operator Timer Hunt",
             maximumTimeMinutes: 45,
-            createdAt);
+            createdAt,
+            CreateTreasureHuntSnapshot(sourceMissionId));
 
         session.AssociateTeam(Guid.NewGuid(), "Blue", "BLU-01", 4);
         session.AssignOperator(OperatorUserId, createdAt);
@@ -228,12 +230,21 @@ public sealed class OperatorSessionTimerSnapshotEndpointTests : IAsyncLifetime
         session.MoveTo(SessionState.Active, createdAt.AddMinutes(14), transitionPolicy);
     }
 
-    private static TriviaSessionSnapshot CreateTriviaSnapshot()
+    private static MissionRuntimeSnapshot CreateTriviaSnapshot(Guid sourceMissionId)
     {
-        return TriviaSessionSnapshot.Create(
+        var triviaSubstage = SubstageSnapshot.CreateTrivia("Trivia Round", 1);
+
+        return MissionRuntimeSnapshot.Create(
+            sourceMissionId,
             "Operator Timer Quiz",
+            MaximumTime.Create(45),
+            [
+                StageSnapshot.Create("Stage One", 1, [triviaSubstage])
+            ],
+            [],
             [
                 TriviaQuestionSnapshot.Create(
+                    triviaSubstage.SubstageSnapshotId,
                     "What is the closest planet to the Sun?",
                     1,
                     100,
@@ -244,6 +255,30 @@ public sealed class OperatorSessionTimerSnapshotEndpointTests : IAsyncLifetime
                         TriviaOptionSnapshot.Create("Venus", 2, false)
                     ])
             ]);
+    }
+
+    private static MissionRuntimeSnapshot CreateTreasureHuntSnapshot(Guid sourceMissionId)
+    {
+        var treasureHuntSubstage = SubstageSnapshot.CreateTreasureHunt("Treasure Hunt", 1, 100);
+
+        return MissionRuntimeSnapshot.Create(
+            sourceMissionId,
+            "Operator Timer Hunt",
+            MaximumTime.Create(45),
+            [
+                StageSnapshot.Create("Stage One", 1, [treasureHuntSubstage])
+            ],
+            [
+                TargetSnapshot.Create(
+                    treasureHuntSubstage.SubstageSnapshotId,
+                    "Target Alpha",
+                    "QR-ALPHA",
+                    1,
+                    true,
+                    "Look under the stairs",
+                    "AfterPreviousTarget")
+            ],
+            []);
     }
 
     private static string BuildTimerUrl(Guid liveSessionId)

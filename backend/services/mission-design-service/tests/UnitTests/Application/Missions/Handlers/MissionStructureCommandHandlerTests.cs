@@ -140,7 +140,7 @@ public sealed class MissionStructureCommandHandlerTests
         mission.AddTarget(stage.Id, substage.Id, "Target", "QR", 1);
         mission.SetTreasureHuntWinnerScore(stage.Id, substage.Id, 10);
 
-        var handler = new ActivateMissionCommandHandler(repository);
+        var handler = new ActivateMissionCommandHandler(repository, new InMemoryTriviaQuizRepository());
 
         var result = await handler.Handle(new ActivateMissionCommand(mission.Id), CancellationToken.None);
 
@@ -153,7 +153,7 @@ public sealed class MissionStructureCommandHandlerTests
         var repository = new InMemoryMissionRepository();
         var mission = Mission.Create("Mission", "Briefing", "Advanced", 45);
         repository.Seed(mission);
-        var handler = new ActivateMissionCommandHandler(repository);
+        var handler = new ActivateMissionCommandHandler(repository, new InMemoryTriviaQuizRepository());
 
         var act = () => handler.Handle(new ActivateMissionCommand(mission.Id), CancellationToken.None);
 
@@ -163,7 +163,8 @@ public sealed class MissionStructureCommandHandlerTests
     [Fact]
     public async Task GetMissionReadiness_WhenMissionDoesNotExist_ThrowsNotFound()
     {
-        var handler = new GetMissionReadinessQueryHandler(new InMemoryMissionRepository());
+        var handler = new GetMissionReadinessQueryHandler(
+            new InMemoryMissionRepository(), new InMemoryTriviaQuizRepository());
 
         var act = () => handler.Handle(new GetMissionReadinessQuery(99), CancellationToken.None);
 
@@ -177,12 +178,81 @@ public sealed class MissionStructureCommandHandlerTests
         var repository = new InMemoryMissionRepository();
         var mission = Mission.Create("Mission", "Briefing", "Advanced", 45);
         repository.Seed(mission);
-        var handler = new GetMissionReadinessQueryHandler(repository);
+        var handler = new GetMissionReadinessQueryHandler(repository, new InMemoryTriviaQuizRepository());
 
         var result = await handler.Handle(new GetMissionReadinessQuery(mission.Id), CancellationToken.None);
 
         result.IsReady.Should().BeFalse();
         result.Failures!.Should().Contain("Mission must contain at least one stage.");
+    }
+
+    [Fact]
+    public async Task ActivateMission_WhenSelectedQuizArchived_ThrowsReadinessException()
+    {
+        var missionRepository = new InMemoryMissionRepository();
+        var quizRepository = new InMemoryTriviaQuizRepository();
+        var mission = CreateMissionWithTriviaSubstage(missionRepository, out var stage, out var substage);
+        var quiz = CreatePublishedTriviaQuiz();
+        quizRepository.Seed(quiz);
+        mission.SelectTriviaQuiz(stage.Id, substage.Id, quiz.Id);
+        quiz.Archive(DateTimeOffset.UtcNow);
+        var handler = new ActivateMissionCommandHandler(missionRepository, quizRepository);
+
+        var act = () => handler.Handle(new ActivateMissionCommand(mission.Id), CancellationToken.None);
+
+        await act.Should().ThrowAsync<MissionNotReadyForActivationException>()
+            .WithMessage("*must select a published trivia quiz*");
+    }
+
+    [Fact]
+    public async Task ActivateMission_WhenSelectedQuizPublished_Activates()
+    {
+        var missionRepository = new InMemoryMissionRepository();
+        var quizRepository = new InMemoryTriviaQuizRepository();
+        var mission = CreateMissionWithTriviaSubstage(missionRepository, out var stage, out var substage);
+        var quiz = CreatePublishedTriviaQuiz();
+        quizRepository.Seed(quiz);
+        mission.SelectTriviaQuiz(stage.Id, substage.Id, quiz.Id);
+        var handler = new ActivateMissionCommandHandler(missionRepository, quizRepository);
+
+        var result = await handler.Handle(new ActivateMissionCommand(mission.Id), CancellationToken.None);
+
+        result.Status.Should().Be("Ready");
+    }
+
+    [Fact]
+    public async Task GetMissionReadiness_WhenSelectedQuizArchived_IsNotReadyWithPublicationFailure()
+    {
+        var missionRepository = new InMemoryMissionRepository();
+        var quizRepository = new InMemoryTriviaQuizRepository();
+        var mission = CreateMissionWithTriviaSubstage(missionRepository, out var stage, out var substage);
+        var quiz = CreatePublishedTriviaQuiz();
+        quizRepository.Seed(quiz);
+        mission.SelectTriviaQuiz(stage.Id, substage.Id, quiz.Id);
+        quiz.Archive(DateTimeOffset.UtcNow);
+        var handler = new GetMissionReadinessQueryHandler(missionRepository, quizRepository);
+
+        var result = await handler.Handle(new GetMissionReadinessQuery(mission.Id), CancellationToken.None);
+
+        result.IsReady.Should().BeFalse();
+        result.Failures!.Should().Contain(failure => failure.Contains("must select a published trivia quiz"));
+    }
+
+    [Fact]
+    public async Task GetMissionReadiness_WhenSelectedQuizPublished_IsReady()
+    {
+        var missionRepository = new InMemoryMissionRepository();
+        var quizRepository = new InMemoryTriviaQuizRepository();
+        var mission = CreateMissionWithTriviaSubstage(missionRepository, out var stage, out var substage);
+        var quiz = CreatePublishedTriviaQuiz();
+        quizRepository.Seed(quiz);
+        mission.SelectTriviaQuiz(stage.Id, substage.Id, quiz.Id);
+        var handler = new GetMissionReadinessQueryHandler(missionRepository, quizRepository);
+
+        var result = await handler.Handle(new GetMissionReadinessQuery(mission.Id), CancellationToken.None);
+
+        result.IsReady.Should().BeTrue();
+        result.Failures.Should().BeEmpty();
     }
 
     private static Mission CreateMissionWithTreasureSubstage(
