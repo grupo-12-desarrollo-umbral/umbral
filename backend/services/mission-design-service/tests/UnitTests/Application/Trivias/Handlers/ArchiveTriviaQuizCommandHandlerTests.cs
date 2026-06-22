@@ -1,14 +1,19 @@
 using umbral_backend.Application.Common.Exceptions;
+using umbral_backend.Application.Common.Interfaces;
 using umbral_backend.Application.Trivias.Commands.ArchiveTriviaQuiz;
 using umbral_backend.Application.Trivias.Handlers;
 using umbral_backend.Application.UnitTests.Application.Trivias.TestDoubles;
 using umbral_backend.Domain.Entities;
 using umbral_backend.Domain.Exceptions;
+using InMemoryMissionRepository =
+    umbral_backend.Application.UnitTests.Application.Missions.TestDoubles.InMemoryMissionRepository;
 
 namespace umbral_backend.Application.UnitTests.Application.Trivias.Handlers;
 
 public sealed class ArchiveTriviaQuizCommandHandlerTests
 {
+    private static readonly DateTimeOffset Now = new(2026, 6, 2, 16, 0, 0, TimeSpan.Zero);
+
     [Fact]
     public async Task Handle_WhenTriviaQuizCanBeArchived_ArchivesTriviaQuiz()
     {
@@ -18,7 +23,8 @@ public sealed class ArchiveTriviaQuizCommandHandlerTests
         repository.Seed(triviaQuiz);
         var handler = new ArchiveTriviaQuizCommandHandler(
             repository,
-            new StubClock(new DateTimeOffset(2026, 6, 2, 16, 0, 0, TimeSpan.Zero)));
+            new InMemoryMissionRepository(),
+            new StubClock(Now));
 
         var result = await handler.Handle(new ArchiveTriviaQuizCommand(triviaQuiz.Id), CancellationToken.None);
 
@@ -34,7 +40,8 @@ public sealed class ArchiveTriviaQuizCommandHandlerTests
         var repository = new InMemoryTriviaQuizRepository();
         var handler = new ArchiveTriviaQuizCommandHandler(
             repository,
-            new StubClock(new DateTimeOffset(2026, 6, 2, 16, 0, 0, TimeSpan.Zero)));
+            new InMemoryMissionRepository(),
+            new StubClock(Now));
 
         var act = () => handler.Handle(new ArchiveTriviaQuizCommand(99), CancellationToken.None);
 
@@ -51,12 +58,38 @@ public sealed class ArchiveTriviaQuizCommandHandlerTests
         repository.Seed(triviaQuiz);
         var handler = new ArchiveTriviaQuizCommandHandler(
             repository,
-            new StubClock(new DateTimeOffset(2026, 6, 2, 16, 0, 0, TimeSpan.Zero)));
+            new InMemoryMissionRepository(),
+            new StubClock(Now));
 
         var act = () => handler.Handle(new ArchiveTriviaQuizCommand(triviaQuiz.Id), CancellationToken.None);
 
         await act.Should().ThrowAsync<TriviaQuizCannotBeArchivedInCurrentStateException>()
             .WithMessage("*Archived*");
+    }
+
+    [Fact]
+    public async Task Handle_WhenReferencedByActiveMission_BlocksArchivalAndLeavesQuizPublished()
+    {
+        var repository = new InMemoryTriviaQuizRepository();
+        var triviaQuiz = CreatePublishableTriviaQuiz();
+        triviaQuiz.MarkAsPublished();
+        repository.Seed(triviaQuiz);
+        var missionRepository = new StubActiveMissionReferenceRepository(
+            new ActiveMissionReference(7, "Forest Hunt"));
+        var handler = new ArchiveTriviaQuizCommandHandler(
+            repository,
+            missionRepository,
+            new StubClock(Now));
+
+        var act = () => handler.Handle(new ArchiveTriviaQuizCommand(triviaQuiz.Id), CancellationToken.None);
+
+        var assertion = await act.Should().ThrowAsync<TriviaQuizReferencedByActiveMissionException>();
+        assertion.Which.TriviaQuizId.Should().Be(triviaQuiz.Id);
+        assertion.Which.Message.Should().Contain("Forest Hunt");
+        // The transition never ran: the quiz stays published and is not persisted.
+        triviaQuiz.Status.ToString().Should().Be("Published");
+        repository.LastUpdatedTriviaQuiz.Should().BeNull();
+        missionRepository.QueriedTriviaQuizId.Should().Be(triviaQuiz.Id);
     }
 
     private static TriviaQuiz CreatePublishableTriviaQuiz()
@@ -74,5 +107,34 @@ public sealed class ArchiveTriviaQuizCommandHandlerTests
             ]);
 
         return triviaQuiz;
+    }
+
+    private sealed class StubActiveMissionReferenceRepository : IMissionRepository
+    {
+        private readonly IReadOnlyList<ActiveMissionReference> _references;
+
+        public StubActiveMissionReferenceRepository(params ActiveMissionReference[] references)
+        {
+            _references = references;
+        }
+
+        public int? QueriedTriviaQuizId { get; private set; }
+
+        public Task<IReadOnlyList<ActiveMissionReference>> GetActiveMissionsReferencingTriviaQuizAsync(
+            int triviaQuizId,
+            CancellationToken cancellationToken)
+        {
+            QueriedTriviaQuizId = triviaQuizId;
+            return Task.FromResult(_references);
+        }
+
+        public Task<Mission?> GetByIdAsync(int missionId, CancellationToken cancellationToken)
+            => throw new NotSupportedException();
+
+        public Task AddAsync(Mission mission, CancellationToken cancellationToken)
+            => throw new NotSupportedException();
+
+        public Task UpdateAsync(Mission mission, CancellationToken cancellationToken)
+            => throw new NotSupportedException();
     }
 }

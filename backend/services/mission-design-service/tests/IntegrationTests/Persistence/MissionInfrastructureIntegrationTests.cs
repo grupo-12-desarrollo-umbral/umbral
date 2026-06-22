@@ -721,7 +721,10 @@ public sealed class MissionInfrastructureIntegrationTests : IClassFixture<Postgr
         var archivedAt = new DateTimeOffset(2026, 6, 2, 14, 0, 0, TimeSpan.Zero);
         var mediator = new CapturingMediator();
         await using var actContext = BuildContext(mediator, new StubCurrentUser("admin-17"), new StubClock(archivedAt));
-        var handler = new ArchiveTriviaQuizCommandHandler(new TriviaQuizRepository(actContext), new StubClock(archivedAt));
+        var handler = new ArchiveTriviaQuizCommandHandler(
+            new TriviaQuizRepository(actContext),
+            new MissionRepository(actContext),
+            new StubClock(archivedAt));
 
         var result = await handler.Handle(new ArchiveTriviaQuizCommand(triviaQuiz.Id), CancellationToken.None);
 

@@ -680,8 +680,10 @@ public sealed class MissionEndpointsTests : IClassFixture<PostgreSqlFixture>, IA
     }
 
     [Fact]
-    public async Task GetMissionReadiness_WhenSelectedQuizArchivedAfterActivation_BecomesNotReady()
+    public async Task GetMissionReadiness_WhenSelectedQuizArchivedWhileMissionDraft_BecomesNotReady()
     {
+        // Reactive readiness (Phases 1 & 2): a quiz can still be archived while the mission is
+        // not yet active, and readiness re-evaluates publication to demote the draft mission.
         AddAdministratorHeaders();
 
         var triviaQuizId = await CreatePublishedTriviaQuizAsync("Archivable Quiz");
@@ -696,14 +698,12 @@ public sealed class MissionEndpointsTests : IClassFixture<PostgreSqlFixture>, IA
             });
         setSelectionResponse.EnsureSuccessStatusCode();
 
-        var activateResponse = await _client.PostAsync($"/api/missions/{missionId}/activate", content: null);
-        activateResponse.EnsureSuccessStatusCode();
-
         var readinessBeforeArchive = await _client.GetFromJsonAsync<MissionsEndpoints.MissionReadinessResponse>(
             $"/api/missions/{missionId}/readiness");
         readinessBeforeArchive.Should().NotBeNull();
         readinessBeforeArchive!.IsReady.Should().BeTrue();
 
+        // Mission is still Draft (never activated), so archival is allowed.
         var archiveResponse = await _client.PostAsync($"/api/trivias/{triviaQuizId}/archive", content: null);
         archiveResponse.EnsureSuccessStatusCode();
 
@@ -713,6 +713,80 @@ public sealed class MissionEndpointsTests : IClassFixture<PostgreSqlFixture>, IA
         readinessAfterArchive!.IsReady.Should().BeFalse();
         readinessAfterArchive.Failures.Should().Contain(
             failure => failure.Contains("must select a published trivia quiz", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task ArchiveTriviaQuiz_WhenReferencedByActiveMission_IsBlockedAndMissionStaysReady()
+    {
+        // Archive-time enforcement (Phase 3 / DES-79): archival is rejected at its source while
+        // an active mission selects the quiz, so the mission can never point at a dead reference.
+        AddAdministratorHeaders();
+
+        var triviaQuizId = await CreatePublishedTriviaQuizAsync("Active Mission Quiz");
+        var missionId = await CreateMissionAsync("Active Quiz Guard Mission");
+        var (stageId, substageId) = await CreateTriviaStructureAsync(missionId);
+
+        var setSelectionResponse = await _client.PostAsJsonAsync(
+            $"/api/missions/{missionId}/stages/{stageId}/substages/{substageId}/trivia-quiz-selection",
+            new
+            {
+                triviaQuizId
+            });
+        setSelectionResponse.EnsureSuccessStatusCode();
+
+        var activateResponse = await _client.PostAsync($"/api/missions/{missionId}/activate", content: null);
+        activateResponse.EnsureSuccessStatusCode();
+
+        var archiveResponse = await _client.PostAsync($"/api/trivias/{triviaQuizId}/archive", content: null);
+        archiveResponse.StatusCode.Should().Be(HttpStatusCode.Conflict);
+
+        var problem = await archiveResponse.Content.ReadFromJsonAsync<ProblemDetails>();
+        problem.Should().NotBeNull();
+        problem!.Detail.Should().Contain("Active Quiz Guard Mission");
+
+        // The quiz remains published and the mission remains ready: the block had no side effects.
+        var quizDetail = await _client.GetFromJsonAsync<TriviasEndpoints.TriviaQuizResponse>(
+            $"/api/trivias/{triviaQuizId}");
+        quizDetail.Should().NotBeNull();
+        quizDetail!.Status.Should().Be("Published");
+
+        var readiness = await _client.GetFromJsonAsync<MissionsEndpoints.MissionReadinessResponse>(
+            $"/api/missions/{missionId}/readiness");
+        readiness.Should().NotBeNull();
+        readiness!.IsReady.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task ArchiveTriviaQuiz_WhenReferencedByDeactivatedMission_IsAllowed()
+    {
+        // The block lifts once the mission leaves Ready: the operator's escape hatch.
+        AddAdministratorHeaders();
+
+        var triviaQuizId = await CreatePublishedTriviaQuizAsync("Deactivated Mission Quiz");
+        var missionId = await CreateMissionAsync("Deactivated Quiz Guard Mission");
+        var (stageId, substageId) = await CreateTriviaStructureAsync(missionId);
+
+        var setSelectionResponse = await _client.PostAsJsonAsync(
+            $"/api/missions/{missionId}/stages/{stageId}/substages/{substageId}/trivia-quiz-selection",
+            new
+            {
+                triviaQuizId
+            });
+        setSelectionResponse.EnsureSuccessStatusCode();
+
+        var activateResponse = await _client.PostAsync($"/api/missions/{missionId}/activate", content: null);
+        activateResponse.EnsureSuccessStatusCode();
+
+        var deactivateResponse = await _client.DeleteAsync($"/api/missions/{missionId}");
+        deactivateResponse.EnsureSuccessStatusCode();
+
+        var archiveResponse = await _client.PostAsync($"/api/trivias/{triviaQuizId}/archive", content: null);
+        archiveResponse.EnsureSuccessStatusCode();
+
+        var quizDetail = await _client.GetFromJsonAsync<TriviasEndpoints.TriviaQuizResponse>(
+            $"/api/trivias/{triviaQuizId}");
+        quizDetail.Should().NotBeNull();
+        quizDetail!.Status.Should().Be("Archived");
     }
 
     private void AddAdministratorHeaders()

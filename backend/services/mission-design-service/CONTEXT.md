@@ -82,6 +82,10 @@ _Avoid_: runtime activation authority, live supervision
 The mission hierarchy and trivia composition belong entirely to `MissionDesign`; other services consume published source facts instead of mutating authoring structure directly.
 _Avoid_: runtime-owned content editing
 
+**Trivia Reference Integrity**:
+A `TriviaQuiz` stays published for as long as an active (`Ready`) `Mission` references it through a `TriviaQuizSelection`. Selection only accepts a published quiz, and archival is blocked while any active mission still selects the quiz; the operator must change the selection or deactivate the mission first. This keeps an active mission from ever resolving to a non-published (e.g. empty) trivia substage. See ADR-0003.
+_Avoid_: archiving a quiz out from under a live mission, dead trivia references discovered only at play time
+
 ## Required Patterns
 
 **Composite**:
