@@ -2,7 +2,7 @@ using umbral_backend.Domain.Enums;
 
 namespace umbral_backend.Domain.Exceptions;
 
-public sealed class InvalidMissionNodeChildException : Exception
+public sealed class InvalidMissionNodeChildException : DomainException
 {
     public InvalidMissionNodeChildException(MissionNodeType parent, MissionNodeType child)
         : base($"A {child} node cannot be placed directly under a {parent} node.")
@@ -14,4 +14,6 @@ public sealed class InvalidMissionNodeChildException : Exception
     public MissionNodeType Parent { get; }
 
     public MissionNodeType Child { get; }
+
+    public override ErrorCategory Category => ErrorCategory.Validation;
 }

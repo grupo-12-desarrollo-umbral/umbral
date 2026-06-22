@@ -65,6 +65,22 @@ public sealed class UserTests
     }
 
     [Fact]
+    public void AssignRole_WhenUserIsDeactivatedAndRoleIsUnchanged_ThrowsException()
+    {
+        var user = User.Provision("kc-09", "Inactive", "inactive@example.com", Role.Operator);
+        user.DeactivateAccess();
+        user.ClearDomainEvents();
+
+        // A deactivated user is never a valid target for role assignment — not even a same-role
+        // no-op — so the active-state guard runs before the unchanged-role short-circuit.
+        FluentActions.Invoking(() => user.AssignRole(Role.Operator))
+            .Should().Throw<DeactivatedUserRoleAssignmentNotAllowedException>();
+
+        user.Role.Should().Be(Role.Operator);
+        user.DomainEvents.Should().BeEmpty();
+    }
+
+    [Fact]
     public void DeactivateAccess_WhenCalledTwice_ThrowsException()
     {
         var user = User.Provision("kc-04", "Deactivate Me", "deactivate@example.com", Role.Operator);

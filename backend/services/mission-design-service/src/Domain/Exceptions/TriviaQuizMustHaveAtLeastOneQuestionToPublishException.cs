@@ -1,9 +1,11 @@
 namespace umbral_backend.Domain.Exceptions;
 
-public sealed class TriviaQuizMustHaveAtLeastOneQuestionToPublishException : Exception
+public sealed class TriviaQuizMustHaveAtLeastOneQuestionToPublishException : DomainException
 {
     public TriviaQuizMustHaveAtLeastOneQuestionToPublishException()
         : base("Trivia quiz must contain at least one question before publication.")
     {
     }
+
+    public override ErrorCategory Category => ErrorCategory.Conflict;
 }

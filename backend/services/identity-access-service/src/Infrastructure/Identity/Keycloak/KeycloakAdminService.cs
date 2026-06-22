@@ -7,7 +7,7 @@ using umbral_backend.Domain.Enums;
 
 namespace umbral_backend.Infrastructure.Identity.Keycloak;
 
-public sealed class KeycloakAdminService : IKeycloakAdminService
+public sealed class KeycloakAdminService : IIdentityProviderAdminService
 {
     private readonly HttpClient _httpClient;
     private readonly KeycloakOptions _options;

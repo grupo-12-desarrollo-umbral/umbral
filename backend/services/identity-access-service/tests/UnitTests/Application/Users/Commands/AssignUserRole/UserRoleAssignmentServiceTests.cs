@@ -25,8 +25,8 @@ public sealed class UserRoleAssignmentServiceTests
             .Callback<User, CancellationToken>((user, _) => updatedUser = user)
             .Returns(Task.CompletedTask);
 
-        var keycloakAdmin = new Mock<IKeycloakAdminService>();
-        var service = new UserRoleAssignmentService(repository.Object, keycloakAdmin.Object);
+        var identityProviderAdmin = new Mock<IIdentityProviderAdminService>();
+        var service = new UserRoleAssignmentService(repository.Object, identityProviderAdmin.Object);
 
         await service.AssignAsync(new AssignUserRoleCommand(target.Id, "Participant"), CancellationToken.None);
 
@@ -34,7 +34,7 @@ public sealed class UserRoleAssignmentServiceTests
         updatedUser!.Role.Should().Be(Role.Participant);
         updatedUser.DomainEvents.OfType<UserRoleRevokedEvent>().Should().ContainSingle();
         updatedUser.DomainEvents.OfType<UserRoleAssignedEvent>().Should().ContainSingle();
-        keycloakAdmin.Verify(
+        identityProviderAdmin.Verify(
             admin => admin.SyncUserRoleAsync(target.ExternalIdentityId, Role.Participant, It.IsAny<CancellationToken>()),
             Times.Once);
     }
@@ -52,15 +52,15 @@ public sealed class UserRoleAssignmentServiceTests
             .Setup(repo => repo.UpdateAsync(target, It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 
-        var keycloakAdmin = new Mock<IKeycloakAdminService>();
-        var service = new UserRoleAssignmentService(repository.Object, keycloakAdmin.Object);
+        var identityProviderAdmin = new Mock<IIdentityProviderAdminService>();
+        var service = new UserRoleAssignmentService(repository.Object, identityProviderAdmin.Object);
 
         await service.AssignAsync(new AssignUserRoleCommand(target.Id, "Operator"), CancellationToken.None);
 
         target.Role.Should().Be(Role.Operator);
         target.DomainEvents.OfType<UserRoleAssignedEvent>().Should().BeEmpty();
         target.DomainEvents.OfType<UserRoleRevokedEvent>().Should().BeEmpty();
-        keycloakAdmin.Verify(
+        identityProviderAdmin.Verify(
             admin => admin.SyncUserRoleAsync(target.ExternalIdentityId, Role.Operator, It.IsAny<CancellationToken>()),
             Times.Once);
     }
@@ -76,14 +76,14 @@ public sealed class UserRoleAssignmentServiceTests
             .Setup(repo => repo.GetByIdAsync(target.Id, It.IsAny<CancellationToken>()))
             .ReturnsAsync(target);
 
-        var keycloakAdmin = new Mock<IKeycloakAdminService>();
-        var service = new UserRoleAssignmentService(repository.Object, keycloakAdmin.Object);
+        var identityProviderAdmin = new Mock<IIdentityProviderAdminService>();
+        var service = new UserRoleAssignmentService(repository.Object, identityProviderAdmin.Object);
 
         var act = async () => await service.AssignAsync(new AssignUserRoleCommand(target.Id, "Participant"), CancellationToken.None);
 
         await act.Should().ThrowAsync<DeactivatedUserRoleAssignmentNotAllowedException>();
         repository.Verify(repo => repo.UpdateAsync(It.IsAny<User>(), It.IsAny<CancellationToken>()), Times.Never);
-        keycloakAdmin.Verify(
+        identityProviderAdmin.Verify(
             admin => admin.SyncUserRoleAsync(It.IsAny<string>(), It.IsAny<Role>(), It.IsAny<CancellationToken>()),
             Times.Never);
     }
@@ -98,7 +98,7 @@ public sealed class UserRoleAssignmentServiceTests
             .Setup(repo => repo.GetByIdAsync(target.Id, It.IsAny<CancellationToken>()))
             .ReturnsAsync(target);
 
-        var service = new UserRoleAssignmentService(repository.Object, Mock.Of<IKeycloakAdminService>());
+        var service = new UserRoleAssignmentService(repository.Object, Mock.Of<IIdentityProviderAdminService>());
 
         var act = async () => await service.AssignAsync(new AssignUserRoleCommand(target.Id, "SuperAdmin"), CancellationToken.None);
 

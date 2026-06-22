@@ -59,7 +59,7 @@ public sealed class AssignUserRoleCommandValidatorTests
     }
 
     [Fact]
-    public async Task Validate_RejectsDeactivatedTargetUser()
+    public async Task Validate_DoesNotRejectDeactivatedTargetUser_RuleEnforcedInDomain()
     {
         var targetUser = User.Provision("kc-22", "Inactive User", "inactive@example.com", Role.Participant);
         targetUser.DeactivateAccess();
@@ -73,9 +73,9 @@ public sealed class AssignUserRoleCommandValidatorTests
 
         var result = await validator.ValidateAsync(new AssignUserRoleCommand(22, "Operator"));
 
-        result.IsValid.Should().BeFalse();
-        result.Errors.Should().ContainSingle(error =>
-            error.PropertyName == nameof(AssignUserRoleCommand.UserId)
-            && error.ErrorMessage == "Target user must be active.");
+        // The deactivated-user guard now lives in the domain (User.AssignRole throws
+        // DeactivatedUserRoleAssignmentNotAllowedException → 422). The validator only checks
+        // existence + role, so a deactivated-but-existing target passes validation here.
+        result.IsValid.Should().BeTrue();
     }
 }

@@ -6,7 +6,7 @@ namespace umbral_backend.Domain.Exceptions;
 /// mission can never silently point at a non-published quiz (the "published-quiz readiness
 /// gap"). The operator must first swap the trivia selection or deactivate the mission.
 /// </summary>
-public sealed class TriviaQuizReferencedByActiveMissionException : Exception
+public sealed class TriviaQuizReferencedByActiveMissionException : DomainException
 {
     public TriviaQuizReferencedByActiveMissionException(
         int triviaQuizId,
@@ -22,4 +22,6 @@ public sealed class TriviaQuizReferencedByActiveMissionException : Exception
     public int TriviaQuizId { get; }
 
     public IReadOnlyCollection<string> ActiveMissionReferences { get; }
+
+    public override ErrorCategory Category => ErrorCategory.Conflict;
 }

@@ -142,7 +142,7 @@ public sealed class AssignOperatorToSessionEndpointTests : IAsyncLifetime
 
         var problem = await response.Content.ReadFromJsonAsync<ProblemDetails>();
         problem.Should().NotBeNull();
-        problem!.Title.Should().Be("Bad request.");
+        problem!.Title.Should().Be("Validation failed.");
         problem.Detail.Should().Contain("not eligible");
     }
 

@@ -214,7 +214,7 @@ public sealed class MissionEndpointsTests : IClassFixture<PostgreSqlFixture>, IA
         var problem = await secondResponse.Content.ReadFromJsonAsync<ProblemDetails>();
         problem.Should().NotBeNull();
         problem!.Status.Should().Be(StatusCodes.Status409Conflict);
-        problem.Title.Should().Be("Mission cannot change activation state from its current state.");
+        problem.Title.Should().Be("Conflict.");
     }
 
     [Fact]
@@ -663,7 +663,7 @@ public sealed class MissionEndpointsTests : IClassFixture<PostgreSqlFixture>, IA
     }
 
     [Fact]
-    public async Task ActivateMission_WhenRuntimePlanIsIncomplete_ReturnsBadRequest()
+    public async Task ActivateMission_WhenRuntimePlanIsIncomplete_ReturnsConflict()
     {
         AddAdministratorHeaders();
 
@@ -671,12 +671,12 @@ public sealed class MissionEndpointsTests : IClassFixture<PostgreSqlFixture>, IA
 
         var response = await _client.PostAsync($"/api/missions/{missionId}/activate", content: null);
 
-        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        response.StatusCode.Should().Be(HttpStatusCode.Conflict);
 
         var problem = await response.Content.ReadFromJsonAsync<ProblemDetails>();
         problem.Should().NotBeNull();
-        problem!.Status.Should().Be(StatusCodes.Status400BadRequest);
-        problem.Title.Should().Be("Validation failed.");
+        problem!.Status.Should().Be(StatusCodes.Status409Conflict);
+        problem.Title.Should().Be("Conflict.");
     }
 
     [Fact]

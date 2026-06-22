@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using System.Text.Json;
 using FluentValidation.Results;
 using Microsoft.AspNetCore.Http;
@@ -10,6 +11,53 @@ namespace umbral_backend.Application.UnitTests.Api.Services;
 
 public sealed class ProblemDetailsExceptionHandlerTests
 {
+    // The category -> HTTP status contract, restated independently of the handler so the
+    // coverage test verifies the mapping rather than trusting it. Every category maps to a
+    // 4xx, so a match here is also proof the exception never falls through to a 500.
+    private static readonly IReadOnlyDictionary<ErrorCategory, int> ExpectedStatus =
+        new Dictionary<ErrorCategory, int>
+        {
+            [ErrorCategory.NotFound] = StatusCodes.Status404NotFound,
+            [ErrorCategory.Validation] = StatusCodes.Status400BadRequest,
+            [ErrorCategory.Conflict] = StatusCodes.Status409Conflict,
+            [ErrorCategory.Forbidden] = StatusCodes.Status403Forbidden,
+            [ErrorCategory.Unauthorized] = StatusCodes.Status401Unauthorized,
+            [ErrorCategory.Unprocessable] = StatusCodes.Status422UnprocessableEntity
+        };
+
+    // Every concrete DomainException in the Domain assembly, one Theory case each. The key is the
+    // readable, serialisable FullName so xUnit enumerates a distinct, named case per exception.
+    public static IEnumerable<object[]> DomainExceptionTypes() =>
+        typeof(DomainException).Assembly
+            .GetTypes()
+            .Where(type => type is { IsAbstract: false, IsClass: true, IsGenericTypeDefinition: false }
+                && typeof(DomainException).IsAssignableFrom(type))
+            .OrderBy(type => type.Name)
+            .Select(type => new object[] { type.FullName! });
+
+    [Theory]
+    [MemberData(nameof(DomainExceptionTypes))]
+    public async Task TryHandleAsync_DomainException_MapsToItsCategoryStatusNever500(string typeName)
+    {
+        var type = typeof(DomainException).Assembly.GetType(typeName, throwOnError: true)!;
+
+        // Bypass the (varied) constructors: Category and ErrorCode are constant/derived, so an
+        // uninitialised instance is enough to exercise the handler's classification.
+        var exception = (Exception)RuntimeHelpers.GetUninitializedObject(type);
+        var category = ((IErrorMetadata)exception).Category;
+
+        var handler = new ProblemDetailsExceptionHandler();
+        var httpContext = CreateHttpContext();
+        await handler.TryHandleAsync(httpContext, exception, CancellationToken.None);
+        var problem = await ReadProblemDetailsAsync(httpContext);
+
+        problem.Status.Should().Be(
+            ExpectedStatus[category],
+            $"{type.Name} is categorised {category} and must map to that status, never a silent 500");
+        problem.Type.Should().NotBeNullOrWhiteSpace(
+            $"{type.Name} should carry a stable Type slug");
+    }
+
     [Fact]
     public async Task TryHandleAsync_ForKnownExceptions_ReturnsExpectedStatusCode()
     {
@@ -104,14 +152,11 @@ public sealed class ProblemDetailsExceptionHandlerTests
     }
 
     [Fact]
-    public async Task TryHandleAsync_ForRoleAssignmentInvariantValidation_ReturnsUnprocessableEntity()
+    public async Task TryHandleAsync_ForDeactivatedUserRoleAssignment_ReturnsUnprocessableEntity()
     {
         var handler = new ProblemDetailsExceptionHandler();
         var httpContext = CreateHttpContext();
-        var exception = new ValidationException(
-        [
-            new ValidationFailure("UserId", "Target user must be active.")
-        ]);
+        var exception = new DeactivatedUserRoleAssignmentNotAllowedException(22);
 
         var handled = await handler.TryHandleAsync(httpContext, exception, CancellationToken.None);
 
@@ -121,7 +166,7 @@ public sealed class ProblemDetailsExceptionHandlerTests
         var problem = await ReadProblemDetailsAsync(httpContext);
         problem.Status.Should().Be(StatusCodes.Status422UnprocessableEntity);
         problem.Title.Should().Be("Unprocessable entity.");
-        problem.Detail.Should().Contain("Target user must be active.");
+        problem.Detail.Should().Contain("deactivated");
     }
 
     [Fact]

@@ -1,11 +1,12 @@
+using System.Runtime.CompilerServices;
 using System.Text.Json;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using umbral_backend.Api.Services;
 using umbral_backend.Application.Common.Exceptions;
 using umbral_backend.Domain.Enums;
 using umbral_backend.Domain.Exceptions;
-using umbral_backend.Web.Services;
 using NotFoundException = umbral_backend.Application.Common.Exceptions.NotFoundException;
 using ValidationException = umbral_backend.Application.Common.Exceptions.ValidationException;
 
@@ -13,6 +14,51 @@ namespace umbral_backend.Web.UnitTests.Services;
 
 public class ProblemDetailsExceptionHandlerTests
 {
+    // The category -> HTTP status contract, restated independently of the handler so the
+    // coverage test verifies the mapping rather than trusting it. Every category maps to a
+    // 4xx, so a match here is also proof the exception never falls through to a 500.
+    private static readonly IReadOnlyDictionary<ErrorCategory, int> ExpectedStatus =
+        new Dictionary<ErrorCategory, int>
+        {
+            [ErrorCategory.NotFound] = StatusCodes.Status404NotFound,
+            [ErrorCategory.Validation] = StatusCodes.Status400BadRequest,
+            [ErrorCategory.Conflict] = StatusCodes.Status409Conflict,
+            [ErrorCategory.Forbidden] = StatusCodes.Status403Forbidden,
+            [ErrorCategory.Unauthorized] = StatusCodes.Status401Unauthorized,
+            [ErrorCategory.Unprocessable] = StatusCodes.Status422UnprocessableEntity
+        };
+
+    // Every concrete DomainException in the Domain assembly, one Theory case each. The key is the
+    // readable, serialisable FullName so xUnit enumerates a distinct, named case per exception.
+    public static IEnumerable<object[]> DomainExceptionTypes() =>
+        typeof(DomainException).Assembly
+            .GetTypes()
+            .Where(type => type is { IsAbstract: false, IsClass: true, IsGenericTypeDefinition: false }
+                && typeof(DomainException).IsAssignableFrom(type))
+            .OrderBy(type => type.Name)
+            .Select(type => new object[] { type.FullName! });
+
+    [Theory]
+    [MemberData(nameof(DomainExceptionTypes))]
+    public async Task TryHandleAsync_DomainException_MapsToItsCategoryStatusNever500(string typeName)
+    {
+        var type = typeof(DomainException).Assembly.GetType(typeName, throwOnError: true)!;
+
+        // Bypass the (varied) constructors: Category and ErrorCode are constant/derived, so an
+        // uninitialised instance is enough to exercise the handler's classification.
+        var exception = (Exception)RuntimeHelpers.GetUninitializedObject(type);
+        var category = ((IErrorMetadata)exception).Category;
+
+        var httpContext = CreateHttpContext();
+        var problem = await InvokeHandlerAndReadProblemDetails(httpContext, exception);
+
+        problem.Status.Should().Be(
+            ExpectedStatus[category],
+            $"{type.Name} is categorised {category} and must map to that status, never a silent 500");
+        problem.Type.Should().NotBeNullOrWhiteSpace(
+            $"{type.Name} should carry a stable Type slug");
+    }
+
     private static HttpContext CreateHttpContext()
     {
         var httpContext = new DefaultHttpContext();
@@ -85,7 +131,7 @@ public class ProblemDetailsExceptionHandlerTests
             new TriviaQuizNotEditableException(TriviaQuizStatus.Published));
 
         problem.Status.Should().Be(409);
-        problem.Title.Should().Be("Trivia quiz cannot be edited in its current state.");
+        problem.Title.Should().Be("Conflict.");
         httpContext.Response.StatusCode.Should().Be(409);
     }
 
@@ -98,7 +144,7 @@ public class ProblemDetailsExceptionHandlerTests
             new TriviaQuizCannotBePublishedInCurrentStateException(TriviaQuizStatus.Published));
 
         problem.Status.Should().Be(409);
-        problem.Title.Should().Be("Trivia quiz cannot be published in its current state.");
+        problem.Title.Should().Be("Conflict.");
         httpContext.Response.StatusCode.Should().Be(409);
     }
 
@@ -111,7 +157,7 @@ public class ProblemDetailsExceptionHandlerTests
             new TriviaQuizMustHaveAtLeastOneQuestionToPublishException());
 
         problem.Status.Should().Be(409);
-        problem.Title.Should().Be("Trivia quiz is not ready for publication.");
+        problem.Title.Should().Be("Conflict.");
         httpContext.Response.StatusCode.Should().Be(409);
     }
 
@@ -124,7 +170,7 @@ public class ProblemDetailsExceptionHandlerTests
             new TriviaQuizCannotBeDestructivelyRemovedAfterUsageException());
 
         problem.Status.Should().Be(409);
-        problem.Title.Should().Be("Trivia quiz cannot be removed destructively after usage.");
+        problem.Title.Should().Be("Conflict.");
         httpContext.Response.StatusCode.Should().Be(409);
     }
 
@@ -137,7 +183,7 @@ public class ProblemDetailsExceptionHandlerTests
             new TriviaQuizCannotBeRetiredWithoutUsageHistoryException());
 
         problem.Status.Should().Be(409);
-        problem.Title.Should().Be("Trivia quiz cannot be retired without usage history.");
+        problem.Title.Should().Be("Conflict.");
         httpContext.Response.StatusCode.Should().Be(409);
     }
 
@@ -150,7 +196,7 @@ public class ProblemDetailsExceptionHandlerTests
             new TriviaQuizCannotBeArchivedInCurrentStateException(TriviaQuizStatus.Draft));
 
         problem.Status.Should().Be(409);
-        problem.Title.Should().Be("Trivia quiz cannot be archived in its current state.");
+        problem.Title.Should().Be("Conflict.");
         httpContext.Response.StatusCode.Should().Be(409);
     }
 
@@ -163,7 +209,7 @@ public class ProblemDetailsExceptionHandlerTests
             new TriviaQuizReferencedByActiveMissionException(7, ["'Forest Hunt' (#12)"]));
 
         problem.Status.Should().Be(409);
-        problem.Title.Should().Be("Trivia quiz cannot be archived while referenced by an active mission.");
+        problem.Title.Should().Be("Conflict.");
         httpContext.Response.StatusCode.Should().Be(409);
     }
 
@@ -176,7 +222,7 @@ public class ProblemDetailsExceptionHandlerTests
             new TriviaQuestionScoreValueRequiredToPublishException(1));
 
         problem.Status.Should().Be(409);
-        problem.Title.Should().Be("Trivia quiz is not ready for publication.");
+        problem.Title.Should().Be("Conflict.");
         httpContext.Response.StatusCode.Should().Be(409);
     }
 
@@ -189,7 +235,7 @@ public class ProblemDetailsExceptionHandlerTests
             new TriviaQuestionTimeLimitRequiredToPublishException(1));
 
         problem.Status.Should().Be(409);
-        problem.Title.Should().Be("Trivia quiz is not ready for publication.");
+        problem.Title.Should().Be("Conflict.");
         httpContext.Response.StatusCode.Should().Be(409);
     }
 
@@ -202,7 +248,7 @@ public class ProblemDetailsExceptionHandlerTests
             new TriviaQuestionSequenceOrderMustBeUniqueException(2));
 
         problem.Status.Should().Be(409);
-        problem.Title.Should().Be("Question sequence order conflict.");
+        problem.Title.Should().Be("Conflict.");
         httpContext.Response.StatusCode.Should().Be(409);
     }
 
@@ -215,21 +261,21 @@ public class ProblemDetailsExceptionHandlerTests
             new TriviaQuestionNotFoundException(42));
 
         problem.Status.Should().Be(404);
-        problem.Title.Should().Be("Trivia question not found.");
+        problem.Title.Should().Be("Resource not found.");
         httpContext.Response.StatusCode.Should().Be(404);
     }
 
     [Fact]
-    public async Task TryHandleAsync_MissionNotReadyForActivationException_Returns400()
+    public async Task TryHandleAsync_MissionNotReadyForActivationException_Returns409()
     {
         var httpContext = CreateHttpContext();
         var problem = await InvokeHandlerAndReadProblemDetails(
             httpContext,
             new MissionNotReadyForActivationException(["Mission must have at least one stage."]));
 
-        problem.Status.Should().Be(400);
-        problem.Title.Should().Be("Validation failed.");
-        httpContext.Response.StatusCode.Should().Be(400);
+        problem.Status.Should().Be(409);
+        problem.Title.Should().Be("Conflict.");
+        httpContext.Response.StatusCode.Should().Be(409);
     }
 
     [Fact]
@@ -241,7 +287,7 @@ public class ProblemDetailsExceptionHandlerTests
             new MissionNodeNotFoundException(7));
 
         problem.Status.Should().Be(404);
-        problem.Title.Should().Be("Mission resource not found.");
+        problem.Title.Should().Be("Resource not found.");
         httpContext.Response.StatusCode.Should().Be(404);
     }
 
@@ -254,7 +300,7 @@ public class ProblemDetailsExceptionHandlerTests
             new TargetNotFoundException(9));
 
         problem.Status.Should().Be(404);
-        problem.Title.Should().Be("Mission resource not found.");
+        problem.Title.Should().Be("Resource not found.");
         httpContext.Response.StatusCode.Should().Be(404);
     }
 
@@ -267,7 +313,7 @@ public class ProblemDetailsExceptionHandlerTests
             new MissionAlreadyActiveException());
 
         problem.Status.Should().Be(409);
-        problem.Title.Should().Be("Mission cannot change activation state from its current state.");
+        problem.Title.Should().Be("Conflict.");
         httpContext.Response.StatusCode.Should().Be(409);
     }
 
@@ -280,7 +326,7 @@ public class ProblemDetailsExceptionHandlerTests
             new MissionAlreadyDeactivatedException());
 
         problem.Status.Should().Be(409);
-        problem.Title.Should().Be("Mission cannot change activation state from its current state.");
+        problem.Title.Should().Be("Conflict.");
         httpContext.Response.StatusCode.Should().Be(409);
     }
 
@@ -293,7 +339,7 @@ public class ProblemDetailsExceptionHandlerTests
             new SubstagePlayModeMismatchException(SubstagePlayMode.Trivia, SubstagePlayMode.TreasureHunt));
 
         problem.Status.Should().Be(400);
-        problem.Title.Should().Be("Invalid mission authoring operation.");
+        problem.Title.Should().Be("Validation failed.");
         httpContext.Response.StatusCode.Should().Be(400);
     }
 
@@ -306,7 +352,7 @@ public class ProblemDetailsExceptionHandlerTests
             new MissionNameRequiredException());
 
         problem.Status.Should().Be(400);
-        problem.Title.Should().Be("Invalid mission authoring operation.");
+        problem.Title.Should().Be("Validation failed.");
         httpContext.Response.StatusCode.Should().Be(400);
     }
 
