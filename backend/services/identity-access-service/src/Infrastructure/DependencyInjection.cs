@@ -20,7 +20,7 @@ public static class DependencyInjection
         builder.Services.Configure<KeycloakOptions>(
             builder.Configuration.GetSection(KeycloakOptions.SectionName));
 
-        builder.Services.AddHttpClient<IKeycloakAdminService, KeycloakAdminService>(client =>
+        builder.Services.AddHttpClient<IIdentityProviderAdminService, KeycloakAdminService>(client =>
         {
             client.Timeout = TimeSpan.FromSeconds(10);
         });

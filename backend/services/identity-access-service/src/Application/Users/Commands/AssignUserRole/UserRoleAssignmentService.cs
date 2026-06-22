@@ -10,14 +10,14 @@ using ValidationException = umbral_backend.Application.Common.Exceptions.Validat
 public sealed class UserRoleAssignmentService : IUserRoleAssignmentExecutor
 {
     private readonly IUserRepository _userRepository;
-    private readonly IKeycloakAdminService _keycloakAdminService;
+    private readonly IIdentityProviderAdminService _identityProviderAdmin;
 
     public UserRoleAssignmentService(
         IUserRepository userRepository,
-        IKeycloakAdminService keycloakAdminService)
+        IIdentityProviderAdminService identityProviderAdmin)
     {
         _userRepository = userRepository;
-        _keycloakAdminService = keycloakAdminService;
+        _identityProviderAdmin = identityProviderAdmin;
     }
 
     public async Task AssignAsync(AssignUserRoleCommand command, CancellationToken cancellationToken)
@@ -34,7 +34,7 @@ public sealed class UserRoleAssignmentService : IUserRoleAssignmentExecutor
 
         await _userRepository.UpdateAsync(user, cancellationToken);
 
-        await _keycloakAdminService.SyncUserRoleAsync(user.ExternalIdentityId, newRole, cancellationToken);
+        await _identityProviderAdmin.SyncUserRoleAsync(user.ExternalIdentityId, newRole, cancellationToken);
     }
 
     private static bool TryParseRole(string role, out Role parsedRole)
