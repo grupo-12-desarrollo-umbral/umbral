@@ -38,8 +38,8 @@ public sealed class TriviaRoundStartedNotificationHandler : INotificationHandler
         var session = await _liveSessionRepository.GetByIdAsync(notification.LiveSessionId, cancellationToken)
             ?? throw new NotFoundException(nameof(umbral_backend.Domain.Entities.LiveSession), notification.LiveSessionId.ToString());
 
-        if (session.SessionMode != SessionMode.Trivia
-            || session.State != SessionState.Active
+        if (session.State != SessionState.Active
+            || !session.MissionRuntimeSnapshot.TriviaQuestionSnapshots.Any()
             || session.ActiveQuestionIndex is not null)
         {
             return;

@@ -195,9 +195,7 @@ public sealed class TransitionSessionStateCommandHandlerTests
 
     private static LiveSession CreateScheduledSession(int? assignedOperatorUserId, bool registerTeam)
     {
-        var session = LiveSession.Create(
-            SessionMode.TreasureHunt,
-            SessionSource.Create(SessionSourceType.Mission, Guid.NewGuid()),
+        var session = LiveSessionTestFactory.CreateScheduledTreasureHunt(
             $"SES-{Guid.NewGuid():N}"[..12],
             "Lifecycle Session",
             45,

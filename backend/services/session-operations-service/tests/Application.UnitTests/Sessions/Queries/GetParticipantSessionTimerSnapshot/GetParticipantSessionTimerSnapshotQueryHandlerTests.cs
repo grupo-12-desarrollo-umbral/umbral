@@ -201,9 +201,7 @@ public sealed class GetParticipantSessionTimerSnapshotQueryHandlerTests
 
     private static LiveSession CreateActiveSession(DateTimeOffset activeAt, int maximumTimeMinutes)
     {
-        var session = LiveSession.Create(
-            SessionMode.TreasureHunt,
-            SessionSource.Create(SessionSourceType.Mission, Guid.NewGuid()),
+        var session = LiveSessionTestFactory.CreateScheduledTreasureHunt(
             $"SES-{Guid.NewGuid():N}"[..12],
             "Timer Session",
             maximumTimeMinutes,

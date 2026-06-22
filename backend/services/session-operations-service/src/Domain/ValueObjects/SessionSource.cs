@@ -5,48 +5,29 @@ namespace umbral_backend.Domain.ValueObjects;
 
 public sealed class SessionSource : ValueObject
 {
-    private SessionSource(SessionSourceType sourceType, Guid sourceEntityId, int? sourceTriviaQuizId)
+    private SessionSource(SessionSourceType sourceType, Guid sourceEntityId)
     {
         SourceType = sourceType;
         SourceEntityId = sourceEntityId;
-        SourceTriviaQuizId = sourceTriviaQuizId;
     }
 
     public SessionSourceType SourceType { get; }
 
     public Guid SourceEntityId { get; }
 
-    public int? SourceTriviaQuizId { get; }
-
-    public static SessionSource Create(SessionSourceType sourceType, Guid sourceEntityId)
+    public static SessionSource Create(Guid sourceMissionId)
     {
-        if (sourceType == SessionSourceType.TriviaQuiz)
-        {
-            throw new SessionSourceTriviaQuizIdRequiredException();
-        }
-
-        if (sourceEntityId == Guid.Empty)
+        if (sourceMissionId == Guid.Empty)
         {
             throw new SessionSourceEntityRequiredException();
         }
 
-        return new SessionSource(sourceType, sourceEntityId, sourceTriviaQuizId: null);
-    }
-
-    public static SessionSource CreateTriviaQuiz(int triviaQuizId)
-    {
-        if (triviaQuizId <= 0)
-        {
-            throw new SessionSourceTriviaQuizIdRequiredException();
-        }
-
-        return new SessionSource(SessionSourceType.TriviaQuiz, Guid.Empty, triviaQuizId);
+        return new SessionSource(SessionSourceType.Mission, sourceMissionId);
     }
 
     protected override IEnumerable<object?> GetEqualityComponents()
     {
         yield return SourceType;
         yield return SourceEntityId;
-        yield return SourceTriviaQuizId;
     }
 }

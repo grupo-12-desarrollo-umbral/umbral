@@ -157,13 +157,14 @@ public sealed class TransitionSessionStateEndpointTests : IAsyncLifetime
 
     private async Task<LiveSession> SeedSessionAsync(bool registerTeam = true, Action<LiveSession>? mutate = null)
     {
+        var sourceMissionId = Guid.NewGuid();
         var liveSession = LiveSession.Create(
-            SessionMode.TreasureHunt,
-            SessionSource.Create(SessionSourceType.Mission, Guid.NewGuid()),
+            SessionSource.Create(sourceMissionId),
             $"SES-{Guid.NewGuid():N}"[..12],
             "Lifecycle Session",
             45,
-            DateTimeOffset.UtcNow.AddHours(2));
+            DateTimeOffset.UtcNow.AddHours(2),
+            CreateTreasureHuntSnapshot(sourceMissionId));
 
         if (registerTeam)
         {
@@ -179,6 +180,30 @@ public sealed class TransitionSessionStateEndpointTests : IAsyncLifetime
         await dbContext.SaveChangesAsync();
 
         return liveSession;
+    }
+
+    private static MissionRuntimeSnapshot CreateTreasureHuntSnapshot(Guid sourceMissionId)
+    {
+        var treasureHuntSubstage = SubstageSnapshot.CreateTreasureHunt("Treasure Hunt", 1, 100);
+
+        return MissionRuntimeSnapshot.Create(
+            sourceMissionId,
+            "Seeded Mission",
+            MaximumTime.Create(45),
+            [
+                StageSnapshot.Create("Stage One", 1, [treasureHuntSubstage])
+            ],
+            [
+                TargetSnapshot.Create(
+                    treasureHuntSubstage.SubstageSnapshotId,
+                    "Target Alpha",
+                    "QR-ALPHA",
+                    1,
+                    true,
+                    "Look under the stairs",
+                    "AfterPreviousTarget")
+            ],
+            []);
     }
 
     private static void AddTrustedHeaders(HttpClient client, string userId, string role, string email)

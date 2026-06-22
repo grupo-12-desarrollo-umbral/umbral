@@ -28,7 +28,7 @@ public sealed class LiveSession : BaseAuditableEntity
         TitleSnapshot = string.Empty;
         Source = null!;
         MaximumTime = null!;
-        TriviaSnapshot = null;
+        MissionRuntimeSnapshot = null!;
         _sessionTimerTotalDuration = TimeSpan.Zero;
         _sessionTimerRemainingDuration = TimeSpan.Zero;
         _questionTimerTotalDuration = TimeSpan.Zero;
@@ -37,13 +37,13 @@ public sealed class LiveSession : BaseAuditableEntity
 
     private LiveSession(
         Guid liveSessionId,
-        SessionMode sessionMode,
         SessionSource source,
         string sessionCode,
         string titleSnapshot,
         MaximumTime maximumTime,
         DateTimeOffset scheduledAt,
-        TriviaSessionSnapshot? triviaSnapshot)
+        MissionRuntimeSnapshot missionRuntimeSnapshot,
+        int? assignedOperatorUserId)
     {
         if (string.IsNullOrWhiteSpace(sessionCode))
         {
@@ -55,11 +55,9 @@ public sealed class LiveSession : BaseAuditableEntity
             throw new LiveSessionTitleRequiredException();
         }
 
-        ValidateSourceForMode(sessionMode, source);
-        ValidateTriviaSnapshot(sessionMode, triviaSnapshot);
+        ValidateSource(source);
 
         LiveSessionId = liveSessionId;
-        SessionMode = sessionMode;
         Source = source;
         SessionCode = sessionCode.Trim().ToUpperInvariant();
         TitleSnapshot = titleSnapshot.Trim();
@@ -67,7 +65,8 @@ public sealed class LiveSession : BaseAuditableEntity
         ScheduledAt = scheduledAt;
         LastStateChangedAt = scheduledAt;
         MaximumTime = maximumTime;
-        TriviaSnapshot = triviaSnapshot;
+        MissionRuntimeSnapshot = missionRuntimeSnapshot;
+        AssignedOperatorUserId = assignedOperatorUserId;
         _sessionTimerTotalDuration = TimeSpan.FromMinutes(maximumTime.Minutes);
         _sessionTimerRemainingDuration = _sessionTimerTotalDuration;
         _questionTimerTotalDuration = TimeSpan.Zero;
@@ -75,8 +74,6 @@ public sealed class LiveSession : BaseAuditableEntity
     }
 
     public Guid LiveSessionId { get; private set; }
-
-    public SessionMode SessionMode { get; private set; }
 
     public SessionSource Source { get; private set; }
 
@@ -108,7 +105,7 @@ public sealed class LiveSession : BaseAuditableEntity
 
     public int? AssignedOperatorUserId { get; private set; }
 
-    public TriviaSessionSnapshot? TriviaSnapshot { get; private set; }
+    public MissionRuntimeSnapshot MissionRuntimeSnapshot { get; private set; }
 
     public int? ActiveQuestionIndex { get; private set; }
 
@@ -119,44 +116,23 @@ public sealed class LiveSession : BaseAuditableEntity
     public IReadOnlyCollection<JoinContext> JoinContexts => _joinContexts.AsReadOnly();
 
     public static LiveSession Create(
-        SessionMode sessionMode,
-        SessionSource source,
-        string sessionCode,
-        string titleSnapshot,
-        int maximumTimeMinutes,
-        DateTimeOffset scheduledAt)
-    {
-        var session = new LiveSession(
-            Guid.NewGuid(),
-            sessionMode,
-            source,
-            sessionCode,
-            titleSnapshot,
-            MaximumTime.Create(maximumTimeMinutes),
-            scheduledAt,
-            triviaSnapshot: null);
-
-        session.AddDomainEvent(new LiveSessionCreatedEvent(session.LiveSessionId, session.SessionCode, scheduledAt));
-        return session;
-    }
-
-    public static LiveSession CreateTrivia(
         SessionSource source,
         string sessionCode,
         string titleSnapshot,
         int maximumTimeMinutes,
         DateTimeOffset scheduledAt,
-        TriviaSessionSnapshot triviaSnapshot)
+        MissionRuntimeSnapshot missionRuntimeSnapshot,
+        int? assignedOperatorUserId = null)
     {
         var session = new LiveSession(
             Guid.NewGuid(),
-            SessionMode.Trivia,
             source,
             sessionCode,
             titleSnapshot,
             MaximumTime.Create(maximumTimeMinutes),
             scheduledAt,
-            triviaSnapshot);
+            missionRuntimeSnapshot,
+            assignedOperatorUserId);
 
         session.AddDomainEvent(new LiveSessionCreatedEvent(session.LiveSessionId, session.SessionCode, scheduledAt));
         return session;
@@ -286,7 +262,7 @@ public sealed class LiveSession : BaseAuditableEntity
     {
         EnsureCanActivateQuestion(questionIndex);
 
-        var question = TriviaSnapshot!.Questions.ElementAt(questionIndex);
+        var question = GetOrderedTriviaQuestions().ElementAt(questionIndex);
         ActiveQuestionIndex = questionIndex;
         _questionTimerTotalDuration = TimeSpan.FromSeconds(question.TimeLimitSeconds);
         _questionTimerRemainingDuration = _questionTimerTotalDuration;
@@ -598,12 +574,13 @@ public sealed class LiveSession : BaseAuditableEntity
             throw new QuestionAlreadyActiveException(ActiveQuestionIndex.Value);
         }
 
-        if (TriviaSnapshot is null)
+        var orderedTriviaQuestions = GetOrderedTriviaQuestions();
+        if (orderedTriviaQuestions.Length == 0)
         {
-            throw new TriviaSessionSnapshotRequiredException();
+            throw new TriviaSubstageSnapshotMustContainQuestionsException();
         }
 
-        if (questionIndex < 0 || questionIndex >= TriviaSnapshot.Questions.Count)
+        if (questionIndex < 0 || questionIndex >= orderedTriviaQuestions.Length)
         {
             throw new QuestionIndexOutOfRangeException(questionIndex);
         }
@@ -633,23 +610,18 @@ public sealed class LiveSession : BaseAuditableEntity
                 member.IsActive));
     }
 
-    private static void ValidateSourceForMode(SessionMode sessionMode, SessionSource source)
+    private TriviaQuestionSnapshot[] GetOrderedTriviaQuestions()
     {
-        var expectedType = sessionMode == SessionMode.TreasureHunt
-            ? SessionSourceType.Mission
-            : SessionSourceType.TriviaQuiz;
-
-        if (source.SourceType != expectedType)
-        {
-            throw new SessionSourceDoesNotMatchModeException(sessionMode, source.SourceType);
-        }
+        return MissionRuntimeSnapshot.TriviaQuestionSnapshots
+            .OrderBy(question => question.SequenceOrder)
+            .ToArray();
     }
 
-    private static void ValidateTriviaSnapshot(SessionMode sessionMode, TriviaSessionSnapshot? triviaSnapshot)
+    private static void ValidateSource(SessionSource source)
     {
-        if (sessionMode == SessionMode.Trivia && triviaSnapshot is null)
+        if (source.SourceType != SessionSourceType.Mission)
         {
-            throw new TriviaSessionSnapshotRequiredException();
+            throw new SessionSourceEntityRequiredException();
         }
     }
 }

@@ -113,6 +113,7 @@ services:
       IdentityAccess__BaseAddress: http://identity-access-service:8080/
       PublishedTriviaQuizSource__BaseAddress: http://mission-design-service:8080/
       MissionReadinessSource__BaseAddress: http://mission-design-service:8080/
+      MissionRuntimeSource__BaseAddress: http://mission-design-service:8080/
     ports:
       - "5003:8080"
 

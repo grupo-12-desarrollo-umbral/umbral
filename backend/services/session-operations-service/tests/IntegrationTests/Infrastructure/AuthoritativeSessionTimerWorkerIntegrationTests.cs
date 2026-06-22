@@ -80,36 +80,14 @@ public sealed class AuthoritativeSessionTimerWorkerIntegrationTests : IAsyncLife
         var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         var transitionPolicy = new SessionStateTransitionPolicy();
 
-        var session = LiveSession.CreateTrivia(
-            SessionSource.CreateTriviaQuiz(42),
+        var sourceMissionId = Guid.NewGuid();
+        var session = LiveSession.Create(
+            SessionSource.Create(sourceMissionId),
             $"SES-{Guid.NewGuid():N}"[..12],
             "Worker Trivia",
             20,
             scheduledAt,
-            TriviaSessionSnapshot.Create(
-                "Trivia Source",
-                [
-                    TriviaQuestionSnapshot.Create(
-                        "Capital of France?",
-                        1,
-                        50,
-                        30,
-                        "Paris is the capital city.",
-                        [
-                            TriviaOptionSnapshot.Create("Paris", 1, true),
-                            TriviaOptionSnapshot.Create("Lyon", 2, false)
-                        ]),
-                    TriviaQuestionSnapshot.Create(
-                        "Capital of Spain?",
-                        2,
-                        50,
-                        25,
-                        "Madrid is the capital city.",
-                        [
-                            TriviaOptionSnapshot.Create("Madrid", 1, true),
-                            TriviaOptionSnapshot.Create("Barcelona", 2, false)
-                        ])
-                ]));
+            CreateTriviaSnapshot(sourceMissionId));
 
         session.AssociateTeam(Guid.NewGuid(), "Aurora", "AUR-01", 3);
         session.MoveTo(SessionState.Preparing, scheduledAt.AddMinutes(1), transitionPolicy);
@@ -126,6 +104,44 @@ public sealed class AuthoritativeSessionTimerWorkerIntegrationTests : IAsyncLife
         await dbContext.SaveChangesAsync();
 
         return session.LiveSessionId;
+    }
+
+    private static MissionRuntimeSnapshot CreateTriviaSnapshot(Guid sourceMissionId)
+    {
+        var triviaSubstage = SubstageSnapshot.CreateTrivia("Trivia Round", 1);
+
+        return MissionRuntimeSnapshot.Create(
+            sourceMissionId,
+            "Worker Trivia Mission",
+            MaximumTime.Create(20),
+            [
+                StageSnapshot.Create("Stage One", 1, [triviaSubstage])
+            ],
+            [],
+            [
+                TriviaQuestionSnapshot.Create(
+                    triviaSubstage.SubstageSnapshotId,
+                    "Capital of France?",
+                    1,
+                    50,
+                    30,
+                    "Paris is the capital city.",
+                    [
+                        TriviaOptionSnapshot.Create("Paris", 1, true),
+                        TriviaOptionSnapshot.Create("Lyon", 2, false)
+                    ]),
+                TriviaQuestionSnapshot.Create(
+                    triviaSubstage.SubstageSnapshotId,
+                    "Capital of Spain?",
+                    2,
+                    50,
+                    25,
+                    "Madrid is the capital city.",
+                    [
+                        TriviaOptionSnapshot.Create("Madrid", 1, true),
+                        TriviaOptionSnapshot.Create("Barcelona", 2, false)
+                    ])
+            ]);
     }
 
     private async Task RunWorkerTickAsync(DateTimeOffset utcNow)

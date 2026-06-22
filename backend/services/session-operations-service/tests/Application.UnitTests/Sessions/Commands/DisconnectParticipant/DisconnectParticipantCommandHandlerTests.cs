@@ -82,9 +82,7 @@ public sealed class DisconnectParticipantCommandHandlerTests
 
     private static LiveSession CreateActiveSessionWithParticipant(out Guid participantId)
     {
-        var session = LiveSession.Create(
-            SessionMode.TreasureHunt,
-            SessionSource.Create(SessionSourceType.Mission, Guid.NewGuid()),
+        var session = LiveSessionTestFactory.CreateScheduledTreasureHunt(
             "disc123",
             "Disconnect Session",
             45,

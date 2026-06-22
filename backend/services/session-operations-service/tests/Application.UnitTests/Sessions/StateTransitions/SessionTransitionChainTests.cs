@@ -52,9 +52,7 @@ public sealed class SessionTransitionChainTests
 
     private static SessionTransitionContext CreateContext()
     {
-        var session = LiveSession.Create(
-            SessionMode.TreasureHunt,
-            SessionSource.Create(SessionSourceType.Mission, Guid.NewGuid()),
+        var session = LiveSessionTestFactory.CreateScheduledTreasureHunt(
             "SES-0001",
             "Chain Session",
             30,

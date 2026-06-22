@@ -264,13 +264,14 @@ public sealed class SessionStateBroadcastHubTests : IAsyncLifetime
         var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         var createdAt = DateTimeOffset.UtcNow.AddMinutes(-20);
 
+        var sourceMissionId = Guid.NewGuid();
         var session = LiveSession.Create(
-            SessionMode.TreasureHunt,
-            SessionSource.Create(SessionSourceType.Mission, Guid.NewGuid()),
+            SessionSource.Create(sourceMissionId),
             $"SES-{Guid.NewGuid():N}"[..12],
             "Broadcast Session",
             45,
-            createdAt);
+            createdAt,
+            CreateTreasureHuntSnapshot(sourceMissionId));
         var team = session.AssociateTeam(Guid.NewGuid(), "Red", "RED-01", 4);
         session.AssignOperator(OperatorUserId, createdAt.AddMinutes(1));
         var participant = session.AdmitParticipant(
@@ -297,13 +298,14 @@ public sealed class SessionStateBroadcastHubTests : IAsyncLifetime
         var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         var createdAt = DateTimeOffset.UtcNow.AddMinutes(-20);
 
+        var sourceMissionId = Guid.NewGuid();
         var session = LiveSession.Create(
-            SessionMode.TreasureHunt,
-            SessionSource.Create(SessionSourceType.Mission, Guid.NewGuid()),
+            SessionSource.Create(sourceMissionId),
             $"SES-{Guid.NewGuid():N}"[..12],
             "Paused Timer Session",
             45,
-            createdAt);
+            createdAt,
+            CreateTreasureHuntSnapshot(sourceMissionId));
         var team = session.AssociateTeam(Guid.NewGuid(), "Red", "RED-01", 4);
         session.AssignOperator(OperatorUserId, createdAt.AddMinutes(1));
         var participant = session.AdmitParticipant(
@@ -331,26 +333,14 @@ public sealed class SessionStateBroadcastHubTests : IAsyncLifetime
         var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         var createdAt = DateTimeOffset.UtcNow.AddMinutes(-20);
 
-        var session = LiveSession.CreateTrivia(
-            SessionSource.CreateTriviaQuiz(42),
+        var sourceMissionId = Guid.NewGuid();
+        var session = LiveSession.Create(
+            SessionSource.Create(sourceMissionId),
             $"SES-{Guid.NewGuid():N}"[..12],
             "Paused Trivia Session",
             20,
             createdAt,
-            TriviaSessionSnapshot.Create(
-                "Trivia Source",
-                [
-                    TriviaQuestionSnapshot.Create(
-                        "Capital of France?",
-                        1,
-                        50,
-                        30,
-                        "Paris is the capital city.",
-                        [
-                            TriviaOptionSnapshot.Create("Paris", 1, true),
-                            TriviaOptionSnapshot.Create("Lyon", 2, false)
-                        ])
-                ]));
+            CreateTriviaSnapshot(sourceMissionId));
 
         var team = session.AssociateTeam(Guid.NewGuid(), "Red", "RED-01", 4);
         session.AssignOperator(OperatorUserId, createdAt.AddMinutes(1));
@@ -371,6 +361,57 @@ public sealed class SessionStateBroadcastHubTests : IAsyncLifetime
         await dbContext.SaveChangesAsync();
 
         return new SeededSession(session.LiveSessionId, team.TeamId);
+    }
+
+    private static MissionRuntimeSnapshot CreateTreasureHuntSnapshot(Guid sourceMissionId)
+    {
+        var treasureHuntSubstage = SubstageSnapshot.CreateTreasureHunt("Treasure Hunt", 1, 100);
+
+        return MissionRuntimeSnapshot.Create(
+            sourceMissionId,
+            "Seeded Mission",
+            MaximumTime.Create(45),
+            [
+                StageSnapshot.Create("Stage One", 1, [treasureHuntSubstage])
+            ],
+            [
+                TargetSnapshot.Create(
+                    treasureHuntSubstage.SubstageSnapshotId,
+                    "Target Alpha",
+                    "QR-ALPHA",
+                    1,
+                    true,
+                    "Look under the stairs",
+                    "AfterPreviousTarget")
+            ],
+            []);
+    }
+
+    private static MissionRuntimeSnapshot CreateTriviaSnapshot(Guid sourceMissionId)
+    {
+        var triviaSubstage = SubstageSnapshot.CreateTrivia("Trivia Round", 1);
+
+        return MissionRuntimeSnapshot.Create(
+            sourceMissionId,
+            "Seeded Trivia Mission",
+            MaximumTime.Create(20),
+            [
+                StageSnapshot.Create("Stage One", 1, [triviaSubstage])
+            ],
+            [],
+            [
+                TriviaQuestionSnapshot.Create(
+                    triviaSubstage.SubstageSnapshotId,
+                    "Capital of France?",
+                    1,
+                    50,
+                    30,
+                    "Paris is the capital city.",
+                    [
+                        TriviaOptionSnapshot.Create("Paris", 1, true),
+                        TriviaOptionSnapshot.Create("Lyon", 2, false)
+                    ])
+            ]);
     }
 
     private sealed record SeededSession(Guid LiveSessionId, Guid TeamId);

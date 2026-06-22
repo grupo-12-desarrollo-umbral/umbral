@@ -134,6 +134,7 @@ Phases 5–6 may run in parallel once DES-24 lands.
 |---|---|---|---|---|
 | 1 | DES-14 / DES-15 | HU-09 / 10A | Mission wrapper + composite + Target + optional Clue | **In progress; finish by hand** — Domain + Application already committed (`c561867`, `9eef83a`); only X.3 + X.4 remain. Do not re-run the pipeline from scratch. |
 | 2 | DES-22 | HU-15 | Create `LiveSession` from active mission; immutable snapshot | first full pipeline run |
+| 2b | DES-79 | HU-15 f/u | Archive-time enforcement: block/cascade when archiving a quiz referenced by an active mission | **deferred follow-up to phase 2** — blocked by DES-22; product decision + new quiz→mission inverse query required (see below). Not on the critical path; schedule any time after DES-22 lands. |
 | 3 | DES-24 | HU-17 | Single mission source; drop "session from quiz" | rebuild |
 | 4 | DES-75 | HU-16 | Trivia selection as a Substage, not a session | rebuild (supersedes DES-23) |
 | 5 | DES-76 | HU-21A | State machine `Scheduled→Preparing→Active→Paused→Finished→Cancelled` | rebuild (supersedes DES-28) |
@@ -144,6 +145,19 @@ Phases 5–6 may run in parallel once DES-24 lands.
 | 10 | DES-78 + HU-33B/34–36 | HU-33A… | Synchronized trivia substage + answer registration | rebuild (supersedes DES-44) |
 | 11 | DES-54/55, HU-37/38/40 | HU-39… | `ScoreEntry` ledger + single session ranking | confirm DES-54/55 merge first |
 | 12 | DES-31, HU-24/25 | HU-23… | Live team/operator boards | last |
+
+## Deferred follow-up — DES-79 (resolve the product decision before starting it)
+
+DES-79 hardens the published-quiz readiness gap at its source (the existing fix in
+`plans/fix-published-quiz-readiness-gap.md` Phases 1–2 closes the create path reactively).
+It is **gated**, so it is intentionally last in the order:
+
+- **Blocked by DES-22** — Phases 1 & 2 of the fix must land first.
+- **Product decision:** archiving a quiz referenced by an active mission must either
+  **(A) be blocked** or **(B) cascade** a mission deactivation. Record the choice in an ADR
+  or the canon ledger addendum before writing the final AC.
+- **Missing capability:** needs a quiz→mission inverse query that does not exist today
+  (`IMissionRepository` is CRUD-only).
 
 ## Open decisions blocking Phase 9 (resolve before starting it)
 

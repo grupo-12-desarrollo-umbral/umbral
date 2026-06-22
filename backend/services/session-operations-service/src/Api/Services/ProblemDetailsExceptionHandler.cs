@@ -59,6 +59,16 @@ public sealed class ProblemDetailsExceptionHandler : IExceptionHandler
                 Detail = exception.Message,
                 Status = StatusCodes.Status409Conflict
             },
+            // The mission read as ready, but its resolved runtime plan has a trivia substage
+            // with no questions (e.g. its quiz was archived between readiness and fetch). Reject
+            // at creation with a clear conflict instead of letting the empty set surface at play.
+            TriviaSubstageSnapshotMustContainQuestionsException => new ProblemDetails
+            {
+                Type = "trivia-substage-empty",
+                Title = "Conflict.",
+                Detail = exception.Message,
+                Status = StatusCodes.Status409Conflict
+            },
             // Transition failures share a 409 but carry a stable Type so the client can render a
             // specific message instead of one ambiguous "invalid transition" catch-all.
             LiveSessionRequiresAtLeastOneTeamException => new ProblemDetails

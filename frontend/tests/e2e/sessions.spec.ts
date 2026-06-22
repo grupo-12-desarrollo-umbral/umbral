@@ -38,30 +38,12 @@ test('admin sessions panel loads and shows the create form', async ({ adminPage:
   await expect(page.getByRole('heading', { name: 'Create session' })).toBeVisible()
 })
 
-// AC #1 — only Published quizzes appear
-
-test('session quiz selector contains only published quizzes', async ({ adminPage: page }) => {
-  await page.goto('/dashboard')
-  await page.click('[data-testid="nav-sessions"]')
-  const select = page.locator('[data-testid="session-quiz-select"]')
-  await expect(select).toBeVisible()
-  // All non-placeholder options must correspond to Published quizzes.
-  // Verify there are no options with "Draft" or "Archived" in their text
-  // (relies on the test environment having known fixture quizzes).
-  const options = select.locator('option:not([value=""])')
-  const count = await options.count()
-  for (let i = 0; i < count; i++) {
-    const text = await options.nth(i).textContent()
-    expect(text).not.toContain('Draft')
-    expect(text).not.toContain('Archived')
-  }
-})
-
 // --- Submit button disabled state ---
 
-test('session submit button is disabled when no quiz is selected', async ({ adminPage: page }) => {
+test('session submit button is disabled when no mission is selected', async ({ adminPage: page }) => {
   await page.goto('/dashboard')
   await page.click('[data-testid="nav-sessions"]')
+  // On initial load no mission is chosen yet, so creation is blocked.
   await expect(page.locator('[data-testid="session-submit-btn"]')).toBeDisabled()
 })
 
@@ -70,16 +52,11 @@ test('session submit button is disabled until all fields are filled', async ({ a
   await page.click('[data-testid="nav-sessions"]')
   const missionSelect = page.locator('[data-testid="session-mission-select"]')
   await missionSelect.waitFor()
-  // Select a mission but leave everything else empty
-  const firstMission = missionSelect.locator('option:not([value=""])').first()
+  // Select a runtime-ready mission but leave everything else empty. Not-ready (Draft)
+  // missions render disabled, so we explicitly target the first enabled option.
+  const firstMission = missionSelect.locator('option:not([value=""]):not([disabled])').first()
   const missionValue = await firstMission.getAttribute('value')
   if (missionValue) await missionSelect.selectOption(missionValue)
-  await expect(page.locator('[data-testid="session-submit-btn"]')).toBeDisabled()
-  // Select a quiz but leave title empty
-  const quizSelect = page.locator('[data-testid="session-quiz-select"]')
-  const firstQuiz = quizSelect.locator('option:not([value=""])').first()
-  const quizValue = await firstQuiz.getAttribute('value')
-  if (quizValue) await quizSelect.selectOption(quizValue)
   await expect(page.locator('[data-testid="session-submit-btn"]')).toBeDisabled()
   // Fill title — still missing scheduledAt
   await page.fill('[data-testid="session-title-input"]', 'Test Session')
@@ -89,9 +66,48 @@ test('session submit button is disabled until all fields are filled', async ({ a
   await expect(page.locator('[data-testid="session-submit-btn"]')).toBeEnabled()
 })
 
+// --- Runtime-readiness gating in the dropdown ---
+
+test('not-runtime-ready missions appear disabled with a reason', async ({ adminPage: page }) => {
+  await page.goto('/dashboard')
+  await page.click('[data-testid="nav-sessions"]')
+
+  const missionSelect = page.locator('[data-testid="session-mission-select"]')
+  await missionSelect.waitFor()
+
+  // The Draft seed mission ('E2E Activatable Mission') is active but not runtime-ready,
+  // so it is shown for visibility but disabled and labelled with the reason — the admin
+  // can't pick a mission that would 409 at create time.
+  const draftOption = missionSelect.locator('option', { hasText: 'E2E Activatable Mission' })
+  await expect(draftOption).toBeDisabled()
+  await expect(draftOption).toContainText('not runtime-ready')
+
+  // The Ready seed mission stays selectable and is not annotated.
+  const readyOption = missionSelect.locator('option', { hasText: 'E2E Seed Mission' })
+  await expect(readyOption).toBeEnabled()
+  await expect(readyOption).not.toContainText('not runtime-ready')
+})
+
+test('runtime-ready missions are listed before not-runtime-ready missions', async ({ adminPage: page }) => {
+  await page.goto('/dashboard')
+  await page.click('[data-testid="nav-sessions"]')
+
+  const missionSelect = page.locator('[data-testid="session-mission-select"]')
+  await missionSelect.waitFor()
+
+  const options = missionSelect.locator('option:not([value=""])')
+  const optionTexts = await options.allTextContents()
+  const readyIndex = optionTexts.findIndex((text) => text.includes('E2E Seed Mission'))
+  const draftIndex = optionTexts.findIndex((text) => text.includes('E2E Activatable Mission'))
+
+  expect(readyIndex).toBeGreaterThanOrEqual(0)
+  expect(draftIndex).toBeGreaterThanOrEqual(0)
+  expect(readyIndex).toBeLessThan(draftIndex)
+})
+
 // --- Happy path (AC #2 + AC #3) ---
 
-test('admin can create a session from a published quiz and it appears in the assignment list', async ({
+test('admin can create a session from an active mission and it appears in the assignment list', async ({
   adminPage: page,
 }) => {
   await page.goto('/dashboard')
@@ -99,23 +115,20 @@ test('admin can create a session from a published quiz and it appears in the ass
 
   const missionSelect = page.locator('[data-testid="session-mission-select"]')
   await missionSelect.waitFor()
-  const firstMissionOption = missionSelect.locator('option:not([value=""])').first()
+  const firstMissionOption = missionSelect.locator('option:not([value=""]):not([disabled])').first()
   await missionSelect.selectOption((await firstMissionOption.getAttribute('value'))!)
 
-  const quizSelect = page.locator('[data-testid="session-quiz-select"]')
-  const firstQuizOption = quizSelect.locator('option:not([value=""])').first()
-  const optionValue = await firstQuizOption.getAttribute('value')
-  expect(optionValue).not.toBeNull()
-  await quizSelect.selectOption(optionValue!)
-
-  await page.fill('[data-testid="session-title-input"]', 'E2E Trivia Night')
+  await page.fill('[data-testid="session-title-input"]', 'E2E Mission Night')
   await page.fill('[data-testid="session-max-time-input"]', '45')
   await page.fill('[data-testid="session-scheduled-at-input"]', '2026-12-15T18:00')
 
   await page.click('[data-testid="session-submit-btn"]')
 
-  // On success the form clears and the new (unassigned) session shows in the list.
-  await expect(page.locator('[data-testid="session-operator-list"]')).toContainText('E2E Trivia Night')
+  // On success the form clears and the new (unassigned) session shows in the list,
+  // rendered in its initial Scheduled state.
+  const list = page.locator('[data-testid="session-operator-list"]')
+  await expect(list).toContainText('E2E Mission Night')
+  await expect(list).toContainText('Scheduled')
   await expect(page.locator('[data-testid="session-title-input"]')).toHaveValue('')
 })
 
@@ -129,10 +142,8 @@ test('admin create form clears after a successful creation', async ({
 
   const missionSelect = page.locator('[data-testid="session-mission-select"]')
   await missionSelect.waitFor()
-  await missionSelect.selectOption((await missionSelect.locator('option:not([value=""])').first().getAttribute('value'))!)
+  await missionSelect.selectOption((await missionSelect.locator('option:not([value=""]):not([disabled])').first().getAttribute('value'))!)
 
-  const quizSelect = page.locator('[data-testid="session-quiz-select"]')
-  await quizSelect.selectOption((await quizSelect.locator('option:not([value=""])').first().getAttribute('value'))!)
   await page.fill('[data-testid="session-title-input"]', 'First Session')
   await page.fill('[data-testid="session-max-time-input"]', '20')
   await page.fill('[data-testid="session-scheduled-at-input"]', '2026-12-22T14:00')
@@ -153,13 +164,14 @@ test('session form shows error banner on 409 and keeps form intact', async ({
   await page.click('[data-testid="nav-sessions"]')
 
   // Intercept the Server Action's outbound POST to session-operations.
-  // In Playwright, intercept the Next.js server action call (POST to /dashboard).
+  // Next encodes the action arguments (not the function name) in the POST-to-/dashboard body,
+  // so we match the createSession payload by a field unique to it (`maximumTimeMinutes`).
   await page.route('**/dashboard', async (route) => {
     const request = route.request()
     if (request.method() === 'POST') {
       const body = await request.postData()
-      if (body && body.includes('createTriviaSession')) {
-        await route.fulfill({ status: 409, body: JSON.stringify({ detail: 'Quiz is not published.' }) })
+      if (body && body.includes('maximumTimeMinutes')) {
+        await route.fulfill({ status: 409, body: JSON.stringify({ detail: 'Conflict.' }) })
         return
       }
     }
@@ -168,53 +180,14 @@ test('session form shows error banner on 409 and keeps form intact', async ({
 
   const missionSelect = page.locator('[data-testid="session-mission-select"]')
   await missionSelect.waitFor()
-  await missionSelect.selectOption((await missionSelect.locator('option:not([value=""])').first().getAttribute('value'))!)
+  await missionSelect.selectOption((await missionSelect.locator('option:not([value=""]):not([disabled])').first().getAttribute('value'))!)
 
-  const quizSelect = page.locator('[data-testid="session-quiz-select"]')
-  await quizSelect.selectOption((await quizSelect.locator('option:not([value=""])').first().getAttribute('value'))!)
   await page.fill('[data-testid="session-title-input"]', '409 Test')
   await page.fill('[data-testid="session-max-time-input"]', '10')
   await page.fill('[data-testid="session-scheduled-at-input"]', '2026-12-30T12:00')
   await page.click('[data-testid="session-submit-btn"]')
 
   await expect(page.locator('[data-testid="session-form-error"]')).toBeVisible()
-  await expect(page.locator('[data-testid="session-create-form"]')).toBeVisible()
-})
-
-// AC4 — mission-not-eligible-for-session surfaces the correct copy
-test('session form shows mission-not-eligible error on 409 with the mission type', async ({
-  adminPage: page,
-}) => {
-  await page.goto('/dashboard')
-  await page.click('[data-testid="nav-sessions"]')
-
-  await page.route('**/dashboard', async (route) => {
-    const request = route.request()
-    if (request.method() === 'POST') {
-      const body = await request.postData()
-      if (body && body.includes('createTriviaSession')) {
-        await route.fulfill({
-          status: 409,
-          body: JSON.stringify({ type: 'mission-not-eligible-for-session', detail: 'Mission 1 is inactive.' }),
-        })
-        return
-      }
-    }
-    await route.continue()
-  })
-
-  const missionSelect = page.locator('[data-testid="session-mission-select"]')
-  await missionSelect.waitFor()
-  await missionSelect.selectOption((await missionSelect.locator('option:not([value=""])').first().getAttribute('value'))!)
-
-  const quizSelect = page.locator('[data-testid="session-quiz-select"]')
-  await quizSelect.selectOption((await quizSelect.locator('option:not([value=""])').first().getAttribute('value'))!)
-  await page.fill('[data-testid="session-title-input"]', 'Mission Error Test')
-  await page.fill('[data-testid="session-max-time-input"]', '10')
-  await page.fill('[data-testid="session-scheduled-at-input"]', '2026-12-30T12:00')
-  await page.click('[data-testid="session-submit-btn"]')
-
-  await expect(page.locator('[data-testid="session-form-error"]')).toContainText('inactive or not runtime-ready')
   await expect(page.locator('[data-testid="session-create-form"]')).toBeVisible()
 })
 

@@ -298,13 +298,14 @@ public sealed class SessionTeamAssociationEndpointTests : IAsyncLifetime
 
     private async Task<LiveSession> SeedScheduledSessionAsync()
     {
+        var sourceMissionId = Guid.NewGuid();
         var liveSession = LiveSession.Create(
-            SessionMode.TreasureHunt,
-            SessionSource.Create(SessionSourceType.Mission, Guid.NewGuid()),
+            SessionSource.Create(sourceMissionId),
             $"SES-{Guid.NewGuid():N}"[..12],
             "Association Session",
             45,
-            DateTimeOffset.UtcNow.AddMinutes(-5));
+            DateTimeOffset.UtcNow.AddMinutes(-5),
+            CreateTreasureHuntSnapshot(sourceMissionId));
 
         await using var scope = _factory.Services.CreateAsyncScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
@@ -312,5 +313,29 @@ public sealed class SessionTeamAssociationEndpointTests : IAsyncLifetime
         await dbContext.SaveChangesAsync(CancellationToken.None);
 
         return liveSession;
+    }
+
+    private static MissionRuntimeSnapshot CreateTreasureHuntSnapshot(Guid sourceMissionId)
+    {
+        var treasureHuntSubstage = SubstageSnapshot.CreateTreasureHunt("Treasure Hunt", 1, 100);
+
+        return MissionRuntimeSnapshot.Create(
+            sourceMissionId,
+            "Seeded Mission",
+            MaximumTime.Create(45),
+            [
+                StageSnapshot.Create("Stage One", 1, [treasureHuntSubstage])
+            ],
+            [
+                TargetSnapshot.Create(
+                    treasureHuntSubstage.SubstageSnapshotId,
+                    "Target Alpha",
+                    "QR-ALPHA",
+                    1,
+                    true,
+                    "Look under the stairs",
+                    "AfterPreviousTarget")
+            ],
+            []);
     }
 }

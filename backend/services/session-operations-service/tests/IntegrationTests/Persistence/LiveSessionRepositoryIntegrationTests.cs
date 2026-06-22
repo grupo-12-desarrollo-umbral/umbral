@@ -149,7 +149,6 @@ public sealed class LiveSessionRepositoryIntegrationTests
         persistedSession.Teams.Single().ReferenceTeamId.Should().Be(referenceTeamId);
     }
 
-
     [Fact]
     public async Task GetByIdAsync_RestoresAssignedOperatorFromExistingPersistenceColumn()
     {
@@ -210,32 +209,21 @@ public sealed class LiveSessionRepositoryIntegrationTests
     }
 
     [Fact]
-    public async Task GetByIdAsync_RestoresTriviaSnapshotGraph()
+    public async Task GetByIdAsync_RestoresMissionRuntimeSnapshotGraph()
     {
         await using var resetContext = BuildContext();
         await ResetDatabaseAsync(resetContext);
 
         var scheduledAt = DateTimeOffset.UtcNow.AddDays(1);
-        var liveSession = LiveSession.CreateTrivia(
-            SessionSource.CreateTriviaQuiz(42),
+        var sourceMissionId = Guid.NewGuid();
+        var runtimeSnapshot = CreateMixedRuntimeSnapshot(sourceMissionId, 20);
+        var liveSession = LiveSession.Create(
+            SessionSource.Create(sourceMissionId),
             $"SES-{Guid.NewGuid():N}"[..12],
-            "Trivia Night",
+            "Mission Night",
             20,
             scheduledAt,
-            TriviaSessionSnapshot.Create(
-                "Trivia Source",
-                [
-                    TriviaQuestionSnapshot.Create(
-                        "Capital of France?",
-                        1,
-                        50,
-                        30,
-                        "Paris is the capital city.",
-                        [
-                            TriviaOptionSnapshot.Create("Paris", 1, true),
-                            TriviaOptionSnapshot.Create("Lyon", 2, false)
-                        ])
-                ]));
+            runtimeSnapshot);
 
         await using (var seedContext = BuildContext())
         {
@@ -248,14 +236,23 @@ public sealed class LiveSessionRepositoryIntegrationTests
             .GetByIdAsync(liveSession.LiveSessionId, CancellationToken.None);
 
         persistedSession.Should().NotBeNull();
-        persistedSession!.Source.SourceTriviaQuizId.Should().Be(42);
-        persistedSession.TriviaSnapshot.Should().NotBeNull();
-        persistedSession.TriviaSnapshot!.QuizTitle.Should().Be("Trivia Source");
-        persistedSession.TriviaSnapshot.Questions.Should().ContainSingle();
+        persistedSession!.Source.SourceEntityId.Should().Be(sourceMissionId);
+        persistedSession.MissionRuntimeSnapshot.MissionRuntimeSnapshotId.Should().Be(runtimeSnapshot.MissionRuntimeSnapshotId);
+        persistedSession.MissionRuntimeSnapshot.SourceMissionId.Should().Be(sourceMissionId);
+        persistedSession.MissionRuntimeSnapshot.MissionTitle.Should().Be("Mission Runtime");
+        persistedSession.MissionRuntimeSnapshot.StageSnapshots.Should().ContainSingle();
+        persistedSession.MissionRuntimeSnapshot.TargetSnapshots.Should().ContainSingle();
+        persistedSession.MissionRuntimeSnapshot.TriviaQuestionSnapshots.Should().ContainSingle();
 
-        var question = persistedSession.TriviaSnapshot.Questions.Single();
+        var stage = persistedSession.MissionRuntimeSnapshot.StageSnapshots.Single();
+        stage.SubstageSnapshots.Should().HaveCount(2);
+
+        var target = persistedSession.MissionRuntimeSnapshot.TargetSnapshots.Single();
+        target.QrCode.Should().Be("QR-ALPHA");
+        target.ClueText.Should().Be("Look under the stairs");
+
+        var question = persistedSession.MissionRuntimeSnapshot.TriviaQuestionSnapshots.Single();
         question.Prompt.Should().Be("Capital of France?");
-        question.Explanation.Should().Be("Paris is the capital city.");
         question.Options.Should().HaveCount(2);
         question.Options.Should().ContainSingle(option => option.OptionText == "Paris" && option.IsCorrect);
     }
@@ -412,36 +409,15 @@ public sealed class LiveSessionRepositoryIntegrationTests
 
     private static LiveSession CreateTriviaSession(DateTimeOffset scheduledAt)
     {
-        return LiveSession.CreateTrivia(
-            SessionSource.CreateTriviaQuiz(42),
+        var sourceMissionId = Guid.NewGuid();
+
+        return LiveSession.Create(
+            SessionSource.Create(sourceMissionId),
             $"SES-{Guid.NewGuid():N}"[..12],
             "Trivia Night",
             20,
             scheduledAt,
-            TriviaSessionSnapshot.Create(
-                "Trivia Source",
-                [
-                    TriviaQuestionSnapshot.Create(
-                        "Capital of France?",
-                        1,
-                        50,
-                        30,
-                        "Paris is the capital city.",
-                        [
-                            TriviaOptionSnapshot.Create("Paris", 1, true),
-                            TriviaOptionSnapshot.Create("Lyon", 2, false)
-                        ]),
-                    TriviaQuestionSnapshot.Create(
-                        "Capital of Spain?",
-                        2,
-                        50,
-                        25,
-                        "Madrid is the capital city.",
-                        [
-                            TriviaOptionSnapshot.Create("Madrid", 1, true),
-                            TriviaOptionSnapshot.Create("Barcelona", 2, false)
-                        ])
-                ]));
+            CreateTriviaRuntimeSnapshot(sourceMissionId, 20));
     }
 
     private static void TransitionTriviaSessionToActive(LiveSession liveSession, DateTimeOffset activeAt)
@@ -454,20 +430,20 @@ public sealed class LiveSessionRepositoryIntegrationTests
 
     private static async Task ResetDatabaseAsync(ApplicationDbContext context)
     {
-        // Deleting the aggregate root cascades to teams, participants, join contexts,
-        // and team members (all FKs are ON DELETE CASCADE).
         await context.LiveSessions.ExecuteDeleteAsync();
     }
 
     private static LiveSession CreateSession(DateTimeOffset scheduledAt)
     {
+        var sourceMissionId = Guid.NewGuid();
+
         return LiveSession.Create(
-            SessionMode.TreasureHunt,
-            SessionSource.Create(SessionSourceType.Mission, Guid.NewGuid()),
+            SessionSource.Create(sourceMissionId),
             $"SES-{Guid.NewGuid():N}"[..12],
             "Reconnect Session",
             45,
-            scheduledAt);
+            scheduledAt,
+            CreateTreasureHuntRuntimeSnapshot(sourceMissionId, 45));
     }
 
     private static LiveSession CreateActiveSession(DateTimeOffset activeAt)
@@ -478,5 +454,104 @@ public sealed class LiveSessionRepositoryIntegrationTests
         liveSession.MoveTo(SessionState.Preparing, activeAt.AddMinutes(-1), transitionPolicy);
         liveSession.MoveTo(SessionState.Active, activeAt, transitionPolicy);
         return liveSession;
+    }
+
+    private static MissionRuntimeSnapshot CreateTreasureHuntRuntimeSnapshot(Guid sourceMissionId, int maximumTimeMinutes)
+    {
+        var treasureHuntSubstage = SubstageSnapshot.CreateTreasureHunt("Treasure Hunt", 1, 100);
+
+        return MissionRuntimeSnapshot.Create(
+            sourceMissionId,
+            "Mission Runtime",
+            MaximumTime.Create(maximumTimeMinutes),
+            [
+                StageSnapshot.Create("Stage One", 1, [treasureHuntSubstage])
+            ],
+            [
+                TargetSnapshot.Create(
+                    treasureHuntSubstage.SubstageSnapshotId,
+                    "Target Alpha",
+                    "QR-ALPHA",
+                    1,
+                    true,
+                    "Look under the stairs",
+                    "AfterPreviousTarget")
+            ],
+            []);
+    }
+
+    private static MissionRuntimeSnapshot CreateTriviaRuntimeSnapshot(Guid sourceMissionId, int maximumTimeMinutes)
+    {
+        var triviaSubstage = SubstageSnapshot.CreateTrivia("Trivia Round", 1);
+
+        return MissionRuntimeSnapshot.Create(
+            sourceMissionId,
+            "Mission Runtime",
+            MaximumTime.Create(maximumTimeMinutes),
+            [
+                StageSnapshot.Create("Stage One", 1, [triviaSubstage])
+            ],
+            [],
+            [
+                TriviaQuestionSnapshot.Create(
+                    triviaSubstage.SubstageSnapshotId,
+                    "Capital of France?",
+                    1,
+                    50,
+                    30,
+                    "Paris is the capital city.",
+                    [
+                        TriviaOptionSnapshot.Create("Paris", 1, true),
+                        TriviaOptionSnapshot.Create("Lyon", 2, false)
+                    ]),
+                TriviaQuestionSnapshot.Create(
+                    triviaSubstage.SubstageSnapshotId,
+                    "Capital of Spain?",
+                    2,
+                    50,
+                    25,
+                    "Madrid is the capital city.",
+                    [
+                        TriviaOptionSnapshot.Create("Madrid", 1, true),
+                        TriviaOptionSnapshot.Create("Barcelona", 2, false)
+                    ])
+            ]);
+    }
+
+    private static MissionRuntimeSnapshot CreateMixedRuntimeSnapshot(Guid sourceMissionId, int maximumTimeMinutes)
+    {
+        var treasureHuntSubstage = SubstageSnapshot.CreateTreasureHunt("Treasure Hunt", 1, 100);
+        var triviaSubstage = SubstageSnapshot.CreateTrivia("Trivia Round", 2);
+
+        return MissionRuntimeSnapshot.Create(
+            sourceMissionId,
+            "Mission Runtime",
+            MaximumTime.Create(maximumTimeMinutes),
+            [
+                StageSnapshot.Create("Stage One", 1, [treasureHuntSubstage, triviaSubstage])
+            ],
+            [
+                TargetSnapshot.Create(
+                    treasureHuntSubstage.SubstageSnapshotId,
+                    "Target Alpha",
+                    "QR-ALPHA",
+                    1,
+                    true,
+                    "Look under the stairs",
+                    "AfterPreviousTarget")
+            ],
+            [
+                TriviaQuestionSnapshot.Create(
+                    triviaSubstage.SubstageSnapshotId,
+                    "Capital of France?",
+                    1,
+                    50,
+                    30,
+                    "Paris is the capital city.",
+                    [
+                        TriviaOptionSnapshot.Create("Paris", 1, true),
+                        TriviaOptionSnapshot.Create("Lyon", 2, false)
+                    ])
+            ]);
     }
 }

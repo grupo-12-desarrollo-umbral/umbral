@@ -100,9 +100,7 @@ public sealed class SessionAdministrationAuthorizationProxyTests
 
     private static LiveSession CreateScheduledSession()
     {
-        return LiveSession.Create(
-            SessionMode.TreasureHunt,
-            SessionSource.Create(SessionSourceType.Mission, Guid.NewGuid()),
+        return LiveSessionTestFactory.CreateScheduledTreasureHunt(
             "abc123",
             "Museum Hunt",
             45,

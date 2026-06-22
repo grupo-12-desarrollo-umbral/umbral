@@ -41,8 +41,8 @@ public sealed class TriviaRoundOrchestratorFacadeTests
                     notification.LiveSessionId == session.LiveSessionId &&
                     notification.QuestionIndex == 0 &&
                     notification.SequenceOrder == 1 &&
-                    notification.Prompt == "Question 1" &&
-                    notification.Options.SequenceEqual(new[] { "Option 1A", "Option 1B" }) &&
+                    notification.Prompt == "What is the closest planet to the Sun?" &&
+                    notification.Options.SequenceEqual(new[] { "Mercury", "Venus" }) &&
                     notification.TimeLimitSeconds == 30 &&
                     notification.ActivatedAt == Now),
                 It.IsAny<CancellationToken>()),
@@ -138,25 +138,12 @@ public sealed class TriviaRoundOrchestratorFacadeTests
 
     private static LiveSession CreateTriviaSession(int questionCount = 3)
     {
-        var questions = Enumerable.Range(1, questionCount)
-            .Select(index => TriviaQuestionSnapshot.Create(
-                $"Question {index}",
-                index,
-                100,
-                30,
-                null,
-                [
-                    TriviaOptionSnapshot.Create($"Option {index}A", 1, true),
-                    TriviaOptionSnapshot.Create($"Option {index}B", 2, false)
-                ]));
-
-        var session = LiveSession.CreateTrivia(
-            SessionSource.CreateTriviaQuiz(42),
+        var session = LiveSessionTestFactory.CreateScheduledTrivia(
             $"TRV-{Guid.NewGuid():N}"[..12],
             "Trivia Session",
             45,
-            Now.AddHours(1),
-            TriviaSessionSnapshot.Create("Quiz", questions));
+            questionCount,
+            Now.AddHours(1));
 
         session.AssociateTeam(Guid.NewGuid(), "Red", "RED-01", 4);
         return session;

@@ -1,6 +1,7 @@
 using umbral_backend.Application.Common.Interfaces;
 using umbral_backend.Application.Trivias.DTOs;
 using umbral_backend.Domain.Entities;
+using umbral_backend.Domain.Enums;
 
 namespace umbral_backend.Application.UnitTests.Application.Trivias.TestDoubles;
 
@@ -19,6 +20,17 @@ internal sealed class InMemoryTriviaQuizRepository : ITriviaQuizRepository
     {
         _triviaQuizzes.TryGetValue(triviaQuizId, out var triviaQuiz);
         return Task.FromResult(triviaQuiz);
+    }
+
+    public Task<IReadOnlyDictionary<int, TriviaQuizStatus>> GetStatusesByIdsAsync(
+        IReadOnlyCollection<int> triviaQuizIds,
+        CancellationToken cancellationToken)
+    {
+        IReadOnlyDictionary<int, TriviaQuizStatus> statuses = _triviaQuizzes.Values
+            .Where(triviaQuiz => triviaQuizIds.Contains(triviaQuiz.Id))
+            .ToDictionary(triviaQuiz => triviaQuiz.Id, triviaQuiz => triviaQuiz.Status);
+
+        return Task.FromResult(statuses);
     }
 
     public Task AddAsync(TriviaQuiz triviaQuiz, CancellationToken cancellationToken)

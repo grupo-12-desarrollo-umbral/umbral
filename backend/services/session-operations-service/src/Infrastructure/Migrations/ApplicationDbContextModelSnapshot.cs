@@ -28,13 +28,13 @@ namespace umbral_backend.Infrastructure.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
-                    b.Property<int?>("AssignedOperatorUserId")
-                        .HasColumnType("integer")
-                        .HasColumnName("assigned_operator_user_id");
-
                     b.Property<int?>("ActiveQuestionIndex")
                         .HasColumnType("integer")
                         .HasColumnName("active_question_index");
+
+                    b.Property<int?>("AssignedOperatorUserId")
+                        .HasColumnType("integer")
+                        .HasColumnName("assigned_operator_user_id");
 
                     b.Property<DateTimeOffset?>("CancelledAt")
                         .HasColumnType("timestamp with time zone")
@@ -70,12 +70,6 @@ namespace umbral_backend.Infrastructure.Migrations
                         .HasColumnType("character varying(64)")
                         .HasColumnName("session_code");
 
-                    b.Property<string>("SessionMode")
-                        .IsRequired()
-                        .HasMaxLength(32)
-                        .HasColumnType("character varying(32)")
-                        .HasColumnName("session_mode");
-
                     b.Property<DateTimeOffset?>("StartedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("started_at");
@@ -97,14 +91,6 @@ namespace umbral_backend.Infrastructure.Migrations
                         .HasColumnType("character varying(200)")
                         .HasColumnName("title_snapshot");
 
-                    b.Property<DateTimeOffset?>("_sessionTimerAdvancingSince")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("session_timer_advancing_since");
-
-                    b.Property<DateTimeOffset?>("_sessionTimerExpiredAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("session_timer_expired_at");
-
                     b.Property<DateTimeOffset?>("_questionTimerAdvancingSince")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("question_timer_advancing_since");
@@ -120,6 +106,14 @@ namespace umbral_backend.Infrastructure.Migrations
                     b.Property<TimeSpan>("_questionTimerTotalDuration")
                         .HasColumnType("interval")
                         .HasColumnName("question_timer_total_duration");
+
+                    b.Property<DateTimeOffset?>("_sessionTimerAdvancingSince")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("session_timer_advancing_since");
+
+                    b.Property<DateTimeOffset?>("_sessionTimerExpiredAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("session_timer_expired_at");
 
                     b.Property<TimeSpan>("_sessionTimerRemainingDuration")
                         .HasColumnType("interval")
@@ -180,6 +174,23 @@ namespace umbral_backend.Infrastructure.Migrations
                             b1.HasIndex("LiveSessionId", "TeamId");
 
                             b1.ToTable("live_session_join_contexts", (string)null);
+
+                            b1.WithOwner()
+                                .HasForeignKey("LiveSessionId");
+                        });
+
+                    b.OwnsOne("umbral_backend.Domain.ValueObjects.MaximumTime", "MaximumTime", b1 =>
+                        {
+                            b1.Property<Guid>("LiveSessionId")
+                                .HasColumnType("uuid");
+
+                            b1.Property<int>("Minutes")
+                                .HasColumnType("integer")
+                                .HasColumnName("maximum_time_minutes");
+
+                            b1.HasKey("LiveSessionId");
+
+                            b1.ToTable("live_sessions");
 
                             b1.WithOwner()
                                 .HasForeignKey("LiveSessionId");
@@ -341,23 +352,6 @@ namespace umbral_backend.Infrastructure.Migrations
                             b1.Navigation("Members");
                         });
 
-                    b.OwnsOne("umbral_backend.Domain.ValueObjects.MaximumTime", "MaximumTime", b1 =>
-                        {
-                            b1.Property<Guid>("LiveSessionId")
-                                .HasColumnType("uuid");
-
-                            b1.Property<int>("Minutes")
-                                .HasColumnType("integer")
-                                .HasColumnName("maximum_time_minutes");
-
-                            b1.HasKey("LiveSessionId");
-
-                            b1.ToTable("live_sessions");
-
-                            b1.WithOwner()
-                                .HasForeignKey("LiveSessionId");
-                        });
-
                     b.OwnsOne("umbral_backend.Domain.ValueObjects.SessionSource", "Source", b1 =>
                         {
                             b1.Property<Guid>("LiveSessionId")
@@ -366,10 +360,6 @@ namespace umbral_backend.Infrastructure.Migrations
                             b1.Property<Guid>("SourceEntityId")
                                 .HasColumnType("uuid")
                                 .HasColumnName("source_entity_id");
-
-                            b1.Property<int?>("SourceTriviaQuizId")
-                                .HasColumnType("integer")
-                                .HasColumnName("source_trivia_quiz_id");
 
                             b1.Property<string>("SourceType")
                                 .IsRequired()
@@ -385,26 +375,184 @@ namespace umbral_backend.Infrastructure.Migrations
                                 .HasForeignKey("LiveSessionId");
                         });
 
-                    b.OwnsOne("umbral_backend.Domain.Entities.TriviaSessionSnapshot", "TriviaSnapshot", b1 =>
+                    b.OwnsOne("umbral_backend.Domain.Entities.MissionRuntimeSnapshot", "MissionRuntimeSnapshot", b1 =>
                         {
                             b1.Property<Guid>("live_session_id")
                                 .HasColumnType("uuid")
                                 .HasColumnName("live_session_id");
 
-                            b1.Property<string>("QuizTitle")
+                            b1.Property<Guid>("MissionRuntimeSnapshotId")
+                                .HasColumnType("uuid")
+                                .HasColumnName("id");
+
+                            b1.Property<string>("MissionTitle")
                                 .IsRequired()
                                 .HasMaxLength(200)
                                 .HasColumnType("character varying(200)")
-                                .HasColumnName("quiz_title");
+                                .HasColumnName("mission_title");
+
+                            b1.Property<Guid>("SourceMissionId")
+                                .HasColumnType("uuid")
+                                .HasColumnName("source_mission_id");
 
                             b1.HasKey("live_session_id");
 
-                            b1.ToTable("live_session_trivia_snapshots", (string)null);
+                            b1.ToTable("live_session_mission_runtime_snapshots", (string)null);
 
                             b1.WithOwner()
                                 .HasForeignKey("live_session_id");
 
-                            b1.OwnsMany("umbral_backend.Domain.ValueObjects.TriviaQuestionSnapshot", "Questions", b2 =>
+                            b1.OwnsOne("umbral_backend.Domain.ValueObjects.MaximumTime", "MaximumTime", b2 =>
+                                {
+                                    b2.Property<Guid>("MissionRuntimeSnapshotlive_session_id")
+                                        .HasColumnType("uuid");
+
+                                    b2.Property<int>("Minutes")
+                                        .HasColumnType("integer")
+                                        .HasColumnName("maximum_time_minutes");
+
+                                    b2.HasKey("MissionRuntimeSnapshotlive_session_id");
+
+                                    b2.ToTable("live_session_mission_runtime_snapshots");
+
+                                    b2.WithOwner()
+                                        .HasForeignKey("MissionRuntimeSnapshotlive_session_id");
+                                });
+
+                            b1.OwnsMany("umbral_backend.Domain.ValueObjects.StageSnapshot", "StageSnapshots", b2 =>
+                                {
+                                    b2.Property<Guid>("StageSnapshotId")
+                                        .HasColumnType("uuid")
+                                        .HasColumnName("id");
+
+                                    b2.Property<int>("SequenceOrder")
+                                        .HasColumnType("integer")
+                                        .HasColumnName("sequence_order");
+
+                                    b2.Property<string>("Title")
+                                        .IsRequired()
+                                        .HasMaxLength(200)
+                                        .HasColumnType("character varying(200)")
+                                        .HasColumnName("title");
+
+                                    b2.Property<Guid>("mission_runtime_snapshot_live_session_id")
+                                        .HasColumnType("uuid")
+                                        .HasColumnName("live_session_id");
+
+                                    b2.HasKey("StageSnapshotId");
+
+                                    b2.HasIndex("mission_runtime_snapshot_live_session_id", "SequenceOrder")
+                                        .IsUnique();
+
+                                    b2.ToTable("live_session_mission_runtime_snapshot_stages", (string)null);
+
+                                    b2.WithOwner()
+                                        .HasForeignKey("mission_runtime_snapshot_live_session_id");
+
+                                    b2.OwnsMany("umbral_backend.Domain.ValueObjects.SubstageSnapshot", "SubstageSnapshots", b3 =>
+                                        {
+                                            b3.Property<Guid>("SubstageSnapshotId")
+                                                .HasColumnType("uuid")
+                                                .HasColumnName("id");
+
+                                            b3.Property<string>("PlayMode")
+                                                .IsRequired()
+                                                .HasMaxLength(32)
+                                                .HasColumnType("character varying(32)")
+                                                .HasColumnName("play_mode");
+
+                                            b3.Property<int>("SequenceOrder")
+                                                .HasColumnType("integer")
+                                                .HasColumnName("sequence_order");
+
+                                            b3.Property<string>("Title")
+                                                .IsRequired()
+                                                .HasMaxLength(200)
+                                                .HasColumnType("character varying(200)")
+                                                .HasColumnName("title");
+
+                                            b3.Property<int?>("WinnerScore")
+                                                .HasColumnType("integer")
+                                                .HasColumnName("winner_score");
+
+                                            b3.Property<Guid>("stage_snapshot_id")
+                                                .HasColumnType("uuid")
+                                                .HasColumnName("stage_snapshot_id");
+
+                                            b3.HasKey("SubstageSnapshotId");
+
+                                            b3.HasIndex("stage_snapshot_id", "SequenceOrder")
+                                                .IsUnique();
+
+                                            b3.ToTable("live_session_mission_runtime_snapshot_substages", (string)null);
+
+                                            b3.WithOwner()
+                                                .HasForeignKey("stage_snapshot_id");
+                                        });
+
+                                    b2.Navigation("SubstageSnapshots");
+                                });
+
+                            b1.OwnsMany("umbral_backend.Domain.ValueObjects.TargetSnapshot", "TargetSnapshots", b2 =>
+                                {
+                                    b2.Property<Guid>("TargetSnapshotId")
+                                        .HasColumnType("uuid")
+                                        .HasColumnName("id");
+
+                                    b2.Property<string>("ClueText")
+                                        .HasMaxLength(4000)
+                                        .HasColumnType("character varying(4000)")
+                                        .HasColumnName("clue_text");
+
+                                    b2.Property<string>("ClueVisibilityPolicy")
+                                        .HasMaxLength(128)
+                                        .HasColumnType("character varying(128)")
+                                        .HasColumnName("clue_visibility_policy");
+
+                                    b2.Property<bool>("IsActive")
+                                        .HasColumnType("boolean")
+                                        .HasColumnName("is_active");
+
+                                    b2.Property<string>("Name")
+                                        .IsRequired()
+                                        .HasMaxLength(200)
+                                        .HasColumnType("character varying(200)")
+                                        .HasColumnName("name");
+
+                                    b2.Property<string>("QrCode")
+                                        .IsRequired()
+                                        .HasMaxLength(200)
+                                        .HasColumnType("character varying(200)")
+                                        .HasColumnName("qr_code");
+
+                                    b2.Property<int>("SequenceOrder")
+                                        .HasColumnType("integer")
+                                        .HasColumnName("sequence_order");
+
+                                    b2.Property<Guid>("SubstageSnapshotId")
+                                        .HasColumnType("uuid")
+                                        .HasColumnName("substage_snapshot_id");
+
+                                    b2.Property<Guid>("mission_runtime_snapshot_live_session_id")
+                                        .HasColumnType("uuid")
+                                        .HasColumnName("live_session_id");
+
+                                    b2.HasKey("TargetSnapshotId");
+
+                                    b2.HasIndex("mission_runtime_snapshot_live_session_id", "QrCode")
+                                        .IsUnique();
+
+                                    b2.HasIndex("mission_runtime_snapshot_live_session_id", "SubstageSnapshotId", "SequenceOrder")
+                                        .IsUnique()
+                                        .HasDatabaseName("IX_live_session_mission_runtime_snapshot_targets_live_session~1");
+
+                                    b2.ToTable("live_session_mission_runtime_snapshot_targets", (string)null);
+
+                                    b2.WithOwner()
+                                        .HasForeignKey("mission_runtime_snapshot_live_session_id");
+                                });
+
+                            b1.OwnsMany("umbral_backend.Domain.ValueObjects.TriviaQuestionSnapshot", "TriviaQuestionSnapshots", b2 =>
                                 {
                                     b2.Property<int>("id")
                                         .ValueGeneratedOnAdd()
@@ -432,23 +580,27 @@ namespace umbral_backend.Infrastructure.Migrations
                                         .HasColumnType("integer")
                                         .HasColumnName("sequence_order");
 
+                                    b2.Property<Guid>("SubstageSnapshotId")
+                                        .HasColumnType("uuid")
+                                        .HasColumnName("substage_snapshot_id");
+
                                     b2.Property<int>("TimeLimitSeconds")
                                         .HasColumnType("integer")
                                         .HasColumnName("time_limit_seconds");
 
-                                    b2.Property<Guid>("trivia_snapshot_live_session_id")
+                                    b2.Property<Guid>("mission_runtime_snapshot_live_session_id")
                                         .HasColumnType("uuid")
                                         .HasColumnName("live_session_id");
 
                                     b2.HasKey("id");
 
-                                    b2.HasIndex("trivia_snapshot_live_session_id", "SequenceOrder")
+                                    b2.HasIndex("mission_runtime_snapshot_live_session_id", "SubstageSnapshotId", "SequenceOrder")
                                         .IsUnique();
 
-                                    b2.ToTable("live_session_trivia_snapshot_questions", (string)null);
+                                    b2.ToTable("live_session_mission_runtime_snapshot_trivia_questions", (string)null);
 
                                     b2.WithOwner()
-                                        .HasForeignKey("trivia_snapshot_live_session_id");
+                                        .HasForeignKey("mission_runtime_snapshot_live_session_id");
 
                                     b2.OwnsMany("umbral_backend.Domain.ValueObjects.TriviaOptionSnapshot", "Options", b3 =>
                                         {
@@ -482,7 +634,7 @@ namespace umbral_backend.Infrastructure.Migrations
                                             b3.HasIndex("trivia_question_snapshot_id", "SequenceOrder")
                                                 .IsUnique();
 
-                                            b3.ToTable("live_session_trivia_snapshot_options", (string)null);
+                                            b3.ToTable("live_session_mission_runtime_snapshot_trivia_options", (string)null);
 
                                             b3.WithOwner()
                                                 .HasForeignKey("trivia_question_snapshot_id");
@@ -491,12 +643,22 @@ namespace umbral_backend.Infrastructure.Migrations
                                     b2.Navigation("Options");
                                 });
 
-                            b1.Navigation("Questions");
+                            b1.Navigation("MaximumTime")
+                                .IsRequired();
+
+                            b1.Navigation("StageSnapshots");
+
+                            b1.Navigation("TargetSnapshots");
+
+                            b1.Navigation("TriviaQuestionSnapshots");
                         });
 
                     b.Navigation("JoinContexts");
 
                     b.Navigation("MaximumTime")
+                        .IsRequired();
+
+                    b.Navigation("MissionRuntimeSnapshot")
                         .IsRequired();
 
                     b.Navigation("Participants");
@@ -505,8 +667,6 @@ namespace umbral_backend.Infrastructure.Migrations
                         .IsRequired();
 
                     b.Navigation("Teams");
-
-                    b.Navigation("TriviaSnapshot");
                 });
 #pragma warning restore 612, 618
         }

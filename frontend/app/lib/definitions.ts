@@ -242,22 +242,19 @@ export type TriviaQuizDto = {
   questions: TriviaQuestionDto[]
 }
 
-export type CreateTriviaSessionRequest = {
+export type CreateSessionRequest = {
   missionId: number
-  sourceTriviaQuizId: number
   title: string
   maximumTimeMinutes: number
   scheduledAt: string // ISO 8601 UTC string
 }
 
-export type TriviaSessionCreatedDto = {
+export type SessionCreatedDto = {
   liveSessionId: string // UUID
   sessionCode: string // e.g. "SES-A1B2C3D4E5F6"
   title: string
-  sessionState: string // "Scheduled"
+  sessionState: string // "Scheduled" on create
   scheduledAt: string // ISO 8601
-  sourceTriviaQuizId: number
-  questionCount: number
 }
 
 export type SessionLifecycleState =
