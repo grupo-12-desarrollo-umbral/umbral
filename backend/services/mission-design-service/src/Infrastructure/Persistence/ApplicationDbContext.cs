@@ -1,11 +1,10 @@
 ﻿using System.Reflection;
-using umbral_backend.Application.Common.Interfaces;
 using umbral_backend.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
 
 namespace umbral_backend.Infrastructure.Persistence;
 
-public class ApplicationDbContext : DbContext, IApplicationDbContext
+public class ApplicationDbContext : DbContext
 {
     public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options) : base(options) { }
 
