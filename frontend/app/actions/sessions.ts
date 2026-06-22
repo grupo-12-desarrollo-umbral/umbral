@@ -1,10 +1,9 @@
 'use server'
 
 import { verifySession } from '@/app/lib/dal'
-import { listTriviaQuizzes } from '@/app/lib/trivias'
 import { listMissions } from '@/app/lib/missions'
 import {
-  createTriviaSession as createTriviaSessionLib,
+  createSession as createSessionLib,
   listAssignableSessions as listAssignableSessionsLib,
   listOperatorSessions as listOperatorSessionsLib,
   getSessionAssociatedTeams as getSessionAssociatedTeamsLib,
@@ -17,9 +16,8 @@ import { listAssignableOperators as listAssignableOperatorsLib } from '@/app/lib
 import { revalidatePath } from 'next/cache'
 import type {
   MissionSummaryDto,
-  TriviaQuizSummaryDto,
-  CreateTriviaSessionRequest,
-  TriviaSessionCreatedDto,
+  CreateSessionRequest,
+  SessionCreatedDto,
   SessionAssignmentSummaryDto,
   SessionAssociatedTeamsDto,
   AssociateTeamToSessionResultDto,
@@ -31,13 +29,6 @@ import type {
 } from '@/app/lib/definitions'
 import { IdentityError } from '@/app/lib/definitions'
 
-export async function getPublishedTrivias(): Promise<TriviaQuizSummaryDto[]> {
-  const session = await verifySession()
-  if (session.role !== 'Administrator') throw new Error('Forbidden')
-  const all = await listTriviaQuizzes()
-  return all.filter((q) => q.status === 'Published')
-}
-
 export async function getActiveMissions(): Promise<MissionSummaryDto[]> {
   const session = await verifySession()
   if (session.role !== 'Administrator') throw new Error('Forbidden')
@@ -45,12 +36,12 @@ export async function getActiveMissions(): Promise<MissionSummaryDto[]> {
   return all.filter((m) => m.isActive)
 }
 
-export async function createTriviaSession(
-  req: CreateTriviaSessionRequest,
-): Promise<TriviaSessionCreatedDto> {
+export async function createSession(
+  req: CreateSessionRequest,
+): Promise<SessionCreatedDto> {
   const session = await verifySession()
   if (session.role !== 'Administrator') throw new Error('Forbidden')
-  const result = await createTriviaSessionLib(req)
+  const result = await createSessionLib(req)
   revalidatePath('/dashboard')
   return result
 }

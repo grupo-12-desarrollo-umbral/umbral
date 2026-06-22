@@ -586,16 +586,22 @@ public sealed class MissionsEndpoints : IEndpointGroup
     }
 
     public sealed record MissionRuntimeStageResponse(
+        string Title,
+        int SequenceOrder,
         IReadOnlyList<MissionRuntimeSubstageResponse> Substages)
     {
         public static MissionRuntimeStageResponse FromDto(MissionRuntimePlanStageDto dto)
         {
             return new MissionRuntimeStageResponse(
+                dto.Title,
+                dto.SequenceOrder,
                 dto.Substages.Select(MissionRuntimeSubstageResponse.FromDto).ToList());
         }
     }
 
     public sealed record MissionRuntimeSubstageResponse(
+        string Title,
+        int SequenceOrder,
         string PlayMode,
         int? WinnerScore,
         IReadOnlyList<MissionRuntimeTargetResponse> Targets,
@@ -604,6 +610,8 @@ public sealed class MissionsEndpoints : IEndpointGroup
         public static MissionRuntimeSubstageResponse FromDto(MissionRuntimePlanSubstageDto dto)
         {
             return new MissionRuntimeSubstageResponse(
+                dto.Title,
+                dto.SequenceOrder,
                 dto.PlayMode,
                 dto.WinnerScore,
                 dto.Targets.Select(MissionRuntimeTargetResponse.FromDto).ToList(),
@@ -643,6 +651,7 @@ public sealed class MissionsEndpoints : IEndpointGroup
 
     public sealed record MissionRuntimeTriviaQuestionResponse(
         string Prompt,
+        int SequenceOrder,
         IReadOnlyList<MissionRuntimeTriviaOptionResponse> Options,
         int ScoreValue,
         int TimeLimitSeconds)
@@ -651,6 +660,7 @@ public sealed class MissionsEndpoints : IEndpointGroup
         {
             return new MissionRuntimeTriviaQuestionResponse(
                 dto.Prompt,
+                dto.SequenceOrder,
                 dto.Options.Select(MissionRuntimeTriviaOptionResponse.FromDto).ToList(),
                 dto.ScoreValue,
                 dto.TimeLimitSeconds);
@@ -659,12 +669,14 @@ public sealed class MissionsEndpoints : IEndpointGroup
 
     public sealed record MissionRuntimeTriviaOptionResponse(
         string OptionText,
+        int SequenceOrder,
         bool IsCorrect)
     {
         public static MissionRuntimeTriviaOptionResponse FromDto(MissionRuntimePlanTriviaOptionDto dto)
         {
             return new MissionRuntimeTriviaOptionResponse(
                 dto.OptionText,
+                dto.SequenceOrder,
                 dto.IsCorrect);
         }
     }

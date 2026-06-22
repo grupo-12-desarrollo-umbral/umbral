@@ -624,7 +624,14 @@ public sealed class MissionEndpointsTests : IClassFixture<PostgreSqlFixture>, IA
         runtimePlan.MaximumTime.Should().Be(45);
         runtimePlan.Stages.Should().HaveCount(2);
 
+        runtimePlan.Stages[0].Title.Should().Be("Stage 1");
+        runtimePlan.Stages[0].SequenceOrder.Should().Be(1);
+        runtimePlan.Stages[1].Title.Should().Be("Stage 2");
+        runtimePlan.Stages[1].SequenceOrder.Should().Be(2);
+
         var treasureSubstage = runtimePlan.Stages[0].Substages.Should().ContainSingle().Which;
+        treasureSubstage.Title.Should().Be("Treasure Hunt");
+        treasureSubstage.SequenceOrder.Should().Be(1);
         treasureSubstage.PlayMode.Should().Be("TreasureHunt");
         treasureSubstage.WinnerScore.Should().Be(40);
         treasureSubstage.TriviaQuestions.Should().BeEmpty();
@@ -638,15 +645,20 @@ public sealed class MissionEndpointsTests : IClassFixture<PostgreSqlFixture>, IA
         treasureSubstage.Targets[0].Clue!.VisibilityPolicy.Should().Be("VisibleWhenSubstageStarts");
 
         var triviaSubstage = runtimePlan.Stages[1].Substages.Should().ContainSingle().Which;
+        triviaSubstage.Title.Should().Be("Trivia Round");
+        triviaSubstage.SequenceOrder.Should().Be(1);
         triviaSubstage.PlayMode.Should().Be("Trivia");
         triviaSubstage.WinnerScore.Should().BeNull();
         triviaSubstage.Targets.Should().BeEmpty();
         triviaSubstage.TriviaQuestions.Select(question => question.Prompt).Should().Equal("First question", "Second question");
+        triviaSubstage.TriviaQuestions.Select(question => question.SequenceOrder).Should().Equal(1, 2);
         triviaSubstage.TriviaQuestions.Select(question => question.ScoreValue).Should().Equal(50, 35);
         triviaSubstage.TriviaQuestions.Select(question => question.TimeLimitSeconds).Should().Equal(30, 20);
         triviaSubstage.TriviaQuestions[0].Options.Select(option => option.OptionText).Should().Equal("First correct", "First wrong");
+        triviaSubstage.TriviaQuestions[0].Options.Select(option => option.SequenceOrder).Should().Equal(1, 2);
         triviaSubstage.TriviaQuestions[0].Options.Select(option => option.IsCorrect).Should().Equal(true, false);
         triviaSubstage.TriviaQuestions[1].Options.Select(option => option.OptionText).Should().Equal("Right", "Wrong");
+        triviaSubstage.TriviaQuestions[1].Options.Select(option => option.SequenceOrder).Should().Equal(1, 2);
         triviaSubstage.TriviaQuestions[1].Options.Select(option => option.IsCorrect).Should().Equal(true, false);
     }
 

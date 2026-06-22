@@ -1,8 +1,8 @@
 import 'server-only'
 import {
   IdentityError,
-  type CreateTriviaSessionRequest,
-  type TriviaSessionCreatedDto,
+  type CreateSessionRequest,
+  type SessionCreatedDto,
   type SessionAssignmentSummaryDto,
   type SessionAssociatedTeamsDto,
   type AssociateTeamToSessionResultDto,
@@ -35,9 +35,9 @@ async function getGatewayHeaders(headers?: HeadersInit): Promise<Headers> {
   }
 }
 
-export async function createTriviaSession(
-  req: CreateTriviaSessionRequest,
-): Promise<TriviaSessionCreatedDto> {
+export async function createSession(
+  req: CreateSessionRequest,
+): Promise<SessionCreatedDto> {
   await verifySession()
   const response = await fetch(`${API_GATEWAY_URL}/api/sessions`, {
     method: 'POST',
@@ -49,22 +49,20 @@ export async function createTriviaSession(
 
   if (response.status === 400) throw new Error('invalid_input')
   if (response.status === 401) throw new IdentityError('unauthorized', 'Authentication failed.')
-  if (response.status === 403) throw new IdentityError('unauthorized', 'Operator role required.')
-  if (response.status === 404) {
-    const problem = (await response.json().catch(() => null)) as { detail?: string } | null
-    if (problem?.detail?.includes('Mission')) throw new Error('mission_not_found')
-    throw new Error('quiz_not_found')
-  }
+  if (response.status === 403) throw new IdentityError('unauthorized', 'Administrator role required.')
+  if (response.status === 404) throw new Error('mission_not_found')
   if (response.status === 409) {
+    // Mission is the only session source now, so the eligibility/readiness rejection carries a
+    // single ProblemDetails `type`. Both the typed branch and the fallback map to one message.
     const problem = (await response.json().catch(() => null)) as { type?: string } | null
     if (problem?.type === 'mission-not-eligible-for-session') throw new Error('mission_not_eligible')
-    throw new Error('quiz_not_published')
+    throw new Error('mission_not_eligible')
   }
   if (!response.ok) {
-    throw new IdentityError('unknown', `createTriviaSession failed with status ${response.status}`)
+    throw new IdentityError('unknown', `createSession failed with status ${response.status}`)
   }
 
-  return response.json() as Promise<TriviaSessionCreatedDto>
+  return response.json() as Promise<SessionCreatedDto>
 }
 
 export async function listAssignableSessions(): Promise<SessionAssignmentSummaryDto[]> {

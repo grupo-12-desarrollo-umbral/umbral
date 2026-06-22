@@ -1,19 +1,17 @@
 'use client'
 
-import { useEffect, useState, useTransition } from 'react'
+import { useEffect, useMemo, useState, useTransition } from 'react'
 import {
   getAssignableOperators,
   listSessionsForAssignment,
   assignSessionOperator,
-  getPublishedTrivias,
   getActiveMissions,
-  createTriviaSession,
+  createSession,
 } from '@/app/actions/sessions'
 import type {
   AssignableOperatorDto,
   MissionSummaryDto,
   SessionAssignmentSummaryDto,
-  TriviaQuizSummaryDto,
 } from '@/app/lib/definitions'
 import styles from './dashboard.module.css'
 
@@ -29,22 +27,27 @@ export function SessionOperatorPanel() {
   const [missions, setMissions] = useState<MissionSummaryDto[] | null>(null)
   const [missionsError, setMissionsError] = useState<string | null>(null)
   const [selectedMissionId, setSelectedMissionId] = useState('')
-  const [quizzes, setQuizzes] = useState<TriviaQuizSummaryDto[] | null>(null)
-  const [quizzesError, setQuizzesError] = useState<string | null>(null)
-  const [selectedQuizId, setSelectedQuizId] = useState('')
   const [title, setTitle] = useState('')
   const [maxMinutes, setMaxMinutes] = useState('60')
   const [scheduledAt, setScheduledAt] = useState('')
   const [formError, setFormError] = useState<string | null>(null)
   const [isCreating, startCreateTransition] = useTransition()
+  const sortedMissions = useMemo(
+    () =>
+      missions?.toSorted((a, b) => {
+        if (a.isSourceReady !== b.isSourceReady) {
+          return a.isSourceReady ? -1 : 1
+        }
+
+        return a.name.localeCompare(b.name)
+      }) ?? null,
+    [missions],
+  )
 
   useEffect(() => {
     getActiveMissions()
       .then(setMissions)
       .catch(() => setMissionsError('Failed to load available missions. Reload the page.'))
-    getPublishedTrivias()
-      .then(setQuizzes)
-      .catch(() => setQuizzesError('Failed to load available quizzes. Reload the page.'))
   }, [])
 
   useEffect(() => {
@@ -126,15 +129,13 @@ export function SessionOperatorPanel() {
     setFormError(null)
     startCreateTransition(async () => {
       try {
-        await createTriviaSession({
+        await createSession({
           missionId: Number(selectedMissionId),
-          sourceTriviaQuizId: Number(selectedQuizId),
           title: title.trim(),
           maximumTimeMinutes: Number(maxMinutes),
           scheduledAt: new Date(scheduledAt).toISOString(),
         })
         setSelectedMissionId('')
-        setSelectedQuizId('')
         setTitle('')
         setMaxMinutes('60')
         setScheduledAt('')
@@ -143,17 +144,10 @@ export function SessionOperatorPanel() {
         if (err instanceof Error && err.message === 'mission_not_eligible') {
           setFormError(
             'The selected mission is inactive or not runtime-ready and cannot be used for session creation. ' +
-            'Activate the mission and ensure all stages, substages, and quiz selections are configured.',
+            'Activate the mission and ensure all stages, substages, and targets are configured.',
           )
         } else if (err instanceof Error && err.message === 'mission_not_found') {
           setFormError('The selected mission was not found. Reload the page and try again.')
-        } else if (err instanceof Error && err.message === 'quiz_not_published') {
-          setFormError(
-            'The selected quiz is no longer published and cannot be used for session creation. ' +
-            'Choose another quiz or republish it.',
-          )
-        } else if (err instanceof Error && err.message === 'quiz_not_found') {
-          setFormError('The selected quiz was not found. Reload the page and try again.')
         } else if (err instanceof Error && err.message === 'invalid_input') {
           setFormError('Invalid session data. Check all fields and try again.')
         } else {
@@ -304,12 +298,6 @@ export function SessionOperatorPanel() {
           </div>
         )}
 
-        {quizzesError && (
-          <div className={styles.errorBanner} role="alert" data-testid="session-quizzes-error">
-            {quizzesError}
-          </div>
-        )}
-
         {formError && (
           <div className={styles.errorBanner} role="alert" data-testid="session-form-error">
             {formError}
@@ -328,10 +316,18 @@ export function SessionOperatorPanel() {
               required
               disabled={isCreating || !missions}
             >
-              <option value="" disabled>— Select an active mission —</option>
-              {missions?.map((m) => (
-                <option key={m.id} value={String(m.id)}>
-                  {m.name}
+              <option value="" disabled>— Select a runtime-ready mission —</option>
+              {sortedMissions?.map((m) => (
+                // A mission only becomes a valid session source once it is runtime-ready
+                // (authored + activated). Draft missions still surface here so the admin can
+                // see them, but they are disabled with the reason rather than silently failing
+                // the create call with a 409.
+                <option
+                  key={m.id}
+                  value={String(m.id)}
+                  disabled={!m.isSourceReady}
+                >
+                  {m.isSourceReady ? m.name : `${m.name} — not runtime-ready`}
                 </option>
               ))}
             </select>
@@ -343,29 +339,10 @@ export function SessionOperatorPanel() {
             </p>
           )}
 
-          <div className={styles.formGroup}>
-            <label htmlFor="session-quiz-select">Quiz</label>
-            <select
-              id="session-quiz-select"
-              data-testid="session-quiz-select"
-              className={styles.formInput}
-              value={selectedQuizId}
-              onChange={(e) => setSelectedQuizId(e.target.value)}
-              required
-              disabled={isCreating || !quizzes}
-            >
-              <option value="" disabled>— Select a published quiz —</option>
-              {quizzes?.map((q) => (
-                <option key={q.id} value={String(q.id)}>
-                  {q.title}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {quizzes?.length === 0 && (
-            <p className={styles.emptyList} data-testid="session-no-quizzes">
-              No published quizzes available. Publish a quiz before creating a session.
+          {missions !== null && missions.length > 0 && !missions.some((m) => m.isSourceReady) && (
+            <p className={styles.emptyList} data-testid="session-no-ready-missions">
+              No runtime-ready missions available. Finish authoring a mission and activate it
+              before creating a session.
             </p>
           )}
 
@@ -420,11 +397,9 @@ export function SessionOperatorPanel() {
             disabled={
               isCreating ||
               !selectedMissionId ||
-              !selectedQuizId ||
               !title.trim() ||
               !maxMinutes ||
-              !scheduledAt ||
-              quizzes?.length === 0
+              !scheduledAt
             }
           >
             {isCreating ? 'Creating…' : 'Create session'}

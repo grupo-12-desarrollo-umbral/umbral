@@ -66,6 +66,8 @@ public sealed class MissionReadModelRepository : IMissionReadModelRepository
             mission.MaximumTime.Minutes,
             mission.Stages
                 .Select(stage => new MissionRuntimePlanStageDto(
+                    stage.Title,
+                    stage.SequenceOrder,
                     stage.Substages
                         .Select(substage => MapSubstage(substage, triviaQuestionsByQuizId))
                         .ToList()))
@@ -108,6 +110,8 @@ public sealed class MissionReadModelRepository : IMissionReadModelRepository
                 : Array.Empty<MissionRuntimePlanTriviaQuestionDto>();
 
         return new MissionRuntimePlanSubstageDto(
+            substage.Title,
+            substage.SequenceOrder,
             substage.PlayMode.ToString(),
             substage.WinnerScore?.Points,
             substage.Targets
@@ -139,10 +143,12 @@ public sealed class MissionReadModelRepository : IMissionReadModelRepository
 
         return new MissionRuntimePlanTriviaQuestionDto(
             question.Prompt,
+            question.SequenceOrder,
             question.Options
                 .OrderBy(option => option.SequenceOrder)
                 .Select(option => new MissionRuntimePlanTriviaOptionDto(
                     option.OptionText,
+                    option.SequenceOrder,
                     option.IsCorrect))
                 .ToList(),
             scoreValue,
