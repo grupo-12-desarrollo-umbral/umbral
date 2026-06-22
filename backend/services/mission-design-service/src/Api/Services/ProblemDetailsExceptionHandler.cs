@@ -54,6 +54,12 @@ public sealed class ProblemDetailsExceptionHandler : IExceptionHandler
                 Detail = exception.Message,
                 Status = StatusCodes.Status409Conflict
             },
+            TriviaQuizReferencedByActiveMissionException => new ProblemDetails
+            {
+                Title = "Trivia quiz cannot be archived while referenced by an active mission.",
+                Detail = exception.Message,
+                Status = StatusCodes.Status409Conflict
+            },
             TriviaQuizCannotBeDestructivelyRemovedAfterUsageException => new ProblemDetails
             {
                 Title = "Trivia quiz cannot be removed destructively after usage.",

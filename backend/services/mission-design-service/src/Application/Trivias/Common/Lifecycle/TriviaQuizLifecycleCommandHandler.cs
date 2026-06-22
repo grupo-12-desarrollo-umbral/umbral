@@ -23,12 +23,22 @@ public abstract class TriviaQuizLifecycleCommandHandler<TCommand> : IRequestHand
         var triviaQuiz = await _triviaQuizRepository.GetByIdAsync(request.Id, cancellationToken)
             ?? throw new NotFoundException("TriviaQuiz", request.Id);
 
+        await EnsureTransitionAllowedAsync(triviaQuiz, cancellationToken);
+
         ApplyTransition(triviaQuiz, _clock.UtcNow);
 
         await _triviaQuizRepository.UpdateAsync(triviaQuiz, cancellationToken);
 
         return TriviaQuizDtoMapper.Map(triviaQuiz);
     }
+
+    /// <summary>
+    /// Cross-aggregate precondition hook, run before the domain transition. The base
+    /// transition allows everything; subclasses override to reject transitions that the
+    /// quiz aggregate alone cannot see (e.g. archival blocked by an active mission reference).
+    /// </summary>
+    protected virtual Task EnsureTransitionAllowedAsync(TriviaQuiz triviaQuiz, CancellationToken cancellationToken)
+        => Task.CompletedTask;
 
     protected abstract void ApplyTransition(TriviaQuiz triviaQuiz, DateTimeOffset transitionedAt);
 }

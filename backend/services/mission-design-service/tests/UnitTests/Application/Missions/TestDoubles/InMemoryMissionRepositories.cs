@@ -1,6 +1,7 @@
 using umbral_backend.Application.Common.Interfaces;
 using umbral_backend.Application.Missions.DTOs;
 using umbral_backend.Domain.Entities;
+using umbral_backend.Domain.Enums;
 
 namespace umbral_backend.Application.UnitTests.Application.Missions.TestDoubles;
 
@@ -17,6 +18,21 @@ internal sealed class InMemoryMissionRepository : IMissionRepository
     {
         _missions.TryGetValue(missionId, out var mission);
         return Task.FromResult(mission);
+    }
+
+    public Task<IReadOnlyList<ActiveMissionReference>> GetActiveMissionsReferencingTriviaQuizAsync(
+        int triviaQuizId,
+        CancellationToken cancellationToken)
+    {
+        IReadOnlyList<ActiveMissionReference> references = _missions.Values
+            .Where(mission => mission.ActivationState == MissionActivation.Ready)
+            .Where(mission => mission.Stages
+                .SelectMany(stage => stage.Substages)
+                .Any(substage => substage.TriviaQuizId == triviaQuizId))
+            .Select(mission => new ActiveMissionReference(mission.Id, mission.Name))
+            .ToList();
+
+        return Task.FromResult(references);
     }
 
     public Task AddAsync(Mission mission, CancellationToken cancellationToken)

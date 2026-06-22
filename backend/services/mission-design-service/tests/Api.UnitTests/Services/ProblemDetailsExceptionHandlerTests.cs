@@ -155,6 +155,19 @@ public class ProblemDetailsExceptionHandlerTests
     }
 
     [Fact]
+    public async Task TryHandleAsync_TriviaQuizReferencedByActiveMissionException_Returns409()
+    {
+        var httpContext = CreateHttpContext();
+        var problem = await InvokeHandlerAndReadProblemDetails(
+            httpContext,
+            new TriviaQuizReferencedByActiveMissionException(7, ["'Forest Hunt' (#12)"]));
+
+        problem.Status.Should().Be(409);
+        problem.Title.Should().Be("Trivia quiz cannot be archived while referenced by an active mission.");
+        httpContext.Response.StatusCode.Should().Be(409);
+    }
+
+    [Fact]
     public async Task TryHandleAsync_TriviaQuestionScoreValueRequiredToPublishException_Returns409()
     {
         var httpContext = CreateHttpContext();
