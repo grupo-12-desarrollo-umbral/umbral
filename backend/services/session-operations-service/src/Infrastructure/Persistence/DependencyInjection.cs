@@ -27,6 +27,7 @@ public static class PersistenceServiceExtensions
             options.UseNpgsql(connectionString);
         });
 
+        builder.Services.AddScoped<IDatabaseHealthCheck, DatabaseHealthCheck>();
         builder.Services.AddScoped<ILiveSessionRepository, LiveSessionRepository>();
     }
 }

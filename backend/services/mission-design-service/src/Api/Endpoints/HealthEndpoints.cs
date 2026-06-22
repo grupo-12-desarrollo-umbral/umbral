@@ -1,4 +1,4 @@
-using umbral_backend.Infrastructure.Persistence;
+using umbral_backend.Application.Common.Interfaces;
 
 namespace umbral_backend.Web.Endpoints;
 
@@ -11,10 +11,10 @@ public class HealthEndpoints : IEndpointGroup
     }
 
     private static async Task<IResult> CheckHealthAsync(
-        ApplicationDbContext dbContext,
+        IDatabaseHealthCheck healthCheck,
         CancellationToken cancellationToken)
     {
-        var canConnect = await dbContext.Database.CanConnectAsync(cancellationToken);
+        var canConnect = await healthCheck.CanConnectAsync(cancellationToken);
 
         return canConnect
             ? Results.Ok(new { Status = "Healthy" })
