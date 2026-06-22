@@ -1174,7 +1174,7 @@ public sealed class IdentityAccessApiEndpointsTests : IAsyncLifetime
         problem.Should().NotBeNull();
         problem!.Status.Should().Be(StatusCodes.Status422UnprocessableEntity);
         problem.Title.Should().Be("Unprocessable entity.");
-        problem.Detail.Should().Contain("Target user must be active.");
+        problem.Detail.Should().Contain("deactivated");
     }
 
     [Fact]

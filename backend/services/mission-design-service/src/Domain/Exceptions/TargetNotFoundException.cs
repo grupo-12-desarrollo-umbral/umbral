@@ -1,6 +1,6 @@
 namespace umbral_backend.Domain.Exceptions;
 
-public sealed class TargetNotFoundException : Exception
+public sealed class TargetNotFoundException : DomainException
 {
     public TargetNotFoundException(int targetId)
         : base($"Target '{targetId}' was not found in the substage.")
@@ -9,4 +9,6 @@ public sealed class TargetNotFoundException : Exception
     }
 
     public int TargetId { get; }
+
+    public override ErrorCategory Category => ErrorCategory.NotFound;
 }

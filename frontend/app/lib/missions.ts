@@ -136,9 +136,9 @@ export async function activateMission(id: number): Promise<MissionDto> {
   })
 
   if (response.status === 400) {
-    // Readiness validation failures come back as a ProblemDetails body whose `detail`
-    // lists the runtime-plan gaps blocking activation. Surface it verbatim to the admin.
-    let detail = 'Mission is not ready for activation.'
+    // Defensive: readiness failures now return 409 (not 400). Surface any ProblemDetails
+    // `detail` verbatim should a validation 400 ever reach this endpoint.
+    let detail = 'Mission could not be activated.'
     try {
       const problem = await response.json()
       if (typeof problem?.detail === 'string' && problem.detail.length > 0) {
@@ -159,15 +159,23 @@ export async function activateMission(id: number): Promise<MissionDto> {
     throw new Error('mission_not_found')
   }
   if (response.status === 409) {
-    // Mission already active. ProblemDetails `detail` carries the conflict message.
-    let detail = 'Mission is already active.'
+    // Activation conflicts — "mission already active" or "runtime plan not ready" — both arrive
+    // as 409. `detail` carries the full message; the `type` slug only selects the fallback
+    // wording for the rare case where the body can't be read.
+    let problem: { type?: string; detail?: string } | null = null
     try {
-      const problem = await response.json()
-      if (typeof problem?.detail === 'string' && problem.detail.length > 0) detail = problem.detail
+      problem = await response.json()
     } catch {
-      /* keep fallback */
+      /* body unreadable — fall back on type/default below */
     }
-    throw new Error(detail)
+    if (typeof problem?.detail === 'string' && problem.detail.length > 0) {
+      throw new Error(problem.detail)
+    }
+    throw new Error(
+      problem?.type === 'mission-not-ready-for-activation'
+        ? 'Mission is not ready for activation.'
+        : 'Mission is already active.',
+    )
   }
   if (!response.ok) {
     throw new IdentityError('unknown', `activateMission failed with status ${response.status}`)

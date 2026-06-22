@@ -1,8 +1,9 @@
-﻿using FluentValidation.Results;
+using FluentValidation.Results;
+using umbral_backend.Domain.Exceptions;
 
 namespace umbral_backend.Application.Common.Exceptions;
 
-public class ValidationException : Exception
+public class ValidationException : Exception, IErrorMetadata
 {
     public ValidationException()
         : base("One or more validation failures have occurred.")
@@ -19,4 +20,8 @@ public class ValidationException : Exception
     }
 
     public IDictionary<string, string[]> Errors { get; }
+
+    public ErrorCategory Category => ErrorCategory.Validation;
+
+    public string ErrorCode => "validation-failed";
 }

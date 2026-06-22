@@ -1,6 +1,8 @@
+using umbral_backend.Domain.Exceptions;
+
 namespace umbral_backend.Application.Common.Exceptions;
 
-public class NotFoundException : Exception
+public class NotFoundException : Exception, IErrorMetadata
 {
     public NotFoundException()
         : base()
@@ -16,4 +18,8 @@ public class NotFoundException : Exception
         : base($"Entity \"{name}\" ({key}) was not found.")
     {
     }
+
+    public ErrorCategory Category => ErrorCategory.NotFound;
+
+    public string ErrorCode => "not-found";
 }

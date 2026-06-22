@@ -53,14 +53,14 @@ public sealed class User : BaseAuditableEntity
 
     public void AssignRole(Role role)
     {
-        if (Role == role)
-        {
-            return;
-        }
-
         if (!IsActive)
         {
             throw new DeactivatedUserRoleAssignmentNotAllowedException(Id);
+        }
+
+        if (Role == role)
+        {
+            return;
         }
 
         var previousRole = Role;

@@ -349,7 +349,7 @@ public sealed class TriviaEndpointsTests : IClassFixture<PostgreSqlFixture>, IAs
         var problem = await response.Content.ReadFromJsonAsync<ProblemDetails>();
         problem.Should().NotBeNull();
         problem!.Status.Should().Be(StatusCodes.Status409Conflict);
-        problem.Title.Should().Be("Trivia quiz cannot be edited in its current state.");
+        problem.Title.Should().Be("Conflict.");
         problem.Detail.Should().Contain("cannot be edited");
     }
 
@@ -401,7 +401,7 @@ public sealed class TriviaEndpointsTests : IClassFixture<PostgreSqlFixture>, IAs
         var problem = await response.Content.ReadFromJsonAsync<ProblemDetails>();
         problem.Should().NotBeNull();
         problem!.Status.Should().Be(StatusCodes.Status409Conflict);
-        problem.Title.Should().Be("Trivia quiz is not ready for publication.");
+        problem.Title.Should().Be("Conflict.");
         problem.Detail.Should().Contain("at least one question");
 
         var detailResponse = await _client.GetAsync($"/api/trivias/{triviaId}");
@@ -536,7 +536,7 @@ public sealed class TriviaEndpointsTests : IClassFixture<PostgreSqlFixture>, IAs
         var problem = await response.Content.ReadFromJsonAsync<ProblemDetails>();
         problem.Should().NotBeNull();
         problem!.Status.Should().Be(StatusCodes.Status409Conflict);
-        problem.Title.Should().Be("Trivia quiz cannot be removed destructively after usage.");
+        problem.Title.Should().Be("Conflict.");
         problem.Detail.Should().Contain("cannot be removed destructively");
 
         var detailResponse = await _client.GetAsync($"/api/trivias/{triviaId}");

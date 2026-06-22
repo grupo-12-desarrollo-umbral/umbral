@@ -37,13 +37,11 @@ public sealed class AssignUserRoleCommandValidator : AbstractValidator<AssignUse
         if (user is null)
         {
             context.AddFailure(nameof(AssignUserRoleCommand.UserId), "Target user must exist.");
-            return;
         }
 
-        if (!user.IsActive)
-        {
-            context.AddFailure(nameof(AssignUserRoleCommand.UserId), "Target user must be active.");
-        }
+        // The "deactivated user cannot receive a role" rule is enforced in the domain
+        // (User.AssignRole throws DeactivatedUserRoleAssignmentNotAllowedException → 422); no
+        // duplicate validator pre-check here, so the handler needs no string-match special case.
     }
 
     private static bool BeKnownRole(string role)

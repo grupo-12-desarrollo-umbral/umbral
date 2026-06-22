@@ -1,9 +1,11 @@
 namespace umbral_backend.Domain.Exceptions;
 
-public sealed class QuestionTimerExceedsMaximumException : Exception
+public sealed class QuestionTimerExceedsMaximumException : DomainException
 {
     public QuestionTimerExceedsMaximumException()
         : base("Trivia question timer cannot exceed 120 seconds.")
     {
     }
+
+    public override ErrorCategory Category => ErrorCategory.Validation;
 }
