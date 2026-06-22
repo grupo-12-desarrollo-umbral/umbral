@@ -26,6 +26,8 @@ public static class DependencyInjection
         });
 
         builder.Services.AddSingleton<JoinTokenPolicy>();
+        builder.Services.AddScoped<IdentityProvisioningPolicy>();
+        builder.Services.AddScoped<AccessPolicy>();
 
         builder.Services.AddScoped<ParticipantSessionMembershipPolicy>();
         builder.Services.AddScoped<IUserRoleAssignmentExecutor, UserRoleAssignmentService>();

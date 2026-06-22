@@ -6,8 +6,6 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 using umbral_backend.Api.Services;
 using umbral_backend.Application.Common.Interfaces;
-using umbral_backend.Domain.Services;
-
 namespace Microsoft.Extensions.DependencyInjection;
 
 [ExcludeFromCodeCoverage]
@@ -22,8 +20,6 @@ public static class DependencyInjection
         builder.Services.AddScoped<IAuthenticatedUserLoginEntryPoint, AuthenticatedUserLoginProxy>();
         builder.Services.AddScoped<IUserManagementHandler, UserManagementHandler>();
         builder.Services.AddScoped<IUserManagementEntryPoint, UserManagementProxy>();
-        builder.Services.AddScoped<IdentityProvisioningPolicy>();
-        builder.Services.AddScoped<AccessPolicy>();
         builder.Services
             .AddAuthentication(TrustedHeadersAuthenticationDefaults.Scheme)
             .AddScheme<AuthenticationSchemeOptions, TrustedHeadersAuthenticationHandler>(
