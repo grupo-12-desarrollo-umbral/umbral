@@ -1,4 +1,5 @@
-using Microsoft.AspNetCore.Http.HttpResults;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using umbral_backend.Api.Services;
 using umbral_backend.Application.Common.Models;
 using umbral_backend.Application.Teams.Commands.AssignParticipantToTeam;
@@ -11,119 +12,107 @@ using umbral_backend.Application.Teams.Queries.GetTeamById;
 using umbral_backend.Application.Teams.Queries.GetTeamParticipants;
 using umbral_backend.Application.Teams.Queries.GetTeams;
 
-namespace umbral_backend.Api.Endpoints;
+namespace umbral_backend.Api.Controllers;
 
-public sealed class TeamsEndpoints : IEndpointGroup
+[ApiController]
+[Route("api/teams")]
+public sealed class TeamsController(ISender sender) : ControllerBase
 {
-    public static void Map(RouteGroupBuilder groupBuilder)
-    {
-        var teams = groupBuilder.MapGroup("/api/teams");
-
-        teams.MapPost(string.Empty, RegisterTeamAsync);
-        teams.MapGet(string.Empty, GetTeamsAsync);
-        teams.MapGet("/{id:guid}", GetTeamByIdAsync);
-        teams.MapPatch("/{id:guid}", UpdateTeamAsync);
-        teams.MapDelete("/{id:guid}/status", DeactivateTeamAsync);
-        teams.MapPost("/{id:guid}/participants", AssignParticipantToTeamAsync);
-        teams.MapPost("/{id:guid}/participants/self", JoinTeamAsParticipantAsync)
-            .RequireAuthorization(AuthorizationPolicies.Participant);
-        teams.MapGet("/{id:guid}/participants", GetTeamParticipantsAsync);
-    }
-
-    private static async Task<Created<RegisterTeamResponse>> RegisterTeamAsync(
+    [HttpPost]
+    public async Task<ActionResult<RegisterTeamResponse>> RegisterTeamAsync(
         RegisterTeamRequest request,
-        ISender sender,
         CancellationToken cancellationToken)
     {
         var teamId = await sender.Send(
             new RegisterTeamCommand(request.DisplayName, request.TeamCode),
             cancellationToken);
 
-        return TypedResults.Created($"/api/teams/{teamId}", new RegisterTeamResponse(teamId));
+        return Created($"/api/teams/{teamId}", new RegisterTeamResponse(teamId));
     }
 
-    private static async Task<Ok<PagedResult<TeamDto>>> GetTeamsAsync(
-        ISender sender,
-        [AsParameters] GetTeamsRequest request,
+    [HttpGet]
+    public async Task<ActionResult<PagedResult<TeamDto>>> GetTeamsAsync(
+        [FromQuery] GetTeamsRequest request,
         CancellationToken cancellationToken)
     {
         var result = await sender.Send(
             new GetTeamsQuery(request.Page, request.PageSize),
             cancellationToken);
 
-        return TypedResults.Ok(result);
+        return Ok(result);
     }
 
-    private static async Task<Ok<TeamDto>> GetTeamByIdAsync(
+    [HttpGet("{id:guid}")]
+    public async Task<ActionResult<TeamDto>> GetTeamByIdAsync(
         Guid id,
-        ISender sender,
         CancellationToken cancellationToken)
     {
         var result = await sender.Send(new GetTeamByIdQuery(id), cancellationToken);
-        return TypedResults.Ok(result);
+        return Ok(result);
     }
 
-    private static async Task<NoContent> UpdateTeamAsync(
+    [HttpPatch("{id:guid}")]
+    public async Task<IActionResult> UpdateTeamAsync(
         Guid id,
         UpdateTeamRequest request,
-        ISender sender,
         CancellationToken cancellationToken)
     {
         await sender.Send(
             new UpdateTeamCommand(id, request.DisplayName, request.TeamCode),
             cancellationToken);
 
-        return TypedResults.NoContent();
+        return NoContent();
     }
 
-    private static async Task<Ok<TeamDto>> DeactivateTeamAsync(
+    [HttpDelete("{id:guid}/status")]
+    public async Task<ActionResult<TeamDto>> DeactivateTeamAsync(
         Guid id,
-        ISender sender,
         CancellationToken cancellationToken)
     {
         await sender.Send(new DeactivateTeamCommand(id), cancellationToken);
 
         var result = await sender.Send(new GetTeamByIdQuery(id), cancellationToken);
-        return TypedResults.Ok(result);
+        return Ok(result);
     }
 
-    private static async Task<Created<AssignParticipantToTeamResponse>> AssignParticipantToTeamAsync(
+    [HttpPost("{id:guid}/participants")]
+    public async Task<ActionResult<AssignParticipantToTeamResponse>> AssignParticipantToTeamAsync(
         Guid id,
         AssignParticipantToTeamRequest request,
-        ISender sender,
         CancellationToken cancellationToken)
     {
         var membershipId = await sender.Send(
             new AssignParticipantToTeamCommand(id, request.UserId),
             cancellationToken);
 
-        return TypedResults.Created(
+        return Created(
             $"/api/teams/{id}/participants/{membershipId}",
             new AssignParticipantToTeamResponse(membershipId));
     }
 
-    private static async Task<Created<JoinTeamAsParticipantResponse>> JoinTeamAsParticipantAsync(
+    [HttpPost("{id:guid}/participants/self")]
+    [Authorize(Policy = AuthorizationPolicies.Participant)]
+    public async Task<ActionResult<JoinTeamAsParticipantResponse>> JoinTeamAsParticipantAsync(
         Guid id,
         JoinTeamAsParticipantRequest request,
-        ISender sender,
         CancellationToken cancellationToken)
     {
         var membershipId = await sender.Send(
             new JoinTeamAsParticipantCommand(request.LiveSessionId, id),
             cancellationToken);
 
-        return TypedResults.Created(
+        return Created(
             $"/api/teams/{id}/participants/{membershipId}",
             new JoinTeamAsParticipantResponse(membershipId));
     }
 
-    private static async Task<Ok<IReadOnlyList<TeamMembershipDto>>> GetTeamParticipantsAsync(
+    [HttpGet("{id:guid}/participants")]
+    public async Task<ActionResult<IReadOnlyList<TeamMembershipDto>>> GetTeamParticipantsAsync(
         Guid id,
-        ISender sender,
         CancellationToken cancellationToken)
     {
         var result = await sender.Send(new GetTeamParticipantsQuery(id), cancellationToken);
-        return TypedResults.Ok(result);
+        return Ok(result);
     }
 
     public sealed record RegisterTeamRequest(string DisplayName, string TeamCode);

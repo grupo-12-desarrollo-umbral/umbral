@@ -10,7 +10,7 @@ Implement CQRS with MediatR in ASP.NET Core by fitting the existing solution str
 ## Quick Start
 
 1. Inspect the project first:
-   - hosting style: controllers, Minimal APIs, mixed
+   - hosting style: this codebase standardizes on MVC controllers — no minimal-API endpoint groups
    - current architecture: layered, Clean Architecture, modular monolith, feature folders
    - existing validation, persistence, transaction, and error-handling patterns
 2. Decide whether CQRS is warranted:
@@ -23,7 +23,7 @@ Implement CQRS with MediatR in ASP.NET Core by fitting the existing solution str
 4. Implement the smallest vertical slice:
    - request type
    - handler
-   - endpoint/controller action
+   - controller action
    - validation and persistence
    - focused tests
 5. Add cross-cutting behaviors deliberately:

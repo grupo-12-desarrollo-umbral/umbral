@@ -1,45 +1,39 @@
-using Microsoft.AspNetCore.Http.HttpResults;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using umbral_backend.Api.Services;
 using umbral_backend.Application.Sessions.Commands.AssociateTeamToSessionReference;
 using umbral_backend.Application.Sessions.Queries.GetSessionTeamsForParticipant;
 
-namespace umbral_backend.Api.Endpoints;
+namespace umbral_backend.Api.Controllers;
 
-public sealed class SessionsEndpoints : IEndpointGroup
+[ApiController]
+[Route("api/sessions")]
+public sealed class SessionsController(ISender sender) : ControllerBase
 {
-    public static void Map(RouteGroupBuilder groupBuilder)
-    {
-        var sessions = groupBuilder.MapGroup("/api/sessions");
-
-        sessions.MapGet("/{code}/teams", GetSessionTeamsAsync)
-            .RequireAuthorization(AuthorizationPolicies.Participant);
-
-        sessions.MapPost("/{code}/teams", AssociateTeamAsync);
-    }
-
-    private static async Task<Ok<SessionTeamLobbyDto>> GetSessionTeamsAsync(
+    [HttpGet("{code}/teams")]
+    [Authorize(Policy = AuthorizationPolicies.Participant)]
+    public async Task<ActionResult<SessionTeamLobbyDto>> GetSessionTeamsAsync(
         string code,
-        ISender sender,
         CancellationToken cancellationToken)
     {
         var result = await sender.Send(
             new GetSessionTeamsForParticipantQuery(code),
             cancellationToken);
 
-        return TypedResults.Ok(result);
+        return Ok(result);
     }
 
-    private static async Task<Ok> AssociateTeamAsync(
+    [HttpPost("{code}/teams")]
+    public async Task<IActionResult> AssociateTeamAsync(
         string code,
         AssociateTeamRequest request,
-        ISender sender,
         CancellationToken cancellationToken)
     {
         await sender.Send(
             new AssociateTeamToSessionReferenceCommand(request.LiveSessionId, code, request.TeamId),
             cancellationToken);
 
-        return TypedResults.Ok();
+        return Ok();
     }
 
     public sealed record AssociateTeamRequest(Guid LiveSessionId, Guid TeamId);

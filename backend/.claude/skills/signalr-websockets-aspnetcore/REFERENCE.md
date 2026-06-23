@@ -286,7 +286,6 @@ Do not inject hub classes directly into other services.
 Use `IHubContext<THub>` or `IHubContext<THub, TClient>` from:
 
 - controllers
-- Minimal API handlers
 - background services
 - domain-event notification handlers
 - application services at the edge of the app

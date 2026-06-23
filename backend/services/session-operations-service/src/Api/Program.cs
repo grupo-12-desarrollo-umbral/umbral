@@ -27,7 +27,7 @@ app.UseExceptionHandler(options => { });
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapOpenApi();
-app.MapEndpoints(typeof(Program).Assembly);
+app.MapControllers();
 app.MapHub<SessionsHub>("/hubs/sessions")
     .RequireAuthorization(AuthorizationPolicies.ParticipantOrOperator);
 
