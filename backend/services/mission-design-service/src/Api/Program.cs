@@ -26,7 +26,7 @@ app.MapOpenApi();
 
 app.UseExceptionHandler(options => { });
 
-app.MapEndpoints(typeof(Program).Assembly);
+app.MapControllers();
 
 app.Run();
 

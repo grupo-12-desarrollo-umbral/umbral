@@ -25,10 +25,10 @@ umbral-backend/
 │   ├── <service-name>/
 │   │   ├── src/
 │   │   │   ├── Api/                                             # Service entry point and transport concerns
-│   │   │   │   ├── Endpoints/                                   # Minimal API endpoint groups
-│   │   │   │   │   ├── HealthEndpoints.cs
-│   │   │   │   │   ├── <Entity>Endpoints.cs
-│   │   │   │   │   └── WebhookEndpoints.cs                      # Optional inbound webhook endpoints
+│   │   │   │   ├── Controllers/                                 # MVC controllers ([ApiController] + attribute routing)
+│   │   │   │   │   ├── HealthController.cs
+│   │   │   │   │   ├── <Entity>Controller.cs
+│   │   │   │   │   └── WebhookController.cs                     # Optional inbound webhook controller
 │   │   │   │   ├── Hubs/                                        # SignalR hubs
 │   │   │   │   │   └── WebhookHub.cs
 │   │   │   │   ├── Services/                                    # Adapters for request context
@@ -202,10 +202,11 @@ Rules:
 ### `Api`
 
 - Hosts the service
-- Exposes HTTP endpoints
+- Exposes HTTP endpoints via MVC controllers (`[ApiController]` + attribute routing)
 - Exposes SignalR hubs
 - Maps request context into application abstractions
-- Configures middleware and composition root concerns
+- Configures middleware and composition root concerns (including the global
+  `ProblemDetailsExceptionHandler` — controllers carry no per-action try/catch)
 
 ### `Application/Common`
 
@@ -269,7 +270,7 @@ Other services do not carry `Infrastructure/Identity/Keycloak/`. They read actor
 ### Naming
 
 - Use singular or plural entity folders consistently per service.
-- Endpoint files should be named `<Entity>Endpoints.cs`.
+- Controller files should be named `<Entity>Controller.cs` and live in `Api/Controllers/`.
 - Handler files should be named after the request they handle, for example `CreateOrderCommandHandler.cs`.
 - Validators should live next to their command when applicable.
 

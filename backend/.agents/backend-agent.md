@@ -23,7 +23,7 @@ the driver agent.
 | X.1 Domain | `Domain/` — entities, value objects, enums, events, exceptions, domain services |
 | X.2 Application | `Application/` — repository interfaces, commands, queries, handlers, DTOs, validators, Common baseline |
 | X.3 Infrastructure | `Infrastructure/` — EF config, repositories, DbContext, interceptors, optional adapters |
-| X.4 Api | `Api/` — endpoint groups, optional hub, CurrentUser, Program.cs, DI wiring |
+| X.4 Api | `Api/` — controllers, optional hub, CurrentUser, Program.cs, DI wiring |
 
 ---
 
@@ -163,11 +163,12 @@ ask the driver** — do not silently drop it.
 - Keycloak wiring under `Infrastructure/Identity/Keycloak/` — identity-access-service only
 
 ### Api (Phase X.4)
-- Minimal API only — no MVC controllers
-- One `<Feature>Endpoints.cs` per feature folder from Phase X.2; register via extension method
+- MVC controllers only — no minimal-API endpoint groups
+- One `<Feature>Controller.cs` per feature folder from Phase X.2, under `Api/Controllers/`; annotate with `[ApiController]` + attribute routing (`[Route("api/...")]`, `[HttpGet]`/`[HttpPost]`/…), discovered via `AddControllers()` / `MapControllers()`
 - `CurrentUser` implements `ICurrentUser` by reading the trusted headers forwarded by the `api-gateway`: `X-User-Id`, `X-User-Role`, `X-User-Email` — never by parsing a JWT (see ADR-0001)
-- `Program.cs` wires `Application.DependencyInjection`, `Infrastructure.DependencyInjection`, endpoints
-- No business logic in endpoint handlers — dispatch to MediatR and return mapped result
+- `Program.cs` wires `Application.DependencyInjection`, `Infrastructure.DependencyInjection`, controllers
+- No business logic in controller actions — dispatch to MediatR and return the mapped result. Do NOT add per-action try/catch: let exceptions bubble to the global `ProblemDetailsExceptionHandler` (registered via `UseExceptionHandler`), which is the single place that maps them to RFC 7807 `ProblemDetails`
+- Endpoint authorization is declared with `[Authorize(Policy = ...)]` attributes on the controller or action (policy constants in `Api/Services/AuthorizationPolicies.cs`)
 - SignalR hub in `Api/Hubs/` — session-operations-service only
 
 ---
@@ -224,7 +225,7 @@ MSBuild node-reuse so the build survives the agent sandbox.
 10. Never drop or fake a design pattern named in the phase scope — realize it
     structurally (see "Required design patterns") or stop and ask the driver
 11. Do not web-search or fetch documentation for stable framework APIs (EF Core
-    owned entities / `OwnsMany`, minimal-API route handlers, LINQ). Rely on
+    owned entities / `OwnsMany`, MVC controllers / attribute routing, LINQ). Rely on
     knowledge and verify by building through the Makefile. Web search is only for
     genuinely version-specific behaviour you cannot confirm by building.
 12. Grep generated files (`ApplicationDbContextModelSnapshot.cs`, migration

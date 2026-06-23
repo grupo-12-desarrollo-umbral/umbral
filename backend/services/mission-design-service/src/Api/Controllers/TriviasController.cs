@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Http.HttpResults;
+using Microsoft.AspNetCore.Mvc;
 using umbral_backend.Application.Trivias.Commands.AddTriviaQuestion;
 using umbral_backend.Application.Trivias.Commands.ArchiveTriviaQuiz;
 using umbral_backend.Application.Trivias.Commands.CreateTriviaQuiz;
@@ -13,29 +13,14 @@ using umbral_backend.Application.Trivias.DTOs;
 using umbral_backend.Application.Trivias.Queries.GetTriviaCatalog;
 using umbral_backend.Application.Trivias.Queries.GetTriviaDetail;
 
-namespace umbral_backend.Web.Endpoints;
+namespace umbral_backend.Web.Controllers;
 
-public sealed class TriviasEndpoints : IEndpointGroup
+[ApiController]
+[Route("api/trivias")]
+public sealed class TriviasController(ISender sender) : ControllerBase
 {
-    public static void Map(RouteGroupBuilder groupBuilder)
-    {
-        var trivias = groupBuilder.MapGroup("/api/trivias");
-
-        trivias.MapPost("/", CreateTriviaQuiz);
-        trivias.MapGet("/", GetTriviaCatalog);
-        trivias.MapGet("/{id:int}", GetTriviaDetail);
-        trivias.MapPut("/{id:int}", UpdateTriviaQuiz);
-        trivias.MapDelete("/{id:int}", DeleteTriviaQuiz);
-        trivias.MapPost("/{id:int}/duplicate", DuplicateTriviaQuiz);
-        trivias.MapPost("/{id:int}/publish", PublishTriviaQuiz);
-        trivias.MapPost("/{id:int}/archive", ArchiveTriviaQuiz);
-        trivias.MapPost("/{id:int}/retire", RetireTriviaQuiz);
-        trivias.MapPost("/{triviaQuizId:int}/questions", AddTriviaQuestion);
-        trivias.MapPut("/{triviaQuizId:int}/questions/{questionId:int}", UpdateTriviaQuestion);
-    }
-
-    private static async Task<Created<TriviaQuizResponse>> CreateTriviaQuiz(
-        ISender sender,
+    [HttpPost]
+    public async Task<ActionResult<TriviaQuizResponse>> CreateTriviaQuiz(
         CreateTriviaQuizRequest request,
         CancellationToken cancellationToken)
     {
@@ -55,11 +40,11 @@ public sealed class TriviasEndpoints : IEndpointGroup
                     .ToArray()),
             cancellationToken);
 
-        return TypedResults.Created($"/api/trivias/{triviaQuiz.Id}", TriviaQuizResponse.FromDto(triviaQuiz));
+        return Created($"/api/trivias/{triviaQuiz.Id}", TriviaQuizResponse.FromDto(triviaQuiz));
     }
 
-    private static async Task<Ok<IReadOnlyList<TriviaQuizSummaryResponse>>> GetTriviaCatalog(
-        ISender sender,
+    [HttpGet]
+    public async Task<ActionResult<IReadOnlyList<TriviaQuizSummaryResponse>>> GetTriviaCatalog(
         CancellationToken cancellationToken)
     {
         var triviaCatalog = await sender.Send(new GetTriviaCatalogQuery(), cancellationToken);
@@ -67,20 +52,20 @@ public sealed class TriviasEndpoints : IEndpointGroup
             .Select(TriviaQuizSummaryResponse.FromDto)
             .ToList();
 
-        return TypedResults.Ok(response);
+        return Ok(response);
     }
 
-    private static async Task<Ok<TriviaQuizResponse>> GetTriviaDetail(
-        ISender sender,
+    [HttpGet("{id:int}")]
+    public async Task<ActionResult<TriviaQuizResponse>> GetTriviaDetail(
         int id,
         CancellationToken cancellationToken)
     {
         var triviaQuiz = await sender.Send(new GetTriviaDetailQuery(id), cancellationToken);
-        return TypedResults.Ok(TriviaQuizResponse.FromDto(triviaQuiz));
+        return Ok(TriviaQuizResponse.FromDto(triviaQuiz));
     }
 
-    private static async Task<Ok<TriviaQuizResponse>> UpdateTriviaQuiz(
-        ISender sender,
+    [HttpPut("{id:int}")]
+    public async Task<ActionResult<TriviaQuizResponse>> UpdateTriviaQuiz(
         int id,
         UpdateTriviaQuizRequest request,
         CancellationToken cancellationToken)
@@ -102,56 +87,56 @@ public sealed class TriviasEndpoints : IEndpointGroup
                     .ToArray()),
             cancellationToken);
 
-        return TypedResults.Ok(TriviaQuizResponse.FromDto(triviaQuiz));
+        return Ok(TriviaQuizResponse.FromDto(triviaQuiz));
     }
 
-    private static async Task<NoContent> DeleteTriviaQuiz(
-        ISender sender,
+    [HttpDelete("{id:int}")]
+    public async Task<IActionResult> DeleteTriviaQuiz(
         int id,
         CancellationToken cancellationToken)
     {
         await sender.Send(new DeleteTriviaQuizCommand(id), cancellationToken);
-        return TypedResults.NoContent();
+        return NoContent();
     }
 
-    private static async Task<Created<TriviaQuizResponse>> DuplicateTriviaQuiz(
-        ISender sender,
+    [HttpPost("{id:int}/duplicate")]
+    public async Task<ActionResult<TriviaQuizResponse>> DuplicateTriviaQuiz(
         int id,
         CancellationToken cancellationToken)
     {
         var triviaQuiz = await sender.Send(new DuplicateTriviaQuizCommand(id), cancellationToken);
-        return TypedResults.Created($"/api/trivias/{triviaQuiz.Id}", TriviaQuizResponse.FromDto(triviaQuiz));
+        return Created($"/api/trivias/{triviaQuiz.Id}", TriviaQuizResponse.FromDto(triviaQuiz));
     }
 
-    private static async Task<Ok<TriviaQuizResponse>> PublishTriviaQuiz(
-        ISender sender,
+    [HttpPost("{id:int}/publish")]
+    public async Task<ActionResult<TriviaQuizResponse>> PublishTriviaQuiz(
         int id,
         CancellationToken cancellationToken)
     {
         var triviaQuiz = await sender.Send(new PublishTriviaQuizCommand(id), cancellationToken);
-        return TypedResults.Ok(TriviaQuizResponse.FromDto(triviaQuiz));
+        return Ok(TriviaQuizResponse.FromDto(triviaQuiz));
     }
 
-    private static async Task<Ok<TriviaQuizResponse>> ArchiveTriviaQuiz(
-        ISender sender,
+    [HttpPost("{id:int}/archive")]
+    public async Task<ActionResult<TriviaQuizResponse>> ArchiveTriviaQuiz(
         int id,
         CancellationToken cancellationToken)
     {
         var triviaQuiz = await sender.Send(new ArchiveTriviaQuizCommand(id), cancellationToken);
-        return TypedResults.Ok(TriviaQuizResponse.FromDto(triviaQuiz));
+        return Ok(TriviaQuizResponse.FromDto(triviaQuiz));
     }
 
-    private static async Task<Ok<TriviaQuizResponse>> RetireTriviaQuiz(
-        ISender sender,
+    [HttpPost("{id:int}/retire")]
+    public async Task<ActionResult<TriviaQuizResponse>> RetireTriviaQuiz(
         int id,
         CancellationToken cancellationToken)
     {
         var triviaQuiz = await sender.Send(new RetireTriviaQuizCommand(id), cancellationToken);
-        return TypedResults.Ok(TriviaQuizResponse.FromDto(triviaQuiz));
+        return Ok(TriviaQuizResponse.FromDto(triviaQuiz));
     }
 
-    private static async Task<Ok<TriviaQuizResponse>> AddTriviaQuestion(
-        ISender sender,
+    [HttpPost("{triviaQuizId:int}/questions")]
+    public async Task<ActionResult<TriviaQuizResponse>> AddTriviaQuestion(
         int triviaQuizId,
         AddTriviaQuestionRequest request,
         CancellationToken cancellationToken)
@@ -168,11 +153,11 @@ public sealed class TriviasEndpoints : IEndpointGroup
                 request.Options.Select(MapTriviaOptionInput).ToArray()),
             cancellationToken);
 
-        return TypedResults.Ok(TriviaQuizResponse.FromDto(triviaQuiz));
+        return Ok(TriviaQuizResponse.FromDto(triviaQuiz));
     }
 
-    private static async Task<Ok<TriviaQuizResponse>> UpdateTriviaQuestion(
-        ISender sender,
+    [HttpPut("{triviaQuizId:int}/questions/{questionId:int}")]
+    public async Task<ActionResult<TriviaQuizResponse>> UpdateTriviaQuestion(
         int triviaQuizId,
         int questionId,
         UpdateTriviaQuestionRequest request,
@@ -191,7 +176,7 @@ public sealed class TriviasEndpoints : IEndpointGroup
                 request.Options.Select(MapTriviaOptionInput).ToArray()),
             cancellationToken);
 
-        return TypedResults.Ok(TriviaQuizResponse.FromDto(triviaQuiz));
+        return Ok(TriviaQuizResponse.FromDto(triviaQuiz));
     }
 
     private static TriviaQuestionInput MapTriviaQuestionInput(

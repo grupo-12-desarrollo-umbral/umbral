@@ -228,31 +228,11 @@ public sealed class CommandTransactionBehavior<TRequest, TResponse> : IPipelineB
 }
 ```
 
-## Minimal API Endpoint
+## Controller Endpoints
 
-```csharp
-using MediatR;
-using Microsoft.AspNetCore.Http.HttpResults;
-
-app.MapPost("/orders", async Task<Results<Created<CreateOrderResult>, ValidationProblem>> (
-    CreateOrderRequest request,
-    ISender sender,
-    CancellationToken cancellationToken) =>
-{
-    var command = new CreateOrderCommand(
-        request.CustomerId,
-        request.Items.Select(x => new CreateOrderLineItem(x.ProductId, x.Quantity)).ToList());
-
-    var result = await sender.Send(command, cancellationToken);
-
-    return TypedResults.Created($"/orders/{result.OrderId}", result);
-});
-
-public sealed record CreateOrderRequest(Guid CustomerId, IReadOnlyList<CreateOrderItemRequest> Items);
-public sealed record CreateOrderItemRequest(Guid ProductId, int Quantity);
-```
-
-## Controller Endpoint
+This codebase exposes its HTTP surface through MVC controllers (`[ApiController]` +
+attribute routing) — never minimal-API endpoint groups. Inject `ISender` via the
+primary constructor and keep actions thin: dispatch to MediatR and return the result.
 
 ```csharp
 using MediatR;
@@ -260,12 +240,25 @@ using Microsoft.AspNetCore.Mvc;
 
 [ApiController]
 [Route("orders")]
-public sealed class OrdersController : ControllerBase
+public sealed class OrdersController(ISender sender) : ControllerBase
 {
+    [HttpPost]
+    public async Task<ActionResult<CreateOrderResult>> Create(
+        CreateOrderRequest request,
+        CancellationToken cancellationToken)
+    {
+        var command = new CreateOrderCommand(
+            request.CustomerId,
+            request.Items.Select(x => new CreateOrderLineItem(x.ProductId, x.Quantity)).ToList());
+
+        var result = await sender.Send(command, cancellationToken);
+
+        return Created($"/orders/{result.OrderId}", result);
+    }
+
     [HttpGet("{id:guid}")]
     public async Task<ActionResult<OrderDetailsDto>> GetById(
         Guid id,
-        [FromServices] ISender sender,
         CancellationToken cancellationToken)
     {
         var result = await sender.Send(new GetOrderByIdQuery(id), cancellationToken);
@@ -273,7 +266,14 @@ public sealed class OrdersController : ControllerBase
         return result is null ? NotFound() : Ok(result);
     }
 }
+
+public sealed record CreateOrderRequest(Guid CustomerId, IReadOnlyList<CreateOrderItemRequest> Items);
+public sealed record CreateOrderItemRequest(Guid ProductId, int Quantity);
 ```
+
+> Do not wrap actions in try/catch. A `ValidationBehaviour` pipeline step and the
+> global exception handler translate validation failures and domain/not-found errors
+> into RFC 7807 Problem Details responses, so the action stays free of error mapping.
 
 ## Notification for In-Process Reactions
 
