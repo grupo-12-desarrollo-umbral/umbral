@@ -87,15 +87,15 @@ public sealed class SessionAdministrationAuthorizationProxyTests
                 role ?? "Unknown",
                 true));
 
-        var inner = new Mock<ISessionAdministrationAccessExecutor>();
-        inner
-            .Setup(executor => executor.GetAuthorizedSessionAsync(session.LiveSessionId, It.IsAny<CancellationToken>()))
+        var repository = new Mock<ILiveSessionRepository>();
+        repository
+            .Setup(repo => repo.GetByIdAsync(session.LiveSessionId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(session);
-        inner
-            .Setup(executor => executor.GetAuthorizedTimerSessionAsync(session.LiveSessionId, It.IsAny<CancellationToken>()))
+        repository
+            .Setup(repo => repo.GetTimerSessionByIdAsync(session.LiveSessionId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(session);
 
-        return new SessionAdministrationAuthorizationProxy(currentUser.Object, inner.Object, actorClient.Object);
+        return new SessionAdministrationAuthorizationProxy(currentUser.Object, repository.Object, actorClient.Object);
     }
 
     private static LiveSession CreateScheduledSession()

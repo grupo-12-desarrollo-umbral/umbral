@@ -131,7 +131,6 @@ public sealed class AssignOperatorToSessionCommandHandlerTests
         Mock<ICurrentUser> currentUser,
         TimeProvider timeProvider)
     {
-        var accessExecutor = new SessionAdministrationAccessResolver(repository.Object);
         var actorClient = new Mock<IAuthenticatedActorProfileAccessClient>();
         actorClient
             .Setup(client => client.GetCurrentAsync(It.IsAny<CancellationToken>()))
@@ -140,7 +139,7 @@ public sealed class AssignOperatorToSessionCommandHandlerTests
                 currentUser.Object.Id ?? "missing",
                 currentUser.Object.Role ?? "Unknown",
                 true));
-        var accessResolver = new SessionAdministrationAuthorizationProxy(currentUser.Object, accessExecutor, actorClient.Object);
+        var accessResolver = new SessionAdministrationAuthorizationProxy(currentUser.Object, repository.Object, actorClient.Object);
         var facade = new AssignOperatorToSessionFacade(
             accessResolver,
             eligibilityClient.Object,
