@@ -3,7 +3,7 @@ using umbral_backend.Application.Sessions.Commands.AssociateTeamToSessionReferen
 using umbral_backend.Domain.Entities;
 using umbral_backend.Domain.Exceptions;
 
-namespace umbral_backend.Application.Sessions.Handlers;
+namespace umbral_backend.Application.Sessions.Commands.AssociateTeamToSessionReference;
 
 public sealed class AssociateTeamToSessionReferenceCommandHandler
     : IRequestHandler<AssociateTeamToSessionReferenceCommand>

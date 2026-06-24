@@ -1,6 +1,6 @@
 using umbral_backend.Application.Sessions.Queries.GetSessionTeamsForParticipant;
 
-namespace umbral_backend.Application.Sessions.Handlers;
+namespace umbral_backend.Application.Sessions.Queries.GetSessionTeamsForParticipant;
 
 public sealed class GetSessionTeamsForParticipantQueryHandler
     : IRequestHandler<GetSessionTeamsForParticipantQuery, SessionTeamLobbyDto>

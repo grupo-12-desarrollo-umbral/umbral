@@ -1,6 +1,6 @@
 using umbral_backend.Application.Common.Interfaces;
 using umbral_backend.Application.Sessions.Commands.AssociateTeamToSessionReference;
-using umbral_backend.Application.Sessions.Handlers;
+using umbral_backend.Application.Sessions.Commands.AssociateTeamToSessionReference;
 using umbral_backend.Domain.Entities;
 
 namespace umbral_backend.Application.UnitTests.Application.Sessions.Handlers;
