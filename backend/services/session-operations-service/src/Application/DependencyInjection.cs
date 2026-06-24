@@ -8,7 +8,7 @@ using umbral_backend.Application.Sessions.Commands.AssignOperatorToSession;
 using umbral_backend.Application.Sessions.Commands.DisconnectParticipant;
 using umbral_backend.Application.Sessions.Commands.ReconnectAuthenticatedParticipant;
 using umbral_backend.Application.Sessions.Commands.TransitionSessionState;
-using umbral_backend.Application.Sessions.Facades;
+using umbral_backend.Application.Sessions.Common;
 using umbral_backend.Application.Sessions.StateTransitions;
 using umbral_backend.Application.Sessions.StateTransitions.Validators;
 using umbral_backend.Domain.Services;

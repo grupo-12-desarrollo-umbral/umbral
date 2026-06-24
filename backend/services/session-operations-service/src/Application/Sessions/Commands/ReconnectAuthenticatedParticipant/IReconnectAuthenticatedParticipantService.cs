@@ -1,4 +1,4 @@
-using umbral_backend.Application.Sessions.DTOs;
+using umbral_backend.Application.Sessions.Common;
 
 namespace umbral_backend.Application.Sessions.Commands.ReconnectAuthenticatedParticipant;
 

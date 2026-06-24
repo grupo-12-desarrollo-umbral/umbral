@@ -1,6 +1,6 @@
 using umbral_backend.Application.Common.Exceptions;
 using umbral_backend.Application.Common.Interfaces;
-using umbral_backend.Application.Sessions.DTOs;
+using umbral_backend.Application.Sessions.Common;
 
 namespace umbral_backend.Application.Sessions.Commands.AssignOperatorToSession;
 

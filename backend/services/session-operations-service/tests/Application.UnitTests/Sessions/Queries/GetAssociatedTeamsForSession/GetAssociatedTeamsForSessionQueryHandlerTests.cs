@@ -1,6 +1,4 @@
-using umbral_backend.Application.Sessions.DTOs;
-using umbral_backend.Application.Sessions.Facades;
-using umbral_backend.Application.Sessions.Handlers;
+using umbral_backend.Application.Sessions.Common;
 using umbral_backend.Application.Sessions.Queries.GetAssociatedTeamsForSession;
 
 namespace umbral_backend.Application.UnitTests.Sessions.Queries.GetAssociatedTeamsForSession;
