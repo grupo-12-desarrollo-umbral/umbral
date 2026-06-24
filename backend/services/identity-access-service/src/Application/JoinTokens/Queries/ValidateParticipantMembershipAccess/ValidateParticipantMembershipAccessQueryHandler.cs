@@ -1,6 +1,6 @@
 using umbral_backend.Application.JoinTokens.Queries.ValidateParticipantMembershipAccess;
 
-namespace umbral_backend.Application.JoinTokens.Handlers;
+namespace umbral_backend.Application.JoinTokens.Queries.ValidateParticipantMembershipAccess;
 
 public sealed class ValidateParticipantMembershipAccessQueryHandler
     : IRequestHandler<ValidateParticipantMembershipAccessQuery, ParticipantMembershipAccessDecisionDto>

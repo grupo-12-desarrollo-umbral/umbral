@@ -1,6 +1,5 @@
 using umbral_backend.Application.Common.Interfaces;
 using umbral_backend.Application.JoinTokens.Commands.IssueJoinToken;
-using umbral_backend.Application.JoinTokens.Handlers;
 using umbral_backend.Domain.Entities;
 using umbral_backend.Domain.Enums;
 using umbral_backend.Domain.Events;

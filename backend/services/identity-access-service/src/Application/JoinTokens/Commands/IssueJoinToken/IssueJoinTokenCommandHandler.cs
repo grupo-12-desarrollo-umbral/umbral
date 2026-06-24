@@ -1,6 +1,5 @@
-using umbral_backend.Application.JoinTokens.Commands.IssueJoinToken;
 
-namespace umbral_backend.Application.JoinTokens.Handlers;
+namespace umbral_backend.Application.JoinTokens.Commands.IssueJoinToken;
 
 public sealed class IssueJoinTokenCommandHandler : IRequestHandler<IssueJoinTokenCommand, IssuedJoinTokenDto>
 {

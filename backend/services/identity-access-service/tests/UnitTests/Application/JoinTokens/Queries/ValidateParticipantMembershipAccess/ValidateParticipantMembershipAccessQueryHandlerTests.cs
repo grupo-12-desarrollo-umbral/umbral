@@ -1,6 +1,5 @@
 using umbral_backend.Application.Common.Exceptions;
 using umbral_backend.Application.Common.Interfaces;
-using umbral_backend.Application.JoinTokens.Handlers;
 using umbral_backend.Application.JoinTokens.Queries.ValidateParticipantMembershipAccess;
 using umbral_backend.Domain.Entities;
 using umbral_backend.Domain.Enums;
