@@ -30,8 +30,10 @@ public static class DependencyInjection
         builder.Services.AddScoped<AccessPolicy>();
 
         builder.Services.AddScoped<ParticipantSessionMembershipPolicy>();
-        builder.Services.AddScoped<IUserRoleAssignmentExecutor, UserRoleAssignmentService>();
-        builder.Services.AddScoped<IUserRoleAssignmentService, UserRoleAssignmentAuthorizationProxy>();
+        builder.Services.AddScoped<UserRoleAssignmentService>();
+        builder.Services.AddScoped<IUserRoleAssignmentService>(sp =>
+            ActivatorUtilities.CreateInstance<UserRoleAssignmentAuthorizationProxy>(
+                sp, sp.GetRequiredService<UserRoleAssignmentService>()));
         builder.Services.AddScoped<IIssueJoinTokenExecutor, JoinTokenIssuanceService>();
         builder.Services.AddScoped<IIssueJoinTokenService, JoinTokenIssuanceAuthorizationProxy>();
         builder.Services.AddScoped<IValidateParticipantMembershipAccessExecutor, ParticipantMembershipAccessValidationService>();

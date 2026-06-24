@@ -16,7 +16,7 @@ public sealed class UserRoleAssignmentAuthorizationProxyTests
         var actor = CreateUser(1, "kc-admin", Role.Administrator);
         var repository = CreateRepository(actor);
         var currentUser = CreateCurrentUser(actor.ExternalIdentityId);
-        var inner = new Mock<IUserRoleAssignmentExecutor>();
+        var inner = new Mock<IUserRoleAssignmentService>();
 
         var proxy = new UserRoleAssignmentAuthorizationProxy(
             repository.Object,
@@ -36,7 +36,7 @@ public sealed class UserRoleAssignmentAuthorizationProxyTests
     {
         var repository = new Mock<IUserRepository>();
         var currentUser = CreateCurrentUser(null);
-        var inner = new Mock<IUserRoleAssignmentExecutor>();
+        var inner = new Mock<IUserRoleAssignmentService>();
 
         var proxy = new UserRoleAssignmentAuthorizationProxy(
             repository.Object,
@@ -56,7 +56,7 @@ public sealed class UserRoleAssignmentAuthorizationProxyTests
         var actor = CreateUser(1, "kc-operator", Role.Operator);
         var repository = CreateRepository(actor);
         var currentUser = CreateCurrentUser(actor.ExternalIdentityId);
-        var inner = new Mock<IUserRoleAssignmentExecutor>();
+        var inner = new Mock<IUserRoleAssignmentService>();
 
         var proxy = new UserRoleAssignmentAuthorizationProxy(
             repository.Object,
@@ -78,7 +78,7 @@ public sealed class UserRoleAssignmentAuthorizationProxyTests
 
         var repository = CreateRepository(actor);
         var currentUser = CreateCurrentUser(actor.ExternalIdentityId);
-        var inner = new Mock<IUserRoleAssignmentExecutor>();
+        var inner = new Mock<IUserRoleAssignmentService>();
 
         var proxy = new UserRoleAssignmentAuthorizationProxy(
             repository.Object,
@@ -101,7 +101,7 @@ public sealed class UserRoleAssignmentAuthorizationProxyTests
             .ReturnsAsync((User?)null);
 
         var currentUser = CreateCurrentUser("kc-missing");
-        var inner = new Mock<IUserRoleAssignmentExecutor>();
+        var inner = new Mock<IUserRoleAssignmentService>();
 
         var proxy = new UserRoleAssignmentAuthorizationProxy(
             repository.Object,
