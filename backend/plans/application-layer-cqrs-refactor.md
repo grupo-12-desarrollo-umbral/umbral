@@ -149,6 +149,11 @@ Parallel **across** identity-access and session-operations; **single-owner withi
 edits that service's one `DependencyInjection.cs`). Each item is its own small, separately-reviewable
 commit, sequenced on a green build.
 
+Apply the keep/cut lens from `docs/refactors/application-layer-overengineering-checklist.md` to every
+slice — it is the Phase-1 audit distilled (cut `Id > 0` marker/base-validator combos, dead interfaces,
+handler base classes; keep mandated ADR-0004 patterns). The de-ceremony steps below are that checklist's
+forwarding-triplet and type-bucket rows in context.
+
 **Per service, in order:**
 1. **Slice-collapse** (mechanical, behavior-preserving) — same procedure as Phase 1 step 1. Areas:
    - identity-access: `Users`, `Teams`, `Sessions`, `JoinTokens`, `Permissions`.

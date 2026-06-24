@@ -139,6 +139,12 @@ guard/orchestration is the un-mandated `IService`/`IExecutor` ceremony to collap
 the mandated pattern. Code-grounded examples per pattern:
 `docs/adr-0012-pattern-realizations-by-layer.md`.
 
+The full keep/cut catalogue — including shapes this section doesn't name (collapse
+`Id > 0` marker + base-validator combos and dead/0-consumer interfaces; no handler base
+classes; don't add `ICommand`/`IQuery` markers) — is
+`docs/refactors/application-layer-overengineering-checklist.md`. Apply it when building or
+refactoring Application slices.
+
 If the scope names a pattern you believe does not fit the use case, **stop and
 ask the driver** — do not silently drop it.
 
