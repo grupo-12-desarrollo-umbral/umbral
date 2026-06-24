@@ -50,12 +50,8 @@ public sealed class DisconnectParticipantCommandHandlerTests
         Mock<ICurrentUser> currentUser,
         TimeProvider timeProvider)
     {
-        var executor = new DisconnectParticipantService(
-            repository.Object,
-            timeProvider);
-        var proxy = new DisconnectParticipantAuthorizationProxy(currentUser.Object, executor);
-
-        return new DisconnectParticipantCommandHandler(proxy);
+        _ = currentUser;
+        return new DisconnectParticipantCommandHandler(repository.Object, timeProvider);
     }
 
     private static Mock<ILiveSessionRepository> CreateRepository(LiveSession session)

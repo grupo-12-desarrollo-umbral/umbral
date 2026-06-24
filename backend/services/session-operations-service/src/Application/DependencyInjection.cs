@@ -40,8 +40,6 @@ public static class DependencyInjection
         builder.Services.AddScoped<ISessionTeamAssociationFacade, SessionTeamAssociationFacade>();
         builder.Services.AddScoped<IAssignOperatorToSessionFacade, AssignOperatorToSessionFacade>();
         builder.Services.AddScoped<ICreateSessionFacade, CreateSessionFacade>();
-        builder.Services.AddScoped<IDisconnectParticipantExecutor, DisconnectParticipantService>();
-        builder.Services.AddScoped<IDisconnectParticipantService, DisconnectParticipantAuthorizationProxy>();
         builder.Services.AddScoped<IReconnectAuthenticatedParticipantExecutor, ReconnectAuthenticatedParticipantService>();
         builder.Services.AddScoped<IReconnectAuthenticatedParticipantService, ReconnectAuthenticatedParticipantAuthorizationProxy>();
         builder.Services.AddScoped<ITransitionSessionStateFacade, TransitionSessionStateFacade>();
