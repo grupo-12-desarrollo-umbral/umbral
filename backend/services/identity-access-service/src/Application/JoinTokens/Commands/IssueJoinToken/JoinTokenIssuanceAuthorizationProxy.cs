@@ -11,13 +11,13 @@ public sealed class JoinTokenIssuanceAuthorizationProxy : IIssueJoinTokenService
     private readonly IUserRepository _userRepository;
     private readonly ICurrentUser _currentUser;
     private readonly AccessPolicy _accessPolicy;
-    private readonly IIssueJoinTokenExecutor _inner;
+    private readonly IIssueJoinTokenService _inner;
 
     public JoinTokenIssuanceAuthorizationProxy(
         IUserRepository userRepository,
         ICurrentUser currentUser,
         AccessPolicy accessPolicy,
-        IIssueJoinTokenExecutor inner)
+        IIssueJoinTokenService inner)
     {
         _userRepository = userRepository;
         _currentUser = currentUser;
