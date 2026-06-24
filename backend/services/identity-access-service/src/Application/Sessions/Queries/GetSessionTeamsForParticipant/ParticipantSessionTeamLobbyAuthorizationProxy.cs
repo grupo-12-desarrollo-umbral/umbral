@@ -11,13 +11,13 @@ public sealed class ParticipantSessionTeamLobbyAuthorizationProxy : IGetSessionT
     private readonly IUserRepository _userRepository;
     private readonly ICurrentUser _currentUser;
     private readonly AccessPolicy _accessPolicy;
-    private readonly IGetSessionTeamsForParticipantExecutor _inner;
+    private readonly IGetSessionTeamsForParticipantService _inner;
 
     public ParticipantSessionTeamLobbyAuthorizationProxy(
         IUserRepository userRepository,
         ICurrentUser currentUser,
         AccessPolicy accessPolicy,
-        IGetSessionTeamsForParticipantExecutor inner)
+        IGetSessionTeamsForParticipantService inner)
     {
         _userRepository = userRepository;
         _currentUser = currentUser;

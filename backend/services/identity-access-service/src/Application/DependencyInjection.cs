@@ -38,10 +38,14 @@ public static class DependencyInjection
         builder.Services.AddScoped<IIssueJoinTokenService>(sp =>
             ActivatorUtilities.CreateInstance<JoinTokenIssuanceAuthorizationProxy>(
                 sp, sp.GetRequiredService<JoinTokenIssuanceService>()));
-        builder.Services.AddScoped<IValidateParticipantMembershipAccessExecutor, ParticipantMembershipAccessValidationService>();
-        builder.Services.AddScoped<IValidateParticipantMembershipAccessService, ParticipantMembershipAccessAuthorizationProxy>();
-        builder.Services.AddScoped<IGetSessionTeamsForParticipantExecutor, ParticipantSessionTeamLobbyService>();
-        builder.Services.AddScoped<IGetSessionTeamsForParticipantService, ParticipantSessionTeamLobbyAuthorizationProxy>();
+        builder.Services.AddScoped<ParticipantMembershipAccessValidationService>();
+        builder.Services.AddScoped<IValidateParticipantMembershipAccessService>(sp =>
+            ActivatorUtilities.CreateInstance<ParticipantMembershipAccessAuthorizationProxy>(
+                sp, sp.GetRequiredService<ParticipantMembershipAccessValidationService>()));
+        builder.Services.AddScoped<ParticipantSessionTeamLobbyService>();
+        builder.Services.AddScoped<IGetSessionTeamsForParticipantService>(sp =>
+            ActivatorUtilities.CreateInstance<ParticipantSessionTeamLobbyAuthorizationProxy>(
+                sp, sp.GetRequiredService<ParticipantSessionTeamLobbyService>()));
         builder.Services.AddScoped<IJoinTeamAsParticipantExecutor, ParticipantTeamSelfJoinService>();
         builder.Services.AddScoped<IJoinTeamAsParticipantService, ParticipantTeamSelfJoinAuthorizationProxy>();
     }

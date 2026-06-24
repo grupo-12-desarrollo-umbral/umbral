@@ -4,7 +4,7 @@ using umbral_backend.Domain.Entities;
 
 namespace umbral_backend.Application.Sessions.Queries.GetSessionTeamsForParticipant;
 
-public sealed class ParticipantSessionTeamLobbyService : IGetSessionTeamsForParticipantExecutor
+public sealed class ParticipantSessionTeamLobbyService : IGetSessionTeamsForParticipantService
 {
     private readonly ILiveSessionReferenceRepository _liveSessionReferenceRepository;
 

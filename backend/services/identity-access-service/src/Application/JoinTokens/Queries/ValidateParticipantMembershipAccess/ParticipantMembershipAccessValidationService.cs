@@ -6,7 +6,7 @@ using umbral_backend.Domain.ValueObjects;
 
 namespace umbral_backend.Application.JoinTokens.Queries.ValidateParticipantMembershipAccess;
 
-public sealed class ParticipantMembershipAccessValidationService : IValidateParticipantMembershipAccessExecutor
+public sealed class ParticipantMembershipAccessValidationService : IValidateParticipantMembershipAccessService
 {
     private readonly IJoinTokenRepository _joinTokenRepository;
     private readonly IJoinTokenTokenService _joinTokenTokenService;

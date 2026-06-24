@@ -12,14 +12,14 @@ public sealed class ParticipantMembershipAccessAuthorizationProxy : IValidatePar
     private readonly ITeamRepository _teamRepository;
     private readonly ICurrentUser _currentUser;
     private readonly AccessPolicy _accessPolicy;
-    private readonly IValidateParticipantMembershipAccessExecutor _inner;
+    private readonly IValidateParticipantMembershipAccessService _inner;
 
     public ParticipantMembershipAccessAuthorizationProxy(
         IUserRepository userRepository,
         ITeamRepository teamRepository,
         ICurrentUser currentUser,
         AccessPolicy accessPolicy,
-        IValidateParticipantMembershipAccessExecutor inner)
+        IValidateParticipantMembershipAccessService inner)
     {
         _userRepository = userRepository;
         _teamRepository = teamRepository;
