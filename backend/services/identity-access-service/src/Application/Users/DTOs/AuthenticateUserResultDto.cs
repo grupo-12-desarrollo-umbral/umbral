@@ -1,4 +1,4 @@
-using umbral_backend.Application.Permissions.DTOs;
+using umbral_backend.Application.Permissions.Queries.CheckProtectedCapabilityAccess;
 
 namespace umbral_backend.Application.Users.DTOs;
 

@@ -1,12 +1,11 @@
 using umbral_backend.Application.Common.Exceptions;
 using umbral_backend.Application.Common.Interfaces;
-using umbral_backend.Application.Permissions.DTOs;
 using umbral_backend.Application.Permissions.Queries.CheckProtectedCapabilityAccess;
 using umbral_backend.Domain.Entities;
 using umbral_backend.Domain.Exceptions;
 using umbral_backend.Domain.Services;
 
-namespace umbral_backend.Application.Permissions.Handlers;
+namespace umbral_backend.Application.Permissions.Queries.CheckProtectedCapabilityAccess;
 
 public sealed class CheckProtectedCapabilityAccessQueryHandler : IRequestHandler<CheckProtectedCapabilityAccessQuery, ProtectedAccessDecisionDto>
 {

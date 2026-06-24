@@ -1,4 +1,4 @@
-namespace umbral_backend.Application.Permissions.DTOs;
+namespace umbral_backend.Application.Permissions.Queries.CheckProtectedCapabilityAccess;
 
 public sealed record ProtectedAccessDecisionDto(
     string Capability,

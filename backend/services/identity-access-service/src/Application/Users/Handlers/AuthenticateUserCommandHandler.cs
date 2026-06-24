@@ -1,5 +1,5 @@
 using umbral_backend.Application.Common.Interfaces;
-using umbral_backend.Application.Permissions.DTOs;
+using umbral_backend.Application.Permissions.Queries.CheckProtectedCapabilityAccess;
 using umbral_backend.Application.Users.Commands.AuthenticateUser;
 using umbral_backend.Application.Users.DTOs;
 using umbral_backend.Domain.Entities;
