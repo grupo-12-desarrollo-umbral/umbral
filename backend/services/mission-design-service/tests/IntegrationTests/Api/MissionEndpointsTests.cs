@@ -1,5 +1,5 @@
 using umbral_backend.Infrastructure.Persistence;
-using umbral_backend.Web.Endpoints;
+using umbral_backend.Web.Controllers;
 
 namespace umbral_backend.Infrastructure.IntegrationTests.Api;
 
@@ -46,7 +46,7 @@ public sealed class MissionEndpointsTests : IClassFixture<PostgreSqlFixture>, IA
         response.StatusCode.Should().Be(HttpStatusCode.Created);
         response.Headers.Location.Should().NotBeNull();
 
-        var payload = await response.Content.ReadFromJsonAsync<MissionsEndpoints.MissionResponse>();
+        var payload = await response.Content.ReadFromJsonAsync<MissionsController.MissionResponse>();
         payload.Should().NotBeNull();
         payload!.Name.Should().Be("Mission Atlas");
         payload.Description.Should().Be("Locate the relay point.");
@@ -70,7 +70,7 @@ public sealed class MissionEndpointsTests : IClassFixture<PostgreSqlFixture>, IA
         var catalogResponse = await _client.GetAsync("/api/missions/");
         catalogResponse.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var catalog = await catalogResponse.Content.ReadFromJsonAsync<IReadOnlyList<MissionsEndpoints.MissionSummaryResponse>>();
+        var catalog = await catalogResponse.Content.ReadFromJsonAsync<IReadOnlyList<MissionsController.MissionSummaryResponse>>();
         catalog.Should().NotBeNull();
         catalog!.Should().ContainSingle();
         catalog[0].Id.Should().Be(missionId);
@@ -81,7 +81,7 @@ public sealed class MissionEndpointsTests : IClassFixture<PostgreSqlFixture>, IA
         var detailResponse = await _client.GetAsync($"/api/missions/{missionId}");
         detailResponse.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var detail = await detailResponse.Content.ReadFromJsonAsync<MissionsEndpoints.MissionResponse>();
+        var detail = await detailResponse.Content.ReadFromJsonAsync<MissionsController.MissionResponse>();
         detail.Should().NotBeNull();
         detail!.Id.Should().Be(missionId);
         detail.ActivationState.Should().Be("Inactive");
@@ -108,7 +108,7 @@ public sealed class MissionEndpointsTests : IClassFixture<PostgreSqlFixture>, IA
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var payload = await response.Content.ReadFromJsonAsync<MissionsEndpoints.MissionResponse>();
+        var payload = await response.Content.ReadFromJsonAsync<MissionsController.MissionResponse>();
         payload.Should().NotBeNull();
         payload!.Id.Should().Be(missionId);
         payload.Name.Should().Be("Mission After");
@@ -234,7 +234,7 @@ public sealed class MissionEndpointsTests : IClassFixture<PostgreSqlFixture>, IA
             });
         addStageResponse.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var missionAfterStage = await addStageResponse.Content.ReadFromJsonAsync<MissionsEndpoints.MissionResponse>();
+        var missionAfterStage = await addStageResponse.Content.ReadFromJsonAsync<MissionsController.MissionResponse>();
         missionAfterStage.Should().NotBeNull();
         var stageId = missionAfterStage!.Stages.Single().Id;
 
@@ -250,14 +250,14 @@ public sealed class MissionEndpointsTests : IClassFixture<PostgreSqlFixture>, IA
             });
         addSubstageResponse.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var missionAfterSubstage = await addSubstageResponse.Content.ReadFromJsonAsync<MissionsEndpoints.MissionResponse>();
+        var missionAfterSubstage = await addSubstageResponse.Content.ReadFromJsonAsync<MissionsController.MissionResponse>();
         missionAfterSubstage.Should().NotBeNull();
         var substageId = missionAfterSubstage!.Stages.Single().Substages.Single().Id;
 
         var readinessBeforeTargetsResponse = await _client.GetAsync($"/api/missions/{missionId}/readiness");
         readinessBeforeTargetsResponse.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var readinessBeforeTargets = await readinessBeforeTargetsResponse.Content.ReadFromJsonAsync<MissionsEndpoints.MissionReadinessResponse>();
+        var readinessBeforeTargets = await readinessBeforeTargetsResponse.Content.ReadFromJsonAsync<MissionsController.MissionReadinessResponse>();
         readinessBeforeTargets.Should().NotBeNull();
         readinessBeforeTargets!.IsReady.Should().BeFalse();
         readinessBeforeTargets.Failures.Should().Contain(failure => failure.Contains("must have at least one active target", StringComparison.Ordinal));
@@ -276,7 +276,7 @@ public sealed class MissionEndpointsTests : IClassFixture<PostgreSqlFixture>, IA
             });
         addClueResponse.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var missionAfterClue = await addClueResponse.Content.ReadFromJsonAsync<MissionsEndpoints.MissionResponse>();
+        var missionAfterClue = await addClueResponse.Content.ReadFromJsonAsync<MissionsController.MissionResponse>();
         missionAfterClue.Should().NotBeNull();
         var clueId = missionAfterClue!.Stages.Single().Substages.Single().Clues.Single().Id;
 
@@ -292,7 +292,7 @@ public sealed class MissionEndpointsTests : IClassFixture<PostgreSqlFixture>, IA
             });
         addTargetResponse.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var missionAfterTarget = await addTargetResponse.Content.ReadFromJsonAsync<MissionsEndpoints.MissionResponse>();
+        var missionAfterTarget = await addTargetResponse.Content.ReadFromJsonAsync<MissionsController.MissionResponse>();
         missionAfterTarget.Should().NotBeNull();
         var targetId = missionAfterTarget!.Stages.Single().Substages.Single().Targets.Single().Id;
         missionAfterTarget.Stages.Single().Substages.Single().WinnerScore.Should().Be(35);
@@ -308,7 +308,7 @@ public sealed class MissionEndpointsTests : IClassFixture<PostgreSqlFixture>, IA
         var detailResponse = await _client.GetAsync($"/api/missions/{missionId}");
         detailResponse.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var detail = await detailResponse.Content.ReadFromJsonAsync<MissionsEndpoints.MissionResponse>();
+        var detail = await detailResponse.Content.ReadFromJsonAsync<MissionsController.MissionResponse>();
         detail.Should().NotBeNull();
         detail!.Stages.Should().ContainSingle();
         detail.Stages[0].Substages.Should().ContainSingle();
@@ -320,7 +320,7 @@ public sealed class MissionEndpointsTests : IClassFixture<PostgreSqlFixture>, IA
         var activateResponse = await _client.PostAsync($"/api/missions/{missionId}/activate", content: null);
         activateResponse.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var activatedMission = await activateResponse.Content.ReadFromJsonAsync<MissionsEndpoints.MissionResponse>();
+        var activatedMission = await activateResponse.Content.ReadFromJsonAsync<MissionsController.MissionResponse>();
         activatedMission.Should().NotBeNull();
         activatedMission!.ActivationState.Should().Be("Ready");
         activatedMission.IsSourceReady.Should().BeTrue();
@@ -344,7 +344,7 @@ public sealed class MissionEndpointsTests : IClassFixture<PostgreSqlFixture>, IA
             });
         updateStageResponse.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var missionAfterStageUpdate = await updateStageResponse.Content.ReadFromJsonAsync<MissionsEndpoints.MissionResponse>();
+        var missionAfterStageUpdate = await updateStageResponse.Content.ReadFromJsonAsync<MissionsController.MissionResponse>();
         missionAfterStageUpdate.Should().NotBeNull();
         missionAfterStageUpdate!.Stages.Single(stage => stage.Id == stageId).Title.Should().Be("Updated Stage");
         missionAfterStageUpdate.Stages.Single(stage => stage.Id == stageId).SequenceOrder.Should().Be(3);
@@ -352,7 +352,7 @@ public sealed class MissionEndpointsTests : IClassFixture<PostgreSqlFixture>, IA
         var deleteStageResponse = await _client.DeleteAsync($"/api/missions/{missionId}/nodes/{removableStageId}");
         deleteStageResponse.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var missionAfterStageDelete = await deleteStageResponse.Content.ReadFromJsonAsync<MissionsEndpoints.MissionResponse>();
+        var missionAfterStageDelete = await deleteStageResponse.Content.ReadFromJsonAsync<MissionsController.MissionResponse>();
         missionAfterStageDelete.Should().NotBeNull();
         missionAfterStageDelete!.Stages.Should().ContainSingle(stage => stage.Id == stageId);
         missionAfterStageDelete.Stages.Should().NotContain(stage => stage.Id == removableStageId);
@@ -375,7 +375,7 @@ public sealed class MissionEndpointsTests : IClassFixture<PostgreSqlFixture>, IA
             });
         assignPlayModeResponse.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var missionAfterPlayModeAssign = await assignPlayModeResponse.Content.ReadFromJsonAsync<MissionsEndpoints.MissionResponse>();
+        var missionAfterPlayModeAssign = await assignPlayModeResponse.Content.ReadFromJsonAsync<MissionsController.MissionResponse>();
         missionAfterPlayModeAssign.Should().NotBeNull();
         var treasureSubstage = missionAfterPlayModeAssign!.Stages.Single().Substages.Single();
         treasureSubstage.PlayMode.Should().Be("TreasureHunt");
@@ -396,7 +396,7 @@ public sealed class MissionEndpointsTests : IClassFixture<PostgreSqlFixture>, IA
             });
         updateTargetResponse.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var missionAfterTargetUpdate = await updateTargetResponse.Content.ReadFromJsonAsync<MissionsEndpoints.MissionResponse>();
+        var missionAfterTargetUpdate = await updateTargetResponse.Content.ReadFromJsonAsync<MissionsController.MissionResponse>();
         missionAfterTargetUpdate.Should().NotBeNull();
         var updatedTarget = missionAfterTargetUpdate!.Stages.Single().Substages.Single().Targets.Single();
         updatedTarget.Name.Should().Be("Updated Target");
@@ -417,7 +417,7 @@ public sealed class MissionEndpointsTests : IClassFixture<PostgreSqlFixture>, IA
             $"/api/missions/{missionId}/stages/{stageId}/substages/{substageId}/targets/{targetId}/clue-association");
         unassociateClueResponse.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var missionAfterClueUnassociation = await unassociateClueResponse.Content.ReadFromJsonAsync<MissionsEndpoints.MissionResponse>();
+        var missionAfterClueUnassociation = await unassociateClueResponse.Content.ReadFromJsonAsync<MissionsController.MissionResponse>();
         missionAfterClueUnassociation.Should().NotBeNull();
         missionAfterClueUnassociation!.Stages.Single().Substages.Single().Targets.Single().ClueId.Should().BeNull();
 
@@ -425,7 +425,7 @@ public sealed class MissionEndpointsTests : IClassFixture<PostgreSqlFixture>, IA
             $"/api/missions/{missionId}/stages/{stageId}/substages/{substageId}/targets/{targetId}");
         deleteTargetResponse.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var missionAfterTargetDelete = await deleteTargetResponse.Content.ReadFromJsonAsync<MissionsEndpoints.MissionResponse>();
+        var missionAfterTargetDelete = await deleteTargetResponse.Content.ReadFromJsonAsync<MissionsController.MissionResponse>();
         missionAfterTargetDelete.Should().NotBeNull();
         missionAfterTargetDelete!.Stages.Single().Substages.Single().Targets.Should().BeEmpty();
     }
@@ -449,7 +449,7 @@ public sealed class MissionEndpointsTests : IClassFixture<PostgreSqlFixture>, IA
             });
         assignPlayModeResponse.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var missionAfterPlayModeAssign = await assignPlayModeResponse.Content.ReadFromJsonAsync<MissionsEndpoints.MissionResponse>();
+        var missionAfterPlayModeAssign = await assignPlayModeResponse.Content.ReadFromJsonAsync<MissionsController.MissionResponse>();
         missionAfterPlayModeAssign.Should().NotBeNull();
         var triviaSubstage = missionAfterPlayModeAssign!.Stages.Single().Substages.Single();
         missionAfterPlayModeAssign.Difficulty.Should().Be("Easy");
@@ -476,7 +476,7 @@ public sealed class MissionEndpointsTests : IClassFixture<PostgreSqlFixture>, IA
             });
         setSelectionResponse.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var missionAfterSelectionSet = await setSelectionResponse.Content.ReadFromJsonAsync<MissionsEndpoints.MissionResponse>();
+        var missionAfterSelectionSet = await setSelectionResponse.Content.ReadFromJsonAsync<MissionsController.MissionResponse>();
         missionAfterSelectionSet.Should().NotBeNull();
         missionAfterSelectionSet!.Stages.Single().Substages.Single().TriviaQuizSelection.Should().NotBeNull();
         missionAfterSelectionSet.Stages.Single().Substages.Single().TriviaQuizSelection!.TriviaQuizId.Should().Be(firstTriviaQuizId);
@@ -489,7 +489,7 @@ public sealed class MissionEndpointsTests : IClassFixture<PostgreSqlFixture>, IA
             });
         updateSelectionResponse.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var missionAfterSelectionUpdate = await updateSelectionResponse.Content.ReadFromJsonAsync<MissionsEndpoints.MissionResponse>();
+        var missionAfterSelectionUpdate = await updateSelectionResponse.Content.ReadFromJsonAsync<MissionsController.MissionResponse>();
         missionAfterSelectionUpdate.Should().NotBeNull();
         missionAfterSelectionUpdate!.Stages.Single().Substages.Single().TriviaQuizSelection.Should().NotBeNull();
         missionAfterSelectionUpdate.Stages.Single().Substages.Single().TriviaQuizSelection!.TriviaQuizId.Should().Be(secondTriviaQuizId);
@@ -540,7 +540,7 @@ public sealed class MissionEndpointsTests : IClassFixture<PostgreSqlFixture>, IA
             });
         createTriviaResponse.EnsureSuccessStatusCode();
 
-        var createdTriviaQuiz = await createTriviaResponse.Content.ReadFromJsonAsync<TriviasEndpoints.TriviaQuizResponse>();
+        var createdTriviaQuiz = await createTriviaResponse.Content.ReadFromJsonAsync<TriviasController.TriviaQuizResponse>();
         createdTriviaQuiz.Should().NotBeNull();
 
         var publishTriviaResponse = await _client.PostAsync($"/api/trivias/{createdTriviaQuiz!.Id}/publish", content: null);
@@ -576,7 +576,7 @@ public sealed class MissionEndpointsTests : IClassFixture<PostgreSqlFixture>, IA
             });
         addClueResponse.EnsureSuccessStatusCode();
 
-        var missionAfterClue = await addClueResponse.Content.ReadFromJsonAsync<MissionsEndpoints.MissionResponse>();
+        var missionAfterClue = await addClueResponse.Content.ReadFromJsonAsync<MissionsController.MissionResponse>();
         missionAfterClue.Should().NotBeNull();
         var clueId = missionAfterClue!.Stages
             .Single(stage => stage.Id == treasureStageId)
@@ -596,7 +596,7 @@ public sealed class MissionEndpointsTests : IClassFixture<PostgreSqlFixture>, IA
             });
         addTargetResponse.EnsureSuccessStatusCode();
 
-        var missionAfterTarget = await addTargetResponse.Content.ReadFromJsonAsync<MissionsEndpoints.MissionResponse>();
+        var missionAfterTarget = await addTargetResponse.Content.ReadFromJsonAsync<MissionsController.MissionResponse>();
         missionAfterTarget.Should().NotBeNull();
         var targetId = missionAfterTarget!.Stages
             .Single(stage => stage.Id == treasureStageId)
@@ -618,7 +618,7 @@ public sealed class MissionEndpointsTests : IClassFixture<PostgreSqlFixture>, IA
         var runtimePlanResponse = await _client.GetAsync($"/api/missions/{missionId}/runtime-plan");
         runtimePlanResponse.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var runtimePlan = await runtimePlanResponse.Content.ReadFromJsonAsync<MissionsEndpoints.MissionRuntimePlanResponse>();
+        var runtimePlan = await runtimePlanResponse.Content.ReadFromJsonAsync<MissionsController.MissionRuntimePlanResponse>();
         runtimePlan.Should().NotBeNull();
         runtimePlan!.Title.Should().Be("Mission Runtime Plan");
         runtimePlan.MaximumTime.Should().Be(45);
@@ -698,7 +698,7 @@ public sealed class MissionEndpointsTests : IClassFixture<PostgreSqlFixture>, IA
             });
         setSelectionResponse.EnsureSuccessStatusCode();
 
-        var readinessBeforeArchive = await _client.GetFromJsonAsync<MissionsEndpoints.MissionReadinessResponse>(
+        var readinessBeforeArchive = await _client.GetFromJsonAsync<MissionsController.MissionReadinessResponse>(
             $"/api/missions/{missionId}/readiness");
         readinessBeforeArchive.Should().NotBeNull();
         readinessBeforeArchive!.IsReady.Should().BeTrue();
@@ -707,7 +707,7 @@ public sealed class MissionEndpointsTests : IClassFixture<PostgreSqlFixture>, IA
         var archiveResponse = await _client.PostAsync($"/api/trivias/{triviaQuizId}/archive", content: null);
         archiveResponse.EnsureSuccessStatusCode();
 
-        var readinessAfterArchive = await _client.GetFromJsonAsync<MissionsEndpoints.MissionReadinessResponse>(
+        var readinessAfterArchive = await _client.GetFromJsonAsync<MissionsController.MissionReadinessResponse>(
             $"/api/missions/{missionId}/readiness");
         readinessAfterArchive.Should().NotBeNull();
         readinessAfterArchive!.IsReady.Should().BeFalse();
@@ -745,12 +745,12 @@ public sealed class MissionEndpointsTests : IClassFixture<PostgreSqlFixture>, IA
         problem!.Detail.Should().Contain("Active Quiz Guard Mission");
 
         // The quiz remains published and the mission remains ready: the block had no side effects.
-        var quizDetail = await _client.GetFromJsonAsync<TriviasEndpoints.TriviaQuizResponse>(
+        var quizDetail = await _client.GetFromJsonAsync<TriviasController.TriviaQuizResponse>(
             $"/api/trivias/{triviaQuizId}");
         quizDetail.Should().NotBeNull();
         quizDetail!.Status.Should().Be("Published");
 
-        var readiness = await _client.GetFromJsonAsync<MissionsEndpoints.MissionReadinessResponse>(
+        var readiness = await _client.GetFromJsonAsync<MissionsController.MissionReadinessResponse>(
             $"/api/missions/{missionId}/readiness");
         readiness.Should().NotBeNull();
         readiness!.IsReady.Should().BeTrue();
@@ -783,7 +783,7 @@ public sealed class MissionEndpointsTests : IClassFixture<PostgreSqlFixture>, IA
         var archiveResponse = await _client.PostAsync($"/api/trivias/{triviaQuizId}/archive", content: null);
         archiveResponse.EnsureSuccessStatusCode();
 
-        var quizDetail = await _client.GetFromJsonAsync<TriviasEndpoints.TriviaQuizResponse>(
+        var quizDetail = await _client.GetFromJsonAsync<TriviasController.TriviaQuizResponse>(
             $"/api/trivias/{triviaQuizId}");
         quizDetail.Should().NotBeNull();
         quizDetail!.Status.Should().Be("Archived");
@@ -811,7 +811,7 @@ public sealed class MissionEndpointsTests : IClassFixture<PostgreSqlFixture>, IA
 
         response.EnsureSuccessStatusCode();
 
-        var payload = await response.Content.ReadFromJsonAsync<MissionsEndpoints.MissionResponse>();
+        var payload = await response.Content.ReadFromJsonAsync<MissionsController.MissionResponse>();
         payload.Should().NotBeNull();
 
         return payload!.Id;
@@ -846,7 +846,7 @@ public sealed class MissionEndpointsTests : IClassFixture<PostgreSqlFixture>, IA
 
         response.EnsureSuccessStatusCode();
 
-        var payload = await response.Content.ReadFromJsonAsync<MissionsEndpoints.MissionResponse>();
+        var payload = await response.Content.ReadFromJsonAsync<MissionsController.MissionResponse>();
         payload.Should().NotBeNull();
 
         return payload!.Stages.Single(stage => stage.Title == title).Id;
@@ -872,7 +872,7 @@ public sealed class MissionEndpointsTests : IClassFixture<PostgreSqlFixture>, IA
 
         response.EnsureSuccessStatusCode();
 
-        var payload = await response.Content.ReadFromJsonAsync<MissionsEndpoints.MissionResponse>();
+        var payload = await response.Content.ReadFromJsonAsync<MissionsController.MissionResponse>();
         payload.Should().NotBeNull();
 
         return payload!.Stages.Single(stage => stage.Id == stageId).Substages.Single(substage => substage.Title == title).Id;
@@ -894,7 +894,7 @@ public sealed class MissionEndpointsTests : IClassFixture<PostgreSqlFixture>, IA
 
         response.EnsureSuccessStatusCode();
 
-        var payload = await response.Content.ReadFromJsonAsync<MissionsEndpoints.MissionResponse>();
+        var payload = await response.Content.ReadFromJsonAsync<MissionsController.MissionResponse>();
         payload.Should().NotBeNull();
 
         return payload!.Stages.Single().Substages.Single().Clues.Single(clue => clue.Title == title).Id;
@@ -915,7 +915,7 @@ public sealed class MissionEndpointsTests : IClassFixture<PostgreSqlFixture>, IA
 
         response.EnsureSuccessStatusCode();
 
-        var payload = await response.Content.ReadFromJsonAsync<MissionsEndpoints.MissionResponse>();
+        var payload = await response.Content.ReadFromJsonAsync<MissionsController.MissionResponse>();
         payload.Should().NotBeNull();
 
         return payload!.Stages.Single().Substages.Single().Targets.Single(target => target.Name == "Target 1").Id;
@@ -950,7 +950,7 @@ public sealed class MissionEndpointsTests : IClassFixture<PostgreSqlFixture>, IA
 
         createResponse.EnsureSuccessStatusCode();
 
-        var payload = await createResponse.Content.ReadFromJsonAsync<TriviasEndpoints.TriviaQuizResponse>();
+        var payload = await createResponse.Content.ReadFromJsonAsync<TriviasController.TriviaQuizResponse>();
         payload.Should().NotBeNull();
 
         var publishResponse = await _client.PostAsync($"/api/trivias/{payload!.Id}/publish", content: null);

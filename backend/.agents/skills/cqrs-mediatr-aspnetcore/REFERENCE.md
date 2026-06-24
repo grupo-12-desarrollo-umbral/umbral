@@ -1,6 +1,6 @@
 # CQRS with MediatR in ASP.NET Core
 
-This reference is generic by design. It is meant for modern ASP.NET Core applications using controllers, Minimal APIs, feature folders, layered architectures, Clean Architecture, or modular monoliths.
+This reference targets modern ASP.NET Core applications using MVC controllers with feature folders, layered architectures, Clean Architecture, or modular monoliths. This codebase exposes its HTTP surface through controllers only — not minimal-API endpoint groups.
 
 ## Authoritative References
 
@@ -11,7 +11,6 @@ Primary sources used for this skill:
 - Microsoft guidance for CQRS reads: https://learn.microsoft.com/en-us/dotnet/architecture/microservices/microservice-ddd-cqrs-patterns/cqrs-microservice-reads
 - ASP.NET Core dependency injection: https://learn.microsoft.com/en-us/aspnet/core/fundamentals/dependency-injection?view=aspnetcore-10.0
 - ASP.NET Core web APIs: https://learn.microsoft.com/en-us/aspnet/core/web-api/?view=aspnetcore-10.0
-- ASP.NET Core Minimal APIs: https://learn.microsoft.com/en-us/aspnet/core/fundamentals/minimal-apis?view=aspnetcore-10.0
 - .NET dependency injection guidelines: https://learn.microsoft.com/en-us/dotnet/core/extensions/dependency-injection-guidelines
 - MediatR official repository and README: https://github.com/LuckyPennySoftware/MediatR
 

@@ -3,8 +3,8 @@ using umbral_backend.Application.Missions.Queries.GetDifficultyCatalog;
 using umbral_backend.Application.Missions.Queries.GetMissionCatalog;
 using umbral_backend.Application.Missions.Queries.GetMissionReadiness;
 using umbral_backend.Application.Missions.Queries.GetMissionRuntimePlan;
-using umbral_backend.Web.Endpoints;
-using static umbral_backend.Web.Endpoints.MissionsEndpoints;
+using umbral_backend.Web.Controllers;
+using static umbral_backend.Web.Controllers.MissionsController;
 
 namespace umbral_backend.Web.UnitTests.Endpoints;
 
@@ -15,7 +15,7 @@ public class MissionResponseTests
     {
         var dto = new MissionDto(1, "Mission", "Description", "Advanced", 45, "Draft");
 
-        var response = MissionsEndpoints.MissionResponse.FromDto(dto);
+        var response = MissionsController.MissionResponse.FromDto(dto);
 
         response.Id.Should().Be(1);
         response.IsActive.Should().BeTrue();
@@ -28,7 +28,7 @@ public class MissionResponseTests
     {
         var dto = new MissionDto(2, "Mission", "Description", "Beginner", 30, "Ready");
 
-        var response = MissionsEndpoints.MissionResponse.FromDto(dto);
+        var response = MissionsController.MissionResponse.FromDto(dto);
 
         response.Id.Should().Be(2);
         response.IsActive.Should().BeTrue();
@@ -41,7 +41,7 @@ public class MissionResponseTests
     {
         var dto = new MissionDto(3, "Mission", "Description", "Advanced", 60, "Inactive");
 
-        var response = MissionsEndpoints.MissionResponse.FromDto(dto);
+        var response = MissionsController.MissionResponse.FromDto(dto);
 
         response.Id.Should().Be(3);
         response.IsActive.Should().BeFalse();
@@ -193,7 +193,7 @@ public class MissionSummaryResponseTests
     {
         var dto = new MissionSummaryDto(1, "Mission", "Description", "Advanced", "Draft");
 
-        var response = MissionsEndpoints.MissionSummaryResponse.FromDto(dto);
+        var response = MissionsController.MissionSummaryResponse.FromDto(dto);
 
         response.Id.Should().Be(1);
         response.Difficulty.Should().Be("Advanced");
@@ -207,7 +207,7 @@ public class MissionSummaryResponseTests
     {
         var dto = new MissionSummaryDto(2, "Mission", "Description", "Beginner", "Ready");
 
-        var response = MissionsEndpoints.MissionSummaryResponse.FromDto(dto);
+        var response = MissionsController.MissionSummaryResponse.FromDto(dto);
 
         response.Id.Should().Be(2);
         response.Difficulty.Should().Be("Beginner");
@@ -221,7 +221,7 @@ public class MissionSummaryResponseTests
     {
         var dto = new MissionSummaryDto(3, "Mission", "Description", "Advanced", "Inactive");
 
-        var response = MissionsEndpoints.MissionSummaryResponse.FromDto(dto);
+        var response = MissionsController.MissionSummaryResponse.FromDto(dto);
 
         response.Id.Should().Be(3);
         response.Difficulty.Should().Be("Advanced");

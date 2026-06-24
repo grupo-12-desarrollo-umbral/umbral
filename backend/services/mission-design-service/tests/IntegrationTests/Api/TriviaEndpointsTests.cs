@@ -1,5 +1,5 @@
 using umbral_backend.Infrastructure.Persistence;
-using umbral_backend.Web.Endpoints;
+using umbral_backend.Web.Controllers;
 
 namespace umbral_backend.Infrastructure.IntegrationTests.Api;
 
@@ -61,7 +61,7 @@ public sealed class TriviaEndpointsTests : IClassFixture<PostgreSqlFixture>, IAs
         response.StatusCode.Should().Be(HttpStatusCode.Created);
         response.Headers.Location.Should().NotBeNull();
 
-        var payload = await response.Content.ReadFromJsonAsync<TriviasEndpoints.TriviaQuizResponse>();
+        var payload = await response.Content.ReadFromJsonAsync<TriviasController.TriviaQuizResponse>();
         payload.Should().NotBeNull();
         payload!.Title.Should().Be("Capital Cities");
         payload.Description.Should().Be("Identify the right capital.");
@@ -85,7 +85,7 @@ public sealed class TriviaEndpointsTests : IClassFixture<PostgreSqlFixture>, IAs
         var catalogResponse = await _client.GetAsync("/api/trivias/");
         catalogResponse.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var catalog = await catalogResponse.Content.ReadFromJsonAsync<IReadOnlyList<TriviasEndpoints.TriviaQuizSummaryResponse>>();
+        var catalog = await catalogResponse.Content.ReadFromJsonAsync<IReadOnlyList<TriviasController.TriviaQuizSummaryResponse>>();
         catalog.Should().NotBeNull();
         catalog!.Should().ContainSingle();
         catalog[0].Id.Should().Be(triviaId);
@@ -96,7 +96,7 @@ public sealed class TriviaEndpointsTests : IClassFixture<PostgreSqlFixture>, IAs
         var detailResponse = await _client.GetAsync($"/api/trivias/{triviaId}");
         detailResponse.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var detail = await detailResponse.Content.ReadFromJsonAsync<TriviasEndpoints.TriviaQuizResponse>();
+        var detail = await detailResponse.Content.ReadFromJsonAsync<TriviasController.TriviaQuizResponse>();
         detail.Should().NotBeNull();
         detail!.Id.Should().Be(triviaId);
         detail.IsSourceReady.Should().BeFalse();
@@ -152,7 +152,7 @@ public sealed class TriviaEndpointsTests : IClassFixture<PostgreSqlFixture>, IAs
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var payload = await response.Content.ReadFromJsonAsync<TriviasEndpoints.TriviaQuizResponse>();
+        var payload = await response.Content.ReadFromJsonAsync<TriviasController.TriviaQuizResponse>();
         payload.Should().NotBeNull();
         payload!.Id.Should().Be(triviaId);
         payload.Title.Should().Be("Trivia After");
@@ -191,7 +191,7 @@ public sealed class TriviaEndpointsTests : IClassFixture<PostgreSqlFixture>, IAs
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var payload = await response.Content.ReadFromJsonAsync<TriviasEndpoints.TriviaQuizResponse>();
+        var payload = await response.Content.ReadFromJsonAsync<TriviasController.TriviaQuizResponse>();
         payload.Should().NotBeNull();
         payload!.Questions.Should().HaveCount(2);
         payload.IsSourceReady.Should().BeFalse();
@@ -207,7 +207,7 @@ public sealed class TriviaEndpointsTests : IClassFixture<PostgreSqlFixture>, IAs
         var detailResponse = await _client.GetAsync($"/api/trivias/{triviaId}");
         detailResponse.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var detail = await detailResponse.Content.ReadFromJsonAsync<TriviasEndpoints.TriviaQuizResponse>();
+        var detail = await detailResponse.Content.ReadFromJsonAsync<TriviasController.TriviaQuizResponse>();
         detail.Should().NotBeNull();
         detail!.Questions.Should().ContainSingle(question =>
             question.SequenceOrder == 2 &&
@@ -244,7 +244,7 @@ public sealed class TriviaEndpointsTests : IClassFixture<PostgreSqlFixture>, IAs
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var payload = await response.Content.ReadFromJsonAsync<TriviasEndpoints.TriviaQuizResponse>();
+        var payload = await response.Content.ReadFromJsonAsync<TriviasController.TriviaQuizResponse>();
         payload.Should().NotBeNull();
         payload!.IsSourceReady.Should().BeFalse();
 
@@ -259,7 +259,7 @@ public sealed class TriviaEndpointsTests : IClassFixture<PostgreSqlFixture>, IAs
         var detailResponse = await _client.GetAsync($"/api/trivias/{triviaId}");
         detailResponse.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var detail = await detailResponse.Content.ReadFromJsonAsync<TriviasEndpoints.TriviaQuizResponse>();
+        var detail = await detailResponse.Content.ReadFromJsonAsync<TriviasController.TriviaQuizResponse>();
         detail.Should().NotBeNull();
         detail!.Questions.Should().ContainSingle(question =>
             question.Id == questionId &&
@@ -364,7 +364,7 @@ public sealed class TriviaEndpointsTests : IClassFixture<PostgreSqlFixture>, IAs
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var payload = await response.Content.ReadFromJsonAsync<TriviasEndpoints.TriviaQuizResponse>();
+        var payload = await response.Content.ReadFromJsonAsync<TriviasController.TriviaQuizResponse>();
         payload.Should().NotBeNull();
         payload!.Id.Should().Be(triviaId);
         payload.Status.Should().Be("Published");
@@ -373,7 +373,7 @@ public sealed class TriviaEndpointsTests : IClassFixture<PostgreSqlFixture>, IAs
         var catalogResponse = await _client.GetAsync("/api/trivias/");
         catalogResponse.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var catalog = await catalogResponse.Content.ReadFromJsonAsync<IReadOnlyList<TriviasEndpoints.TriviaQuizSummaryResponse>>();
+        var catalog = await catalogResponse.Content.ReadFromJsonAsync<IReadOnlyList<TriviasController.TriviaQuizSummaryResponse>>();
         catalog.Should().NotBeNull();
         catalog!.Single().Status.Should().Be("Published");
         catalog.Single().IsSourceReady.Should().BeTrue();
@@ -381,7 +381,7 @@ public sealed class TriviaEndpointsTests : IClassFixture<PostgreSqlFixture>, IAs
         var detailResponse = await _client.GetAsync($"/api/trivias/{triviaId}");
         detailResponse.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var detail = await detailResponse.Content.ReadFromJsonAsync<TriviasEndpoints.TriviaQuizResponse>();
+        var detail = await detailResponse.Content.ReadFromJsonAsync<TriviasController.TriviaQuizResponse>();
         detail.Should().NotBeNull();
         detail!.Status.Should().Be("Published");
         detail.IsSourceReady.Should().BeTrue();
@@ -407,7 +407,7 @@ public sealed class TriviaEndpointsTests : IClassFixture<PostgreSqlFixture>, IAs
         var detailResponse = await _client.GetAsync($"/api/trivias/{triviaId}");
         detailResponse.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var detail = await detailResponse.Content.ReadFromJsonAsync<TriviasEndpoints.TriviaQuizResponse>();
+        var detail = await detailResponse.Content.ReadFromJsonAsync<TriviasController.TriviaQuizResponse>();
         detail.Should().NotBeNull();
         detail!.Status.Should().Be("Draft");
         detail.IsSourceReady.Should().BeFalse();
@@ -425,7 +425,7 @@ public sealed class TriviaEndpointsTests : IClassFixture<PostgreSqlFixture>, IAs
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var payload = await response.Content.ReadFromJsonAsync<TriviasEndpoints.TriviaQuizResponse>();
+        var payload = await response.Content.ReadFromJsonAsync<TriviasController.TriviaQuizResponse>();
         payload.Should().NotBeNull();
         payload!.Status.Should().Be("Archived");
         payload.IsSourceReady.Should().BeFalse();
@@ -433,7 +433,7 @@ public sealed class TriviaEndpointsTests : IClassFixture<PostgreSqlFixture>, IAs
         var catalogResponse = await _client.GetAsync("/api/trivias/");
         catalogResponse.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var catalog = await catalogResponse.Content.ReadFromJsonAsync<IReadOnlyList<TriviasEndpoints.TriviaQuizSummaryResponse>>();
+        var catalog = await catalogResponse.Content.ReadFromJsonAsync<IReadOnlyList<TriviasController.TriviaQuizSummaryResponse>>();
         catalog.Should().NotBeNull();
         catalog!.Single().Status.Should().Be("Archived");
         catalog.Single().IsSourceReady.Should().BeFalse();
@@ -441,7 +441,7 @@ public sealed class TriviaEndpointsTests : IClassFixture<PostgreSqlFixture>, IAs
         var detailResponse = await _client.GetAsync($"/api/trivias/{triviaId}");
         detailResponse.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var detail = await detailResponse.Content.ReadFromJsonAsync<TriviasEndpoints.TriviaQuizResponse>();
+        var detail = await detailResponse.Content.ReadFromJsonAsync<TriviasController.TriviaQuizResponse>();
         detail.Should().NotBeNull();
         detail!.Status.Should().Be("Archived");
         detail.IsSourceReady.Should().BeFalse();
@@ -460,7 +460,7 @@ public sealed class TriviaEndpointsTests : IClassFixture<PostgreSqlFixture>, IAs
         response.StatusCode.Should().Be(HttpStatusCode.Created);
         response.Headers.Location.Should().NotBeNull();
 
-        var payload = await response.Content.ReadFromJsonAsync<TriviasEndpoints.TriviaQuizResponse>();
+        var payload = await response.Content.ReadFromJsonAsync<TriviasController.TriviaQuizResponse>();
         payload.Should().NotBeNull();
         payload!.Id.Should().NotBe(sourceTriviaId);
         payload.Status.Should().Be("Draft");
@@ -473,7 +473,7 @@ public sealed class TriviaEndpointsTests : IClassFixture<PostgreSqlFixture>, IAs
         var sourceDetailResponse = await _client.GetAsync($"/api/trivias/{sourceTriviaId}");
         sourceDetailResponse.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var sourceDetail = await sourceDetailResponse.Content.ReadFromJsonAsync<TriviasEndpoints.TriviaQuizResponse>();
+        var sourceDetail = await sourceDetailResponse.Content.ReadFromJsonAsync<TriviasController.TriviaQuizResponse>();
         sourceDetail.Should().NotBeNull();
         sourceDetail!.Id.Should().Be(sourceTriviaId);
         sourceDetail.Status.Should().Be("Published");
@@ -484,7 +484,7 @@ public sealed class TriviaEndpointsTests : IClassFixture<PostgreSqlFixture>, IAs
         var duplicateDetailResponse = await _client.GetAsync($"/api/trivias/{payload.Id}");
         duplicateDetailResponse.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var duplicateDetail = await duplicateDetailResponse.Content.ReadFromJsonAsync<TriviasEndpoints.TriviaQuizResponse>();
+        var duplicateDetail = await duplicateDetailResponse.Content.ReadFromJsonAsync<TriviasController.TriviaQuizResponse>();
         duplicateDetail.Should().NotBeNull();
         duplicateDetail!.SourceTriviaQuizId.Should().Be(sourceTriviaId);
         duplicateDetail.IsDuplicate.Should().BeTrue();
@@ -492,7 +492,7 @@ public sealed class TriviaEndpointsTests : IClassFixture<PostgreSqlFixture>, IAs
         var catalogResponse = await _client.GetAsync("/api/trivias/");
         catalogResponse.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var catalog = await catalogResponse.Content.ReadFromJsonAsync<IReadOnlyList<TriviasEndpoints.TriviaQuizSummaryResponse>>();
+        var catalog = await catalogResponse.Content.ReadFromJsonAsync<IReadOnlyList<TriviasController.TriviaQuizSummaryResponse>>();
         catalog.Should().NotBeNull();
         catalog!.Should().Contain(item =>
             item.Id == sourceTriviaId &&
@@ -542,7 +542,7 @@ public sealed class TriviaEndpointsTests : IClassFixture<PostgreSqlFixture>, IAs
         var detailResponse = await _client.GetAsync($"/api/trivias/{triviaId}");
         detailResponse.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var detail = await detailResponse.Content.ReadFromJsonAsync<TriviasEndpoints.TriviaQuizResponse>();
+        var detail = await detailResponse.Content.ReadFromJsonAsync<TriviasController.TriviaQuizResponse>();
         detail.Should().NotBeNull();
         detail!.HasUsageHistory.Should().BeTrue();
     }
@@ -560,7 +560,7 @@ public sealed class TriviaEndpointsTests : IClassFixture<PostgreSqlFixture>, IAs
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var payload = await response.Content.ReadFromJsonAsync<TriviasEndpoints.TriviaQuizResponse>();
+        var payload = await response.Content.ReadFromJsonAsync<TriviasController.TriviaQuizResponse>();
         payload.Should().NotBeNull();
         payload!.Id.Should().Be(triviaId);
         payload.Status.Should().Be("Archived");
@@ -572,7 +572,7 @@ public sealed class TriviaEndpointsTests : IClassFixture<PostgreSqlFixture>, IAs
         var detailResponse = await _client.GetAsync($"/api/trivias/{triviaId}");
         detailResponse.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var detail = await detailResponse.Content.ReadFromJsonAsync<TriviasEndpoints.TriviaQuizResponse>();
+        var detail = await detailResponse.Content.ReadFromJsonAsync<TriviasController.TriviaQuizResponse>();
         detail.Should().NotBeNull();
         detail!.Status.Should().Be("Archived");
         detail.HasUsageHistory.Should().BeTrue();
@@ -580,7 +580,7 @@ public sealed class TriviaEndpointsTests : IClassFixture<PostgreSqlFixture>, IAs
         var catalogResponse = await _client.GetAsync("/api/trivias/");
         catalogResponse.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var catalog = await catalogResponse.Content.ReadFromJsonAsync<IReadOnlyList<TriviasEndpoints.TriviaQuizSummaryResponse>>();
+        var catalog = await catalogResponse.Content.ReadFromJsonAsync<IReadOnlyList<TriviasController.TriviaQuizSummaryResponse>>();
         catalog.Should().NotBeNull();
         catalog!.Should().ContainSingle(item =>
             item.Id == triviaId &&
@@ -674,7 +674,7 @@ public sealed class TriviaEndpointsTests : IClassFixture<PostgreSqlFixture>, IAs
 
         response.EnsureSuccessStatusCode();
 
-        var payload = await response.Content.ReadFromJsonAsync<TriviasEndpoints.TriviaQuizResponse>();
+        var payload = await response.Content.ReadFromJsonAsync<TriviasController.TriviaQuizResponse>();
         payload.Should().NotBeNull();
 
         return payload!.Id;
@@ -693,7 +693,7 @@ public sealed class TriviaEndpointsTests : IClassFixture<PostgreSqlFixture>, IAs
 
         response.EnsureSuccessStatusCode();
 
-        var payload = await response.Content.ReadFromJsonAsync<TriviasEndpoints.TriviaQuizResponse>();
+        var payload = await response.Content.ReadFromJsonAsync<TriviasController.TriviaQuizResponse>();
         payload.Should().NotBeNull();
 
         return payload!.Id;
@@ -704,7 +704,7 @@ public sealed class TriviaEndpointsTests : IClassFixture<PostgreSqlFixture>, IAs
         var detailResponse = await _client.GetAsync($"/api/trivias/{triviaId}");
         detailResponse.EnsureSuccessStatusCode();
 
-        var detail = await detailResponse.Content.ReadFromJsonAsync<TriviasEndpoints.TriviaQuizResponse>();
+        var detail = await detailResponse.Content.ReadFromJsonAsync<TriviasController.TriviaQuizResponse>();
         detail.Should().NotBeNull();
 
         return detail!.Questions.Single().Id;

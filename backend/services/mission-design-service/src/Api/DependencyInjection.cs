@@ -23,7 +23,7 @@ public static class DependencyInjection
         builder.Services.Configure<ApiBehaviorOptions>(options =>
             options.SuppressModelStateInvalidFilter = true);
 
-        builder.Services.AddEndpointsApiExplorer();
+        builder.Services.AddControllers();
 
         builder.Services.AddOpenApi();
 

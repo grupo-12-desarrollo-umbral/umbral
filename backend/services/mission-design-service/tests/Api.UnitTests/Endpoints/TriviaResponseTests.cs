@@ -1,6 +1,6 @@
 using umbral_backend.Application.Trivias.Common;
 using umbral_backend.Application.Trivias.Queries.GetTriviaCatalog;
-using umbral_backend.Web.Endpoints;
+using umbral_backend.Web.Controllers;
 
 namespace umbral_backend.Web.UnitTests.Endpoints;
 
@@ -29,7 +29,7 @@ public class TriviaQuizResponseTests
                     "Paris is the capital city.")
             ]);
 
-        var response = TriviasEndpoints.TriviaQuizResponse.FromDto(dto);
+        var response = TriviasController.TriviaQuizResponse.FromDto(dto);
 
         response.Id.Should().Be(10);
         response.Title.Should().Be("Trivia Capitals");
@@ -56,7 +56,7 @@ public class TriviaQuizSummaryResponseTests
     {
         var dto = new TriviaQuizSummaryDto(12, "Science", "Basic science trivia.", "Published", 3, true, true);
 
-        var response = TriviasEndpoints.TriviaQuizSummaryResponse.FromDto(dto);
+        var response = TriviasController.TriviaQuizSummaryResponse.FromDto(dto);
 
         response.Id.Should().Be(12);
         response.Title.Should().Be("Science");

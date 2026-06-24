@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Http.HttpResults;
+using Microsoft.AspNetCore.Mvc;
 using umbral_backend.Application.Missions.Commands.ActivateMission;
 using umbral_backend.Application.Missions.Commands.AddMissionNode;
 using umbral_backend.Application.Missions.Commands.AddTarget;
@@ -21,66 +21,26 @@ using umbral_backend.Application.Missions.Queries.GetMissionReadiness;
 using umbral_backend.Application.Missions.Queries.GetMissionRuntimePlan;
 using umbral_backend.Application.Missions.Queries.GetMissionDetail;
 
-namespace umbral_backend.Web.Endpoints;
+namespace umbral_backend.Web.Controllers;
 
-public sealed class MissionsEndpoints : IEndpointGroup
+[ApiController]
+[Route("api/missions")]
+public sealed class MissionsController(ISender sender) : ControllerBase
 {
-    public static void Map(RouteGroupBuilder groupBuilder)
-    {
-        var missions = groupBuilder.MapGroup("/api/missions");
-
-        missions.MapGet("/difficulties", GetDifficultyCatalog);
-        missions.MapPost("/", CreateMission);
-        missions.MapGet("/", GetMissionCatalog);
-        missions.MapGet("/{id:int}", GetMissionDetail);
-        missions.MapGet("/{id:int}/runtime-plan", GetMissionRuntimePlan);
-        missions.MapPut("/{id:int}", UpdateMission);
-        missions.MapDelete("/{id:int}", DeactivateMission);
-        missions.MapPost("/{id:int}/activate", ActivateMission);
-        missions.MapGet("/{id:int}/readiness", GetMissionReadiness);
-        missions.MapPost("/{missionId:int}/nodes", AddMissionNode);
-        missions.MapPut("/{missionId:int}/nodes/{nodeId:int}", UpdateMissionNode);
-        missions.MapDelete("/{missionId:int}/nodes/{nodeId:int}", RemoveMissionNode);
-        missions.MapPut(
-            "/{missionId:int}/stages/{stageId:int}/substages/{substageId:int}/play-mode",
-            AssignSubstagePlayMode);
-        missions.MapPost(
-            "/{missionId:int}/stages/{stageId:int}/substages/{substageId:int}/targets",
-            AddTarget);
-        missions.MapPut(
-            "/{missionId:int}/stages/{stageId:int}/substages/{substageId:int}/targets/{targetId:int}",
-            UpdateTarget);
-        missions.MapDelete(
-            "/{missionId:int}/stages/{stageId:int}/substages/{substageId:int}/targets/{targetId:int}",
-            RemoveTarget);
-        missions.MapPost(
-            "/{missionId:int}/stages/{stageId:int}/substages/{substageId:int}/targets/{targetId:int}/clue-association",
-            AssociateClueWithTarget);
-        missions.MapDelete(
-            "/{missionId:int}/stages/{stageId:int}/substages/{substageId:int}/targets/{targetId:int}/clue-association",
-            UnassociateClueFromTarget);
-        missions.MapPost(
-            "/{missionId:int}/stages/{stageId:int}/substages/{substageId:int}/trivia-quiz-selection",
-            SetTriviaQuizSelection);
-        missions.MapPut(
-            "/{missionId:int}/stages/{stageId:int}/substages/{substageId:int}/trivia-quiz-selection",
-            UpdateTriviaQuizSelection);
-    }
-
-    private static async Task<Ok<IReadOnlyList<DifficultyResponse>>> GetDifficultyCatalog(
-        ISender sender,
+    [HttpGet("difficulties")]
+    public async Task<ActionResult<IReadOnlyList<DifficultyResponse>>> GetDifficultyCatalog(
         CancellationToken cancellationToken)
     {
         var difficulties = await sender.Send(new GetDifficultyCatalogQuery(), cancellationToken);
-        var response = difficulties
+        IReadOnlyList<DifficultyResponse> response = difficulties
             .Select(DifficultyResponse.FromDto)
             .ToList();
 
-        return TypedResults.Ok<IReadOnlyList<DifficultyResponse>>(response);
+        return Ok(response);
     }
 
-    private static async Task<Created<MissionResponse>> CreateMission(
-        ISender sender,
+    [HttpPost]
+    public async Task<ActionResult<MissionResponse>> CreateMission(
         CreateMissionRequest request,
         CancellationToken cancellationToken)
     {
@@ -92,11 +52,11 @@ public sealed class MissionsEndpoints : IEndpointGroup
                 request.MaximumTimeMinutes),
             cancellationToken);
 
-        return TypedResults.Created($"/api/missions/{mission.Id}", MissionResponse.FromDto(mission));
+        return Created($"/api/missions/{mission.Id}", MissionResponse.FromDto(mission));
     }
 
-    private static async Task<Ok<IReadOnlyList<MissionSummaryResponse>>> GetMissionCatalog(
-        ISender sender,
+    [HttpGet]
+    public async Task<ActionResult<IReadOnlyList<MissionSummaryResponse>>> GetMissionCatalog(
         CancellationToken cancellationToken)
     {
         var missions = await sender.Send(new GetMissionCatalogQuery(), cancellationToken);
@@ -104,29 +64,29 @@ public sealed class MissionsEndpoints : IEndpointGroup
             .Select(MissionSummaryResponse.FromDto)
             .ToList();
 
-        return TypedResults.Ok(response);
+        return Ok(response);
     }
 
-    private static async Task<Ok<MissionResponse>> GetMissionDetail(
-        ISender sender,
+    [HttpGet("{id:int}")]
+    public async Task<ActionResult<MissionResponse>> GetMissionDetail(
         int id,
         CancellationToken cancellationToken)
     {
         var mission = await sender.Send(new GetMissionDetailQuery(id), cancellationToken);
-        return TypedResults.Ok(MissionResponse.FromDto(mission));
+        return Ok(MissionResponse.FromDto(mission));
     }
 
-    private static async Task<Ok<MissionRuntimePlanResponse>> GetMissionRuntimePlan(
-        ISender sender,
+    [HttpGet("{id:int}/runtime-plan")]
+    public async Task<ActionResult<MissionRuntimePlanResponse>> GetMissionRuntimePlan(
         int id,
         CancellationToken cancellationToken)
     {
         var missionRuntimePlan = await sender.Send(new GetMissionRuntimePlanQuery(id), cancellationToken);
-        return TypedResults.Ok(MissionRuntimePlanResponse.FromDto(missionRuntimePlan));
+        return Ok(MissionRuntimePlanResponse.FromDto(missionRuntimePlan));
     }
 
-    private static async Task<Ok<MissionResponse>> UpdateMission(
-        ISender sender,
+    [HttpPut("{id:int}")]
+    public async Task<ActionResult<MissionResponse>> UpdateMission(
         int id,
         UpdateMissionRequest request,
         CancellationToken cancellationToken)
@@ -140,39 +100,39 @@ public sealed class MissionsEndpoints : IEndpointGroup
                 request.MaximumTimeMinutes),
             cancellationToken);
 
-        return TypedResults.Ok(MissionResponse.FromDto(mission));
+        return Ok(MissionResponse.FromDto(mission));
     }
 
-    private static async Task<NoContent> DeactivateMission(
-        ISender sender,
+    [HttpDelete("{id:int}")]
+    public async Task<IActionResult> DeactivateMission(
         int id,
         CancellationToken cancellationToken)
     {
         await sender.Send(new DeactivateMissionCommand(id), cancellationToken);
 
-        return TypedResults.NoContent();
+        return NoContent();
     }
 
-    private static async Task<Ok<MissionResponse>> ActivateMission(
-        ISender sender,
+    [HttpPost("{id:int}/activate")]
+    public async Task<ActionResult<MissionResponse>> ActivateMission(
         int id,
         CancellationToken cancellationToken)
     {
         var mission = await sender.Send(new ActivateMissionCommand(id), cancellationToken);
-        return TypedResults.Ok(MissionResponse.FromDto(mission));
+        return Ok(MissionResponse.FromDto(mission));
     }
 
-    private static async Task<Ok<MissionReadinessResponse>> GetMissionReadiness(
-        ISender sender,
+    [HttpGet("{id:int}/readiness")]
+    public async Task<ActionResult<MissionReadinessResponse>> GetMissionReadiness(
         int id,
         CancellationToken cancellationToken)
     {
         var readiness = await sender.Send(new GetMissionReadinessQuery(id), cancellationToken);
-        return TypedResults.Ok(MissionReadinessResponse.FromDto(readiness));
+        return Ok(MissionReadinessResponse.FromDto(readiness));
     }
 
-    private static async Task<Ok<MissionResponse>> AddMissionNode(
-        ISender sender,
+    [HttpPost("{missionId:int}/nodes")]
+    public async Task<ActionResult<MissionResponse>> AddMissionNode(
         int missionId,
         AddMissionNodeRequest request,
         CancellationToken cancellationToken)
@@ -190,11 +150,11 @@ public sealed class MissionsEndpoints : IEndpointGroup
                 request.ClueVisibilityPolicy),
             cancellationToken);
 
-        return TypedResults.Ok(MissionResponse.FromDto(mission));
+        return Ok(MissionResponse.FromDto(mission));
     }
 
-    private static async Task<Ok<MissionResponse>> UpdateMissionNode(
-        ISender sender,
+    [HttpPut("{missionId:int}/nodes/{nodeId:int}")]
+    public async Task<ActionResult<MissionResponse>> UpdateMissionNode(
         int missionId,
         int nodeId,
         UpdateMissionNodeRequest request,
@@ -210,21 +170,21 @@ public sealed class MissionsEndpoints : IEndpointGroup
                 request.ClueVisibilityPolicy),
             cancellationToken);
 
-        return TypedResults.Ok(MissionResponse.FromDto(mission));
+        return Ok(MissionResponse.FromDto(mission));
     }
 
-    private static async Task<Ok<MissionResponse>> RemoveMissionNode(
-        ISender sender,
+    [HttpDelete("{missionId:int}/nodes/{nodeId:int}")]
+    public async Task<ActionResult<MissionResponse>> RemoveMissionNode(
         int missionId,
         int nodeId,
         CancellationToken cancellationToken)
     {
         var mission = await sender.Send(new RemoveMissionNodeCommand(missionId, nodeId), cancellationToken);
-        return TypedResults.Ok(MissionResponse.FromDto(mission));
+        return Ok(MissionResponse.FromDto(mission));
     }
 
-    private static async Task<Ok<MissionResponse>> AssignSubstagePlayMode(
-        ISender sender,
+    [HttpPut("{missionId:int}/stages/{stageId:int}/substages/{substageId:int}/play-mode")]
+    public async Task<ActionResult<MissionResponse>> AssignSubstagePlayMode(
         int missionId,
         int stageId,
         int substageId,
@@ -235,11 +195,11 @@ public sealed class MissionsEndpoints : IEndpointGroup
             new AssignSubstagePlayModeCommand(missionId, stageId, substageId, request.PlayMode),
             cancellationToken);
 
-        return TypedResults.Ok(MissionResponse.FromDto(mission));
+        return Ok(MissionResponse.FromDto(mission));
     }
 
-    private static async Task<Ok<MissionResponse>> AddTarget(
-        ISender sender,
+    [HttpPost("{missionId:int}/stages/{stageId:int}/substages/{substageId:int}/targets")]
+    public async Task<ActionResult<MissionResponse>> AddTarget(
         int missionId,
         int stageId,
         int substageId,
@@ -258,11 +218,11 @@ public sealed class MissionsEndpoints : IEndpointGroup
                 request.WinnerScore),
             cancellationToken);
 
-        return TypedResults.Ok(MissionResponse.FromDto(mission));
+        return Ok(MissionResponse.FromDto(mission));
     }
 
-    private static async Task<Ok<MissionResponse>> UpdateTarget(
-        ISender sender,
+    [HttpPut("{missionId:int}/stages/{stageId:int}/substages/{substageId:int}/targets/{targetId:int}")]
+    public async Task<ActionResult<MissionResponse>> UpdateTarget(
         int missionId,
         int stageId,
         int substageId,
@@ -283,11 +243,11 @@ public sealed class MissionsEndpoints : IEndpointGroup
                 request.WinnerScore),
             cancellationToken);
 
-        return TypedResults.Ok(MissionResponse.FromDto(mission));
+        return Ok(MissionResponse.FromDto(mission));
     }
 
-    private static async Task<Ok<MissionResponse>> RemoveTarget(
-        ISender sender,
+    [HttpDelete("{missionId:int}/stages/{stageId:int}/substages/{substageId:int}/targets/{targetId:int}")]
+    public async Task<ActionResult<MissionResponse>> RemoveTarget(
         int missionId,
         int stageId,
         int substageId,
@@ -298,11 +258,11 @@ public sealed class MissionsEndpoints : IEndpointGroup
             new RemoveTargetCommand(missionId, stageId, substageId, targetId),
             cancellationToken);
 
-        return TypedResults.Ok(MissionResponse.FromDto(mission));
+        return Ok(MissionResponse.FromDto(mission));
     }
 
-    private static async Task<Ok<MissionResponse>> AssociateClueWithTarget(
-        ISender sender,
+    [HttpPost("{missionId:int}/stages/{stageId:int}/substages/{substageId:int}/targets/{targetId:int}/clue-association")]
+    public async Task<ActionResult<MissionResponse>> AssociateClueWithTarget(
         int missionId,
         int stageId,
         int substageId,
@@ -319,11 +279,11 @@ public sealed class MissionsEndpoints : IEndpointGroup
                 request.ClueId),
             cancellationToken);
 
-        return TypedResults.Ok(MissionResponse.FromDto(mission));
+        return Ok(MissionResponse.FromDto(mission));
     }
 
-    private static async Task<Ok<MissionResponse>> UnassociateClueFromTarget(
-        ISender sender,
+    [HttpDelete("{missionId:int}/stages/{stageId:int}/substages/{substageId:int}/targets/{targetId:int}/clue-association")]
+    public async Task<ActionResult<MissionResponse>> UnassociateClueFromTarget(
         int missionId,
         int stageId,
         int substageId,
@@ -334,11 +294,11 @@ public sealed class MissionsEndpoints : IEndpointGroup
             new UnassociateClueFromTargetCommand(missionId, stageId, substageId, targetId),
             cancellationToken);
 
-        return TypedResults.Ok(MissionResponse.FromDto(mission));
+        return Ok(MissionResponse.FromDto(mission));
     }
 
-    private static async Task<Ok<MissionResponse>> SetTriviaQuizSelection(
-        ISender sender,
+    [HttpPost("{missionId:int}/stages/{stageId:int}/substages/{substageId:int}/trivia-quiz-selection")]
+    public async Task<ActionResult<MissionResponse>> SetTriviaQuizSelection(
         int missionId,
         int stageId,
         int substageId,
@@ -349,11 +309,11 @@ public sealed class MissionsEndpoints : IEndpointGroup
             new SetTriviaQuizSelectionCommand(missionId, stageId, substageId, request.TriviaQuizId),
             cancellationToken);
 
-        return TypedResults.Ok(MissionResponse.FromDto(mission));
+        return Ok(MissionResponse.FromDto(mission));
     }
 
-    private static async Task<Ok<MissionResponse>> UpdateTriviaQuizSelection(
-        ISender sender,
+    [HttpPut("{missionId:int}/stages/{stageId:int}/substages/{substageId:int}/trivia-quiz-selection")]
+    public async Task<ActionResult<MissionResponse>> UpdateTriviaQuizSelection(
         int missionId,
         int stageId,
         int substageId,
@@ -364,7 +324,7 @@ public sealed class MissionsEndpoints : IEndpointGroup
             new UpdateTriviaQuizSelectionCommand(missionId, stageId, substageId, request.TriviaQuizId),
             cancellationToken);
 
-        return TypedResults.Ok(MissionResponse.FromDto(mission));
+        return Ok(MissionResponse.FromDto(mission));
     }
 
     public sealed record CreateMissionRequest(

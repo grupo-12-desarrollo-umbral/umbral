@@ -14,8 +14,8 @@ Do **not** trust an existing README — they go stale (wrong response shapes, wr
 ## Workflow
 
 1. **Confirm scope and language.** Default language matches the repo's existing READMEs (Spanish for Umbral). Ask only if ambiguous.
-2. **Map the service.** Read the directory tree under `src/` and `tests/`. Identify the Clean Architecture layers and the endpoint files.
-3. **Gather facts from source** using the sourcing map below. Record exact request/response shapes from the DTO/record definitions, exact auth from `[Authorize]` attributes and endpoint policies, and the exact exception→status mapping.
+2. **Map the service.** Read the directory tree under `src/` and `tests/`. Identify the Clean Architecture layers and the controller files.
+3. **Gather facts from source** using the sourcing map below. Record exact request/response shapes from the DTO/record definitions, exact auth from `[Authorize]` attributes and controller/action policies, and the exact exception→status mapping.
 4. **Verify against the old README** (if any): list every discrepancy you correct (shapes, auth roles, missing/removed endpoints, config). Mention these corrections to the user.
 5. **Write the README** following [references/template.md](references/template.md) section order. Drop sections that don't apply (e.g. no Keycloak sync) rather than padding them.
 6. **Avoid time-sensitive rot.** Do not hardcode coverage percentages, test counts, or commit hashes. Point at the command (`make gate SVC=...`) instead, or use a threshold (`>= 90%`).
@@ -30,9 +30,9 @@ Do **not** trust an existing README — they go stale (wrong response shapes, wr
 | Ports | `docker-compose.yml` `ports:` mapping + `ASPNETCORE_URLS` |
 | Run commands | repo `Makefile` targets (`build`/`test`/`gate`/`ef` with `SVC=`), `Dockerfile`, `scripts/` |
 | Auth (cabeceras de confianza) | `Api/DependencyInjection.cs` (auth scheme + policies), `Api/Services/AuthorizationPolicies.cs` |
-| Endpoints + routes | `Api/Endpoints/*Endpoints.cs` (`MapGroup`, `MapPost/Get/...`, `.RequireAuthorization(...)`) |
-| Per-endpoint auth role | `[Authorize(Roles = "...")]` on the matching Command/Query class (this is authoritative, not the endpoint file) |
-| Request shapes | the `record ...Request(...)` in the endpoint file |
+| Endpoints + routes | `Api/Controllers/*Controller.cs` (`[Route("api/...")]`, `[HttpGet]`/`[HttpPost]`/…, `[Authorize(Policy = ...)]`) |
+| Per-endpoint auth role | `[Authorize(Roles = "...")]` on the matching Command/Query class (this is authoritative, not the controller file) |
+| Request shapes | the `record ...Request(...)` in the controller file |
 | Response shapes | the returned `*Dto` / `*Result` record definitions (serialized **camelCase**) |
 | Domain model | `Domain/Entities`, `Domain/Enums` (Role, ProtectedCapability), `Domain/Services`, `Domain/Events` |
 | Error mapping | `Api/Services/ProblemDetailsExceptionHandler.cs` (the `switch` arms → status codes) |
@@ -42,8 +42,8 @@ Do **not** trust an existing README — they go stale (wrong response shapes, wr
 
 ## Accuracy checklist (verify before delivering)
 
-- [ ] Every documented endpoint exists in an `*Endpoints.cs` file; no endpoint is missing.
-- [ ] Each endpoint's auth matches the `[Authorize]` on its handler (not assumptions).
+- [ ] Every documented endpoint exists as an action in a `*Controller.cs` file; no endpoint is missing.
+- [ ] Each endpoint's auth matches the `[Authorize]` on its action/handler (not assumptions).
 - [ ] Request/response JSON keys match the record fields, in `camelCase`; nested DTOs are nested (not flattened).
 - [ ] Config table lists every env var actually read, with real defaults and whether it's required.
 - [ ] Error table matches the exception handler's switch exactly.
