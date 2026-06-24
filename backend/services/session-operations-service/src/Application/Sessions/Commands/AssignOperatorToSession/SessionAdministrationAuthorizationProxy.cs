@@ -10,38 +10,32 @@ public sealed class SessionAdministrationAuthorizationProxy : ISessionAdministra
     private const string OperatorRole = "Operator";
 
     private readonly ICurrentUser _currentUser;
-    private readonly ISessionAdministrationAccessExecutor _inner;
+    private readonly ILiveSessionRepository _liveSessionRepository;
     private readonly IAuthenticatedActorProfileAccessClient _authenticatedActorProfileAccessClient;
 
     public SessionAdministrationAuthorizationProxy(
         ICurrentUser currentUser,
-        ISessionAdministrationAccessExecutor inner,
+        ILiveSessionRepository liveSessionRepository,
         IAuthenticatedActorProfileAccessClient authenticatedActorProfileAccessClient)
     {
         _currentUser = currentUser;
-        _inner = inner;
+        _liveSessionRepository = liveSessionRepository;
         _authenticatedActorProfileAccessClient = authenticatedActorProfileAccessClient;
     }
 
-    public async Task<LiveSession> GetAuthorizedSessionAsync(Guid liveSessionId, CancellationToken cancellationToken)
-    {
-        var liveSession = await GetAuthorizedSessionInternalAsync(
-            liveSessionId,
-            cancellationToken,
-            _inner.GetAuthorizedSessionAsync);
+    public Task<LiveSession> GetAuthorizedSessionAsync(Guid liveSessionId, CancellationToken cancellationToken)
+        => GetAuthorizedSessionInternalAsync(liveSessionId, cancellationToken, LoadSessionAsync);
 
-        return liveSession;
-    }
+    public Task<LiveSession> GetAuthorizedTimerSessionAsync(Guid liveSessionId, CancellationToken cancellationToken)
+        => GetAuthorizedSessionInternalAsync(liveSessionId, cancellationToken, LoadTimerSessionAsync);
 
-    public async Task<LiveSession> GetAuthorizedTimerSessionAsync(Guid liveSessionId, CancellationToken cancellationToken)
-    {
-        var liveSession = await GetAuthorizedSessionInternalAsync(
-            liveSessionId,
-            cancellationToken,
-            _inner.GetAuthorizedTimerSessionAsync);
+    private async Task<LiveSession> LoadSessionAsync(Guid liveSessionId, CancellationToken cancellationToken)
+        => await _liveSessionRepository.GetByIdAsync(liveSessionId, cancellationToken)
+            ?? throw new NotFoundException(nameof(LiveSession), liveSessionId);
 
-        return liveSession;
-    }
+    private async Task<LiveSession> LoadTimerSessionAsync(Guid liveSessionId, CancellationToken cancellationToken)
+        => await _liveSessionRepository.GetTimerSessionByIdAsync(liveSessionId, cancellationToken)
+            ?? throw new NotFoundException(nameof(LiveSession), liveSessionId);
 
     private async Task<LiveSession> GetAuthorizedSessionInternalAsync(
         Guid liveSessionId,

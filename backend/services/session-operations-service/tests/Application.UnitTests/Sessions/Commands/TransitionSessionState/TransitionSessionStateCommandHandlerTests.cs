@@ -144,7 +144,6 @@ public sealed class TransitionSessionStateCommandHandlerTests
         Mock<ICurrentUser> currentUser,
         int resolvedUserId = 99)
     {
-        var accessExecutor = new SessionAdministrationAccessResolver(repository.Object);
         var actorClient = new Mock<IAuthenticatedActorProfileAccessClient>();
         actorClient
             .Setup(client => client.GetCurrentAsync(It.IsAny<CancellationToken>()))
@@ -153,7 +152,7 @@ public sealed class TransitionSessionStateCommandHandlerTests
                 currentUser.Object.Id ?? "missing",
                 currentUser.Object.Role ?? "Unknown",
                 true));
-        var accessResolver = new SessionAdministrationAuthorizationProxy(currentUser.Object, accessExecutor, actorClient.Object);
+        var accessResolver = new SessionAdministrationAuthorizationProxy(currentUser.Object, repository.Object, actorClient.Object);
         var transitionPolicy = new SessionStateTransitionPolicy();
         var chain = new SessionTransitionChain(new SessionTransitionValidator[]
         {
