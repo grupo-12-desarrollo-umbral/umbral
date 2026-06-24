@@ -186,15 +186,12 @@ public sealed class ReconnectAuthenticatedParticipantCommandHandlerTests
         Mock<ICurrentUser> currentUser,
         TimeProvider timeProvider)
     {
-        var executor = new ReconnectAuthenticatedParticipantService(
+        return new ReconnectAuthenticatedParticipantCommandHandler(
             repository.Object,
             accessClient.Object,
             currentUser.Object,
             new JoinPolicy(),
             timeProvider);
-        var proxy = new ReconnectAuthenticatedParticipantAuthorizationProxy(currentUser.Object, executor);
-
-        return new ReconnectAuthenticatedParticipantCommandHandler(proxy);
     }
 
     private static Mock<ILiveSessionRepository> CreateRepository(LiveSession session)
