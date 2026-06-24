@@ -1,6 +1,5 @@
 using umbral_backend.Application.Common.Interfaces;
-using umbral_backend.Application.Sessions.DTOs;
-using umbral_backend.Application.Sessions.Handlers;
+using umbral_backend.Application.Sessions.Common;
 using umbral_backend.Application.Sessions.Queries.ListAssignableSessions;
 
 namespace umbral_backend.Application.UnitTests.Sessions.Queries.ListAssignableSessions;

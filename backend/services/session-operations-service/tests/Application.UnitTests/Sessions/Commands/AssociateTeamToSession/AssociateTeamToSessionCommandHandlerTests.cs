@@ -1,7 +1,5 @@
 using umbral_backend.Application.Sessions.Commands.AssociateTeamToSession;
-using umbral_backend.Application.Sessions.DTOs;
-using umbral_backend.Application.Sessions.Facades;
-using umbral_backend.Application.Sessions.Handlers;
+using umbral_backend.Application.Sessions.Common;
 
 namespace umbral_backend.Application.UnitTests.Sessions.Commands.AssociateTeamToSession;
 

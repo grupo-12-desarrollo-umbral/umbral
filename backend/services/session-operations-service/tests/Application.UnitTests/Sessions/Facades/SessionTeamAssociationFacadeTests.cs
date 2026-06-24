@@ -1,8 +1,7 @@
 using umbral_backend.Application.Common.Exceptions;
 using umbral_backend.Application.Common.Interfaces;
 using umbral_backend.Application.Sessions.Commands.AssociateTeamToSession;
-using umbral_backend.Application.Sessions.DTOs;
-using umbral_backend.Application.Sessions.Facades;
+using umbral_backend.Application.Sessions.Common;
 using umbral_backend.Application.Sessions.Queries.GetAssociatedTeamsForSession;
 using umbral_backend.Domain.Entities;
 using umbral_backend.Domain.Enums;
