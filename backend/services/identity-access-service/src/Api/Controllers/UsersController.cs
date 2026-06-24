@@ -1,7 +1,9 @@
 using Microsoft.AspNetCore.Mvc;
+using umbral_backend.Application.Users.Queries.GetUsers;
+using umbral_backend.Application.Users.Commands.AuthenticateUser;
+using umbral_backend.Application.Users.Common;
 using umbral_backend.Api.Services;
 using umbral_backend.Application.Common.Models;
-using umbral_backend.Application.Users.DTOs;
 using umbral_backend.Application.Users.Queries.GetAuthenticatedActorProfile;
 
 namespace umbral_backend.Api.Controllers;

@@ -1,8 +1,8 @@
 using umbral_backend.Application.Common.Exceptions;
+using umbral_backend.Application.Users.Queries.GetUsers;
 using umbral_backend.Application.Common.Interfaces;
 using umbral_backend.Application.Common.Models;
 using umbral_backend.Application.Common.Security;
-using umbral_backend.Application.Users.DTOs;
 using umbral_backend.Domain.Enums;
 
 namespace umbral_backend.Api.Services;

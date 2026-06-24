@@ -1,9 +1,9 @@
 using Moq;
+using umbral_backend.Application.Users.Queries.GetUsers;
 using umbral_backend.Api.Services;
 using umbral_backend.Application.Common.Exceptions;
 using umbral_backend.Application.Common.Interfaces;
 using umbral_backend.Application.Common.Models;
-using umbral_backend.Application.Users.DTOs;
 
 namespace umbral_backend.Application.UnitTests.Api.Services;
 

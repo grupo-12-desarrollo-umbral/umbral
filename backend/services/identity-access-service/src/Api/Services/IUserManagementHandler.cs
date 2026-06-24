@@ -1,5 +1,5 @@
 using umbral_backend.Application.Common.Models;
-using umbral_backend.Application.Users.DTOs;
+using umbral_backend.Application.Users.Queries.GetUsers;
 
 namespace umbral_backend.Api.Services;
 

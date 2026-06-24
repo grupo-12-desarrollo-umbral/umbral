@@ -6,7 +6,7 @@ using umbral_backend.Domain.Enums;
 using umbral_backend.Domain.Exceptions;
 using umbral_backend.Domain.Services;
 
-namespace umbral_backend.Application.Users.Handlers;
+namespace umbral_backend.Application.Users.Commands.DeactivateUser;
 
 public sealed class DeactivateUserCommandHandler : IRequestHandler<DeactivateUserCommand>
 {

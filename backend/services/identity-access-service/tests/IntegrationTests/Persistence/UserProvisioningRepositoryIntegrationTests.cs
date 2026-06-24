@@ -1,7 +1,6 @@
 using MediatR;
 using umbral_backend.Application.Common.Interfaces;
 using umbral_backend.Application.Users.Commands.AuthenticateUser;
-using umbral_backend.Application.Users.Handlers;
 using umbral_backend.Application.Users.Queries.GetAuthenticatedActorProfile;
 using umbral_backend.Domain.Entities;
 using umbral_backend.Domain.Enums;

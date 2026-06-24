@@ -1,9 +1,10 @@
 using FluentValidation;
+using umbral_backend.Application.Users.Commands.AuthenticateUser;
+using umbral_backend.Application.Users.Common;
 using Moq;
 using umbral_backend.Api.Services;
 using umbral_backend.Application.Common.Interfaces;
 using umbral_backend.Application.Permissions.Queries.CheckProtectedCapabilityAccess;
-using umbral_backend.Application.Users.DTOs;
 using umbral_backend.Domain.Enums;
 
 namespace umbral_backend.Application.UnitTests.Api.Services;

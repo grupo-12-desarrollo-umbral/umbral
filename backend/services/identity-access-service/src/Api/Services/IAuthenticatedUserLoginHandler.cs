@@ -1,4 +1,4 @@
-using umbral_backend.Application.Users.DTOs;
+using umbral_backend.Application.Users.Commands.AuthenticateUser;
 
 namespace umbral_backend.Api.Services;
 

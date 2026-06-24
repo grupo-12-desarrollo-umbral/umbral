@@ -1,4 +1,3 @@
-using umbral_backend.Application.Users.DTOs;
 using umbral_backend.Domain.Enums;
 
 namespace umbral_backend.Application.Users.Commands.AuthenticateUser;

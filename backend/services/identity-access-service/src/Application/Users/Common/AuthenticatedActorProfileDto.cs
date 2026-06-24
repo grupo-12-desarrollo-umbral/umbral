@@ -1,4 +1,4 @@
-namespace umbral_backend.Application.Users.DTOs;
+namespace umbral_backend.Application.Users.Common;
 
 public sealed record AuthenticatedActorProfileDto(
     int UserId,

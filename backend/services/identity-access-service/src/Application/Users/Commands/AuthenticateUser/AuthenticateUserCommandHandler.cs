@@ -1,13 +1,13 @@
 using umbral_backend.Application.Common.Interfaces;
+using umbral_backend.Application.Users.Common;
 using umbral_backend.Application.Permissions.Queries.CheckProtectedCapabilityAccess;
 using umbral_backend.Application.Users.Commands.AuthenticateUser;
-using umbral_backend.Application.Users.DTOs;
 using umbral_backend.Domain.Entities;
 using umbral_backend.Domain.Enums;
 using umbral_backend.Domain.Exceptions;
 using umbral_backend.Domain.Services;
 
-namespace umbral_backend.Application.Users.Handlers;
+namespace umbral_backend.Application.Users.Commands.AuthenticateUser;
 
 public sealed class AuthenticateUserCommandHandler : IRequestHandler<AuthenticateUserCommand, AuthenticateUserResultDto>
 {

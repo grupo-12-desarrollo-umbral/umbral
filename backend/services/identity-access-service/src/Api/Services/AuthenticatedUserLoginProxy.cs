@@ -1,6 +1,6 @@
 using umbral_backend.Application.Common.Interfaces;
+using umbral_backend.Application.Users.Commands.AuthenticateUser;
 using umbral_backend.Application.Common.Security;
-using umbral_backend.Application.Users.DTOs;
 
 namespace umbral_backend.Api.Services;
 

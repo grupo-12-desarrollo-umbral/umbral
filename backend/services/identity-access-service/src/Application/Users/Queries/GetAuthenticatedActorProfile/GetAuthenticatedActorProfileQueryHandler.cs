@@ -1,10 +1,10 @@
 using umbral_backend.Application.Common.Exceptions;
+using umbral_backend.Application.Users.Common;
 using umbral_backend.Application.Common.Interfaces;
-using umbral_backend.Application.Users.DTOs;
 using umbral_backend.Application.Users.Queries.GetAuthenticatedActorProfile;
 using umbral_backend.Domain.Entities;
 
-namespace umbral_backend.Application.Users.Handlers;
+namespace umbral_backend.Application.Users.Queries.GetAuthenticatedActorProfile;
 
 public sealed class GetAuthenticatedActorProfileQueryHandler : IRequestHandler<GetAuthenticatedActorProfileQuery, AuthenticatedActorProfileDto>
 {

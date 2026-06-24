@@ -1,6 +1,6 @@
 using umbral_backend.Application.Users.Commands.AssignUserRole;
 
-namespace umbral_backend.Application.Users.Handlers;
+namespace umbral_backend.Application.Users.Commands.AssignUserRole;
 
 public sealed class AssignUserRoleCommandHandler : IRequestHandler<AssignUserRoleCommand>
 {

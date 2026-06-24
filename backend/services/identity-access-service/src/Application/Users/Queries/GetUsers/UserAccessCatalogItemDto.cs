@@ -1,4 +1,4 @@
-namespace umbral_backend.Application.Users.DTOs;
+namespace umbral_backend.Application.Users.Queries.GetUsers;
 
 public sealed record UserAccessCatalogItemDto(
     int Id,
