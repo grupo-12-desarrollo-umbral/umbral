@@ -1,6 +1,15 @@
 using umbral_backend.Application.Common.Exceptions;
 using umbral_backend.Application.Trivias.Commands.DuplicateTriviaQuiz;
-using umbral_backend.Application.Trivias.Handlers;
+using umbral_backend.Application.Trivias.Commands.AddTriviaQuestion;
+using umbral_backend.Application.Trivias.Commands.ArchiveTriviaQuiz;
+using umbral_backend.Application.Trivias.Commands.CreateTriviaQuiz;
+using umbral_backend.Application.Trivias.Commands.DeleteTriviaQuiz;
+using umbral_backend.Application.Trivias.Commands.PublishTriviaQuiz;
+using umbral_backend.Application.Trivias.Commands.RetireTriviaQuiz;
+using umbral_backend.Application.Trivias.Commands.UpdateTriviaQuestion;
+using umbral_backend.Application.Trivias.Commands.UpdateTriviaQuiz;
+using umbral_backend.Application.Trivias.Queries.GetTriviaCatalog;
+using umbral_backend.Application.Trivias.Queries.GetTriviaDetail;
 using umbral_backend.Application.UnitTests.Application.Trivias.TestDoubles;
 using umbral_backend.Domain.Entities;
 using umbral_backend.Domain.Exceptions;
@@ -16,9 +25,7 @@ public sealed class DuplicateTriviaQuizCommandHandlerTests
         var triviaQuiz = CreatePublishableTriviaQuiz();
         triviaQuiz.MarkAsPublished();
         repository.Seed(triviaQuiz);
-        var handler = new DuplicateTriviaQuizCommandHandler(
-            repository,
-            new StubClock(new DateTimeOffset(2026, 6, 3, 10, 0, 0, TimeSpan.Zero)));
+        var handler = new DuplicateTriviaQuizCommandHandler(repository);
 
         var result = await handler.Handle(new DuplicateTriviaQuizCommand(triviaQuiz.Id), CancellationToken.None);
 
@@ -35,9 +42,7 @@ public sealed class DuplicateTriviaQuizCommandHandlerTests
     [Fact]
     public async Task Handle_WhenTriviaQuizDoesNotExist_ThrowsNotFound()
     {
-        var handler = new DuplicateTriviaQuizCommandHandler(
-            new InMemoryTriviaQuizRepository(),
-            new StubClock(new DateTimeOffset(2026, 6, 3, 10, 0, 0, TimeSpan.Zero)));
+        var handler = new DuplicateTriviaQuizCommandHandler(new InMemoryTriviaQuizRepository());
 
         var act = () => handler.Handle(new DuplicateTriviaQuizCommand(42), CancellationToken.None);
 
@@ -52,9 +57,7 @@ public sealed class DuplicateTriviaQuizCommandHandlerTests
         var triviaQuiz = CreatePublishableTriviaQuiz();
         triviaQuiz.MarkAsArchived();
         repository.Seed(triviaQuiz);
-        var handler = new DuplicateTriviaQuizCommandHandler(
-            repository,
-            new StubClock(new DateTimeOffset(2026, 6, 3, 10, 0, 0, TimeSpan.Zero)));
+        var handler = new DuplicateTriviaQuizCommandHandler(repository);
 
         var act = () => handler.Handle(new DuplicateTriviaQuizCommand(triviaQuiz.Id), CancellationToken.None);
 

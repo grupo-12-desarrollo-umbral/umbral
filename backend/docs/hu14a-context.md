@@ -76,3 +76,12 @@
 - HU-11 already established the associated-question shape inside trivia detail reads. HU-14A must extend that baseline into actual question/option authoring, not recreate the trivia aggregate from scratch.
 - HU-14B is the dedicated follow-on slice for explicit trivia-question validation rules. HU-14A should author and persist question content cleanly, but if score/timer numeric ranges or deeper invalid-rule matrices are still ambiguous, record that ambiguity instead of smuggling the full HU-14B rule set into this slice.
 - The mandated `Template Method` must appear explicitly in phase X.1 and X.2 scope and gate lines. If it drops out of those phase gates, the generated plan is defective.
+
+## Deferred scope — `RemoveTriviaQuestion`
+
+`RemoveTriviaQuestion` is listed in the PRD's minimum application-interface set (`DES-62`, and the priority domain event `TriviaQuestionRemoved`), but it is **deliberately deferred out of HU-14A**, not an oversight.
+
+- **Trigger condition not met.** The HU-14A prompt (`prompt_example_feature_hu14a.md`, scope bullet) authorizes adding `RemoveTriviaQuestion` *only if the existing trivia editing baseline already has a clear removal slot; otherwise keep the scope to add/update and note the deferral explicitly*. The `TriviaQuiz` aggregate exposes only `AddQuestion` and `UpdateQuestion` (`Domain/Entities/TriviaQuiz.cs`) — no per-question removal slot. The only destructive path is whole-quiz `EnsureCanBeDestructivelyRemoved` / `DeleteTriviaQuiz`.
+- **What it would require (own slice).** A `TriviaQuiz.RemoveQuestion` aggregate method, a `TriviaQuestionRemoved` domain event, `sequenceOrder` reconciliation after removal, and published-state edit guards — i.e. net-new domain behavior beyond HU-14A's add/update authoring scope and its "do not touch Infrastructure/Api" gate.
+- **Pattern matrix is unaffected.** The required-pattern obligation for HU-14A is `Template Method` over add/update question validation (`trivia_sprint_required_patterns_matrix.md`), which is satisfied. Removing questions is not pattern-mandated and does not restore any handler base-class requirement.
+- **Reviewer note.** A reviewer using the HU-14A closing checklist is aligned; a reviewer reading the PRD's interface list literally should treat this entry as the recorded deferral, not a gap. Schedule as a follow-up slice when question removal is actually required.

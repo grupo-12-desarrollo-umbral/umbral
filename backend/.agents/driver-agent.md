@@ -363,7 +363,10 @@ The driver runs gates; the subagent does not.
 **Pattern-conformance gate (every phase that owns a mandated pattern).** In
 addition to the build/test gate above, before presenting the commit for the
 owning phase, confirm the brief's mandated pattern is actually realized in
-the code the subagent wrote — not just named. For `Proxy`: access is enforced
+the code the subagent wrote — not just named, and genuinely realized rather than
+forwarding ceremony (the genuine-vs-ceremony test of ADR-0012). Apply this from
+the brief's "Required pattern(s)" obligation — do **not** open the ADR yourself
+(hard rule 1: the driver holds only this playbook + the brief). For `Proxy`: access is enforced
 through a guard (`AuthorizationBehaviour` / endpoint authorization policy) with
 no ad-hoc role `if` checks leaking into handlers or endpoints. For `State`: an
 explicit state type, not enum + conditionals. Etc. If the pattern is absent,

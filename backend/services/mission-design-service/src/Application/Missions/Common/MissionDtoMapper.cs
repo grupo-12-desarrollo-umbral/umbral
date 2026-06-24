@@ -1,4 +1,4 @@
-using umbral_backend.Application.Missions.DTOs;
+using umbral_backend.Application.Missions.Common;
 using umbral_backend.Domain.Entities;
 
 namespace umbral_backend.Application.Missions.Common;

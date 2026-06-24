@@ -133,10 +133,14 @@ generated scope (this is exactly how HU-01/02/03 shipped without `Proxy`).
 1. Read `backend/docs/trivia_sprint_required_patterns_matrix.md` — find the HU
    in the **HU → Pattern** table for its service. Record the mandated
    pattern(s) and the one-line "Why" from that row.
-2. Read `backend/docs/adr/0004-required-domain-patterns.md` for *where* each
-   pattern is expected to live (e.g. `Proxy` → role/policy-based access guards
-   in the service and presentation layers; `State` → `LiveSession` lifecycle;
-   `Strategy` → scoring/progression policies; etc.).
+2. Read `backend/docs/adr/0004-required-domain-patterns.md` for *which* pattern is
+   mandatory and *why* (e.g. `Proxy` → role/policy-based access guards; `State` →
+   `LiveSession` lifecycle; `Strategy` → scoring/progression policies; etc.). For
+   *where* each pattern physically lives by layer — the canonical home that the
+   brief's "Required pattern(s)" section must carry to the driver — read
+   `backend/docs/adr/0012-design-pattern-placement-convention.md` (canonical-home
+   table + genuine-vs-ceremony test), with code-grounded examples in
+   `backend/docs/adr-0012-pattern-realizations-by-layer.md`.
 3. Map each mandated pattern to the phase(s) that must realize it:
 
    | Pattern | Typically lands in phase | Concrete obligation |

@@ -1,4 +1,4 @@
-using umbral_backend.Application.Trivias.DTOs;
+using umbral_backend.Application.Trivias.Common;
 
 namespace umbral_backend.Application.Trivias.Common.Authoring;
 

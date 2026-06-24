@@ -25,6 +25,14 @@ export DOTNET_NOLOGO := 1
 SVC ?= identity-access-service
 SVCDIR := services/$(SVC)
 
+# Services that have converged onto the ADR-0011 vertical-slice layout. `build`
+# runs the structural guard (scripts/structure-guard.sh) ONLY for these — a service
+# still mid-migration (Phase 2) is skipped so its build isn't blocked before its
+# slice-collapse lands. Add a service here the moment that collapse merges; that one
+# edit flips its build from "skipped" to "enforcing". The standalone
+# `make structure-guard` still checks every service regardless of this list.
+CONVERGED_SERVICES := mission-design-service
+
 # Verbose dotnet output (restore/build/per-test spew) goes to a log file; the
 # recipes echo only a compact summary. An agent driving the toolchain reads the
 # exit code + summary and opens the log only on failure, so its *resident*
@@ -49,7 +57,7 @@ INTEGRATION_PROJECTS := $(shell find $(SVCDIR)/tests -maxdepth 3 -name '*Integra
 # behavioural gate, not a coverlet report).
 GATEABLE_SERVICES := $(sort $(foreach p,$(wildcard services/*/tests/IntegrationTests/*.csproj),$(word 2,$(subst /, ,$(p)))))
 
-.PHONY: help build test gate gate-all clean clean-all clean-artifacts guard-artifacts ef
+.PHONY: help build test gate gate-all clean clean-all clean-artifacts guard-artifacts structure-guard structure-guard-converged ef
 
 # Fail fast (before any dotnet call) when this service's bin/obj are owned by
 # someone other than you — the #1 cause of the confusing NuGet "Access to the
@@ -73,6 +81,11 @@ guard-artifacts:
 
 build test gate: guard-artifacts
 
+# Phase 3 wiring: `build` enforces the ADR-0011 structural layout, but only for
+# services on CONVERGED_SERVICES (see above). Accumulates as an extra prerequisite
+# of `build` — the build recipe itself is unchanged.
+build: structure-guard-converged
+
 help:
 	@echo "Targets (pass SVC=<service>):"
 	@echo "  build   compile Api + all test projects"
@@ -83,6 +96,7 @@ help:
 	@echo "  clean-all remove bin/obj across every service"
 	@echo "  clean-artifacts reclaim stale + foreign-owned (Codex nobody:nogroup) bin/obj incl. api-gateway; uses sudo if needed"
 	@echo "  ef      dotnet ef passthrough — also pass ARGS=\"migrations add ...\""
+	@echo "  structure-guard  enforce the ADR-0011 Application-layer vertical-slice layout (all services, or SVC=<svc>)"
 	@echo "  (build/test/gate pre-flight-check bin/obj ownership; foreign-owned → fail fast with the fix)"
 	@echo "  (build/test/gate echo a compact summary; full dotnet output → $(LOGDIR)/<target>-<svc>.log)"
 
@@ -196,3 +210,25 @@ ef:
 	dotnet ef $(ARGS) \
 	  --startup-project $(SVCDIR)/src/Api \
 	  --project $(SVCDIR)/src/Infrastructure
+
+# Structural CI guard for the ADR-0011 vertical-slice layout (no dotnet, so no
+# bin/obj pre-flight needed). Scans every service's Application/ tree by default;
+# pass SVC=<service> to scope to one. SVC has a makefile default (?=), so it is
+# forwarded to the script ONLY when set on the command line — otherwise the guard
+# runs across all services. See scripts/structure-guard.sh for the rules.
+structure-guard:
+	@if [ "$(origin SVC)" = "command line" ]; then \
+	  SVC="$(SVC)" scripts/structure-guard.sh; \
+	else \
+	  SVC="" scripts/structure-guard.sh; \
+	fi
+
+# Build-time gate: run the structural guard for $(SVC) only when it has converged
+# (is in CONVERGED_SERVICES). Mid-migration services are skipped with a hint, so
+# their build is never blocked before Phase 2 collapses them.
+structure-guard-converged:
+	@if echo " $(CONVERGED_SERVICES) " | grep -q " $(SVC) "; then \
+	  SVC="$(SVC)" scripts/structure-guard.sh; \
+	else \
+	  echo "structure-guard: $(SVC) not yet converged (ADR-0011) — skipped in build; preview with 'make structure-guard SVC=$(SVC)'."; \
+	fi

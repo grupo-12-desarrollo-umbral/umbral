@@ -68,7 +68,11 @@ Application/Common/                // cross-cutting: Behaviours, Interfaces, Exc
 ```
 
 Rules (also enforced in code review + the Phase-4 guard):
-- **No** `Handlers/` or `DTOs/` type-buckets. Handler + owned DTO sit in the use-case folder.
+- **No** `Handlers/`, `DTOs/`, or `Facades/` type-buckets. Handler + owned DTO sit in the use-case
+  folder; a mandated Facade sits in the slice it orchestrates (single consumer) or `<Area>/Common/`
+  (shared), grouped by concern — never collected in a `Facades/` bucket. (`EventHandlers/` and
+  `StateTransitions/` are preserved — they are the mandated event-dispatch / `State`-machine units,
+  not type-buckets.)
 - **Keep mandated patterns** (ADR-0004). A `Proxy`/`Facade`/`Template Method`/`State`/`Strategy`/`CoR`
   implementation that is named in `trivia_sprint_required_patterns_matrix.md` or a phase gate **stays**.
 - **Remove only un-mandated forwarding ceremony.** The thing to delete is the `IService`/`IExecutor`
@@ -148,8 +152,9 @@ commit, sequenced on a green build.
 **Per service, in order:**
 1. **Slice-collapse** (mechanical, behavior-preserving) — same procedure as Phase 1 step 1. Areas:
    - identity-access: `Users`, `Teams`, `Sessions`, `JoinTokens`, `Permissions`.
-   - session-operations: `Sessions` (keep `StateTransitions/`, `EventHandlers/`, and the matrix-named
-     `Facades/` — they are the mandated State/Facade patterns).
+   - session-operations: `Sessions` (keep `StateTransitions/` and `EventHandlers/` — the mandated
+     `State` machine and event-dispatch units). The `Facades/` folder is a type-bucket and is
+     **dissolved**, not kept — see **Facade handling** below (the Facades themselves stay).
 2. **Collapse un-mandated forwarding only.** For each `*AuthorizationProxy` / `I*Service` / `I*Executor`
    triplet, **check the patterns matrix first**:
    - If `Proxy` is named for that HU (identity-access auth guards are — `HU-01/02/03/06/07A/07B/19/20`,
@@ -159,9 +164,44 @@ commit, sequenced on a green build.
 3. **Authorization split.** Coarse role/policy checks → `[Authorize]` + `AuthorizationBehaviour`.
    Resource-specific checks (load actor, `IsActive`, `AccessPolicy.Evaluate`, "actor may assign this
    operator to this session") **stay** in the `Proxy`/domain policy.
-4. session-operations specifics: keep `StateTransitions` (mandated `State`) and the matrix-named `Facade`
-   (`AssignOperatorToSessionFacade`, `TransitionSessionStateFacade`, `TriviaRoundOrchestratorFacade`);
-   fold only a genuinely single-use, un-named facade into its handler.
+4. session-operations specifics: keep `StateTransitions` (mandated `State`) and `EventHandlers`. Handle
+   the six Facades per **Facade handling** below.
+
+#### Facade handling (session-operations)
+
+The earlier draft named only three Facades and left the `Sessions/Facades/` bucket and two Facades
+unaddressed. The complete, verified verdict — every Facade is **kept** (each realizes a matrix-named or
+genuinely-shared orchestration), and the `Sessions/Facades/` **type-bucket is dissolved**: each Facade
+moves to the slice it orchestrates (single consumer) or `<Area>/Common/` (shared by ≥2 slices).
+Verdicts grounded in `docs/trivia_sprint_required_patterns_matrix.md` + consumer counts.
+
+| Facade | Today | Matrix | Consumers | Destination |
+| --- | --- | --- | --- | --- |
+| `AssignOperatorToSessionFacade` | `Commands/AssignOperatorToSession/` | HU-19 `Facade` | in slice | keep — already co-located ✓ |
+| `TransitionSessionStateFacade` | `Commands/TransitionSessionState/` | HU-21A/33A/33B `State`+`Facade` | in slice | keep — already co-located ✓ |
+| `CreateSessionFacade` | `Commands/CreateSession/` | **HU-16 `Facade`** | in slice | keep — already co-located ✓ (was missing from the old keep-list) |
+| `TriviaRoundOrchestratorFacade` | `Sessions/Facades/` | HU-33A/33B `Facade` | **2** (`Sessions/EventHandlers/TriviaRoundStartedNotificationHandler` + `Infrastructure/Realtime/AuthoritativeSessionTimerWorker.cs:57`) | keep; **move to `Sessions/Common/`** (shared by ≥2 consumers) — do NOT co-locate in the event-handler slice |
+| `SessionTeamAssociationFacade` | `Sessions/Facades/` | realizes HU-18's session-side team assignment (`Facade`) | **4** (`AssociateTeamToSession{,ByCode}`, `GetAssociatedTeamsForSession{,ByCode}`) | keep; **move to `Sessions/Common/`** (shared by ≥2 slices) — do NOT fold |
+
+After the moves, delete the empty `Sessions/Facades/` folder and fix the `...Sessions.Facades` namespace
+import + the five `DependencyInjection.cs` registrations. The structural guard forbids a `Facades/`
+directory, so this is enforced (mandated Facade *files* in slices/`Common/` are never flagged).
+
+**Genuine Facade vs forwarding ceremony (the test for §3 de-ceremony).** A Facade is **genuine** when it
+coordinates **≥2 collaborators** behind one interface, hiding a multi-step workflow (transaction boundary,
+orchestration, or event publication). It is **ceremony to collapse** when it is a 1-to-1 pass-through that
+relays a single call to a single collaborator and adds no behavior — that is the un-mandated
+`IService`/`IExecutor` layer, not a Facade.
+
+> *Worked example — `CreateSessionFacade` (HU-16) is genuine, keep it.* Its `CreateAsync` coordinates four
+> collaborators — `IMissionReadinessSource` (load + `SessionCreationPolicy.EnsureMissionEligible`),
+> `IMissionRuntimeSource` (load + build the `MissionRuntimeSnapshot`), `LiveSession.Create`, and
+> `ILiveSessionRepository` — behind one interface. The handler is a thin delegate
+> (`return _facade.CreateAsync(request, ct)`), which is fine: the **Facade** is the mandated orchestration
+> unit, not the handler.
+> *Contrast — collapse.* A `JoinTeamAsParticipant` flow where the handler calls `IJoinTeamAsParticipantExecutor`
+> which just forwards one call to one repository: no coordination, no added behavior → inline it into the
+> handler and delete the `*Executor` (Rule D / §3).
 
 **Behavior-preservation gate (hard):** before de-ceremonying a slice, confirm it has authorization/behavior
 **integration** coverage. If coverage is thin, add a characterization test **first**. Never mix a
@@ -178,14 +218,23 @@ green. **Est:** ~1–2 days per service.
 Run once the three streams land.
 
 1. Diff the three Application trees; confirm identical folder vocabulary and naming.
-2. Add a structural test / CI grep that fails the build if a forbidden pattern reappears: a `Handlers/`
-   or `DTOs/` directory under `Application/`, or an un-mandated `*Executor` forwarding triplet.
-   **The guard must NOT flag mandated patterns** — it allowlists `*Proxy`/`*Facade` types that the
-   patterns matrix names. Scope the scan to `Application/`.
-3. Update `backend/AGENTS.md` + the `cqrs-mediatr-aspnetcore` skill with the finalized convention.
+2. Structural guard — **implemented** as `scripts/structure-guard.sh` (run via
+   `make -C backend structure-guard [SVC=<service>]`). It scans only `Application/` and fails on: a
+   `Handlers/` or `DTOs/` type-bucket, a generic `UseCases/` wrapper, a missing `Commands/`/`Queries/`
+   level (a `*CommandHandler.cs`/`*QueryHandler.cs` whose grandparent folder isn't `Commands`/`Queries`),
+   or an un-mandated `*Executor` forwarding type. **It does NOT flag mandated patterns** — it keys on
+   type-bucket dirs, handler placement, and the `Executor` suffix (never an ADR-0004 pattern name), so
+   `*Proxy`/`*Facade`/`State`/`Strategy` are untouched; a genuinely mandated executor is exempted via the
+   script's `EXECUTOR_ALLOWLIST` (empty — the matrix names none).
+3. **Build wiring (converged-only).** `make build` runs the guard for a service **only when it is listed
+   in the Makefile's `CONVERGED_SERVICES`**. A service still mid-migration is skipped (its build isn't
+   blocked); add it to `CONVERGED_SERVICES` the moment its slice-collapse merges — that one edit flips its
+   build from skipped to enforcing. `mission-design-service` is converged today; add `identity-access-service`
+   and `session-operations-service` as Phase 2 lands each.
+4. Update `backend/AGENTS.md` + the `cqrs-mediatr-aspnetcore` skill with the finalized convention.
 
-**Exit criteria:** three services structurally identical; guard in CI (mandated patterns allowlisted);
-docs updated. **Est:** ~0.5 day.
+**Exit criteria:** three services structurally identical; all three in `CONVERGED_SERVICES` so every
+`build` enforces the guard (mandated patterns allowlisted); docs updated. **Est:** ~0.5 day.
 
 ---
 
@@ -242,7 +291,12 @@ RabbitMQ is **not yet in the code** (only a compose container). When the matrix-
    behavior-preservation net for de-ceremony).
 3. `make -C backend gate SVC=<service>` (ADR-0005 coverage) passes.
 4. Controllers compile untouched (they use `ISender`) — confirms the move didn't leak into the API layer.
-5. The patterns gate still passes — no mandated pattern was removed.
+5. **Manual patterns checklist (code review, not automated).** Confirm no mandated pattern was removed:
+   each matrix-named `Proxy`/`Facade`/`State`/`Strategy`/`Template Method`/`CoR` for the touched HUs still
+   exists and is genuinely realized (a Facade still coordinates ≥2 collaborators, etc.). There is **no**
+   automated "patterns gate" — `structure-guard.sh` only enforces *layout* (type-buckets, slice level,
+   un-mandated `*Executor` absence); it deliberately does **not** assert a pattern is realized, since that
+   needs human judgment. Reviewer signs this off in the PR.
 
 > Never call `dotnet`/`docker` directly (`AGENTS.md`). If a build pre-flight fails on foreign-owned
 > `bin/obj`, run `make -C backend clean-artifacts SVC=<service>`.

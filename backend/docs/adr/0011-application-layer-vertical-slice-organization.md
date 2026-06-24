@@ -30,10 +30,21 @@ mandatory.
 1. **Organize by vertical slice.** One folder per use case under
    `Application/<Area>/Commands/<UseCase>/` or `Queries/<UseCase>/`, containing the
    request, its handler, its validator, and (for queries) the response DTO it owns.
-2. **No `Handlers/` or `DTOs/` type-buckets.** Helpers shared by ≥2 slices and the
-   area's mandated-pattern implementations live in `Application/<Area>/Common/`;
-   cross-cutting concerns (Behaviours, Interfaces, Exceptions, Security, Models) in
-   `Application/Common/`.
+   The `Commands/`/`Queries/` split is **mandatory** and sits between `<Area>` and the
+   use-case folder: do **not** flatten an area into a single bag of use-case folders
+   (e.g. `Application/<Area>/<UseCase>/`) and do **not** introduce a generic
+   `UseCases/` wrapper segment. The path is always `<Area>/{Commands|Queries}/<UseCase>/`,
+   and handler/request type names keep the `Command`/`Query` suffix
+   (`<UseCase>CommandHandler`, `<UseCase>QueryHandler`).
+2. **No `Handlers/`, `DTOs/`, or `Facades/` type-buckets.** Helpers shared by ≥2 slices
+   and the area's mandated-pattern implementations live in `Application/<Area>/Common/`,
+   grouped by **concern** (e.g. `Common/Authoring/`), never by type; cross-cutting
+   concerns (Behaviours, Interfaces, Exceptions, Security, Models) in `Application/Common/`.
+   A mandated `Facade` is kept, but lives **co-located in the slice it orchestrates**
+   (single consumer) or in `<Area>/Common/` (shared by ≥2 slices) — not in a `Facades/`
+   bucket. `EventHandlers/` and `StateTransitions/` are **not** type-buckets in this
+   sense: they are the mandated event-dispatch and `State`-machine structural units and
+   are preserved.
 3. **ADR-0004 stands unchanged.** Mandated patterns (`Proxy` access-guards, `Facade`
    orchestration / event publication, `State` lifecycle, `Strategy`, `Template
    Method`, `Chain of Responsibility`, `Composite`) remain mandatory deliverables,
@@ -41,7 +52,10 @@ mandatory.
    be removed **only when both** hold: (a) it is not named for that use case by
    `docs/trivia_sprint_required_patterns_matrix.md` or a phase gate, **and** (b) it
    is pure forwarding ceremony that adds no behavior (e.g. an `IService`/`IExecutor`
-   indirection that only relays a call).
+   indirection that only relays a call). **Where each mandated pattern physically lives across
+   all layers** (Domain/Application/Api) — including the Domain-layer patterns this ADR treats as
+   orthogonal to layout — is defined in
+   [ADR-0012](0012-design-pattern-placement-convention.md).
 4. **Authorization split.** Coarse role/policy gates are declarative via
    `[Authorize]` + `AuthorizationBehaviour`. Resource-specific access decisions
    (e.g. "can this actor assign this operator to this session?") remain a
@@ -64,6 +78,21 @@ mandatory.
   Moves are done as atomic scripted per-area commits, never half-applied.
 - `structure.md` baseline tree and its "intentionally separated" note are updated to
   match this ADR. No change to ADR-0004 or the patterns matrix.
-- A structural CI guard fails the build if a `Handlers/` or `DTOs/` directory
-  reappears under `Application/`, or an un-mandated `*Executor`/forwarding triplet is
-  reintroduced.
+- A structural CI guard (`scripts/structure-guard.sh`, `make structure-guard`) fails
+  the build if a `Handlers/`, `DTOs/`, or `Facades/` directory reappears under
+  `Application/`, if a generic `UseCases/` wrapper directory appears, if the mandatory
+  `Commands/`/`Queries/` level is missing — i.e. a `*CommandHandler.cs`/`*QueryHandler.cs`
+  whose grandparent folder is not `Commands`/`Queries` (a flattened area or a missing
+  use-case folder) — or if an un-mandated forwarding `*Executor` type is present.
+  `Executor` is not one of the ADR-0004 patterns, so it marks the un-mandated bottom
+  of the `Proxy → Service → Executor` triplet (§3); a genuinely mandated executor can
+  be exempted via the script's `EXECUTOR_ALLOWLIST` (empty today — the patterns matrix
+  names none). The guard keys on type-bucket **directory names**, handler placement,
+  and the `Executor` suffix — never on whether a pattern is realized — so co-located
+  `*Proxy.cs`/`*Facade.cs` files and the plan-preserved `EventHandlers/`/
+  `StateTransitions/` folders are not flagged; only the `Facades/` type-bucket folder is.
+
+## Canonical implementation diffs
+
+- `mission-design-service` Phase 1 golden service:
+  [application-layer-cqrs-mission-design-phase-1.diff](../refactors/application-layer-cqrs-mission-design-phase-1.diff)
