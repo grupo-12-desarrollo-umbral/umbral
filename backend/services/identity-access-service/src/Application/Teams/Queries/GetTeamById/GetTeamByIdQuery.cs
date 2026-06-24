@@ -1,5 +1,5 @@
 using umbral_backend.Application.Common.Security;
-using umbral_backend.Application.Teams.DTOs;
+using umbral_backend.Application.Teams.Common;
 
 namespace umbral_backend.Application.Teams.Queries.GetTeamById;
 

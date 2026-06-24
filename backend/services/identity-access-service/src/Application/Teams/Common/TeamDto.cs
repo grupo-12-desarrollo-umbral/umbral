@@ -1,4 +1,4 @@
-namespace umbral_backend.Application.Teams.DTOs;
+namespace umbral_backend.Application.Teams.Common;
 
 public sealed record TeamDto(
     Guid TeamId,

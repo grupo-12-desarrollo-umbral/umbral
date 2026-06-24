@@ -1,4 +1,4 @@
-namespace umbral_backend.Application.Teams.DTOs;
+namespace umbral_backend.Application.Teams.Queries.GetTeamParticipants;
 
 public sealed record TeamMembershipDto(
     Guid TeamMembershipId,

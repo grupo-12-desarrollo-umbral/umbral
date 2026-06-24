@@ -1,22 +1,21 @@
 using umbral_backend.Application.Common.Exceptions;
 using umbral_backend.Application.Common.Interfaces;
-using umbral_backend.Application.Teams.DTOs;
-using umbral_backend.Application.Teams.Queries.GetTeamById;
+using umbral_backend.Application.Teams.Queries.GetTeamParticipants;
 using umbral_backend.Domain.Entities;
 using umbral_backend.Domain.Enums;
 using umbral_backend.Domain.Exceptions;
 using umbral_backend.Domain.Services;
 
-namespace umbral_backend.Application.Teams.Handlers;
+namespace umbral_backend.Application.Teams.Queries.GetTeamParticipants;
 
-public sealed class GetTeamByIdQueryHandler : IRequestHandler<GetTeamByIdQuery, TeamDto>
+public sealed class GetTeamParticipantsQueryHandler : IRequestHandler<GetTeamParticipantsQuery, IReadOnlyList<TeamMembershipDto>>
 {
     private readonly ITeamRepository _teamRepository;
     private readonly IUserRepository _userRepository;
     private readonly ICurrentUser _currentUser;
     private readonly AccessPolicy _accessPolicy;
 
-    public GetTeamByIdQueryHandler(
+    public GetTeamParticipantsQueryHandler(
         ITeamRepository teamRepository,
         IUserRepository userRepository,
         ICurrentUser currentUser,
@@ -28,21 +27,28 @@ public sealed class GetTeamByIdQueryHandler : IRequestHandler<GetTeamByIdQuery, 
         _accessPolicy = accessPolicy;
     }
 
-    public async Task<TeamDto> Handle(GetTeamByIdQuery request, CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<TeamMembershipDto>> Handle(GetTeamParticipantsQuery request, CancellationToken cancellationToken)
     {
         var actor = await GetCurrentActorAsync(cancellationToken);
         EnsureActorCanReadTeams(actor);
 
-        var team = await _teamRepository.GetByIdAsync(request.TeamId, cancellationToken)
+        var team = await _teamRepository.GetByIdWithMembershipsAsync(request.TeamId, cancellationToken)
             ?? throw new NotFoundException(nameof(Team), request.TeamId);
 
-        return new TeamDto(
-            team.TeamId,
-            team.DisplayName,
-            team.TeamCode,
-            team.IsActive,
-            team.Created,
-            team.LastModified);
+        var memberships = new List<TeamMembershipDto>();
+        foreach (var membership in team.Memberships)
+        {
+            var user = await _userRepository.GetByIdAsync(membership.UserId, cancellationToken);
+            memberships.Add(new TeamMembershipDto(
+                membership.TeamMembershipId,
+                membership.TeamId,
+                membership.UserId,
+                user?.Email ?? "",
+                user?.DisplayName ?? "",
+                membership.AssignedAt));
+        }
+
+        return memberships.AsReadOnly();
     }
 
     private async Task<User> GetCurrentActorAsync(CancellationToken cancellationToken)
@@ -67,7 +73,7 @@ public sealed class GetTeamByIdQueryHandler : IRequestHandler<GetTeamByIdQuery, 
 
         if (!decision.IsAllowed)
         {
-            throw new UserRoleNotAuthorizedException(actor.Role, ProtectedCapability.OperatorPanel);
+            throw new ForbiddenAccessException();
         }
     }
 }

@@ -1,21 +1,21 @@
 using umbral_backend.Application.Common.Exceptions;
 using umbral_backend.Application.Common.Interfaces;
-using umbral_backend.Application.Teams.Commands.AssignParticipantToTeam;
+using umbral_backend.Application.Teams.Commands.UpdateTeam;
 using umbral_backend.Domain.Entities;
 using umbral_backend.Domain.Enums;
 using umbral_backend.Domain.Exceptions;
 using umbral_backend.Domain.Services;
 
-namespace umbral_backend.Application.Teams.Handlers;
+namespace umbral_backend.Application.Teams.Commands.UpdateTeam;
 
-public sealed class AssignParticipantToTeamCommandHandler : IRequestHandler<AssignParticipantToTeamCommand, Guid>
+public sealed class UpdateTeamCommandHandler : IRequestHandler<UpdateTeamCommand>
 {
     private readonly ITeamRepository _teamRepository;
     private readonly IUserRepository _userRepository;
     private readonly ICurrentUser _currentUser;
     private readonly AccessPolicy _accessPolicy;
 
-    public AssignParticipantToTeamCommandHandler(
+    public UpdateTeamCommandHandler(
         ITeamRepository teamRepository,
         IUserRepository userRepository,
         ICurrentUser currentUser,
@@ -27,27 +27,24 @@ public sealed class AssignParticipantToTeamCommandHandler : IRequestHandler<Assi
         _accessPolicy = accessPolicy;
     }
 
-    public async Task<Guid> Handle(AssignParticipantToTeamCommand request, CancellationToken cancellationToken)
+    public async Task Handle(UpdateTeamCommand request, CancellationToken cancellationToken)
     {
         var actor = await GetCurrentActorAsync(cancellationToken);
         EnsureActorCanManageTeams(actor);
 
-        var team = await _teamRepository.GetByIdWithMembershipsAsync(request.TeamId, cancellationToken)
+        var team = await _teamRepository.GetByIdAsync(request.TeamId, cancellationToken)
             ?? throw new NotFoundException(nameof(Team), request.TeamId);
 
-        var user = await _userRepository.GetByIdAsync(request.UserId, cancellationToken)
-            ?? throw new NotFoundException(nameof(User), request.UserId);
+        var normalizedTeamCode = request.TeamCode.Trim();
 
-        if (user.Role != Role.Participant)
+        if (await _teamRepository.TeamCodeExistsAsync(normalizedTeamCode, request.TeamId, cancellationToken))
         {
-            throw new UserNotParticipantRoleException(user.Id, user.Role);
+            throw new TeamCodeAlreadyExistsException(normalizedTeamCode);
         }
 
-        var membership = team.AssignParticipant(user.Id);
+        team.UpdateDetails(request.DisplayName, request.TeamCode);
 
         await _teamRepository.UpdateAsync(team, cancellationToken);
-
-        return membership.TeamMembershipId;
     }
 
     private async Task<User> GetCurrentActorAsync(CancellationToken cancellationToken)
@@ -72,7 +69,7 @@ public sealed class AssignParticipantToTeamCommandHandler : IRequestHandler<Assi
 
         if (!decision.IsAllowed)
         {
-            throw new ForbiddenAccessException();
+            throw new UserRoleNotAuthorizedException(actor.Role, ProtectedCapability.OperatorPanel);
         }
     }
 }

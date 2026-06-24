@@ -1,21 +1,21 @@
 using umbral_backend.Application.Common.Exceptions;
 using umbral_backend.Application.Common.Interfaces;
-using umbral_backend.Application.Teams.Commands.RegisterTeam;
+using umbral_backend.Application.Teams.Commands.DeactivateTeam;
 using umbral_backend.Domain.Entities;
 using umbral_backend.Domain.Enums;
 using umbral_backend.Domain.Exceptions;
 using umbral_backend.Domain.Services;
 
-namespace umbral_backend.Application.Teams.Handlers;
+namespace umbral_backend.Application.Teams.Commands.DeactivateTeam;
 
-public sealed class RegisterTeamCommandHandler : IRequestHandler<RegisterTeamCommand, Guid>
+public sealed class DeactivateTeamCommandHandler : IRequestHandler<DeactivateTeamCommand>
 {
     private readonly ITeamRepository _teamRepository;
     private readonly IUserRepository _userRepository;
     private readonly ICurrentUser _currentUser;
     private readonly AccessPolicy _accessPolicy;
 
-    public RegisterTeamCommandHandler(
+    public DeactivateTeamCommandHandler(
         ITeamRepository teamRepository,
         IUserRepository userRepository,
         ICurrentUser currentUser,
@@ -27,23 +27,17 @@ public sealed class RegisterTeamCommandHandler : IRequestHandler<RegisterTeamCom
         _accessPolicy = accessPolicy;
     }
 
-    public async Task<Guid> Handle(RegisterTeamCommand request, CancellationToken cancellationToken)
+    public async Task Handle(DeactivateTeamCommand request, CancellationToken cancellationToken)
     {
         var actor = await GetCurrentActorAsync(cancellationToken);
         EnsureActorCanManageTeams(actor);
 
-        var normalizedTeamCode = request.TeamCode.Trim();
+        var team = await _teamRepository.GetByIdAsync(request.TeamId, cancellationToken)
+            ?? throw new NotFoundException(nameof(Team), request.TeamId);
 
-        if (await _teamRepository.TeamCodeExistsAsync(normalizedTeamCode, excludeTeamId: null, cancellationToken))
-        {
-            throw new TeamCodeAlreadyExistsException(normalizedTeamCode);
-        }
+        team.Deactivate();
 
-        var team = Team.Register(request.DisplayName, request.TeamCode);
-
-        await _teamRepository.AddAsync(team, cancellationToken);
-
-        return team.TeamId;
+        await _teamRepository.UpdateAsync(team, cancellationToken);
     }
 
     private async Task<User> GetCurrentActorAsync(CancellationToken cancellationToken)

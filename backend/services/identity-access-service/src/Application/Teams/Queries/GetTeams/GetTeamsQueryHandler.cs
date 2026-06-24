@@ -1,21 +1,23 @@
 using umbral_backend.Application.Common.Exceptions;
 using umbral_backend.Application.Common.Interfaces;
-using umbral_backend.Application.Teams.Commands.UpdateTeam;
+using umbral_backend.Application.Common.Models;
+using umbral_backend.Application.Teams.Common;
+using umbral_backend.Application.Teams.Queries.GetTeams;
 using umbral_backend.Domain.Entities;
 using umbral_backend.Domain.Enums;
 using umbral_backend.Domain.Exceptions;
 using umbral_backend.Domain.Services;
 
-namespace umbral_backend.Application.Teams.Handlers;
+namespace umbral_backend.Application.Teams.Queries.GetTeams;
 
-public sealed class UpdateTeamCommandHandler : IRequestHandler<UpdateTeamCommand>
+public sealed class GetTeamsQueryHandler : IRequestHandler<GetTeamsQuery, PagedResult<TeamDto>>
 {
     private readonly ITeamRepository _teamRepository;
     private readonly IUserRepository _userRepository;
     private readonly ICurrentUser _currentUser;
     private readonly AccessPolicy _accessPolicy;
 
-    public UpdateTeamCommandHandler(
+    public GetTeamsQueryHandler(
         ITeamRepository teamRepository,
         IUserRepository userRepository,
         ICurrentUser currentUser,
@@ -27,24 +29,20 @@ public sealed class UpdateTeamCommandHandler : IRequestHandler<UpdateTeamCommand
         _accessPolicy = accessPolicy;
     }
 
-    public async Task Handle(UpdateTeamCommand request, CancellationToken cancellationToken)
+    public async Task<PagedResult<TeamDto>> Handle(GetTeamsQuery request, CancellationToken cancellationToken)
     {
         var actor = await GetCurrentActorAsync(cancellationToken);
-        EnsureActorCanManageTeams(actor);
+        EnsureActorCanReadTeams(actor);
 
-        var team = await _teamRepository.GetByIdAsync(request.TeamId, cancellationToken)
-            ?? throw new NotFoundException(nameof(Team), request.TeamId);
+        var teams = await _teamRepository.ListAsync(request.Page, request.PageSize, cancellationToken);
 
-        var normalizedTeamCode = request.TeamCode.Trim();
-
-        if (await _teamRepository.TeamCodeExistsAsync(normalizedTeamCode, request.TeamId, cancellationToken))
+        return new PagedResult<TeamDto>
         {
-            throw new TeamCodeAlreadyExistsException(normalizedTeamCode);
-        }
-
-        team.UpdateDetails(request.DisplayName, request.TeamCode);
-
-        await _teamRepository.UpdateAsync(team, cancellationToken);
+            Items = teams.Items.Select(Map).ToArray(),
+            TotalCount = teams.TotalCount,
+            Page = teams.Page,
+            PageSize = teams.PageSize
+        };
     }
 
     private async Task<User> GetCurrentActorAsync(CancellationToken cancellationToken)
@@ -58,7 +56,7 @@ public sealed class UpdateTeamCommandHandler : IRequestHandler<UpdateTeamCommand
             ?? throw new NotFoundException(nameof(User), _currentUser.Id);
     }
 
-    private void EnsureActorCanManageTeams(User actor)
+    private void EnsureActorCanReadTeams(User actor)
     {
         var decision = _accessPolicy.Evaluate(actor, ProtectedCapability.OperatorPanel);
 
@@ -71,5 +69,16 @@ public sealed class UpdateTeamCommandHandler : IRequestHandler<UpdateTeamCommand
         {
             throw new UserRoleNotAuthorizedException(actor.Role, ProtectedCapability.OperatorPanel);
         }
+    }
+
+    private static TeamDto Map(Team team)
+    {
+        return new TeamDto(
+            team.TeamId,
+            team.DisplayName,
+            team.TeamCode,
+            team.IsActive,
+            team.Created,
+            team.LastModified);
     }
 }

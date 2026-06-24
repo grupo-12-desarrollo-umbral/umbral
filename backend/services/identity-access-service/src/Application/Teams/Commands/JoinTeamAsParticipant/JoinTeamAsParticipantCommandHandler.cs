@@ -1,6 +1,6 @@
 using umbral_backend.Application.Teams.Commands.JoinTeamAsParticipant;
 
-namespace umbral_backend.Application.Teams.Handlers;
+namespace umbral_backend.Application.Teams.Commands.JoinTeamAsParticipant;
 
 public sealed class JoinTeamAsParticipantCommandHandler : IRequestHandler<JoinTeamAsParticipantCommand, Guid>
 {
