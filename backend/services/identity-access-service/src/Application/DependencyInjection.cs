@@ -46,7 +46,9 @@ public static class DependencyInjection
         builder.Services.AddScoped<IGetSessionTeamsForParticipantService>(sp =>
             ActivatorUtilities.CreateInstance<ParticipantSessionTeamLobbyAuthorizationProxy>(
                 sp, sp.GetRequiredService<ParticipantSessionTeamLobbyService>()));
-        builder.Services.AddScoped<IJoinTeamAsParticipantExecutor, ParticipantTeamSelfJoinService>();
-        builder.Services.AddScoped<IJoinTeamAsParticipantService, ParticipantTeamSelfJoinAuthorizationProxy>();
+        builder.Services.AddScoped<ParticipantTeamSelfJoinService>();
+        builder.Services.AddScoped<IJoinTeamAsParticipantService>(sp =>
+            ActivatorUtilities.CreateInstance<ParticipantTeamSelfJoinAuthorizationProxy>(
+                sp, sp.GetRequiredService<ParticipantTeamSelfJoinService>()));
     }
 }

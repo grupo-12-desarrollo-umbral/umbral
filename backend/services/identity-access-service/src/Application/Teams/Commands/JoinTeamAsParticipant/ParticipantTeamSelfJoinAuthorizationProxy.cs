@@ -11,13 +11,13 @@ public sealed class ParticipantTeamSelfJoinAuthorizationProxy : IJoinTeamAsParti
     private readonly IUserRepository _userRepository;
     private readonly ICurrentUser _currentUser;
     private readonly AccessPolicy _accessPolicy;
-    private readonly IJoinTeamAsParticipantExecutor _inner;
+    private readonly IJoinTeamAsParticipantService _inner;
 
     public ParticipantTeamSelfJoinAuthorizationProxy(
         IUserRepository userRepository,
         ICurrentUser currentUser,
         AccessPolicy accessPolicy,
-        IJoinTeamAsParticipantExecutor inner)
+        IJoinTeamAsParticipantService inner)
     {
         _userRepository = userRepository;
         _currentUser = currentUser;

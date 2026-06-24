@@ -5,7 +5,7 @@ using umbral_backend.Domain.Services;
 
 namespace umbral_backend.Application.Teams.Commands.JoinTeamAsParticipant;
 
-public sealed class ParticipantTeamSelfJoinService : IJoinTeamAsParticipantExecutor
+public sealed class ParticipantTeamSelfJoinService : IJoinTeamAsParticipantService
 {
     private readonly ILiveSessionReferenceRepository _liveSessionReferenceRepository;
     private readonly ITeamRepository _teamRepository;
