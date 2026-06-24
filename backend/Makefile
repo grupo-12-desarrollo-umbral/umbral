@@ -31,7 +31,7 @@ SVCDIR := services/$(SVC)
 # slice-collapse lands. Add a service here the moment that collapse merges; that one
 # edit flips its build from "skipped" to "enforcing". The standalone
 # `make structure-guard` still checks every service regardless of this list.
-CONVERGED_SERVICES := mission-design-service
+CONVERGED_SERVICES := mission-design-service session-operations-service
 
 # Verbose dotnet output (restore/build/per-test spew) goes to a log file; the
 # recipes echo only a compact summary. An agent driving the toolchain reads the
