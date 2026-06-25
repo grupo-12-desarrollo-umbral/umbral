@@ -1,4 +1,5 @@
 using umbral_backend.Application.Common.Interfaces;
+using umbral_backend.Application.Common.Security;
 using umbral_backend.Application.Users.Common;
 using umbral_backend.Application.Permissions.Queries.CheckProtectedCapabilityAccess;
 using umbral_backend.Application.Users.Commands.AuthenticateUser;
@@ -11,15 +12,18 @@ namespace umbral_backend.Application.Users.Commands.AuthenticateUser;
 
 public sealed class AuthenticateUserCommandHandler : IRequestHandler<AuthenticateUserCommand, AuthenticateUserResultDto>
 {
+    private readonly ICurrentUser _currentUser;
     private readonly IUserRepository _userRepository;
     private readonly IdentityProvisioningPolicy _identityProvisioningPolicy;
     private readonly AccessPolicy _accessPolicy;
 
     public AuthenticateUserCommandHandler(
+        ICurrentUser currentUser,
         IUserRepository userRepository,
         IdentityProvisioningPolicy identityProvisioningPolicy,
         AccessPolicy accessPolicy)
     {
+        _currentUser = currentUser;
         _userRepository = userRepository;
         _identityProvisioningPolicy = identityProvisioningPolicy;
         _accessPolicy = accessPolicy;
@@ -29,15 +33,23 @@ public sealed class AuthenticateUserCommandHandler : IRequestHandler<Authenticat
         AuthenticateUserCommand request,
         CancellationToken cancellationToken)
     {
-        var externalIdentityId = request.ExternalIdentityId.Trim();
+        if (string.IsNullOrWhiteSpace(_currentUser.Id) ||
+            string.IsNullOrWhiteSpace(_currentUser.Email) ||
+            string.IsNullOrWhiteSpace(_currentUser.Role))
+        {
+            throw new UnauthorizedAccessException("Trusted gateway identity headers are required.");
+        }
+
+        var role = GatewayRoleParser.Parse(_currentUser.Role);
+        var externalIdentityId = _currentUser.Id.Trim();
         var existingUser = await _userRepository.GetByExternalIdentityIdAsync(externalIdentityId, cancellationToken);
 
         var user = _identityProvisioningPolicy.SynchronizeOrCreate(
             existingUser,
             externalIdentityId,
             request.DisplayName,
-            request.Email,
-            request.Role);
+            _currentUser.Email,
+            role);
 
         var accessDecision = _accessPolicy.Evaluate(user, ProtectedCapability.AuthenticatedPlatformAccess);
 

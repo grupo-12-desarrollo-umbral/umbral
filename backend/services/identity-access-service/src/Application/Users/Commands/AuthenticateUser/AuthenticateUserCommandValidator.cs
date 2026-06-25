@@ -4,14 +4,7 @@ public sealed class AuthenticateUserCommandValidator : AbstractValidator<Authent
 {
     public AuthenticateUserCommandValidator()
     {
-        RuleFor(command => command.ExternalIdentityId)
-            .NotEmpty();
-
         RuleFor(command => command.DisplayName)
             .NotEmpty();
-
-        RuleFor(command => command.Email)
-            .NotEmpty()
-            .EmailAddress();
     }
 }

@@ -29,16 +29,13 @@ public sealed class UserProvisioningRepositoryIntegrationTests
         await ResetDatabaseAsync(context);
         IUserRepository repository = new UserRepository(context);
         var authenticateHandler = new AuthenticateUserCommandHandler(
+            new TestCurrentUser("kc-user-01", "alice@example.com", "Operator"),
             repository,
             new IdentityProvisioningPolicy(),
             new AccessPolicy());
 
         var authenticateResult = await authenticateHandler.Handle(
-            new AuthenticateUserCommand(
-                "kc-user-01",
-                "Alice Operator",
-                "alice@example.com",
-                Role.Operator),
+            new AuthenticateUserCommand("Alice Operator"),
             CancellationToken.None);
 
         authenticateResult.Actor.ExternalIdentityId.Should().Be("kc-user-01");

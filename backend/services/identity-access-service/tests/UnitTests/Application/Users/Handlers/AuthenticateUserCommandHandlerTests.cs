@@ -1,3 +1,4 @@
+using Moq;
 using umbral_backend.Application.Common.Interfaces;
 using umbral_backend.Application.Users.Commands.AuthenticateUser;
 using umbral_backend.Domain.Entities;
@@ -23,10 +24,10 @@ public sealed class AuthenticateUserCommandHandlerTests
             .Callback<User, CancellationToken>((user, _) => persistedUser = user)
             .Returns(Task.CompletedTask);
 
-        var handler = CreateHandler(repository);
+        var handler = CreateHandler(repository, "kc-001", "ada@example.com", "Administrator");
 
         var result = await handler.Handle(
-            new AuthenticateUserCommand("kc-001", "Ada Lovelace", "ada@example.com", Role.Administrator),
+            new AuthenticateUserCommand("Ada Lovelace"),
             CancellationToken.None);
 
         result.Actor.UserId.Should().Be(0);
@@ -55,10 +56,10 @@ public sealed class AuthenticateUserCommandHandlerTests
             .Setup(repo => repo.UpdateAsync(existingUser, It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 
-        var handler = CreateHandler(repository);
+        var handler = CreateHandler(repository, "kc-002", "grace@example.com", "Administrator");
 
         var result = await handler.Handle(
-            new AuthenticateUserCommand("kc-002", "Grace Hopper", "grace@example.com", Role.Administrator),
+            new AuthenticateUserCommand("Grace Hopper"),
             CancellationToken.None);
 
         result.Actor.DisplayName.Should().Be("Grace Hopper");
@@ -79,10 +80,10 @@ public sealed class AuthenticateUserCommandHandlerTests
             .Setup(repo => repo.GetByExternalIdentityIdAsync("kc-003", It.IsAny<CancellationToken>()))
             .ReturnsAsync(existingUser);
 
-        var handler = CreateHandler(repository);
+        var handler = CreateHandler(repository, "kc-003", "deactivated@example.com", "Operator");
 
         var act = async () => await handler.Handle(
-            new AuthenticateUserCommand("kc-003", "Deactivated User", "deactivated@example.com", Role.Operator),
+            new AuthenticateUserCommand("Deactivated User"),
             CancellationToken.None);
 
         await act.Should().ThrowAsync<DeactivatedUserAccessDeniedException>();
@@ -90,9 +91,34 @@ public sealed class AuthenticateUserCommandHandlerTests
         repository.Verify(repo => repo.UpdateAsync(It.IsAny<User>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
-    private static AuthenticateUserCommandHandler CreateHandler(Mock<IUserRepository> repository)
+    [Fact]
+    public async Task Handle_WithoutTrustedHeaders_RejectsRequest()
     {
+        var repository = new Mock<IUserRepository>();
+        var handler = CreateHandler(repository, id: null, email: "ada@example.com", role: "Administrator");
+
+        var act = async () => await handler.Handle(
+            new AuthenticateUserCommand("Ada Lovelace"),
+            CancellationToken.None);
+
+        await act.Should().ThrowAsync<UnauthorizedAccessException>()
+            .WithMessage("Trusted gateway identity headers are required.");
+        repository.Verify(repo => repo.GetByExternalIdentityIdAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    private static AuthenticateUserCommandHandler CreateHandler(
+        Mock<IUserRepository> repository,
+        string? id,
+        string? email,
+        string? role)
+    {
+        var currentUser = new Mock<ICurrentUser>();
+        currentUser.SetupGet(user => user.Id).Returns(id);
+        currentUser.SetupGet(user => user.Email).Returns(email);
+        currentUser.SetupGet(user => user.Role).Returns(role);
+
         return new AuthenticateUserCommandHandler(
+            currentUser.Object,
             repository.Object,
             new IdentityProvisioningPolicy(),
             new AccessPolicy());
