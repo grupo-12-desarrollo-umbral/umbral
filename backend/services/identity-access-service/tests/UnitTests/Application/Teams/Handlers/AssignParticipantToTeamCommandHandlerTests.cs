@@ -187,7 +187,7 @@ public sealed class AssignParticipantToTeamCommandHandlerTests
 
         var act = async () => await handler.Handle(new AssignParticipantToTeamCommand(Guid.NewGuid(), participant.Id), CancellationToken.None);
 
-        await act.Should().ThrowAsync<ForbiddenAccessException>();
+        await act.Should().ThrowAsync<UserRoleNotAuthorizedException>();
     }
 
     private static AssignParticipantToTeamCommandHandler CreateHandler(

@@ -3,7 +3,6 @@ using umbral_backend.Application.Common.Interfaces;
 using umbral_backend.Application.Teams.Queries.GetTeamParticipants;
 using umbral_backend.Domain.Entities;
 using umbral_backend.Domain.Enums;
-using umbral_backend.Domain.Exceptions;
 using umbral_backend.Domain.Services;
 
 namespace umbral_backend.Application.Teams.Queries.GetTeamParticipants;
@@ -30,7 +29,7 @@ public sealed class GetTeamParticipantsQueryHandler : IRequestHandler<GetTeamPar
     public async Task<IReadOnlyList<TeamMembershipDto>> Handle(GetTeamParticipantsQuery request, CancellationToken cancellationToken)
     {
         var actor = await _currentActor.GetActorAsync(cancellationToken);
-        EnsureActorCanReadTeams(actor);
+        _accessPolicy.EnsureCanAccess(actor, ProtectedCapability.OperatorPanel);
 
         var team = await _teamRepository.GetByIdWithMembershipsAsync(request.TeamId, cancellationToken)
             ?? throw new NotFoundException(nameof(Team), request.TeamId);
@@ -49,20 +48,5 @@ public sealed class GetTeamParticipantsQueryHandler : IRequestHandler<GetTeamPar
         }
 
         return memberships.AsReadOnly();
-    }
-
-    private void EnsureActorCanReadTeams(User actor)
-    {
-        var decision = _accessPolicy.Evaluate(actor, ProtectedCapability.OperatorPanel);
-
-        if (!actor.IsActive)
-        {
-            throw new DeactivatedUserAccessDeniedException(actor.Id);
-        }
-
-        if (!decision.IsAllowed)
-        {
-            throw new ForbiddenAccessException();
-        }
     }
 }
