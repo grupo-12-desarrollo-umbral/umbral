@@ -21,7 +21,7 @@ pattern physically lives across Domain/Application/Api is governed by
 
 | Pattern | ADR-0004 responsibility |
 | --- | --- |
-| `Composite` | `Mission` + hierarchical `MissionNode` (Stage / Substage / Clue / Target) modeling |
+| `Composite` | `Mission` + hierarchical `MissionNode` (Stage / Substage / Clue) modeling; `Target` is TreasureHunt **play-content** of a `Substage` (parallel to a Trivia substage's `TriviaQuizId`), not a node |
 | `Template Method` | stable validation workflows with mode-specific steps |
 | `Facade` | session orchestration + outbound event publication in `SessionOperations` |
 | `State` | `LiveSession` lifecycle transitions |
@@ -85,7 +85,7 @@ secondary processing → RabbitMQ, never on the critical path). Not from ADR-000
 | HU | Required pattern(s) | Transport | Why |
 | --- | --- | --- | --- |
 | `HU-09` | — | — | Mission basic-data CRUD + lifecycle on the aggregate root; no Composite traversal of its own — the tree is authored in `HU-10`. |
-| `HU-10` | `Composite` | — | **Canonical Composite** — `Mission` owns the Stage/Substage/Clue/Target tree; `MissionStructurePolicy` protects tree invariants (no substage-in-substage, one play mode per substage). Treasure-hunt `Target` objectives are the leaf nodes of this tree (unique QR ids, resolvable in any order) — authored here, not in HU-28. Clue nodes and their initial visibility (visible vs retained) are authored here too — formerly HU-27. |
+| `HU-10` | `Composite` | — | **Canonical Composite** — `Mission` owns the Stage/Substage/Clue tree; `MissionStructurePolicy` protects tree invariants (no substage-in-substage, one play mode per substage). Treasure-hunt `Target` objectives are authored here (unique QR ids, resolvable in any order) — not in HU-28 — but they are **play-content of a TreasureHunt `Substage`** (parallel to a Trivia substage's `TriviaQuizId`), not `MissionNode` leaves; `Clue` is the only leaf node. (Code: `Target : BaseEntity`, owned by `Substage`; see `plans/pattern-placement-remediation.md` §3.) Clue nodes and their initial visibility (visible vs retained) are authored here too — formerly HU-27. |
 | `HU-11` | `Template Method` | — | Quiz create/edit keeps one invariant validation workflow with quiz-specific steps. |
 | `HU-12` | `Template Method` | — | Publication/archival requires a stable readiness-validation pipeline (`TriviaPublicationPolicy`). |
 | `HU-13` | `Template Method` | — | Duplicate/retire reuse the same quiz lifecycle validation sequence. |
