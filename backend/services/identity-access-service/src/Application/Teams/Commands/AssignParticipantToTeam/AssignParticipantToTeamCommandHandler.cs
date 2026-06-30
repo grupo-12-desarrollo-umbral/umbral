@@ -30,7 +30,7 @@ public sealed class AssignParticipantToTeamCommandHandler : IRequestHandler<Assi
     public async Task<Guid> Handle(AssignParticipantToTeamCommand request, CancellationToken cancellationToken)
     {
         var actor = await _currentActor.GetActorAsync(cancellationToken);
-        EnsureActorCanManageTeams(actor);
+        _accessPolicy.EnsureCanAccess(actor, ProtectedCapability.OperatorPanel);
 
         var team = await _teamRepository.GetByIdWithMembershipsAsync(request.TeamId, cancellationToken)
             ?? throw new NotFoundException(nameof(Team), request.TeamId);
@@ -48,20 +48,5 @@ public sealed class AssignParticipantToTeamCommandHandler : IRequestHandler<Assi
         await _teamRepository.UpdateAsync(team, cancellationToken);
 
         return membership.TeamMembershipId;
-    }
-
-    private void EnsureActorCanManageTeams(User actor)
-    {
-        var decision = _accessPolicy.Evaluate(actor, ProtectedCapability.OperatorPanel);
-
-        if (!actor.IsActive)
-        {
-            throw new DeactivatedUserAccessDeniedException(actor.Id);
-        }
-
-        if (!decision.IsAllowed)
-        {
-            throw new ForbiddenAccessException();
-        }
     }
 }
