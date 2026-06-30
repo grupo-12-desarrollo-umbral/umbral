@@ -27,7 +27,7 @@ public sealed class RegisterTeamCommandHandler : IRequestHandler<RegisterTeamCom
     public async Task<Guid> Handle(RegisterTeamCommand request, CancellationToken cancellationToken)
     {
         var actor = await _currentActor.GetActorAsync(cancellationToken);
-        EnsureActorCanManageTeams(actor);
+        _accessPolicy.EnsureCanAccess(actor, ProtectedCapability.OperatorPanel);
 
         var normalizedTeamCode = request.TeamCode.Trim();
 
@@ -41,20 +41,5 @@ public sealed class RegisterTeamCommandHandler : IRequestHandler<RegisterTeamCom
         await _teamRepository.AddAsync(team, cancellationToken);
 
         return team.TeamId;
-    }
-
-    private void EnsureActorCanManageTeams(User actor)
-    {
-        var decision = _accessPolicy.Evaluate(actor, ProtectedCapability.OperatorPanel);
-
-        if (!actor.IsActive)
-        {
-            throw new DeactivatedUserAccessDeniedException(actor.Id);
-        }
-
-        if (!decision.IsAllowed)
-        {
-            throw new UserRoleNotAuthorizedException(actor.Role, ProtectedCapability.OperatorPanel);
-        }
     }
 }

@@ -5,7 +5,6 @@ using umbral_backend.Application.Teams.Common;
 using umbral_backend.Application.Teams.Queries.GetTeams;
 using umbral_backend.Domain.Entities;
 using umbral_backend.Domain.Enums;
-using umbral_backend.Domain.Exceptions;
 using umbral_backend.Domain.Services;
 
 namespace umbral_backend.Application.Teams.Queries.GetTeams;
@@ -29,7 +28,7 @@ public sealed class GetTeamsQueryHandler : IRequestHandler<GetTeamsQuery, PagedR
     public async Task<PagedResult<TeamDto>> Handle(GetTeamsQuery request, CancellationToken cancellationToken)
     {
         var actor = await _currentActor.GetActorAsync(cancellationToken);
-        EnsureActorCanReadTeams(actor);
+        _accessPolicy.EnsureCanAccess(actor, ProtectedCapability.OperatorPanel);
 
         var teams = await _teamRepository.ListAsync(request.Page, request.PageSize, cancellationToken);
 
@@ -40,21 +39,6 @@ public sealed class GetTeamsQueryHandler : IRequestHandler<GetTeamsQuery, PagedR
             Page = teams.Page,
             PageSize = teams.PageSize
         };
-    }
-
-    private void EnsureActorCanReadTeams(User actor)
-    {
-        var decision = _accessPolicy.Evaluate(actor, ProtectedCapability.OperatorPanel);
-
-        if (!actor.IsActive)
-        {
-            throw new DeactivatedUserAccessDeniedException(actor.Id);
-        }
-
-        if (!decision.IsAllowed)
-        {
-            throw new UserRoleNotAuthorizedException(actor.Role, ProtectedCapability.OperatorPanel);
-        }
     }
 
     private static TeamDto Map(Team team)

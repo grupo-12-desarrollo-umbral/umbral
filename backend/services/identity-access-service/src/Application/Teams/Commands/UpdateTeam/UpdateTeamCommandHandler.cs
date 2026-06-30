@@ -27,7 +27,7 @@ public sealed class UpdateTeamCommandHandler : IRequestHandler<UpdateTeamCommand
     public async Task Handle(UpdateTeamCommand request, CancellationToken cancellationToken)
     {
         var actor = await _currentActor.GetActorAsync(cancellationToken);
-        EnsureActorCanManageTeams(actor);
+        _accessPolicy.EnsureCanAccess(actor, ProtectedCapability.OperatorPanel);
 
         var team = await _teamRepository.GetByIdAsync(request.TeamId, cancellationToken)
             ?? throw new NotFoundException(nameof(Team), request.TeamId);
@@ -42,20 +42,5 @@ public sealed class UpdateTeamCommandHandler : IRequestHandler<UpdateTeamCommand
         team.UpdateDetails(request.DisplayName, request.TeamCode);
 
         await _teamRepository.UpdateAsync(team, cancellationToken);
-    }
-
-    private void EnsureActorCanManageTeams(User actor)
-    {
-        var decision = _accessPolicy.Evaluate(actor, ProtectedCapability.OperatorPanel);
-
-        if (!actor.IsActive)
-        {
-            throw new DeactivatedUserAccessDeniedException(actor.Id);
-        }
-
-        if (!decision.IsAllowed)
-        {
-            throw new UserRoleNotAuthorizedException(actor.Role, ProtectedCapability.OperatorPanel);
-        }
     }
 }
