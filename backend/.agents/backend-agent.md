@@ -129,6 +129,22 @@ Realize it as a genuine structural pattern, not a rename:
   not one collapsed handler.
 - **`Facade` / `Strategy` / `Composite`** — per `docs/adr/0004-required-domain-patterns.md`.
 
+**Where each pattern goes, and how to tell a real one from ceremony:** place it in
+the canonical home for its layer per
+`docs/adr/0012-design-pattern-placement-convention.md` (e.g. `Composite`/`Strategy`/
+`State` → `Domain/`; `Facade`/`Proxy`/`CoR` → the Application slice or `<Area>/Common/`,
+never a `Handlers/`/`DTOs/`/`Facades/` bucket). Apply that ADR's genuine-vs-ceremony
+test: a `Proxy`/`Facade` that only forwards one call to one collaborator with no added
+guard/orchestration is the un-mandated `IService`/`IExecutor` ceremony to collapse, not
+the mandated pattern. Code-grounded examples per pattern:
+`docs/adr-0012-pattern-realizations-by-layer.md`.
+
+The full keep/cut catalogue — including shapes this section doesn't name (collapse
+`Id > 0` marker + base-validator combos and dead/0-consumer interfaces; no handler base
+classes; don't add `ICommand`/`IQuery` markers) — is
+`docs/refactors/application-layer-overengineering-checklist.md`. Apply it when building or
+refactoring Application slices.
+
 If the scope names a pattern you believe does not fit the use case, **stop and
 ask the driver** — do not silently drop it.
 

@@ -9,7 +9,7 @@ using umbral_backend.Application.Trivias.Commands.RetireTriviaQuiz;
 using umbral_backend.Application.Trivias.Commands.UpdateTriviaQuestion;
 using umbral_backend.Application.Trivias.Commands.UpdateTriviaQuiz;
 using umbral_backend.Application.Trivias.Common.Authoring;
-using umbral_backend.Application.Trivias.DTOs;
+using umbral_backend.Application.Trivias.Common;
 using umbral_backend.Application.Trivias.Queries.GetTriviaCatalog;
 using umbral_backend.Application.Trivias.Queries.GetTriviaDetail;
 

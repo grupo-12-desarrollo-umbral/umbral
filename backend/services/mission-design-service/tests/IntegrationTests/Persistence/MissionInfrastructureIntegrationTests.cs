@@ -5,9 +5,23 @@ using umbral_backend.Application.Missions.Common;
 using umbral_backend.Application.Missions.Commands.CreateMission;
 using umbral_backend.Application.Missions.Commands.DeactivateMission;
 using umbral_backend.Application.Missions.Commands.UpdateMission;
-using umbral_backend.Application.Missions.Handlers;
+using umbral_backend.Application.Missions.Commands.ActivateMission;
+using umbral_backend.Application.Missions.Commands.AddMissionNode;
+using umbral_backend.Application.Missions.Commands.AddTarget;
+using umbral_backend.Application.Missions.Commands.AssignSubstagePlayMode;
+using umbral_backend.Application.Missions.Commands.AssociateClueWithTarget;
+using umbral_backend.Application.Missions.Commands.RemoveMissionNode;
+using umbral_backend.Application.Missions.Commands.RemoveTarget;
+using umbral_backend.Application.Missions.Commands.SetTriviaQuizSelection;
+using umbral_backend.Application.Missions.Commands.UnassociateClueFromTarget;
+using umbral_backend.Application.Missions.Commands.UpdateMissionNode;
+using umbral_backend.Application.Missions.Commands.UpdateTarget;
+using umbral_backend.Application.Missions.Commands.UpdateTriviaQuizSelection;
+using umbral_backend.Application.Missions.Queries.GetDifficultyCatalog;
 using umbral_backend.Application.Missions.Queries.GetMissionCatalog;
 using umbral_backend.Application.Missions.Queries.GetMissionDetail;
+using umbral_backend.Application.Missions.Queries.GetMissionReadiness;
+using umbral_backend.Application.Missions.Queries.GetMissionRuntimePlan;
 using umbral_backend.Application.Trivias.Common.Authoring;
 using umbral_backend.Application.Trivias.Commands.AddTriviaQuestion;
 using umbral_backend.Application.Trivias.Commands.ArchiveTriviaQuiz;
@@ -18,7 +32,6 @@ using umbral_backend.Application.Trivias.Commands.PublishTriviaQuiz;
 using umbral_backend.Application.Trivias.Commands.RetireTriviaQuiz;
 using umbral_backend.Application.Trivias.Commands.UpdateTriviaQuestion;
 using umbral_backend.Application.Trivias.Commands.UpdateTriviaQuiz;
-using umbral_backend.Application.Trivias.Handlers;
 using umbral_backend.Application.Trivias.Queries.GetTriviaCatalog;
 using umbral_backend.Application.Trivias.Queries.GetTriviaDetail;
 using umbral_backend.Domain.Enums;
@@ -864,9 +877,7 @@ public sealed class MissionInfrastructureIntegrationTests : IClassFixture<Postgr
         await repository.AddAsync(sourceQuiz, CancellationToken.None);
 
         await using var actContext = BuildContext(new CapturingMediator(), new StubCurrentUser("admin-18"));
-        var handler = new DuplicateTriviaQuizCommandHandler(
-            new TriviaQuizRepository(actContext),
-            new StubClock(new DateTimeOffset(2026, 6, 3, 9, 30, 0, TimeSpan.Zero)));
+        var handler = new DuplicateTriviaQuizCommandHandler(new TriviaQuizRepository(actContext));
 
         var result = await handler.Handle(new DuplicateTriviaQuizCommand(sourceQuiz.Id), CancellationToken.None);
 

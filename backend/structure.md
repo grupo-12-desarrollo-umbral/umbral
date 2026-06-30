@@ -68,28 +68,25 @@ umbral-backend/
 │   │   │   │   │   ├── Commands/
 │   │   │   │   │   │   ├── Create<Entity>/
 │   │   │   │   │   │   │   ├── Create<Entity>Command.cs
+│   │   │   │   │   │   │   ├── Create<Entity>CommandHandler.cs    # handler co-located with its request (ADR-0011)
 │   │   │   │   │   │   │   └── Create<Entity>CommandValidator.cs
 │   │   │   │   │   │   ├── Update<Entity>/
 │   │   │   │   │   │   │   ├── Update<Entity>Command.cs
+│   │   │   │   │   │   │   ├── Update<Entity>CommandHandler.cs
 │   │   │   │   │   │   │   └── Update<Entity>CommandValidator.cs
 │   │   │   │   │   │   └── Delete<Entity>/
-│   │   │   │   │   │       └── Delete<Entity>Command.cs
+│   │   │   │   │   │       ├── Delete<Entity>Command.cs
+│   │   │   │   │   │       └── Delete<Entity>CommandHandler.cs
 │   │   │   │   │   ├── Queries/
 │   │   │   │   │   │   ├── Get<Entity>ById/
 │   │   │   │   │   │   │   ├── Get<Entity>ByIdQuery.cs
-│   │   │   │   │   │   │   └── <Entity>DetailsDto.cs
+│   │   │   │   │   │   │   ├── Get<Entity>ByIdQueryHandler.cs
+│   │   │   │   │   │   │   └── <Entity>DetailsDto.cs              # response model owned by the query that returns it
 │   │   │   │   │   │   └── Get<Entity>List/
 │   │   │   │   │   │       ├── Get<Entity>ListQuery.cs
+│   │   │   │   │   │       ├── Get<Entity>ListQueryHandler.cs
 │   │   │   │   │   │       └── <Entity>ListItemDto.cs
-│   │   │   │   │   ├── Handlers/
-│   │   │   │   │   │   ├── Create<Entity>CommandHandler.cs
-│   │   │   │   │   │   ├── Update<Entity>CommandHandler.cs
-│   │   │   │   │   │   ├── Delete<Entity>CommandHandler.cs
-│   │   │   │   │   │   ├── Get<Entity>ByIdQueryHandler.cs
-│   │   │   │   │   │   └── Get<Entity>ListQueryHandler.cs
-│   │   │   │   │   ├── DTOs/
-│   │   │   │   │   │   ├── <Entity>Dto.cs
-│   │   │   │   │   │   └── <Entity>SummaryDto.cs
+│   │   │   │   │   ├── Common/                                   # shared-by-≥2-slices mappers/guards + mandated patterns for this area (Proxy/Facade/Template Method/CoR) — see ADR-0004
 │   │   │   │   │   ├── Events/                                   # Optional application events
 │   │   │   │   │   │   └── <Entity>CreatedEvent.cs
 │   │   │   │   │   └── EventHandlers/                            # Optional application event handlers
@@ -279,13 +276,15 @@ Other services do not carry `Infrastructure/Identity/Keycloak/`. They read actor
 - Commands mutate state.
 - Queries read state.
 - One handler should handle one command or one query.
-- Request and handler files are intentionally separated in this baseline.
+- Each use case is a self-contained vertical slice: the request, its handler, and its validator live
+  together in one `Commands/<UseCase>/` or `Queries/<UseCase>/` folder. No `Handlers/` type-bucket (ADR-0011).
 
 ### DTOs
 
-- Shared application DTOs for an entity can live in `Application/<Entity>/DTOs/`.
-- Query-specific DTOs can live next to the query that owns them.
-- Keep whichever approach is chosen consistent inside each service.
+- A response DTO lives in the folder of the query (or command) that owns it.
+- A DTO genuinely shared by ≥2 slices of the same area lives in `Application/<Entity>/Common/`.
+- No `DTOs/` type-bucket (ADR-0011). Mandated-pattern implementations for the area also live in
+  `Application/<Entity>/Common/` — see ADR-0004.
 
 ### Events
 

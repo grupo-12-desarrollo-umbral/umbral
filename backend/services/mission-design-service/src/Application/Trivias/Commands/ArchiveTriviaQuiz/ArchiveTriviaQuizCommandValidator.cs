@@ -1,7 +1,10 @@
-using umbral_backend.Application.Trivias.Common.Lifecycle;
-
 namespace umbral_backend.Application.Trivias.Commands.ArchiveTriviaQuiz;
 
-public sealed class ArchiveTriviaQuizCommandValidator : TriviaQuizLifecycleCommandValidator<ArchiveTriviaQuizCommand>
+public sealed class ArchiveTriviaQuizCommandValidator : AbstractValidator<ArchiveTriviaQuizCommand>
 {
+    public ArchiveTriviaQuizCommandValidator()
+    {
+        RuleFor(command => command.Id)
+            .GreaterThan(0);
+    }
 }

@@ -1,7 +1,16 @@
 using umbral_backend.Application.Common.Exceptions;
 using umbral_backend.Application.Trivias.Commands.AddTriviaQuestion;
 using umbral_backend.Application.Trivias.Common.Authoring;
-using umbral_backend.Application.Trivias.Handlers;
+using umbral_backend.Application.Trivias.Commands.ArchiveTriviaQuiz;
+using umbral_backend.Application.Trivias.Commands.CreateTriviaQuiz;
+using umbral_backend.Application.Trivias.Commands.DeleteTriviaQuiz;
+using umbral_backend.Application.Trivias.Commands.DuplicateTriviaQuiz;
+using umbral_backend.Application.Trivias.Commands.PublishTriviaQuiz;
+using umbral_backend.Application.Trivias.Commands.RetireTriviaQuiz;
+using umbral_backend.Application.Trivias.Commands.UpdateTriviaQuestion;
+using umbral_backend.Application.Trivias.Commands.UpdateTriviaQuiz;
+using umbral_backend.Application.Trivias.Queries.GetTriviaCatalog;
+using umbral_backend.Application.Trivias.Queries.GetTriviaDetail;
 using umbral_backend.Application.UnitTests.Application.Trivias.TestDoubles;
 using umbral_backend.Domain.Entities;
 using umbral_backend.Domain.Exceptions;

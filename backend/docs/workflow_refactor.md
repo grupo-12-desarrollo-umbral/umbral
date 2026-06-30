@@ -135,6 +135,7 @@ Phases 5–6 may run in parallel once DES-24 lands.
 | 1 | DES-14 / DES-15 | HU-09 / 10A | Mission wrapper + composite + Target + optional Clue | **In progress; finish by hand** — Domain + Application already committed (`c561867`, `9eef83a`); only X.3 + X.4 remain. Do not re-run the pipeline from scratch. |
 | 2 | DES-22 | HU-15 | Create `LiveSession` from active mission; immutable snapshot | first full pipeline run |
 | 2b | DES-79 | HU-15 f/u | Archive-time enforcement: block/cascade when archiving a quiz referenced by an active mission | **deferred follow-up to phase 2** — blocked by DES-22; product decision + new quiz→mission inverse query required (see below). Not on the critical path; schedule any time after DES-22 lands. |
+| 2c | DES-80 | HU-14A f/u | `RemoveTriviaQuestion` command + question-removal domain slot + `TriviaQuestionRemoved` event | **deferred follow-up to HU-14A** — PRD minimum interface deferred out of HU-14A (no removal slot existed). **No open blocker** (HU-14A/DES-20 is Done); not a rebuild and not on the critical path — schedule any time (see below). |
 | 3 | DES-24 | HU-17 | Single mission source; drop "session from quiz" | rebuild |
 | 4 | DES-75 | HU-16 | Trivia selection as a Substage, not a session | rebuild (supersedes DES-23) |
 | 5 | DES-76 | HU-21A | State machine `Scheduled→Preparing→Active→Paused→Finished→Cancelled` | rebuild (supersedes DES-28) |
@@ -158,6 +159,25 @@ It is **gated**, so it is intentionally last in the order:
   or the canon ledger addendum before writing the final AC.
 - **Missing capability:** needs a quiz→mission inverse query that does not exist today
   (`IMissionRepository` is CRUD-only).
+
+## Deferred follow-up — DES-80 (RemoveTriviaQuestion)
+
+`RemoveTriviaQuestion` is a PRD (`DES-62`) minimum application interface that was
+**deliberately deferred** out of HU-14A because the `TriviaQuiz` aggregate had no
+per-question removal slot (only `AddQuestion` / `UpdateQuestion`). Unlike DES-79 it is
+**not gated** by any open decision — it is well-scoped and ready to run:
+
+- **No open blocker** — HU-14A (`DES-20`) is **Done**; this builds question removal on
+  top of that authoring baseline. Not a rebuild, not on the critical path → schedule any time.
+- **Net-new domain behavior** — `TriviaQuiz.RemoveQuestion` + `TriviaQuestionRemoved`
+  event + `sequenceOrder` reconciliation + published/archived edit guards, then the
+  `RemoveTriviaQuestionCommand` use case and `DELETE /trivia/{id}/questions/{qid}` endpoint.
+- **Pattern** — reuses the HU-14A `Template Method` authoring-validation workflow; no new
+  pattern, no handler base-class restoration.
+
+Run it through the standard per-ticket loop (generate → drive X.1→X.4 → close-out).
+Rationale recorded in `hu14a-context.md` ("Deferred scope — RemoveTriviaQuestion") and the
+`DES-62` PRD note.
 
 ## Open decisions blocking Phase 9 (resolve before starting it)
 

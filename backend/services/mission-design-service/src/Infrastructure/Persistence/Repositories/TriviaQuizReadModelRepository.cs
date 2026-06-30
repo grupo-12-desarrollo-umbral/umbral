@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using umbral_backend.Application.Common.Interfaces;
-using umbral_backend.Application.Trivias.DTOs;
+using umbral_backend.Application.Trivias.Common;
+using umbral_backend.Application.Trivias.Queries.GetTriviaCatalog;
 
 namespace umbral_backend.Infrastructure.Persistence.Repositories;
 

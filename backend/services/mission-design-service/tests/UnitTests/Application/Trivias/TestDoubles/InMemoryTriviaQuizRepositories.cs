@@ -1,5 +1,6 @@
 using umbral_backend.Application.Common.Interfaces;
-using umbral_backend.Application.Trivias.DTOs;
+using umbral_backend.Application.Trivias.Common;
+using umbral_backend.Application.Trivias.Queries.GetTriviaCatalog;
 using umbral_backend.Domain.Entities;
 using umbral_backend.Domain.Enums;
 

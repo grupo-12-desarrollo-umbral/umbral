@@ -133,10 +133,14 @@ generated scope (this is exactly how HU-01/02/03 shipped without `Proxy`).
 1. Read `backend/docs/trivia_sprint_required_patterns_matrix.md` — find the HU
    in the **HU → Pattern** table for its service. Record the mandated
    pattern(s) and the one-line "Why" from that row.
-2. Read `backend/docs/adr/0004-required-domain-patterns.md` for *where* each
-   pattern is expected to live (e.g. `Proxy` → role/policy-based access guards
-   in the service and presentation layers; `State` → `LiveSession` lifecycle;
-   `Strategy` → scoring/progression policies; etc.).
+2. Read `backend/docs/adr/0004-required-domain-patterns.md` for *which* pattern is
+   mandatory and *why* (e.g. `Proxy` → role/policy-based access guards; `State` →
+   `LiveSession` lifecycle; `Strategy` → scoring/progression policies; etc.). For
+   *where* each pattern physically lives by layer — the canonical home that the
+   brief's "Required pattern(s)" section must carry to the driver — read
+   `backend/docs/adr/0012-design-pattern-placement-convention.md` (canonical-home
+   table + genuine-vs-ceremony test), with code-grounded examples in
+   `backend/docs/adr-0012-pattern-realizations-by-layer.md`.
 3. Map each mandated pattern to the phase(s) that must realize it:
 
    | Pattern | Typically lands in phase | Concrete obligation |
@@ -219,7 +223,10 @@ came from.** Derive only what this HU touches — do not transcribe whole entiti
 
 Follow the structure of `backend/docs/hu09-context.md` exactly — it is the
 current exemplar and the only context file that carries the **Per-phase
-derivation** section. Produce all of these sections:
+derivation** section. **Follow it for section structure only:** its
+`Application/<Area>/{Handlers,DTOs}` type-bucket paths and `MissionCommandHandlerBase`
+predate ADR-0011 and must **not** be reproduced — derive target-file paths in the
+vertical-slice layout (Constraint 11). Produce all of these sections:
 
 - **State block** — DES-N status + labels, **resolved mode** (feature flow /
   realignment-rebuild, from resolution step 1) and, if superseded handling
@@ -265,7 +272,8 @@ derivation** section. Produce all of these sections:
 Follow the structure of `backend/docs/prompt_example_feature_hu09.md` exactly —
 it is the current exemplar; its Steps 5–8 are the thin, derivation-referencing
 shape (point at the `hu<NN>-context.md` X.N block + gate + commit, no inline
-scope). Produce these sections:
+scope). Same caveat as the context exemplar: follow it for *shape*, not for any
+pre-ADR-0011 bucket/base-handler paths it lists (Constraint 11). Produce these sections:
 
 | Section | Content |
 |---|---|
@@ -481,3 +489,14 @@ because that is the path that mutates approved content.
     in 9b is a defect — it duplicates what the plan owns and drifts from it. 9b
     must also halt at any increment the plan flags blocked on an Open Question
     rather than inventing the blocked behaviour.
+11. Target-file layout follows the ADR-0011 vertical-slice convention (canon:
+    `structure.md` — "No `Handlers/` / `DTOs/` type-bucket"). Co-locate each
+    handler + its owned DTO + validator in `Commands/<UseCase>/` or
+    `Queries/<UseCase>/`; shared-by-≥2-slices helpers/mappers/guards and mandated
+    patterns go in `<Area>/Common/`. **Never** emit a `Handlers/` / `DTOs/` /
+    `Facades/` type-bucket or a handler base class (`*CommandHandlerBase`) — the
+    `hu09-*` exemplars predate this and must be mirrored for section structure,
+    not paths. Apply the cut rules in
+    `docs/refactors/application-layer-overengineering-checklist.md` (kill `Id > 0`
+    marker/base-validator combos and dead interfaces; keep mandated ADR-0004
+    patterns).
