@@ -3,7 +3,7 @@ using umbral_backend.Application.Missions.Commands.RemoveTarget;
 using umbral_backend.Application.Missions.Commands.UnassociateClueFromTarget;
 using umbral_backend.Application.Missions.Commands.UpdateMissionNode;
 using umbral_backend.Application.Missions.Commands.UpdateTarget;
-using umbral_backend.Application.Missions.Commands.UpdateTriviaQuizSelection;
+using umbral_backend.Application.Missions.Commands.SelectTriviaQuiz;
 
 namespace umbral_backend.Application.UnitTests.Application.Missions.Commands;
 
@@ -135,8 +135,8 @@ public sealed class MissionMutationValidatorsTests
     [Fact]
     public void UpdateTriviaQuizSelection_ValidCommand_PassesValidation()
     {
-        var result = new UpdateTriviaQuizSelectionCommandValidator()
-            .Validate(new UpdateTriviaQuizSelectionCommand(1, 2, 3, 4));
+        var result = new SelectTriviaQuizCommandValidator()
+            .Validate(new SelectTriviaQuizCommand(1, 2, 3, 4));
 
         result.IsValid.Should().BeTrue();
     }
@@ -144,11 +144,11 @@ public sealed class MissionMutationValidatorsTests
     [Fact]
     public void UpdateTriviaQuizSelection_ZeroIds_FailsValidation()
     {
-        var result = new UpdateTriviaQuizSelectionCommandValidator()
-            .Validate(new UpdateTriviaQuizSelectionCommand(0, 0, 0, 0));
+        var result = new SelectTriviaQuizCommandValidator()
+            .Validate(new SelectTriviaQuizCommand(0, 0, 0, 0));
 
-        result.Errors.Should().Contain(e => e.PropertyName == nameof(UpdateTriviaQuizSelectionCommand.MissionId));
-        result.Errors.Should().Contain(e => e.PropertyName == nameof(UpdateTriviaQuizSelectionCommand.TriviaQuizId));
+        result.Errors.Should().Contain(e => e.PropertyName == nameof(SelectTriviaQuizCommand.MissionId));
+        result.Errors.Should().Contain(e => e.PropertyName == nameof(SelectTriviaQuizCommand.TriviaQuizId));
     }
 
     // ── UnassociateClueFromTarget ─────────────────────────────────────────────

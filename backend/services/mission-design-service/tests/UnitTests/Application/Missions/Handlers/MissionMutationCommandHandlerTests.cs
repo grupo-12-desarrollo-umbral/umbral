@@ -4,14 +4,13 @@ using umbral_backend.Application.Missions.Commands.RemoveMissionNode;
 using umbral_backend.Application.Missions.Commands.RemoveTarget;
 using umbral_backend.Application.Missions.Commands.UpdateMissionNode;
 using umbral_backend.Application.Missions.Commands.UpdateTarget;
-using umbral_backend.Application.Missions.Commands.UpdateTriviaQuizSelection;
+using umbral_backend.Application.Missions.Commands.SelectTriviaQuiz;
 using umbral_backend.Application.Missions.Commands.ActivateMission;
 using umbral_backend.Application.Missions.Commands.AddMissionNode;
 using umbral_backend.Application.Missions.Commands.AddTarget;
 using umbral_backend.Application.Missions.Commands.AssociateClueWithTarget;
 using umbral_backend.Application.Missions.Commands.CreateMission;
 using umbral_backend.Application.Missions.Commands.DeactivateMission;
-using umbral_backend.Application.Missions.Commands.SetTriviaQuizSelection;
 using umbral_backend.Application.Missions.Commands.UnassociateClueFromTarget;
 using umbral_backend.Application.Missions.Commands.UpdateMission;
 using umbral_backend.Application.Missions.Queries.GetDifficultyCatalog;
@@ -355,10 +354,10 @@ public sealed class MissionMutationCommandHandlerTests
         var newQuiz = CreatePublishedTriviaQuiz();
         quizRepository.Seed(newQuiz);
 
-        var handler = new UpdateTriviaQuizSelectionCommandHandler(missionRepository, quizRepository);
+        var handler = new SelectTriviaQuizCommandHandler(missionRepository, quizRepository);
 
         var result = await handler.Handle(
-            new UpdateTriviaQuizSelectionCommand(mission.Id, stage.Id, substage.Id, newQuiz.Id),
+            new SelectTriviaQuizCommand(mission.Id, stage.Id, substage.Id, newQuiz.Id),
             CancellationToken.None);
 
         result.Stages!.Single().Substages!.Single().TriviaQuizSelection!.TriviaQuizId.Should().Be(newQuiz.Id);
@@ -379,10 +378,10 @@ public sealed class MissionMutationCommandHandlerTests
         var draftQuiz = TriviaQuiz.Create("Draft", "Description", [CreateTriviaQuestion()]);
         quizRepository.Seed(draftQuiz);
 
-        var handler = new UpdateTriviaQuizSelectionCommandHandler(missionRepository, quizRepository);
+        var handler = new SelectTriviaQuizCommandHandler(missionRepository, quizRepository);
 
         var act = () => handler.Handle(
-            new UpdateTriviaQuizSelectionCommand(mission.Id, stage.Id, substage.Id, draftQuiz.Id),
+            new SelectTriviaQuizCommand(mission.Id, stage.Id, substage.Id, draftQuiz.Id),
             CancellationToken.None);
 
         await act.Should().ThrowAsync<ValidationException>();
