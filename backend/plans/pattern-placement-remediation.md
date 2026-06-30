@@ -1,6 +1,6 @@
 # Plan: Align partial-pattern tickets to ADR-0012 placement convention
 
-**Status:** Proposed
+**Status:** Done (2026-06-30) — HU-10A resolved via matrix correction; HU-01 / HU-12 / HU-13 / HU-07A / HU-07B confirmed as intentional no-ops and recorded (rationale stamps below; per-HU notes also landed in the respective `hu*-context.md` "Known quirks" sections). No code changes. The next backlog validation should treat these five as settled.
 **Scope:** `identity-access-service`, `session-operations-service`, `mission-design-service`
 **Goal:** Resolve the five DONE tickets whose mandated design pattern is present in *behavior* but off-convention in *placement/realization* per [ADR-0012](../docs/adr/0012-design-pattern-placement-convention.md). Each item below is either a concrete placement fix, a fix gated on a canon decision, or a deliberate no-op recorded so it stops resurfacing in reviews.
 
@@ -54,6 +54,8 @@ public Task<…> Handle(cmd, ct) {
 **Cost if unfixed.** Low. The forwarding pair that ADR-0012 actually flagged is already gone, so there's nothing rotting and no `structure-guard` blind spot left here. The only residue is a cosmetic inconsistency with the other slices' `*AuthorizationProxy` shape — and ADR-0012 itself sanctions in-place guards when the decision needs the entity.
 
 **Action.** Confirm the access decision genuinely depends on the provisioned `user` (it does, via `IsActive`). If confirmed → **record as intentionally inline**; no proxy. Revisit only if the active-check moves to a pre-provision gateway claim.
+
+**Resolved (2026-06-30) — intentionally inline, no proxy.** Confirmed: the decision reads `user.IsActive`, which only exists after `SynchronizeOrCreate` provisions the entity, so shape (a) can't guard before delegating without duplicating provisioning. The forwarding Api-layer pair ADR-0012 flagged is already gone. No code. (HU-01 has no `hu01-context.md`; this section is the durable record.)
 
 ---
 
@@ -135,6 +137,8 @@ public abstract class TriviaQuizLifecycleCommandValidator<T> : AbstractValidator
 
 **Action.** Confirm there is no genuine shared validation across the lifecycle slices (and separately the reuse slices). If confirmed → **record as deliberately Domain-only** (the readiness skeleton lives in the domain template; the app validators are intentionally trivial). Add app-layer base validators **only if** real shared rules emerge.
 
+**Resolved (2026-06-30) — deliberately Domain-only.** Confirmed: lifecycle/reuse command validators are one `NotEmpty` rule each; no shared skeleton exists to template, so an app-layer base would be the ceremony ADR-0012 says to collapse. Genuine `Template Method` lives in the domain templates. No code. Recorded in `hu12-context.md` and `hu13-context.md`.
+
 ---
 
 ## 5. HU-07A / HU-07B — local Proxy vs. domain policy (decide; likely no-op)
@@ -168,6 +172,8 @@ public Task Handle(cmd, ct) {
 
 **Action.** Confirm the cross-service guard fully covers the access decision and `JoinPolicy` is purely domain admission. If confirmed → **record as intentional**: access guarded by the identity-access proxy; local rules are domain policy by design. No local proxy added.
 
+**Resolved (2026-06-30) — intentional; no local proxy.** Confirmed: the access decision is owned upstream by identity-access's genuine `ParticipantMembershipAccessAuthorizationProxy` (HU-06 PASS), and local `JoinPolicy` is pure domain admission. A local proxy would only relocate the existing cross-service call. No code. Recorded in `hu07a-context.md` and `hu07b-context.md`.
+
 ---
 
 ## 6. Execution order
@@ -175,7 +181,7 @@ public Task Handle(cmd, ct) {
 No item is an unconditional code change. In priority order:
 
 1. **HU-10A — done via (B).** `required_patterns_matrix.md:88` (and the ADR-0004 responsibility row, line 24) corrected to describe `Target` as TreasureHunt play-content, not a node. Code unchanged. Pick (A) only on an explicit product call that QR targets must be tree-traversable — then a separate ticket carries the `Name→Title` migration + sequence-ordering decision (§3). *(Optional follow-up: a one-line note on ADR-0012's Composite row.)*
-2. **HU-01, HU-12/13, HU-07A/B** — confirm-and-record passes; produce a short rationale paragraph each (here or in the HU context docs) so the next validation run doesn't re-flag them. Each §2/§4/§5 above already states the confirmation to make and why the "fix" is a no-op or net-negative. **No code** unless a confirmation fails.
+2. **HU-01, HU-12/13, HU-07A/B — done.** Confirmed and recorded: rationale stamps in §2/§4/§5 above, plus per-HU "Known quirks" notes in `hu07a-context.md`, `hu07b-context.md`, `hu12-context.md`, `hu13-context.md` (HU-01 has no context doc → §2 is its record). All four confirmations held; **no code** changed. Next validation run should treat them as settled.
 
 ---
 
