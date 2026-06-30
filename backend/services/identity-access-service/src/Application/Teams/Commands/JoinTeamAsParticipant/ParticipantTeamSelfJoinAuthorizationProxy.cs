@@ -8,32 +8,23 @@ namespace umbral_backend.Application.Teams.Commands.JoinTeamAsParticipant;
 
 public sealed class ParticipantTeamSelfJoinAuthorizationProxy : IJoinTeamAsParticipantService
 {
-    private readonly IUserRepository _userRepository;
-    private readonly ICurrentUser _currentUser;
+    private readonly ICurrentActor _currentActor;
     private readonly AccessPolicy _accessPolicy;
     private readonly IJoinTeamAsParticipantService _inner;
 
     public ParticipantTeamSelfJoinAuthorizationProxy(
-        IUserRepository userRepository,
-        ICurrentUser currentUser,
+        ICurrentActor currentActor,
         AccessPolicy accessPolicy,
         IJoinTeamAsParticipantService inner)
     {
-        _userRepository = userRepository;
-        _currentUser = currentUser;
+        _currentActor = currentActor;
         _accessPolicy = accessPolicy;
         _inner = inner;
     }
 
     public async Task<Guid> JoinAsync(JoinTeamAsParticipantCommand command, CancellationToken cancellationToken)
     {
-        if (string.IsNullOrWhiteSpace(_currentUser.Id))
-        {
-            throw new UnauthorizedAccessException();
-        }
-
-        var actor = await _userRepository.GetByExternalIdentityIdAsync(_currentUser.Id, cancellationToken)
-            ?? throw new NotFoundException(nameof(User), _currentUser.Id);
+        var actor = await _currentActor.GetActorAsync(cancellationToken);
 
         _accessPolicy.EnsureCanAccess(actor, ProtectedCapability.ParticipantExperience);
 

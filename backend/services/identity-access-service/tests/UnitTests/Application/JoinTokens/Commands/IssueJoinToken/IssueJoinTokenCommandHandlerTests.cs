@@ -72,25 +72,20 @@ public sealed class IssueJoinTokenCommandHandlerTests
         Mock<IJoinTokenTokenService> tokenService,
         TimeProvider timeProvider)
     {
-        var userRepository = new Mock<IUserRepository>();
-        userRepository
-            .Setup(repository => repository.GetByExternalIdentityIdAsync(actor.ExternalIdentityId, It.IsAny<CancellationToken>()))
+        var currentActor = new Mock<ICurrentActor>();
+        currentActor
+            .Setup(a => a.GetActorAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(actor);
-
-        var currentUser = new Mock<ICurrentUser>();
-        currentUser.SetupGet(user => user.Id).Returns(actor.ExternalIdentityId);
 
         var executor = new JoinTokenIssuanceService(
             joinTokenRepository.Object,
-            userRepository.Object,
-            currentUser.Object,
+            currentActor.Object,
             tokenService.Object,
             new JoinTokenPolicy(),
             timeProvider);
 
         var proxy = new JoinTokenIssuanceAuthorizationProxy(
-            userRepository.Object,
-            currentUser.Object,
+            currentActor.Object,
             new AccessPolicy(),
             executor);
 

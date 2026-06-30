@@ -25,8 +25,7 @@ public sealed class RegisterTeamCommandHandlerTests
             .Callback<Team, CancellationToken>((team, _) => addedTeam = team)
             .Returns(Task.CompletedTask);
 
-        var userRepository = CreateUserRepository(actor);
-        var handler = CreateRegisterHandler(teamRepository, userRepository, actor.ExternalIdentityId);
+        var handler = CreateRegisterHandler(teamRepository, CreateCurrentActor(actor));
 
         var teamId = await handler.Handle(new RegisterTeamCommand("Red Team", "RED-01"), CancellationToken.None);
 
@@ -54,7 +53,7 @@ public sealed class RegisterTeamCommandHandlerTests
             .Callback<Team, CancellationToken>((team, _) => addedTeam = team)
             .Returns(Task.CompletedTask);
 
-        var handler = CreateRegisterHandler(teamRepository, CreateUserRepository(actor), actor.ExternalIdentityId);
+        var handler = CreateRegisterHandler(teamRepository, CreateCurrentActor(actor));
 
         var teamId = await handler.Handle(new RegisterTeamCommand("Red Team", "RED-01"), CancellationToken.None);
 
@@ -74,7 +73,7 @@ public sealed class RegisterTeamCommandHandlerTests
             .Setup(repo => repo.TeamCodeExistsAsync("RED-01", null, It.IsAny<CancellationToken>()))
             .ReturnsAsync(true);
 
-        var handler = CreateRegisterHandler(teamRepository, CreateUserRepository(actor), actor.ExternalIdentityId);
+        var handler = CreateRegisterHandler(teamRepository, CreateCurrentActor(actor));
 
         var act = async () => await handler.Handle(new RegisterTeamCommand("Red Team", "RED-01"), CancellationToken.None);
 
@@ -93,7 +92,7 @@ public sealed class RegisterTeamCommandHandlerTests
             .Setup(repo => repo.TeamCodeExistsAsync("RED-01", null, It.IsAny<CancellationToken>()))
             .ReturnsAsync(false);
 
-        var handler = CreateRegisterHandler(teamRepository, CreateUserRepository(actor), actor.ExternalIdentityId);
+        var handler = CreateRegisterHandler(teamRepository, CreateCurrentActor(actor));
 
         var act = async () => await handler.Handle(new RegisterTeamCommand(" ", "RED-01"), CancellationToken.None);
 
@@ -105,7 +104,7 @@ public sealed class RegisterTeamCommandHandlerTests
     public async Task Handle_RejectsParticipantCaller()
     {
         var actor = CreateUser(1, "kc-participant", Role.Participant);
-        var handler = CreateRegisterHandler(new Mock<ITeamRepository>(), CreateUserRepository(actor), actor.ExternalIdentityId);
+        var handler = CreateRegisterHandler(new Mock<ITeamRepository>(), CreateCurrentActor(actor));
 
         var act = async () => await handler.Handle(new RegisterTeamCommand("Red Team", "RED-01"), CancellationToken.None);
 
@@ -115,8 +114,7 @@ public sealed class RegisterTeamCommandHandlerTests
     [Fact]
     public async Task Handle_RejectsMissingCurrentUserIdentity()
     {
-        var actor = CreateUser(1, "kc-admin", Role.Administrator);
-        var handler = CreateRegisterHandler(new Mock<ITeamRepository>(), CreateUserRepository(actor), null);
+        var handler = CreateRegisterHandler(new Mock<ITeamRepository>(), UnauthorizedActor());
 
         var act = async () => await handler.Handle(new RegisterTeamCommand("Red Team", "RED-01"), CancellationToken.None);
 
@@ -125,27 +123,32 @@ public sealed class RegisterTeamCommandHandlerTests
 
     private static RegisterTeamCommandHandler CreateRegisterHandler(
         Mock<ITeamRepository> teamRepository,
-        Mock<IUserRepository> userRepository,
-        string? currentUserId)
+        Mock<ICurrentActor> currentActor)
     {
-        var currentUser = new Mock<ICurrentUser>();
-        currentUser.SetupGet(user => user.Id).Returns(currentUserId);
-
         return new RegisterTeamCommandHandler(
             teamRepository.Object,
-            userRepository.Object,
-            currentUser.Object,
+            currentActor.Object,
             new AccessPolicy());
     }
 
-    private static Mock<IUserRepository> CreateUserRepository(User actor)
+    private static Mock<ICurrentActor> CreateCurrentActor(User actor)
     {
-        var repository = new Mock<IUserRepository>();
-        repository
-            .Setup(repo => repo.GetByExternalIdentityIdAsync(actor.ExternalIdentityId, It.IsAny<CancellationToken>()))
+        var currentActor = new Mock<ICurrentActor>();
+        currentActor
+            .Setup(a => a.GetActorAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(actor);
 
-        return repository;
+        return currentActor;
+    }
+
+    private static Mock<ICurrentActor> UnauthorizedActor()
+    {
+        var currentActor = new Mock<ICurrentActor>();
+        currentActor
+            .Setup(a => a.GetActorAsync(It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new UnauthorizedAccessException());
+
+        return currentActor;
     }
 
     private static User CreateUser(int id, string externalIdentityId, Role role)

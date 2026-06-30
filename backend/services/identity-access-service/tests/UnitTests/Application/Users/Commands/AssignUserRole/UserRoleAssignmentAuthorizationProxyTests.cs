@@ -14,13 +14,11 @@ public sealed class UserRoleAssignmentAuthorizationProxyTests
     public async Task AssignAsync_WithAdministratorActor_DelegatesToInnerService()
     {
         var actor = CreateUser(1, "kc-admin", Role.Administrator);
-        var repository = CreateRepository(actor);
-        var currentUser = CreateCurrentUser(actor.ExternalIdentityId);
+        var currentActor = CreateCurrentActor(actor);
         var inner = new Mock<IUserRoleAssignmentService>();
 
         var proxy = new UserRoleAssignmentAuthorizationProxy(
-            repository.Object,
-            currentUser.Object,
+            currentActor.Object,
             new AccessPolicy(),
             inner.Object);
 
@@ -34,13 +32,14 @@ public sealed class UserRoleAssignmentAuthorizationProxyTests
     [Fact]
     public async Task AssignAsync_WithoutTrustedActorIdentity_RejectsBeforeDelegating()
     {
-        var repository = new Mock<IUserRepository>();
-        var currentUser = CreateCurrentUser(null);
+        var currentActor = new Mock<ICurrentActor>();
+        currentActor
+            .Setup(a => a.GetActorAsync(It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new UnauthorizedAccessException());
         var inner = new Mock<IUserRoleAssignmentService>();
 
         var proxy = new UserRoleAssignmentAuthorizationProxy(
-            repository.Object,
-            currentUser.Object,
+            currentActor.Object,
             new AccessPolicy(),
             inner.Object);
 
@@ -54,13 +53,11 @@ public sealed class UserRoleAssignmentAuthorizationProxyTests
     public async Task AssignAsync_WithNonAdministratorActor_RejectsBeforeDelegating()
     {
         var actor = CreateUser(1, "kc-operator", Role.Operator);
-        var repository = CreateRepository(actor);
-        var currentUser = CreateCurrentUser(actor.ExternalIdentityId);
+        var currentActor = CreateCurrentActor(actor);
         var inner = new Mock<IUserRoleAssignmentService>();
 
         var proxy = new UserRoleAssignmentAuthorizationProxy(
-            repository.Object,
-            currentUser.Object,
+            currentActor.Object,
             new AccessPolicy(),
             inner.Object);
 
@@ -76,13 +73,11 @@ public sealed class UserRoleAssignmentAuthorizationProxyTests
         var actor = CreateUser(1, "kc-admin", Role.Administrator);
         actor.DeactivateAccess();
 
-        var repository = CreateRepository(actor);
-        var currentUser = CreateCurrentUser(actor.ExternalIdentityId);
+        var currentActor = CreateCurrentActor(actor);
         var inner = new Mock<IUserRoleAssignmentService>();
 
         var proxy = new UserRoleAssignmentAuthorizationProxy(
-            repository.Object,
-            currentUser.Object,
+            currentActor.Object,
             new AccessPolicy(),
             inner.Object);
 
@@ -95,17 +90,14 @@ public sealed class UserRoleAssignmentAuthorizationProxyTests
     [Fact]
     public async Task AssignAsync_WhenActorIsMissing_RejectsBeforeDelegating()
     {
-        var repository = new Mock<IUserRepository>();
-        repository
-            .Setup(repo => repo.GetByExternalIdentityIdAsync("kc-missing", It.IsAny<CancellationToken>()))
-            .ReturnsAsync((User?)null);
-
-        var currentUser = CreateCurrentUser("kc-missing");
+        var currentActor = new Mock<ICurrentActor>();
+        currentActor
+            .Setup(a => a.GetActorAsync(It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new NotFoundException(nameof(User), "kc-missing"));
         var inner = new Mock<IUserRoleAssignmentService>();
 
         var proxy = new UserRoleAssignmentAuthorizationProxy(
-            repository.Object,
-            currentUser.Object,
+            currentActor.Object,
             new AccessPolicy(),
             inner.Object);
 
@@ -115,20 +107,13 @@ public sealed class UserRoleAssignmentAuthorizationProxyTests
         inner.Verify(service => service.AssignAsync(It.IsAny<AssignUserRoleCommand>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
-    private static Mock<IUserRepository> CreateRepository(User actor)
+    private static Mock<ICurrentActor> CreateCurrentActor(User actor)
     {
-        var repository = new Mock<IUserRepository>();
-        repository
-            .Setup(repo => repo.GetByExternalIdentityIdAsync(actor.ExternalIdentityId, It.IsAny<CancellationToken>()))
+        var currentActor = new Mock<ICurrentActor>();
+        currentActor
+            .Setup(a => a.GetActorAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(actor);
-        return repository;
-    }
-
-    private static Mock<ICurrentUser> CreateCurrentUser(string? id)
-    {
-        var currentUser = new Mock<ICurrentUser>();
-        currentUser.SetupGet(user => user.Id).Returns(id);
-        return currentUser;
+        return currentActor;
     }
 
     private static User CreateUser(int id, string externalIdentityId, Role role)

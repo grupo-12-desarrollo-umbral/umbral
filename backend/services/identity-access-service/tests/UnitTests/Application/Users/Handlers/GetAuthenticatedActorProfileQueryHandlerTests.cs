@@ -10,15 +10,12 @@ public sealed class GetAuthenticatedActorProfileQueryHandlerTests
     [Fact]
     public async Task Handle_ReturnsCurrentAuthenticatedActorProfile()
     {
-        var currentUser = new Mock<ICurrentUser>();
-        currentUser.SetupGet(user => user.Id).Returns("kc-010");
-
-        var repository = new Mock<IUserRepository>();
-        repository
-            .Setup(repo => repo.GetByExternalIdentityIdAsync("kc-010", It.IsAny<CancellationToken>()))
+        var currentActor = new Mock<ICurrentActor>();
+        currentActor
+            .Setup(a => a.GetActorAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(User.Provision("kc-010", "Jane Doe", "jane@example.com", global::umbral_backend.Domain.Enums.Role.Operator));
 
-        var handler = new GetAuthenticatedActorProfileQueryHandler(repository.Object, currentUser.Object);
+        var handler = new GetAuthenticatedActorProfileQueryHandler(currentActor.Object);
 
         var result = await handler.Handle(new GetAuthenticatedActorProfileQuery(), CancellationToken.None);
 
@@ -32,11 +29,12 @@ public sealed class GetAuthenticatedActorProfileQueryHandlerTests
     [Fact]
     public async Task Handle_RejectsMissingCurrentUserIdentity()
     {
-        var currentUser = new Mock<ICurrentUser>();
-        currentUser.SetupGet(user => user.Id).Returns((string?)null);
+        var currentActor = new Mock<ICurrentActor>();
+        currentActor
+            .Setup(a => a.GetActorAsync(It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new UnauthorizedAccessException());
 
-        var repository = new Mock<IUserRepository>();
-        var handler = new GetAuthenticatedActorProfileQueryHandler(repository.Object, currentUser.Object);
+        var handler = new GetAuthenticatedActorProfileQueryHandler(currentActor.Object);
 
         var act = async () => await handler.Handle(new GetAuthenticatedActorProfileQuery(), CancellationToken.None);
 
@@ -46,15 +44,12 @@ public sealed class GetAuthenticatedActorProfileQueryHandlerTests
     [Fact]
     public async Task Handle_ThrowsWhenProvisionedUserDoesNotExist()
     {
-        var currentUser = new Mock<ICurrentUser>();
-        currentUser.SetupGet(user => user.Id).Returns("kc-missing");
+        var currentActor = new Mock<ICurrentActor>();
+        currentActor
+            .Setup(a => a.GetActorAsync(It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new NotFoundException(nameof(User), "kc-missing"));
 
-        var repository = new Mock<IUserRepository>();
-        repository
-            .Setup(repo => repo.GetByExternalIdentityIdAsync("kc-missing", It.IsAny<CancellationToken>()))
-            .ReturnsAsync((User?)null);
-
-        var handler = new GetAuthenticatedActorProfileQueryHandler(repository.Object, currentUser.Object);
+        var handler = new GetAuthenticatedActorProfileQueryHandler(currentActor.Object);
 
         var act = async () => await handler.Handle(new GetAuthenticatedActorProfileQuery(), CancellationToken.None);
 

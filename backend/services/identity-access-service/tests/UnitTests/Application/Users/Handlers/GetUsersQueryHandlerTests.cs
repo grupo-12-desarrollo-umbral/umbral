@@ -18,13 +18,10 @@ public sealed class GetUsersQueryHandlerTests
         var listedUser = User.Provision("kc-admin", "Admin", "admin@example.com", Role.Administrator);
         listedUser.Id = 7;
 
-        var currentUser = new Mock<ICurrentUser>();
-        currentUser.SetupGet(user => user.Id).Returns("kc-admin");
+        var currentActor = new Mock<ICurrentActor>();
+        currentActor.Setup(a => a.GetActorAsync(It.IsAny<CancellationToken>())).ReturnsAsync(actor);
 
         var repository = new Mock<IUserRepository>();
-        repository
-            .Setup(repo => repo.GetByExternalIdentityIdAsync("kc-admin", It.IsAny<CancellationToken>()))
-            .ReturnsAsync(actor);
         repository
             .Setup(repo => repo.ListAsync(2, 10, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new PagedResult<User>
@@ -35,7 +32,7 @@ public sealed class GetUsersQueryHandlerTests
                 PageSize = 10
             });
 
-        var handler = new GetUsersQueryHandler(repository.Object, currentUser.Object, new AccessPolicy());
+        var handler = new GetUsersQueryHandler(repository.Object, currentActor.Object, new AccessPolicy());
 
         var result = await handler.Handle(new GetUsersQuery(2, 10), CancellationToken.None);
 
@@ -54,15 +51,12 @@ public sealed class GetUsersQueryHandlerTests
         actor.Id = 2;
         actor.DeactivateAccess();
 
-        var currentUser = new Mock<ICurrentUser>();
-        currentUser.SetupGet(user => user.Id).Returns("kc-admin");
+        var currentActor = new Mock<ICurrentActor>();
+        currentActor.Setup(a => a.GetActorAsync(It.IsAny<CancellationToken>())).ReturnsAsync(actor);
 
         var repository = new Mock<IUserRepository>();
-        repository
-            .Setup(repo => repo.GetByExternalIdentityIdAsync("kc-admin", It.IsAny<CancellationToken>()))
-            .ReturnsAsync(actor);
 
-        var handler = new GetUsersQueryHandler(repository.Object, currentUser.Object, new AccessPolicy());
+        var handler = new GetUsersQueryHandler(repository.Object, currentActor.Object, new AccessPolicy());
 
         var act = async () => await handler.Handle(new GetUsersQuery(), CancellationToken.None);
 
@@ -78,13 +72,10 @@ public sealed class GetUsersQueryHandlerTests
         var listedUser = User.Provision("kc-admin", "Admin", "admin@example.com", Role.Administrator);
         listedUser.Id = 7;
 
-        var currentUser = new Mock<ICurrentUser>();
-        currentUser.SetupGet(user => user.Id).Returns("kc-operator");
+        var currentActor = new Mock<ICurrentActor>();
+        currentActor.Setup(a => a.GetActorAsync(It.IsAny<CancellationToken>())).ReturnsAsync(actor);
 
         var repository = new Mock<IUserRepository>();
-        repository
-            .Setup(repo => repo.GetByExternalIdentityIdAsync("kc-operator", It.IsAny<CancellationToken>()))
-            .ReturnsAsync(actor);
         repository
             .Setup(repo => repo.ListAsync(1, 20, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new PagedResult<User>
@@ -95,7 +86,7 @@ public sealed class GetUsersQueryHandlerTests
                 PageSize = 20
             });
 
-        var handler = new GetUsersQueryHandler(repository.Object, currentUser.Object, new AccessPolicy());
+        var handler = new GetUsersQueryHandler(repository.Object, currentActor.Object, new AccessPolicy());
 
         var result = await handler.Handle(new GetUsersQuery(), CancellationToken.None);
 

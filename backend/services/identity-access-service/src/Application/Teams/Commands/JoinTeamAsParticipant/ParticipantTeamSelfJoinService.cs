@@ -9,33 +9,24 @@ public sealed class ParticipantTeamSelfJoinService : IJoinTeamAsParticipantServi
 {
     private readonly ILiveSessionReferenceRepository _liveSessionReferenceRepository;
     private readonly ITeamRepository _teamRepository;
-    private readonly IUserRepository _userRepository;
-    private readonly ICurrentUser _currentUser;
+    private readonly ICurrentActor _currentActor;
     private readonly ParticipantSessionMembershipPolicy _membershipPolicy;
 
     public ParticipantTeamSelfJoinService(
         ILiveSessionReferenceRepository liveSessionReferenceRepository,
         ITeamRepository teamRepository,
-        IUserRepository userRepository,
-        ICurrentUser currentUser,
+        ICurrentActor currentActor,
         ParticipantSessionMembershipPolicy membershipPolicy)
     {
         _liveSessionReferenceRepository = liveSessionReferenceRepository;
         _teamRepository = teamRepository;
-        _userRepository = userRepository;
-        _currentUser = currentUser;
+        _currentActor = currentActor;
         _membershipPolicy = membershipPolicy;
     }
 
     public async Task<Guid> JoinAsync(JoinTeamAsParticipantCommand command, CancellationToken cancellationToken)
     {
-        if (string.IsNullOrWhiteSpace(_currentUser.Id))
-        {
-            throw new UnauthorizedAccessException();
-        }
-
-        var participant = await _userRepository.GetByExternalIdentityIdAsync(_currentUser.Id, cancellationToken)
-            ?? throw new NotFoundException(nameof(User), _currentUser.Id);
+        var participant = await _currentActor.GetActorAsync(cancellationToken);
 
         var liveSessionReference = await _liveSessionReferenceRepository.GetByIdAsync(
             command.LiveSessionId,
