@@ -8,19 +8,16 @@ namespace umbral_backend.Application.Sessions.Queries.GetSessionTeamsForParticip
 
 public sealed class ParticipantSessionTeamLobbyAuthorizationProxy : IGetSessionTeamsForParticipantService
 {
-    private readonly IUserRepository _userRepository;
-    private readonly ICurrentUser _currentUser;
+    private readonly ICurrentActor _currentActor;
     private readonly AccessPolicy _accessPolicy;
     private readonly IGetSessionTeamsForParticipantService _inner;
 
     public ParticipantSessionTeamLobbyAuthorizationProxy(
-        IUserRepository userRepository,
-        ICurrentUser currentUser,
+        ICurrentActor currentActor,
         AccessPolicy accessPolicy,
         IGetSessionTeamsForParticipantService inner)
     {
-        _userRepository = userRepository;
-        _currentUser = currentUser;
+        _currentActor = currentActor;
         _accessPolicy = accessPolicy;
         _inner = inner;
     }
@@ -29,13 +26,7 @@ public sealed class ParticipantSessionTeamLobbyAuthorizationProxy : IGetSessionT
         GetSessionTeamsForParticipantQuery query,
         CancellationToken cancellationToken)
     {
-        if (string.IsNullOrWhiteSpace(_currentUser.Id))
-        {
-            throw new UnauthorizedAccessException();
-        }
-
-        var actor = await _userRepository.GetByExternalIdentityIdAsync(_currentUser.Id, cancellationToken)
-            ?? throw new NotFoundException(nameof(User), _currentUser.Id);
+        var actor = await _currentActor.GetActorAsync(cancellationToken);
 
         _accessPolicy.EnsureCanAccess(actor, ProtectedCapability.ParticipantExperience);
 

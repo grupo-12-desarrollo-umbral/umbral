@@ -12,24 +12,24 @@ public sealed class GetTeamParticipantsQueryHandler : IRequestHandler<GetTeamPar
 {
     private readonly ITeamRepository _teamRepository;
     private readonly IUserRepository _userRepository;
-    private readonly ICurrentUser _currentUser;
+    private readonly ICurrentActor _currentActor;
     private readonly AccessPolicy _accessPolicy;
 
     public GetTeamParticipantsQueryHandler(
         ITeamRepository teamRepository,
         IUserRepository userRepository,
-        ICurrentUser currentUser,
+        ICurrentActor currentActor,
         AccessPolicy accessPolicy)
     {
         _teamRepository = teamRepository;
         _userRepository = userRepository;
-        _currentUser = currentUser;
+        _currentActor = currentActor;
         _accessPolicy = accessPolicy;
     }
 
     public async Task<IReadOnlyList<TeamMembershipDto>> Handle(GetTeamParticipantsQuery request, CancellationToken cancellationToken)
     {
-        var actor = await GetCurrentActorAsync(cancellationToken);
+        var actor = await _currentActor.GetActorAsync(cancellationToken);
         EnsureActorCanReadTeams(actor);
 
         var team = await _teamRepository.GetByIdWithMembershipsAsync(request.TeamId, cancellationToken)
@@ -49,17 +49,6 @@ public sealed class GetTeamParticipantsQueryHandler : IRequestHandler<GetTeamPar
         }
 
         return memberships.AsReadOnly();
-    }
-
-    private async Task<User> GetCurrentActorAsync(CancellationToken cancellationToken)
-    {
-        if (string.IsNullOrWhiteSpace(_currentUser.Id))
-        {
-            throw new UnauthorizedAccessException();
-        }
-
-        return await _userRepository.GetByExternalIdentityIdAsync(_currentUser.Id, cancellationToken)
-            ?? throw new NotFoundException(nameof(User), _currentUser.Id);
     }
 
     private void EnsureActorCanReadTeams(User actor)

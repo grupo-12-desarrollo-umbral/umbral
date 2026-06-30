@@ -1,4 +1,5 @@
 using MediatR;
+using umbral_backend.Application.Common.Identity;
 using umbral_backend.Application.Common.Interfaces;
 using umbral_backend.Application.Teams.Commands.AssignParticipantToTeam;
 using umbral_backend.Application.Teams.Commands.RegisterTeam;
@@ -139,8 +140,7 @@ public sealed class TeamRepositoryIntegrationTests
         await using var actContext = BuildContext(new NoOpMediator(), currentUser);
         var handler = new RegisterTeamCommandHandler(
             new TeamRepository(actContext),
-            new UserRepository(actContext),
-            currentUser,
+            new CurrentActor(currentUser, new UserRepository(actContext)),
             accessPolicy);
 
         var firstTeamId = await handler.Handle(
@@ -209,7 +209,7 @@ public sealed class TeamRepositoryIntegrationTests
         var handler = new AssignParticipantToTeamCommandHandler(
             new TeamRepository(actContext),
             new UserRepository(actContext),
-            currentUser,
+            new CurrentActor(currentUser, new UserRepository(actContext)),
             new AccessPolicy());
 
         var membershipId = await handler.Handle(
@@ -257,7 +257,7 @@ public sealed class TeamRepositoryIntegrationTests
         var firstHandler = new AssignParticipantToTeamCommandHandler(
             new TeamRepository(firstContext),
             new UserRepository(firstContext),
-            currentUser,
+            new CurrentActor(currentUser, new UserRepository(firstContext)),
             new AccessPolicy());
 
         await firstHandler.Handle(
@@ -268,7 +268,7 @@ public sealed class TeamRepositoryIntegrationTests
         var secondHandler = new AssignParticipantToTeamCommandHandler(
             new TeamRepository(secondContext),
             new UserRepository(secondContext),
-            currentUser,
+            new CurrentActor(currentUser, new UserRepository(secondContext)),
             new AccessPolicy());
 
         await FluentActions.Invoking(() => secondHandler.Handle(
@@ -305,7 +305,7 @@ public sealed class TeamRepositoryIntegrationTests
         var handler = new AssignParticipantToTeamCommandHandler(
             new TeamRepository(actContext),
             new UserRepository(actContext),
-            currentUser,
+            new CurrentActor(currentUser, new UserRepository(actContext)),
             new AccessPolicy());
 
         await FluentActions.Invoking(() => handler.Handle(
@@ -346,7 +346,7 @@ public sealed class TeamRepositoryIntegrationTests
         var handler = new GetTeamParticipantsQueryHandler(
             new TeamRepository(actContext),
             new UserRepository(actContext),
-            currentUser,
+            new CurrentActor(currentUser, new UserRepository(actContext)),
             new AccessPolicy());
 
         var result = await handler.Handle(

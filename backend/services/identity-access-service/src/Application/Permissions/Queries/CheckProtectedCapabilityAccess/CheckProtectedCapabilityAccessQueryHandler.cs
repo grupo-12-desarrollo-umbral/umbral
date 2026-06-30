@@ -9,17 +9,14 @@ namespace umbral_backend.Application.Permissions.Queries.CheckProtectedCapabilit
 
 public sealed class CheckProtectedCapabilityAccessQueryHandler : IRequestHandler<CheckProtectedCapabilityAccessQuery, ProtectedAccessDecisionDto>
 {
-    private readonly IUserRepository _userRepository;
-    private readonly ICurrentUser _currentUser;
+    private readonly ICurrentActor _currentActor;
     private readonly AccessPolicy _accessPolicy;
 
     public CheckProtectedCapabilityAccessQueryHandler(
-        IUserRepository userRepository,
-        ICurrentUser currentUser,
+        ICurrentActor currentActor,
         AccessPolicy accessPolicy)
     {
-        _userRepository = userRepository;
-        _currentUser = currentUser;
+        _currentActor = currentActor;
         _accessPolicy = accessPolicy;
     }
 
@@ -27,13 +24,7 @@ public sealed class CheckProtectedCapabilityAccessQueryHandler : IRequestHandler
         CheckProtectedCapabilityAccessQuery request,
         CancellationToken cancellationToken)
     {
-        if (string.IsNullOrWhiteSpace(_currentUser.Id))
-        {
-            throw new UnauthorizedAccessException();
-        }
-
-        var user = await _userRepository.GetByExternalIdentityIdAsync(_currentUser.Id, cancellationToken)
-            ?? throw new NotFoundException(nameof(User), _currentUser.Id);
+        var user = await _currentActor.GetActorAsync(cancellationToken);
 
         var decision = _accessPolicy.Evaluate(user, request.Capability);
 

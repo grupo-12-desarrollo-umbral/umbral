@@ -8,26 +8,18 @@ namespace umbral_backend.Application.Users.Queries.GetAuthenticatedActorProfile;
 
 public sealed class GetAuthenticatedActorProfileQueryHandler : IRequestHandler<GetAuthenticatedActorProfileQuery, AuthenticatedActorProfileDto>
 {
-    private readonly IUserRepository _userRepository;
-    private readonly ICurrentUser _currentUser;
+    private readonly ICurrentActor _currentActor;
 
-    public GetAuthenticatedActorProfileQueryHandler(IUserRepository userRepository, ICurrentUser currentUser)
+    public GetAuthenticatedActorProfileQueryHandler(ICurrentActor currentActor)
     {
-        _userRepository = userRepository;
-        _currentUser = currentUser;
+        _currentActor = currentActor;
     }
 
     public async Task<AuthenticatedActorProfileDto> Handle(
         GetAuthenticatedActorProfileQuery request,
         CancellationToken cancellationToken)
     {
-        if (string.IsNullOrWhiteSpace(_currentUser.Id))
-        {
-            throw new UnauthorizedAccessException();
-        }
-
-        var user = await _userRepository.GetByExternalIdentityIdAsync(_currentUser.Id, cancellationToken)
-            ?? throw new NotFoundException(nameof(User), _currentUser.Id);
+        var user = await _currentActor.GetActorAsync(cancellationToken);
 
         return new AuthenticatedActorProfileDto(
             user.Id,

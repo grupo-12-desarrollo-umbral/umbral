@@ -26,7 +26,7 @@ public sealed class GetTeamParticipantsQueryHandlerTests
             .Setup(repo => repo.GetByIdWithMembershipsAsync(team.TeamId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(team);
 
-        var handler = CreateHandler(teamRepository, CreateUserRepository(actor), actor.ExternalIdentityId, actor.Role.ToString());
+        var handler = CreateHandler(teamRepository, CreateUserRepository(), actor);
 
         var result = await handler.Handle(new GetTeamParticipantsQuery(team.TeamId), CancellationToken.None);
 
@@ -48,7 +48,7 @@ public sealed class GetTeamParticipantsQueryHandlerTests
             .Setup(repo => repo.GetByIdWithMembershipsAsync(team.TeamId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(team);
 
-        var handler = CreateHandler(teamRepository, CreateUserRepository(actor), actor.ExternalIdentityId, actor.Role.ToString());
+        var handler = CreateHandler(teamRepository, CreateUserRepository(), actor);
 
         var result = await handler.Handle(new GetTeamParticipantsQuery(team.TeamId), CancellationToken.None);
 
@@ -64,7 +64,7 @@ public sealed class GetTeamParticipantsQueryHandlerTests
             .Setup(repo => repo.GetByIdWithMembershipsAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((Team?)null);
 
-        var handler = CreateHandler(teamRepository, CreateUserRepository(actor), actor.ExternalIdentityId, actor.Role.ToString());
+        var handler = CreateHandler(teamRepository, CreateUserRepository(), actor);
 
         var act = async () => await handler.Handle(new GetTeamParticipantsQuery(Guid.NewGuid()), CancellationToken.None);
 
@@ -74,29 +74,19 @@ public sealed class GetTeamParticipantsQueryHandlerTests
     private static GetTeamParticipantsQueryHandler CreateHandler(
         Mock<ITeamRepository> teamRepository,
         Mock<IUserRepository> userRepository,
-        string? currentUserId,
-        string? currentUserRole)
+        User actor)
     {
-        var currentUser = new Mock<ICurrentUser>();
-        currentUser.SetupGet(user => user.Id).Returns(currentUserId);
-        currentUser.SetupGet(user => user.Role).Returns(currentUserRole);
+        var currentActor = new Mock<ICurrentActor>();
+        currentActor.Setup(a => a.GetActorAsync(It.IsAny<CancellationToken>())).ReturnsAsync(actor);
 
         return new GetTeamParticipantsQueryHandler(
             teamRepository.Object,
             userRepository.Object,
-            currentUser.Object,
+            currentActor.Object,
             new AccessPolicy());
     }
 
-    private static Mock<IUserRepository> CreateUserRepository(User actor)
-    {
-        var repository = new Mock<IUserRepository>();
-        repository
-            .Setup(repo => repo.GetByExternalIdentityIdAsync(actor.ExternalIdentityId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(actor);
-
-        return repository;
-    }
+    private static Mock<IUserRepository> CreateUserRepository() => new();
 
     private static User CreateUser(int id, string externalIdentityId, Role role)
     {

@@ -86,13 +86,10 @@ public sealed class GetSessionTeamsForParticipantQueryHandlerTests
         LiveSessionReference? liveSessionReference,
         IReadOnlyList<SessionTeamLobbyEntry> entries)
     {
-        var userRepository = new Mock<IUserRepository>();
-        userRepository
-            .Setup(repository => repository.GetByExternalIdentityIdAsync(actor.ExternalIdentityId, It.IsAny<CancellationToken>()))
+        var currentActor = new Mock<ICurrentActor>();
+        currentActor
+            .Setup(a => a.GetActorAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(actor);
-
-        var currentUser = new Mock<ICurrentUser>();
-        currentUser.SetupGet(user => user.Id).Returns(actor.ExternalIdentityId);
 
         var liveSessionReferenceRepository = new Mock<ILiveSessionReferenceRepository>();
         liveSessionReferenceRepository
@@ -110,8 +107,7 @@ public sealed class GetSessionTeamsForParticipantQueryHandlerTests
 
         var executor = new ParticipantSessionTeamLobbyService(liveSessionReferenceRepository.Object);
         var proxy = new ParticipantSessionTeamLobbyAuthorizationProxy(
-            userRepository.Object,
-            currentUser.Object,
+            currentActor.Object,
             new AccessPolicy(),
             executor);
 

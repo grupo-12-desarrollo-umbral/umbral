@@ -1,4 +1,5 @@
 using MediatR;
+using umbral_backend.Application.Common.Identity;
 using umbral_backend.Application.Common.Interfaces;
 using umbral_backend.Application.Users.Commands.AuthenticateUser;
 using umbral_backend.Application.Users.Queries.GetAuthenticatedActorProfile;
@@ -44,8 +45,9 @@ public sealed class UserProvisioningRepositoryIntegrationTests
         authenticateResult.Access.IsAllowed.Should().BeTrue();
 
         var getProfileHandler = new GetAuthenticatedActorProfileQueryHandler(
-            repository,
-            new TestCurrentUser("kc-user-01", "alice@example.com", "Operator"));
+            new CurrentActor(
+                new TestCurrentUser("kc-user-01", "alice@example.com", "Operator"),
+                repository));
 
         var profile = await getProfileHandler.Handle(
             new GetAuthenticatedActorProfileQuery(),
