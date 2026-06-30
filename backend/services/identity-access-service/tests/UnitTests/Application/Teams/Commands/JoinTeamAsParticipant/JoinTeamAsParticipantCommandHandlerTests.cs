@@ -106,7 +106,7 @@ public sealed class JoinTeamAsParticipantCommandHandlerTests
         await act.Should().ThrowAsync<NotFoundException>();
     }
 
-    private static JoinTeamAsParticipantCommandHandler CreateHandler(
+    private static ParticipantTeamSelfJoinAuthorizationProxy CreateHandler(
         User actor,
         LiveSessionReference? liveSessionReference,
         Team team,
@@ -148,18 +148,16 @@ public sealed class JoinTeamAsParticipantCommandHandlerTests
             .Setup(repository => repository.UpdateAsync(team, It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 
-        var executor = new ParticipantTeamSelfJoinService(
+        var inner = new JoinTeamAsParticipantCommandHandler(
             liveSessionReferenceRepository.Object,
             teamRepository.Object,
             currentActor.Object,
             new ParticipantSessionMembershipPolicy());
 
-        var proxy = new ParticipantTeamSelfJoinAuthorizationProxy(
+        return new ParticipantTeamSelfJoinAuthorizationProxy(
             currentActor.Object,
             new AccessPolicy(),
-            executor);
-
-        return new JoinTeamAsParticipantCommandHandler(proxy);
+            inner);
     }
 
     private static User CreateUser(int id, string externalIdentityId, Role role)

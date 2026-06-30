@@ -81,7 +81,7 @@ public sealed class GetSessionTeamsForParticipantQueryHandlerTests
         await act.Should().ThrowAsync<NotFoundException>();
     }
 
-    private static GetSessionTeamsForParticipantQueryHandler CreateHandler(
+    private static ParticipantSessionTeamLobbyAuthorizationProxy CreateHandler(
         User actor,
         LiveSessionReference? liveSessionReference,
         IReadOnlyList<SessionTeamLobbyEntry> entries)
@@ -105,13 +105,12 @@ public sealed class GetSessionTeamsForParticipantQueryHandlerTests
                 .ReturnsAsync(entries);
         }
 
-        var executor = new ParticipantSessionTeamLobbyService(liveSessionReferenceRepository.Object);
-        var proxy = new ParticipantSessionTeamLobbyAuthorizationProxy(
+        var inner = new GetSessionTeamsForParticipantQueryHandler(liveSessionReferenceRepository.Object);
+
+        return new ParticipantSessionTeamLobbyAuthorizationProxy(
             currentActor.Object,
             new AccessPolicy(),
-            executor);
-
-        return new GetSessionTeamsForParticipantQueryHandler(proxy);
+            inner);
     }
 
     private static User CreateUser(int id, string externalIdentityId, Role role)

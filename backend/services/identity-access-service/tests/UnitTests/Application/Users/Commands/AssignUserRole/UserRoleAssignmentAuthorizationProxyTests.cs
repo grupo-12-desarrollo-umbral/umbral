@@ -10,101 +10,101 @@ namespace umbral_backend.Application.UnitTests.Application.Users.Commands.Assign
 
 public sealed class UserRoleAssignmentAuthorizationProxyTests
 {
+    // The inner handler reaching IUserRepository.GetByIdAsync is the observable proof that the
+    // guard let the request through; Times.Never proves the guard short-circuited before it.
     [Fact]
-    public async Task AssignAsync_WithAdministratorActor_DelegatesToInnerService()
+    public async Task Handle_WithAdministratorActor_DelegatesToInnerHandler()
     {
         var actor = CreateUser(1, "kc-admin", Role.Administrator);
-        var currentActor = CreateCurrentActor(actor);
-        var inner = new Mock<IUserRoleAssignmentService>();
+        var userRepository = CreateUserRepositoryWithTarget(CreateUser(7, "kc-target", Role.Operator));
+        var proxy = CreateProxy(CreateCurrentActor(actor), userRepository);
 
-        var proxy = new UserRoleAssignmentAuthorizationProxy(
-            currentActor.Object,
-            new AccessPolicy(),
-            inner.Object);
+        await proxy.Handle(new AssignUserRoleCommand(7, "Participant"), CancellationToken.None);
 
-        var command = new AssignUserRoleCommand(7, "Participant");
-
-        await proxy.AssignAsync(command, CancellationToken.None);
-
-        inner.Verify(service => service.AssignAsync(command, It.IsAny<CancellationToken>()), Times.Once);
+        userRepository.Verify(repository => repository.GetByIdAsync(7, It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
-    public async Task AssignAsync_WithoutTrustedActorIdentity_RejectsBeforeDelegating()
+    public async Task Handle_WithoutTrustedActorIdentity_RejectsBeforeDelegating()
     {
         var currentActor = new Mock<ICurrentActor>();
         currentActor
             .Setup(a => a.GetActorAsync(It.IsAny<CancellationToken>()))
             .ThrowsAsync(new UnauthorizedAccessException());
-        var inner = new Mock<IUserRoleAssignmentService>();
+        var userRepository = new Mock<IUserRepository>();
+        var proxy = CreateProxy(currentActor, userRepository);
 
-        var proxy = new UserRoleAssignmentAuthorizationProxy(
-            currentActor.Object,
-            new AccessPolicy(),
-            inner.Object);
-
-        var act = async () => await proxy.AssignAsync(new AssignUserRoleCommand(7, "Participant"), CancellationToken.None);
+        var act = async () => await proxy.Handle(new AssignUserRoleCommand(7, "Participant"), CancellationToken.None);
 
         await act.Should().ThrowAsync<UnauthorizedAccessException>();
-        inner.Verify(service => service.AssignAsync(It.IsAny<AssignUserRoleCommand>(), It.IsAny<CancellationToken>()), Times.Never);
+        VerifyInnerNeverRan(userRepository);
     }
 
     [Fact]
-    public async Task AssignAsync_WithNonAdministratorActor_RejectsBeforeDelegating()
+    public async Task Handle_WithNonAdministratorActor_RejectsBeforeDelegating()
     {
         var actor = CreateUser(1, "kc-operator", Role.Operator);
-        var currentActor = CreateCurrentActor(actor);
-        var inner = new Mock<IUserRoleAssignmentService>();
+        var userRepository = new Mock<IUserRepository>();
+        var proxy = CreateProxy(CreateCurrentActor(actor), userRepository);
 
-        var proxy = new UserRoleAssignmentAuthorizationProxy(
-            currentActor.Object,
-            new AccessPolicy(),
-            inner.Object);
-
-        var act = async () => await proxy.AssignAsync(new AssignUserRoleCommand(7, "Administrator"), CancellationToken.None);
+        var act = async () => await proxy.Handle(new AssignUserRoleCommand(7, "Administrator"), CancellationToken.None);
 
         await act.Should().ThrowAsync<UserRoleNotAuthorizedException>();
-        inner.Verify(service => service.AssignAsync(It.IsAny<AssignUserRoleCommand>(), It.IsAny<CancellationToken>()), Times.Never);
+        VerifyInnerNeverRan(userRepository);
     }
 
     [Fact]
-    public async Task AssignAsync_WithDeactivatedActor_RejectsBeforeDelegating()
+    public async Task Handle_WithDeactivatedActor_RejectsBeforeDelegating()
     {
         var actor = CreateUser(1, "kc-admin", Role.Administrator);
         actor.DeactivateAccess();
+        var userRepository = new Mock<IUserRepository>();
+        var proxy = CreateProxy(CreateCurrentActor(actor), userRepository);
 
-        var currentActor = CreateCurrentActor(actor);
-        var inner = new Mock<IUserRoleAssignmentService>();
-
-        var proxy = new UserRoleAssignmentAuthorizationProxy(
-            currentActor.Object,
-            new AccessPolicy(),
-            inner.Object);
-
-        var act = async () => await proxy.AssignAsync(new AssignUserRoleCommand(7, "Participant"), CancellationToken.None);
+        var act = async () => await proxy.Handle(new AssignUserRoleCommand(7, "Participant"), CancellationToken.None);
 
         await act.Should().ThrowAsync<DeactivatedUserAccessDeniedException>();
-        inner.Verify(service => service.AssignAsync(It.IsAny<AssignUserRoleCommand>(), It.IsAny<CancellationToken>()), Times.Never);
+        VerifyInnerNeverRan(userRepository);
     }
 
     [Fact]
-    public async Task AssignAsync_WhenActorIsMissing_RejectsBeforeDelegating()
+    public async Task Handle_WhenActorIsMissing_RejectsBeforeDelegating()
     {
         var currentActor = new Mock<ICurrentActor>();
         currentActor
             .Setup(a => a.GetActorAsync(It.IsAny<CancellationToken>()))
             .ThrowsAsync(new NotFoundException(nameof(User), "kc-missing"));
-        var inner = new Mock<IUserRoleAssignmentService>();
+        var userRepository = new Mock<IUserRepository>();
+        var proxy = CreateProxy(currentActor, userRepository);
 
-        var proxy = new UserRoleAssignmentAuthorizationProxy(
-            currentActor.Object,
-            new AccessPolicy(),
-            inner.Object);
-
-        var act = async () => await proxy.AssignAsync(new AssignUserRoleCommand(7, "Participant"), CancellationToken.None);
+        var act = async () => await proxy.Handle(new AssignUserRoleCommand(7, "Participant"), CancellationToken.None);
 
         await act.Should().ThrowAsync<NotFoundException>();
-        inner.Verify(service => service.AssignAsync(It.IsAny<AssignUserRoleCommand>(), It.IsAny<CancellationToken>()), Times.Never);
+        VerifyInnerNeverRan(userRepository);
+    }
+
+    private static UserRoleAssignmentAuthorizationProxy CreateProxy(
+        Mock<ICurrentActor> currentActor,
+        Mock<IUserRepository> userRepository)
+    {
+        var inner = new AssignUserRoleCommandHandler(userRepository.Object, Mock.Of<IIdentityProviderAdminService>());
+        return new UserRoleAssignmentAuthorizationProxy(currentActor.Object, new AccessPolicy(), inner);
+    }
+
+    private static Mock<IUserRepository> CreateUserRepositoryWithTarget(User target)
+    {
+        var repository = new Mock<IUserRepository>();
+        repository
+            .Setup(repo => repo.GetByIdAsync(target.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(target);
+        return repository;
+    }
+
+    private static void VerifyInnerNeverRan(Mock<IUserRepository> userRepository)
+    {
+        userRepository.Verify(
+            repository => repository.GetByIdAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()),
+            Times.Never);
     }
 
     private static Mock<ICurrentActor> CreateCurrentActor(User actor)
