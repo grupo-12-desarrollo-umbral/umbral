@@ -117,7 +117,23 @@ For each: a one-line `*CommandHandler`/`*QueryHandler` forwards to an `I*Service
 
 The redundancy finding 7 targets: the handler is a pure forwarder **and** the `I*Service` exists only as the Proxy's decoration seam. ADR-0012's canonical Proxy "wraps the real subject" — and a use case's real subject is its **handler**, not a separate Service. So the aligned end-state collapses the seam.
 
-### GATE 0 — confirm the end-state before any edit
+### GATE 0 — RESOLVED 2026-06-30 → **Option A (Collapse)**
+
+**Decision:** Option A. Phase 4 is unblocked. Apply all **5** slices identically (incl. `AssignUserRole` — the "mocked in tests" carve-out does not survive, the mock re-points to the handler/decorator).
+
+**Why A, not B — the ADRs as written already prescribe it:**
+- **ADR-0011 §3 removal test passes on both legs.** (a) The matrix maps every one of these HUs to **`Proxy`** only (HU-01/02/03/06/07A/07B/19/20) — never to an `I*Service`/`*Service` forwarding layer; the mandated thing is the *guard*, which Option A keeps. (b) The handler is a literal one-line forwarder (`return await _service.XAsync(request, ct)`) and `I*Service` is exactly "an `IService`/`IExecutor` indirection that only relays a call" — §3's own worked example of removable ceremony. Both legs hold ⇒ removable.
+- **ADR-0012 Proxy row + §"Proxy unification".** The Proxy must "wrap the **real subject** and add an access decision before delegating." Per ADR-0011 §1 the real subject of a use case **is its MediatR handler** ("the single orchestration unit per use case"). Today the Proxy decorates an `I*Service` seam instead — Option A makes it a genuine `IRequestHandler<TCmd,TRes>` decorator over the concrete handler, moving the shape **toward** ADR-0012, not away. ADR-0012 names the forwarding pair "the Api-layer twin of the `IService`/`IExecutor` ceremony ADR-0011 §3 removes."
+
+**Why B's premise doesn't actually block A.** `HANDOFF.md` (2026-06-29) holds that "every `*Service` under a proxy holds real domain logic" — **true, and compatible with A.** Option A preserves that logic verbatim; it relocates it from `*Service` into the handler (the ADR-0011 §1 canonical home) and deletes only the `I*Service` interface + the one-line forwarder handler. Finding 7 never claimed the Service's *logic* was redundant — it targets the *forwarding seam*. So there is no genuine ADR conflict to escalate.
+
+**Consistency with recent work (not contested by it).** Commits `09287f6`/`5dee93a`/`3a0e700`/`18294e9` already collapsed the `*Executor` (the bottom of the `Proxy → Service → Executor` triplet) into the single Proxy subject. Finding 7 is the **next step in that same sanctioned direction** — collapse the remaining `I*Service` + forwarder handler — not a reversal of it.
+
+**Remaining human step:** formal ADR-owner sign-off before the edits land. The decision itself follows mechanically from the ADRs as written; no ambiguity was found that requires re-opening ADR-0011/0012.
+
+---
+
+<details><summary>Original Gate 0 framing (kept for the record)</summary>
 
 Decide, against ADR-0011 §3 + ADR-0012 Proxy row + the matrix (and with whoever owns those ADRs):
 
@@ -125,6 +141,10 @@ Decide, against ADR-0011 §3 + ADR-0012 Proxy row + the matrix (and with whoever
 - **Option B — Accept current shape (partial retract):** if the team holds that handler→Proxy(`I*Service`)→Service is the blessed ADR-0012 realization (the `HANDOFF.md` 2026-06-29 reading), finding 7 becomes a **documentation note**, not code. Record the rationale in the findings doc and stop.
 
 Do not proceed to the changes below unless Gate 0 picks **A**. Apply the audit's second under-stated note here: treat **all 5** slices identically — `IUserRoleAssignmentService` is the same forwarder shape; the "it's mocked in tests" carve-out is not a reason to keep it (the test moves to mocking the handler/decorator the same way).
+
+</details>
+
+> Gate 0 resolved to **A** (see top of this section). The changes below are now in force.
 
 ### Changes if Option A (one commit per slice, mechanical-then-semantic discipline)
 
