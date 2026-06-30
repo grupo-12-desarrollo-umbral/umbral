@@ -50,7 +50,7 @@ mandatory.
    Method`, `Chain of Responsibility`, `Composite`) remain mandatory deliverables,
    realized inside the relevant slice or the area `Common/`. A pattern instance may
    be removed **only when both** hold: (a) it is not named for that use case by
-   `docs/trivia_sprint_required_patterns_matrix.md` or a phase gate, **and** (b) it
+   `docs/required_patterns_matrix.md` or a phase gate, **and** (b) it
    is pure forwarding ceremony that adds no behavior (e.g. an `IService`/`IExecutor`
    indirection that only relays a call). **Where each mandated pattern physically lives across
    all layers** (Domain/Application/Api) — including the Domain-layer patterns this ADR treats as

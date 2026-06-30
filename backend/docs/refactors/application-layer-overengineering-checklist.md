@@ -5,7 +5,7 @@ A keep/cut checklist for the CQRS vertical-slice refactor
 applied these calls; run the same lens on every later phase (identity-access,
 session-operations, scoring-monitoring) to confirm the same over-engineering
 hasn't crept back in. Grounded in `docs/adr/0004-required-domain-patterns.md`
-and `docs/trivia_sprint_required_patterns_matrix.md` (mandated patterns) and the
+and `docs/required_patterns_matrix.md` (mandated patterns) and the
 Phase-1 diff (`application-layer-cqrs-mission-design-phase-1.diff`).
 
 ## The one test
@@ -68,7 +68,7 @@ Everything below is that test applied to a specific shape.
 
 ## Before cutting anything
 
-Check `docs/trivia_sprint_required_patterns_matrix.md` and the use case's phase
+Check `docs/required_patterns_matrix.md` and the use case's phase
 scope. If the pattern is named there, **keep it** (refactor to a genuine
 structure, don't rename). When in doubt, keep and refactor — never delete a
 mandated pattern.

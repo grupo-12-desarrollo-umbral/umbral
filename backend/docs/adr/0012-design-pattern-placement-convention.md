@@ -17,7 +17,7 @@ structure across layers:
 
 - `docs/ddd_solution_model.md` §8 maps each pattern to a **responsibility** per bounded context
   (conceptual — "`State` for `LiveSession` lifecycle"), not to a folder.
-- `docs/trivia_sprint_required_patterns_matrix.md` maps **HU → pattern** (which is required where),
+- `docs/required_patterns_matrix.md` maps **HU → pattern** (which is required where),
   not where the files live.
 - ADR-0011 + `plans/application-layer-cqrs-refactor.md` define the **folder layout**, but are
   **scoped to the Application layer**, and within it only **`Facade`** received a concrete

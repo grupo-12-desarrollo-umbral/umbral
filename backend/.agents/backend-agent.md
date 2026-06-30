@@ -110,7 +110,7 @@ external dependencies.
 When the delegated phase scope or gate names a design pattern (e.g. "enforce
 access through a `Proxy`-style guard"), that pattern is a **mandatory
 deliverable**, not a suggestion. The driver derives it from
-`docs/trivia_sprint_required_patterns_matrix.md` (via the generator), and the
+`docs/required_patterns_matrix.md` (via the generator), and the
 phase gate will fail if the pattern is named but not actually realized.
 
 Realize it as a genuine structural pattern, not a rename:

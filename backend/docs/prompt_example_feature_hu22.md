@@ -103,7 +103,7 @@ functional blocker for HU-22 is HU-21A, which is already `Done`.
 Read the following and summarise what is already decided:
 - @backend/docs/hu22-context.md
 - @backend/docs/prd/DES-70-primera-implementacion-de-session-operations-service-hu-15-a-hu-36.md
-- @backend/docs/trivia_sprint_required_patterns_matrix.md
+- @backend/docs/required_patterns_matrix.md
 - @backend/services/session-operations-service/CONTEXT.md
 - @backend/services/session-operations-service/src/Domain/Entities/LiveSession.cs
 - @backend/services/session-operations-service/src/Application/Sessions/Commands/TransitionSessionState/TransitionSessionStateFacade.cs

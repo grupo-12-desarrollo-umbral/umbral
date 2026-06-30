@@ -37,7 +37,7 @@ Reject this generated prompt before implementation if it does not explicitly sco
   - Phase owner: X.1 Domain, carried through X.2 Application and X.4 API contract shape.
   - Gate obligation: the mission model must be a real Composite over ordered `MissionNode`s (`Stage` -> `Substage` -> optional `Clue`), with containment rules, play-mode enforcement, and traversal/readiness logic centralized in domain entities and policy rather than flattened records or handler conditionals. HU-09 already implemented this — HU-10A verifies it is structurally present and builds the frontend that consumes it.
 
-> Resolution note: `backend/docs/trivia_sprint_required_patterns_matrix.md` omits HU-10A because mission authoring was excluded from that trivia sprint matrix. The mandatory `Composite` obligation comes from `backend/docs/adr/0004-required-domain-patterns.md`, `backend/services/mission-design-service/CONTEXT.md` §Required Patterns, `backend/docs/ddd_solution_model.md` §MissionDesign pattern mapping, and the realignment overlay.
+> Resolution note: `backend/docs/required_patterns_matrix.md` maps HU-10 → `Composite` (mission authoring). The obligation is grounded in `backend/docs/adr/0004-required-domain-patterns.md`, `backend/services/mission-design-service/CONTEXT.md` §Required Patterns, `backend/docs/ddd_solution_model.md` §MissionDesign pattern mapping, and the realignment overlay.
 
 ---
 

@@ -17,7 +17,7 @@
   - Phase owner: X.1 Domain, carried through X.2 Application and X.4 API contract shape.
   - Concrete obligation: rebuild the mission model as a `Mission` wrapper over ordered `MissionNode` composites: `Stage` -> `Substage` -> optional `Clue`; do not flatten the hierarchy into unrelated records or scatter traversal/readiness logic through handlers.
 
-> Resolution note: `backend/docs/trivia_sprint_required_patterns_matrix.md` omits HU-09 because mission authoring was excluded from that trivia sprint matrix. For this DES-14 rebuild, the mandatory `Composite` obligation comes from `backend/docs/adr/0004-required-domain-patterns.md`, `backend/services/mission-design-service/CONTEXT.md`, `backend/docs/ddd_solution_model.md`, and the 2026-06-16 realignment overlay.
+> Resolution note: `backend/docs/required_patterns_matrix.md` places the labeled `Composite` obligation on HU-10; HU-09's own row carries no separate pattern. This DES-14 rebuild nonetheless lands the structural `Composite` mission model HU-10 formalizes, as mandated by `backend/docs/adr/0004-required-domain-patterns.md`, `backend/services/mission-design-service/CONTEXT.md`, `backend/docs/ddd_solution_model.md`, and the 2026-06-16 realignment overlay.
 
 ## What predecessors have already landed
 

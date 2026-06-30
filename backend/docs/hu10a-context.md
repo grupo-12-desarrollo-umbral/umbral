@@ -19,7 +19,7 @@
   - Phase owner: X.1 Domain, carried through X.2 Application and X.4 API contract shape.
   - Concrete obligation: the mission model must be a real Composite over ordered `MissionNode`s (`Stage` -> `Substage` -> optional `Clue`), with containment rules, play-mode enforcement, and traversal/readiness logic centralized in domain entities and policy rather than flattened records or handler conditionals.
 
-> Resolution note: `backend/docs/trivia_sprint_required_patterns_matrix.md` omits HU-10A because mission authoring was excluded from that trivia sprint matrix (line 5: "TreasureHunt/mission HUs are out of scope for this sprint and are omitted"). The mandatory `Composite` obligation comes from `backend/docs/adr/0004-required-domain-patterns.md` ("`Composite` for `Mission` and hierarchical `MissionNode` modeling"), `backend/services/mission-design-service/CONTEXT.md` §Required Patterns, `backend/docs/ddd_solution_model.md` §MissionDesign pattern mapping (line 427), and the realignment overlay. HU-09's rebuild already implemented this pattern structurally; HU-10A verifies it and builds the frontend that consumes it.
+> Resolution note: `backend/docs/required_patterns_matrix.md` maps HU-10 → `Composite` (mission authoring). The obligation is grounded in `backend/docs/adr/0004-required-domain-patterns.md` ("`Composite` for `Mission` and hierarchical `MissionNode` modeling"), `backend/services/mission-design-service/CONTEXT.md` §Required Patterns, `backend/docs/ddd_solution_model.md` §MissionDesign pattern mapping (line 427), and the realignment overlay. HU-09's rebuild already implemented this pattern structurally; HU-10A verifies it and builds the frontend that consumes it.
 
 ## What predecessors have already landed
 

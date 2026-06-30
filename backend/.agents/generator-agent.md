@@ -130,7 +130,7 @@ patterns are mandatory. That mapping is authoritative and lives outside the
 PRD — you **must** resolve it here, or the pattern will silently never enter the
 generated scope (this is exactly how HU-01/02/03 shipped without `Proxy`).
 
-1. Read `backend/docs/trivia_sprint_required_patterns_matrix.md` — find the HU
+1. Read `backend/docs/required_patterns_matrix.md` — find the HU
    in the **HU → Pattern** table for its service. Record the mandated
    pattern(s) and the one-line "Why" from that row.
 2. Read `backend/docs/adr/0004-required-domain-patterns.md` for *which* pattern is
@@ -465,7 +465,7 @@ because that is the path that mutates approved content.
    (resolution step 1)
 5. Single HU only — parallel dependent-pair coordination is out of scope
 6. Never ship the files if a pattern mandated by
-   `trivia_sprint_required_patterns_matrix.md` for this HU is missing from a
+   `required_patterns_matrix.md` for this HU is missing from a
    phase gate — that is the defect that let HU-01/02/03 ship without `Proxy`
 7. The **Per-phase derivation** section is mandatory and every block must cite
    its canon source — a derivation with no citation is unverifiable and must not
