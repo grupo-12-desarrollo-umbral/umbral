@@ -1,17 +1,16 @@
 using NotFoundException = umbral_backend.Application.Common.Exceptions.NotFoundException;
 using umbral_backend.Application.Common.Interfaces;
-using umbral_backend.Application.Missions.Commands.SetTriviaQuizSelection;
 using umbral_backend.Application.Missions.Common;
 
-namespace umbral_backend.Application.Missions.Commands.SetTriviaQuizSelection;
+namespace umbral_backend.Application.Missions.Commands.SelectTriviaQuiz;
 
-public sealed class SetTriviaQuizSelectionCommandHandler
-    : IRequestHandler<SetTriviaQuizSelectionCommand, MissionDto>
+public sealed class SelectTriviaQuizCommandHandler
+    : IRequestHandler<SelectTriviaQuizCommand, MissionDto>
 {
     private readonly IMissionRepository _missionRepository;
     private readonly ITriviaQuizRepository _triviaQuizRepository;
 
-    public SetTriviaQuizSelectionCommandHandler(
+    public SelectTriviaQuizCommandHandler(
         IMissionRepository missionRepository,
         ITriviaQuizRepository triviaQuizRepository)
     {
@@ -19,7 +18,7 @@ public sealed class SetTriviaQuizSelectionCommandHandler
         _triviaQuizRepository = triviaQuizRepository;
     }
 
-    public async Task<MissionDto> Handle(SetTriviaQuizSelectionCommand request, CancellationToken cancellationToken)
+    public async Task<MissionDto> Handle(SelectTriviaQuizCommand request, CancellationToken cancellationToken)
     {
         var mission = await _missionRepository.GetByIdAsync(request.MissionId, cancellationToken)
             ?? throw new NotFoundException("Mission", request.MissionId);

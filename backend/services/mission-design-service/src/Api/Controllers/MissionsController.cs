@@ -8,12 +8,11 @@ using umbral_backend.Application.Missions.Commands.CreateMission;
 using umbral_backend.Application.Missions.Commands.DeactivateMission;
 using umbral_backend.Application.Missions.Commands.RemoveMissionNode;
 using umbral_backend.Application.Missions.Commands.RemoveTarget;
-using umbral_backend.Application.Missions.Commands.SetTriviaQuizSelection;
+using umbral_backend.Application.Missions.Commands.SelectTriviaQuiz;
 using umbral_backend.Application.Missions.Commands.UnassociateClueFromTarget;
 using umbral_backend.Application.Missions.Commands.UpdateMission;
 using umbral_backend.Application.Missions.Commands.UpdateMissionNode;
 using umbral_backend.Application.Missions.Commands.UpdateTarget;
-using umbral_backend.Application.Missions.Commands.UpdateTriviaQuizSelection;
 using umbral_backend.Application.Missions.Common;
 using umbral_backend.Application.Missions.Queries.GetDifficultyCatalog;
 using umbral_backend.Application.Missions.Queries.GetMissionCatalog;
@@ -306,7 +305,7 @@ public sealed class MissionsController(ISender sender) : ControllerBase
         CancellationToken cancellationToken)
     {
         var mission = await sender.Send(
-            new SetTriviaQuizSelectionCommand(missionId, stageId, substageId, request.TriviaQuizId),
+            new SelectTriviaQuizCommand(missionId, stageId, substageId, request.TriviaQuizId),
             cancellationToken);
 
         return Ok(MissionResponse.FromDto(mission));
@@ -321,7 +320,7 @@ public sealed class MissionsController(ISender sender) : ControllerBase
         CancellationToken cancellationToken)
     {
         var mission = await sender.Send(
-            new UpdateTriviaQuizSelectionCommand(missionId, stageId, substageId, request.TriviaQuizId),
+            new SelectTriviaQuizCommand(missionId, stageId, substageId, request.TriviaQuizId),
             cancellationToken);
 
         return Ok(MissionResponse.FromDto(mission));
