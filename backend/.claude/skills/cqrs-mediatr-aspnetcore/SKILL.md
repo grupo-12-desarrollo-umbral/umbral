@@ -32,6 +32,30 @@ Implement CQRS with MediatR in ASP.NET Core by fitting the existing solution str
    - transaction boundary for commands
    - authorization only when the application already centralizes it there
 
+## File layout (this codebase — ADR-0011)
+
+Organize the Application layer **by vertical slice**, one folder per use case:
+
+```
+Application/<Area>/Commands/<UseCase>/
+    <UseCase>Command.cs          # request record (+ nested Response/Vm if small)
+    <UseCase>CommandHandler.cs   # the ONE handler, orchestration only
+    <UseCase>CommandValidator.cs # FluentValidation
+Application/<Area>/Queries/<UseCase>/
+    <UseCase>Query.cs / <UseCase>QueryHandler.cs / <UseCase>QueryValidator.cs (if inputs)
+    <UseCase>Dto.cs              # response model owned by the query that returns it
+Application/<Area>/Common/       # helpers/mandated patterns shared by ≥2 slices in the area
+Application/Common/              # cross-cutting: Behaviours, Interfaces, Exceptions, Security, Models
+```
+
+- The `Commands/`/`Queries/` level is **mandatory** between `<Area>` and the use-case folder.
+- **No** `Handlers/`, `DTOs/`, or `Facades/` type-buckets, and no generic `UseCases/` wrapper.
+- A mandated `Facade`/`Proxy` (ADR-0004) is kept, co-located in the slice it orchestrates (single
+  consumer) or in `<Area>/Common/` (shared) — never collected in a `Facades/` bucket.
+- No un-mandated `Proxy → Service → Executor` forwarding chain; collapse pass-through `*Service`/`*Executor`
+  indirection into the handler.
+- `make -C backend structure-guard` enforces this layout in the build.
+
 ## Workflow
 
 ### 1. Shape the boundary

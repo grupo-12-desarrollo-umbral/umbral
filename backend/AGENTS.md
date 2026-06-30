@@ -16,6 +16,14 @@ according to the Concrete Target Tree and DDD/Boundary rules.
 Do not invent new folder paths outside the established structure
 without updating `structure.md` first.
 
+The Application layer organizes **by vertical slice** (ADR-0011): one folder per
+use case at `Application/<Area>/{Commands|Queries}/<UseCase>/`, holding the
+request, its handler, its validator, and (for queries) the DTO it owns. No
+`Handlers/`, `DTOs/`, or `Facades/` type-buckets; shared helpers and mandated
+patterns go in `<Area>/Common/`, cross-cutting concerns in `Application/Common/`.
+`make -C backend structure-guard` (run automatically by `build` for converged
+services) fails the build if the layout regresses.
+
 ## Local dev loop (hot reload)
 
 `docker compose up` auto-loads `docker-compose.override.yml`, which runs every
@@ -35,6 +43,7 @@ Run the .NET toolchain through the sandbox-hardened Makefile — never call
     make -C backend build SVC=<service>   # compile Api + test projects
     make -C backend test  SVC=<service>   # run unit + integration tests
     make -C backend gate  SVC=<service>   # ADR-0005 coverage gate
+    make -C backend structure-guard [SVC=<service>]   # ADR-0011 vertical-slice layout guard
     make -C backend ef    SVC=<service> ARGS="migrations add Foo"
     make -C backend clean-artifacts SVC=<service>   # reclaim foreign-owned bin/obj if a build/test pre-flight fails
 
