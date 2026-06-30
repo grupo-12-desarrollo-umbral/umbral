@@ -151,13 +151,10 @@ public sealed class ValidateParticipantMembershipAccessQueryHandlerTests
         Mock<IJoinTokenTokenService> tokenService,
         TimeProvider timeProvider)
     {
-        var userRepository = new Mock<IUserRepository>();
-        userRepository
-            .Setup(repository => repository.GetByExternalIdentityIdAsync(actor.ExternalIdentityId, It.IsAny<CancellationToken>()))
+        var currentActor = new Mock<ICurrentActor>();
+        currentActor
+            .Setup(a => a.GetActorAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(actor);
-
-        var currentUser = new Mock<ICurrentUser>();
-        currentUser.SetupGet(user => user.Id).Returns(actor.ExternalIdentityId);
 
         var executor = new ParticipantMembershipAccessValidationService(
             joinTokenRepository.Object,
@@ -166,9 +163,8 @@ public sealed class ValidateParticipantMembershipAccessQueryHandlerTests
             timeProvider);
 
         var proxy = new ParticipantMembershipAccessAuthorizationProxy(
-            userRepository.Object,
             teamRepository.Object,
-            currentUser.Object,
+            currentActor.Object,
             new AccessPolicy(),
             executor);
 

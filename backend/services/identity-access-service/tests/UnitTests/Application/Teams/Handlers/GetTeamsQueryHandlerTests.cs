@@ -33,7 +33,7 @@ public sealed class GetTeamsQueryHandlerTests
                 PageSize = 10
             });
 
-        var handler = CreateHandler(teamRepository, CreateUserRepository(actor), actor.ExternalIdentityId);
+        var handler = CreateHandler(teamRepository, CreateCurrentActor(actor));
 
         var result = await handler.Handle(new GetTeamsQuery(2, 10), CancellationToken.None);
 
@@ -53,7 +53,7 @@ public sealed class GetTeamsQueryHandlerTests
     public async Task Handle_RejectsParticipantCaller()
     {
         var actor = CreateUser(2, "kc-participant", Role.Participant);
-        var handler = CreateHandler(new Mock<ITeamRepository>(), CreateUserRepository(actor), actor.ExternalIdentityId);
+        var handler = CreateHandler(new Mock<ITeamRepository>(), CreateCurrentActor(actor));
 
         var act = async () => await handler.Handle(new GetTeamsQuery(), CancellationToken.None);
 
@@ -63,8 +63,7 @@ public sealed class GetTeamsQueryHandlerTests
     [Fact]
     public async Task Handle_RejectsMissingCurrentUserIdentity()
     {
-        var actor = CreateUser(2, "kc-admin", Role.Administrator);
-        var handler = CreateHandler(new Mock<ITeamRepository>(), CreateUserRepository(actor), null);
+        var handler = CreateHandler(new Mock<ITeamRepository>(), UnauthorizedActor());
 
         var act = async () => await handler.Handle(new GetTeamsQuery(), CancellationToken.None);
 
@@ -73,27 +72,32 @@ public sealed class GetTeamsQueryHandlerTests
 
     private static GetTeamsQueryHandler CreateHandler(
         Mock<ITeamRepository> teamRepository,
-        Mock<IUserRepository> userRepository,
-        string? currentUserId)
+        Mock<ICurrentActor> currentActor)
     {
-        var currentUser = new Mock<ICurrentUser>();
-        currentUser.SetupGet(user => user.Id).Returns(currentUserId);
-
         return new GetTeamsQueryHandler(
             teamRepository.Object,
-            userRepository.Object,
-            currentUser.Object,
+            currentActor.Object,
             new AccessPolicy());
     }
 
-    private static Mock<IUserRepository> CreateUserRepository(User actor)
+    private static Mock<ICurrentActor> CreateCurrentActor(User actor)
     {
-        var repository = new Mock<IUserRepository>();
-        repository
-            .Setup(repo => repo.GetByExternalIdentityIdAsync(actor.ExternalIdentityId, It.IsAny<CancellationToken>()))
+        var currentActor = new Mock<ICurrentActor>();
+        currentActor
+            .Setup(a => a.GetActorAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(actor);
 
-        return repository;
+        return currentActor;
+    }
+
+    private static Mock<ICurrentActor> UnauthorizedActor()
+    {
+        var currentActor = new Mock<ICurrentActor>();
+        currentActor
+            .Setup(a => a.GetActorAsync(It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new UnauthorizedAccessException());
+
+        return currentActor;
     }
 
     private static User CreateUser(int id, string externalIdentityId, Role role)

@@ -26,7 +26,7 @@ public sealed class AssignParticipantToTeamCommandHandlerTests
             .Setup(repo => repo.UpdateAsync(team, It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 
-        var handler = CreateHandler(teamRepository, CreateUserRepository(actor, participant), actor.ExternalIdentityId, actor.Role.ToString());
+        var handler = CreateHandler(teamRepository, CreateUserRepository(actor, participant), actor);
 
         var membershipId = await handler.Handle(new AssignParticipantToTeamCommand(team.TeamId, participant.Id), CancellationToken.None);
 
@@ -51,7 +51,7 @@ public sealed class AssignParticipantToTeamCommandHandlerTests
             .Setup(repo => repo.UpdateAsync(team, It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 
-        var handler = CreateHandler(teamRepository, CreateUserRepository(actor, participant), actor.ExternalIdentityId, actor.Role.ToString());
+        var handler = CreateHandler(teamRepository, CreateUserRepository(actor, participant), actor);
 
         var membershipId = await handler.Handle(new AssignParticipantToTeamCommand(team.TeamId, participant.Id), CancellationToken.None);
 
@@ -71,7 +71,7 @@ public sealed class AssignParticipantToTeamCommandHandlerTests
             .Setup(repo => repo.GetByIdWithMembershipsAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((Team?)null);
 
-        var handler = CreateHandler(teamRepository, CreateUserRepository(actor, participant), actor.ExternalIdentityId, actor.Role.ToString());
+        var handler = CreateHandler(teamRepository, CreateUserRepository(actor, participant), actor);
 
         var act = async () => await handler.Handle(new AssignParticipantToTeamCommand(Guid.NewGuid(), participant.Id), CancellationToken.None);
 
@@ -89,7 +89,7 @@ public sealed class AssignParticipantToTeamCommandHandlerTests
             .Setup(repo => repo.GetByIdWithMembershipsAsync(team.TeamId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(team);
 
-        var handler = CreateHandler(teamRepository, CreateUserRepository(actor), actor.ExternalIdentityId, actor.Role.ToString());
+        var handler = CreateHandler(teamRepository, CreateUserRepository(actor), actor);
 
         var act = async () => await handler.Handle(new AssignParticipantToTeamCommand(team.TeamId, 99), CancellationToken.None);
 
@@ -108,7 +108,7 @@ public sealed class AssignParticipantToTeamCommandHandlerTests
             .Setup(repo => repo.GetByIdWithMembershipsAsync(team.TeamId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(team);
 
-        var handler = CreateHandler(teamRepository, CreateUserRepository(actor, operatorUser), actor.ExternalIdentityId, actor.Role.ToString());
+        var handler = CreateHandler(teamRepository, CreateUserRepository(actor, operatorUser), actor);
 
         var act = async () => await handler.Handle(new AssignParticipantToTeamCommand(team.TeamId, operatorUser.Id), CancellationToken.None);
 
@@ -127,7 +127,7 @@ public sealed class AssignParticipantToTeamCommandHandlerTests
             .Setup(repo => repo.GetByIdWithMembershipsAsync(team.TeamId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(team);
 
-        var handler = CreateHandler(teamRepository, CreateUserRepository(actor, administratorUser), actor.ExternalIdentityId, actor.Role.ToString());
+        var handler = CreateHandler(teamRepository, CreateUserRepository(actor, administratorUser), actor);
 
         var act = async () => await handler.Handle(new AssignParticipantToTeamCommand(team.TeamId, administratorUser.Id), CancellationToken.None);
 
@@ -148,7 +148,7 @@ public sealed class AssignParticipantToTeamCommandHandlerTests
             .Setup(repo => repo.GetByIdWithMembershipsAsync(team.TeamId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(team);
 
-        var handler = CreateHandler(teamRepository, CreateUserRepository(actor, participant), actor.ExternalIdentityId, actor.Role.ToString());
+        var handler = CreateHandler(teamRepository, CreateUserRepository(actor, participant), actor);
 
         var act = async () => await handler.Handle(new AssignParticipantToTeamCommand(team.TeamId, participant.Id), CancellationToken.None);
 
@@ -170,7 +170,7 @@ public sealed class AssignParticipantToTeamCommandHandlerTests
             .Setup(repo => repo.GetByIdWithMembershipsAsync(team.TeamId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(team);
 
-        var handler = CreateHandler(teamRepository, CreateUserRepository(actor, participant), actor.ExternalIdentityId, actor.Role.ToString());
+        var handler = CreateHandler(teamRepository, CreateUserRepository(actor, participant), actor);
 
         var act = async () => await handler.Handle(new AssignParticipantToTeamCommand(team.TeamId, participant.Id), CancellationToken.None);
 
@@ -183,27 +183,25 @@ public sealed class AssignParticipantToTeamCommandHandlerTests
     {
         var actor = CreateUser(1, "kc-participant-actor", Role.Participant);
         var participant = CreateUser(10, "kc-participant", Role.Participant);
-        var handler = CreateHandler(new Mock<ITeamRepository>(), CreateUserRepository(actor, participant), actor.ExternalIdentityId, actor.Role.ToString());
+        var handler = CreateHandler(new Mock<ITeamRepository>(), CreateUserRepository(actor, participant), actor);
 
         var act = async () => await handler.Handle(new AssignParticipantToTeamCommand(Guid.NewGuid(), participant.Id), CancellationToken.None);
 
-        await act.Should().ThrowAsync<ForbiddenAccessException>();
+        await act.Should().ThrowAsync<UserRoleNotAuthorizedException>();
     }
 
     private static AssignParticipantToTeamCommandHandler CreateHandler(
         Mock<ITeamRepository> teamRepository,
         Mock<IUserRepository> userRepository,
-        string? currentUserId,
-        string? currentUserRole)
+        User actor)
     {
-        var currentUser = new Mock<ICurrentUser>();
-        currentUser.SetupGet(user => user.Id).Returns(currentUserId);
-        currentUser.SetupGet(user => user.Role).Returns(currentUserRole);
+        var currentActor = new Mock<ICurrentActor>();
+        currentActor.Setup(a => a.GetActorAsync(It.IsAny<CancellationToken>())).ReturnsAsync(actor);
 
         return new AssignParticipantToTeamCommandHandler(
             teamRepository.Object,
             userRepository.Object,
-            currentUser.Object,
+            currentActor.Object,
             new AccessPolicy());
     }
 
@@ -213,10 +211,6 @@ public sealed class AssignParticipantToTeamCommandHandlerTests
 
         foreach (var user in users)
         {
-            repository
-                .Setup(repo => repo.GetByExternalIdentityIdAsync(user.ExternalIdentityId, It.IsAny<CancellationToken>()))
-                .ReturnsAsync(user);
-
             repository
                 .Setup(repo => repo.GetByIdAsync(user.Id, It.IsAny<CancellationToken>()))
                 .ReturnsAsync(user);

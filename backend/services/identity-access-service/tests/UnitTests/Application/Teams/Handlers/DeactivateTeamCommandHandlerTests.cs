@@ -25,7 +25,7 @@ public sealed class DeactivateTeamCommandHandlerTests
             .Setup(repo => repo.UpdateAsync(team, It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 
-        var handler = CreateHandler(teamRepository, CreateUserRepository(actor), actor.ExternalIdentityId);
+        var handler = CreateHandler(teamRepository, CreateCurrentActor(actor));
 
         await handler.Handle(new DeactivateTeamCommand(team.TeamId), CancellationToken.None);
 
@@ -46,7 +46,7 @@ public sealed class DeactivateTeamCommandHandlerTests
             .Setup(repo => repo.GetByIdAsync(team.TeamId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(team);
 
-        var handler = CreateHandler(teamRepository, CreateUserRepository(actor), actor.ExternalIdentityId);
+        var handler = CreateHandler(teamRepository, CreateCurrentActor(actor));
 
         var act = async () => await handler.Handle(new DeactivateTeamCommand(team.TeamId), CancellationToken.None);
 
@@ -64,7 +64,7 @@ public sealed class DeactivateTeamCommandHandlerTests
             .Setup(repo => repo.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((Team?)null);
 
-        var handler = CreateHandler(teamRepository, CreateUserRepository(actor), actor.ExternalIdentityId);
+        var handler = CreateHandler(teamRepository, CreateCurrentActor(actor));
 
         var act = async () => await handler.Handle(new DeactivateTeamCommand(Guid.NewGuid()), CancellationToken.None);
 
@@ -85,7 +85,7 @@ public sealed class DeactivateTeamCommandHandlerTests
             .Setup(repo => repo.UpdateAsync(team, It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 
-        var handler = CreateHandler(teamRepository, CreateUserRepository(actor), actor.ExternalIdentityId);
+        var handler = CreateHandler(teamRepository, CreateCurrentActor(actor));
 
         await handler.Handle(new DeactivateTeamCommand(team.TeamId), CancellationToken.None);
 
@@ -97,8 +97,7 @@ public sealed class DeactivateTeamCommandHandlerTests
     [Fact]
     public async Task Handle_RejectsMissingCurrentUserIdentity()
     {
-        var actor = CreateUser(1, "kc-admin", Role.Administrator);
-        var handler = CreateHandler(new Mock<ITeamRepository>(), CreateUserRepository(actor), null);
+        var handler = CreateHandler(new Mock<ITeamRepository>(), UnauthorizedActor());
 
         var act = async () => await handler.Handle(new DeactivateTeamCommand(Guid.NewGuid()), CancellationToken.None);
 
@@ -107,27 +106,32 @@ public sealed class DeactivateTeamCommandHandlerTests
 
     private static DeactivateTeamCommandHandler CreateHandler(
         Mock<ITeamRepository> teamRepository,
-        Mock<IUserRepository> userRepository,
-        string? currentUserId)
+        Mock<ICurrentActor> currentActor)
     {
-        var currentUser = new Mock<ICurrentUser>();
-        currentUser.SetupGet(user => user.Id).Returns(currentUserId);
-
         return new DeactivateTeamCommandHandler(
             teamRepository.Object,
-            userRepository.Object,
-            currentUser.Object,
+            currentActor.Object,
             new AccessPolicy());
     }
 
-    private static Mock<IUserRepository> CreateUserRepository(User actor)
+    private static Mock<ICurrentActor> CreateCurrentActor(User actor)
     {
-        var repository = new Mock<IUserRepository>();
-        repository
-            .Setup(repo => repo.GetByExternalIdentityIdAsync(actor.ExternalIdentityId, It.IsAny<CancellationToken>()))
+        var currentActor = new Mock<ICurrentActor>();
+        currentActor
+            .Setup(a => a.GetActorAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(actor);
 
-        return repository;
+        return currentActor;
+    }
+
+    private static Mock<ICurrentActor> UnauthorizedActor()
+    {
+        var currentActor = new Mock<ICurrentActor>();
+        currentActor
+            .Setup(a => a.GetActorAsync(It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new UnauthorizedAccessException());
+
+        return currentActor;
     }
 
     private static User CreateUser(int id, string externalIdentityId, Role role)

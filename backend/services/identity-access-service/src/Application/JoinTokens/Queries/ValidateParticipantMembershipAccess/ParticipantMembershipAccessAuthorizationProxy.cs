@@ -8,22 +8,19 @@ namespace umbral_backend.Application.JoinTokens.Queries.ValidateParticipantMembe
 
 public sealed class ParticipantMembershipAccessAuthorizationProxy : IValidateParticipantMembershipAccessService
 {
-    private readonly IUserRepository _userRepository;
     private readonly ITeamRepository _teamRepository;
-    private readonly ICurrentUser _currentUser;
+    private readonly ICurrentActor _currentActor;
     private readonly AccessPolicy _accessPolicy;
     private readonly IValidateParticipantMembershipAccessService _inner;
 
     public ParticipantMembershipAccessAuthorizationProxy(
-        IUserRepository userRepository,
         ITeamRepository teamRepository,
-        ICurrentUser currentUser,
+        ICurrentActor currentActor,
         AccessPolicy accessPolicy,
         IValidateParticipantMembershipAccessService inner)
     {
-        _userRepository = userRepository;
         _teamRepository = teamRepository;
-        _currentUser = currentUser;
+        _currentActor = currentActor;
         _accessPolicy = accessPolicy;
         _inner = inner;
     }
@@ -32,13 +29,7 @@ public sealed class ParticipantMembershipAccessAuthorizationProxy : IValidatePar
         ValidateParticipantMembershipAccessQuery query,
         CancellationToken cancellationToken)
     {
-        if (string.IsNullOrWhiteSpace(_currentUser.Id))
-        {
-            throw new UnauthorizedAccessException();
-        }
-
-        var actor = await _userRepository.GetByExternalIdentityIdAsync(_currentUser.Id, cancellationToken)
-            ?? throw new NotFoundException(nameof(User), _currentUser.Id);
+        var actor = await _currentActor.GetActorAsync(cancellationToken);
 
         _accessPolicy.EnsureCanAccess(actor, ProtectedCapability.ParticipantExperience);
 

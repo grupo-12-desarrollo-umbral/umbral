@@ -6,23 +6,20 @@ namespace umbral_backend.Application.JoinTokens.Commands.IssueJoinToken;
 public sealed class JoinTokenIssuanceService : IIssueJoinTokenService
 {
     private readonly IJoinTokenRepository _joinTokenRepository;
-    private readonly IUserRepository _userRepository;
-    private readonly ICurrentUser _currentUser;
+    private readonly ICurrentActor _currentActor;
     private readonly IJoinTokenTokenService _joinTokenTokenService;
     private readonly JoinTokenPolicy _joinTokenPolicy;
     private readonly TimeProvider _timeProvider;
 
     public JoinTokenIssuanceService(
         IJoinTokenRepository joinTokenRepository,
-        IUserRepository userRepository,
-        ICurrentUser currentUser,
+        ICurrentActor currentActor,
         IJoinTokenTokenService joinTokenTokenService,
         JoinTokenPolicy joinTokenPolicy,
         TimeProvider timeProvider)
     {
         _joinTokenRepository = joinTokenRepository;
-        _userRepository = userRepository;
-        _currentUser = currentUser;
+        _currentActor = currentActor;
         _joinTokenTokenService = joinTokenTokenService;
         _joinTokenPolicy = joinTokenPolicy;
         _timeProvider = timeProvider;
@@ -30,13 +27,7 @@ public sealed class JoinTokenIssuanceService : IIssueJoinTokenService
 
     public async Task<IssuedJoinTokenDto> IssueAsync(IssueJoinTokenCommand command, CancellationToken cancellationToken)
     {
-        if (string.IsNullOrWhiteSpace(_currentUser.Id))
-        {
-            throw new UnauthorizedAccessException();
-        }
-
-        var actor = await _userRepository.GetByExternalIdentityIdAsync(_currentUser.Id, cancellationToken)
-            ?? throw new Application.Common.Exceptions.NotFoundException(nameof(Domain.Entities.User), _currentUser.Id);
+        var actor = await _currentActor.GetActorAsync(cancellationToken);
 
         var issuedAt = _timeProvider.GetUtcNow();
         var token = _joinTokenTokenService.GenerateToken();

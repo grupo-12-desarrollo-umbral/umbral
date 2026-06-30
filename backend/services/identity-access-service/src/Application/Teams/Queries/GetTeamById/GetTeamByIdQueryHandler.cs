@@ -4,7 +4,6 @@ using umbral_backend.Application.Teams.Common;
 using umbral_backend.Application.Teams.Queries.GetTeamById;
 using umbral_backend.Domain.Entities;
 using umbral_backend.Domain.Enums;
-using umbral_backend.Domain.Exceptions;
 using umbral_backend.Domain.Services;
 
 namespace umbral_backend.Application.Teams.Queries.GetTeamById;
@@ -12,26 +11,23 @@ namespace umbral_backend.Application.Teams.Queries.GetTeamById;
 public sealed class GetTeamByIdQueryHandler : IRequestHandler<GetTeamByIdQuery, TeamDto>
 {
     private readonly ITeamRepository _teamRepository;
-    private readonly IUserRepository _userRepository;
-    private readonly ICurrentUser _currentUser;
+    private readonly ICurrentActor _currentActor;
     private readonly AccessPolicy _accessPolicy;
 
     public GetTeamByIdQueryHandler(
         ITeamRepository teamRepository,
-        IUserRepository userRepository,
-        ICurrentUser currentUser,
+        ICurrentActor currentActor,
         AccessPolicy accessPolicy)
     {
         _teamRepository = teamRepository;
-        _userRepository = userRepository;
-        _currentUser = currentUser;
+        _currentActor = currentActor;
         _accessPolicy = accessPolicy;
     }
 
     public async Task<TeamDto> Handle(GetTeamByIdQuery request, CancellationToken cancellationToken)
     {
-        var actor = await GetCurrentActorAsync(cancellationToken);
-        EnsureActorCanReadTeams(actor);
+        var actor = await _currentActor.GetActorAsync(cancellationToken);
+        _accessPolicy.EnsureCanAccess(actor, ProtectedCapability.OperatorPanel);
 
         var team = await _teamRepository.GetByIdAsync(request.TeamId, cancellationToken)
             ?? throw new NotFoundException(nameof(Team), request.TeamId);
@@ -43,31 +39,5 @@ public sealed class GetTeamByIdQueryHandler : IRequestHandler<GetTeamByIdQuery, 
             team.IsActive,
             team.Created,
             team.LastModified);
-    }
-
-    private async Task<User> GetCurrentActorAsync(CancellationToken cancellationToken)
-    {
-        if (string.IsNullOrWhiteSpace(_currentUser.Id))
-        {
-            throw new UnauthorizedAccessException();
-        }
-
-        return await _userRepository.GetByExternalIdentityIdAsync(_currentUser.Id, cancellationToken)
-            ?? throw new NotFoundException(nameof(User), _currentUser.Id);
-    }
-
-    private void EnsureActorCanReadTeams(User actor)
-    {
-        var decision = _accessPolicy.Evaluate(actor, ProtectedCapability.OperatorPanel);
-
-        if (!actor.IsActive)
-        {
-            throw new DeactivatedUserAccessDeniedException(actor.Id);
-        }
-
-        if (!decision.IsAllowed)
-        {
-            throw new UserRoleNotAuthorizedException(actor.Role, ProtectedCapability.OperatorPanel);
-        }
     }
 }

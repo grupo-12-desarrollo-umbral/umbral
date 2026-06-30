@@ -20,13 +20,10 @@ public sealed class DeactivateUserCommandHandlerTests
         target.Id = 2;
         User? updatedUser = null;
 
-        var currentUser = new Mock<ICurrentUser>();
-        currentUser.SetupGet(user => user.Id).Returns("kc-admin");
+        var currentActor = new Mock<ICurrentActor>();
+        currentActor.Setup(a => a.GetActorAsync(It.IsAny<CancellationToken>())).ReturnsAsync(actor);
 
         var repository = new Mock<IUserRepository>();
-        repository
-            .Setup(repo => repo.GetByExternalIdentityIdAsync("kc-admin", It.IsAny<CancellationToken>()))
-            .ReturnsAsync(actor);
         repository
             .Setup(repo => repo.GetByIdAsync(target.Id, It.IsAny<CancellationToken>()))
             .ReturnsAsync(target);
@@ -35,7 +32,7 @@ public sealed class DeactivateUserCommandHandlerTests
             .Callback<User, CancellationToken>((user, _) => updatedUser = user)
             .Returns(Task.CompletedTask);
 
-        var handler = new DeactivateUserCommandHandler(repository.Object, currentUser.Object, new AccessPolicy());
+        var handler = new DeactivateUserCommandHandler(repository.Object, currentActor.Object, new AccessPolicy());
 
         await handler.Handle(new DeactivateUserCommand(target.Id), CancellationToken.None);
 
@@ -52,15 +49,12 @@ public sealed class DeactivateUserCommandHandlerTests
         actor.Id = 1;
         actor.DeactivateAccess();
 
-        var currentUser = new Mock<ICurrentUser>();
-        currentUser.SetupGet(user => user.Id).Returns("kc-admin");
+        var currentActor = new Mock<ICurrentActor>();
+        currentActor.Setup(a => a.GetActorAsync(It.IsAny<CancellationToken>())).ReturnsAsync(actor);
 
         var repository = new Mock<IUserRepository>();
-        repository
-            .Setup(repo => repo.GetByExternalIdentityIdAsync("kc-admin", It.IsAny<CancellationToken>()))
-            .ReturnsAsync(actor);
 
-        var handler = new DeactivateUserCommandHandler(repository.Object, currentUser.Object, new AccessPolicy());
+        var handler = new DeactivateUserCommandHandler(repository.Object, currentActor.Object, new AccessPolicy());
 
         var act = async () => await handler.Handle(new DeactivateUserCommand(42), CancellationToken.None);
 

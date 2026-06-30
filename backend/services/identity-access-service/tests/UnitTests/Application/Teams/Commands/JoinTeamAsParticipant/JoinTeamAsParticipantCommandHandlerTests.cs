@@ -113,13 +113,10 @@ public sealed class JoinTeamAsParticipantCommandHandlerTests
         ParticipantSessionMembershipLookup? existingMembership,
         bool isAssociated)
     {
-        var userRepository = new Mock<IUserRepository>();
-        userRepository
-            .Setup(repository => repository.GetByExternalIdentityIdAsync(actor.ExternalIdentityId, It.IsAny<CancellationToken>()))
+        var currentActor = new Mock<ICurrentActor>();
+        currentActor
+            .Setup(a => a.GetActorAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(actor);
-
-        var currentUser = new Mock<ICurrentUser>();
-        currentUser.SetupGet(user => user.Id).Returns(actor.ExternalIdentityId);
 
         var liveSessionReferenceRepository = new Mock<ILiveSessionReferenceRepository>();
         liveSessionReferenceRepository
@@ -154,13 +151,11 @@ public sealed class JoinTeamAsParticipantCommandHandlerTests
         var executor = new ParticipantTeamSelfJoinService(
             liveSessionReferenceRepository.Object,
             teamRepository.Object,
-            userRepository.Object,
-            currentUser.Object,
+            currentActor.Object,
             new ParticipantSessionMembershipPolicy());
 
         var proxy = new ParticipantTeamSelfJoinAuthorizationProxy(
-            userRepository.Object,
-            currentUser.Object,
+            currentActor.Object,
             new AccessPolicy(),
             executor);
 

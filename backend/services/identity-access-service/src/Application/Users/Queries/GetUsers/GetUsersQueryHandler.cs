@@ -4,7 +4,6 @@ using umbral_backend.Application.Common.Models;
 using umbral_backend.Application.Users.Queries.GetUsers;
 using umbral_backend.Domain.Entities;
 using umbral_backend.Domain.Enums;
-using umbral_backend.Domain.Exceptions;
 using umbral_backend.Domain.Services;
 
 namespace umbral_backend.Application.Users.Queries.GetUsers;
@@ -12,16 +11,16 @@ namespace umbral_backend.Application.Users.Queries.GetUsers;
 public sealed class GetUsersQueryHandler : IRequestHandler<GetUsersQuery, PagedResult<UserAccessCatalogItemDto>>
 {
     private readonly IUserRepository _userRepository;
-    private readonly ICurrentUser _currentUser;
+    private readonly ICurrentActor _currentActor;
     private readonly AccessPolicy _accessPolicy;
 
     public GetUsersQueryHandler(
         IUserRepository userRepository,
-        ICurrentUser currentUser,
+        ICurrentActor currentActor,
         AccessPolicy accessPolicy)
     {
         _userRepository = userRepository;
-        _currentUser = currentUser;
+        _currentActor = currentActor;
         _accessPolicy = accessPolicy;
     }
 
@@ -29,15 +28,9 @@ public sealed class GetUsersQueryHandler : IRequestHandler<GetUsersQuery, PagedR
         GetUsersQuery request,
         CancellationToken cancellationToken)
     {
-        if (string.IsNullOrWhiteSpace(_currentUser.Id))
-        {
-            throw new UnauthorizedAccessException();
-        }
+        var actor = await _currentActor.GetActorAsync(cancellationToken);
 
-        var actor = await _userRepository.GetByExternalIdentityIdAsync(_currentUser.Id, cancellationToken)
-            ?? throw new NotFoundException(nameof(User), _currentUser.Id);
-
-        EnsureActorCanListUsers(actor);
+        _accessPolicy.EnsureCanAccess(actor, ProtectedCapability.UserAccessCatalog);
 
         var users = await _userRepository.ListAsync(request.Page, request.PageSize, cancellationToken);
 
@@ -48,21 +41,6 @@ public sealed class GetUsersQueryHandler : IRequestHandler<GetUsersQuery, PagedR
             Page = users.Page,
             PageSize = users.PageSize
         };
-    }
-
-    private void EnsureActorCanListUsers(User actor)
-    {
-        var decision = _accessPolicy.Evaluate(actor, ProtectedCapability.UserAccessCatalog);
-
-        if (!actor.IsActive)
-        {
-            throw new DeactivatedUserAccessDeniedException(actor.Id);
-        }
-
-        if (!decision.IsAllowed)
-        {
-            throw new UserRoleNotAuthorizedException(actor.Role, ProtectedCapability.UserAccessCatalog);
-        }
     }
 
     private static UserAccessCatalogItemDto MapItem(User user)

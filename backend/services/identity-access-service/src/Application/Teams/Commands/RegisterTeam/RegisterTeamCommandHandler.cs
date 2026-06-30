@@ -11,26 +11,23 @@ namespace umbral_backend.Application.Teams.Commands.RegisterTeam;
 public sealed class RegisterTeamCommandHandler : IRequestHandler<RegisterTeamCommand, Guid>
 {
     private readonly ITeamRepository _teamRepository;
-    private readonly IUserRepository _userRepository;
-    private readonly ICurrentUser _currentUser;
+    private readonly ICurrentActor _currentActor;
     private readonly AccessPolicy _accessPolicy;
 
     public RegisterTeamCommandHandler(
         ITeamRepository teamRepository,
-        IUserRepository userRepository,
-        ICurrentUser currentUser,
+        ICurrentActor currentActor,
         AccessPolicy accessPolicy)
     {
         _teamRepository = teamRepository;
-        _userRepository = userRepository;
-        _currentUser = currentUser;
+        _currentActor = currentActor;
         _accessPolicy = accessPolicy;
     }
 
     public async Task<Guid> Handle(RegisterTeamCommand request, CancellationToken cancellationToken)
     {
-        var actor = await GetCurrentActorAsync(cancellationToken);
-        EnsureActorCanManageTeams(actor);
+        var actor = await _currentActor.GetActorAsync(cancellationToken);
+        _accessPolicy.EnsureCanAccess(actor, ProtectedCapability.OperatorPanel);
 
         var normalizedTeamCode = request.TeamCode.Trim();
 
@@ -44,31 +41,5 @@ public sealed class RegisterTeamCommandHandler : IRequestHandler<RegisterTeamCom
         await _teamRepository.AddAsync(team, cancellationToken);
 
         return team.TeamId;
-    }
-
-    private async Task<User> GetCurrentActorAsync(CancellationToken cancellationToken)
-    {
-        if (string.IsNullOrWhiteSpace(_currentUser.Id))
-        {
-            throw new UnauthorizedAccessException();
-        }
-
-        return await _userRepository.GetByExternalIdentityIdAsync(_currentUser.Id, cancellationToken)
-            ?? throw new NotFoundException(nameof(User), _currentUser.Id);
-    }
-
-    private void EnsureActorCanManageTeams(User actor)
-    {
-        var decision = _accessPolicy.Evaluate(actor, ProtectedCapability.OperatorPanel);
-
-        if (!actor.IsActive)
-        {
-            throw new DeactivatedUserAccessDeniedException(actor.Id);
-        }
-
-        if (!decision.IsAllowed)
-        {
-            throw new UserRoleNotAuthorizedException(actor.Role, ProtectedCapability.OperatorPanel);
-        }
     }
 }
