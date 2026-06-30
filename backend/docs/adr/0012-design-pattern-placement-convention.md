@@ -59,7 +59,7 @@ by ≥2 slices, grouped by **concern** (ADR-0011 §2).
 | **Facade** | Application | Slice it orchestrates (single consumer) or `<Area>/Common/` (shared ≥2). **Never** a `Facades/` bucket | Coordinates **≥2 collaborators** behind one interface, owning a transaction / orchestration / event-publication boundary. *Ceremony:* a 1-to-1 pass-through relaying one call to one collaborator — the un-mandated `IService`/`IExecutor` layer; collapse it. (See ADR-0011 §2 and the plan's Facade subsection.) |
 | **State** | Domain (authority) + thin Application trigger | Domain: `Domain/Services/<Aggregate>States/` — state interface + abstract base + **one class per state** + a factory. Application trigger lives in `<Area>/StateTransitions/` (see CoR) | Behavior differs by **state object**, transitions delegated to those objects. *Ceremony:* an enum plus `switch` statements scattered across handlers is not `State` — it is the branching `State` exists to remove. |
 | **Chain of Responsibility** | Application | `<Area>/StateTransitions/` (transition guards) and `<Area>/Common/<Pipeline>/Validators/` (submission/answer pipelines): a chain builder + abstract link + ordered concrete links in `Validators/` | Ordered links each decide handle-or-pass-on via `SetNext`/`Next`; links are composable and reorderable without editing each other. *Ceremony:* one validator with sequential `if` blocks is not a chain. |
-| **Proxy** | Application (preferred) | Co-located in the guarded slice as `<UseCase>AuthorizationProxy.cs`, or `<Area>/Common/` if shared. **Api-layer Proxy only** for a genuine edge/transport concern with no application use case — and never with a forwarding `*Handler`/`*EntryPoint` pair beneath it | Wraps the real subject and adds an **access decision** (load actor, `IsActive`, `AccessPolicy.Evaluate`, resource-specific "may this actor act on this resource") before delegating. *Ceremony:* a `*Proxy` that only relays to a `*Handler`/`*Service` with no guard is the forwarding chain — collapse it (coarse role/policy gates go to `[Authorize]` + `AuthorizationBehaviour`, ADR-0011 §4). |
+| **Proxy** | Application (preferred) | Co-located in the guarded slice as `<UseCase>AuthorizationProxy.cs`, or `<Area>/Common/` if shared. **Api-layer Proxy only** for a genuine edge/transport concern with no application use case — and never with a forwarding `*Handler`/`*EntryPoint` pair beneath it | Wraps the real subject and adds an **access decision** before delegating. Two genuine shapes by what the decision needs: **(a) capability guard** — check needs no resource, so the proxy *is* the subject's interface (`IRequestHandler<,>`), holds the concrete handler as `_inner`, runs `AccessPolicy.EnsureCanAccess`, then delegates (identity-access is the reference); **(b) resource-ownership guard** — check needs the loaded entity (`resource.OwnerId == actor.Id`), so the proxy implements a resolver interface that **loads → authorizes → returns the authorized subject** to its single caller, fusing the load the caller would otherwise repeat (session-operations `SessionAdministrationAuthorizationProxy` is the reference). *Ceremony (both shapes):* a `*Proxy` that relays to a `*Handler`/`*Service` with **no** access decision is the forwarding chain — collapse it; coarse role/policy gates go to `[Authorize]` + `AuthorizationBehaviour` (ADR-0011 §4). |
 | **Strategy** | Domain | `Domain/Services/<Concern>Strategies/` (or `Domain/Services/`) — strategy interface + concrete strategies + a selector/factory | An interface with **≥2 interchangeable** implementations chosen at runtime by a key/policy, with **no** behavior branching left in the handler. *Ceremony:* a single implementation behind an interface with no selection point is premature — but **keep** it if matrix-named (its siblings are coming) and add the selector when the second arrives. |
 
 ### Proxy unification (the one instance that needs a move)
@@ -74,6 +74,36 @@ slice (or `AuthorizationBehaviour` if the check is coarse), and **delete the for
 ADR-0011 §3 removes. A `Proxy` stays in `Api/` **only** when it guards a genuine
 edge/transport concern that has no application use case behind it, and even then with no forwarding
 partner.
+
+### Two genuine Proxy realizations (capability vs. resource-ownership)
+
+The genuine-Proxy test above ("wrap the subject, decide, delegate") assumes the access
+decision needs nothing but the actor. That holds for **capability guards**
+(`EnsureCanAccess(actor, OperatorPanel)`) — identity-access realizes these as a
+handler-decorator: the `*AuthorizationProxy` is the registered `IRequestHandler<,>`, the
+concrete handler is deliberately *not* an `IRequestHandler` (DI registers only the proxy,
+so MediatR's scan resolves the guard as the handler), and it delegates to `_inner`.
+
+It does **not** hold for **resource-ownership guards**, where the decision needs the loaded
+entity (`liveSession.AssignedOperatorUserId == actor.UserId`). A wrap-and-delegate proxy
+there would load the resource for its check and then delegate to a subject that loads the
+**same** resource again — a redundant round-trip — or pass the loaded entity inward, which
+breaks the transparent same-interface contract that makes it a Proxy at all. The genuine
+realization for this case is a **resolver proxy**: it implements a small resolver interface
+(`ISessionAdministrationAccessResolver`), loads the resource, applies the ownership decision,
+and **returns the authorized subject** to its caller (the Facade/handler), fusing the load
+the caller would otherwise repeat. This is a real access proxy, not the forwarding ceremony —
+the distinguishing line is unchanged: **an access decision is made before the subject is used.**
+
+The ceremony tell for this shape is structural: a resolver proxy must throw on the
+deny path between the load and the return (`ForbiddenAccessException` /
+`UnauthorizedAccessException`); a resolver that loads and returns with no deny-throw is
+a checked loader that never checks — collapse it into its caller. (session-operations'
+proxy throws on both the wrong-role and wrong-owner paths, lines 57–67 — genuine.)
+
+Both shapes live in the same canonical home (the guarded slice, or `<Area>/Common/` if shared
+by ≥2 slices). This is a *within-Application* difference in form, distinct from the
+Api-vs-Application split in §Context — it is not an unresolved divergence to collapse.
 
 ### Enforcement
 
