@@ -1,4 +1,7 @@
+using System.Reflection;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Routing;
+using umbral_backend.Api.Controllers;
 using umbral_backend.Application.Sessions.Common;
 using umbral_backend.Domain.Enums;
 using umbral_backend.Infrastructure.Persistence;
@@ -269,6 +272,52 @@ public sealed class CreateSessionEndpointTests : IAsyncLifetime
         await using var scope = _factory.Services.CreateAsyncScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         (await dbContext.LiveSessions.AnyAsync()).Should().BeFalse();
+    }
+
+    // HU-17: lock the single-source invariant at the API contract — the create request
+    // exposes Mission as the only source; no quiz/second-source/mode field is representable.
+    [Fact]
+    public void CreateSessionRequest_ExposesMissionAsTheOnlySource()
+    {
+        var propertyNames = typeof(SessionsController.CreateSessionRequest)
+            .GetProperties(BindingFlags.Public | BindingFlags.Instance)
+            .Select(property => property.Name)
+            .ToArray();
+
+        propertyNames.Should().BeEquivalentTo(
+            new[] { "MissionId", "Title", "MaximumTimeMinutes", "ScheduledAt" });
+
+        propertyNames.Should().NotContain(name =>
+            name.Contains("Quiz", StringComparison.OrdinalIgnoreCase) ||
+            name.Contains("Trivia", StringComparison.OrdinalIgnoreCase) ||
+            name.Contains("Source", StringComparison.OrdinalIgnoreCase) ||
+            name.Contains("Mode", StringComparison.OrdinalIgnoreCase));
+    }
+
+    // HU-17: there is exactly one session-creation entry point (POST /api/sessions) and
+    // no alternate/quiz-as-source creation route survives the realignment.
+    [Fact]
+    public void Sessions_ExposeNoAlternateCreationRoute()
+    {
+        var routeEndpoints = _factory.Services
+            .GetServices<EndpointDataSource>()
+            .SelectMany(source => source.Endpoints)
+            .OfType<RouteEndpoint>()
+            .ToArray();
+
+        routeEndpoints.Should().NotContain(endpoint =>
+            (endpoint.RoutePattern.RawText ?? string.Empty)
+                .Contains("quiz", StringComparison.OrdinalIgnoreCase) ||
+            (endpoint.RoutePattern.RawText ?? string.Empty)
+                .Contains("trivia", StringComparison.OrdinalIgnoreCase));
+
+        var creationRoutes = routeEndpoints
+            .Where(endpoint =>
+                string.Equals(endpoint.RoutePattern.RawText, "api/sessions", StringComparison.OrdinalIgnoreCase) &&
+                (endpoint.Metadata.GetMetadata<HttpMethodMetadata>()?.HttpMethods.Contains("POST") ?? false))
+            .ToArray();
+
+        creationRoutes.Should().ContainSingle();
     }
 
     private static MissionReadinessDto EligibleMission()
