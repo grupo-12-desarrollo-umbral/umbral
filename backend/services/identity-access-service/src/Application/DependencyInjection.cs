@@ -34,25 +34,15 @@ public static class DependencyInjection
         builder.Services.AddScoped<AccessPolicy>();
 
         builder.Services.AddScoped<ParticipantSessionMembershipPolicy>();
-        builder.Services.AddScoped<UserRoleAssignmentService>();
-        builder.Services.AddScoped<IUserRoleAssignmentService>(sp =>
-            ActivatorUtilities.CreateInstance<UserRoleAssignmentAuthorizationProxy>(
-                sp, sp.GetRequiredService<UserRoleAssignmentService>()));
-        builder.Services.AddScoped<JoinTokenIssuanceService>();
-        builder.Services.AddScoped<IIssueJoinTokenService>(sp =>
-            ActivatorUtilities.CreateInstance<JoinTokenIssuanceAuthorizationProxy>(
-                sp, sp.GetRequiredService<JoinTokenIssuanceService>()));
-        builder.Services.AddScoped<ParticipantMembershipAccessValidationService>();
-        builder.Services.AddScoped<IValidateParticipantMembershipAccessService>(sp =>
-            ActivatorUtilities.CreateInstance<ParticipantMembershipAccessAuthorizationProxy>(
-                sp, sp.GetRequiredService<ParticipantMembershipAccessValidationService>()));
-        builder.Services.AddScoped<ParticipantSessionTeamLobbyService>();
-        builder.Services.AddScoped<IGetSessionTeamsForParticipantService>(sp =>
-            ActivatorUtilities.CreateInstance<ParticipantSessionTeamLobbyAuthorizationProxy>(
-                sp, sp.GetRequiredService<ParticipantSessionTeamLobbyService>()));
-        builder.Services.AddScoped<ParticipantTeamSelfJoinService>();
-        builder.Services.AddScoped<IJoinTeamAsParticipantService>(sp =>
-            ActivatorUtilities.CreateInstance<ParticipantTeamSelfJoinAuthorizationProxy>(
-                sp, sp.GetRequiredService<ParticipantTeamSelfJoinService>()));
+
+        // Concrete use-case handlers (the real subjects). Each is wrapped by its mandated
+        // *AuthorizationProxy, which MediatR's assembly scan discovers as the IRequestHandler
+        // for the request — the guard therefore runs before the handler. The concrete handler
+        // is deliberately not an IRequestHandler, so the scan registers only the Proxy.
+        builder.Services.AddScoped<AssignUserRoleCommandHandler>();
+        builder.Services.AddScoped<IssueJoinTokenCommandHandler>();
+        builder.Services.AddScoped<ValidateParticipantMembershipAccessQueryHandler>();
+        builder.Services.AddScoped<GetSessionTeamsForParticipantQueryHandler>();
+        builder.Services.AddScoped<JoinTeamAsParticipantCommandHandler>();
     }
 }

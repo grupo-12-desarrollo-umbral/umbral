@@ -8,10 +8,10 @@ using umbral_backend.Domain.Exceptions;
 
 namespace umbral_backend.Application.UnitTests.Application.Users.Commands.AssignUserRole;
 
-public sealed class UserRoleAssignmentServiceTests
+public sealed class AssignUserRoleCommandHandlerTests
 {
     [Fact]
-    public async Task AssignAsync_AssignsNewRoleAndPersistsUpdate()
+    public async Task Handle_AssignsNewRoleAndPersistsUpdate()
     {
         var target = CreateUser(2, "kc-user", Role.Operator);
         User? updatedUser = null;
@@ -26,9 +26,9 @@ public sealed class UserRoleAssignmentServiceTests
             .Returns(Task.CompletedTask);
 
         var identityProviderAdmin = new Mock<IIdentityProviderAdminService>();
-        var service = new UserRoleAssignmentService(repository.Object, identityProviderAdmin.Object);
+        var handler = new AssignUserRoleCommandHandler(repository.Object, identityProviderAdmin.Object);
 
-        await service.AssignAsync(new AssignUserRoleCommand(target.Id, "Participant"), CancellationToken.None);
+        await handler.Handle(new AssignUserRoleCommand(target.Id, "Participant"), CancellationToken.None);
 
         updatedUser.Should().NotBeNull();
         updatedUser!.Role.Should().Be(Role.Participant);
@@ -40,7 +40,7 @@ public sealed class UserRoleAssignmentServiceTests
     }
 
     [Fact]
-    public async Task AssignAsync_SameRoleAssignmentIsIdempotent()
+    public async Task Handle_SameRoleAssignmentIsIdempotent()
     {
         var target = CreateUser(2, "kc-user", Role.Operator);
 
@@ -53,9 +53,9 @@ public sealed class UserRoleAssignmentServiceTests
             .Returns(Task.CompletedTask);
 
         var identityProviderAdmin = new Mock<IIdentityProviderAdminService>();
-        var service = new UserRoleAssignmentService(repository.Object, identityProviderAdmin.Object);
+        var handler = new AssignUserRoleCommandHandler(repository.Object, identityProviderAdmin.Object);
 
-        await service.AssignAsync(new AssignUserRoleCommand(target.Id, "Operator"), CancellationToken.None);
+        await handler.Handle(new AssignUserRoleCommand(target.Id, "Operator"), CancellationToken.None);
 
         target.Role.Should().Be(Role.Operator);
         target.DomainEvents.OfType<UserRoleAssignedEvent>().Should().BeEmpty();
@@ -66,7 +66,7 @@ public sealed class UserRoleAssignmentServiceTests
     }
 
     [Fact]
-    public async Task AssignAsync_RejectsDeactivatedTargetUser()
+    public async Task Handle_RejectsDeactivatedTargetUser()
     {
         var target = CreateUser(2, "kc-user", Role.Operator);
         target.DeactivateAccess();
@@ -77,9 +77,9 @@ public sealed class UserRoleAssignmentServiceTests
             .ReturnsAsync(target);
 
         var identityProviderAdmin = new Mock<IIdentityProviderAdminService>();
-        var service = new UserRoleAssignmentService(repository.Object, identityProviderAdmin.Object);
+        var handler = new AssignUserRoleCommandHandler(repository.Object, identityProviderAdmin.Object);
 
-        var act = async () => await service.AssignAsync(new AssignUserRoleCommand(target.Id, "Participant"), CancellationToken.None);
+        var act = async () => await handler.Handle(new AssignUserRoleCommand(target.Id, "Participant"), CancellationToken.None);
 
         await act.Should().ThrowAsync<DeactivatedUserRoleAssignmentNotAllowedException>();
         repository.Verify(repo => repo.UpdateAsync(It.IsAny<User>(), It.IsAny<CancellationToken>()), Times.Never);
@@ -89,7 +89,7 @@ public sealed class UserRoleAssignmentServiceTests
     }
 
     [Fact]
-    public async Task AssignAsync_RejectsUnknownRoleValue()
+    public async Task Handle_RejectsUnknownRoleValue()
     {
         var target = CreateUser(2, "kc-user", Role.Participant);
 
@@ -98,9 +98,9 @@ public sealed class UserRoleAssignmentServiceTests
             .Setup(repo => repo.GetByIdAsync(target.Id, It.IsAny<CancellationToken>()))
             .ReturnsAsync(target);
 
-        var service = new UserRoleAssignmentService(repository.Object, Mock.Of<IIdentityProviderAdminService>());
+        var handler = new AssignUserRoleCommandHandler(repository.Object, Mock.Of<IIdentityProviderAdminService>());
 
-        var act = async () => await service.AssignAsync(new AssignUserRoleCommand(target.Id, "SuperAdmin"), CancellationToken.None);
+        var act = async () => await handler.Handle(new AssignUserRoleCommand(target.Id, "SuperAdmin"), CancellationToken.None);
 
         await act.Should().ThrowAsync<ValidationException>()
             .Where(ex => ex.Errors.ContainsKey(nameof(AssignUserRoleCommand.Role)));
