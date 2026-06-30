@@ -129,7 +129,7 @@ public sealed class ValidateParticipantMembershipAccessQueryHandlerTests
         result.Reason.Should().Contain("Consumed");
     }
 
-    private static ValidateParticipantMembershipAccessQueryHandler CreateHandler(
+    private static ParticipantMembershipAccessAuthorizationProxy CreateHandler(
         User actor,
         Team team,
         Mock<IJoinTokenRepository> joinTokenRepository,
@@ -144,7 +144,7 @@ public sealed class ValidateParticipantMembershipAccessQueryHandlerTests
         return CreateHandler(actor, teamRepository, joinTokenRepository, tokenService, timeProvider);
     }
 
-    private static ValidateParticipantMembershipAccessQueryHandler CreateHandler(
+    private static ParticipantMembershipAccessAuthorizationProxy CreateHandler(
         User actor,
         Mock<ITeamRepository> teamRepository,
         Mock<IJoinTokenRepository> joinTokenRepository,
@@ -156,19 +156,17 @@ public sealed class ValidateParticipantMembershipAccessQueryHandlerTests
             .Setup(a => a.GetActorAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(actor);
 
-        var executor = new ParticipantMembershipAccessValidationService(
+        var inner = new ValidateParticipantMembershipAccessQueryHandler(
             joinTokenRepository.Object,
             tokenService.Object,
             new JoinTokenPolicy(),
             timeProvider);
 
-        var proxy = new ParticipantMembershipAccessAuthorizationProxy(
+        return new ParticipantMembershipAccessAuthorizationProxy(
             teamRepository.Object,
             currentActor.Object,
             new AccessPolicy(),
-            executor);
-
-        return new ValidateParticipantMembershipAccessQueryHandler(proxy);
+            inner);
     }
 
     private static Mock<IJoinTokenRepository> CreateJoinTokenRepository(JoinToken? joinToken = null)

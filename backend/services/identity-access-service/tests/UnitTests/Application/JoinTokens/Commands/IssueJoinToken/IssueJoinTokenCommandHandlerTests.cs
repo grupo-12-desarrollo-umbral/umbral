@@ -66,7 +66,7 @@ public sealed class IssueJoinTokenCommandHandlerTests
             Times.Never);
     }
 
-    private static IssueJoinTokenCommandHandler CreateHandler(
+    private static JoinTokenIssuanceAuthorizationProxy CreateHandler(
         User actor,
         Mock<IJoinTokenRepository> joinTokenRepository,
         Mock<IJoinTokenTokenService> tokenService,
@@ -77,19 +77,17 @@ public sealed class IssueJoinTokenCommandHandlerTests
             .Setup(a => a.GetActorAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(actor);
 
-        var executor = new JoinTokenIssuanceService(
+        var inner = new IssueJoinTokenCommandHandler(
             joinTokenRepository.Object,
             currentActor.Object,
             tokenService.Object,
             new JoinTokenPolicy(),
             timeProvider);
 
-        var proxy = new JoinTokenIssuanceAuthorizationProxy(
+        return new JoinTokenIssuanceAuthorizationProxy(
             currentActor.Object,
             new AccessPolicy(),
-            executor);
-
-        return new IssueJoinTokenCommandHandler(proxy);
+            inner);
     }
 
     private static Mock<IJoinTokenTokenService> CreateTokenService()
