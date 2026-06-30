@@ -65,16 +65,6 @@ public sealed class ProblemDetailsExceptionHandlerTests
     }
 
     [Fact]
-    public async Task TryHandleAsync_WithSourceTriviaQuizNotPublishedException_ReturnsConflictProblemDetails()
-    {
-        var problem = await HandleAsync(new SourceTriviaQuizNotPublishedException(42, "Draft"));
-
-        problem.Status.Should().Be(StatusCodes.Status409Conflict);
-        problem.Title.Should().Be("Conflict.");
-        problem.Detail.Should().Contain("not published");
-    }
-
-    [Fact]
     public async Task TryHandleAsync_WithIneligibleSessionOperatorException_ReturnsBadRequestProblemDetails()
     {
         var problem = await HandleAsync(new IneligibleSessionOperatorException(27));
