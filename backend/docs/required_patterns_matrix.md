@@ -35,14 +35,14 @@ pattern physically lives across Domain/Application/Api is governed by
 
 | Pattern | HUs |
 | --- | --- |
-| `Composite` | `HU-10`, `HU-28` |
+| `Composite` | `HU-10` |
 | `Template Method` | `HU-11`, `HU-12`, `HU-13`, `HU-14`, `HU-34` |
 | `Facade` | `HU-15`, `HU-16`, `HU-18`, `HU-19`, `HU-26`, `HU-29`, `HU-33` |
 | `State` | `HU-21`, `HU-22`, `HU-33` |
 | `Chain of Responsibility` | `HU-21`, `HU-29`, `HU-30`, `HU-31`, `HU-34` |
 | `Proxy` | `HU-01`, `HU-02`, `HU-03`, `HU-06`, `HU-07`, `HU-19`, `HU-20`, `HU-24`, `HU-25`, `HU-26`, `HU-36`, `HU-38` |
 | `Strategy` | `HU-33`, `HU-37`, `HU-38`, `HU-39` |
-| — (no mandated pattern) | `HU-04`, `HU-05`, `HU-08`, `HU-09`, `HU-17`, `HU-23`, `HU-27`, `HU-32`, `HU-35`, `HU-40` |
+| — (no mandated pattern) | `HU-04`, `HU-05`, `HU-08`, `HU-09`, `HU-17`, `HU-23`, `HU-27`, `HU-28`, `HU-32`, `HU-35`, `HU-40` |
 
 ---
 
@@ -85,7 +85,7 @@ secondary processing → RabbitMQ, never on the critical path). Not from ADR-000
 | HU | Required pattern(s) | Transport | Why |
 | --- | --- | --- | --- |
 | `HU-09` | — | — | Mission basic-data CRUD + lifecycle on the aggregate root; no Composite traversal of its own — the tree is authored in `HU-10`. |
-| `HU-10` | `Composite` | — | **Canonical Composite** — `Mission` owns the Stage/Substage/Clue/Target tree; `MissionStructurePolicy` protects tree invariants (no substage-in-substage, one play mode per substage). |
+| `HU-10` | `Composite` | — | **Canonical Composite** — `Mission` owns the Stage/Substage/Clue/Target tree; `MissionStructurePolicy` protects tree invariants (no substage-in-substage, one play mode per substage). Treasure-hunt `Target` objectives are the leaf nodes of this tree (unique QR ids, resolvable in any order) — authored here, not in HU-28. |
 | `HU-11` | `Template Method` | — | Quiz create/edit keeps one invariant validation workflow with quiz-specific steps. |
 | `HU-12` | `Template Method` | — | Publication/archival requires a stable readiness-validation pipeline (`TriviaPublicationPolicy`). |
 | `HU-13` | `Template Method` | — | Duplicate/retire reuse the same quiz lifecycle validation sequence. |
@@ -96,7 +96,7 @@ secondary processing → RabbitMQ, never on the critical path). Not from ADR-000
 | HU | Required pattern(s) | Transport | Why |
 | --- | --- | --- | --- |
 | `HU-15` | `Facade` | — | Session creation orchestrates source checks (`SessionCreationPolicy`), snapshot, and side effects through one coordination service. |
-| `HU-16` | `Facade` | — | Runtime snapshot orchestrates the immutable copy of the mission Composite tree (substages, targets, clues, questions) into `MissionRuntimeSnapshot`. |
+| `HU-16` | `Facade` | — | Runtime snapshot orchestrates the immutable copy of the mission Composite tree (substages, targets, clues, questions) into `MissionRuntimeSnapshot`. **Canon note:** the Linear `HU-16` ticket (quiz-sourced trivia-session creation) is retired by *Realinear HU-16* — trivia is now a substage of the mission wrapper, so this Facade is realized via `HU-15`/`HU-17`. |
 | `HU-17` | — | — | Single-source invariant; enforced inside the `HU-15`/`HU-16` Facade + `SessionCreationPolicy`, not its own pattern. |
 | `HU-18` | `Facade` | — | Team association coordinates runtime session state changes and persistence before start. |
 | `HU-19` | `Facade`, `Proxy` | — | Operator assignment is orchestration **plus** guarded access to protected session actions. |
@@ -118,7 +118,7 @@ secondary processing → RabbitMQ, never on the critical path). Not from ADR-000
 | --- | --- | --- | --- |
 | `HU-26` | `Facade`, `Proxy` | SignalR | Manual clue release orchestrates a runtime visibility change + history record (`ClueReleasePolicy`); `Proxy` guards access to restricted clues (ADR-0004 names restricted clues explicitly). |
 | `HU-27` | — | — | Initial clue-visibility config copied to the snapshot. Authoring config on `Clue` Composite nodes; no own mandated pattern. |
-| `HU-28` | `Composite` | — | Treasure-hunt `Target` objectives are leaf nodes owned by a treasure-hunt `Substage` in the Composite tree (unique QR ids, resolvable in any order). |
+| `HU-28` | — | — | Operator adds operational clues to a live session without modifying the source mission; no mandated pattern, `Proxy` guards the operator action. (Canonical Target-leaf modeling lives in `HU-10`, not here — the Linear `HU-28` ticket was re-scoped to runtime clue addition.) |
 | `HU-29` | `Chain of Responsibility`, `Facade` | RabbitMQ | Evidence submission runs the composable validation pipeline; on transactional success the Facade publishes `EvidenceSubmissionRegistered` (**canonical RabbitMQ workflow**). |
 | `HU-30` | `Chain of Responsibility` | — | Pre-acceptance validation (session, team, active substage, target/question) composed as ordered validators (`EvidenceValidationPolicy`). |
 | `HU-31` | `Chain of Responsibility` | — | Server-side QR target validation (belongs to active substage, not duplicate/out-of-context) is the QR-submission validator chain (`TargetResolutionPolicy`). |
