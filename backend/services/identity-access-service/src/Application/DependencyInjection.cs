@@ -30,15 +30,25 @@ public static class DependencyInjection
         builder.Services.AddScoped<AccessPolicy>();
 
         builder.Services.AddScoped<ParticipantSessionMembershipPolicy>();
-        builder.Services.AddScoped<IUserRoleAssignmentExecutor, UserRoleAssignmentService>();
-        builder.Services.AddScoped<IUserRoleAssignmentService, UserRoleAssignmentAuthorizationProxy>();
-        builder.Services.AddScoped<IIssueJoinTokenExecutor, JoinTokenIssuanceService>();
-        builder.Services.AddScoped<IIssueJoinTokenService, JoinTokenIssuanceAuthorizationProxy>();
-        builder.Services.AddScoped<IValidateParticipantMembershipAccessExecutor, ParticipantMembershipAccessValidationService>();
-        builder.Services.AddScoped<IValidateParticipantMembershipAccessService, ParticipantMembershipAccessAuthorizationProxy>();
-        builder.Services.AddScoped<IGetSessionTeamsForParticipantExecutor, ParticipantSessionTeamLobbyService>();
-        builder.Services.AddScoped<IGetSessionTeamsForParticipantService, ParticipantSessionTeamLobbyAuthorizationProxy>();
-        builder.Services.AddScoped<IJoinTeamAsParticipantExecutor, ParticipantTeamSelfJoinService>();
-        builder.Services.AddScoped<IJoinTeamAsParticipantService, ParticipantTeamSelfJoinAuthorizationProxy>();
+        builder.Services.AddScoped<UserRoleAssignmentService>();
+        builder.Services.AddScoped<IUserRoleAssignmentService>(sp =>
+            ActivatorUtilities.CreateInstance<UserRoleAssignmentAuthorizationProxy>(
+                sp, sp.GetRequiredService<UserRoleAssignmentService>()));
+        builder.Services.AddScoped<JoinTokenIssuanceService>();
+        builder.Services.AddScoped<IIssueJoinTokenService>(sp =>
+            ActivatorUtilities.CreateInstance<JoinTokenIssuanceAuthorizationProxy>(
+                sp, sp.GetRequiredService<JoinTokenIssuanceService>()));
+        builder.Services.AddScoped<ParticipantMembershipAccessValidationService>();
+        builder.Services.AddScoped<IValidateParticipantMembershipAccessService>(sp =>
+            ActivatorUtilities.CreateInstance<ParticipantMembershipAccessAuthorizationProxy>(
+                sp, sp.GetRequiredService<ParticipantMembershipAccessValidationService>()));
+        builder.Services.AddScoped<ParticipantSessionTeamLobbyService>();
+        builder.Services.AddScoped<IGetSessionTeamsForParticipantService>(sp =>
+            ActivatorUtilities.CreateInstance<ParticipantSessionTeamLobbyAuthorizationProxy>(
+                sp, sp.GetRequiredService<ParticipantSessionTeamLobbyService>()));
+        builder.Services.AddScoped<ParticipantTeamSelfJoinService>();
+        builder.Services.AddScoped<IJoinTeamAsParticipantService>(sp =>
+            ActivatorUtilities.CreateInstance<ParticipantTeamSelfJoinAuthorizationProxy>(
+                sp, sp.GetRequiredService<ParticipantTeamSelfJoinService>()));
     }
 }

@@ -3,7 +3,7 @@ using umbral_backend.Domain.Services;
 
 namespace umbral_backend.Application.JoinTokens.Commands.IssueJoinToken;
 
-public sealed class JoinTokenIssuanceService : IIssueJoinTokenExecutor
+public sealed class JoinTokenIssuanceService : IIssueJoinTokenService
 {
     private readonly IJoinTokenRepository _joinTokenRepository;
     private readonly IUserRepository _userRepository;

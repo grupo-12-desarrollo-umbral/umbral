@@ -12,13 +12,13 @@ public sealed class UserRoleAssignmentAuthorizationProxy : IUserRoleAssignmentSe
     private readonly IUserRepository _userRepository;
     private readonly ICurrentUser _currentUser;
     private readonly AccessPolicy _accessPolicy;
-    private readonly IUserRoleAssignmentExecutor _inner;
+    private readonly IUserRoleAssignmentService _inner;
 
     public UserRoleAssignmentAuthorizationProxy(
         IUserRepository userRepository,
         ICurrentUser currentUser,
         AccessPolicy accessPolicy,
-        IUserRoleAssignmentExecutor inner)
+        IUserRoleAssignmentService inner)
     {
         _userRepository = userRepository;
         _currentUser = currentUser;

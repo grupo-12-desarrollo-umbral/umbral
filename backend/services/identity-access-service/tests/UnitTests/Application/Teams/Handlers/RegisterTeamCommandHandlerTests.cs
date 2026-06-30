@@ -1,6 +1,5 @@
 using umbral_backend.Application.Common.Interfaces;
 using umbral_backend.Application.Teams.Commands.RegisterTeam;
-using umbral_backend.Application.Teams.Handlers;
 using umbral_backend.Domain.Entities;
 using umbral_backend.Domain.Enums;
 using umbral_backend.Domain.Events;

@@ -7,7 +7,7 @@ namespace umbral_backend.Application.Users.Commands.AssignUserRole;
 
 using ValidationException = umbral_backend.Application.Common.Exceptions.ValidationException;
 
-public sealed class UserRoleAssignmentService : IUserRoleAssignmentExecutor
+public sealed class UserRoleAssignmentService : IUserRoleAssignmentService
 {
     private readonly IUserRepository _userRepository;
     private readonly IIdentityProviderAdminService _identityProviderAdmin;

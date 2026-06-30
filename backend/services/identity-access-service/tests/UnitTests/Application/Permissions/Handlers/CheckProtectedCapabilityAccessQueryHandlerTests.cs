@@ -1,5 +1,4 @@
 using umbral_backend.Application.Common.Interfaces;
-using umbral_backend.Application.Permissions.Handlers;
 using umbral_backend.Application.Permissions.Queries.CheckProtectedCapabilityAccess;
 using umbral_backend.Domain.Entities;
 using umbral_backend.Domain.Enums;

@@ -1,22 +1,24 @@
 using Microsoft.AspNetCore.Mvc;
-using umbral_backend.Api.Services;
+using umbral_backend.Application.Users.Queries.GetUsers;
+using umbral_backend.Application.Users.Commands.AuthenticateUser;
+using umbral_backend.Application.Users.Commands.AssignUserRole;
+using umbral_backend.Application.Users.Commands.DeactivateUser;
+using umbral_backend.Application.Users.Common;
 using umbral_backend.Application.Common.Models;
-using umbral_backend.Application.Users.DTOs;
 using umbral_backend.Application.Users.Queries.GetAuthenticatedActorProfile;
 
 namespace umbral_backend.Api.Controllers;
 
 [ApiController]
 [Route("api/users")]
-public sealed class UsersController(ISender sender, IUserManagementEntryPoint userManagementEntryPoint) : ControllerBase
+public sealed class UsersController(ISender sender) : ControllerBase
 {
     [HttpPost("authenticated")]
     public async Task<ActionResult<AuthenticateUserResultDto>> BootstrapAuthenticatedUserAsync(
         BootstrapAuthenticatedUserRequest request,
-        [FromServices] IAuthenticatedUserLoginEntryPoint loginEntryPoint,
         CancellationToken cancellationToken)
     {
-        var result = await loginEntryPoint.AuthenticateAsync(request.DisplayName, cancellationToken);
+        var result = await sender.Send(new AuthenticateUserCommand(request.DisplayName), cancellationToken);
 
         return Ok(result);
     }
@@ -34,9 +36,8 @@ public sealed class UsersController(ISender sender, IUserManagementEntryPoint us
         [FromQuery] GetUsersRequest request,
         CancellationToken cancellationToken)
     {
-        var result = await userManagementEntryPoint.ListUsersAsync(
-            request.Page,
-            request.PageSize,
+        var result = await sender.Send(
+            new GetUsersQuery(request.Page, request.PageSize),
             cancellationToken);
 
         return Ok(result);
@@ -47,7 +48,7 @@ public sealed class UsersController(ISender sender, IUserManagementEntryPoint us
         int id,
         CancellationToken cancellationToken)
     {
-        await userManagementEntryPoint.DeactivateUserAccessAsync(id, cancellationToken);
+        await sender.Send(new DeactivateUserCommand(id), cancellationToken);
         return NoContent();
     }
 
@@ -57,7 +58,7 @@ public sealed class UsersController(ISender sender, IUserManagementEntryPoint us
         AssignUserRoleRequest request,
         CancellationToken cancellationToken)
     {
-        await userManagementEntryPoint.AssignUserRoleAsync(id, request.Role, cancellationToken);
+        await sender.Send(new AssignUserRoleCommand(id, request.Role), cancellationToken);
         return NoContent();
     }
 

@@ -1,4 +1,4 @@
-using umbral_backend.Application.Users.DTOs;
+using umbral_backend.Application.Users.Common;
 
 namespace umbral_backend.Application.Users.Queries.GetAuthenticatedActorProfile;
 

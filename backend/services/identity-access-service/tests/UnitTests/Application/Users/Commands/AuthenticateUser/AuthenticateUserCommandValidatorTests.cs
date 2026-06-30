@@ -1,5 +1,4 @@
 using umbral_backend.Application.Users.Commands.AuthenticateUser;
-using umbral_backend.Domain.Enums;
 
 namespace umbral_backend.Application.UnitTests.Application.Users.Commands.AuthenticateUser;
 
@@ -8,13 +7,9 @@ public sealed class AuthenticateUserCommandValidatorTests
     private readonly AuthenticateUserCommandValidator _validator = new();
 
     [Fact]
-    public void Validate_AcceptsValidGatewayRoleAndClaims()
+    public void Validate_AcceptsNonEmptyDisplayName()
     {
-        var command = new AuthenticateUserCommand(
-            "user-123",
-            "Ada Lovelace",
-            "ada@example.com",
-            Role.Administrator);
+        var command = new AuthenticateUserCommand("Ada Lovelace");
 
         var result = _validator.Validate(command);
 
@@ -22,22 +17,14 @@ public sealed class AuthenticateUserCommandValidatorTests
     }
 
     [Fact]
-    public void Validate_RejectsMissingClaims()
+    public void Validate_RejectsEmptyDisplayName()
     {
-        var command = new AuthenticateUserCommand(
-            string.Empty,
-            string.Empty,
-            "invalid-email",
-            Role.Operator);
+        var command = new AuthenticateUserCommand(string.Empty);
 
         var result = _validator.Validate(command);
 
         result.IsValid.Should().BeFalse();
-        result.Errors.Select(error => error.PropertyName).Should().Contain(new[]
-        {
-            nameof(AuthenticateUserCommand.ExternalIdentityId),
-            nameof(AuthenticateUserCommand.DisplayName),
-            nameof(AuthenticateUserCommand.Email)
-        });
+        result.Errors.Select(error => error.PropertyName)
+            .Should().Contain(nameof(AuthenticateUserCommand.DisplayName));
     }
 }

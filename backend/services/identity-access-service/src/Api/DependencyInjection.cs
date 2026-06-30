@@ -16,10 +16,6 @@ public static class DependencyInjection
         builder.Services.AddDatabaseDeveloperPageExceptionFilter();
         builder.Services.AddHttpContextAccessor();
         builder.Services.AddScoped<ICurrentUser, CurrentUser>();
-        builder.Services.AddScoped<IAuthenticatedUserLoginHandler, AuthenticatedUserLoginHandler>();
-        builder.Services.AddScoped<IAuthenticatedUserLoginEntryPoint, AuthenticatedUserLoginProxy>();
-        builder.Services.AddScoped<IUserManagementHandler, UserManagementHandler>();
-        builder.Services.AddScoped<IUserManagementEntryPoint, UserManagementProxy>();
         builder.Services
             .AddAuthentication(TrustedHeadersAuthenticationDefaults.Scheme)
             .AddScheme<AuthenticationSchemeOptions, TrustedHeadersAuthenticationHandler>(

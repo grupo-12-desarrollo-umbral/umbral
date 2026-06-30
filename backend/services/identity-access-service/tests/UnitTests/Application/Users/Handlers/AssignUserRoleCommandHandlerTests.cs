@@ -1,5 +1,4 @@
 using umbral_backend.Application.Users.Commands.AssignUserRole;
-using umbral_backend.Application.Users.Handlers;
 
 namespace umbral_backend.Application.UnitTests.Application.Users.Handlers;
 

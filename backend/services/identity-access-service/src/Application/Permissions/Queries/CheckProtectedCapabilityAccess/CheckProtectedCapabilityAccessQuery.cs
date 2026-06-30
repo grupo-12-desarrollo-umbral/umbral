@@ -1,4 +1,3 @@
-using umbral_backend.Application.Permissions.DTOs;
 using umbral_backend.Domain.Enums;
 
 namespace umbral_backend.Application.Permissions.Queries.CheckProtectedCapabilityAccess;
