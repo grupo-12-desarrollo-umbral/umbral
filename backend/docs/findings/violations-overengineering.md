@@ -84,6 +84,22 @@ Per the checklist KEEP list and the services' CONTEXT.md required patterns:
 - **Real-logic guards/helpers in `<Area>/Common/`** with ≥2 consumers or paired siblings enforcing ADR-0003 (trivia reference integrity) — e.g. `ActiveMissionTriviaReferenceGuard`, `MissionStructureEditor`, `MissionTriviaPublicationChecker`, `TriviaQuizSelectionGuard`, `TriviaAuthoringInputMapper`, `MissionDtoMapper`, `TriviaQuizDtoMapper`, the `Trivias/Common/Authoring/` validators.
 - **Authoring interfaces** `ITriviaQuizAuthoringCommand` / `ITriviaQuestionAuthoringCommand` — two implementors each, drive the shared validators (canonical Template Method per CONTEXT.md).
 
-## Next steps
+## Resolution (2026-06-30)
 
-This is a findings doc only. To apply, file each finding as a separate commit-sized ticket under `backend/docs/refactors/` (or the issue tracker) and execute against the checklist's "Before cutting anything" preamble: confirm the pattern isn't named in `docs/trivia_sprint_required_patterns_matrix.md` for the touched HU. When in doubt, keep and refactor — never delete a mandated pattern.
+**All aligned findings are applied and merged to `develop`, verified green** (identity-access 95.1% / session-operations 93.3% line coverage, structure-guard OK, full suites passing).
+
+| Finding | Service | Status |
+|---|---|---|
+| Duplicate `Set`/`Update`TriviaQuizSelection command triple | mission-design | ✅ collapsed to `SelectTriviaQuizCommand` |
+| Dead cluster (`Permissions`, `LookupDto`, `PagedResult<T>`, `Result` + stubs) | mission-design | ✅ removed |
+| `IIdentityService.AuthorizeAsync` + policy branch | mission-design | ✅ removed |
+| `IIdentityService.IsInRoleAsync` stub | mission-design | ✅ removed |
+| `GetCurrentActorAsync` ×14 → `ICurrentActor` (finding 5) | identity-access | ✅ `b7be5c5` |
+| 10 inline `EnsureActorCanXxx` guards → `EnsureCanAccess` (finding 6) | identity-access | ✅ landed |
+| Forwarder triplets → Proxy-as-handler, Option A (finding 7) | identity-access | ✅ PRs #64/#65 |
+| Dead `SourceTriviaQuizNotPublishedException` (finding 8) | session-operations | ✅ removed |
+| Trivia-question load/projection dup → helper (finding 9) | session-operations | ✅ `TriviaQuestionSnapshotSelector` |
+
+Full execution record is in git history (commits + PRs #64/#65 and the session-operations findings-8/9 branch); the per-phase plan and the Finding-7 Gate-0 decision-request were scaffolding and have been removed now that the work landed.
+
+**Parked (optional, not applied):** the two "Outside the checklist" items below — `GatewayRoleParser` stdlib one-liner (a cosmetic stdlib-rung simplification, not a checklist line) and the `TryParseRole` dedup (now relocated into `AssignUserRoleCommandHandler` after finding 7 collapsed `UserRoleAssignmentService`; left as defense-in-depth on a privileged role path per the note below). Pick up only if the team wants the ledger fully empty.
