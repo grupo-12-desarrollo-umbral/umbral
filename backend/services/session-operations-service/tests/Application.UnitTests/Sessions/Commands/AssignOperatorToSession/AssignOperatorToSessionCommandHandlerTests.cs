@@ -1,8 +1,7 @@
 using umbral_backend.Application.Common.Exceptions;
 using umbral_backend.Application.Common.Interfaces;
 using umbral_backend.Application.Sessions.Commands.AssignOperatorToSession;
-using umbral_backend.Application.Sessions.DTOs;
-using umbral_backend.Application.Sessions.Handlers;
+using umbral_backend.Application.Sessions.Common;
 using umbral_backend.Domain.Entities;
 using umbral_backend.Domain.Events;
 using umbral_backend.Domain.Enums;
@@ -132,7 +131,6 @@ public sealed class AssignOperatorToSessionCommandHandlerTests
         Mock<ICurrentUser> currentUser,
         TimeProvider timeProvider)
     {
-        var accessExecutor = new SessionAdministrationAccessResolver(repository.Object);
         var actorClient = new Mock<IAuthenticatedActorProfileAccessClient>();
         actorClient
             .Setup(client => client.GetCurrentAsync(It.IsAny<CancellationToken>()))
@@ -141,7 +139,7 @@ public sealed class AssignOperatorToSessionCommandHandlerTests
                 currentUser.Object.Id ?? "missing",
                 currentUser.Object.Role ?? "Unknown",
                 true));
-        var accessResolver = new SessionAdministrationAuthorizationProxy(currentUser.Object, accessExecutor, actorClient.Object);
+        var accessResolver = new SessionAdministrationAuthorizationProxy(currentUser.Object, repository.Object, actorClient.Object);
         var facade = new AssignOperatorToSessionFacade(
             accessResolver,
             eligibilityClient.Object,

@@ -1,7 +1,6 @@
 using umbral_backend.Application.Common.Interfaces;
 using umbral_backend.Application.Common.Exceptions;
-using umbral_backend.Application.Sessions.DTOs;
-using umbral_backend.Application.Sessions.Facades;
+using umbral_backend.Application.Sessions.Common;
 using umbral_backend.Domain.Enums;
 using umbral_backend.Domain.Events;
 

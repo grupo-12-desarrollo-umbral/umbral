@@ -1,7 +1,7 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Net.Http.Json;
 using umbral_backend.Application.Common.Interfaces;
-using umbral_backend.Application.Sessions.DTOs;
+using umbral_backend.Application.Sessions.Common;
 
 namespace umbral_backend.Infrastructure.Identity;
 

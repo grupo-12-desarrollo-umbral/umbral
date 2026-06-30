@@ -1,7 +1,7 @@
 using umbral_backend.Application.Common.Exceptions;
 using umbral_backend.Application.Common.Interfaces;
 using umbral_backend.Application.Sessions.Commands.AssignOperatorToSession;
-using umbral_backend.Application.Sessions.DTOs;
+using umbral_backend.Application.Sessions.Common;
 using umbral_backend.Domain.Entities;
 using umbral_backend.Domain.Enums;
 using umbral_backend.Domain.ValueObjects;
@@ -87,15 +87,15 @@ public sealed class SessionAdministrationAuthorizationProxyTests
                 role ?? "Unknown",
                 true));
 
-        var inner = new Mock<ISessionAdministrationAccessExecutor>();
-        inner
-            .Setup(executor => executor.GetAuthorizedSessionAsync(session.LiveSessionId, It.IsAny<CancellationToken>()))
+        var repository = new Mock<ILiveSessionRepository>();
+        repository
+            .Setup(repo => repo.GetByIdAsync(session.LiveSessionId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(session);
-        inner
-            .Setup(executor => executor.GetAuthorizedTimerSessionAsync(session.LiveSessionId, It.IsAny<CancellationToken>()))
+        repository
+            .Setup(repo => repo.GetTimerSessionByIdAsync(session.LiveSessionId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(session);
 
-        return new SessionAdministrationAuthorizationProxy(currentUser.Object, inner.Object, actorClient.Object);
+        return new SessionAdministrationAuthorizationProxy(currentUser.Object, repository.Object, actorClient.Object);
     }
 
     private static LiveSession CreateScheduledSession()

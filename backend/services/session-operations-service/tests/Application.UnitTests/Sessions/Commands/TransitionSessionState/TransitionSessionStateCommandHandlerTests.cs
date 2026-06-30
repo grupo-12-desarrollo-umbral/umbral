@@ -2,8 +2,7 @@ using umbral_backend.Application.Common.Exceptions;
 using umbral_backend.Application.Common.Interfaces;
 using umbral_backend.Application.Sessions.Commands.AssignOperatorToSession;
 using umbral_backend.Application.Sessions.Commands.TransitionSessionState;
-using umbral_backend.Application.Sessions.DTOs;
-using umbral_backend.Application.Sessions.Handlers;
+using umbral_backend.Application.Sessions.Common;
 using umbral_backend.Application.Sessions.StateTransitions;
 using umbral_backend.Application.Sessions.StateTransitions.Validators;
 using umbral_backend.Domain.Entities;
@@ -145,7 +144,6 @@ public sealed class TransitionSessionStateCommandHandlerTests
         Mock<ICurrentUser> currentUser,
         int resolvedUserId = 99)
     {
-        var accessExecutor = new SessionAdministrationAccessResolver(repository.Object);
         var actorClient = new Mock<IAuthenticatedActorProfileAccessClient>();
         actorClient
             .Setup(client => client.GetCurrentAsync(It.IsAny<CancellationToken>()))
@@ -154,7 +152,7 @@ public sealed class TransitionSessionStateCommandHandlerTests
                 currentUser.Object.Id ?? "missing",
                 currentUser.Object.Role ?? "Unknown",
                 true));
-        var accessResolver = new SessionAdministrationAuthorizationProxy(currentUser.Object, accessExecutor, actorClient.Object);
+        var accessResolver = new SessionAdministrationAuthorizationProxy(currentUser.Object, repository.Object, actorClient.Object);
         var transitionPolicy = new SessionStateTransitionPolicy();
         var chain = new SessionTransitionChain(new SessionTransitionValidator[]
         {
