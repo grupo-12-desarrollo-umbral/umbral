@@ -32,6 +32,7 @@ export PGPASSWORD
 
 SEEDED_LIVE_TRIVIA_TITLE="Seeded Live Trivia"
 SEEDED_LIVE_TRIVIA_SOURCE_TITLE="Filosofos de Atenas"
+SEEDED_LIVE_TRIVIA_MISSION_NAME="Seeded Live Trivia Mission"
 
 echo "=== 1/3  Seeding trivia, sessions, and teams (psql) …"
 
@@ -87,7 +88,11 @@ psql -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d session_operations -c "
 " 2>/dev/null || true
 
 echo "  mission_design (trivia quizzes) …"
+# Delete the seeded mission first (cascades to its stages/substages). Quizzes are wiped
+# and recreated with fresh serial ids every run, so the mission's quiz selection must be
+# reauthored each run too — otherwise it dangles and the mission stops being runtime-ready.
 psql -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d mission_design -c "
+  DELETE FROM \"Missions\" WHERE \"Name\" = '$SEEDED_LIVE_TRIVIA_MISSION_NAME';
   DELETE FROM \"TriviaOptions\";
   DELETE FROM \"TriviaQuestions\";
   DELETE FROM \"TriviaQuizzes\";
@@ -310,14 +315,14 @@ for CODE in "${!SESSIONS[@]}"; do
 
   psql -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d session_operations -c "
     INSERT INTO live_sessions (
-      id, session_mode, source_entity_type, source_entity_id,
+      id, source_entity_type, source_entity_id,
       session_code, title_snapshot, state,
       scheduled_at, last_state_changed_at, maximum_time_minutes,
       created_at, updated_at,
       session_timer_total_duration, session_timer_remaining_duration,
       session_timer_advancing_since, session_timer_expired_at
     ) VALUES (
-      '$SID', 'TreasureHunt', 'Mission', gen_random_uuid(),
+      '$SID', 'Mission', gen_random_uuid(),
       '$CODE', '$TDISPLAY Team', '$STATE',
       $SCHEDULED_AT, now(), 60,
       now(), now(),
@@ -570,14 +575,91 @@ app_assign_participant() {
     -d "{\"userId\":$user_id}"
 }
 
-app_create_trivia_session() {
-  local token="$1" source_trivia_quiz_id="$2" title="$3"
+seed_ready_mission() {
+  # Authors (idempotently) a runtime-ready, mission-only Trivia mission from a published
+  # quiz and echoes its mission id. A single Stage + single Trivia substage with a quiz
+  # selected is sufficient for readiness (no TreasureHunt ⇒ no target/winner-score reqs).
+  local token="$1" trivia_quiz_id="$2"
+  local name="$SEEDED_LIVE_TRIVIA_MISSION_NAME"
+  local resp http body mission_id stage_id substage_id
+
+  # Always authored fresh: the cleanup block deletes the prior mission each run because the
+  # quiz it selects is wiped and recreated with a new id every run (see Part 1 cleanup).
+
+  # POST /api/missions
+  resp="$(curl -sS -w $'\n%{http_code}' -X POST "$BASE_URL/api/missions" \
+    -H "Authorization: Bearer $token" -H "Content-Type: application/json" \
+    -d "{\"name\":\"$name\",\"description\":\"Seeded mission-only Trivia for the live session fixture\",\"difficulty\":\"Beginner\",\"maximumTimeMinutes\":10}")"
+  http="${resp##*$'\n'}"; body="${resp%$'\n'*}"
+  if [[ "$http" != "201" ]]; then
+    echo "  FAILED ($http): could not create seeded mission" >&2; echo "$body" >&2; return 1
+  fi
+  mission_id="$(sed -n 's/^{"id":\([0-9]*\).*/\1/p' <<<"$body")"
+  if [[ -z "$mission_id" ]]; then
+    echo "  FAILED: created mission returned no id" >&2; echo "$body" >&2; return 1
+  fi
+
+  # POST /api/missions/{id}/nodes — Stage
+  resp="$(curl -sS -w $'\n%{http_code}' -X POST "$BASE_URL/api/missions/$mission_id/nodes" \
+    -H "Authorization: Bearer $token" -H "Content-Type: application/json" \
+    -d "{\"nodeType\":\"Stage\",\"title\":\"Stage 1\",\"sequenceOrder\":1}")"
+  http="${resp##*$'\n'}"; body="${resp%$'\n'*}"
+  if [[ "$http" != "200" ]]; then
+    echo "  FAILED ($http): could not add stage to seeded mission" >&2; echo "$body" >&2; return 1
+  fi
+  stage_id="$(sed -n 's/.*"stages":\[{"id":\([0-9]*\).*/\1/p' <<<"$body")"
+  if [[ -z "$stage_id" ]]; then
+    echo "  FAILED: seeded mission stage returned no id" >&2; echo "$body" >&2; return 1
+  fi
+
+  # POST /api/missions/{id}/nodes — Trivia substage
+  resp="$(curl -sS -w $'\n%{http_code}' -X POST "$BASE_URL/api/missions/$mission_id/nodes" \
+    -H "Authorization: Bearer $token" -H "Content-Type: application/json" \
+    -d "{\"nodeType\":\"Substage\",\"title\":\"Trivia\",\"sequenceOrder\":1,\"stageId\":$stage_id,\"playMode\":\"Trivia\"}")"
+  http="${resp##*$'\n'}"; body="${resp%$'\n'*}"
+  if [[ "$http" != "200" ]]; then
+    echo "  FAILED ($http): could not add trivia substage to seeded mission" >&2; echo "$body" >&2; return 1
+  fi
+  substage_id="$(sed -n 's/.*"substages":\[{"id":\([0-9]*\).*/\1/p' <<<"$body")"
+  if [[ -z "$substage_id" ]]; then
+    echo "  FAILED: seeded mission substage returned no id" >&2; echo "$body" >&2; return 1
+  fi
+
+  # POST .../trivia-quiz-selection
+  resp="$(curl -sS -w $'\n%{http_code}' -X POST \
+    "$BASE_URL/api/missions/$mission_id/stages/$stage_id/substages/$substage_id/trivia-quiz-selection" \
+    -H "Authorization: Bearer $token" -H "Content-Type: application/json" \
+    -d "{\"triviaQuizId\":$trivia_quiz_id}")"
+  http="${resp##*$'\n'}"; body="${resp%$'\n'*}"
+  if [[ "$http" != "200" ]]; then
+    echo "  FAILED ($http): could not select trivia quiz for seeded mission" >&2; echo "$body" >&2; return 1
+  fi
+
+  # GET .../readiness — must be ready before activation.
+  body="$(curl -sS "$BASE_URL/api/missions/$mission_id/readiness" -H "Authorization: Bearer $token")"
+  if ! grep -q '"isReady":true' <<<"$body"; then
+    echo "  FAILED: seeded mission is not runtime-ready" >&2; echo "$body" >&2; return 1
+  fi
+
+  # POST /api/missions/{id}/activate
+  resp="$(curl -sS -w $'\n%{http_code}' -X POST "$BASE_URL/api/missions/$mission_id/activate" \
+    -H "Authorization: Bearer $token" -H "Content-Type: application/json")"
+  http="${resp##*$'\n'}"; body="${resp%$'\n'*}"
+  if [[ "$http" != "200" ]]; then
+    echo "  FAILED ($http): could not activate seeded mission" >&2; echo "$body" >&2; return 1
+  fi
+
+  echo "$mission_id"
+}
+
+app_create_session() {
+  local token="$1" mission_id="$2" title="$3"
   local scheduled_at resp http body
   scheduled_at="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
   resp="$(curl -sS -w $'\n%{http_code}' -X POST "$BASE_URL/api/sessions" \
     -H "Authorization: Bearer $token" \
     -H "Content-Type: application/json" \
-    -d "{\"sourceTriviaQuizId\":$source_trivia_quiz_id,\"title\":\"$title\",\"maximumTimeMinutes\":10,\"scheduledAt\":\"$scheduled_at\"}")"
+    -d "{\"missionId\":$mission_id,\"title\":\"$title\",\"maximumTimeMinutes\":10,\"scheduledAt\":\"$scheduled_at\"}")"
   http="${resp##*$'\n'}"
   body="${resp%$'\n'*}"
   if [[ "$http" != "201" ]]; then
@@ -743,6 +825,12 @@ if [[ -z "$SOURCE_TRIVIA_QUIZ_ID" ]]; then
   exit 1
 fi
 
+READY_MISSION_ID="$(seed_ready_mission "$APP_ADMIN_TOKEN" "$SOURCE_TRIVIA_QUIZ_ID")"
+if [[ -z "$READY_MISSION_ID" ]]; then
+  echo "  FAILED: could not author a runtime-ready mission for the live session fixture"
+  exit 1
+fi
+
 if [[ -z "$DELTA_TEAM_ID" ]]; then
   echo "  FAILED: could not resolve seeded Delta team id"
   exit 1
@@ -760,7 +848,7 @@ if [[ -z "$OPERATOR_USER_ID" ]]; then
   exit 1
 fi
 
-SEEDED_LIVE_TRIVIA_ID="$(app_create_trivia_session "$APP_ADMIN_TOKEN" "$SOURCE_TRIVIA_QUIZ_ID" "$SEEDED_LIVE_TRIVIA_TITLE")"
+SEEDED_LIVE_TRIVIA_ID="$(app_create_session "$APP_ADMIN_TOKEN" "$READY_MISSION_ID" "$SEEDED_LIVE_TRIVIA_TITLE")"
 if [[ -z "$SEEDED_LIVE_TRIVIA_ID" ]]; then
   echo "  FAILED: live trivia session API returned no liveSessionId"
   exit 1
@@ -782,4 +870,4 @@ for CODE in "${!SESSIONS[@]}"; do
   IFS=: read -r SID STATE TID TCODE TDISPLAY <<< "${SESSIONS[$CODE]}"
   echo "  $CODE  → $STATE"
 done
-echo "  ${SEEDED_LIVE_TRIVIA_CODE:-$SEEDED_LIVE_TRIVIA_ID}  → Active (Trivia)"
+echo "  ${SEEDED_LIVE_TRIVIA_CODE:-$SEEDED_LIVE_TRIVIA_ID}  → Active (Mission)"
