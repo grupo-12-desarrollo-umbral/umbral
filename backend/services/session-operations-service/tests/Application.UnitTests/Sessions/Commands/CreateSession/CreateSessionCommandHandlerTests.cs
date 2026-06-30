@@ -1,6 +1,5 @@
 using umbral_backend.Application.Sessions.Commands.CreateSession;
-using umbral_backend.Application.Sessions.DTOs;
-using umbral_backend.Application.Sessions.Handlers;
+using umbral_backend.Application.Sessions.Common;
 
 namespace umbral_backend.Application.UnitTests.Sessions.Commands.CreateSession;
 

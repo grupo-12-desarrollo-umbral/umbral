@@ -1,8 +1,7 @@
 using umbral_backend.Application.Common.Exceptions;
 using umbral_backend.Application.Common.Interfaces;
 using umbral_backend.Application.Sessions.Commands.ReconnectAuthenticatedParticipant;
-using umbral_backend.Application.Sessions.DTOs;
-using umbral_backend.Application.Sessions.Handlers;
+using umbral_backend.Application.Sessions.Common;
 using umbral_backend.Domain.Entities;
 using umbral_backend.Domain.Enums;
 using umbral_backend.Domain.Exceptions;
@@ -187,15 +186,12 @@ public sealed class ReconnectAuthenticatedParticipantCommandHandlerTests
         Mock<ICurrentUser> currentUser,
         TimeProvider timeProvider)
     {
-        var executor = new ReconnectAuthenticatedParticipantService(
+        return new ReconnectAuthenticatedParticipantCommandHandler(
             repository.Object,
             accessClient.Object,
             currentUser.Object,
             new JoinPolicy(),
             timeProvider);
-        var proxy = new ReconnectAuthenticatedParticipantAuthorizationProxy(currentUser.Object, executor);
-
-        return new ReconnectAuthenticatedParticipantCommandHandler(proxy);
     }
 
     private static Mock<ILiveSessionRepository> CreateRepository(LiveSession session)

@@ -1,7 +1,6 @@
 using umbral_backend.Application.Common.Exceptions;
 using umbral_backend.Application.Common.Interfaces;
 using umbral_backend.Application.Sessions.Commands.DisconnectParticipant;
-using umbral_backend.Application.Sessions.Handlers;
 using umbral_backend.Domain.Entities;
 using umbral_backend.Domain.Enums;
 using umbral_backend.Domain.Services;
@@ -51,12 +50,8 @@ public sealed class DisconnectParticipantCommandHandlerTests
         Mock<ICurrentUser> currentUser,
         TimeProvider timeProvider)
     {
-        var executor = new DisconnectParticipantService(
-            repository.Object,
-            timeProvider);
-        var proxy = new DisconnectParticipantAuthorizationProxy(currentUser.Object, executor);
-
-        return new DisconnectParticipantCommandHandler(proxy);
+        _ = currentUser;
+        return new DisconnectParticipantCommandHandler(repository.Object, timeProvider);
     }
 
     private static Mock<ILiveSessionRepository> CreateRepository(LiveSession session)

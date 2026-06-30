@@ -8,7 +8,7 @@ using umbral_backend.Application.Sessions.Commands.AssignOperatorToSession;
 using umbral_backend.Application.Sessions.Commands.DisconnectParticipant;
 using umbral_backend.Application.Sessions.Commands.ReconnectAuthenticatedParticipant;
 using umbral_backend.Application.Sessions.Commands.TransitionSessionState;
-using umbral_backend.Application.Sessions.Facades;
+using umbral_backend.Application.Sessions.Common;
 using umbral_backend.Application.Sessions.StateTransitions;
 using umbral_backend.Application.Sessions.StateTransitions.Validators;
 using umbral_backend.Domain.Services;
@@ -35,15 +35,10 @@ public static class DependencyInjection
         builder.Services.AddSingleton<SessionStateTransitionPolicy>();
         builder.Services.AddSingleton<TimeProvider>(TimeProvider.System);
 
-        builder.Services.AddScoped<ISessionAdministrationAccessExecutor, SessionAdministrationAccessResolver>();
         builder.Services.AddScoped<ISessionAdministrationAccessResolver, SessionAdministrationAuthorizationProxy>();
         builder.Services.AddScoped<ISessionTeamAssociationFacade, SessionTeamAssociationFacade>();
         builder.Services.AddScoped<IAssignOperatorToSessionFacade, AssignOperatorToSessionFacade>();
         builder.Services.AddScoped<ICreateSessionFacade, CreateSessionFacade>();
-        builder.Services.AddScoped<IDisconnectParticipantExecutor, DisconnectParticipantService>();
-        builder.Services.AddScoped<IDisconnectParticipantService, DisconnectParticipantAuthorizationProxy>();
-        builder.Services.AddScoped<IReconnectAuthenticatedParticipantExecutor, ReconnectAuthenticatedParticipantService>();
-        builder.Services.AddScoped<IReconnectAuthenticatedParticipantService, ReconnectAuthenticatedParticipantAuthorizationProxy>();
         builder.Services.AddScoped<ITransitionSessionStateFacade, TransitionSessionStateFacade>();
         builder.Services.AddScoped<ITriviaRoundOrchestratorFacade, TriviaRoundOrchestratorFacade>();
         builder.Services.AddScoped<IQuestionActivationStrategy, SequentialQuestionActivationStrategy>();

@@ -1,6 +1,5 @@
 using umbral_backend.Application.Common.Exceptions;
 using umbral_backend.Application.Common.Interfaces;
-using umbral_backend.Application.Sessions.Handlers;
 using umbral_backend.Application.Sessions.Queries.GetOperatorSessionTimerSnapshot;
 using umbral_backend.Domain.Entities;
 using umbral_backend.Domain.Enums;

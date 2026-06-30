@@ -1,7 +1,7 @@
 using System.Net;
 using System.Text;
 using System.Text.Json;
-using umbral_backend.Application.Sessions.DTOs;
+using umbral_backend.Application.Sessions.Common;
 using umbral_backend.Infrastructure.Identity;
 
 namespace umbral_backend.Infrastructure.IntegrationTests.Identity;
