@@ -37,14 +37,8 @@ public static class SessionTimerSnapshotDtoFactory
         }
 
         var questionIndex = liveSession.ActiveQuestionIndex.Value;
-        var question = liveSession.MissionRuntimeSnapshot.TriviaQuestionSnapshots
-            .OrderBy(snapshot => snapshot.SequenceOrder)
-            .ElementAt(questionIndex);
+        var (question, options) = TriviaQuestionSnapshotSelector.GetOrderedTriviaQuestion(liveSession, questionIndex);
         var questionTimer = liveSession.GetActiveQuestionTimerSnapshot(observedAt);
-        var options = question.Options
-            .OrderBy(option => option.SequenceOrder)
-            .Select(option => option.OptionText)
-            .ToArray();
 
         return new ActiveQuestionSnapshotDto(
             liveSession.LiveSessionId,

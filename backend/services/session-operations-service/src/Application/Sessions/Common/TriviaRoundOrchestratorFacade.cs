@@ -94,13 +94,7 @@ public sealed class TriviaRoundOrchestratorFacade : ITriviaRoundOrchestratorFaca
         session.ActivateQuestion(questionIndex, now);
         await _liveSessionRepository.UpdateAsync(session, cancellationToken);
 
-        var question = session.MissionRuntimeSnapshot.TriviaQuestionSnapshots
-            .OrderBy(snapshot => snapshot.SequenceOrder)
-            .ElementAt(questionIndex);
-        var options = question.Options
-            .OrderBy(option => option.SequenceOrder)
-            .Select(option => option.OptionText)
-            .ToArray();
+        var (question, options) = TriviaQuestionSnapshotSelector.GetOrderedTriviaQuestion(session, questionIndex);
 
         await _sessionQuestionBroadcaster.BroadcastQuestionActivatedAsync(
             new QuestionActivatedNotificationDto(
