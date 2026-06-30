@@ -3,7 +3,6 @@ using umbral_backend.Application.Common.Interfaces;
 using umbral_backend.Application.Users.Commands.DeactivateUser;
 using umbral_backend.Domain.Entities;
 using umbral_backend.Domain.Enums;
-using umbral_backend.Domain.Exceptions;
 using umbral_backend.Domain.Services;
 
 namespace umbral_backend.Application.Users.Commands.DeactivateUser;
@@ -28,7 +27,7 @@ public sealed class DeactivateUserCommandHandler : IRequestHandler<DeactivateUse
     {
         var actor = await _currentActor.GetActorAsync(cancellationToken);
 
-        EnsureActorCanDeactivate(actor);
+        _accessPolicy.EnsureCanAccess(actor, ProtectedCapability.AdministratorPanel);
 
         var user = await _userRepository.GetByIdAsync(request.UserId, cancellationToken)
             ?? throw new NotFoundException(nameof(User), request.UserId);
@@ -36,20 +35,5 @@ public sealed class DeactivateUserCommandHandler : IRequestHandler<DeactivateUse
         user.DeactivateAccess();
 
         await _userRepository.UpdateAsync(user, cancellationToken);
-    }
-
-    private void EnsureActorCanDeactivate(User actor)
-    {
-        var decision = _accessPolicy.Evaluate(actor, ProtectedCapability.AdministratorPanel);
-
-        if (!actor.IsActive)
-        {
-            throw new DeactivatedUserAccessDeniedException(actor.Id);
-        }
-
-        if (!decision.IsAllowed)
-        {
-            throw new UserRoleNotAuthorizedException(actor.Role, ProtectedCapability.AdministratorPanel);
-        }
     }
 }

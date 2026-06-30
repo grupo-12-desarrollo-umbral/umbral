@@ -2,7 +2,6 @@ using umbral_backend.Application.Common.Exceptions;
 using umbral_backend.Application.Common.Interfaces;
 using umbral_backend.Domain.Entities;
 using umbral_backend.Domain.Enums;
-using umbral_backend.Domain.Exceptions;
 using umbral_backend.Domain.Services;
 
 namespace umbral_backend.Application.Users.Commands.AssignUserRole;
@@ -27,23 +26,8 @@ public sealed class UserRoleAssignmentAuthorizationProxy : IUserRoleAssignmentSe
     {
         var actor = await _currentActor.GetActorAsync(cancellationToken);
 
-        EnsureActorCanAssignRole(actor);
+        _accessPolicy.EnsureCanAccess(actor, ProtectedCapability.AdministratorPanel);
 
         await _inner.AssignAsync(command, cancellationToken);
-    }
-
-    private void EnsureActorCanAssignRole(User actor)
-    {
-        var decision = _accessPolicy.Evaluate(actor, ProtectedCapability.AdministratorPanel);
-
-        if (!actor.IsActive)
-        {
-            throw new DeactivatedUserAccessDeniedException(actor.Id);
-        }
-
-        if (!decision.IsAllowed)
-        {
-            throw new UserRoleNotAuthorizedException(actor.Role, ProtectedCapability.AdministratorPanel);
-        }
     }
 }

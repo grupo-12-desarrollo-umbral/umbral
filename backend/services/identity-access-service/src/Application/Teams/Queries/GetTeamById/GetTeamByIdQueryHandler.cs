@@ -4,7 +4,6 @@ using umbral_backend.Application.Teams.Common;
 using umbral_backend.Application.Teams.Queries.GetTeamById;
 using umbral_backend.Domain.Entities;
 using umbral_backend.Domain.Enums;
-using umbral_backend.Domain.Exceptions;
 using umbral_backend.Domain.Services;
 
 namespace umbral_backend.Application.Teams.Queries.GetTeamById;
@@ -28,7 +27,7 @@ public sealed class GetTeamByIdQueryHandler : IRequestHandler<GetTeamByIdQuery, 
     public async Task<TeamDto> Handle(GetTeamByIdQuery request, CancellationToken cancellationToken)
     {
         var actor = await _currentActor.GetActorAsync(cancellationToken);
-        EnsureActorCanReadTeams(actor);
+        _accessPolicy.EnsureCanAccess(actor, ProtectedCapability.OperatorPanel);
 
         var team = await _teamRepository.GetByIdAsync(request.TeamId, cancellationToken)
             ?? throw new NotFoundException(nameof(Team), request.TeamId);
@@ -40,20 +39,5 @@ public sealed class GetTeamByIdQueryHandler : IRequestHandler<GetTeamByIdQuery, 
             team.IsActive,
             team.Created,
             team.LastModified);
-    }
-
-    private void EnsureActorCanReadTeams(User actor)
-    {
-        var decision = _accessPolicy.Evaluate(actor, ProtectedCapability.OperatorPanel);
-
-        if (!actor.IsActive)
-        {
-            throw new DeactivatedUserAccessDeniedException(actor.Id);
-        }
-
-        if (!decision.IsAllowed)
-        {
-            throw new UserRoleNotAuthorizedException(actor.Role, ProtectedCapability.OperatorPanel);
-        }
     }
 }
