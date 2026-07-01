@@ -77,6 +77,57 @@ public sealed class CreateSessionEndpointTests : IAsyncLifetime
         persistedSession.MissionRuntimeSnapshot.TriviaQuestionSnapshots.Single().Options.Should().HaveCount(2);
     }
 
+    // HU-16: snapshot-content-fidelity at the endpoint — a trivia-bearing mission with a
+    // multi-question quiz must freeze EVERY question/option (none dropped), in strict mission
+    // order, with each correct flag/score/timer intact. A single-question quiz cannot prove this.
+    [Fact]
+    public async Task CreateSession_WithMultiQuestionTriviaMission_FreezesTheWholeQuizInOrder()
+    {
+        _factory.MissionRuntimeSource.Runtime = MultiQuestionTriviaRuntime();
+        _factory.MissionReadinessSource.Readiness = EligibleMission();
+        AddTrustedHeaders(_client, "kc-admin-1", "Administrator", "admin@example.com");
+
+        var response = await _client.PostAsJsonAsync(
+            "/api/sessions",
+            new
+            {
+                missionId = MissionId,
+                title = "Whole Quiz",
+                maximumTimeMinutes = 10,
+                scheduledAt = new DateTimeOffset(2026, 6, 4, 15, 0, 0, TimeSpan.Zero)
+            });
+
+        response.StatusCode.Should().Be(HttpStatusCode.Created);
+        var payload = await response.Content.ReadFromJsonAsync<CreateSessionResponse>();
+        payload.Should().NotBeNull();
+
+        await using var scope = _factory.Services.CreateAsyncScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var persisted = await dbContext.LiveSessions
+            .Include(session => session.MissionRuntimeSnapshot)
+                .ThenInclude(snapshot => snapshot.TriviaQuestionSnapshots)
+                    .ThenInclude(question => question.Options)
+            .SingleAsync(session => session.LiveSessionId == payload!.LiveSessionId);
+
+        var questions = persisted.MissionRuntimeSnapshot.TriviaQuestionSnapshots
+            .OrderBy(question => question.SequenceOrder)
+            .ToArray();
+
+        questions.Should().HaveCount(3);
+        questions.Select(question => question.Prompt).Should().ContainInOrder("Q1", "Q2", "Q3");
+        questions.Select(question => question.SequenceOrder).Should().ContainInOrder(1, 2, 3);
+        questions.Select(question => question.ScoreValue).Should().ContainInOrder(10, 20, 30);
+        questions.Select(question => question.TimeLimitSeconds).Should().ContainInOrder(15, 25, 35);
+
+        foreach (var question in questions)
+        {
+            var options = question.Options.OrderBy(option => option.SequenceOrder).ToArray();
+            options.Should().HaveCount(2);
+            options.Count(option => option.IsCorrect).Should().Be(1);
+            options.Single(option => option.IsCorrect).OptionText.Should().Be($"{question.Prompt}-correct");
+        }
+    }
+
     [Fact]
     public async Task CreateSession_AsAdministrator_MakesUnassignedSessionVisibleInAssignmentList()
     {
@@ -372,6 +423,46 @@ public sealed class CreateSessionEndpointTests : IAsyncLifetime
                                     [
                                         new MissionRuntimeTriviaOptionDto("Paris", 1, true),
                                         new MissionRuntimeTriviaOptionDto("Lyon", 2, false)
+                                    ])
+                            ])
+                    ])
+            ]);
+    }
+
+    private static MissionRuntimeDto MultiQuestionTriviaRuntime()
+    {
+        return new MissionRuntimeDto(
+            "Quiz Night",
+            10,
+            [
+                new MissionRuntimeStageDto(
+                    "Stage One",
+                    1,
+                    [
+                        new MissionRuntimeSubstageDto(
+                            "Trivia Round",
+                            1,
+                            "Trivia",
+                            null,
+                            [],
+                            [
+                                new MissionRuntimeTriviaQuestionDto(
+                                    "Q1", 1, 10, 15, null,
+                                    [
+                                        new MissionRuntimeTriviaOptionDto("Q1-correct", 1, true),
+                                        new MissionRuntimeTriviaOptionDto("Q1-wrong", 2, false)
+                                    ]),
+                                new MissionRuntimeTriviaQuestionDto(
+                                    "Q2", 2, 20, 25, null,
+                                    [
+                                        new MissionRuntimeTriviaOptionDto("Q2-wrong", 1, false),
+                                        new MissionRuntimeTriviaOptionDto("Q2-correct", 2, true)
+                                    ]),
+                                new MissionRuntimeTriviaQuestionDto(
+                                    "Q3", 3, 30, 35, null,
+                                    [
+                                        new MissionRuntimeTriviaOptionDto("Q3-correct", 1, true),
+                                        new MissionRuntimeTriviaOptionDto("Q3-wrong", 2, false)
                                     ])
                             ])
                     ])

@@ -161,18 +161,21 @@ Critical path: `HU-11 → HU-14A → HU-14B → HU-12 → HU-16 → HU-21A → H
 
 ## Q: Is trivia created from a Mission?
 
-No. `Mission` and `TriviaQuiz` are **separate aggregate roots** in `mission-design-service`.
+Trivia is **authored into a `Mission`**. A trivia round is a `Substage` of the mission that
+selects one whole published `TriviaQuiz` (`TriviaQuizSelection`); `Mission` is the **only**
+`SessionSource`. A `TriviaQuiz` cannot create a `LiveSession` on its own, and there is no
+session-level `sessionMode`.
 
 ```
-Mission      → originates TreasureHunt sessions  (sessionMode = TreasureHunt)
-TriviaQuiz   → originates Trivia sessions         (sessionMode = Trivia)
+Mission (→ trivia Substage → whole TriviaQuiz)  →  the only source of a LiveSession
 ```
 
-A `LiveSession` references either a `Mission` OR a `TriviaQuiz`, never both. The domain enforces:
-- `sessionMode = TreasureHunt` → source must be a `Mission`
-- `sessionMode = Trivia` → source must be a `TriviaQuiz`
+At creation, `LiveSession` freezes the full runtime plan — including every trivia question and
+option — into the immutable `MissionRuntimeSnapshot`.
 
-For a trivia sprint, `Mission` entities and their HU tickets (HU-09, HU-10) are **not needed**.
+> **Superseded (DES-75 / HU-16):** the earlier DES-23 model — `TriviaQuiz` as a standalone
+> session source with `sessionMode = Trivia` — is retired. Since HU-15/HU-17 there is a single
+> mission source per session and no quiz-as-source creation route.
 
 ---
 
