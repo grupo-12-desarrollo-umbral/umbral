@@ -131,9 +131,10 @@ Dependencies come from each ticket's *Blocked by* + the realignment links.
 Phases 5–6 may run in parallel once DES-24 lands.
 
 > **Status as of 2026-06-30:** rows 1, 2, 2b done, and row 7's code is done
-> (PRs #31/#33/#48/#49/#50/#51/#53/#23). The critical path now **starts at
-> row #3 (DES-24 / HU-17)**, then the 75 → 76 → 77 rebuild chain. DES-80
-> (row 2c) is an ungated low-priority pickup runnable any time.
+> (PRs #31/#33/#48/#49/#50/#51/#53/#23). Row #3 (DES-24 / HU-17) is code-complete
+> and **in review (PR #72)** — all four layers implemented, 370/370 session-operations
+> tests green. The critical path now **advances to row #4 (DES-75 / HU-16)**, then the
+> 76 → 77 rebuild chain. DES-80 (row 2c) is an ungated low-priority pickup runnable any time.
 
 | # | Ticket(s) | HU | What | Note |
 |---|---|---|---|---|
@@ -141,8 +142,8 @@ Phases 5–6 may run in parallel once DES-24 lands.
 | 2 | DES-22 | HU-15 | Create `LiveSession` from active mission; immutable snapshot | ✅ **DONE** (PR #50, 2026-06-22). |
 | 2b | DES-79 | HU-15 f/u | Archive-time enforcement: block/cascade when archiving a quiz referenced by an active mission | ✅ **DONE** (PRs #51 + #53, 2026-06-22). |
 | 2c | DES-80 | HU-14A f/u | `RemoveTriviaQuestion` command + question-removal domain slot + `TriviaQuestionRemoved` event | ⬜ **OPEN** (Backlog, Low) — deferred follow-up to HU-14A, **ungated** (HU-14A/DES-20 is Done); not a rebuild, not on the critical path — schedule any time (see below). |
-| 3 | DES-24 | HU-17 | Single mission source; drop "session from quiz" | ⬜ **OPEN** (Todo) — rebuild. **← next critical-path ticket** |
-| 4 | DES-75 | HU-16 | Trivia selection as a Substage, not a session | ⬜ **OPEN** (Todo) — rebuild (supersedes DES-23, shipped pre-canon as PR #19) |
+| 3 | DES-24 | HU-17 | Single mission source; drop "session from quiz" | 🔄 **IN REVIEW** (PR #72) — rebuild; all 4 layers (X.1–X.4) implemented, 370/370 session-operations tests green. Not merged. |
+| 4 | DES-75 | HU-16 | Trivia selection as a Substage, not a session | ⬜ **OPEN** (Todo) — rebuild (supersedes DES-23, shipped pre-canon as PR #19). **← next critical-path ticket** |
 | 5 | DES-76 | HU-21A | State machine `Scheduled→Preparing→Active→Paused→Finished→Cancelled` | ⬜ **OPEN** (Todo) — rebuild (supersedes DES-28, shipped pre-canon as PR #21) |
 | 6 | DES-77 | HU-22 | Timer keyed off active `SubstagePlayMode` | ⬜ **OPEN** (Todo) — rebuild (supersedes DES-30, shipped pre-canon as PR #22) |
 | 7 | DES-25 | HU-18 | Attach teams during `Scheduled` | ✅ code **DONE** (PR #23); only an AC reword may remain — confirm before re-running. |
