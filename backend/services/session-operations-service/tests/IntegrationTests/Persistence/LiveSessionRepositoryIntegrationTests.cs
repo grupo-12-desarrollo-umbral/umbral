@@ -236,7 +236,8 @@ public sealed class LiveSessionRepositoryIntegrationTests
             .GetByIdAsync(liveSession.LiveSessionId, CancellationToken.None);
 
         persistedSession.Should().NotBeNull();
-        persistedSession!.Source.SourceEntityId.Should().Be(sourceMissionId);
+        persistedSession!.Source.SourceType.Should().Be(SessionSourceType.Mission);
+        persistedSession.Source.SourceEntityId.Should().Be(sourceMissionId);
         persistedSession.MissionRuntimeSnapshot.MissionRuntimeSnapshotId.Should().Be(runtimeSnapshot.MissionRuntimeSnapshotId);
         persistedSession.MissionRuntimeSnapshot.SourceMissionId.Should().Be(sourceMissionId);
         persistedSession.MissionRuntimeSnapshot.MissionTitle.Should().Be("Mission Runtime");
@@ -255,6 +256,46 @@ public sealed class LiveSessionRepositoryIntegrationTests
         question.Prompt.Should().Be("Capital of France?");
         question.Options.Should().HaveCount(2);
         question.Options.Should().ContainSingle(option => option.OptionText == "Paris" && option.IsCorrect);
+    }
+
+    [Fact]
+    public async Task PersistedSchema_CarriesNoForeignSourceColumnOrTable()
+    {
+        await using var resetContext = BuildContext();
+        await ResetDatabaseAsync(resetContext);
+
+        // Persist a real mission-only session so the assertion runs against a populated graph.
+        var sourceMissionId = Guid.NewGuid();
+        var liveSession = LiveSession.Create(
+            SessionSource.Create(sourceMissionId),
+            $"SES-{Guid.NewGuid():N}"[..12],
+            "Mission Night",
+            20,
+            DateTimeOffset.UtcNow.AddDays(1),
+            CreateMixedRuntimeSnapshot(sourceMissionId, 20));
+
+        await using (var seedContext = BuildContext())
+        {
+            seedContext.LiveSessions.Add(liveSession);
+            await seedContext.SaveChangesAsync(CancellationToken.None);
+        }
+
+        await using var schemaContext = BuildContext();
+        var connection = schemaContext.Database.GetDbConnection();
+        await connection.OpenAsync();
+
+        var columns = await QuerySchemaAsync(
+            connection,
+            "SELECT table_name || '.' || column_name FROM information_schema.columns WHERE table_schema = 'public'");
+        var tables = await QuerySchemaAsync(
+            connection,
+            "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public'");
+
+        // HU-15's AddMissionRuntimeSnapshot dropped the two-source debris; HU-17 locks that it stays gone.
+        columns.Should().NotContain(name => name.Contains("source_trivia_quiz_id", StringComparison.OrdinalIgnoreCase));
+        columns.Should().NotContain(name => name.Contains("session_mode", StringComparison.OrdinalIgnoreCase));
+        tables.Should().NotContain(name => name.Contains("trivia_session_snapshot", StringComparison.OrdinalIgnoreCase));
+        tables.Should().NotContain(name => name.Contains("quiz", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]
@@ -405,6 +446,21 @@ public sealed class LiveSessionRepositoryIntegrationTests
     private ApplicationDbContext BuildContext()
     {
         return _contextFactory.Create();
+    }
+
+    private static async Task<List<string>> QuerySchemaAsync(System.Data.Common.DbConnection connection, string sql)
+    {
+        await using var command = connection.CreateCommand();
+        command.CommandText = sql;
+
+        var results = new List<string>();
+        await using var reader = await command.ExecuteReaderAsync();
+        while (await reader.ReadAsync())
+        {
+            results.Add(reader.GetString(0));
+        }
+
+        return results;
     }
 
     private static LiveSession CreateTriviaSession(DateTimeOffset scheduledAt)
