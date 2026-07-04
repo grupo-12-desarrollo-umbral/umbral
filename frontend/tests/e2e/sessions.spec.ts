@@ -208,3 +208,75 @@ test('HU-03 operator role chip is visible and correct', async ({ operatorPage: p
   await expect(page.locator('[data-testid="role-chip"]')).toBeVisible()
   await expect(page.locator('[data-testid="role-chip"]')).toContainText('operator')
 })
+
+// --- HU-16 — 422 surfaced alongside 409 ---
+
+test('session form shows the eligibility banner on 422 and keeps the form intact', async ({
+  adminPage: page,
+}) => {
+  await page.goto('/dashboard')
+  await page.click('[data-testid="nav-sessions"]')
+
+  await page.route('**/dashboard', async (route) => {
+    const request = route.request()
+    if (request.method() === 'POST') {
+      const body = await request.postData()
+      if (body && body.includes('maximumTimeMinutes')) {
+        await route.fulfill({
+          status: 422,
+          body: JSON.stringify({ type: 'mission-not-eligible-for-session', detail: 'Not ready.' }),
+        })
+        return
+      }
+    }
+    await route.continue()
+  })
+
+  const missionSelect = page.locator('[data-testid="session-mission-select"]')
+  await missionSelect.waitFor()
+  await missionSelect.selectOption(
+    (await missionSelect
+      .locator('option:not([value=""]):not([disabled])')
+      .first()
+      .getAttribute('value'))!,
+  )
+
+  await page.fill('[data-testid="session-title-input"]', '422 Test')
+  await page.fill('[data-testid="session-max-time-input"]', '10')
+  await page.fill('[data-testid="session-scheduled-at-input"]', '2026-12-30T12:00')
+  await page.click('[data-testid="session-submit-btn"]')
+
+  const banner = page.locator('[data-testid="session-form-error"]')
+  await expect(banner).toBeVisible()
+  await expect(page.locator('[data-testid="session-create-form"]')).toBeVisible()
+})
+
+// --- HU-16 — Canon guard: no trivia/quiz/SessionMode copy in creation UI ---
+
+test('no SessionMode / quiz-as-source / standalone-trivia copy in the session-creation UI', async ({
+  adminPage: page,
+}) => {
+  await page.goto('/dashboard')
+  await page.click('[data-testid="nav-sessions"]')
+
+  // Scope to the create form only — the session list below it is data-driven and
+  // may contain session titles with "quiz" / "trivia" from previous test runs.
+  const form = page.locator('[data-testid="session-create-form"]')
+  await expect(form).toBeVisible()
+
+  // Remove the mission <select> from a DOM clone before reading text.
+  // The select options are data-driven; a seeded mission name could contain "quiz".
+  const text = await form.evaluate((el) => {
+    const clone = el.cloneNode(true) as HTMLElement
+    const select = clone.querySelector('[data-testid="session-mission-select"]')
+    if (select) select.remove()
+    return clone.innerText.toLowerCase()
+  })
+
+  expect(text).not.toContain('sessionmode')
+  expect(text).not.toContain('session mode')
+  expect(text).not.toContain('quiz')
+  expect(text).not.toContain('standalone')
+  // the only source control is the mission select
+  await expect(page.locator('[data-testid="session-mission-select"]')).toBeVisible()
+})
