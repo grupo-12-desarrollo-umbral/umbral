@@ -169,6 +169,27 @@ describe('session gateway auth', () => {
     ).rejects.toThrowError('mission_not_eligible')
   })
 
+  it('maps a mission-not-eligible 422 to mission_not_eligible', async () => {
+    const { createSession } = await import('@/app/lib/sessions')
+
+    getValidAccessTokenMock.mockResolvedValue('token')
+    vi.mocked(global.fetch).mockResolvedValue(
+      new Response(
+        JSON.stringify({ type: 'mission-not-eligible-for-session', detail: 'Mission 1 is not runtime-ready.' }),
+        { status: 422, headers: { 'Content-Type': 'application/json' } },
+      ),
+    )
+
+    await expect(
+      createSession({
+        missionId: 1,
+        title: 'Test',
+        maximumTimeMinutes: 60,
+        scheduledAt: '2026-12-01T10:00:00Z',
+      }),
+    ).rejects.toThrowError('mission_not_eligible')
+  })
+
   it('maps a 404 to mission_not_found', async () => {
     const { createSession } = await import('@/app/lib/sessions')
 

@@ -209,9 +209,13 @@ test('HU-03 operator role chip is visible and correct', async ({ operatorPage: p
   await expect(page.locator('[data-testid="role-chip"]')).toContainText('operator')
 })
 
-// --- HU-16 — 422 surfaced alongside 409 ---
+// --- HU-16 — create form stays intact and surfaces an error when the create fails ---
+// This drives the server-action seam (browser -> POST /dashboard), so it locks the UI's
+// failure handling (error banner shown, form not torn down), NOT the server-side status
+// mapping. The 409/422 -> mission_not_eligible mapping in app/lib/sessions.ts runs inside
+// the server action against the gateway and is locked in tests/unit/app/lib/sessions.test.ts.
 
-test('session form shows the eligibility banner on 422 and keeps the form intact', async ({
+test('session create form surfaces an error banner and stays intact when the create fails', async ({
   adminPage: page,
 }) => {
   await page.goto('/dashboard')
