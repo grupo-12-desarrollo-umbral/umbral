@@ -3,9 +3,9 @@
 # Seeds the entire dev stack: trivia quizzes, live sessions, teams, users,
 # and team memberships — all in one shot.
 #
-# 1. Seeds trivia + sessions + teams directly in postgres (like seed-dev-data.sh)
+# 1. Seeds trivia + sessions + teams directly in postgres
 # 2. Waits for the gateway to come online
-# 3. Seeds users in Keycloak and bootstraps them into identity-access (like seed-users.sh)
+# 3. Seeds users in Keycloak and bootstraps them into identity-access
 # 4. Seeds team memberships
 #
 # Environment variables (all optional):
@@ -21,7 +21,7 @@ BACKEND_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$BACKEND_DIR"
 
 # ============================================================================
-# Part 1 — seed-dev-data.sh (psql-based: quizzes, sessions, teams)
+# Part 1 — psql-based seed: quizzes, sessions, teams
 # ============================================================================
 
 PGHOST="${PGHOST:-localhost}"
@@ -392,7 +392,7 @@ for CODE in "${!SECOND_TEAMS[@]}"; do
 done
 
 # ============================================================================
-# Part 2 — wait for gateway (needed by seed-users.sh)
+# Part 2 — wait for gateway (needed by Part 3)
 # ============================================================================
 
 echo "=== 2/3  Waiting for gateway on :8000 …"
@@ -403,7 +403,7 @@ for _ in $(seq 1 30); do
 done
 
 # ============================================================================
-# Part 3 — seed-users.sh (Keycloak users, gateway bootstrap, teams)
+# Part 3 — Keycloak users, gateway bootstrap, teams
 # ============================================================================
 
 echo "=== 3/3  Seeding users and team memberships …"

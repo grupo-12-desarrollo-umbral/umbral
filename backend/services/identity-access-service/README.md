@@ -524,16 +524,16 @@ Coverage is collected per ADR-0005: `coverlet.msbuild` with `/p:CollectCoverage=
 
 ## Seeding Users and Teams (Development)
 
-Once the stack is running, seed test users and teams by running the script from the repo root:
+Once the stack is running, seed test users and teams with the full seeder from the repo root:
 
 ```bash
-./backend/scripts/seed-users.sh
+./backend/scripts/seed-all.sh
 ```
 
-The script provisions the dev identities in Keycloak (operators + eight participants), bootstraps each into `identity_access` through the gateway, then registers 4 teams (Delta/Echo/Bismarck/Los Panas) and assigns the eight participants 2-per-team via `POST /api/teams` and `POST /api/teams/{id}/participants`. It is idempotent — existing teams (409) are reused and existing memberships (409) are skipped. To target a different base URL or Keycloak instance, pass them as arguments:
+Its user/team phase provisions the dev identities in Keycloak (operators + eight participants), bootstraps each into `identity_access` through the gateway, then registers 4 teams (Delta/Echo/Bismarck/Los Panas) and assigns the eight participants 2-per-team via `POST /api/teams` and `POST /api/teams/{id}/participants`. It is idempotent — existing teams (409) are reused and existing memberships (409) are skipped. To target a different base URL or Keycloak instance, pass them via the `BASE_URL` / `KEYCLOAK_URL` env vars:
 
 ```bash
-./backend/scripts/seed-users.sh http://localhost:8000 http://localhost:8080
+BASE_URL=http://localhost:8000 KEYCLOAK_URL=http://localhost:8080 ./backend/scripts/seed-all.sh
 ```
 
 ## Running the Service
