@@ -4,7 +4,7 @@ Scripts auxiliares para desarrollo, testing y cobertura del backend. Ejecútalos
 
 | Script | Propósito |
 |--------|-----------|
-| [`dev-up.sh`](#pipeline-dev-upsh) | **Pipeline de desarrollo**: levanta la pila y la siembra en un solo comando |
+| [`dev-up.sh`](#pipeline-dev-upsh) | **Pipeline de desarrollo**: levanta el stack y lo siembra en un solo comando |
 | [`seed-all.sh`](#seed-allsh) | Siembra completa: quizzes, sesiones, equipos, usuarios Keycloak y membresías — todo en un solo script |
 | [`cover.sh`](#coversh) | Ejecuta tests de un servicio y genera el reporte de cobertura HTML |
 | [`cover-gate.sh`](#cover-gatesh) | Gate de cobertura canónico (ADR-0005): mergea coverlet y aplica el umbral |
@@ -13,7 +13,7 @@ Scripts auxiliares para desarrollo, testing y cobertura del backend. Ejecútalos
 
 ## Pipeline: `dev-up.sh`
 
-El "pipeline" de desarrollo local: recrea la pila con hot-reload y la siembra en **un solo comando**, de modo que el frontend / móvil (`localhost:8000`) siempre tengan datos para usar. Encadena lo que harías a mano:
+El "pipeline" de desarrollo local: recrea el stack con hot-reload y lo siembra en **un solo comando**, de modo que el frontend / móvil (`localhost:8000`) siempre tengan datos para usar. Encadena lo que harías a mano:
 
 1. `docker compose down -v --remove-orphans` — borra los volúmenes para empezar de cero (omitir con `--keep`).
 2. `docker compose up -d --wait` — bloquea hasta que los servicios con healthcheck (**postgres**, **keycloak**) estén sanos.
@@ -26,7 +26,7 @@ El "pipeline" de desarrollo local: recrea la pila con hot-reload y la siembra en
 ./backend/scripts/dev-up.sh --keep    # omite `down -v` (conserva los datos de la BD)
 ```
 
-> **No** corre el gate de cobertura. Ese es un flujo aparte del host — `make -C backend gate-all` — que usa Testcontainers y no toca esta pila. No los encadenes: los contenedores de hot-reload corren como root sobre el código montado (*bind mount*), así que dejan `bin/`/`obj/` con dueño root que bloquean un gate posterior corrido en el host (límpialos con `make -C backend clean-all`, o una vez con `sudo find services -type d \( -name bin -o -name obj \) -exec rm -rf {} +`).
+> **No** corre el gate de cobertura. Ese es un flujo aparte del host — `make -C backend gate-all` — que usa Testcontainers y no toca este stack. No los encadenes: los contenedores de hot-reload corren como root sobre el código montado (*bind mount*), así que dejan `bin/`/`obj/` con dueño root que bloquean un gate posterior corrido en el host (límpialos con `make -C backend clean-all`, o una vez con `sudo find services -type d \( -name bin -o -name obj \) -exec rm -rf {} +`).
 
 ---
 
@@ -80,13 +80,8 @@ Idempotente: `ON CONFLICT DO NOTHING` en las inserciones SQL y detección de `40
 | `OPERATOR_PASSWORD` | `operator123` |
 | `PARTICIPANT_PASSWORD` | `participant123` |
 
-> Los scripts originales `seed-dev-data.sh` y `seed-users.sh` se conservan para quien necesite ejecutar solo una fase.
-
-Si solo quieres datos de sesión (sin usuarios Keycloak ni equipos con miembros):
-
-```bash
-docker compose down -v && docker compose up -d --wait && ./scripts/seed-dev-data.sh
-```
+> `seed-all.sh` es el único seeder. Para sembrar sobre un stack ya levantado, ejecútalo directo;
+> para un slate limpio usa `dev-up.sh` (que hace `down -v` → `up --wait` → `seed-all.sh`).
 
 ---
 

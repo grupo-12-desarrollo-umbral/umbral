@@ -185,14 +185,12 @@ make ef    SVC=<servicio> ARGS="migrations add <Nombre>"
 
 ### Datos de desarrollo (seed)
 
-Con la pila levantada, siembra datos de prueba (ver [Scripts](#scripts)):
+Con el stack levantado, siembra datos de prueba (ver [Scripts](#scripts)):
 
 ```bash
-./scripts/dev-up.sh          # pipeline: down -v → up --wait → seed (sesiones + usuarios/equipos)
-
-docker compose up -d --wait && ./scripts/seed-dev-data.sh   # levantar + seed sesiones
-./scripts/seed-dev-data.sh   # solo sesiones en cada estado del ciclo de vida (psql directo)
-./scripts/seed-users.sh      # solo usuarios + 4 equipos con participantes vía la API del gateway
+./scripts/dev-up.sh          # pipeline: down -v → up --wait → seed (slate limpio)
+./scripts/dev-up.sh --keep   # omite down -v (conserva la BD) y solo re-siembra
+./scripts/seed-all.sh        # siembra sobre un stack ya levantado (sin recrearlo)
 ```
 
 ---
@@ -231,7 +229,7 @@ cabeceras y aplican autorización por rol/política en sus propios endpoints.
 
 ## Mensajería
 
-RabbitMQ (`5672` AMQP, `15672` management) está disponible en la pila para la
+RabbitMQ (`5672` AMQP, `15672` management) está disponible en el stack para la
 integración **dirigida por eventos** entre servicios, evitando llamadas
 síncronas acopladas. La consola de management ayuda a inspeccionar colas y
 exchanges en desarrollo.
@@ -275,9 +273,8 @@ la raíz del repo.
 
 | Script             | Propósito                                                                                                                               |
 | ------------------ | --------------------------------------------------------------------------------------------------------------------------------------- |
-| `dev-up.sh`        | Pipeline de desarrollo: `down -v` → `up --wait` → siembra (sesiones + usuarios/equipos). Un solo comando para levantar y poblar la pila |
-| `seed-dev-data.sh` | Siembra sesiones en cada estado del ciclo de vida en `identity_access` y `session_operations` (escribe directo con `psql`; idempotente) |
-| `seed-users.sh`    | Crea usuarios en Keycloak + 4 equipos con participantes (2 por equipo) vía la API del gateway (idempotente)                             |
+| `dev-up.sh`        | Pipeline de desarrollo: `down -v` → `up --wait` → `seed-all.sh`. Un solo comando para levantar y poblar el stack                       |
+| `seed-all.sh`      | Siembra completa e idempotente: quizzes, sesiones, equipos, usuarios Keycloak y membresías — psql + API del gateway en un solo script   |
 | `cover.sh`         | Tests + reporte HTML de cobertura de demostración de un servicio                                                                        |
 | `cover-gate.sh`    | Gate de cobertura canónico (ADR-0005) — la fuente de verdad para CI/CD                                                                  |
 
