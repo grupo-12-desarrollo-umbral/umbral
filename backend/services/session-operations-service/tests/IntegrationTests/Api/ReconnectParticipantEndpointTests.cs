@@ -56,13 +56,15 @@ public sealed class ReconnectParticipantEndpointTests : IAsyncLifetime
         payload.SessionParticipantId.Should().Be(seeded.SessionParticipantId);
         payload.IsReconnect.Should().BeTrue();
         payload.SessionState.Should().Be(nameof(SessionState.Active));
+        // HU-22: reconnect delivers the substage-derived authoritative timer. This session is a
+        // treasure hunt with no active trivia question -> no authoritative countdown (OD-1).
         payload.Timer.Should().NotBeNull();
         payload.Timer!.LiveSessionId.Should().Be(seeded.LiveSessionId);
         payload.Timer.TeamId.Should().Be(seeded.TeamId);
         payload.Timer.SessionState.Should().Be(nameof(SessionState.Active));
-        payload.Timer.TimerStatus.Should().Be("Advancing");
-        payload.Timer.IsAdvancing.Should().BeTrue();
-        payload.Timer.IsExpired.Should().BeFalse();
+        payload.Timer.IsAdvancing.Should().BeFalse();
+        payload.Timer.TotalSeconds.Should().Be(0);
+        payload.Timer.RemainingSeconds.Should().Be(0);
 
         await using var scope = _factory.Services.CreateAsyncScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();

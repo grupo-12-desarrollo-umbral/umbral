@@ -120,11 +120,14 @@ public sealed class SessionStateBroadcastHubTests : IAsyncLifetime
         (await received.Task).CurrentState.Should().Be(nameof(SessionState.Paused));
     }
 
+    // HU-22 transport gate: the SessionTimerUpdated broadcast carries the active-substage
+    // (trivia-question) remaining time and reaches the live-session:{id} group. The payload is derived
+    // from the session's authoritative timer window, not a whole-session countdown.
     [Fact]
-    public async Task TimerBroadcaster_BroadcastsSessionTimerUpdatedToConnectedParticipant()
+    public async Task TimerBroadcaster_BroadcastsSubstageDerivedSessionTimerUpdatedToConnectedParticipant()
     {
         var externalIdentityId = Guid.NewGuid();
-        var seeded = await SeedPausedSessionWithDisconnectedParticipantAsync(externalIdentityId);
+        var seeded = await SeedPausedTriviaSessionWithDisconnectedParticipantAsync(externalIdentityId);
 
         await using var participant = CreateHubConnection(externalIdentityId.ToString(), "Participant", "participant@example.com");
         await participant.StartAsync();
@@ -141,19 +144,25 @@ public sealed class SessionStateBroadcastHubTests : IAsyncLifetime
             notification => received.TrySetResult(notification));
 
         var emittedAt = DateTimeOffset.UtcNow;
+        SessionTimerUpdatedNotificationDto broadcast;
         await using (var scope = _factory.Services.CreateAsyncScope())
         {
+            // Derive the broadcast payload from the session's active-substage timer window.
+            var repository = scope.ServiceProvider.GetRequiredService<ILiveSessionRepository>();
+            var session = await repository.GetByIdAsync(seeded.LiveSessionId, CancellationToken.None);
+            var snapshot = session!.GetAuthoritativeSessionTimerSnapshot(emittedAt);
+
+            broadcast = new SessionTimerUpdatedNotificationDto(
+                seeded.LiveSessionId,
+                RemainingMilliseconds: (long)Math.Ceiling(snapshot.RemainingDuration.TotalMilliseconds),
+                IsPaused: session.State == SessionState.Paused,
+                EmittedAt: emittedAt,
+                TotalMilliseconds: (long)Math.Ceiling(snapshot.TotalDuration.TotalMilliseconds),
+                IsExpired: snapshot.IsExpired,
+                SessionState: session.State.ToString());
+
             var broadcaster = scope.ServiceProvider.GetRequiredService<ISessionTimerBroadcaster>();
-            await broadcaster.BroadcastTimerUpdatedAsync(
-                new SessionTimerUpdatedNotificationDto(
-                    seeded.LiveSessionId,
-                    RemainingMilliseconds: 120_000,
-                    IsPaused: true,
-                    EmittedAt: emittedAt,
-                    TotalMilliseconds: 2_700_000,
-                    IsExpired: false,
-                    SessionState: nameof(SessionState.Paused)),
-                CancellationToken.None);
+            await broadcaster.BroadcastTimerUpdatedAsync(broadcast, CancellationToken.None);
         }
 
         var completed = await Task.WhenAny(received.Task, Task.Delay(TimeSpan.FromSeconds(5)));
@@ -161,9 +170,13 @@ public sealed class SessionStateBroadcastHubTests : IAsyncLifetime
 
         var notification = await received.Task;
         notification.LiveSessionId.Should().Be(seeded.LiveSessionId);
-        notification.RemainingMilliseconds.Should().Be(120_000);
         notification.IsPaused.Should().BeTrue();
         notification.EmittedAt.Should().BeCloseTo(emittedAt, TimeSpan.FromSeconds(1));
+        // The frozen active-question remainder (30s window paused at 10s) = 20s, proving the payload
+        // is the substage-derived window and not the deleted whole-session countdown.
+        notification.RemainingMilliseconds.Should().Be(20_000);
+        notification.RemainingMilliseconds.Should().Be(broadcast.RemainingMilliseconds);
+        notification.TotalMilliseconds.Should().Be(30_000);
     }
 
     [Fact]
@@ -297,41 +310,6 @@ public sealed class SessionStateBroadcastHubTests : IAsyncLifetime
         return new SeededSession(session.LiveSessionId, team.TeamId);
     }
 
-    private async Task<SeededSession> SeedPausedSessionWithDisconnectedParticipantAsync(Guid externalIdentityId)
-    {
-        await using var scope = _factory.Services.CreateAsyncScope();
-        var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        var createdAt = DateTimeOffset.UtcNow.AddMinutes(-20);
-
-        var sourceMissionId = Guid.NewGuid();
-        var session = LiveSession.Create(
-            SessionSource.Create(sourceMissionId),
-            $"SES-{Guid.NewGuid():N}"[..12],
-            "Paused Timer Session",
-            45,
-            createdAt,
-            CreateTreasureHuntSnapshot(sourceMissionId));
-        var team = session.AssociateTeam(Guid.NewGuid(), "Red", "RED-01", 4);
-        session.AssignOperator(OperatorUserId, createdAt.AddMinutes(1));
-        var participant = session.AdmitParticipant(
-            externalIdentityId,
-            "Nova",
-            team.TeamId,
-            createdAt.AddMinutes(1),
-            new JoinPolicy()).Participant;
-        session.DisconnectParticipant(participant.SessionParticipantId, createdAt.AddMinutes(5));
-
-        var transitionPolicy = new SessionStateTransitionPolicy();
-        session.MoveTo(SessionState.Preparing, createdAt.AddMinutes(2), transitionPolicy);
-        session.MoveTo(SessionState.Active, createdAt.AddMinutes(3), transitionPolicy);
-        session.MoveTo(SessionState.Paused, createdAt.AddMinutes(4), transitionPolicy, "Timer test");
-
-        dbContext.LiveSessions.Add(session);
-        await dbContext.SaveChangesAsync();
-
-        return new SeededSession(session.LiveSessionId, team.TeamId);
-    }
-
     private async Task<SeededSession> SeedPausedTriviaSessionWithDisconnectedParticipantAsync(Guid externalIdentityId)
     {
         await using var scope = _factory.Services.CreateAsyncScope();
@@ -360,7 +338,9 @@ public sealed class SessionStateBroadcastHubTests : IAsyncLifetime
         var transitionPolicy = new SessionStateTransitionPolicy();
         session.MoveTo(SessionState.Preparing, createdAt.AddMinutes(2), transitionPolicy);
         session.MoveTo(SessionState.Active, createdAt.AddMinutes(3), transitionPolicy);
-        session.MoveTo(SessionState.Paused, createdAt.AddMinutes(4), transitionPolicy, "Trivia test");
+        // Activate a trivia question then pause 10s later -> frozen active-substage remainder = 30 - 10 = 20s.
+        session.ActivateQuestion(0, createdAt.AddMinutes(3));
+        session.MoveTo(SessionState.Paused, createdAt.AddMinutes(3).AddSeconds(10), transitionPolicy, "Trivia test");
 
         dbContext.LiveSessions.Add(session);
         await dbContext.SaveChangesAsync();
