@@ -332,13 +332,18 @@ export type AssignableOperatorDto = {
   role: string
 }
 
-// "Advancing" = timer counting down (session Active and not expired).
-// "Frozen"    = timer not moving (session Paused, Scheduled, or Preparing).
-// "Expired"   = remaining time reached zero.
+// Active-question timer status (the authoritative clock is the active trivia question window).
+// "Advancing" = the active question timer is counting down (session Active, question open).
+// "Frozen"    = the active question timer is held (session Paused, Scheduled, or Preparing).
+// "Expired"   = the active question window reached zero.
+// There is NO whole-session/mission countdown — a substage with no active question has no countdown.
 export type SessionTimerStatus = 'Advancing' | 'Frozen' | 'Expired'
 
 // Response of GET /api/sessions/{id}/timer (Operator) and
 // GET /api/sessions/{id}/participants/timer (Participant).
+// remainingSeconds/totalSeconds track the ACTIVE SUBSTAGE's timer — the active trivia question
+// window — and are 0 when no question is active (treasure-hunt substage or between questions).
+// activeQuestion is present ⇔ a trivia question is active.
 export type SessionTimerSnapshotDto = {
   liveSessionId: string
   teamId: string | null
@@ -354,7 +359,8 @@ export type SessionTimerSnapshotDto = {
   activeQuestion: ActiveQuestionSnapshotDto | null
 }
 
-// SignalR "SessionTimerUpdated" hub event payload.
+// SignalR "SessionTimerUpdated" hub event payload — carries the active-substage
+// (active trivia question) remaining window, not a whole-session countdown.
 // Note: time units are milliseconds (long on the backend), not seconds.
 export type SessionTimerUpdatedNotificationDto = {
   liveSessionId: string
