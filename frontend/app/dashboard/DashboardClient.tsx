@@ -13,6 +13,7 @@ import { SessionOperatorPanel } from './SessionOperatorPanel'
 import { OperatorSessionTimerPanel } from './OperatorSessionTimerPanel'
 import { TriviaRoundPanel } from './TriviaRoundPanel'
 import { createSessionStateRealtimeClient, type SessionRealtimeStatus } from '@/app/lib/realtime/session-state-client'
+import { lifecycleActions, toLifecycleState } from '@/app/lib/session-lifecycle'
 import { useTriviaRoundState } from '@/app/lib/realtime/use-trivia-round-state'
 import type {
   PagedResult,
@@ -28,7 +29,6 @@ import styles from './dashboard.module.css';
 
 type DashboardRole = 'operator' | 'admin' | 'participant';
 type Theme = 'dark' | 'light';
-type SessionState = 'live' | 'paused' | 'draft';
 
 const transportStatusLabel: Record<SessionRealtimeStatus, string> = {
   Connected: 'Connected',
@@ -43,7 +43,7 @@ type Session = {
   subtitle: string;
   district: string;
   night: string;
-  state: SessionState;
+  state: SessionLifecycleState;
   startedAt: string;
   timeRemaining: string;
   teamsActive: number;
@@ -79,7 +79,7 @@ const sessions: Session[] = [
     subtitle: '12 Teams',
     district: 'Main Hall',
     night: 'Round 1',
-    state: 'live',
+    state: 'Active',
     startedAt: '19:52',
     timeRemaining: '00:07:18',
     teamsActive: 12,
@@ -95,7 +95,7 @@ const sessions: Session[] = [
     subtitle: '8 Teams',
     district: 'Lab Wing',
     night: 'Round 2',
-    state: 'paused',
+    state: 'Paused',
     startedAt: '18:20',
     timeRemaining: '00:12:40',
     teamsActive: 8,
@@ -111,7 +111,7 @@ const sessions: Session[] = [
     subtitle: '10 Teams',
     district: 'Lecture Hall',
     night: 'Preview',
-    state: 'draft',
+    state: 'Scheduled',
     startedAt: 'Pending',
     timeRemaining: 'Not started',
     teamsActive: 0,
@@ -132,25 +132,10 @@ const activity: ActivityEntry[] = [
 ];
 
 const adminMetrics = [
-  { label: 'Active sessions', value: '2', hint: '1 live, 1 paused', pill: 'Live overview' },
+  { label: 'Active sessions', value: '2', hint: '1 active, 1 paused', pill: 'Live overview' },
   { label: 'Teams competing', value: '20', hint: 'Across tonight\'s trivia events', pill: 'Cross-session' },
   { label: 'Questions answered', value: '9', hint: '5 correct, 4 pending review', pill: 'Scoring' },
 ];
-
-const stateLabels: Record<SessionState, string> = {
-  draft: 'Draft',
-  live: 'Live',
-  paused: 'Paused',
-};
-
-const lifecycleStates = new Set<SessionLifecycleState>([
-  'Scheduled',
-  'Preparing',
-  'Active',
-  'Paused',
-  'Finished',
-  'Cancelled',
-])
 
 const lifecycleTone: Record<SessionLifecycleState, 'success' | 'warning' | 'critical' | 'muted'> = {
   Scheduled: 'muted',
@@ -159,42 +144,6 @@ const lifecycleTone: Record<SessionLifecycleState, 'success' | 'warning' | 'crit
   Paused: 'warning',
   Finished: 'muted',
   Cancelled: 'critical',
-}
-
-const lifecycleActions: Record<
-  SessionLifecycleState,
-  Array<{
-    label: string
-    targetState: SessionLifecycleState
-    description: string
-    destructive?: boolean
-    allowsReason?: boolean
-  }>
-> = {
-  Scheduled: [
-    { label: 'Prepare', targetState: 'Preparing', description: 'Open operator preparation for this session.' },
-    { label: 'Cancel', targetState: 'Cancelled', description: 'Terminally cancel this scheduled session.', destructive: true, allowsReason: true },
-  ],
-  Preparing: [
-    { label: 'Start', targetState: 'Active', description: 'Move teams into active answering.' },
-    { label: 'Cancel', targetState: 'Cancelled', description: 'Terminally cancel this preparing session.', destructive: true, allowsReason: true },
-  ],
-  Active: [
-    { label: 'Pause', targetState: 'Paused', description: 'Freeze the live session while preserving progress.' },
-    { label: 'Finish', targetState: 'Finished', description: 'Terminally finish this live session.', destructive: true },
-    { label: 'Cancel', targetState: 'Cancelled', description: 'Terminally cancel this live session.', destructive: true, allowsReason: true },
-  ],
-  Paused: [
-    { label: 'Resume', targetState: 'Active', description: 'Return the paused session to active operation.' },
-    { label: 'Finish', targetState: 'Finished', description: 'Terminally finish this paused session.', destructive: true },
-    { label: 'Cancel', targetState: 'Cancelled', description: 'Terminally cancel this paused session.', destructive: true, allowsReason: true },
-  ],
-  Finished: [],
-  Cancelled: [],
-}
-
-function toLifecycleState(value: string): SessionLifecycleState | null {
-  return lifecycleStates.has(value as SessionLifecycleState) ? value as SessionLifecycleState : null
 }
 
 function formatDateTime(value: string | null | undefined) {
@@ -565,7 +514,7 @@ export default function DashboardClient({
     (selectedOperatorSession ? realtimeStatus : 'Offline') === 'Offline' ||
     (selectedOperatorSession ? realtimeStatus : 'Offline') === 'AuthExpired' ? 'critical'
     : selectedOperatorState ? lifecycleTone[selectedOperatorState]
-    : derivedSession?.state === 'paused' ? 'warning'
+    : derivedSession?.state === 'Paused' ? 'warning'
     : 'success';
   const transportStatus = selectedOperatorSession ? realtimeStatus : 'Offline'
   const transportStatusText = transportStatusLabel[transportStatus]
@@ -693,14 +642,14 @@ export default function DashboardClient({
                           : selectedOperatorState
                             ? lifecycleTone[selectedOperatorState]
                             : 'muted'
-                        : derivedSession?.state === 'live'
+                        : derivedSession?.state === 'Active'
                           ? undefined
                           : 'warning'
                     }
                   >
                     {role === 'operator'
                       ? selectedOperatorState ?? transportStatusText
-                      : derivedSession ? stateLabels[derivedSession.state] : 'Live'}
+                      : derivedSession ? derivedSession.state : 'Active'}
                   </span>
                   <span className={styles.panelMeta}>
                     {role === 'operator'
@@ -1098,7 +1047,7 @@ export default function DashboardClient({
                     </div>
                   </div>
                   <div className={styles.sessionList}>
-                    {sessions.filter((s) => s.state !== 'draft').map((session) => (
+                    {sessions.filter((s) => s.state !== 'Scheduled').map((session) => (
                       <button
                         key={session.id}
                         className={styles.sessionButton}
@@ -1112,8 +1061,8 @@ export default function DashboardClient({
                               {session.subtitle} • {session.questionsAnswered} of {session.questionsTotal} questions answered
                             </div>
                           </div>
-                          <span className={styles.chip} data-tone={session.state === 'live' ? 'success' : 'warning'}>
-                            {stateLabels[session.state]}
+                          <span className={styles.chip} data-tone={session.state === 'Active' ? 'success' : 'warning'}>
+                            {session.state}
                           </span>
                         </div>
                       </button>
