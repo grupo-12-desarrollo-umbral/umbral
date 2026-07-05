@@ -209,6 +209,58 @@ BEGIN
   END IF;
 END $$;
 `, 'E2E activatable mission ensured.')
+
+  // Seed a mission that stays not-runtime-ready (Draft, IsActive) for the whole run. The session
+  // dropdown gating tests need a stable disabled option; they must NOT reuse 'E2E Activatable
+  // Mission' because missions.spec.ts activates that one Draft -> Ready mid-run, which would flip
+  // it to enabled and break those tests in a full-suite run (they pass in isolation otherwise).
+  // Nothing activates this mission, so it remains a reliable "not runtime-ready" fixture.
+  runSql('mission_design', `
+DO $$
+DECLARE
+  v_mission_id INT;
+  v_stage_id   INT;
+  v_quiz_id    INT;
+BEGIN
+  SELECT "Id" INTO v_quiz_id
+  FROM "TriviaQuizzes"
+  WHERE "Title" = 'Filosofos de Atenas' AND "Status" = 'Published'
+  ORDER BY "Id" DESC LIMIT 1;
+
+  IF v_quiz_id IS NULL THEN
+    RAISE EXCEPTION 'No Published "Filosofos de Atenas" quiz found — run seed-dev-data.sh first.';
+  END IF;
+
+  SELECT "Id" INTO v_mission_id FROM "Missions" WHERE "Name" = 'E2E Not-Ready Mission' LIMIT 1;
+
+  IF v_mission_id IS NULL THEN
+    INSERT INTO "Missions" ("Name", "Description", "Difficulty", "MaximumTimeMinutes", "IsActive", "ActivationState", "Created", "LastModified")
+    VALUES ('E2E Not-Ready Mission', 'Seeded Draft mission that stays not-runtime-ready — do not activate or delete', 'Easy', 45, true, 'Draft', NOW(), NOW())
+    RETURNING "Id" INTO v_mission_id;
+
+    INSERT INTO "MissionStages" ("MissionId", "Title", "SequenceOrder")
+    VALUES (v_mission_id, 'Stage 1', 1)
+    RETURNING "Id" INTO v_stage_id;
+
+    INSERT INTO "MissionSubstages" ("StageId", "Title", "SequenceOrder", "PlayMode", "TriviaQuizId")
+    VALUES (v_stage_id, 'Trivia Substage', 1, 'Trivia', v_quiz_id);
+  ELSE
+    -- Idempotent reset: force back to Draft and rebuild a clean plan in case a prior run drifted.
+    UPDATE "Missions"
+    SET "IsActive" = true, "ActivationState" = 'Draft', "LastModified" = NOW()
+    WHERE "Id" = v_mission_id;
+
+    DELETE FROM "MissionStages" WHERE "MissionId" = v_mission_id;
+
+    INSERT INTO "MissionStages" ("MissionId", "Title", "SequenceOrder")
+    VALUES (v_mission_id, 'Stage 1', 1)
+    RETURNING "Id" INTO v_stage_id;
+
+    INSERT INTO "MissionSubstages" ("StageId", "Title", "SequenceOrder", "PlayMode", "TriviaQuizId")
+    VALUES (v_stage_id, 'Trivia Substage', 1, 'Trivia', v_quiz_id);
+  END IF;
+END $$;
+`, 'E2E not-ready mission ensured.')
 }
 
 // Seed op-1's identity-access row keyed by its resolved Keycloak sub (UUID). Deletes any prior

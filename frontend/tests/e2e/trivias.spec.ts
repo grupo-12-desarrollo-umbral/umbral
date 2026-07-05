@@ -387,17 +387,23 @@ async function createReadyDraftQuiz(page: Page, title: string): Promise<void> {
 // ---- isSourceReady display ----
 
 test('draft quiz shows source ready as No in list view', async ({ adminPage: page }) => {
+  // Unique title: these e2e tests persist real rows, so a static title collides across reruns.
+  const quizTitle = `Source Ready Test ${Date.now()}`
   await page.goto('/dashboard')
   await page.click('[data-testid="nav-trivias"]')
   await page.click('[data-testid="create-trivia-btn"]')
-  await page.fill('[data-testid="trivia-title-input"]', 'Source Ready Test')
+  await page.fill('[data-testid="trivia-title-input"]', quizTitle)
   await page.fill('[data-testid="trivia-description-input"]', 'Should be not ready.')
   await page.click('[data-testid="trivia-submit-btn"]')
+
+  // Wait for the create to land on detail before navigating — the create view has its own
+  // "← Back to trivia quizzes" button, so clicking Back mid-submit races the pending transition.
+  await expect(page.locator('[data-testid="trivia-detail"]')).toBeVisible()
 
   // Back to list
   await page.getByRole('button', { name: '← Back to trivia quizzes' }).click()
 
-  const row = page.locator('[data-testid^="trivia-row-"]').filter({ hasText: 'Source Ready Test' })
+  const row = page.locator('[data-testid^="trivia-row-"]').filter({ hasText: quizTitle })
   const chip = row.locator('[data-testid^="trivia-source-ready-"]')
   await expect(chip).toContainText('No')
 })
@@ -729,8 +735,11 @@ test('archived quiz has no duplicate button', async ({ adminPage: page }) => {
 // ---- Lineage cues in list view ----
 
 test('copy shows Copy chip in list provenance column', async ({ adminPage: page }) => {
+  // Unique title so the assertion scopes to this run's copy — a global copy-chip count collides
+  // with copies left by reruns and by other duplicate tests running in parallel on the shared DB.
+  const sourceTitle = `Lineage List Source ${Date.now()}`
   await page.goto('/dashboard')
-  await createReadyDraftQuiz(page, 'Lineage List Source')
+  await createReadyDraftQuiz(page, sourceTitle)
 
   await page.click('[data-testid="duplicate-trivia-btn"]')
   await page.click('[data-testid="confirm-duplicate-btn"]')
@@ -738,10 +747,10 @@ test('copy shows Copy chip in list provenance column', async ({ adminPage: page 
   // Navigate back to list
   await page.getByRole('button', { name: '← Back to trivia quizzes' }).click()
 
-  // The new copy row should have a Copy chip
-  const copyRow = page.locator('[data-testid^="trivia-row-"]').filter({
-    has: page.locator('[data-testid^="trivia-copy-chip-"]'),
-  })
+  // The new copy (same title as its source) should be the row that carries a Copy chip.
+  const copyRow = page.locator('[data-testid^="trivia-row-"]')
+    .filter({ hasText: sourceTitle })
+    .filter({ has: page.locator('[data-testid^="trivia-copy-chip-"]') })
   await expect(copyRow).toHaveCount(1)
 })
 
@@ -771,7 +780,7 @@ test('copy detail shows source quiz id badge', async ({ adminPage: page }) => {
 
   await expect(page.locator('[data-testid="trivia-source-quiz-id"]')).toBeVisible()
   const badgeText = await page.locator('[data-testid="trivia-source-quiz-id"]').innerText()
-  expect(badgeText).toMatch(/Quiz #\d+/)
+  expect(badgeText).toMatch(/Quiz #\d+/i) // .chip CSS uppercases the label ("QUIZ #273")
 })
 
 test('original quiz detail shows no source quiz id badge', async ({ adminPage: page }) => {
@@ -785,53 +794,20 @@ test('original quiz detail shows no source quiz id badge', async ({ adminPage: p
   await expect(page.locator('[data-testid="trivia-source-quiz-id"]')).toHaveCount(0)
 })
 
-// ---- Retire flow (uses page.route() to inject hasUsageHistory: true) ----
+// ---- Retire flow ----
+// Data is fetched server-side (Server Action → mission-design service), so browser page.route()
+// cannot inject usage history. These use the seeded "Trivia con historial de uso" quiz
+// (Published, HasUsageHistory=true) from seed-all.sh instead.
+
+const USED_QUIZ_TITLE = 'Trivia con historial de uso'
 
 test('retire button is visible for a quiz with usage history', async ({ adminPage: page }) => {
-  const MOCK_QUIZ_ID = 9001
-
-  // Intercept catalog to include a used quiz
-  await page.route('**/api/trivias', (route) => {
-    route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify([
-        {
-          id: MOCK_QUIZ_ID,
-          title: 'Used Quiz',
-          description: 'Has session history.',
-          status: 'Published',
-          isSourceReady: true,
-          sourceTriviaQuizId: null,
-          hasUsageHistory: true,
-          isDuplicate: false,
-        },
-      ]),
-    })
-  })
-
-  // Intercept detail fetch for the used quiz
-  await page.route(`**/api/trivias/${MOCK_QUIZ_ID}`, (route) => {
-    route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({
-        id: MOCK_QUIZ_ID,
-        title: 'Used Quiz',
-        description: 'Has session history.',
-        status: 'Published',
-        isSourceReady: true,
-        sourceTriviaQuizId: null,
-        hasUsageHistory: true,
-        isDuplicate: false,
-        questions: [],
-      }),
-    })
-  })
-
   await page.goto('/dashboard')
   await page.click('[data-testid="nav-trivias"]')
-  await page.click(`[data-testid="view-trivia-btn-${MOCK_QUIZ_ID}"]`)
+
+  const usedRow = page.locator('[data-testid^="trivia-row-"]').filter({ hasText: USED_QUIZ_TITLE })
+  await expect(usedRow).toBeVisible()
+  await usedRow.locator('[data-testid^="view-trivia-btn-"]').click()
 
   await expect(page.locator('[data-testid="retire-trivia-btn"]')).toBeVisible()
   await expect(page.locator('[data-testid="archive-trivia-btn"]')).toHaveCount(0)
@@ -839,32 +815,13 @@ test('retire button is visible for a quiz with usage history', async ({ adminPag
 })
 
 test('Used chip appears in list for a quiz with usage history', async ({ adminPage: page }) => {
-  const MOCK_QUIZ_ID = 9002
-
-  await page.route('**/api/trivias', (route) => {
-    route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify([
-        {
-          id: MOCK_QUIZ_ID,
-          title: 'Used Quiz List',
-          description: 'Has session history.',
-          status: 'Published',
-          isSourceReady: true,
-          sourceTriviaQuizId: null,
-          hasUsageHistory: true,
-          isDuplicate: false,
-        },
-      ]),
-    })
-  })
-
   await page.goto('/dashboard')
   await page.click('[data-testid="nav-trivias"]')
 
-  await expect(page.locator(`[data-testid="trivia-usage-chip-${MOCK_QUIZ_ID}"]`)).toBeVisible()
-  await expect(page.locator(`[data-testid="trivia-copy-chip-${MOCK_QUIZ_ID}"]`)).toHaveCount(0)
+  const usedRow = page.locator('[data-testid^="trivia-row-"]').filter({ hasText: USED_QUIZ_TITLE })
+  await expect(usedRow).toBeVisible()
+  await expect(usedRow.locator('[data-testid^="trivia-usage-chip-"]')).toBeVisible()
+  await expect(usedRow.locator('[data-testid^="trivia-copy-chip-"]')).toHaveCount(0)
 })
 
 test('retire button is not visible for a quiz without usage history', async ({ adminPage: page }) => {

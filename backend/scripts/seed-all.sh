@@ -277,6 +277,25 @@ UNION ALL SELECT \"Id\", 'Sídney', 2, false FROM q3
 UNION ALL SELECT \"Id\", 'Melbourne', 3, false FROM q3
 UNION ALL SELECT \"Id\", 'Brisbane', 4, false FROM q3;
 "
+# Trivia con historial de uso — Published with usage history (drives the retire/Used-chip flows).
+# HasUsageHistory has no runtime trigger yet (MarkAsUsedInSession is unwired), so it must be seeded.
+psql -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d mission_design -c "
+WITH quiz AS (
+  INSERT INTO \"TriviaQuizzes\" (\"Title\", \"Description\", \"Status\", \"HasUsageHistory\", \"Created\", \"LastModified\")
+  VALUES ('Trivia con historial de uso', 'Ya se jugo en una sesion en vivo.', 'Published', true, NOW(), NOW())
+  RETURNING \"Id\"
+),
+q1 AS (
+  INSERT INTO \"TriviaQuestions\" (\"TriviaQuizId\", \"Prompt\", \"SequenceOrder\", \"ScoreValue\", \"TimeLimitSeconds\", \"Explanation\", \"IsActive\")
+  SELECT \"Id\", '¿En que continente esta Egipto?', 1, 100, 30, 'Egipto esta en Africa.', true FROM quiz
+  RETURNING \"Id\"
+)
+INSERT INTO \"TriviaOptions\" (\"TriviaQuestionId\", \"OptionText\", \"SequenceOrder\", \"IsCorrect\")
+SELECT \"Id\", 'Africa', 1, true FROM q1
+UNION ALL SELECT \"Id\", 'Asia', 2, false FROM q1
+UNION ALL SELECT \"Id\", 'Europa', 3, false FROM q1
+UNION ALL SELECT \"Id\", 'Oceania', 4, false FROM q1;
+"
 
 echo "  identity_access (sessions + teams) …"
 for CODE in "${!SESSIONS[@]}"; do

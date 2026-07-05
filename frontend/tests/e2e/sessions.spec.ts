@@ -75,10 +75,11 @@ test('not-runtime-ready missions appear disabled with a reason', async ({ adminP
   const missionSelect = page.locator('[data-testid="session-mission-select"]')
   await missionSelect.waitFor()
 
-  // The Draft seed mission ('E2E Activatable Mission') is active but not runtime-ready,
+  // The Draft seed mission ('E2E Not-Ready Mission') is active but not runtime-ready,
   // so it is shown for visibility but disabled and labelled with the reason — the admin
-  // can't pick a mission that would 409 at create time.
-  const draftOption = missionSelect.locator('option', { hasText: 'E2E Activatable Mission' })
+  // can't pick a mission that would 409 at create time. (Uses the dedicated always-Draft
+  // fixture, not 'E2E Activatable Mission', which the activate test flips to Ready mid-run.)
+  const draftOption = missionSelect.locator('option', { hasText: 'E2E Not-Ready Mission' })
   await expect(draftOption).toBeDisabled()
   await expect(draftOption).toContainText('not runtime-ready')
 
@@ -101,7 +102,9 @@ test('runtime-ready missions are listed before not-runtime-ready missions', asyn
   const options = missionSelect.locator('option:not([value=""])')
   const optionTexts = await options.allTextContents()
   const readyIndex = optionTexts.findIndex((text) => text.includes('E2E Seed Mission'))
-  const draftIndex = optionTexts.findIndex((text) => text.includes('E2E Activatable Mission'))
+  // Dedicated always-Draft fixture — 'E2E Activatable Mission' gets activated mid-run by
+  // missions.spec.ts, so it can't be relied on to stay not-runtime-ready here.
+  const draftIndex = optionTexts.findIndex((text) => text.includes('E2E Not-Ready Mission'))
 
   expect(readyIndex).toBeGreaterThanOrEqual(0)
   expect(draftIndex).toBeGreaterThanOrEqual(0)
