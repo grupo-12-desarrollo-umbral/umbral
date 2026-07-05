@@ -395,10 +395,35 @@ export default function DashboardClient({
       onQuestionActivated: (notification) => {
         if (notification.liveSessionId !== selectedRealtimeSessionId) return
         handleQuestionActivated(notification)
+        // Keep the timer snapshot's active-question window fresh so the panel shows the
+        // countdown (not the no-question state) between snapshot reloads. Worker ticks refine it.
+        dispatchTimer({
+          type: 'patched',
+          patch: {
+            activeQuestion: { ...notification, remainingSeconds: notification.timeLimitSeconds },
+            totalSeconds: notification.timeLimitSeconds,
+            remainingSeconds: notification.timeLimitSeconds,
+            timerStatus: 'Advancing',
+            isAdvancing: true,
+            isExpired: false,
+            observedAt: notification.activatedAt,
+          },
+        })
       },
       onQuestionClosed: (notification) => {
         if (notification.liveSessionId !== selectedRealtimeSessionId) return
         handleQuestionClosed(notification)
+        // Question closed → no active question window; panel returns to the no-countdown state.
+        dispatchTimer({
+          type: 'patched',
+          patch: {
+            activeQuestion: null,
+            totalSeconds: 0,
+            remainingSeconds: 0,
+            isAdvancing: false,
+            observedAt: notification.closedAt,
+          },
+        })
       },
       onReconnected: () => {
         if (selectedRealtimeSessionId) void loadTimerSnapshot(selectedRealtimeSessionId)
