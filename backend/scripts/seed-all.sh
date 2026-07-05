@@ -338,6 +338,43 @@ for CODE in "${!SESSIONS[@]}"; do
       title_snapshot = EXCLUDED.title_snapshot,
       updated_at = now();
   "
+  # A live session owns a REQUIRED immutable MissionRuntimeSnapshot (HU-17); without it the
+  # repository deep-load throws InvalidCastException ('Column live_session_id is null') → 500.
+  # Mirror a well-formed GUID-seeded snapshot: one snapshot root + Stage + Trivia substage +
+  # trivia questions/options. Deterministic ids derived from the session id (d0/d1/d2/d3 prefix).
+  # DELETE-then-insert (FK ON DELETE CASCADE) keeps it idempotent even if the live_session row
+  # survived a prior run.
+  SNAP_ID="d1${SID:2}"; STAGE_ID="d2${SID:2}"; SUB_ID="d3${SID:2}"; MISSION_ID="d0${SID:2}"
+  psql -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d session_operations -c "
+    DELETE FROM live_session_mission_runtime_snapshots WHERE live_session_id = '$SID';
+    INSERT INTO live_session_mission_runtime_snapshots
+      (live_session_id, id, source_mission_id, mission_title, maximum_time_minutes)
+    VALUES ('$SID', '$SNAP_ID', '$MISSION_ID', '$TDISPLAY Mission', 60);
+    INSERT INTO live_session_mission_runtime_snapshot_stages
+      (id, title, sequence_order, live_session_id)
+    VALUES ('$STAGE_ID', 'Stage 1', 1, '$SID');
+    INSERT INTO live_session_mission_runtime_snapshot_substages
+      (id, title, sequence_order, play_mode, winner_score, stage_snapshot_id)
+    VALUES ('$SUB_ID', 'Trivia Substage', 1, 'Trivia', null, '$STAGE_ID');
+    WITH q AS (
+      INSERT INTO live_session_mission_runtime_snapshot_trivia_questions
+        (substage_snapshot_id, prompt, sequence_order, score_value, time_limit_seconds, explanation, live_session_id)
+      VALUES
+        ('$SUB_ID', '¿Quién fue el maestro de Platón?', 1, 100, 30, 'Sócrates fue el maestro de Platón.', '$SID'),
+        ('$SUB_ID', '¿Qué filósofo fundó la Academia de Atenas?', 2, 100, 30, 'Platón fundó la Academia de Atenas.', '$SID'),
+        ('$SUB_ID', '¿Cuál de estos filósofos fue discípulo de Platón?', 3, 100, 30, 'Aristóteles fue discípulo de Platón.', '$SID')
+      RETURNING id, sequence_order
+    )
+    INSERT INTO live_session_mission_runtime_snapshot_trivia_options
+      (option_text, sequence_order, is_correct, trivia_question_snapshot_id)
+    SELECT o.option_text, o.seq, o.is_correct, q.id
+    FROM q
+    JOIN (VALUES
+      (1, 'Sócrates', 1, true), (1, 'Aristóteles', 2, false), (1, 'Pitágoras', 3, false), (1, 'Demócrito', 4, false),
+      (2, 'Platón', 1, true), (2, 'Sócrates', 2, false), (2, 'Aristóteles', 3, false), (2, 'Epicuro', 4, false),
+      (3, 'Aristóteles', 1, true), (3, 'Sócrates', 2, false), (3, 'Heráclito', 3, false), (3, 'Tales', 4, false)
+    ) AS o(qseq, option_text, seq, is_correct) ON o.qseq = q.sequence_order;
+  "
   psql -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d session_operations -c "
     INSERT INTO live_session_teams (
       id, live_session_id, team_code, display_name,
@@ -847,6 +884,20 @@ if [[ -z "$OPERATOR_USER_ID" ]]; then
   echo "  ERROR: could not resolve app user id for seeded operator."
   exit 1
 fi
+
+# Assign the seeded operator to the psql-seeded SMOKE sessions. The transition path resolves
+# operator ownership by calling identity-access GET /api/users/me (keyed by the operator's
+# current Keycloak sub, which the USERS loop above bootstrapped) and comparing the returned
+# app user id against live_sessions.assigned_operator_user_id. Without this assignment the
+# OperatorAssignmentGate rejects Scheduled→Preparing (operator required) and the resolver's
+# ownership check fails. The app user id is minted at bootstrap time, so it must be stamped
+# here (Part 3) rather than in the deterministic Part 1 psql insert.
+psql -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d session_operations -c "
+  UPDATE live_sessions
+  SET assigned_operator_user_id = $OPERATOR_USER_ID, updated_at = now()
+  WHERE session_code LIKE 'SMOKE%';
+"
+echo "  assigned operator (app user $OPERATOR_USER_ID) to SMOKE sessions"
 
 SEEDED_LIVE_TRIVIA_ID="$(app_create_session "$APP_ADMIN_TOKEN" "$READY_MISSION_ID" "$SEEDED_LIVE_TRIVIA_TITLE")"
 if [[ -z "$SEEDED_LIVE_TRIVIA_ID" ]]; then
