@@ -1,5 +1,5 @@
 import { test as base, Page } from '@playwright/test'
-import { createKeycloakSessionCookie } from '@/tests/lib/keycloak-session-helper'
+import { createKeycloakSession } from '@/tests/lib/keycloak-session-helper'
 import { encryptForTest } from '@/tests/lib/session-helper'
 import type { SessionPayload } from '@/app/lib/definitions'
 
@@ -13,8 +13,12 @@ export const test = base.extend<{
 }>({
   operatorPage: async ({ browser }, runPageFixture) => {
     const ctx = await browser.newContext()
+    // externalIdentityId = the Keycloak sub (UUID), not 'op-1': operator session-listing goes
+    // gateway→JWT and identity-access keys the actor by sub. global-setup seeds op-1's row with
+    // the same sub, so both the BFF-direct (X-User-Id) and gateway paths resolve to one row.
+    const { cookie: keycloakSession, sub } = await createKeycloakSession('op-1', 'operator123')
     const payload: SessionPayload = {
-      externalIdentityId: 'op-1',
+      externalIdentityId: sub,
       displayName: 'Operator One',
       email: 'op-1@umbral.local',
       role: 'Operator',
@@ -22,7 +26,6 @@ export const test = base.extend<{
       expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
     }
     const session = await encryptForTest(payload)
-    const keycloakSession = await createKeycloakSessionCookie('op-1', 'operator123')
     await ctx.addCookies([
       { name: 'session', value: session, url: 'http://localhost:3000' },
       { name: 'kc_session', value: keycloakSession, url: 'http://localhost:3000' },
@@ -43,7 +46,7 @@ export const test = base.extend<{
       expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
     }
     const session = await encryptForTest(payload)
-    const keycloakSession = await createKeycloakSessionCookie('admin-1', 'admin123')
+    const { cookie: keycloakSession } = await createKeycloakSession('admin-1', 'admin123')
     await ctx.addCookies([
       { name: 'session', value: session, url: 'http://localhost:3000' },
       { name: 'kc_session', value: keycloakSession, url: 'http://localhost:3000' },

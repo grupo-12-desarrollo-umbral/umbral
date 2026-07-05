@@ -1,5 +1,5 @@
 import { createHash } from 'crypto'
-import { EncryptJWT } from 'jose'
+import { EncryptJWT, decodeJwt } from 'jose'
 
 type KeycloakTokenResponse = {
   access_token?: string
@@ -100,11 +100,19 @@ async function sealStoredTokens(tokens: StoredKeycloakTokens): Promise<string> {
     .encrypt(getEncodedSealKey())
 }
 
-export async function createKeycloakSessionCookie(
+// Returns the sealed kc_session cookie plus the Keycloak `sub` (UUID) from the access token.
+// The gateway forwards `sub` as X-User-Id on Bearer-JWT calls, so callers that must match a
+// seeded identity-access row (operator session-listing) need it — the literal username won't do.
+export async function createKeycloakSession(
   username: string,
   password: string,
-): Promise<string> {
+): Promise<{ cookie: string; sub: string }> {
   const nowMs = Date.now()
   const tokens = await requestKeycloakTokens(username, password)
-  return sealStoredTokens(mapTokenResponseToStoredTokens(tokens, nowMs))
+  const sub = decodeJwt(tokens.access_token ?? '').sub
+  if (!sub) {
+    throw new Error(`Keycloak access token for ${username} had no sub claim`)
+  }
+  const cookie = await sealStoredTokens(mapTokenResponseToStoredTokens(tokens, nowMs))
+  return { cookie, sub }
 }
