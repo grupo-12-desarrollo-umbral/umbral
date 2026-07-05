@@ -1,3 +1,4 @@
+using System.Reflection;
 using umbral_backend.Domain.Entities;
 using umbral_backend.Domain.Enums;
 using umbral_backend.Domain.Events;
@@ -354,8 +355,28 @@ public sealed class LiveSessionTests
         session.LastStateChangedAt.Should().Be(finishedAt);
     }
 
+    // HU-22 / OD-1/2/3: authoritative remaining time = the active trivia-question window;
+    // no advancing countdown when no trivia question is active.
     [Fact]
-    public void GetAuthoritativeSessionTimerSnapshot_WhenActive_DecrementsFromMaximumTime()
+    public void GetAuthoritativeSessionTimerSnapshot_WhenTriviaQuestionActive_TracksActiveQuestionWindow()
+    {
+        var session = ActivateTriviaSession();
+        var activatedAt = new DateTimeOffset(2026, 6, 3, 10, 1, 0, TimeSpan.Zero);
+        session.ActivateQuestion(0, activatedAt);
+
+        var snapshot = session.GetAuthoritativeSessionTimerSnapshot(activatedAt.AddSeconds(10));
+
+        // 30s question, 10s elapsed -> the authoritative remaining IS the question window
+        snapshot.TotalDuration.Should().Be(TimeSpan.FromSeconds(30));
+        snapshot.RemainingDuration.Should().Be(TimeSpan.FromSeconds(20));
+        snapshot.IsAdvancing.Should().BeTrue();
+        snapshot.AdvancingSince.Should().Be(activatedAt);
+    }
+
+    // OD-1: an Active session with a 10-minute MaximumTime but no active question has NO
+    // advancing countdown — proves the whole-session MaximumTime countdown is gone.
+    [Fact]
+    public void GetAuthoritativeSessionTimerSnapshot_WhenNoQuestionActive_HasNoAdvancingCountdown()
     {
         var session = LiveSessionFactory.CreateScheduledTrivia(maximumTimeMinutes: 10);
         session.AssociateTeam(Guid.NewGuid(), "Alpha", "A-01", 4);
@@ -368,105 +389,53 @@ public sealed class LiveSessionTests
 
         var snapshot = session.GetAuthoritativeSessionTimerSnapshot(activeAt.AddMinutes(3));
 
-        snapshot.TotalDuration.Should().Be(TimeSpan.FromMinutes(10));
-        snapshot.RemainingDuration.Should().Be(TimeSpan.FromMinutes(7));
-        snapshot.IsAdvancing.Should().BeTrue();
-        snapshot.IsExpired.Should().BeFalse();
-        snapshot.AdvancingSince.Should().Be(activeAt);
-    }
-
-    [Fact]
-    public void GetAuthoritativeSessionTimerSnapshot_WhenPaused_FreezesRemainingTime()
-    {
-        var session = LiveSessionFactory.CreateScheduledTrivia(maximumTimeMinutes: 10);
-        session.AssociateTeam(Guid.NewGuid(), "Alpha", "A-01", 4);
-        var policy = new SessionStateTransitionPolicy();
-        var preparingAt = new DateTimeOffset(2026, 6, 3, 10, 0, 0, TimeSpan.Zero);
-        var activeAt = preparingAt.AddMinutes(1);
-        var pausedAt = activeAt.AddMinutes(4);
-
-        session.MoveTo(SessionState.Preparing, preparingAt, policy);
-        session.MoveTo(SessionState.Active, activeAt, policy);
-        session.MoveTo(SessionState.Paused, pausedAt, policy);
-
-        var snapshot = session.GetAuthoritativeSessionTimerSnapshot(pausedAt.AddMinutes(8));
-
-        snapshot.RemainingDuration.Should().Be(TimeSpan.FromMinutes(6));
-        snapshot.IsAdvancing.Should().BeFalse();
-        snapshot.IsExpired.Should().BeFalse();
-        snapshot.AdvancingSince.Should().BeNull();
-    }
-
-    [Fact]
-    public void GetAuthoritativeSessionTimerSnapshot_WhenResumed_ContinuesFromFrozenRemainder()
-    {
-        var session = LiveSessionFactory.CreateScheduledTrivia(maximumTimeMinutes: 10);
-        session.AssociateTeam(Guid.NewGuid(), "Alpha", "A-01", 4);
-        var policy = new SessionStateTransitionPolicy();
-        var preparingAt = new DateTimeOffset(2026, 6, 3, 10, 0, 0, TimeSpan.Zero);
-        var firstActiveAt = preparingAt.AddMinutes(1);
-        var pausedAt = firstActiveAt.AddMinutes(4);
-        var resumedAt = pausedAt.AddMinutes(5);
-
-        session.MoveTo(SessionState.Preparing, preparingAt, policy);
-        session.MoveTo(SessionState.Active, firstActiveAt, policy);
-        session.MoveTo(SessionState.Paused, pausedAt, policy);
-        session.MoveTo(SessionState.Active, resumedAt, policy);
-
-        var snapshot = session.GetAuthoritativeSessionTimerSnapshot(resumedAt.AddMinutes(2));
-
-        snapshot.RemainingDuration.Should().Be(TimeSpan.FromMinutes(4));
-        snapshot.IsAdvancing.Should().BeTrue();
-        snapshot.AdvancingSince.Should().Be(resumedAt);
-    }
-
-    [Fact]
-    public void GetAuthoritativeSessionTimerSnapshot_ForReconnect_ReturnsBackendOwnedRemainder()
-    {
-        var session = LiveSessionFactory.CreateScheduledTrivia(maximumTimeMinutes: 10);
-        var team = session.AssociateTeam(Guid.NewGuid(), "Alpha", "A-01", 4);
-        var policy = new SessionStateTransitionPolicy();
-        var joinedAt = new DateTimeOffset(2026, 6, 3, 10, 0, 0, TimeSpan.Zero);
-        var admitted = session.AdmitParticipant(Guid.NewGuid(), "Nora", team.TeamId, joinedAt, _joinPolicy);
-        var activeAt = joinedAt.AddMinutes(2);
-
-        session.MoveTo(SessionState.Preparing, joinedAt.AddMinutes(1), policy);
-        session.MoveTo(SessionState.Active, activeAt, policy);
-        session.DisconnectParticipant(admitted.Participant.SessionParticipantId, activeAt.AddMinutes(3));
-        var reconnected = session.AdmitParticipant(
-            admitted.Participant.ExternalIdentityId,
-            "Nora",
-            team.TeamId,
-            activeAt.AddMinutes(5),
-            _joinPolicy);
-
-        var reconnectSnapshot = session.GetAuthoritativeSessionTimerSnapshot(activeAt.AddMinutes(5));
-
-        reconnected.IsReconnect.Should().BeTrue();
-        reconnectSnapshot.RemainingDuration.Should().Be(TimeSpan.FromMinutes(5));
-        reconnectSnapshot.IsAdvancing.Should().BeTrue();
-    }
-
-    [Fact]
-    public void MarkSessionTimerExpiredIfElapsed_WhenActiveTimerReachesZero_MarksExpiryAndStopsAdvancing()
-    {
-        var session = LiveSessionFactory.CreateScheduledTrivia(maximumTimeMinutes: 10);
-        session.AssociateTeam(Guid.NewGuid(), "Alpha", "A-01", 4);
-        var policy = new SessionStateTransitionPolicy();
-        var preparingAt = new DateTimeOffset(2026, 6, 3, 10, 0, 0, TimeSpan.Zero);
-        var activeAt = preparingAt.AddMinutes(1);
-        var expiredAt = activeAt.AddMinutes(10);
-
-        session.MoveTo(SessionState.Preparing, preparingAt, policy);
-        session.MoveTo(SessionState.Active, activeAt, policy);
-
-        var snapshot = session.MarkSessionTimerExpiredIfElapsed(expiredAt);
-
+        snapshot.TotalDuration.Should().Be(TimeSpan.Zero);
         snapshot.RemainingDuration.Should().Be(TimeSpan.Zero);
-        snapshot.IsExpired.Should().BeTrue();
         snapshot.IsAdvancing.Should().BeFalse();
-        snapshot.ExpiredAt.Should().Be(expiredAt);
-        session.IsSessionTimerAdvancing.Should().BeFalse();
+    }
+
+    // Pause freezes the active-substage timer; Active resumes the SAME question at the frozen remainder.
+    [Fact]
+    public void GetAuthoritativeSessionTimerSnapshot_WhenPausedThenResumed_FreezesAndResumesSameQuestion()
+    {
+        var session = ActivateTriviaSession();
+        var activatedAt = new DateTimeOffset(2026, 6, 3, 10, 1, 0, TimeSpan.Zero);
+        var pausedAt = activatedAt.AddSeconds(10);
+        var resumedAt = pausedAt.AddSeconds(5);
+        session.ActivateQuestion(0, activatedAt);
+
+        session.MoveTo(SessionState.Paused, pausedAt, new SessionStateTransitionPolicy());
+        var frozen = session.GetAuthoritativeSessionTimerSnapshot(pausedAt.AddSeconds(30));
+
+        session.MoveTo(SessionState.Active, resumedAt, new SessionStateTransitionPolicy());
+        var resumed = session.GetAuthoritativeSessionTimerSnapshot(resumedAt.AddSeconds(5));
+
+        // frozen at the 20s remainder (30 - 10) regardless of observation time
+        frozen.RemainingDuration.Should().Be(TimeSpan.FromSeconds(20));
+        frozen.IsAdvancing.Should().BeFalse();
+        frozen.AdvancingSince.Should().BeNull();
+
+        // resumes the SAME question at the frozen remainder, then advances
+        session.ActiveQuestionIndex.Should().Be(0);
+        resumed.RemainingDuration.Should().Be(TimeSpan.FromSeconds(15));
+        resumed.IsAdvancing.Should().BeTrue();
+        resumed.AdvancingSince.Should().Be(resumedAt);
+    }
+
+    // AC #2 / OD-3: no whole-session `_sessionTimer*` countdown and no session-level `SessionMode` remain.
+    [Fact]
+    public void LiveSession_HasNoWholeSessionTimerOrSessionModeResidue()
+    {
+        var fieldNames = typeof(LiveSession)
+            .GetFields(BindingFlags.Instance | BindingFlags.NonPublic)
+            .Select(field => field.Name)
+            .ToList();
+
+        fieldNames.Should().NotContain(name => name.StartsWith("_sessionTimer", StringComparison.Ordinal));
+
+        typeof(LiveSession).Assembly.GetTypes()
+            .Select(type => type.Name)
+            .Should().NotContain("SessionMode");
     }
 
     [Fact]

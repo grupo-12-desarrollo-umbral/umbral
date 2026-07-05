@@ -14,21 +14,6 @@ internal abstract class LiveSessionStateBase : ILiveSessionState
     {
     }
 
-    public virtual AuthoritativeSessionTimerSnapshot GetTimerSnapshot(LiveSession session, DateTimeOffset observedAt)
-    {
-        return session.GetFrozenSessionTimerSnapshot(observedAt);
-    }
-
-    public virtual AuthoritativeSessionTimerSnapshot MarkTimerExpiredIfElapsed(LiveSession session, DateTimeOffset occurredAt)
-    {
-        return GetTimerSnapshot(session, occurredAt);
-    }
-
-    public virtual bool IsSessionTimerAdvancing(LiveSession session)
-    {
-        return false;
-    }
-
     public virtual AuthoritativeSessionTimerSnapshot GetQuestionTimerSnapshot(LiveSession session, DateTimeOffset observedAt)
     {
         return session.GetFrozenQuestionTimerSnapshot(observedAt);

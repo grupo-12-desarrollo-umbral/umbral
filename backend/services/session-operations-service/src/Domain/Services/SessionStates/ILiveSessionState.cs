@@ -12,12 +12,6 @@ internal interface ILiveSessionState
 
     void Enter(LiveSession session, DateTimeOffset occurredAt);
 
-    AuthoritativeSessionTimerSnapshot GetTimerSnapshot(LiveSession session, DateTimeOffset observedAt);
-
-    AuthoritativeSessionTimerSnapshot MarkTimerExpiredIfElapsed(LiveSession session, DateTimeOffset occurredAt);
-
-    bool IsSessionTimerAdvancing(LiveSession session);
-
     AuthoritativeSessionTimerSnapshot GetQuestionTimerSnapshot(LiveSession session, DateTimeOffset observedAt);
 
     AuthoritativeSessionTimerSnapshot MarkQuestionTimerExpiredIfElapsed(LiveSession session, DateTimeOffset occurredAt);
