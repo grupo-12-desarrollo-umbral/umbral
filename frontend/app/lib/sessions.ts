@@ -51,11 +51,9 @@ export async function createSession(
   if (response.status === 401) throw new IdentityError('unauthorized', 'Authentication failed.')
   if (response.status === 403) throw new IdentityError('unauthorized', 'Administrator role required.')
   if (response.status === 404) throw new Error('mission_not_found')
-  if (response.status === 409) {
-    // Mission is the only session source now, so the eligibility/readiness rejection carries a
-    // single ProblemDetails `type`. Both the typed branch and the fallback map to one message.
-    const problem = (await response.json().catch(() => null)) as { type?: string } | null
-    if (problem?.type === 'mission-not-eligible-for-session') throw new Error('mission_not_eligible')
+  if (response.status === 409 || response.status === 422) {
+    // Mission is the only session source now, so the eligibility/readiness rejection can arrive
+    // as either 409 or 422 (mission inactive / not runtime-ready). Both map to one message.
     throw new Error('mission_not_eligible')
   }
   if (!response.ok) {

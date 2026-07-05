@@ -259,6 +259,53 @@ public sealed class LiveSessionRepositoryIntegrationTests
     }
 
     [Fact]
+    public async Task GetByIdAsync_RestoresWholeTriviaQuizSnapshotWithScoreTimerAndCorrectFlagsInMissionOrder()
+    {
+        await using var resetContext = BuildContext();
+        await ResetDatabaseAsync(resetContext);
+
+        // CreateTriviaRuntimeSnapshot freezes the whole quiz: 2 questions with distinct timers/options in authored order.
+        var liveSession = CreateTriviaSession(DateTimeOffset.UtcNow.AddDays(1));
+
+        await using (var seedContext = BuildContext())
+        {
+            seedContext.LiveSessions.Add(liveSession);
+            await seedContext.SaveChangesAsync(CancellationToken.None);
+        }
+
+        await using var assertContext = BuildContext();
+        var persistedSession = await new LiveSessionRepository(assertContext)
+            .GetByIdAsync(liveSession.LiveSessionId, CancellationToken.None);
+
+        persistedSession.Should().NotBeNull();
+
+        var questions = persistedSession!.MissionRuntimeSnapshot.TriviaQuestionSnapshots
+            .OrderBy(question => question.SequenceOrder)
+            .ToList();
+        questions.Should().HaveCount(2);
+
+        var first = questions[0];
+        first.SequenceOrder.Should().Be(1);
+        first.Prompt.Should().Be("Capital of France?");
+        first.ScoreValue.Should().Be(50);
+        first.TimeLimitSeconds.Should().Be(30);
+        first.Explanation.Should().Be("Paris is the capital city.");
+        first.Options.OrderBy(option => option.SequenceOrder)
+            .Select(option => (option.OptionText, option.IsCorrect))
+            .Should().Equal(("Paris", true), ("Lyon", false));
+
+        var second = questions[1];
+        second.SequenceOrder.Should().Be(2);
+        second.Prompt.Should().Be("Capital of Spain?");
+        second.ScoreValue.Should().Be(50);
+        second.TimeLimitSeconds.Should().Be(25);
+        second.Explanation.Should().Be("Madrid is the capital city.");
+        second.Options.OrderBy(option => option.SequenceOrder)
+            .Select(option => (option.OptionText, option.IsCorrect))
+            .Should().Equal(("Madrid", true), ("Barcelona", false));
+    }
+
+    [Fact]
     public async Task PersistedSchema_CarriesNoForeignSourceColumnOrTable()
     {
         await using var resetContext = BuildContext();

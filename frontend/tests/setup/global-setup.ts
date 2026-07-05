@@ -103,13 +103,27 @@ ON CONFLICT (id) DO UPDATE SET
 `, 'Test users and teams seeded.')
 
   // Seed one active, runtime-ready trivia mission so the session-creation form has
-  // a selectable mission in e2e tests. Uses quiz id=6 (Filosofos de Atenas — Published).
+  // a selectable mission in e2e tests. Resolves the quiz by title+status rather than a
+  // hardcoded id: seed-dev-data.sh DELETEs and re-inserts quizzes without resetting the
+  // identity sequence, so 'Filosofos de Atenas' lands at a different id on every run —
+  // pinning a literal id silently points the substage at a Draft/Archived/missing quiz,
+  // which passes the catalog's persisted-'Ready' check but fails live create eligibility.
   runSql('mission_design', `
 DO $$
 DECLARE
   v_mission_id INT;
   v_stage_id   INT;
+  v_quiz_id    INT;
 BEGIN
+  SELECT "Id" INTO v_quiz_id
+  FROM "TriviaQuizzes"
+  WHERE "Title" = 'Filosofos de Atenas' AND "Status" = 'Published'
+  ORDER BY "Id" DESC LIMIT 1;
+
+  IF v_quiz_id IS NULL THEN
+    RAISE EXCEPTION 'No Published "Filosofos de Atenas" quiz found — run seed-dev-data.sh first.';
+  END IF;
+
   SELECT "Id" INTO v_mission_id FROM "Missions" WHERE "Name" = 'E2E Seed Mission' LIMIT 1;
 
   IF v_mission_id IS NULL THEN
@@ -122,26 +136,44 @@ BEGIN
     RETURNING "Id" INTO v_stage_id;
 
     INSERT INTO "MissionSubstages" ("StageId", "Title", "SequenceOrder", "PlayMode", "TriviaQuizId")
-    VALUES (v_stage_id, 'Trivia Substage', 1, 'Trivia', 6);
+    VALUES (v_stage_id, 'Trivia Substage', 1, 'Trivia', v_quiz_id);
   ELSE
     UPDATE "Missions"
     SET "IsActive" = true, "ActivationState" = 'Ready', "LastModified" = NOW()
     WHERE "Id" = v_mission_id;
+
+    -- Re-point the existing substage: the quiz id drifts across reseeds (see above).
+    UPDATE "MissionSubstages" ms
+    SET "TriviaQuizId" = v_quiz_id
+    FROM "MissionStages" st
+    WHERE ms."StageId" = st."Id" AND st."MissionId" = v_mission_id
+      AND ms."PlayMode" = 'Trivia';
   END IF;
 END $$;
 `, 'E2E seed mission ensured.')
 
   // Seed a mission that is Draft but has a complete runtime plan (one stage with a
-  // trivia substage selecting published quiz id=6), so the activate-flow e2e test can
-  // drive Draft -> Ready. There is no hierarchy-authoring UI yet (deferred to DES-15),
-  // so the runtime plan has to be seeded directly. Reset to Draft on every run so the
-  // test is repeatable after a prior run flipped it to Ready.
+  // trivia substage selecting the published 'Filosofos de Atenas' quiz), so the
+  // activate-flow e2e test can drive Draft -> Ready. There is no hierarchy-authoring UI
+  // yet (deferred to DES-15), so the runtime plan has to be seeded directly. Reset to
+  // Draft on every run so the test is repeatable after a prior run flipped it to Ready.
+  // Quiz resolved by title+status, not a literal id (see the note on the seed mission above).
   runSql('mission_design', `
 DO $$
 DECLARE
   v_mission_id INT;
   v_stage_id   INT;
+  v_quiz_id    INT;
 BEGIN
+  SELECT "Id" INTO v_quiz_id
+  FROM "TriviaQuizzes"
+  WHERE "Title" = 'Filosofos de Atenas' AND "Status" = 'Published'
+  ORDER BY "Id" DESC LIMIT 1;
+
+  IF v_quiz_id IS NULL THEN
+    RAISE EXCEPTION 'No Published "Filosofos de Atenas" quiz found — run seed-dev-data.sh first.';
+  END IF;
+
   SELECT "Id" INTO v_mission_id FROM "Missions" WHERE "Name" = 'E2E Activatable Mission' LIMIT 1;
 
   IF v_mission_id IS NULL THEN
@@ -154,11 +186,18 @@ BEGIN
     RETURNING "Id" INTO v_stage_id;
 
     INSERT INTO "MissionSubstages" ("StageId", "Title", "SequenceOrder", "PlayMode", "TriviaQuizId")
-    VALUES (v_stage_id, 'Trivia Substage', 1, 'Trivia', 6);
+    VALUES (v_stage_id, 'Trivia Substage', 1, 'Trivia', v_quiz_id);
   ELSE
     UPDATE "Missions"
     SET "IsActive" = true, "ActivationState" = 'Draft', "LastModified" = NOW()
     WHERE "Id" = v_mission_id;
+
+    -- Re-point the existing substage: the quiz id drifts across reseeds (see above).
+    UPDATE "MissionSubstages" ms
+    SET "TriviaQuizId" = v_quiz_id
+    FROM "MissionStages" st
+    WHERE ms."StageId" = st."Id" AND st."MissionId" = v_mission_id
+      AND ms."PlayMode" = 'Trivia';
   END IF;
 END $$;
 `, 'E2E activatable mission ensured.')
