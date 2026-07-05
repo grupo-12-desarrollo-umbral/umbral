@@ -138,6 +138,51 @@ public sealed class LiveSessionTests
         act.Should().Throw<TeamAssociationRequiresScheduledSessionException>();
     }
 
+    [Theory]
+    [InlineData(SessionState.Active)]
+    [InlineData(SessionState.Paused)]
+    [InlineData(SessionState.Cancelled)]
+    public void AssociateTeam_AfterLeavingScheduled_ThrowsException(SessionState reachedState)
+    {
+        var session = LiveSessionFactory.CreateScheduledTreasureHunt();
+        var policy = new SessionStateTransitionPolicy();
+        session.AssociateTeam(Guid.NewGuid(), "Alpha", "A-01", 4);
+        DriveTo(session, reachedState, policy);
+
+        var act = () => session.AssociateTeam(Guid.NewGuid(), "Beta", "B-01", 2);
+
+        act.Should().Throw<TeamAssociationRequiresScheduledSessionException>();
+    }
+
+    [Fact]
+    public void MoveTo_OverAllowedEdge_RaisesSessionStateChangedEvent()
+    {
+        var session = LiveSessionFactory.CreateScheduledTreasureHunt();
+        var occurredAt = new DateTimeOffset(2026, 6, 3, 10, 0, 0, TimeSpan.Zero);
+
+        session.MoveTo(SessionState.Preparing, occurredAt, new SessionStateTransitionPolicy(), "ready");
+
+        session.State.Should().Be(SessionState.Preparing);
+
+        var stateEvent = session.DomainEvents.OfType<SessionStateChangedEvent>().Single();
+        stateEvent.LiveSessionId.Should().Be(session.LiveSessionId);
+        stateEvent.PreviousState.Should().Be(SessionState.Scheduled);
+        stateEvent.CurrentState.Should().Be(SessionState.Preparing);
+        stateEvent.ChangedAt.Should().Be(occurredAt);
+    }
+
+    [Fact]
+    public void MoveTo_OverRejectedEdge_ThrowsAndRaisesNoStateChangedEvent()
+    {
+        var session = LiveSessionFactory.CreateScheduledTreasureHunt();
+
+        var act = () => session.MoveTo(SessionState.Finished, DateTimeOffset.UtcNow, new SessionStateTransitionPolicy());
+
+        act.Should().Throw<InvalidSessionStateTransitionException>();
+        session.State.Should().Be(SessionState.Scheduled);
+        session.DomainEvents.OfType<SessionStateChangedEvent>().Should().BeEmpty();
+    }
+
     [Fact]
     public void AdmitParticipant_WhenNewParticipant_CreatesMembership()
     {
@@ -660,6 +705,34 @@ public sealed class LiveSessionTests
         var session = LiveSessionFactory.CreateScheduledTriviaWithThreeQuestions();
         Activate(session);
         return session;
+    }
+
+    // Drives an already-team-associated Scheduled session to the requested state
+    // through canonical edges only (used to prove team-association is Scheduled-only).
+    private static void DriveTo(LiveSession session, SessionState target, SessionStateTransitionPolicy policy)
+    {
+        var at = new DateTimeOffset(2026, 6, 3, 10, 0, 0, TimeSpan.Zero);
+
+        switch (target)
+        {
+            case SessionState.Cancelled:
+                session.MoveTo(SessionState.Cancelled, at, policy);
+                break;
+            case SessionState.Preparing:
+                session.MoveTo(SessionState.Preparing, at, policy);
+                break;
+            case SessionState.Active:
+                session.MoveTo(SessionState.Preparing, at, policy);
+                session.MoveTo(SessionState.Active, at.AddMinutes(1), policy);
+                break;
+            case SessionState.Paused:
+                session.MoveTo(SessionState.Preparing, at, policy);
+                session.MoveTo(SessionState.Active, at.AddMinutes(1), policy);
+                session.MoveTo(SessionState.Paused, at.AddMinutes(2), policy);
+                break;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(target), target, "Unsupported drive target.");
+        }
     }
 
     private static void Activate(LiveSession session)

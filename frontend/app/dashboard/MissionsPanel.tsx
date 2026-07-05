@@ -16,7 +16,7 @@ import styles from './dashboard.module.css'
 type DashboardRole = 'operator' | 'admin' | 'participant'
 type MissionPanelView = 'list' | 'detail' | 'create' | 'edit'
 
-export function MissionsPanel({ role }: { role: DashboardRole }) {
+export function MissionsPanel(_props: { role: DashboardRole }) {
   const [view, setView] = useState<MissionPanelView>('list')
   const [selectedMission, setSelectedMission] = useState<MissionDto | null>(null)
   const [listData, setListData] = useState<MissionSummaryDto[] | null>(null)

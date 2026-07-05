@@ -13,6 +13,11 @@ using umbral_backend.Infrastructure.Realtime;
 
 namespace umbral_backend.Infrastructure.IntegrationTests.Api;
 
+/// <summary>
+/// Pins the real-time side of a state transition: a valid transition pushes a "SessionStateChanged"
+/// message carrying the previous and new state to the live-session:{id} group, so only members who
+/// joined that session's group receive it. Also covers timer and question broadcasts over the same hub.
+/// </summary>
 [Collection(PostgreSqlCollection.Name)]
 public sealed class SessionStateBroadcastHubTests : IAsyncLifetime
 {

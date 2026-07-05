@@ -9,7 +9,8 @@ test('operator sees operator dashboard', async ({ operatorPage: page }) => {
   await page.goto('/dashboard')
   await expect(page).toHaveURL('/dashboard')
   await expect(page.locator('[data-testid="role-chip"]')).toHaveText('operator')
-  await expect(page.locator('[data-testid="operator-panel"]')).toBeVisible()
+  // Operators land on their My-sessions workspace (default nav since HU-21).
+  await expect(page.locator('[data-testid="sessions-panel"]')).toBeVisible()
   await expect(page.locator('[data-testid="admin-panel"]')).toHaveCount(0)
 })
 

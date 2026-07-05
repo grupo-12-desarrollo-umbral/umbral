@@ -643,7 +643,7 @@ test('HU-09 missions panel still reachable after lifecycle wiring', async ({ adm
 
 // ---- Helpers ----
 
-async function createReadyPublishedQuiz(page: Page, title: string): Promise<number> {
+async function _createReadyPublishedQuiz(page: Page, title: string): Promise<number> {
   // Reuses createReadyDraftQuiz from HU-12 helpers, then publishes.
   await createReadyDraftQuiz(page, title)
   await page.click('[data-testid="publish-trivia-btn"]')
