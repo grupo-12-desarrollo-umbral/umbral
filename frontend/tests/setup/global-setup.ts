@@ -78,10 +78,11 @@ function seedViaDocker(): void {
   runSql('identity_access', `
 DELETE FROM team_memberships;
 DELETE FROM teams;
+-- op-1 is seeded later (seedOperatorIdentity) with its resolved Keycloak sub, not the literal
+-- username: only operator session-listing goes gateway→JWT, which keys the actor by sub.
 INSERT INTO users ("ExternalIdentityId", "DisplayName", "Email", "Role", "IsActive", "Created", "LastModified")
 VALUES
   ('admin-1',        'Administrator One', 'admin-1@umbral.local',      'Administrator', true,  NOW(), NOW()),
-  ('op-1',           'Operator One',      'op-1@umbral.local',         'Operator',      true,  NOW(), NOW()),
   ('participant-1',  'Participant One',   'participant-1@umbral.local','Participant',   true,  NOW(), NOW()),
   ('deactivated-1',  'Deactivated User',  'deactivated-1@umbral.local','Operator',      false, NOW(), NOW())
 ON CONFLICT ("ExternalIdentityId") DO UPDATE SET
@@ -192,15 +193,33 @@ BEGIN
     SET "IsActive" = true, "ActivationState" = 'Draft', "LastModified" = NOW()
     WHERE "Id" = v_mission_id;
 
-    -- Re-point the existing substage: the quiz id drifts across reseeds (see above).
-    UPDATE "MissionSubstages" ms
-    SET "TriviaQuizId" = v_quiz_id
-    FROM "MissionStages" st
-    WHERE ms."StageId" = st."Id" AND st."MissionId" = v_mission_id
-      AND ms."PlayMode" = 'Trivia';
+    -- Rebuild a clean runtime plan. mission-hierarchy.spec.ts drives this same shared
+    -- mission and leaves stray stages/substages (unfinished treasure hunts, empty stages)
+    -- that keep readiness false, so the activate test can't enable its button. Wipe the
+    -- whole hierarchy (FKs cascade to substages/targets/clues) and re-create the single
+    -- Stage 1 + Trivia substage, keeping the mission id stable and repeatable on a persistent DB.
+    DELETE FROM "MissionStages" WHERE "MissionId" = v_mission_id;
+
+    INSERT INTO "MissionStages" ("MissionId", "Title", "SequenceOrder")
+    VALUES (v_mission_id, 'Stage 1', 1)
+    RETURNING "Id" INTO v_stage_id;
+
+    INSERT INTO "MissionSubstages" ("StageId", "Title", "SequenceOrder", "PlayMode", "TriviaQuizId")
+    VALUES (v_stage_id, 'Trivia Substage', 1, 'Trivia', v_quiz_id);
   END IF;
 END $$;
 `, 'E2E activatable mission ensured.')
+}
+
+// Seed op-1's identity-access row keyed by its resolved Keycloak sub (UUID). Deletes any prior
+// op-1 rows (literal-username or a stale sub from an earlier run) by email first, so a persistent
+// DB never accumulates duplicates. Must run after seedKeycloak() so the sub is known.
+function seedOperatorIdentity(sub: string): void {
+  runSql('identity_access', `
+DELETE FROM users WHERE "Email" = 'op-1@umbral.local';
+INSERT INTO users ("ExternalIdentityId", "DisplayName", "Email", "Role", "IsActive", "Created", "LastModified")
+VALUES ('${sub}', 'Operator One', 'op-1@umbral.local', 'Operator', true, NOW(), NOW());
+`, `Operator identity seeded with Keycloak sub ${sub}.`)
 }
 
 async function requestJson<T>(
@@ -407,16 +426,21 @@ async function assertUserCanAuthenticate(user: E2EKeycloakUser): Promise<void> {
   )
 }
 
-async function seedKeycloak(): Promise<void> {
+// Returns each user's resolved Keycloak id (sub) keyed by username, so identity-access rows can
+// be seeded to match the sub the gateway forwards as X-User-Id.
+async function seedKeycloak(): Promise<Map<string, string>> {
   const adminToken = await getAdminToken()
+  const subsByUsername = new Map<string, string>()
 
   for (const user of keycloakUsers) {
     const userId = await ensureUser(adminToken, user)
     await syncRole(adminToken, userId, user.role)
     await assertUserCanAuthenticate(user)
+    subsByUsername.set(user.username, userId)
   }
 
   console.log('[global-setup] E2E Keycloak users ensured.')
+  return subsByUsername
 }
 
 async function main() {
@@ -427,7 +451,11 @@ async function main() {
   }
 
   try {
-    await seedKeycloak()
+    const subsByUsername = await seedKeycloak()
+    const operatorSub = subsByUsername.get('op-1')
+    if (operatorSub) {
+      seedOperatorIdentity(operatorSub)
+    }
   } catch (err) {
     console.warn('[global-setup] Could not seed Keycloak users:', (err as Error).message?.slice(0, 200))
   }

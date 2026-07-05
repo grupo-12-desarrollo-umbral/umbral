@@ -155,8 +155,9 @@ test('admin edit form is pre-populated', async ({ adminPage: page }) => {
 test('operator can open edit form and it is pre-populated', async ({ operatorPage: page }) => {
   await page.goto('/dashboard')
   await page.click('[data-testid="nav-teams"]')
-  // Use nth(3) to avoid race with deactivation tests; rows may shift so nth(4)
-  await page.locator('[data-testid^="team-row-"]').nth(3).click()
+  // First row is always active — deactivation tests only ever target nth(1)/nth(2),
+  // and positional .nth(3) is unreliable once create-tests leave extra teams in the DB.
+  await page.locator('[data-testid^="team-row-"]').first().click()
   const currentCode = await page.locator('[data-testid="detail-team-code"]').innerText()
   await page.click('[data-testid="edit-team-btn"]')
   await expect(page.locator('[data-testid="edit-team-panel"]')).toBeVisible()
@@ -166,8 +167,8 @@ test('operator can open edit form and it is pre-populated', async ({ operatorPag
 test('admin cancel edit returns to detail', async ({ adminPage: page }) => {
   await page.goto('/dashboard')
   await page.click('[data-testid="nav-teams"]')
-  // Use nth(3) to avoid race with deactivation tests
-  await page.locator('[data-testid^="team-row-"]').nth(3).click()
+  // First row is always active (deactivation tests only target nth(1)/nth(2)).
+  await page.locator('[data-testid^="team-row-"]').first().click()
   await page.click('[data-testid="edit-team-btn"]')
   await page.getByRole('button', { name: 'Cancel' }).first().click()
   await expect(page.locator('[data-testid="team-detail-panel"]')).toBeVisible()
@@ -189,7 +190,7 @@ test('HU-01 operator flow is not regressed by teams', async ({ operatorPage: pag
   await page.goto('/dashboard')
   await expect(page).toHaveURL('/dashboard')
   await expect(page.locator('[data-testid="role-chip"]')).toBeVisible()
-  await expect(page.locator('[data-testid="operator-panel"]')).toBeVisible()
+  await expect(page.locator('[data-testid="sessions-panel"]')).toBeVisible()
 })
 
 test('HU-01 admin flow is not regressed by teams', async ({ adminPage: page }) => {

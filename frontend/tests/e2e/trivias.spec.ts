@@ -141,10 +141,10 @@ test('edit button is disabled for non-Draft quizzes', async ({ adminPage: page }
 
   // Check Archived quiz has Edit disabled
   await page.getByRole('button', { name: '← Back to trivia quizzes' }).click()
-  const archivedRow = page.locator('[data-testid^="trivia-row-"]').filter({ hasText: 'Guitarristas mas queridos' })
+  const archivedRow = page.locator('[data-testid^="trivia-row-"]').filter({ hasText: 'Capitales del mundo' })
   await expect(archivedRow).toBeVisible()
   await archivedRow.locator('[data-testid^="view-trivia-btn-"]').click()
-  await expect(page.locator('[data-testid="trivia-detail-title"]')).toContainText('Guitarristas mas queridos')
+  await expect(page.locator('[data-testid="trivia-detail-title"]')).toContainText('Capitales del mundo')
   await expect(page.locator('[data-testid="trivia-detail-status"]')).toContainText('Archived')
   await expect(page.locator('[data-testid="edit-trivia-btn"]')).toBeDisabled()
 })
