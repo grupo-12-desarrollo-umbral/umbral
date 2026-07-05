@@ -94,6 +94,9 @@ test('runtime-ready missions are listed before not-runtime-ready missions', asyn
 
   const missionSelect = page.locator('[data-testid="session-mission-select"]')
   await missionSelect.waitFor()
+  // waitFor() resolves when the <select> attaches, before the async mission fetch
+  // populates options — wait for the seed option itself before reading the list.
+  await missionSelect.locator('option', { hasText: 'E2E Seed Mission' }).waitFor({ state: 'attached' })
 
   const options = missionSelect.locator('option:not([value=""])')
   const optionTexts = await options.allTextContents()

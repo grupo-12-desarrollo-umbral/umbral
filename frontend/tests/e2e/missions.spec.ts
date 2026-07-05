@@ -145,8 +145,6 @@ test('admin deactivate confirm cancel dismisses without change', async ({ adminP
   await page.fill('[data-testid="mission-time-input"]', '10')
   await page.click('[data-testid="mission-submit-btn"]')
 
-  const originalStatus = await page.locator('[data-testid="mission-detail-status"]').innerText()
-
   await page.click('[data-testid="deactivate-mission-btn"]')
   await page.locator('button:has-text("Cancel")').last().click()
 

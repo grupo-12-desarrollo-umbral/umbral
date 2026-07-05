@@ -31,7 +31,7 @@ test('active user HU-01 operator flow is not regressed', async ({ operatorPage: 
   await page.goto('/dashboard')
   await expect(page).toHaveURL('/dashboard')
   await expect(page.locator('[data-testid="role-chip"]')).toBeVisible()
-  await expect(page.locator('[data-testid="operator-panel"]')).toBeVisible()
+  await expect(page.locator('[data-testid="sessions-panel"]')).toBeVisible()
 })
 
 test('active user HU-01 admin flow is not regressed', async ({ adminPage: page }) => {

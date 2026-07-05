@@ -490,6 +490,47 @@ public sealed class LiveSessionRepositoryIntegrationTests
         snapshot.AdvancingSince.Should().Be(resumedAt);
     }
 
+    // Round-trips a transitioned session through the real repository to prove its new state,
+    // the timestamp the transition happened, and the operator's reason all persist and reload intact.
+    [Fact]
+    public async Task UpdateAsync_PersistsTransitionedStateReasonAndTimestamp()
+    {
+        await using var resetContext = BuildContext();
+        await ResetDatabaseAsync(resetContext);
+
+        var createdAt = DateTimeOffset.UtcNow.AddMinutes(-30);
+        var liveSession = CreateSession(createdAt);
+
+        await using (var seedContext = BuildContext())
+        {
+            seedContext.LiveSessions.Add(liveSession);
+            await seedContext.SaveChangesAsync(CancellationToken.None);
+        }
+
+        var cancelledAt = createdAt.AddMinutes(10);
+        const string reason = "Venue closed unexpectedly";
+
+        await using (var actContext = BuildContext())
+        {
+            var repository = new LiveSessionRepository(actContext);
+            var persistedSession = await repository.GetByIdAsync(liveSession.LiveSessionId, CancellationToken.None);
+
+            persistedSession.Should().NotBeNull();
+            persistedSession!.MoveTo(SessionState.Cancelled, cancelledAt, new SessionStateTransitionPolicy(), reason);
+
+            await repository.UpdateAsync(persistedSession, CancellationToken.None);
+        }
+
+        await using var assertContext = BuildContext();
+        var reloadedSession = await new LiveSessionRepository(assertContext)
+            .GetByIdAsync(liveSession.LiveSessionId, CancellationToken.None);
+
+        reloadedSession.Should().NotBeNull();
+        reloadedSession!.State.Should().Be(SessionState.Cancelled);
+        reloadedSession.StateReason.Should().Be(reason);
+        reloadedSession.LastStateChangedAt.Should().BeCloseTo(cancelledAt, TimeSpan.FromMicroseconds(1));
+    }
+
     private ApplicationDbContext BuildContext()
     {
         return _contextFactory.Create();

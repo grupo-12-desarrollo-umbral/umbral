@@ -10,6 +10,11 @@ using umbral_backend.Infrastructure.Persistence;
 
 namespace umbral_backend.Infrastructure.IntegrationTests.Api;
 
+/// <summary>
+/// Pins the PATCH /api/sessions/{id}/state endpoint: a valid transition returns 200 with the previous
+/// and new state (plus the change timestamp and timer snapshot), an invalid edge is rejected as
+/// ProblemDetails, and the endpoint answers only an authenticated Operator assigned to the session.
+/// </summary>
 [Collection(PostgreSqlCollection.Name)]
 public sealed class TransitionSessionStateEndpointTests : IAsyncLifetime
 {
@@ -57,8 +62,11 @@ public sealed class TransitionSessionStateEndpointTests : IAsyncLifetime
 
         var payload = await response.Content.ReadFromJsonAsync<TransitionSessionStateResponse>();
         payload.Should().NotBeNull();
-        payload!.PreviousState.Should().Be(nameof(SessionState.Scheduled));
+        payload!.LiveSessionId.Should().Be(liveSession.LiveSessionId);
+        payload.PreviousState.Should().Be(nameof(SessionState.Scheduled));
         payload.CurrentState.Should().Be(nameof(SessionState.Preparing));
+        payload.TransitionedAt.Should().BeCloseTo(DateTimeOffset.UtcNow, TimeSpan.FromMinutes(1));
+        payload.Timer.Should().NotBeNull();
 
         await using var scope = _factory.Services.CreateAsyncScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
@@ -123,6 +131,21 @@ public sealed class TransitionSessionStateEndpointTests : IAsyncLifetime
             new { targetState = "Preparing", reason = (string?)null });
 
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+    }
+
+    // Locks the Operator role policy on the endpoint itself: an authenticated non-Operator is rejected
+    // by the standard [Authorize(Policy = Operator)] guard before the request ever reaches the handler.
+    [Fact]
+    public async Task Transition_WithNonOperatorRole_ReturnsForbidden()
+    {
+        var liveSession = await SeedSessionAsync();
+        AddTrustedHeaders(_client, OperatorExternalIdentityId, "Administrator", "admin@example.com");
+
+        var response = await _client.PatchAsJsonAsync(
+            $"/api/sessions/{liveSession.LiveSessionId:D}/state",
+            new { targetState = "Preparing", reason = (string?)null });
+
+        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
     }
 
     [Fact]
@@ -220,5 +243,6 @@ public sealed class TransitionSessionStateEndpointTests : IAsyncLifetime
         Guid LiveSessionId,
         string PreviousState,
         string CurrentState,
-        DateTimeOffset TransitionedAt);
+        DateTimeOffset TransitionedAt,
+        SessionTimerSnapshotDto? Timer);
 }
