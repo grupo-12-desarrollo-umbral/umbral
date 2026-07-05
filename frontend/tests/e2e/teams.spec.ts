@@ -189,7 +189,7 @@ test('HU-01 operator flow is not regressed by teams', async ({ operatorPage: pag
   await page.goto('/dashboard')
   await expect(page).toHaveURL('/dashboard')
   await expect(page.locator('[data-testid="role-chip"]')).toBeVisible()
-  await expect(page.locator('[data-testid="operator-panel"]')).toBeVisible()
+  await expect(page.locator('[data-testid="sessions-panel"]')).toBeVisible()
 })
 
 test('HU-01 admin flow is not regressed by teams', async ({ adminPage: page }) => {
