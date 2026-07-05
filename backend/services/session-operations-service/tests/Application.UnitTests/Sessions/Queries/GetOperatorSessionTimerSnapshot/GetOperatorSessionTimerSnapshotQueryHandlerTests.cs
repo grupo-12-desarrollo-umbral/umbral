@@ -1,100 +1,38 @@
 using umbral_backend.Application.Common.Exceptions;
 using umbral_backend.Application.Common.Interfaces;
 using umbral_backend.Application.Sessions.Queries.GetOperatorSessionTimerSnapshot;
+using umbral_backend.Application.UnitTests.TestData;
 using umbral_backend.Domain.Entities;
 using umbral_backend.Domain.Enums;
 using umbral_backend.Domain.Services;
-using umbral_backend.Domain.ValueObjects;
 
 namespace umbral_backend.Application.UnitTests.Sessions.Queries.GetOperatorSessionTimerSnapshot;
 
+// Operator timer query returns the active-substage (trivia-question) window (HU-22): remaining
+// tracks the active question, and is 0 with no ActiveQuestion when no question is active.
 public sealed class GetOperatorSessionTimerSnapshotQueryHandlerTests
 {
     private static readonly DateTimeOffset StartsAt = new(2026, 6, 4, 10, 0, 0, TimeSpan.Zero);
+    private static readonly DateTimeOffset ActivatedAt = StartsAt.AddMinutes(2);
 
     [Fact]
-    public async Task Handle_WhenTimerIsActive_ReturnsAdvancingSnapshotWithNullTeamId()
+    public async Task Handle_WhenTriviaQuestionIsActive_ReturnsActiveSubstageRemaining()
     {
-        var session = CreateActiveSession(activeAt: StartsAt.AddMinutes(1), maximumTimeMinutes: 10);
-        var handler = CreateHandler(session, observedAt: StartsAt.AddMinutes(4));
+        var session = CreateActiveTriviaSession(ActivatedAt);
+        var handler = CreateHandler(session, observedAt: ActivatedAt.AddSeconds(5));
 
         var result = await handler.Handle(
             new GetOperatorSessionTimerSnapshotQuery(session.LiveSessionId),
             CancellationToken.None);
 
-        result.LiveSessionId.Should().Be(session.LiveSessionId);
         result.TeamId.Should().BeNull();
         result.SessionState.Should().Be(nameof(SessionState.Active));
-        result.TotalSeconds.Should().Be(600);
-        result.RemainingSeconds.Should().Be(420);
+        result.TotalSeconds.Should().Be(30);
+        result.RemainingSeconds.Should().Be(25);
         result.TimerStatus.Should().Be("Advancing");
         result.IsAdvancing.Should().BeTrue();
         result.IsExpired.Should().BeFalse();
-        result.AdvancingSince.Should().Be(StartsAt.AddMinutes(1));
-    }
-
-    [Fact]
-    public async Task Handle_WhenTimerIsPaused_ReturnsFrozenSnapshot()
-    {
-        var session = CreatePausedSession();
-        var handler = CreateHandler(session, observedAt: StartsAt.AddMinutes(20));
-
-        var result = await handler.Handle(
-            new GetOperatorSessionTimerSnapshotQuery(session.LiveSessionId),
-            CancellationToken.None);
-
-        result.SessionState.Should().Be(nameof(SessionState.Paused));
-        result.RemainingSeconds.Should().Be(360);
-        result.TimerStatus.Should().Be("Frozen");
-        result.IsAdvancing.Should().BeFalse();
-        result.IsExpired.Should().BeFalse();
-        result.AdvancingSince.Should().BeNull();
-    }
-
-    [Fact]
-    public async Task Handle_WhenTimerWasResumed_ReturnsRemainderFromFrozenTime()
-    {
-        var session = CreatePausedSession();
-        session.MoveTo(SessionState.Active, StartsAt.AddMinutes(15), new SessionStateTransitionPolicy());
-        var handler = CreateHandler(session, observedAt: StartsAt.AddMinutes(17));
-
-        var result = await handler.Handle(
-            new GetOperatorSessionTimerSnapshotQuery(session.LiveSessionId),
-            CancellationToken.None);
-
-        result.SessionState.Should().Be(nameof(SessionState.Active));
-        result.RemainingSeconds.Should().Be(240);
-        result.TimerStatus.Should().Be("Advancing");
-        result.IsAdvancing.Should().BeTrue();
-        result.AdvancingSince.Should().Be(StartsAt.AddMinutes(15));
-    }
-
-    [Fact]
-    public async Task Handle_WhenTimerElapsed_ReturnsExpiredSnapshot()
-    {
-        var session = CreateActiveSession(activeAt: StartsAt.AddMinutes(1), maximumTimeMinutes: 10);
-        var handler = CreateHandler(session, observedAt: StartsAt.AddMinutes(12));
-
-        var result = await handler.Handle(
-            new GetOperatorSessionTimerSnapshotQuery(session.LiveSessionId),
-            CancellationToken.None);
-
-        result.RemainingSeconds.Should().Be(0);
-        result.TimerStatus.Should().Be("Expired");
-        result.IsAdvancing.Should().BeFalse();
-        result.IsExpired.Should().BeTrue();
-    }
-
-    [Fact]
-    public async Task Handle_WhenTriviaQuestionIsActive_ReturnsActiveQuestionSnapshot()
-    {
-        var activatedAt = StartsAt.AddMinutes(2);
-        var session = CreateActiveTriviaSession(activatedAt);
-        var handler = CreateHandler(session, observedAt: activatedAt.AddSeconds(5));
-
-        var result = await handler.Handle(
-            new GetOperatorSessionTimerSnapshotQuery(session.LiveSessionId),
-            CancellationToken.None);
+        result.AdvancingSince.Should().Be(ActivatedAt);
 
         result.ActiveQuestion.Should().NotBeNull();
         result.ActiveQuestion!.QuestionIndex.Should().Be(0);
@@ -103,7 +41,66 @@ public sealed class GetOperatorSessionTimerSnapshotQueryHandlerTests
         result.ActiveQuestion.Options.Should().Equal("Mercury", "Venus");
         result.ActiveQuestion.TimeLimitSeconds.Should().Be(30);
         result.ActiveQuestion.RemainingSeconds.Should().Be(25);
-        result.ActiveQuestion.ActivatedAt.Should().Be(activatedAt);
+        result.ActiveQuestion.ActivatedAt.Should().Be(ActivatedAt);
+    }
+
+    [Fact]
+    public async Task Handle_WhenNoQuestionIsActive_ReturnsNoCountdownAndNoActiveQuestion()
+    {
+        var session = CreateActiveTreasureHunt(activeAt: StartsAt.AddMinutes(1));
+        var handler = CreateHandler(session, observedAt: StartsAt.AddMinutes(4));
+
+        var result = await handler.Handle(
+            new GetOperatorSessionTimerSnapshotQuery(session.LiveSessionId),
+            CancellationToken.None);
+
+        result.SessionState.Should().Be(nameof(SessionState.Active));
+        result.TotalSeconds.Should().Be(0);
+        result.RemainingSeconds.Should().Be(0);
+        result.IsAdvancing.Should().BeFalse();
+        result.ActiveQuestion.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task Handle_WhenPaused_FreezesActiveQuestionRemainder()
+    {
+        var session = CreateActiveTriviaSession(ActivatedAt);
+        session.MoveTo(SessionState.Paused, ActivatedAt.AddSeconds(10), new SessionStateTransitionPolicy());
+        var handler = CreateHandler(session, observedAt: ActivatedAt.AddSeconds(50));
+
+        var result = await handler.Handle(
+            new GetOperatorSessionTimerSnapshotQuery(session.LiveSessionId),
+            CancellationToken.None);
+
+        result.SessionState.Should().Be(nameof(SessionState.Paused));
+        result.RemainingSeconds.Should().Be(20);
+        result.TimerStatus.Should().Be("Frozen");
+        result.IsAdvancing.Should().BeFalse();
+        result.AdvancingSince.Should().BeNull();
+
+        result.ActiveQuestion.Should().NotBeNull();
+        result.ActiveQuestion!.RemainingSeconds.Should().Be(20);
+    }
+
+    [Fact]
+    public async Task Handle_WhenResumed_ContinuesSameQuestionAtFrozenRemainder()
+    {
+        var session = CreateActiveTriviaSession(ActivatedAt);
+        var policy = new SessionStateTransitionPolicy();
+        session.MoveTo(SessionState.Paused, ActivatedAt.AddSeconds(10), policy);
+        session.MoveTo(SessionState.Active, ActivatedAt.AddSeconds(60), policy);
+        var handler = CreateHandler(session, observedAt: ActivatedAt.AddSeconds(65));
+
+        var result = await handler.Handle(
+            new GetOperatorSessionTimerSnapshotQuery(session.LiveSessionId),
+            CancellationToken.None);
+
+        result.SessionState.Should().Be(nameof(SessionState.Active));
+        result.RemainingSeconds.Should().Be(15);
+        result.TimerStatus.Should().Be("Advancing");
+        result.IsAdvancing.Should().BeTrue();
+        result.AdvancingSince.Should().Be(ActivatedAt.AddSeconds(60));
+        result.ActiveQuestion!.RemainingSeconds.Should().Be(15);
     }
 
     [Fact]
@@ -139,101 +136,27 @@ public sealed class GetOperatorSessionTimerSnapshotQueryHandlerTests
             new FixedTimeProvider(observedAt));
     }
 
-    private static LiveSession CreateActiveSession(DateTimeOffset activeAt, int maximumTimeMinutes)
-    {
-        var sourceMissionId = Guid.NewGuid();
-        var session = LiveSession.Create(
-            SessionSource.Create(sourceMissionId),
-            $"SES-{Guid.NewGuid():N}"[..12],
-            "Operator Timer Session",
-            maximumTimeMinutes,
-            StartsAt,
-            CreateTreasureHuntRuntimeSnapshot(sourceMissionId, maximumTimeMinutes));
-
-        session.AssociateTeam(Guid.NewGuid(), "Alpha", "A-01", 4);
-        var transitionPolicy = new SessionStateTransitionPolicy();
-        session.MoveTo(SessionState.Preparing, activeAt.AddMinutes(-1), transitionPolicy);
-        session.MoveTo(SessionState.Active, activeAt, transitionPolicy);
-
-        return session;
-    }
-
     private static LiveSession CreateActiveTriviaSession(DateTimeOffset activatedAt)
     {
-        var sourceMissionId = Guid.NewGuid();
-        var session = LiveSession.Create(
-            SessionSource.Create(sourceMissionId),
-            $"TRI-{Guid.NewGuid():N}"[..12],
-            "Operator Trivia Session",
-            10,
-            StartsAt,
-            CreateTriviaRuntimeSnapshot(sourceMissionId, 10));
-
+        var session = LiveSessionTestFactory.CreateScheduledTrivia(scheduledAt: StartsAt);
         session.AssociateTeam(Guid.NewGuid(), "Alpha", "A-01", 4);
-        var transitionPolicy = new SessionStateTransitionPolicy();
-        session.MoveTo(SessionState.Preparing, activatedAt.AddMinutes(-1), transitionPolicy);
-        session.MoveTo(SessionState.Active, activatedAt.AddSeconds(-1), transitionPolicy);
+        var policy = new SessionStateTransitionPolicy();
+        session.MoveTo(SessionState.Preparing, activatedAt.AddMinutes(-1), policy);
+        session.MoveTo(SessionState.Active, activatedAt.AddSeconds(-1), policy);
         session.ActivateQuestion(0, activatedAt);
 
         return session;
     }
 
-    private static MissionRuntimeSnapshot CreateTriviaRuntimeSnapshot(Guid sourceMissionId, int maximumTimeMinutes)
+    private static LiveSession CreateActiveTreasureHunt(DateTimeOffset activeAt)
     {
-        var triviaSubstage = SubstageSnapshot.CreateTrivia("Trivia Round", 1);
+        var session = LiveSessionTestFactory.CreateScheduledTreasureHunt(scheduledAt: StartsAt);
+        session.AssociateTeam(Guid.NewGuid(), "Alpha", "A-01", 4);
+        var policy = new SessionStateTransitionPolicy();
+        session.MoveTo(SessionState.Preparing, activeAt.AddMinutes(-1), policy);
+        session.MoveTo(SessionState.Active, activeAt, policy);
 
-        return MissionRuntimeSnapshot.Create(
-            sourceMissionId,
-            "Foundations of Science",
-            MaximumTime.Create(maximumTimeMinutes),
-            [
-                StageSnapshot.Create("Stage One", 1, [triviaSubstage])
-            ],
-            [],
-            [
-                TriviaQuestionSnapshot.Create(
-                    triviaSubstage.SubstageSnapshotId,
-                    "What is the closest planet to the Sun?",
-                    1,
-                    100,
-                    30,
-                    "Mercury is the closest planet.",
-                    [
-                        TriviaOptionSnapshot.Create("Mercury", 1, true),
-                        TriviaOptionSnapshot.Create("Venus", 2, false)
-                    ])
-            ]);
-    }
-
-    private static LiveSession CreatePausedSession()
-    {
-        var session = CreateActiveSession(StartsAt.AddMinutes(1), maximumTimeMinutes: 10);
-        session.MoveTo(SessionState.Paused, StartsAt.AddMinutes(5), new SessionStateTransitionPolicy());
         return session;
-    }
-
-    private static MissionRuntimeSnapshot CreateTreasureHuntRuntimeSnapshot(Guid sourceMissionId, int maximumTimeMinutes)
-    {
-        var treasureHuntSubstage = SubstageSnapshot.CreateTreasureHunt("Treasure Hunt", 1, 100);
-
-        return MissionRuntimeSnapshot.Create(
-            sourceMissionId,
-            "Operator Mission",
-            MaximumTime.Create(maximumTimeMinutes),
-            [
-                StageSnapshot.Create("Stage One", 1, [treasureHuntSubstage])
-            ],
-            [
-                TargetSnapshot.Create(
-                    treasureHuntSubstage.SubstageSnapshotId,
-                    "Target Alpha",
-                    "QR-ALPHA",
-                    1,
-                    true,
-                    "Look under the stairs",
-                    "AfterPreviousTarget")
-            ],
-            []);
     }
 
     private sealed class FixedTimeProvider : TimeProvider

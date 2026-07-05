@@ -44,22 +44,25 @@ public sealed class ReconnectAuthenticatedParticipantCommandHandlerTests
         result.ParticipantDisplayName.Should().Be("Nora");
         result.SessionState.Should().Be(SessionState.Scheduled.ToString());
         result.LastSeenAt.Should().Be(new DateTimeOffset(2026, 6, 3, 10, 7, 0, TimeSpan.Zero));
+        // HU-22: no active trivia question → no active-substage countdown (0 / no ActiveQuestion).
         result.Timer.Should().NotBeNull();
-        result.Timer!.RemainingSeconds.Should().Be(2700);
-        result.Timer.TimerStatus.Should().Be("Frozen");
+        result.Timer!.RemainingSeconds.Should().Be(0);
+        result.Timer.ActiveQuestion.Should().BeNull();
         repository.Verify(repo => repo.UpdateAsync(session, It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
-    public async Task Handle_WhenParticipantReconnectsToActiveSession_ReturnsAuthoritativeTimerSnapshot()
+    public async Task Handle_WhenParticipantReconnectsToActiveQuestion_ReturnsAuthoritativeSubstageTimer()
     {
-        var session = CreateScheduledSession();
+        // HU-22 / US16: a reconnecting participant gets the trustworthy active-substage
+        // (trivia-question) remaining time immediately.
+        var session = CreateScheduledTriviaSession();
         var identityReferenceTeamId = Guid.NewGuid();
         var team = session.AssociateTeam(identityReferenceTeamId, "Alpha", "A-01", 4);
         var participantIdentity = Guid.NewGuid();
         var joinedAt = new DateTimeOffset(2026, 6, 3, 10, 0, 0, TimeSpan.Zero);
         var activeAt = joinedAt.AddMinutes(2);
-        var reconnectAt = activeAt.AddMinutes(5);
+        var reconnectAt = activeAt.AddSeconds(10);
         // The mobile/Identity lobby hands the participant the Identity reference id, not the
         // runtime TeamId. Drive the whole reconnect with that id to exercise the real contract.
         var firstAdmission = session.AdmitParticipant(
@@ -70,8 +73,9 @@ public sealed class ReconnectAuthenticatedParticipantCommandHandlerTests
             new JoinPolicy());
         var transitionPolicy = new SessionStateTransitionPolicy();
         session.MoveTo(SessionState.Preparing, joinedAt.AddMinutes(1), transitionPolicy);
-        session.MoveTo(SessionState.Active, activeAt, transitionPolicy);
-        session.DisconnectParticipant(firstAdmission.Participant.SessionParticipantId, activeAt.AddMinutes(3));
+        session.MoveTo(SessionState.Active, activeAt.AddSeconds(-1), transitionPolicy);
+        session.ActivateQuestion(0, activeAt);
+        session.DisconnectParticipant(firstAdmission.Participant.SessionParticipantId, activeAt.AddSeconds(5));
 
         var repository = CreateRepository(session);
         var accessClient = CreateAccessClient(session.LiveSessionId, identityReferenceTeamId, isAllowed: true);
@@ -89,10 +93,11 @@ public sealed class ReconnectAuthenticatedParticipantCommandHandlerTests
         result.TeamId.Should().Be(team.TeamId);
         result.Timer.Should().NotBeNull();
         result.Timer!.SessionState.Should().Be(nameof(SessionState.Active));
-        result.Timer.RemainingSeconds.Should().Be(2400);
+        result.Timer.RemainingSeconds.Should().Be(20);
         result.Timer.TimerStatus.Should().Be("Advancing");
         result.Timer.IsAdvancing.Should().BeTrue();
         result.Timer.AdvancingSince.Should().Be(activeAt);
+        result.Timer.ActiveQuestion.Should().NotBeNull();
     }
 
     [Fact]
@@ -240,6 +245,12 @@ public sealed class ReconnectAuthenticatedParticipantCommandHandlerTests
             "Museum Hunt",
             45,
             new DateTimeOffset(2026, 6, 3, 10, 0, 0, TimeSpan.Zero));
+    }
+
+    private static LiveSession CreateScheduledTriviaSession()
+    {
+        return LiveSessionTestFactory.CreateScheduledTrivia(
+            scheduledAt: new DateTimeOffset(2026, 6, 3, 10, 0, 0, TimeSpan.Zero));
     }
 
     private static LiveSession CreateActiveSession()

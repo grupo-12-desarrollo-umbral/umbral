@@ -10,7 +10,7 @@ public static class SessionTimerSnapshotDtoFactory
         Guid? teamId,
         AuthoritativeSessionTimerSnapshot snapshot)
     {
-        var activeQuestion = CreateActiveQuestionSnapshot(liveSession, snapshot.ObservedAt);
+        var activeQuestion = CreateActiveQuestionSnapshot(liveSession, snapshot);
 
         return new SessionTimerSnapshotDto(
             liveSession.LiveSessionId,
@@ -27,9 +27,11 @@ public static class SessionTimerSnapshotDtoFactory
             activeQuestion);
     }
 
+    // Sources the active-substage window straight from the authoritative snapshot the caller
+    // already resolved (GetAuthoritativeSessionTimerSnapshot) — no redundant re-fetch.
     private static ActiveQuestionSnapshotDto? CreateActiveQuestionSnapshot(
         LiveSession liveSession,
-        DateTimeOffset observedAt)
+        AuthoritativeSessionTimerSnapshot snapshot)
     {
         if (liveSession.ActiveQuestionIndex is null)
         {
@@ -38,7 +40,6 @@ public static class SessionTimerSnapshotDtoFactory
 
         var questionIndex = liveSession.ActiveQuestionIndex.Value;
         var (question, options) = TriviaQuestionSnapshotSelector.GetOrderedTriviaQuestion(liveSession, questionIndex);
-        var questionTimer = liveSession.GetActiveQuestionTimerSnapshot(observedAt);
 
         return new ActiveQuestionSnapshotDto(
             liveSession.LiveSessionId,
@@ -47,8 +48,8 @@ public static class SessionTimerSnapshotDtoFactory
             question.Prompt,
             options,
             question.TimeLimitSeconds,
-            ToWholeSeconds(questionTimer.RemainingDuration),
-            questionTimer.AdvancingSince ?? observedAt);
+            ToWholeSeconds(snapshot.RemainingDuration),
+            snapshot.AdvancingSince ?? snapshot.ObservedAt);
     }
 
     private static string ResolveStatus(AuthoritativeSessionTimerSnapshot snapshot)

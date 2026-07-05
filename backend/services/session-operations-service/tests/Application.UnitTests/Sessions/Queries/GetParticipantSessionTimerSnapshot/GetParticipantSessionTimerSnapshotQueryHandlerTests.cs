@@ -2,120 +2,92 @@ using umbral_backend.Application.Common.Exceptions;
 using umbral_backend.Application.Common.Interfaces;
 using umbral_backend.Application.Sessions.Common;
 using umbral_backend.Application.Sessions.Queries.GetParticipantSessionTimerSnapshot;
+using umbral_backend.Application.UnitTests.TestData;
 using umbral_backend.Domain.Entities;
 using umbral_backend.Domain.Enums;
 using umbral_backend.Domain.Services;
-using umbral_backend.Domain.ValueObjects;
 
 namespace umbral_backend.Application.UnitTests.Sessions.Queries.GetParticipantSessionTimerSnapshot;
 
+// Participant timer query returns the active-substage (trivia-question) window (HU-22) under the
+// unchanged participant-membership authorization guard: allowed reads see the active-question
+// remaining, no-active-question reads see 0 with no ActiveQuestion, denied/missing still throw.
 public sealed class GetParticipantSessionTimerSnapshotQueryHandlerTests
 {
     private static readonly DateTimeOffset StartsAt = new(2026, 6, 4, 10, 0, 0, TimeSpan.Zero);
+    private static readonly DateTimeOffset ActivatedAt = StartsAt.AddMinutes(2);
 
     [Fact]
-    public async Task Handle_WhenTimerIsActive_ReturnsAuthoritativeRemainingTime()
+    public async Task Handle_WhenTriviaQuestionIsActive_ReturnsActiveSubstageRemaining()
     {
-        var session = CreateActiveSession(activeAt: StartsAt.AddMinutes(1), maximumTimeMinutes: 10);
+        var session = CreateActiveTriviaSession(ActivatedAt);
         var teamId = session.Teams.Single().TeamId;
-        var handler = CreateHandler(
-            session,
-            teamId,
-            isAllowed: true,
-            observedAt: StartsAt.AddMinutes(4));
+        var handler = CreateHandler(session, teamId, isAllowed: true, observedAt: ActivatedAt.AddSeconds(5));
 
         var result = await handler.Handle(
             new GetParticipantSessionTimerSnapshotQuery(session.LiveSessionId, teamId, "join-token"),
             CancellationToken.None);
 
-        result.LiveSessionId.Should().Be(session.LiveSessionId);
         result.TeamId.Should().Be(teamId);
         result.SessionState.Should().Be(nameof(SessionState.Active));
-        result.TotalSeconds.Should().Be(600);
-        result.RemainingSeconds.Should().Be(420);
+        result.TotalSeconds.Should().Be(30);
+        result.RemainingSeconds.Should().Be(25);
         result.TimerStatus.Should().Be("Advancing");
         result.IsAdvancing.Should().BeTrue();
-        result.IsExpired.Should().BeFalse();
-        result.AdvancingSince.Should().Be(StartsAt.AddMinutes(1));
+        result.AdvancingSince.Should().Be(ActivatedAt);
+
+        result.ActiveQuestion.Should().NotBeNull();
+        result.ActiveQuestion!.QuestionIndex.Should().Be(0);
+        result.ActiveQuestion.TimeLimitSeconds.Should().Be(30);
+        result.ActiveQuestion.RemainingSeconds.Should().Be(25);
     }
 
     [Fact]
-    public async Task Handle_WhenTimerIsPaused_ReturnsFrozenSnapshot()
+    public async Task Handle_WhenNoQuestionIsActive_ReturnsNoCountdownAndNoActiveQuestion()
     {
-        var session = CreatePausedSession();
+        var session = CreateActiveTreasureHunt(activeAt: StartsAt.AddMinutes(1));
         var teamId = session.Teams.Single().TeamId;
-        var handler = CreateHandler(
-            session,
-            teamId,
-            isAllowed: true,
-            observedAt: StartsAt.AddMinutes(20));
+        var handler = CreateHandler(session, teamId, isAllowed: true, observedAt: StartsAt.AddMinutes(4));
+
+        var result = await handler.Handle(
+            new GetParticipantSessionTimerSnapshotQuery(session.LiveSessionId, teamId, null),
+            CancellationToken.None);
+
+        result.TotalSeconds.Should().Be(0);
+        result.RemainingSeconds.Should().Be(0);
+        result.IsAdvancing.Should().BeFalse();
+        result.ActiveQuestion.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task Handle_WhenPaused_FreezesActiveQuestionRemainder()
+    {
+        var session = CreateActiveTriviaSession(ActivatedAt);
+        var teamId = session.Teams.Single().TeamId;
+        session.MoveTo(SessionState.Paused, ActivatedAt.AddSeconds(10), new SessionStateTransitionPolicy());
+        var handler = CreateHandler(session, teamId, isAllowed: true, observedAt: ActivatedAt.AddSeconds(50));
 
         var result = await handler.Handle(
             new GetParticipantSessionTimerSnapshotQuery(session.LiveSessionId, teamId, null),
             CancellationToken.None);
 
         result.SessionState.Should().Be(nameof(SessionState.Paused));
-        result.RemainingSeconds.Should().Be(360);
+        result.RemainingSeconds.Should().Be(20);
         result.TimerStatus.Should().Be("Frozen");
         result.IsAdvancing.Should().BeFalse();
-        result.IsExpired.Should().BeFalse();
-        result.AdvancingSince.Should().BeNull();
-    }
-
-    [Fact]
-    public async Task Handle_WhenTimerWasResumed_ReturnsRemainderFromFrozenTime()
-    {
-        var session = CreatePausedSession();
-        var teamId = session.Teams.Single().TeamId;
-        session.MoveTo(SessionState.Active, StartsAt.AddMinutes(15), new SessionStateTransitionPolicy());
-        var handler = CreateHandler(
-            session,
-            teamId,
-            isAllowed: true,
-            observedAt: StartsAt.AddMinutes(17));
-
-        var result = await handler.Handle(
-            new GetParticipantSessionTimerSnapshotQuery(session.LiveSessionId, teamId, null),
-            CancellationToken.None);
-
-        result.SessionState.Should().Be(nameof(SessionState.Active));
-        result.RemainingSeconds.Should().Be(240);
-        result.TimerStatus.Should().Be("Advancing");
-        result.IsAdvancing.Should().BeTrue();
-        result.AdvancingSince.Should().Be(StartsAt.AddMinutes(15));
-    }
-
-    [Fact]
-    public async Task Handle_WhenTimerElapsed_ReturnsExpiredStatusWithoutClientState()
-    {
-        var session = CreateActiveSession(activeAt: StartsAt.AddMinutes(1), maximumTimeMinutes: 10);
-        var teamId = session.Teams.Single().TeamId;
-        var handler = CreateHandler(
-            session,
-            teamId,
-            isAllowed: true,
-            observedAt: StartsAt.AddMinutes(12));
-
-        var result = await handler.Handle(
-            new GetParticipantSessionTimerSnapshotQuery(session.LiveSessionId, teamId, null),
-            CancellationToken.None);
-
-        result.RemainingSeconds.Should().Be(0);
-        result.TimerStatus.Should().Be("Expired");
-        result.IsAdvancing.Should().BeFalse();
-        result.IsExpired.Should().BeTrue();
+        result.ActiveQuestion!.RemainingSeconds.Should().Be(20);
     }
 
     [Fact]
     public async Task Handle_WhenMembershipAccessIsDenied_ThrowsForbidden()
     {
-        var session = CreateActiveSession(activeAt: StartsAt.AddMinutes(1), maximumTimeMinutes: 10);
+        var session = CreateActiveTriviaSession(ActivatedAt);
         var teamId = session.Teams.Single().TeamId;
         var repository = CreateRepository(session);
         var handler = CreateHandler(
             repository,
             CreateAccessClient(session.LiveSessionId, teamId, isAllowed: false),
-            StartsAt.AddMinutes(2));
+            ActivatedAt.AddSeconds(5));
 
         var act = async () => await handler.Handle(
             new GetParticipantSessionTimerSnapshotQuery(session.LiveSessionId, teamId, null),
@@ -198,26 +170,26 @@ public sealed class GetParticipantSessionTimerSnapshotQueryHandlerTests
         return accessClient;
     }
 
-    private static LiveSession CreateActiveSession(DateTimeOffset activeAt, int maximumTimeMinutes)
+    private static LiveSession CreateActiveTriviaSession(DateTimeOffset activatedAt)
     {
-        var session = LiveSessionTestFactory.CreateScheduledTreasureHunt(
-            $"SES-{Guid.NewGuid():N}"[..12],
-            "Timer Session",
-            maximumTimeMinutes,
-            StartsAt);
-
+        var session = LiveSessionTestFactory.CreateScheduledTrivia(scheduledAt: StartsAt);
         session.AssociateTeam(Guid.NewGuid(), "Alpha", "A-01", 4);
-        var transitionPolicy = new SessionStateTransitionPolicy();
-        session.MoveTo(SessionState.Preparing, activeAt.AddMinutes(-1), transitionPolicy);
-        session.MoveTo(SessionState.Active, activeAt, transitionPolicy);
+        var policy = new SessionStateTransitionPolicy();
+        session.MoveTo(SessionState.Preparing, activatedAt.AddMinutes(-1), policy);
+        session.MoveTo(SessionState.Active, activatedAt.AddSeconds(-1), policy);
+        session.ActivateQuestion(0, activatedAt);
 
         return session;
     }
 
-    private static LiveSession CreatePausedSession()
+    private static LiveSession CreateActiveTreasureHunt(DateTimeOffset activeAt)
     {
-        var session = CreateActiveSession(StartsAt.AddMinutes(1), maximumTimeMinutes: 10);
-        session.MoveTo(SessionState.Paused, StartsAt.AddMinutes(5), new SessionStateTransitionPolicy());
+        var session = LiveSessionTestFactory.CreateScheduledTreasureHunt(scheduledAt: StartsAt);
+        session.AssociateTeam(Guid.NewGuid(), "Alpha", "A-01", 4);
+        var policy = new SessionStateTransitionPolicy();
+        session.MoveTo(SessionState.Preparing, activeAt.AddMinutes(-1), policy);
+        session.MoveTo(SessionState.Active, activeAt, policy);
+
         return session;
     }
 

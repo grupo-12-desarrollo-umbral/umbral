@@ -100,3 +100,9 @@
   color: var(--text-secondary);
   font-size: 0.82rem;
 }
+
+.noCountdownNote {
+  margin-top: 0.75rem;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+}

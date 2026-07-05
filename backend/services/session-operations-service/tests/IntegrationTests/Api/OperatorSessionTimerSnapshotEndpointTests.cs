@@ -7,11 +7,15 @@ using umbral_backend.Infrastructure.Persistence;
 
 namespace umbral_backend.Infrastructure.IntegrationTests.Api;
 
+// HU-22: the operator timer GET returns the active-substage (trivia-question) window. With an
+// active question it advances/freezes/resumes on that window; with no active question (or a
+// treasure-hunt substage) there is no authoritative countdown (OD-1) -> 0/absent, ActiveQuestion null.
 [Collection(PostgreSqlCollection.Name)]
 public sealed class OperatorSessionTimerSnapshotEndpointTests : IAsyncLifetime
 {
     private const int OperatorUserId = 42;
     private const string OperatorExternalIdentityId = "kc-operator-42";
+    private const int QuestionTimeLimitSeconds = 300;
 
     private readonly PostgreSqlFixture _fixture;
     private SessionOperationsApiWebApplicationFactory _factory = null!;
@@ -41,9 +45,9 @@ public sealed class OperatorSessionTimerSnapshotEndpointTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task GetTimerSnapshot_ForActiveTriviaSession_ReturnsAdvancingTimerWithNullTeamId()
+    public async Task GetTimerSnapshot_ForActiveTriviaQuestion_ReturnsAdvancingQuestionWindow()
     {
-        var seeded = await SeedTriviaSessionAsync(SessionTimerSeedState.Active);
+        var seeded = await SeedTriviaSessionAsync(SessionTimerSeedState.ActiveQuestion);
         AddTrustedHeaders(_client, OperatorExternalIdentityId, "Operator", "operator@example.com");
 
         var response = await _client.GetAsync(BuildTimerUrl(seeded));
@@ -54,19 +58,22 @@ public sealed class OperatorSessionTimerSnapshotEndpointTests : IAsyncLifetime
         payload!.LiveSessionId.Should().Be(seeded);
         payload.TeamId.Should().BeNull();
         payload.SessionState.Should().Be(nameof(SessionState.Active));
-        payload.TotalSeconds.Should().Be(2700);
-        payload.RemainingSeconds.Should().BeInRange(1610, 1630);
+        payload.TotalSeconds.Should().Be(QuestionTimeLimitSeconds);
+        payload.RemainingSeconds.Should().BeInRange(QuestionTimeLimitSeconds - 10, QuestionTimeLimitSeconds);
         payload.TimerStatus.Should().Be("Advancing");
         payload.IsAdvancing.Should().BeTrue();
         payload.IsExpired.Should().BeFalse();
         payload.AdvancingSince.Should().NotBeNull();
         payload.ExpiredAt.Should().BeNull();
+        payload.ActiveQuestion.Should().NotBeNull();
+        payload.ActiveQuestion!.QuestionIndex.Should().Be(0);
+        payload.ActiveQuestion.TimeLimitSeconds.Should().Be(QuestionTimeLimitSeconds);
     }
 
     [Fact]
-    public async Task GetTimerSnapshot_ForPausedTriviaSession_ReturnsFrozenTimer()
+    public async Task GetTimerSnapshot_ForPausedTriviaQuestion_ReturnsFrozenQuestionWindow()
     {
-        var seeded = await SeedTriviaSessionAsync(SessionTimerSeedState.Paused);
+        var seeded = await SeedTriviaSessionAsync(SessionTimerSeedState.PausedQuestion);
         AddTrustedHeaders(_client, OperatorExternalIdentityId, "Operator", "operator@example.com");
 
         var response = await _client.GetAsync(BuildTimerUrl(seeded));
@@ -75,17 +82,20 @@ public sealed class OperatorSessionTimerSnapshotEndpointTests : IAsyncLifetime
         var payload = await response.Content.ReadFromJsonAsync<OperatorSessionTimerSnapshotResponse>();
         payload.Should().NotBeNull();
         payload!.SessionState.Should().Be(nameof(SessionState.Paused));
-        payload.RemainingSeconds.Should().Be(2580);
+        payload.TotalSeconds.Should().Be(QuestionTimeLimitSeconds);
+        payload.RemainingSeconds.Should().Be(180);
         payload.TimerStatus.Should().Be("Frozen");
         payload.IsAdvancing.Should().BeFalse();
         payload.IsExpired.Should().BeFalse();
         payload.AdvancingSince.Should().BeNull();
+        payload.ActiveQuestion.Should().NotBeNull();
+        payload.ActiveQuestion!.RemainingSeconds.Should().Be(180);
     }
 
     [Fact]
-    public async Task GetTimerSnapshot_ForResumedTriviaSession_ContinuesFromFrozenRemainder()
+    public async Task GetTimerSnapshot_ForResumedTriviaQuestion_ContinuesSameQuestionFromFrozenRemainder()
     {
-        var seeded = await SeedTriviaSessionAsync(SessionTimerSeedState.Resumed);
+        var seeded = await SeedTriviaSessionAsync(SessionTimerSeedState.ResumedQuestion);
         AddTrustedHeaders(_client, OperatorExternalIdentityId, "Operator", "operator@example.com");
 
         var response = await _client.GetAsync(BuildTimerUrl(seeded));
@@ -94,17 +104,18 @@ public sealed class OperatorSessionTimerSnapshotEndpointTests : IAsyncLifetime
         var payload = await response.Content.ReadFromJsonAsync<OperatorSessionTimerSnapshotResponse>();
         payload.Should().NotBeNull();
         payload!.SessionState.Should().Be(nameof(SessionState.Active));
-        payload.TotalSeconds.Should().Be(2700);
-        payload.RemainingSeconds.Should().BeInRange(2210, 2230);
+        payload.TotalSeconds.Should().Be(QuestionTimeLimitSeconds);
+        payload.RemainingSeconds.Should().BeInRange(170, 180);
         payload.TimerStatus.Should().Be("Advancing");
         payload.IsAdvancing.Should().BeTrue();
         payload.IsExpired.Should().BeFalse();
+        payload.ActiveQuestion.Should().NotBeNull();
     }
 
     [Fact]
-    public async Task GetTimerSnapshot_ForActiveTreasureHuntSession_ReturnsAdvancingTimer()
+    public async Task GetTimerSnapshot_ForActiveTreasureHuntSession_ReturnsNoCountdown()
     {
-        var seeded = await SeedTreasureHuntSessionAsync(SessionTimerSeedState.Active);
+        var seeded = await SeedTreasureHuntSessionAsync();
         AddTrustedHeaders(_client, OperatorExternalIdentityId, "Operator", "operator@example.com");
 
         var response = await _client.GetAsync(BuildTimerUrl(seeded));
@@ -115,11 +126,10 @@ public sealed class OperatorSessionTimerSnapshotEndpointTests : IAsyncLifetime
         payload!.LiveSessionId.Should().Be(seeded);
         payload.TeamId.Should().BeNull();
         payload.SessionState.Should().Be(nameof(SessionState.Active));
-        payload.TotalSeconds.Should().Be(2700);
-        payload.RemainingSeconds.Should().BeInRange(1610, 1630);
-        payload.TimerStatus.Should().Be("Advancing");
-        payload.IsAdvancing.Should().BeTrue();
-        payload.IsExpired.Should().BeFalse();
+        payload.TotalSeconds.Should().Be(0);
+        payload.RemainingSeconds.Should().Be(0);
+        payload.IsAdvancing.Should().BeFalse();
+        payload.ActiveQuestion.Should().BeNull();
     }
 
     [Fact]
@@ -135,7 +145,7 @@ public sealed class OperatorSessionTimerSnapshotEndpointTests : IAsyncLifetime
     [Fact]
     public async Task GetTimerSnapshot_WithoutTrustedHeaders_ReturnsUnauthorized()
     {
-        var seeded = await SeedTriviaSessionAsync(SessionTimerSeedState.Active);
+        var seeded = await SeedTriviaSessionAsync(SessionTimerSeedState.ActiveQuestion);
 
         var response = await _client.GetAsync(BuildTimerUrl(seeded));
 
@@ -145,7 +155,7 @@ public sealed class OperatorSessionTimerSnapshotEndpointTests : IAsyncLifetime
     [Fact]
     public async Task GetTimerSnapshot_WithParticipantRole_ReturnsForbidden()
     {
-        var seeded = await SeedTriviaSessionAsync(SessionTimerSeedState.Active);
+        var seeded = await SeedTriviaSessionAsync(SessionTimerSeedState.ActiveQuestion);
         AddTrustedHeaders(_client, Guid.NewGuid().ToString(), "Participant", "participant@example.com");
 
         var response = await _client.GetAsync(BuildTimerUrl(seeded));
@@ -158,7 +168,8 @@ public sealed class OperatorSessionTimerSnapshotEndpointTests : IAsyncLifetime
         await using var scope = _factory.Services.CreateAsyncScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
-        var createdAt = DateTimeOffset.UtcNow.AddMinutes(-20);
+        var now = DateTimeOffset.UtcNow;
+        var createdAt = now.AddMinutes(-20);
         var sourceMissionId = Guid.NewGuid();
         var session = LiveSession.Create(
             SessionSource.Create(sourceMissionId),
@@ -171,7 +182,7 @@ public sealed class OperatorSessionTimerSnapshotEndpointTests : IAsyncLifetime
         session.AssociateTeam(Guid.NewGuid(), "Blue", "BLU-01", 4);
         session.AssignOperator(OperatorUserId, createdAt);
 
-        MoveToRequestedTimerState(session, seedState, createdAt);
+        DriveQuestionTimer(session, seedState, createdAt, now);
 
         dbContext.LiveSessions.Add(session);
         await dbContext.SaveChangesAsync();
@@ -179,7 +190,7 @@ public sealed class OperatorSessionTimerSnapshotEndpointTests : IAsyncLifetime
         return session.LiveSessionId;
     }
 
-    private async Task<Guid> SeedTreasureHuntSessionAsync(SessionTimerSeedState seedState)
+    private async Task<Guid> SeedTreasureHuntSessionAsync()
     {
         await using var scope = _factory.Services.CreateAsyncScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
@@ -197,7 +208,9 @@ public sealed class OperatorSessionTimerSnapshotEndpointTests : IAsyncLifetime
         session.AssociateTeam(Guid.NewGuid(), "Blue", "BLU-01", 4);
         session.AssignOperator(OperatorUserId, createdAt);
 
-        MoveToRequestedTimerState(session, seedState, createdAt);
+        var transitionPolicy = new SessionStateTransitionPolicy();
+        session.MoveTo(SessionState.Preparing, createdAt.AddMinutes(1), transitionPolicy);
+        session.MoveTo(SessionState.Active, createdAt.AddMinutes(2), transitionPolicy);
 
         dbContext.LiveSessions.Add(session);
         await dbContext.SaveChangesAsync();
@@ -205,29 +218,37 @@ public sealed class OperatorSessionTimerSnapshotEndpointTests : IAsyncLifetime
         return session.LiveSessionId;
     }
 
-    private static void MoveToRequestedTimerState(
+    // Drives the trivia-question timer to the requested state. Advancing windows anchor on the real
+    // "now" so the endpoint (real clock) reads a meaningful remainder; frozen windows are fully
+    // seed-timed so the frozen remainder is deterministic.
+    private static void DriveQuestionTimer(
         LiveSession session,
         SessionTimerSeedState seedState,
-        DateTimeOffset createdAt)
+        DateTimeOffset createdAt,
+        DateTimeOffset now)
     {
         var transitionPolicy = new SessionStateTransitionPolicy();
 
         session.MoveTo(SessionState.Preparing, createdAt.AddMinutes(1), transitionPolicy);
         session.MoveTo(SessionState.Active, createdAt.AddMinutes(2), transitionPolicy);
 
-        if (seedState == SessionTimerSeedState.Active)
+        if (seedState == SessionTimerSeedState.ActiveQuestion)
+        {
+            session.ActivateQuestion(0, now);
+            return;
+        }
+
+        // Paused / Resumed: activate then pause 120s later -> frozen remainder = 300 - 120 = 180.
+        var activatedAt = createdAt.AddMinutes(3);
+        session.ActivateQuestion(0, activatedAt);
+        session.MoveTo(SessionState.Paused, activatedAt.AddSeconds(120), transitionPolicy, "Pause timer");
+
+        if (seedState == SessionTimerSeedState.PausedQuestion)
         {
             return;
         }
 
-        session.MoveTo(SessionState.Paused, createdAt.AddMinutes(4), transitionPolicy, "Pause timer");
-
-        if (seedState == SessionTimerSeedState.Paused)
-        {
-            return;
-        }
-
-        session.MoveTo(SessionState.Active, createdAt.AddMinutes(14), transitionPolicy);
+        session.MoveTo(SessionState.Active, now, transitionPolicy);
     }
 
     private static MissionRuntimeSnapshot CreateTriviaSnapshot(Guid sourceMissionId)
@@ -248,7 +269,7 @@ public sealed class OperatorSessionTimerSnapshotEndpointTests : IAsyncLifetime
                     "What is the closest planet to the Sun?",
                     1,
                     100,
-                    30,
+                    QuestionTimeLimitSeconds,
                     "Mercury is the closest planet.",
                     [
                         TriviaOptionSnapshot.Create("Mercury", 1, true),
@@ -298,9 +319,9 @@ public sealed class OperatorSessionTimerSnapshotEndpointTests : IAsyncLifetime
 
     private enum SessionTimerSeedState
     {
-        Active,
-        Paused,
-        Resumed
+        ActiveQuestion,
+        PausedQuestion,
+        ResumedQuestion
     }
 
     private sealed record OperatorSessionTimerSnapshotResponse(
@@ -314,5 +335,16 @@ public sealed class OperatorSessionTimerSnapshotEndpointTests : IAsyncLifetime
         bool IsExpired,
         DateTimeOffset ObservedAt,
         DateTimeOffset? AdvancingSince,
-        DateTimeOffset? ExpiredAt);
+        DateTimeOffset? ExpiredAt,
+        ActiveQuestionSnapshotResponse? ActiveQuestion);
+
+    private sealed record ActiveQuestionSnapshotResponse(
+        Guid LiveSessionId,
+        int QuestionIndex,
+        int SequenceOrder,
+        string Prompt,
+        IReadOnlyList<string> Options,
+        int TimeLimitSeconds,
+        int RemainingSeconds,
+        DateTimeOffset ActivatedAt);
 }

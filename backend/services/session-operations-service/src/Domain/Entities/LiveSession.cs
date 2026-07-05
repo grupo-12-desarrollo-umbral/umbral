@@ -12,10 +12,6 @@ public sealed class LiveSession : BaseAuditableEntity
     private readonly List<Team> _teams = new();
     private readonly List<SessionParticipant> _participants = new();
     private readonly List<JoinContext> _joinContexts = new();
-    private TimeSpan _sessionTimerTotalDuration;
-    private TimeSpan _sessionTimerRemainingDuration;
-    private DateTimeOffset? _sessionTimerAdvancingSince;
-    private DateTimeOffset? _sessionTimerExpiredAt;
     private TimeSpan _questionTimerTotalDuration;
     private TimeSpan _questionTimerRemainingDuration;
     private DateTimeOffset? _questionTimerAdvancingSince;
@@ -29,8 +25,6 @@ public sealed class LiveSession : BaseAuditableEntity
         Source = null!;
         MaximumTime = null!;
         MissionRuntimeSnapshot = null!;
-        _sessionTimerTotalDuration = TimeSpan.Zero;
-        _sessionTimerRemainingDuration = TimeSpan.Zero;
         _questionTimerTotalDuration = TimeSpan.Zero;
         _questionTimerRemainingDuration = TimeSpan.Zero;
     }
@@ -67,8 +61,6 @@ public sealed class LiveSession : BaseAuditableEntity
         MaximumTime = maximumTime;
         MissionRuntimeSnapshot = missionRuntimeSnapshot;
         AssignedOperatorUserId = assignedOperatorUserId;
-        _sessionTimerTotalDuration = TimeSpan.FromMinutes(maximumTime.Minutes);
-        _sessionTimerRemainingDuration = _sessionTimerTotalDuration;
         _questionTimerTotalDuration = TimeSpan.Zero;
         _questionTimerRemainingDuration = TimeSpan.Zero;
     }
@@ -98,8 +90,6 @@ public sealed class LiveSession : BaseAuditableEntity
     public string? StateReason { get; private set; }
 
     public MaximumTime MaximumTime { get; private set; }
-
-    public bool IsSessionTimerAdvancing => LiveSessionStateFactory.For(State).IsSessionTimerAdvancing(this);
 
     public bool IsQuestionTimerAdvancing => LiveSessionStateFactory.For(State).IsQuestionTimerAdvancing(this);
 
@@ -248,14 +238,11 @@ public sealed class LiveSession : BaseAuditableEntity
         AddDomainEvent(new SessionStateChangedEvent(LiveSessionId, previousState, nextState, occurredAt));
     }
 
+    // Authoritative displayed remaining time = the active trivia-question window (OD-1/OD-2/OD-3):
+    // a trivia question active -> the TriviaQuestionTimer window; otherwise no advancing countdown.
     public AuthoritativeSessionTimerSnapshot GetAuthoritativeSessionTimerSnapshot(DateTimeOffset observedAt)
     {
-        return LiveSessionStateFactory.For(State).GetTimerSnapshot(this, observedAt);
-    }
-
-    public AuthoritativeSessionTimerSnapshot MarkSessionTimerExpiredIfElapsed(DateTimeOffset occurredAt)
-    {
-        return LiveSessionStateFactory.For(State).MarkTimerExpiredIfElapsed(this, occurredAt);
+        return GetActiveQuestionTimerSnapshot(observedAt);
     }
 
     public void ActivateQuestion(int questionIndex, DateTimeOffset occurredAt)
@@ -325,13 +312,6 @@ public sealed class LiveSession : BaseAuditableEntity
             occurredAt));
     }
 
-    internal bool HasAdvancingSessionTimer()
-    {
-        return _sessionTimerAdvancingSince.HasValue &&
-            _sessionTimerExpiredAt is null &&
-            _sessionTimerRemainingDuration > TimeSpan.Zero;
-    }
-
     internal bool HasAdvancingQuestionTimer()
     {
         return ActiveQuestionIndex.HasValue &&
@@ -344,16 +324,6 @@ public sealed class LiveSession : BaseAuditableEntity
     {
         StartedAt ??= occurredAt;
         PausedAt = null;
-
-        if (_sessionTimerExpiredAt is not null || _sessionTimerRemainingDuration <= TimeSpan.Zero)
-        {
-            _sessionTimerRemainingDuration = TimeSpan.Zero;
-            _sessionTimerAdvancingSince = null;
-            _sessionTimerExpiredAt ??= occurredAt;
-            return;
-        }
-
-        _sessionTimerAdvancingSince = occurredAt;
     }
 
     internal void EnterActiveQuestionTimerState(DateTimeOffset occurredAt)
@@ -363,7 +333,6 @@ public sealed class LiveSession : BaseAuditableEntity
 
     internal void EnterPausedSessionState(DateTimeOffset occurredAt)
     {
-        FreezeSessionTimer(occurredAt);
         PausedAt = occurredAt;
     }
 
@@ -374,56 +343,14 @@ public sealed class LiveSession : BaseAuditableEntity
 
     internal void EnterFinishedSessionState(DateTimeOffset occurredAt)
     {
-        FreezeSessionTimer(occurredAt);
         FreezeQuestionTimer(occurredAt);
         EndedAt = occurredAt;
     }
 
     internal void EnterCancelledSessionState(DateTimeOffset occurredAt)
     {
-        FreezeSessionTimer(occurredAt);
         FreezeQuestionTimer(occurredAt);
         CancelledAt = occurredAt;
-    }
-
-    internal AuthoritativeSessionTimerSnapshot GetAdvancingSessionTimerSnapshot(DateTimeOffset observedAt)
-    {
-        var remaining = CalculateAdvancingSessionTimerRemaining(observedAt);
-        var expired = _sessionTimerExpiredAt.HasValue || remaining <= TimeSpan.Zero;
-
-        return AuthoritativeSessionTimerSnapshot.Create(
-            _sessionTimerTotalDuration,
-            remaining,
-            isAdvancing: !expired && HasAdvancingSessionTimer(),
-            observedAt,
-            _sessionTimerAdvancingSince,
-            _sessionTimerExpiredAt);
-    }
-
-    internal AuthoritativeSessionTimerSnapshot GetFrozenSessionTimerSnapshot(DateTimeOffset observedAt)
-    {
-        return AuthoritativeSessionTimerSnapshot.Create(
-            _sessionTimerTotalDuration,
-            _sessionTimerExpiredAt.HasValue ? TimeSpan.Zero : _sessionTimerRemainingDuration,
-            isAdvancing: false,
-            observedAt,
-            advancingSince: null,
-            _sessionTimerExpiredAt);
-    }
-
-    internal AuthoritativeSessionTimerSnapshot MarkAdvancingSessionTimerExpiredIfElapsed(DateTimeOffset occurredAt)
-    {
-        var remaining = CalculateAdvancingSessionTimerRemaining(occurredAt);
-        if (remaining > TimeSpan.Zero)
-        {
-            return GetAdvancingSessionTimerSnapshot(occurredAt);
-        }
-
-        _sessionTimerRemainingDuration = TimeSpan.Zero;
-        _sessionTimerAdvancingSince = null;
-        _sessionTimerExpiredAt ??= occurredAt;
-
-        return GetFrozenSessionTimerSnapshot(occurredAt);
     }
 
     internal AuthoritativeSessionTimerSnapshot GetAdvancingQuestionTimerSnapshot(DateTimeOffset observedAt)
@@ -466,23 +393,6 @@ public sealed class LiveSession : BaseAuditableEntity
         return GetFrozenQuestionTimerSnapshot(occurredAt);
     }
 
-    private void FreezeSessionTimer(DateTimeOffset occurredAt)
-    {
-        if (_sessionTimerAdvancingSince is null)
-        {
-            return;
-        }
-
-        _sessionTimerRemainingDuration = CalculateAdvancingSessionTimerRemaining(occurredAt);
-        _sessionTimerAdvancingSince = null;
-
-        if (_sessionTimerRemainingDuration <= TimeSpan.Zero)
-        {
-            _sessionTimerRemainingDuration = TimeSpan.Zero;
-            _sessionTimerExpiredAt ??= occurredAt;
-        }
-    }
-
     private void ResumeQuestionTimer(DateTimeOffset occurredAt)
     {
         if (ActiveQuestionIndex is null)
@@ -516,28 +426,6 @@ public sealed class LiveSession : BaseAuditableEntity
             _questionTimerRemainingDuration = TimeSpan.Zero;
             _questionTimerExpiredAt ??= occurredAt;
         }
-    }
-
-    private TimeSpan CalculateAdvancingSessionTimerRemaining(DateTimeOffset observedAt)
-    {
-        if (_sessionTimerExpiredAt.HasValue)
-        {
-            return TimeSpan.Zero;
-        }
-
-        if (_sessionTimerAdvancingSince is null)
-        {
-            return _sessionTimerRemainingDuration;
-        }
-
-        var elapsed = observedAt - _sessionTimerAdvancingSince.Value;
-        if (elapsed <= TimeSpan.Zero)
-        {
-            return _sessionTimerRemainingDuration;
-        }
-
-        var remaining = _sessionTimerRemainingDuration - elapsed;
-        return remaining > TimeSpan.Zero ? remaining : TimeSpan.Zero;
     }
 
     private TimeSpan CalculateAdvancingQuestionTimerRemaining(DateTimeOffset observedAt)

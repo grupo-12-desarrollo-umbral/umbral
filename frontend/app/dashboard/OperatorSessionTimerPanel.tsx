@@ -7,7 +7,10 @@ type OperatorSessionTimerPanelProps = {
   error: string | null
 }
 
+// The authoritative clock is the active trivia question window. No active question
+// (treasure-hunt substage or between questions) means there is no countdown.
 function deriveChipLabel(timer: SessionTimerSnapshotDto): string {
+  if (timer.activeQuestion === null) return 'No question'
   if (timer.isExpired || timer.timerStatus === 'Expired') return 'Expired'
   if (timer.timerStatus === 'Advancing') return 'Running'
   const preStart = timer.sessionState === 'Scheduled' || timer.sessionState === 'Preparing'
@@ -38,11 +41,11 @@ function chipTone(label: string): 'running' | 'frozen' | 'expired' | 'unavailabl
 export function OperatorSessionTimerPanel({ timer, isLoading, error }: OperatorSessionTimerPanelProps) {
   if (isLoading) {
     return (
-      <div className={styles.timerPanel}>
-        <div className={styles.timerLabel}>Session timer</div>
+      <div className={styles.timerPanel} data-testid="session-timer-panel">
+        <div className={styles.timerLabel}>Question timer</div>
         <div className={styles.timerRow}>
           <span className={styles.timerValue} data-placeholder="true">--:--</span>
-          <span className={styles.timerChip} data-tone="unavailable">Loading</span>
+          <span className={styles.timerChip} data-tone="unavailable" data-testid="timer-chip">Loading</span>
         </div>
         <div className={styles.progressTrack} aria-hidden="true">
           <div className={styles.progressFill} data-tone="unavailable" style={{ width: '0%' }} />
@@ -53,11 +56,11 @@ export function OperatorSessionTimerPanel({ timer, isLoading, error }: OperatorS
 
   if (error !== null || timer === null) {
     return (
-      <div className={styles.timerPanel}>
-        <div className={styles.timerLabel}>Session timer</div>
+      <div className={styles.timerPanel} data-testid="session-timer-panel">
+        <div className={styles.timerLabel}>Question timer</div>
         <div className={styles.timerRow}>
           <span className={styles.timerValue} data-placeholder="true" aria-live="polite">--:--</span>
-          <span className={styles.timerChip} data-tone="unavailable">Unavailable</span>
+          <span className={styles.timerChip} data-tone="unavailable" data-testid="timer-chip">Unavailable</span>
         </div>
         {error && <div className={styles.errorMessage}>{error}</div>}
         <div className={styles.progressTrack} aria-hidden="true">
@@ -69,20 +72,36 @@ export function OperatorSessionTimerPanel({ timer, isLoading, error }: OperatorS
 
   const label = deriveChipLabel(timer)
   const tone = chipTone(label)
+
+  // No active trivia question → no countdown (treasure-hunt substage or between questions).
+  if (timer.activeQuestion === null) {
+    return (
+      <div className={styles.timerPanel} data-testid="session-timer-panel">
+        <div className={styles.timerLabel}>Question timer</div>
+        <div className={styles.timerRow} data-testid="timer-no-countdown">
+          <span className={styles.timerValue} data-placeholder="true">--:--</span>
+          <span className={styles.timerChip} data-tone={tone} data-testid="timer-chip">{label}</span>
+        </div>
+        <div className={styles.noCountdownNote}>No active question</div>
+      </div>
+    )
+  }
+
   const percent = progressPercent(timer)
 
   return (
-    <div className={styles.timerPanel}>
-      <div className={styles.timerLabel}>Session timer</div>
+    <div className={styles.timerPanel} data-testid="session-timer-panel">
+      <div className={styles.timerLabel}>Question timer</div>
       <div className={styles.timerRow}>
         <span
           className={styles.timerValue}
+          data-testid="timer-remaining"
           aria-live="polite"
           aria-label={`${formatRemaining(timer.remainingSeconds)} remaining`}
         >
           {formatRemaining(timer.remainingSeconds)}
         </span>
-        <span className={styles.timerChip} data-tone={tone}>{label}</span>
+        <span className={styles.timerChip} data-tone={tone} data-testid="timer-chip">{label}</span>
       </div>
       <div
         className={styles.progressTrack}

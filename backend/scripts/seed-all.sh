@@ -337,22 +337,14 @@ for CODE in "${!SESSIONS[@]}"; do
       id, source_entity_type, source_entity_id,
       session_code, title_snapshot, state,
       scheduled_at, last_state_changed_at, maximum_time_minutes,
-      created_at, updated_at,
-      session_timer_total_duration, session_timer_remaining_duration,
-      session_timer_advancing_since, session_timer_expired_at
+      created_at, updated_at
     ) VALUES (
       '$SID', 'Mission', gen_random_uuid(),
       '$CODE', '$TDISPLAY Team', '$STATE',
       $SCHEDULED_AT, now(), 60,
-      now(), now(),
-      interval '60 minutes', interval '60 minutes',
-      $ADVANCING_SINCE, null
+      now(), now()
     )
     ON CONFLICT (id) DO UPDATE SET
-      session_timer_total_duration = EXCLUDED.session_timer_total_duration,
-      session_timer_remaining_duration = EXCLUDED.session_timer_remaining_duration,
-      session_timer_advancing_since = EXCLUDED.session_timer_advancing_since,
-      session_timer_expired_at = EXCLUDED.session_timer_expired_at,
       state = EXCLUDED.state,
       title_snapshot = EXCLUDED.title_snapshot,
       updated_at = now();

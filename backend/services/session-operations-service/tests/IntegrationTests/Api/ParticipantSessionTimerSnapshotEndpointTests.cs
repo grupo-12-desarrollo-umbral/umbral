@@ -7,9 +7,14 @@ using umbral_backend.Infrastructure.Persistence;
 
 namespace umbral_backend.Infrastructure.IntegrationTests.Api;
 
+// HU-22: the participant timer GET returns the active-substage (trivia-question) window, guarded by
+// the participant-membership access fact. Active question -> advancing/frozen/resumed question window;
+// no active question -> no authoritative countdown (OD-1), ActiveQuestion null.
 [Collection(PostgreSqlCollection.Name)]
 public sealed class ParticipantSessionTimerSnapshotEndpointTests : IAsyncLifetime
 {
+    private const int QuestionTimeLimitSeconds = 300;
+
     private readonly PostgreSqlFixture _fixture;
     private SessionOperationsApiWebApplicationFactory _factory = null!;
     private HttpClient _client = null!;
@@ -34,9 +39,9 @@ public sealed class ParticipantSessionTimerSnapshotEndpointTests : IAsyncLifetim
     }
 
     [Fact]
-    public async Task GetTimerSnapshot_ForActiveTriviaSession_ReturnsAuthoritativeAdvancingTimer()
+    public async Task GetTimerSnapshot_ForActiveTriviaQuestion_ReturnsAdvancingQuestionWindow()
     {
-        var seeded = await SeedTriviaSessionAsync(SessionTimerSeedState.Active);
+        var seeded = await SeedTriviaSessionAsync(SessionTimerSeedState.ActiveQuestion);
         AddTrustedHeaders(_client, Guid.NewGuid().ToString(), "Participant", "participant@example.com");
 
         var response = await _client.GetAsync(BuildTimerUrl(seeded));
@@ -47,19 +52,21 @@ public sealed class ParticipantSessionTimerSnapshotEndpointTests : IAsyncLifetim
         payload!.LiveSessionId.Should().Be(seeded.LiveSessionId);
         payload.TeamId.Should().Be(seeded.TeamId);
         payload.SessionState.Should().Be(nameof(SessionState.Active));
-        payload.TotalSeconds.Should().Be(2700);
-        payload.RemainingSeconds.Should().BeInRange(1610, 1630);
+        payload.TotalSeconds.Should().Be(QuestionTimeLimitSeconds);
+        payload.RemainingSeconds.Should().BeInRange(QuestionTimeLimitSeconds - 10, QuestionTimeLimitSeconds);
         payload.TimerStatus.Should().Be("Advancing");
         payload.IsAdvancing.Should().BeTrue();
         payload.IsExpired.Should().BeFalse();
         payload.AdvancingSince.Should().NotBeNull();
         payload.ExpiredAt.Should().BeNull();
+        payload.ActiveQuestion.Should().NotBeNull();
+        payload.ActiveQuestion!.QuestionIndex.Should().Be(0);
     }
 
     [Fact]
-    public async Task GetTimerSnapshot_ForPausedTriviaSession_ReturnsFrozenAuthoritativeTimer()
+    public async Task GetTimerSnapshot_ForPausedTriviaQuestion_ReturnsFrozenQuestionWindow()
     {
-        var seeded = await SeedTriviaSessionAsync(SessionTimerSeedState.Paused);
+        var seeded = await SeedTriviaSessionAsync(SessionTimerSeedState.PausedQuestion);
         AddTrustedHeaders(_client, Guid.NewGuid().ToString(), "Participant", "participant@example.com");
 
         var response = await _client.GetAsync(BuildTimerUrl(seeded));
@@ -68,17 +75,20 @@ public sealed class ParticipantSessionTimerSnapshotEndpointTests : IAsyncLifetim
         var payload = await response.Content.ReadFromJsonAsync<SessionTimerSnapshotResponse>();
         payload.Should().NotBeNull();
         payload!.SessionState.Should().Be(nameof(SessionState.Paused));
-        payload.RemainingSeconds.Should().Be(2580);
+        payload.TotalSeconds.Should().Be(QuestionTimeLimitSeconds);
+        payload.RemainingSeconds.Should().Be(180);
         payload.TimerStatus.Should().Be("Frozen");
         payload.IsAdvancing.Should().BeFalse();
         payload.IsExpired.Should().BeFalse();
         payload.AdvancingSince.Should().BeNull();
+        payload.ActiveQuestion.Should().NotBeNull();
+        payload.ActiveQuestion!.RemainingSeconds.Should().Be(180);
     }
 
     [Fact]
-    public async Task GetTimerSnapshot_ForResumedTriviaSession_ContinuesFromFrozenRemainder()
+    public async Task GetTimerSnapshot_ForResumedTriviaQuestion_ContinuesSameQuestionFromFrozenRemainder()
     {
-        var seeded = await SeedTriviaSessionAsync(SessionTimerSeedState.Resumed);
+        var seeded = await SeedTriviaSessionAsync(SessionTimerSeedState.ResumedQuestion);
         AddTrustedHeaders(_client, Guid.NewGuid().ToString(), "Participant", "participant@example.com");
 
         var response = await _client.GetAsync(BuildTimerUrl(seeded));
@@ -87,11 +97,12 @@ public sealed class ParticipantSessionTimerSnapshotEndpointTests : IAsyncLifetim
         var payload = await response.Content.ReadFromJsonAsync<SessionTimerSnapshotResponse>();
         payload.Should().NotBeNull();
         payload!.SessionState.Should().Be(nameof(SessionState.Active));
-        payload.TotalSeconds.Should().Be(2700);
-        payload.RemainingSeconds.Should().BeInRange(2210, 2230);
+        payload.TotalSeconds.Should().Be(QuestionTimeLimitSeconds);
+        payload.RemainingSeconds.Should().BeInRange(170, 180);
         payload.TimerStatus.Should().Be("Advancing");
         payload.IsAdvancing.Should().BeTrue();
         payload.IsExpired.Should().BeFalse();
+        payload.ActiveQuestion.Should().NotBeNull();
     }
 
     [Fact]
@@ -108,7 +119,7 @@ public sealed class ParticipantSessionTimerSnapshotEndpointTests : IAsyncLifetim
     [Fact]
     public async Task GetTimerSnapshot_WhenAccessFactDenied_ReturnsForbidden()
     {
-        var seeded = await SeedTriviaSessionAsync(SessionTimerSeedState.Active);
+        var seeded = await SeedTriviaSessionAsync(SessionTimerSeedState.ActiveQuestion);
         _factory.AccessClient.IsAllowed = false;
         AddTrustedHeaders(_client, Guid.NewGuid().ToString(), "Participant", "participant@example.com");
 
@@ -123,7 +134,7 @@ public sealed class ParticipantSessionTimerSnapshotEndpointTests : IAsyncLifetim
     [Fact]
     public async Task GetTimerSnapshot_WithoutTrustedHeaders_ReturnsUnauthorized()
     {
-        var seeded = await SeedTriviaSessionAsync(SessionTimerSeedState.Active);
+        var seeded = await SeedTriviaSessionAsync(SessionTimerSeedState.ActiveQuestion);
 
         var response = await _client.GetAsync(BuildTimerUrl(seeded));
 
@@ -133,7 +144,7 @@ public sealed class ParticipantSessionTimerSnapshotEndpointTests : IAsyncLifetim
     [Fact]
     public async Task GetTimerSnapshot_WithOperatorRole_ReturnsForbidden()
     {
-        var seeded = await SeedTriviaSessionAsync(SessionTimerSeedState.Active);
+        var seeded = await SeedTriviaSessionAsync(SessionTimerSeedState.ActiveQuestion);
         AddTrustedHeaders(_client, "kc-operator-1", "Operator", "operator@example.com");
 
         var response = await _client.GetAsync(BuildTimerUrl(seeded));
@@ -146,7 +157,8 @@ public sealed class ParticipantSessionTimerSnapshotEndpointTests : IAsyncLifetim
         await using var scope = _factory.Services.CreateAsyncScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
-        var createdAt = DateTimeOffset.UtcNow.AddMinutes(-20);
+        var now = DateTimeOffset.UtcNow;
+        var createdAt = now.AddMinutes(-20);
         var sourceMissionId = Guid.NewGuid();
         var session = LiveSession.Create(
             SessionSource.Create(sourceMissionId),
@@ -157,7 +169,7 @@ public sealed class ParticipantSessionTimerSnapshotEndpointTests : IAsyncLifetim
             CreateTriviaSnapshot(sourceMissionId));
         var team = session.AssociateTeam(Guid.NewGuid(), "Red", "RED-01", 4);
 
-        MoveToRequestedTimerState(session, seedState, createdAt);
+        DriveQuestionTimer(session, seedState, createdAt, now);
 
         dbContext.LiveSessions.Add(session);
         await dbContext.SaveChangesAsync();
@@ -165,29 +177,35 @@ public sealed class ParticipantSessionTimerSnapshotEndpointTests : IAsyncLifetim
         return new SeededSession(session.LiveSessionId, team.TeamId);
     }
 
-    private static void MoveToRequestedTimerState(
+    // Advancing windows anchor on the real "now" (endpoint reads the real clock); the frozen window is
+    // fully seed-timed so the frozen remainder is deterministic (300 - 120 = 180).
+    private static void DriveQuestionTimer(
         LiveSession session,
         SessionTimerSeedState seedState,
-        DateTimeOffset createdAt)
+        DateTimeOffset createdAt,
+        DateTimeOffset now)
     {
         var transitionPolicy = new SessionStateTransitionPolicy();
 
         session.MoveTo(SessionState.Preparing, createdAt.AddMinutes(1), transitionPolicy);
         session.MoveTo(SessionState.Active, createdAt.AddMinutes(2), transitionPolicy);
 
-        if (seedState == SessionTimerSeedState.Active)
+        if (seedState == SessionTimerSeedState.ActiveQuestion)
+        {
+            session.ActivateQuestion(0, now);
+            return;
+        }
+
+        var activatedAt = createdAt.AddMinutes(3);
+        session.ActivateQuestion(0, activatedAt);
+        session.MoveTo(SessionState.Paused, activatedAt.AddSeconds(120), transitionPolicy, "Pause timer");
+
+        if (seedState == SessionTimerSeedState.PausedQuestion)
         {
             return;
         }
 
-        session.MoveTo(SessionState.Paused, createdAt.AddMinutes(4), transitionPolicy, "Pause timer");
-
-        if (seedState == SessionTimerSeedState.Paused)
-        {
-            return;
-        }
-
-        session.MoveTo(SessionState.Active, createdAt.AddMinutes(14), transitionPolicy);
+        session.MoveTo(SessionState.Active, now, transitionPolicy);
     }
 
     private static MissionRuntimeSnapshot CreateTriviaSnapshot(Guid sourceMissionId)
@@ -208,7 +226,7 @@ public sealed class ParticipantSessionTimerSnapshotEndpointTests : IAsyncLifetim
                     "What is the closest planet to the Sun?",
                     1,
                     100,
-                    30,
+                    QuestionTimeLimitSeconds,
                     "Mercury is the closest planet.",
                     [
                         TriviaOptionSnapshot.Create("Mercury", 1, true),
@@ -234,9 +252,9 @@ public sealed class ParticipantSessionTimerSnapshotEndpointTests : IAsyncLifetim
 
     private enum SessionTimerSeedState
     {
-        Active,
-        Paused,
-        Resumed
+        ActiveQuestion,
+        PausedQuestion,
+        ResumedQuestion
     }
 
     private sealed record SeededSession(Guid LiveSessionId, Guid TeamId);
@@ -252,5 +270,16 @@ public sealed class ParticipantSessionTimerSnapshotEndpointTests : IAsyncLifetim
         bool IsExpired,
         DateTimeOffset ObservedAt,
         DateTimeOffset? AdvancingSince,
-        DateTimeOffset? ExpiredAt);
+        DateTimeOffset? ExpiredAt,
+        ActiveQuestionSnapshotResponse? ActiveQuestion);
+
+    private sealed record ActiveQuestionSnapshotResponse(
+        Guid LiveSessionId,
+        int QuestionIndex,
+        int SequenceOrder,
+        string Prompt,
+        IReadOnlyList<string> Options,
+        int TimeLimitSeconds,
+        int RemainingSeconds,
+        DateTimeOffset ActivatedAt);
 }

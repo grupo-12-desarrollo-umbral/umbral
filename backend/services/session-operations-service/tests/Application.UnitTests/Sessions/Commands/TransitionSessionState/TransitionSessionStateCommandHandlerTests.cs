@@ -37,13 +37,15 @@ public sealed class TransitionSessionStateCommandHandlerTests
     }
 
     [Fact]
-    public async Task Handle_WhenPausingActiveSession_ReturnsFrozenTimerSnapshot()
+    public async Task Handle_WhenPausingActiveSessionWithActiveQuestion_FreezesActiveSubstageTimer()
     {
-        var session = CreateScheduledSession(assignedOperatorUserId: 42, registerTeam: true);
+        // HU-22: the transition result Timer carries the active-substage (trivia-question) window;
+        // pausing freezes it at the elapsed remainder.
+        var session = CreateScheduledTriviaSession(assignedOperatorUserId: 42);
         var transitionPolicy = new SessionStateTransitionPolicy();
-        var activeAt = Now.AddMinutes(-9);
-        session.MoveTo(SessionState.Preparing, activeAt.AddMinutes(-1), transitionPolicy);
-        session.MoveTo(SessionState.Active, activeAt, transitionPolicy);
+        session.MoveTo(SessionState.Preparing, Now.AddSeconds(-30), transitionPolicy);
+        session.MoveTo(SessionState.Active, Now.AddSeconds(-11), transitionPolicy);
+        session.ActivateQuestion(0, Now.AddSeconds(-10));
         var repository = CreateRepository(session);
         var handler = CreateHandler(repository, CreateCurrentUser("kc-operator-42", "Operator"), resolvedUserId: 42);
         var command = new TransitionSessionStateCommand(session.LiveSessionId, SessionState.Paused, "Break");
@@ -52,22 +54,22 @@ public sealed class TransitionSessionStateCommandHandlerTests
 
         result.CurrentState.Should().Be(nameof(SessionState.Paused));
         result.Timer.Should().NotBeNull();
-        result.Timer!.RemainingSeconds.Should().Be(2160);
+        result.Timer!.RemainingSeconds.Should().Be(20);
         result.Timer.TimerStatus.Should().Be("Frozen");
         result.Timer.IsAdvancing.Should().BeFalse();
         result.Timer.AdvancingSince.Should().BeNull();
+        result.Timer.ActiveQuestion.Should().NotBeNull();
     }
 
     [Fact]
-    public async Task Handle_WhenResumingPausedSession_ReturnsAdvancingTimerSnapshotFromFrozenRemainder()
+    public async Task Handle_WhenResumingPausedSessionWithActiveQuestion_AdvancesFromFrozenRemainder()
     {
-        var session = CreateScheduledSession(assignedOperatorUserId: 42, registerTeam: true);
+        var session = CreateScheduledTriviaSession(assignedOperatorUserId: 42);
         var transitionPolicy = new SessionStateTransitionPolicy();
-        var activeAt = Now.AddMinutes(-12);
-        var pausedAt = Now.AddMinutes(-7);
-        session.MoveTo(SessionState.Preparing, activeAt.AddMinutes(-1), transitionPolicy);
-        session.MoveTo(SessionState.Active, activeAt, transitionPolicy);
-        session.MoveTo(SessionState.Paused, pausedAt, transitionPolicy);
+        session.MoveTo(SessionState.Preparing, Now.AddSeconds(-30), transitionPolicy);
+        session.MoveTo(SessionState.Active, Now.AddSeconds(-21), transitionPolicy);
+        session.ActivateQuestion(0, Now.AddSeconds(-20));
+        session.MoveTo(SessionState.Paused, Now.AddSeconds(-10), transitionPolicy);
         var repository = CreateRepository(session);
         var handler = CreateHandler(repository, CreateCurrentUser("kc-operator-42", "Operator"), resolvedUserId: 42);
         var command = new TransitionSessionStateCommand(session.LiveSessionId, SessionState.Active, "Continue");
@@ -76,7 +78,7 @@ public sealed class TransitionSessionStateCommandHandlerTests
 
         result.CurrentState.Should().Be(nameof(SessionState.Active));
         result.Timer.Should().NotBeNull();
-        result.Timer!.RemainingSeconds.Should().Be(2400);
+        result.Timer!.RemainingSeconds.Should().Be(20);
         result.Timer.TimerStatus.Should().Be("Advancing");
         result.Timer.IsAdvancing.Should().BeTrue();
         result.Timer.AdvancingSince.Should().Be(Now);
@@ -208,6 +210,15 @@ public sealed class TransitionSessionStateCommandHandlerTests
         {
             session.AssignOperator(assignedOperatorUserId.Value, Now.AddMinutes(-5));
         }
+
+        return session;
+    }
+
+    private static LiveSession CreateScheduledTriviaSession(int assignedOperatorUserId)
+    {
+        var session = LiveSessionTestFactory.CreateScheduledTrivia(scheduledAt: Now.AddHours(1));
+        session.AssociateTeam(Guid.NewGuid(), "Red", "RED-01", 4);
+        session.AssignOperator(assignedOperatorUserId, Now.AddMinutes(-5));
 
         return session;
     }
