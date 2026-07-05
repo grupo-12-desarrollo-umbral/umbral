@@ -59,28 +59,19 @@ public sealed class AuthoritativeSessionTimerWorker : BackgroundService
         var liveSessions = await repository.ListActiveTimersAsync(cancellationToken);
         foreach (var liveSession in liveSessions)
         {
-            var wasAdvancing = liveSession.IsSessionTimerAdvancing;
-            var snapshot = liveSession.MarkSessionTimerExpiredIfElapsed(now);
+            var wasAdvancing = liveSession.IsQuestionTimerAdvancing;
+            var snapshot = liveSession.MarkQuestionTimerExpiredIfElapsed(now);
 
             await broadcaster.BroadcastTimerUpdatedAsync(
                 CreateNotification(liveSession, snapshot, now),
                 cancellationToken);
 
-            if (wasAdvancing && snapshot.IsExpired)
-            {
-                await repository.UpdateAsync(liveSession, cancellationToken);
-            }
-
-            if (liveSession.ActiveQuestionIndex is null || !liveSession.IsQuestionTimerAdvancing)
+            if (!wasAdvancing || !snapshot.IsExpired)
             {
                 continue;
             }
 
-            var questionTimerSnapshot = liveSession.MarkQuestionTimerExpiredIfElapsed(now);
-            if (!questionTimerSnapshot.IsExpired)
-            {
-                continue;
-            }
+            await repository.UpdateAsync(liveSession, cancellationToken);
 
             await triviaRoundOrchestratorFacade.CloseAndAdvanceAsync(
                 liveSession,

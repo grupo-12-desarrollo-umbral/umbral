@@ -117,16 +117,8 @@ public sealed class LiveSessionRepository : ILiveSessionRepository
         return await _context.LiveSessions
             .Where(session =>
                 session.State == SessionState.Active &&
-                (
-                    (
-                        EF.Property<DateTimeOffset?>(session, "_sessionTimerAdvancingSince") != null &&
-                        EF.Property<DateTimeOffset?>(session, "_sessionTimerExpiredAt") == null
-                    ) ||
-                    (
-                        session.ActiveQuestionIndex != null &&
-                        EF.Property<DateTimeOffset?>(session, "_questionTimerExpiredAt") == null
-                    )
-                ))
+                session.ActiveQuestionIndex != null &&
+                EF.Property<DateTimeOffset?>(session, "_questionTimerExpiredAt") == null)
             .ToListAsync(cancellationToken);
     }
 

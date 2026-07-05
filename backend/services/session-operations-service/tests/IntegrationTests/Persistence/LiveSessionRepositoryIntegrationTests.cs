@@ -343,6 +343,12 @@ public sealed class LiveSessionRepositoryIntegrationTests
         columns.Should().NotContain(name => name.Contains("session_mode", StringComparison.OrdinalIgnoreCase));
         tables.Should().NotContain(name => name.Contains("trivia_session_snapshot", StringComparison.OrdinalIgnoreCase));
         tables.Should().NotContain(name => name.Contains("quiz", StringComparison.OrdinalIgnoreCase));
+
+        // HU-22: the whole-session `_sessionTimer*` countdown columns are dropped; `maximum_time_minutes`
+        // (authoring metadata, OD-3) and the trivia `question_timer_*` window survive.
+        columns.Should().NotContain(name => name.Contains("session_timer_", StringComparison.OrdinalIgnoreCase));
+        columns.Should().Contain(name => name.Contains("question_timer_", StringComparison.OrdinalIgnoreCase));
+        columns.Should().Contain(name => name.Contains("maximum_time_minutes", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]
@@ -385,7 +391,6 @@ public sealed class LiveSessionRepositoryIntegrationTests
         var liveSession = CreateTriviaSession(startedAt.AddMinutes(-2));
         TransitionTriviaSessionToActive(liveSession, startedAt);
         liveSession.ActivateQuestion(0, startedAt.AddSeconds(5));
-        liveSession.MarkSessionTimerExpiredIfElapsed(startedAt.AddMinutes(30));
 
         await using (var seedContext = BuildContext())
         {
@@ -400,14 +405,16 @@ public sealed class LiveSessionRepositoryIntegrationTests
         sessions.Should().ContainSingle(session => session.LiveSessionId == liveSession.LiveSessionId);
     }
 
+    // HU-22 (OD-3): the authoritative snapshot is the active trivia-question window, not a whole-session
+    // countdown. Question 0 carries a 30s limit; these round-trip its advance/freeze/resume through Postgres.
     [Fact]
-    public async Task GetByIdAsync_RestoresAdvancingAuthoritativeTimerState()
+    public async Task GetByIdAsync_RestoresAdvancingActiveQuestionTimer()
     {
         await using var resetContext = BuildContext();
         await ResetDatabaseAsync(resetContext);
 
         var activeAt = new DateTimeOffset(2026, 6, 4, 12, 0, 0, TimeSpan.Zero);
-        var liveSession = CreateActiveSession(activeAt);
+        var liveSession = CreateActiveTriviaQuestionSession(activeAt);
 
         await using (var seedContext = BuildContext())
         {
@@ -420,23 +427,23 @@ public sealed class LiveSessionRepositoryIntegrationTests
             .GetByIdAsync(liveSession.LiveSessionId, CancellationToken.None);
 
         persistedSession.Should().NotBeNull();
-        var snapshot = persistedSession!.GetAuthoritativeSessionTimerSnapshot(activeAt.AddMinutes(5));
+        var snapshot = persistedSession!.GetAuthoritativeSessionTimerSnapshot(activeAt.AddSeconds(10));
 
-        snapshot.TotalDuration.Should().Be(TimeSpan.FromMinutes(45));
-        snapshot.RemainingDuration.Should().Be(TimeSpan.FromMinutes(40));
+        snapshot.TotalDuration.Should().Be(TimeSpan.FromSeconds(30));
+        snapshot.RemainingDuration.Should().BeCloseTo(TimeSpan.FromSeconds(20), TimeSpan.FromMilliseconds(1));
         snapshot.IsAdvancing.Should().BeTrue();
         snapshot.AdvancingSince.Should().Be(activeAt);
     }
 
     [Fact]
-    public async Task GetByIdAsync_RestoresPausedAuthoritativeTimerAsFrozen()
+    public async Task GetByIdAsync_RestoresPausedActiveQuestionTimerAsFrozen()
     {
         await using var resetContext = BuildContext();
         await ResetDatabaseAsync(resetContext);
 
         var activeAt = new DateTimeOffset(2026, 6, 4, 12, 0, 0, TimeSpan.Zero);
-        var pausedAt = activeAt.AddMinutes(4);
-        var liveSession = CreateActiveSession(activeAt);
+        var pausedAt = activeAt.AddSeconds(10);
+        var liveSession = CreateActiveTriviaQuestionSession(activeAt);
         liveSession.MoveTo(SessionState.Paused, pausedAt, new SessionStateTransitionPolicy(), "Break");
 
         await using (var seedContext = BuildContext())
@@ -452,22 +459,22 @@ public sealed class LiveSessionRepositoryIntegrationTests
         persistedSession.Should().NotBeNull();
         var snapshot = persistedSession!.GetAuthoritativeSessionTimerSnapshot(pausedAt.AddMinutes(10));
 
-        snapshot.RemainingDuration.Should().Be(TimeSpan.FromMinutes(41));
+        snapshot.RemainingDuration.Should().Be(TimeSpan.FromSeconds(20));
         snapshot.IsAdvancing.Should().BeFalse();
         snapshot.AdvancingSince.Should().BeNull();
         persistedSession.State.Should().Be(SessionState.Paused);
     }
 
     [Fact]
-    public async Task GetByIdAsync_RestoresResumedAuthoritativeTimerFromFrozenRemainder()
+    public async Task GetByIdAsync_RestoresResumedActiveQuestionTimerFromFrozenRemainder()
     {
         await using var resetContext = BuildContext();
         await ResetDatabaseAsync(resetContext);
 
         var activeAt = new DateTimeOffset(2026, 6, 4, 12, 0, 0, TimeSpan.Zero);
-        var pausedAt = activeAt.AddMinutes(5);
+        var pausedAt = activeAt.AddSeconds(10);
         var resumedAt = pausedAt.AddMinutes(10);
-        var liveSession = CreateActiveSession(activeAt);
+        var liveSession = CreateActiveTriviaQuestionSession(activeAt);
         var transitionPolicy = new SessionStateTransitionPolicy();
         liveSession.MoveTo(SessionState.Paused, pausedAt, transitionPolicy, "Break");
         liveSession.MoveTo(SessionState.Active, resumedAt, transitionPolicy);
@@ -483,9 +490,9 @@ public sealed class LiveSessionRepositoryIntegrationTests
             .GetByIdAsync(liveSession.LiveSessionId, CancellationToken.None);
 
         persistedSession.Should().NotBeNull();
-        var snapshot = persistedSession!.GetAuthoritativeSessionTimerSnapshot(resumedAt.AddMinutes(3));
+        var snapshot = persistedSession!.GetAuthoritativeSessionTimerSnapshot(resumedAt.AddSeconds(5));
 
-        snapshot.RemainingDuration.Should().Be(TimeSpan.FromMinutes(37));
+        snapshot.RemainingDuration.Should().BeCloseTo(TimeSpan.FromSeconds(15), TimeSpan.FromMilliseconds(1));
         snapshot.IsAdvancing.Should().BeTrue();
         snapshot.AdvancingSince.Should().Be(resumedAt);
     }
@@ -590,13 +597,11 @@ public sealed class LiveSessionRepositoryIntegrationTests
             CreateTreasureHuntRuntimeSnapshot(sourceMissionId, 45));
     }
 
-    private static LiveSession CreateActiveSession(DateTimeOffset activeAt)
+    private static LiveSession CreateActiveTriviaQuestionSession(DateTimeOffset activeAt)
     {
-        var liveSession = CreateSession(activeAt.AddMinutes(-10));
-        liveSession.AssociateTeam(Guid.NewGuid(), "Blue", "BLUE-01", 4);
-        var transitionPolicy = new SessionStateTransitionPolicy();
-        liveSession.MoveTo(SessionState.Preparing, activeAt.AddMinutes(-1), transitionPolicy);
-        liveSession.MoveTo(SessionState.Active, activeAt, transitionPolicy);
+        var liveSession = CreateTriviaSession(activeAt.AddMinutes(-10));
+        TransitionTriviaSessionToActive(liveSession, activeAt);
+        liveSession.ActivateQuestion(0, activeAt);
         return liveSession;
     }
 
