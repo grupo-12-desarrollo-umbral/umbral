@@ -5,6 +5,7 @@ import type {
   ActiveQuestionSnapshotDto,
   QuestionActivatedNotificationDto,
   QuestionClosedNotificationDto,
+  SubstageAdvancedNotificationDto,
   TriviaRoundPhase,
 } from '@/app/lib/definitions'
 
@@ -13,6 +14,8 @@ export type TriviaRoundState = {
   pregameSecondsLeft: number | null
   activeQuestion: QuestionActivatedNotificationDto | null
   questionSecondsLeft: number | null // client-side approximation
+  substageOrdinal: number            // 1-based; client-derived (session starts in substage 1)
+  finalizing: boolean                // final substage done, session about to Finish
 }
 
 export type TriviaRoundHandlers = {
@@ -20,6 +23,8 @@ export type TriviaRoundHandlers = {
   handleQuestionActivated: (n: QuestionActivatedNotificationDto) => void
   hydrateActiveQuestion: (n: ActiveQuestionSnapshotDto) => void
   handleQuestionClosed: (n: QuestionClosedNotificationDto) => void
+  handleSubstageAdvanced: (n: SubstageAdvancedNotificationDto) => void
+  complete: () => void
   reset: () => void
 }
 
@@ -28,6 +33,8 @@ const initialState: TriviaRoundState = {
   pregameSecondsLeft: null,
   activeQuestion: null,
   questionSecondsLeft: null,
+  substageOrdinal: 1,
+  finalizing: false,
 }
 
 /**
@@ -69,12 +76,14 @@ export function useTriviaRoundState(): TriviaRoundState & TriviaRoundHandlers {
   const startQuestionCountdown = useCallback(
     (n: QuestionActivatedNotificationDto, initialSecondsLeft: number) => {
       clearCountdown()
-      setState({
+      setState((current) => ({
         phase: 'question-active',
         pregameSecondsLeft: null,
         activeQuestion: n,
         questionSecondsLeft: initialSecondsLeft,
-      })
+        substageOrdinal: current.substageOrdinal,
+        finalizing: false, // a new question means we're mid-substage, not finalizing
+      }))
 
       intervalRef.current = setInterval(() => {
         setState((current) => {
@@ -118,6 +127,34 @@ export function useTriviaRoundState(): TriviaRoundState & TriviaRoundHandlers {
     }))
   }, [clearCountdown])
 
+  const handleSubstageAdvanced = useCallback(
+    (n: SubstageAdvancedNotificationDto) => {
+      clearCountdown()
+      setState((current) => ({
+        ...current,
+        phase: 'substage-advancing',
+        activeQuestion: null,
+        questionSecondsLeft: null,
+        // no next substage ⇒ final substage complete; otherwise advance the ordinal
+        substageOrdinal: n.toSubstageId ? current.substageOrdinal + 1 : current.substageOrdinal,
+        finalizing: n.toSubstageId == null,
+      }))
+    },
+    [clearCountdown],
+  )
+
+  // SessionStateChanged -> Finished. Distinct from reset(): shows the completion state
+  // only after the final substage rather than collapsing to idle.
+  const complete = useCallback(() => {
+    clearCountdown()
+    setState((current) => ({
+      ...current,
+      phase: 'complete',
+      activeQuestion: null,
+      questionSecondsLeft: null,
+    }))
+  }, [clearCountdown])
+
   // Clear any running interval on unmount.
   useEffect(() => clearCountdown, [clearCountdown])
 
@@ -127,6 +164,8 @@ export function useTriviaRoundState(): TriviaRoundState & TriviaRoundHandlers {
     handleQuestionActivated,
     hydrateActiveQuestion,
     handleQuestionClosed,
+    handleSubstageAdvanced,
+    complete,
     reset,
   }
 }

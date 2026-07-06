@@ -11,6 +11,7 @@ import type {
   QuestionClosedNotificationDto,
   SessionStateChangedNotificationDto,
   SessionTimerUpdatedNotificationDto,
+  SubstageAdvancedNotificationDto,
 } from '@/app/lib/definitions'
 
 export type SessionRealtimeStatus =
@@ -26,6 +27,7 @@ type SessionStateClientOptions = {
   onTimerUpdated?: (notification: SessionTimerUpdatedNotificationDto) => void
   onQuestionActivated?: (notification: QuestionActivatedNotificationDto) => void
   onQuestionClosed?: (notification: QuestionClosedNotificationDto) => void
+  onSubstageAdvanced?: (notification: SubstageAdvancedNotificationDto) => void
   onReconnected?: () => void
 }
 
@@ -140,6 +142,22 @@ function normalizeQuestionClosed(raw: unknown): QuestionClosedNotificationDto {
   }
 }
 
+function normalizeSubstageAdvanced(raw: unknown): SubstageAdvancedNotificationDto {
+  const n = raw as SubstageAdvancedNotificationDto & {
+    LiveSessionId?: string
+    FromSubstageId?: string
+    FromPlayMode?: string
+    ToSubstageId?: string | null
+  }
+  return {
+    liveSessionId: n.liveSessionId ?? n.LiveSessionId ?? '',
+    fromSubstageId: n.fromSubstageId ?? n.FromSubstageId ?? '',
+    fromPlayMode: n.fromPlayMode ?? n.FromPlayMode ?? '',
+    // absent OR null both mean "no next substage" — coalesce to null
+    toSubstageId: n.toSubstageId ?? n.ToSubstageId ?? null,
+  }
+}
+
 async function invokeIfConnected(
   connection: HubConnection,
   methodName: string,
@@ -156,6 +174,7 @@ export function createSessionStateRealtimeClient({
   onTimerUpdated,
   onQuestionActivated,
   onQuestionClosed,
+  onSubstageAdvanced,
   onReconnected,
 }: SessionStateClientOptions): SessionStateRealtimeClient {
   const connection = new HubConnectionBuilder()
@@ -185,6 +204,12 @@ export function createSessionStateRealtimeClient({
   if (onQuestionClosed) {
     connection.on('QuestionClosed', (raw: unknown) => {
       onQuestionClosed(normalizeQuestionClosed(raw))
+    })
+  }
+
+  if (onSubstageAdvanced) {
+    connection.on('SubstageAdvanced', (raw: unknown) => {
+      onSubstageAdvanced(normalizeSubstageAdvanced(raw))
     })
   }
 

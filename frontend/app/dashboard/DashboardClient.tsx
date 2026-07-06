@@ -42,14 +42,12 @@ type Session = {
   title: string;
   subtitle: string;
   district: string;
-  night: string;
+  round: string;
   state: SessionLifecycleState;
   startedAt: string;
   timeRemaining: string;
   teamsActive: number;
   teamsTotal: number;
-  questionsAnswered: number;
-  questionsTotal: number;
   assignedToOperator: boolean;
   recent: boolean;
 };
@@ -78,14 +76,12 @@ const sessions: Session[] = [
     title: 'Downtown Trivia Night',
     subtitle: '12 Teams',
     district: 'Main Hall',
-    night: 'Round 1',
+    round: 'Round 1',
     state: 'Active',
     startedAt: '19:52',
     timeRemaining: '00:07:18',
     teamsActive: 12,
     teamsTotal: 12,
-    questionsAnswered: 5,
-    questionsTotal: 7,
     assignedToOperator: true,
     recent: true,
   },
@@ -94,14 +90,12 @@ const sessions: Session[] = [
     title: 'Science Quiz Run',
     subtitle: '8 Teams',
     district: 'Lab Wing',
-    night: 'Round 2',
+    round: 'Round 2',
     state: 'Paused',
     startedAt: '18:20',
     timeRemaining: '00:12:40',
     teamsActive: 8,
     teamsTotal: 8,
-    questionsAnswered: 4,
-    questionsTotal: 7,
     assignedToOperator: true,
     recent: false,
   },
@@ -110,14 +104,12 @@ const sessions: Session[] = [
     title: 'History Knowledge Bowl',
     subtitle: '10 Teams',
     district: 'Lecture Hall',
-    night: 'Preview',
+    round: 'Preview',
     state: 'Scheduled',
     startedAt: 'Pending',
     timeRemaining: 'Not started',
     teamsActive: 0,
     teamsTotal: 10,
-    questionsAnswered: 0,
-    questionsTotal: 6,
     assignedToOperator: false,
     recent: false,
   },
@@ -134,7 +126,7 @@ const activity: ActivityEntry[] = [
 const adminMetrics = [
   { label: 'Active sessions', value: '2', hint: '1 active, 1 paused', pill: 'Live overview' },
   { label: 'Teams competing', value: '20', hint: 'Across tonight\'s trivia events', pill: 'Cross-session' },
-  { label: 'Questions answered', value: '9', hint: '5 correct, 4 pending review', pill: 'Scoring' },
+  { label: 'Substages in progress', value: '2', hint: 'Across tonight\'s sessions', pill: 'Live overview' },
 ];
 
 const lifecycleTone: Record<SessionLifecycleState, 'success' | 'warning' | 'critical' | 'muted'> = {
@@ -256,10 +248,12 @@ export default function DashboardClient({
   const triviaRound = useTriviaRoundState()
   const {
     reset: resetTriviaRound,
+    complete: completeTriviaRound,
     handlePregameTimerTick,
     handleQuestionActivated,
     hydrateActiveQuestion,
     handleQuestionClosed,
+    handleSubstageAdvanced,
   } = triviaRound
   const isOperatorSessionsWorkspace = role === 'operator' && activeNav === 'sessions';
 
@@ -351,7 +345,9 @@ export default function DashboardClient({
               : session
           )
         )
-        if (notification.currentState !== 'Active') {
+        if (notification.currentState === 'Finished') {
+          completeTriviaRound()
+        } else if (notification.currentState !== 'Active') {
           resetTriviaRound()
         }
         setLiveUpdateNote('State updated live from another client or tab.')
@@ -425,6 +421,21 @@ export default function DashboardClient({
           },
         })
       },
+      onSubstageAdvanced: (notification) => {
+        if (notification.liveSessionId !== selectedRealtimeSessionId) return
+        handleSubstageAdvanced(notification)
+        // A substage boundary retires the prior question; drop the active-question window
+        // (mirror onQuestionClosed) so the timer panel returns to no-active-question.
+        dispatchTimer({
+          type: 'patched',
+          patch: {
+            activeQuestion: null,
+            totalSeconds: 0,
+            remainingSeconds: 0,
+            isAdvancing: false,
+          },
+        })
+      },
       onReconnected: () => {
         if (selectedRealtimeSessionId) void loadTimerSnapshot(selectedRealtimeSessionId)
       },
@@ -439,10 +450,12 @@ export default function DashboardClient({
     selectedRealtimeSessionId,
     loadTimerSnapshot,
     resetTriviaRound,
+    completeTriviaRound,
     handlePregameTimerTick,
     handleQuestionActivated,
     hydrateActiveQuestion,
     handleQuestionClosed,
+    handleSubstageAdvanced,
   ])
 
   useEffect(() => {
@@ -846,6 +859,8 @@ export default function DashboardClient({
                   pregameSecondsLeft={triviaRound.pregameSecondsLeft}
                   activeQuestion={triviaRound.activeQuestion}
                   questionSecondsLeft={triviaRound.questionSecondsLeft}
+                  substageOrdinal={triviaRound.substageOrdinal}
+                  finalizing={triviaRound.finalizing}
                 />
 
                 {liveUpdateNote && (
@@ -1068,7 +1083,7 @@ export default function DashboardClient({
                   <div className={styles.panelHeader}>
                     <div>
                       <h2>Live sessions</h2>
-                      <div className={styles.panelMeta}>Active trivia sessions and their current round progress.</div>
+                      <div className={styles.panelMeta}>Active sessions and their current substage progress.</div>
                     </div>
                   </div>
                   <div className={styles.sessionList}>
@@ -1083,7 +1098,7 @@ export default function DashboardClient({
                           <div>
                             <h3>{session.title}</h3>
                             <div className={styles.sessionCardMeta}>
-                              {session.subtitle} • {session.questionsAnswered} of {session.questionsTotal} questions answered
+                              {session.subtitle} • {session.round}
                             </div>
                           </div>
                           <span className={styles.chip} data-tone={session.state === 'Active' ? 'success' : 'warning'}>

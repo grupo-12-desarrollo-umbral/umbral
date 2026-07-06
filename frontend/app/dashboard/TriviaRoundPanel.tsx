@@ -9,6 +9,8 @@ type TriviaRoundPanelProps = {
   pregameSecondsLeft: number | null
   activeQuestion: QuestionActivatedNotificationDto | null
   questionSecondsLeft: number | null
+  substageOrdinal: number
+  finalizing: boolean
 }
 
 function barTone(percent: number): 'normal' | 'warning' | 'critical' {
@@ -22,6 +24,8 @@ export function TriviaRoundPanel({
   pregameSecondsLeft,
   activeQuestion,
   questionSecondsLeft,
+  substageOrdinal,
+  finalizing,
 }: TriviaRoundPanelProps) {
   if (phase === 'idle') {
     return null
@@ -58,7 +62,7 @@ export function TriviaRoundPanel({
     return (
       <div className={styles.panel} data-testid="trivia-round-panel" data-phase="question-active">
         <div className={styles.questionHeader}>
-          <span className={styles.eyebrow}>Question {activeQuestion.sequenceOrder}</span>
+          <span className={styles.eyebrow}>Substage {substageOrdinal} · Question {activeQuestion.sequenceOrder}</span>
           <span className={styles.timeLeft} data-tone={tone}>
             {left}s
           </span>
@@ -76,6 +80,29 @@ export function TriviaRoundPanel({
         >
           <div className={styles.barFill} data-tone={tone} style={{ width: `${percent}%` }} />
         </div>
+      </div>
+    )
+  }
+
+  if (phase === 'substage-advancing') {
+    return (
+      <div className={styles.panel} data-testid="trivia-round-panel" data-phase="substage-advancing">
+        <div className={styles.transition} aria-live="polite">
+          <span className={styles.transitionLine} aria-hidden="true" />
+          <span className={styles.transitionText}>
+            {finalizing ? 'Final substage complete — finishing session…' : 'Advancing to the next substage…'}
+          </span>
+          <span className={styles.transitionLine} aria-hidden="true" />
+        </div>
+      </div>
+    )
+  }
+
+  if (phase === 'complete') {
+    return (
+      <div className={styles.panel} data-testid="trivia-round-panel" data-phase="complete">
+        <div className={styles.eyebrow}>Session complete</div>
+        <p className={styles.prompt} aria-live="polite">All substages finished. This session is complete.</p>
       </div>
     )
   }
