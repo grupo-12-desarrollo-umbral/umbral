@@ -99,6 +99,11 @@ public sealed class LiveSession : BaseAuditableEntity
 
     public int? ActiveQuestionIndex { get; private set; }
 
+    // The single authoritative live-substage pointer (ADR-0005): walks strict stage->substage
+    // order; null before the session is Active. Question activation/close and advancement are all
+    // scoped to this substage.
+    public Guid? ActiveSubstageId { get; private set; }
+
     public IReadOnlyCollection<Team> Teams => _teams.AsReadOnly();
 
     public IReadOnlyCollection<SessionParticipant> Participants => _participants.AsReadOnly();
@@ -295,6 +300,47 @@ public sealed class LiveSession : BaseAuditableEntity
             wasExpiredByTimer));
     }
 
+    // Timer-driven, generic substage advancement (ADR-0005): once the active substage's last
+    // question has closed, walk to the next substage in strict stage->substage order. A next
+    // substage exists -> move the pointer and raise SubstageAdvancedEvent (the facade activates the
+    // first question for a trivia substage; a treasure-hunt substage parks, D-4). No next substage
+    // -> SessionCompletion: Finished is reached ONLY here, never operator-forced.
+    public void CompleteActiveSubstageAndAdvance(DateTimeOffset occurredAt, SessionStateTransitionPolicy transitionPolicy)
+    {
+        ArgumentNullException.ThrowIfNull(transitionPolicy);
+        LiveSessionStateFactory.For(State).EnsureCanAdvanceSubstage(this);
+
+        if (ActiveSubstageId is null)
+        {
+            throw new NoActiveSubstageException();
+        }
+
+        var orderedSubstages = GetOrderedSubstages();
+        var currentIndex = Array.FindIndex(orderedSubstages, substage => substage.SubstageSnapshotId == ActiveSubstageId.Value);
+        var fromSubstage = orderedSubstages[currentIndex];
+        var nextSubstage = currentIndex + 1 < orderedSubstages.Length ? orderedSubstages[currentIndex + 1] : null;
+
+        if (nextSubstage is null)
+        {
+            AddDomainEvent(new SubstageAdvancedEvent(
+                LiveSessionId,
+                fromSubstage.SubstageSnapshotId,
+                fromSubstage.PlayMode,
+                toSubstageId: null,
+                occurredAt));
+            MoveTo(SessionState.Finished, occurredAt, transitionPolicy);
+            return;
+        }
+
+        ActiveSubstageId = nextSubstage.SubstageSnapshotId;
+        AddDomainEvent(new SubstageAdvancedEvent(
+            LiveSessionId,
+            fromSubstage.SubstageSnapshotId,
+            fromSubstage.PlayMode,
+            nextSubstage.SubstageSnapshotId,
+            occurredAt));
+    }
+
     public void AssignOperator(int operatorUserId, DateTimeOffset occurredAt)
     {
         if (operatorUserId <= 0)
@@ -324,6 +370,10 @@ public sealed class LiveSession : BaseAuditableEntity
     {
         StartedAt ??= occurredAt;
         PausedAt = null;
+
+        // Entering Active starts the first substage in strict order (CONTEXT.md:48). `??=` guards
+        // pause->resume so resuming never rewinds the pointer to the first substage.
+        ActiveSubstageId ??= GetOrderedSubstages()[0].SubstageSnapshotId;
     }
 
     internal void EnterActiveQuestionTimerState(DateTimeOffset occurredAt)
@@ -498,10 +548,27 @@ public sealed class LiveSession : BaseAuditableEntity
                 member.IsActive));
     }
 
+    // Questions of the ACTIVE substage only, in SequenceOrder — the scope every consumer shares
+    // (ActivateQuestion, EnsureCanActivateQuestion, the strategy). Empty before the session is
+    // Active (no active substage).
     private TriviaQuestionSnapshot[] GetOrderedTriviaQuestions()
     {
+        if (ActiveSubstageId is null)
+        {
+            return [];
+        }
+
         return MissionRuntimeSnapshot.TriviaQuestionSnapshots
+            .Where(question => question.SubstageSnapshotId == ActiveSubstageId.Value)
             .OrderBy(question => question.SequenceOrder)
+            .ToArray();
+    }
+
+    private SubstageSnapshot[] GetOrderedSubstages()
+    {
+        return MissionRuntimeSnapshot.StageSnapshots
+            .OrderBy(stage => stage.SequenceOrder)
+            .SelectMany(stage => stage.SubstageSnapshots.OrderBy(substage => substage.SequenceOrder))
             .ToArray();
     }
 

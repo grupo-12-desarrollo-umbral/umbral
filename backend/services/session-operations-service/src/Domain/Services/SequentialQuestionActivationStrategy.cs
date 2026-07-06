@@ -8,11 +8,15 @@ public sealed class SequentialQuestionActivationStrategy : IQuestionActivationSt
     {
         ArgumentNullException.ThrowIfNull(session);
 
-        // Indices are positions into the questions ordered by SequenceOrder — the same
-        // ordering every consumer applies (LiveSession.ActivateQuestion,
-        // SessionTimerSnapshotDtoFactory, TriviaRoundOrchestratorFacade). ActiveQuestionIndex
-        // therefore stores an ordered position, not a position in the stored collection.
-        var questionCount = session.MissionRuntimeSnapshot.TriviaQuestionSnapshots.Count;
+        // Indices are positions into the ACTIVE SUBSTAGE's questions ordered by SequenceOrder — the
+        // same substage-scoped ordering every consumer applies (LiveSession.ActivateQuestion,
+        // SessionTimerSnapshotDtoFactory, TriviaRoundOrchestratorFacade). ActiveQuestionIndex stores
+        // an ordered position within the active substage, not a position in the flat collection.
+        // Null when exhausted -> the signal to advance the substage.
+        var questionCount = session.ActiveSubstageId is Guid activeSubstageId
+            ? session.MissionRuntimeSnapshot.TriviaQuestionSnapshots
+                .Count(question => question.SubstageSnapshotId == activeSubstageId)
+            : 0;
 
         if (questionCount == 0)
         {

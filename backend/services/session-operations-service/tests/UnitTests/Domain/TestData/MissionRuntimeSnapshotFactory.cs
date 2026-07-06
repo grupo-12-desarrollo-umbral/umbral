@@ -19,14 +19,54 @@ internal static class MissionRuntimeSnapshotFactory
             []);
     }
 
+    // Trivia-first (single trivia substage). Play executes against the ACTIVE substage, so trivia
+    // tests must start on a trivia substage — the flat-list world where substage order was
+    // irrelevant is gone.
     internal static MissionRuntimeSnapshot CreateTriviaSnapshot(int maximumTimeMinutes = 10)
     {
-        return CreateMixedSnapshot(maximumTimeMinutes, triviaQuestionCount: 1);
+        return CreateSingleTriviaSubstageSnapshot(maximumTimeMinutes, triviaQuestionCount: 1);
     }
 
     internal static MissionRuntimeSnapshot CreateTriviaSnapshotWithThreeQuestions(int maximumTimeMinutes = 10)
     {
-        return CreateMixedSnapshot(maximumTimeMinutes, triviaQuestionCount: 3);
+        return CreateSingleTriviaSubstageSnapshot(maximumTimeMinutes, triviaQuestionCount: 3);
+    }
+
+    // Two trivia substages in strict order — the all-trivia multi-substage mission ADR-0005 verifies
+    // end-to-end. Advancing the first substage activates the second's first question.
+    internal static MissionRuntimeSnapshot CreateMultiSubstageTriviaSnapshot(int maximumTimeMinutes = 10)
+    {
+        var firstSubstage = SubstageSnapshot.CreateTrivia("Trivia Round One", 1);
+        var secondSubstage = SubstageSnapshot.CreateTrivia("Trivia Round Two", 2);
+        var stage = StageSnapshot.Create("Stage One", 1, [firstSubstage, secondSubstage]);
+
+        return MissionRuntimeSnapshot.Create(
+            Guid.NewGuid(),
+            "Foundations of Science",
+            MaximumTime.Create(maximumTimeMinutes),
+            [stage],
+            [],
+            [
+                .. CreateQuestions(firstSubstage.SubstageSnapshotId, 1),
+                .. CreateQuestions(secondSubstage.SubstageSnapshotId, 1)
+            ]);
+    }
+
+    // Trivia substage first, treasure-hunt substage second. Advancing past the trivia substage
+    // PARKS at the treasure-hunt substage (D-4) — its runtime is downstream (HU-29-32).
+    internal static MissionRuntimeSnapshot CreateTriviaThenTreasureHuntSnapshot(int maximumTimeMinutes = 45)
+    {
+        var triviaSubstage = SubstageSnapshot.CreateTrivia("Trivia Round", 1);
+        var treasureSubstage = SubstageSnapshot.CreateTreasureHunt("Treasure Route", 2, winnerScore: 100);
+        var stage = StageSnapshot.Create("Stage One", 1, [triviaSubstage, treasureSubstage]);
+
+        return MissionRuntimeSnapshot.Create(
+            Guid.NewGuid(),
+            "Mixed Mission",
+            MaximumTime.Create(maximumTimeMinutes),
+            [stage],
+            [CreateTarget(treasureSubstage.SubstageSnapshotId)],
+            CreateQuestions(triviaSubstage.SubstageSnapshotId, 1));
     }
 
     internal static TargetSnapshot CreateTarget(Guid substageSnapshotId, string qrCode = "QR-001", int sequenceOrder = 1)
@@ -69,18 +109,17 @@ internal static class MissionRuntimeSnapshotFactory
         ];
     }
 
-    private static MissionRuntimeSnapshot CreateMixedSnapshot(int maximumTimeMinutes, int triviaQuestionCount)
+    private static MissionRuntimeSnapshot CreateSingleTriviaSubstageSnapshot(int maximumTimeMinutes, int triviaQuestionCount)
     {
-        var treasureSubstage = SubstageSnapshot.CreateTreasureHunt("Treasure Route", 1, winnerScore: 100);
-        var triviaSubstage = SubstageSnapshot.CreateTrivia("Trivia Round", 2);
-        var stage = StageSnapshot.Create("Stage One", 1, [treasureSubstage, triviaSubstage]);
+        var triviaSubstage = SubstageSnapshot.CreateTrivia("Trivia Round", 1);
+        var stage = StageSnapshot.Create("Stage One", 1, [triviaSubstage]);
 
         return MissionRuntimeSnapshot.Create(
             Guid.NewGuid(),
             "Foundations of Science",
             MaximumTime.Create(maximumTimeMinutes),
             [stage],
-            [CreateTarget(treasureSubstage.SubstageSnapshotId)],
+            [],
             CreateQuestions(triviaSubstage.SubstageSnapshotId, triviaQuestionCount));
     }
 }
