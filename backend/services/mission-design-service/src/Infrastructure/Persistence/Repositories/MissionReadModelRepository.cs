@@ -48,7 +48,7 @@ public sealed class MissionReadModelRepository : IMissionReadModelRepository
     public async Task<MissionRuntimePlanDto?> GetMissionRuntimePlanAsync(int missionId, CancellationToken cancellationToken)
     {
         var mission = await _context.Missions
-            .AsNoTracking()
+            .AsSplitQuery()
             .SingleOrDefaultAsync(mission => mission.Id == missionId, cancellationToken);
 
         if (mission is null)

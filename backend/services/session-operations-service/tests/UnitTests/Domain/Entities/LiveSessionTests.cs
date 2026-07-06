@@ -630,12 +630,134 @@ public sealed class LiveSessionTests
     [Fact]
     public void SequentialQuestionActivationStrategy_WhenNoQuestionIsActive_ReturnsFirstBySequence()
     {
-        var session = LiveSessionFactory.CreateScheduledTriviaWithThreeQuestions();
+        // The strategy is substage-scoped now: it needs an active substage (an Active session) to
+        // count questions. On a fresh active substage with no question yet it returns 0.
+        var session = ActivateTriviaSessionWithThreeQuestions();
         var strategy = new SequentialQuestionActivationStrategy();
 
         var next = strategy.Next(session);
 
         next.Should().Be(0);
+    }
+
+    [Fact]
+    public void MoveTo_EnteringActive_SetsActiveSubstageToFirstSubstageInStrictOrder()
+    {
+        var session = LiveSessionFactory.CreateScheduledMultiSubstageTrivia();
+        Activate(session);
+
+        session.ActiveSubstageId.Should().Be(OrderedSubstages(session)[0].SubstageSnapshotId);
+    }
+
+    [Fact]
+    public void MoveTo_PausedThenResumed_KeepsActiveSubstagePointer()
+    {
+        var session = LiveSessionFactory.CreateScheduledMultiSubstageTrivia();
+        Activate(session);
+        var firstSubstageId = session.ActiveSubstageId;
+        var pausedAt = new DateTimeOffset(2026, 6, 3, 10, 5, 0, TimeSpan.Zero);
+
+        session.MoveTo(SessionState.Paused, pausedAt, new SessionStateTransitionPolicy());
+        session.MoveTo(SessionState.Active, pausedAt.AddMinutes(1), new SessionStateTransitionPolicy());
+
+        session.ActiveSubstageId.Should().Be(firstSubstageId);
+    }
+
+    [Fact]
+    public void ActivateQuestion_ScopesQuestionRangeToActiveSubstageOnly()
+    {
+        // Two trivia substages, one question each. The active (first) substage exposes exactly one
+        // question, so index 1 (which would exist in the flat snapshot) is out of range.
+        var session = LiveSessionFactory.CreateScheduledMultiSubstageTrivia();
+        Activate(session);
+
+        var act = () => session.ActivateQuestion(1, DateTimeOffset.UtcNow);
+
+        act.Should().Throw<QuestionIndexOutOfRangeException>();
+    }
+
+    [Fact]
+    public void CompleteActiveSubstageAndAdvance_WhenNextSubstageIsTrivia_MovesPointerAndReadiesFirstQuestion()
+    {
+        var session = LiveSessionFactory.CreateScheduledMultiSubstageTrivia();
+        Activate(session);
+        var substages = OrderedSubstages(session);
+        var advancedAt = new DateTimeOffset(2026, 6, 3, 10, 2, 0, TimeSpan.Zero);
+        session.ActivateQuestion(0, advancedAt);
+        session.CloseActiveQuestion(advancedAt.AddSeconds(30));
+
+        session.CompleteActiveSubstageAndAdvance(advancedAt.AddSeconds(30), new SessionStateTransitionPolicy());
+
+        session.State.Should().Be(SessionState.Active);
+        session.ActiveSubstageId.Should().Be(substages[1].SubstageSnapshotId);
+        session.ActiveQuestionIndex.Should().BeNull();
+
+        var advancedEvent = session.DomainEvents.OfType<SubstageAdvancedEvent>().Single();
+        advancedEvent.LiveSessionId.Should().Be(session.LiveSessionId);
+        advancedEvent.FromSubstageId.Should().Be(substages[0].SubstageSnapshotId);
+        advancedEvent.FromPlayMode.Should().Be(SubstagePlayMode.Trivia);
+        advancedEvent.ToSubstageId.Should().Be(substages[1].SubstageSnapshotId);
+
+        // The next substage's first question is ready to activate (strategy returns position 0).
+        new SequentialQuestionActivationStrategy().Next(session).Should().Be(0);
+    }
+
+    [Fact]
+    public void CompleteActiveSubstageAndAdvance_WhenNextSubstageIsTreasureHunt_ParksWithoutFinishing()
+    {
+        var session = LiveSessionFactory.CreateScheduledTriviaThenTreasureHunt();
+        Activate(session);
+        var substages = OrderedSubstages(session);
+        var advancedAt = new DateTimeOffset(2026, 6, 3, 10, 2, 0, TimeSpan.Zero);
+        session.ActivateQuestion(0, advancedAt);
+        session.CloseActiveQuestion(advancedAt.AddSeconds(30));
+
+        session.CompleteActiveSubstageAndAdvance(advancedAt.AddSeconds(30), new SessionStateTransitionPolicy());
+
+        session.State.Should().Be(SessionState.Active);
+        session.ActiveSubstageId.Should().Be(substages[1].SubstageSnapshotId);
+        session.ActiveQuestionIndex.Should().BeNull();
+        substages[1].PlayMode.Should().Be(SubstagePlayMode.TreasureHunt);
+
+        var advancedEvent = session.DomainEvents.OfType<SubstageAdvancedEvent>().Single();
+        advancedEvent.FromPlayMode.Should().Be(SubstagePlayMode.Trivia);
+        advancedEvent.ToSubstageId.Should().Be(substages[1].SubstageSnapshotId);
+    }
+
+    [Fact]
+    public void CompleteActiveSubstageAndAdvance_WhenNoNextSubstage_FinishesViaSessionCompletion()
+    {
+        var session = ActivateTriviaSession();
+        var substages = OrderedSubstages(session);
+        var advancedAt = new DateTimeOffset(2026, 6, 3, 10, 2, 0, TimeSpan.Zero);
+        session.ActivateQuestion(0, advancedAt);
+        session.CloseActiveQuestion(advancedAt.AddSeconds(30));
+
+        session.CompleteActiveSubstageAndAdvance(advancedAt.AddSeconds(30), new SessionStateTransitionPolicy());
+
+        // Finished is reached ONLY here (SessionCompletion) — never on flat-list exhaustion.
+        session.State.Should().Be(SessionState.Finished);
+        session.EndedAt.Should().Be(advancedAt.AddSeconds(30));
+
+        var advancedEvent = session.DomainEvents.OfType<SubstageAdvancedEvent>().Single();
+        advancedEvent.FromSubstageId.Should().Be(substages[0].SubstageSnapshotId);
+        advancedEvent.FromPlayMode.Should().Be(SubstagePlayMode.Trivia);
+        advancedEvent.ToSubstageId.Should().BeNull();
+
+        session.DomainEvents.OfType<SessionStateChangedEvent>()
+            .Should().ContainSingle(stateEvent => stateEvent.CurrentState == SessionState.Finished);
+    }
+
+    [Fact]
+    public void CompleteActiveSubstageAndAdvance_WhenPaused_IsFrozenAndRejected()
+    {
+        var session = ActivateTriviaSession();
+        session.MoveTo(SessionState.Paused, new DateTimeOffset(2026, 6, 3, 10, 5, 0, TimeSpan.Zero), new SessionStateTransitionPolicy());
+
+        var act = () => session.CompleteActiveSubstageAndAdvance(DateTimeOffset.UtcNow, new SessionStateTransitionPolicy());
+
+        act.Should().Throw<SubstageAdvancementRequiresActiveSessionException>();
+        session.DomainEvents.OfType<SubstageAdvancedEvent>().Should().BeEmpty();
     }
 
     [Fact]
@@ -660,6 +782,14 @@ public sealed class LiveSessionTests
         var next = strategy.Next(session);
 
         next.Should().BeNull();
+    }
+
+    private static IReadOnlyList<SubstageSnapshot> OrderedSubstages(LiveSession session)
+    {
+        return session.MissionRuntimeSnapshot.StageSnapshots
+            .OrderBy(stage => stage.SequenceOrder)
+            .SelectMany(stage => stage.SubstageSnapshots.OrderBy(substage => substage.SequenceOrder))
+            .ToList();
     }
 
     private static LiveSession ActivateTriviaSession()

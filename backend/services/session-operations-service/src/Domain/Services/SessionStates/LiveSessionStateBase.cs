@@ -1,5 +1,6 @@
 using umbral_backend.Domain.Entities;
 using umbral_backend.Domain.Enums;
+using umbral_backend.Domain.Exceptions;
 using umbral_backend.Domain.ValueObjects;
 
 namespace umbral_backend.Domain.Services.SessionStates;
@@ -27,5 +28,10 @@ internal abstract class LiveSessionStateBase : ILiveSessionState
     public virtual bool IsQuestionTimerAdvancing(LiveSession session)
     {
         return false;
+    }
+
+    public virtual void EnsureCanAdvanceSubstage(LiveSession session)
+    {
+        throw new SubstageAdvancementRequiresActiveSessionException(session.State);
     }
 }

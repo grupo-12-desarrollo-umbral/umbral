@@ -1,5 +1,7 @@
 using umbral_backend.Application.Sessions.Common;
 using umbral_backend.Domain.Entities;
+using umbral_backend.Domain.Enums;
+using umbral_backend.Domain.Services;
 using umbral_backend.Domain.ValueObjects;
 
 namespace umbral_backend.Application.UnitTests.Sessions.Common;
@@ -50,6 +52,13 @@ public sealed class TriviaQuestionSnapshotSelectorTests
             10,
             new DateTimeOffset(2026, 6, 3, 10, 0, 0, TimeSpan.Zero),
             runtimeSnapshot);
+        // Selection is scoped to the active substage, so the session must be Active with the
+        // substage pointer set before reading a question.
+        var policy = new SessionStateTransitionPolicy();
+        var startedAt = new DateTimeOffset(2026, 6, 3, 11, 0, 0, TimeSpan.Zero);
+        session.AssociateTeam(Guid.NewGuid(), "Red", "RED-01", 4);
+        session.MoveTo(SessionState.Preparing, startedAt, policy);
+        session.MoveTo(SessionState.Active, startedAt, policy);
 
         var (question, options) = TriviaQuestionSnapshotSelector.GetOrderedTriviaQuestion(session, 0);
 

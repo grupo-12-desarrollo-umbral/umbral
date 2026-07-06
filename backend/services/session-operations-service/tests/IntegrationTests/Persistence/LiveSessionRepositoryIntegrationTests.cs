@@ -375,6 +375,11 @@ public sealed class LiveSessionRepositoryIntegrationTests
         persistedSession.Should().NotBeNull();
         persistedSession!.ActiveQuestionIndex.Should().Be(0);
 
+        // Entering Active parks the pointer on the first substage (HU-33A); it must survive reload
+        // alongside the active-substage question timer.
+        persistedSession.ActiveSubstageId.Should().Be(liveSession.ActiveSubstageId);
+        persistedSession.ActiveSubstageId.Should().NotBeNull();
+
         var timerSnapshot = persistedSession.GetActiveQuestionTimerSnapshot(activatedAt.AddSeconds(10));
         timerSnapshot.TotalDuration.Should().Be(TimeSpan.FromSeconds(30));
         timerSnapshot.RemainingDuration.Should().BeCloseTo(TimeSpan.FromSeconds(20), TimeSpan.FromMilliseconds(1));

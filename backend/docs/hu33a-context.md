@@ -1,201 +1,201 @@
-# HU-33A Context — Trivia Round Orchestration (Thin Slice)
+# HU-33A Context — Trivia orchestration as a synchronized mission substage (realign)
 
-> Superseded on 2026-06-16 by
-> `backend/docs/grilling-session-mission-restructure.md`,
-> `backend/docs/ddd_solution_model.md`, and
-> `backend/docs/bd_umbral_entity_spec.md`.
-> Keep synchronized question orchestration, but rebuild it as trivia `Substage`
-> behavior inside a mission `LiveSession`. A `TriviaQuiz` is not a direct
-> session source, and after the final question timer expires the runtime advances
-> to the next substage or completes the session.
-
-> Paste this section into any agent session that needs context for HU-33A.
-> Last updated: 2026-06-04 | Branch: `feature/hu-33a-trivia-round-orchestration`
+> Paste this section into any agent session that needs context for HU-33A (DES-78).
+> Last updated: 2026-07-05 | Branch: `feature/hu-33a-trivia-substage-orchestration-realign`
+> Supersedes the cycle-1 `hu33a-context.md` (DES-44, **Canceled**), which orchestrated a
+> **standalone "trivia session"** over one flat question list on the whole
+> `MissionRuntimeSnapshot` and ended the session when the list ran out. Canon makes trivia a
+> **`SubstagePlayMode` inside a mission substage**: one snapshotted question is active per
+> authoritative timer window for all teams; question advancement is timer-driven; the trivia
+> substage completes when the final question timer expires and — if another substage exists —
+> **all teams advance together** to the next substage in strict mission order; `Finished` is
+> reached only via `SessionCompletion` after the final substage.
 >
-> Boundary note: HU-33A is a `session-operations-service` slice. `SessionOperations`
-> is the authoritative runtime owner: it decides when a question becomes active,
-> when it closes, and when the session ends. `ScoringMonitoring` consumes published
-> facts (`AnswerRegistered`, `QuestionClosed`) but does not control progression.
-> Clients render the timer; they do not own the clock.
-
-## ⚠️ Resolution notes
-
-1. **Branch base is `feature/hu-22-timer-session`** — HU-22 is not yet merged to
-   `develop` as of 2026-06-04. HU-33A must branch from it, not from `develop`.
-   The PR for HU-33A must target `feature/hu-22-timer-session` until HU-22 merges.
-2. **HU-22 built a session-level timer** — `_sessionTimerTotalDuration`,
-   `_sessionTimerRemainingDuration`, `_sessionTimerAdvancingSince`,
-   `_sessionTimerExpiredAt` on `LiveSession`. HU-33A adds a **question-level timer**
-   (separate fields) because questions have their own `TimeLimitSeconds` from the
-   `TriviaQuestionSnapshot`. The session timer (session total duration) and the
-   question timer (per-question countdown) are distinct concepts and must remain
-   separate fields.
-3. **No operator activation endpoint** — the acceptance criteria explicitly state
-   the operator monitors without manually controlling each transition. Question
-   activation is automatic, driven by the `SessionStateChangedEvent` (session →
-   `Active` triggers first question) and by the timer worker on question expiry
-   (close current question → activate next). There is no operator-triggered
-   `POST /activate` endpoint in this slice.
+> Boundary note: `SessionOperations` is the authoritative **runtime** owner (it decides when a
+> question activates, when a substage completes, and when the session ends). `ScoringMonitoring`
+> (HU-37A) consumes the emitted facts to compute the `TriviaSubstageWinner`; it does not drive
+> progression. Clients render the timer; they do not own the clock.
 
 ## State
 
-- `DES-44` (HU-33A): status **Todo**; labels `Feature`,
-  `svc:session-operations-service`. Confirm `ready-for-agent` before driving.
-- Predecessors already landed on the same service label:
-  - `DES-11` (HU-07A): **Done** — participant membership validation baseline
-  - `DES-12` (HU-07B): **Done** — reconnect/runtime admission baseline
-  - `DES-23` (HU-16): **Done** — trivia session creation baseline
-  - `DES-25` (HU-18): **Done** — team-session association
-  - `DES-26` (HU-19): **Done** — session operator assignment + authorization proxy
-  - `DES-28` (HU-21A): **Done** — valid session-state transitions + SignalR broadcast
-  - `DES-30` (HU-22): **In Progress** on `feature/hu-22-timer-session` — authoritative
-    session-level timer + `ILiveSessionState` state objects + `AuthoritativeSessionTimerWorker`
-- PRD ref: `DES-70` (PRD — Primera implementacion de `session-operations-service`
-  (HU-15 a HU-36)); local file
-  `backend/docs/prd/DES-70-primera-implementacion-de-session-operations-service-hu-15-a-hu-36.md`
-- Blocked by: HU-21A (Done), HU-22 (In Progress)
-- Blocks (downstream): `DES-46` (HU-34A), `DES-45` (HU-33B), `DES-49` (HU-36A)
-- Branch: `feature/hu-33a-trivia-round-orchestration`, base =
-  **`feature/hu-22-timer-session`** (HU-22 is the most recent same-service
-  predecessor, still `In Progress` and not yet merged to `develop`)
+- DES-78 (HU-33A): **In Progress**, labels: `canon-realign`, `needs-rebuild`, `svc:session-operations-service`, `Feature`. `ready-for-agent` **not present** at generation time — the human confirmed the ticket is ready and authorized generation (the driver's Step 2 formally applies the label). Blocked-by DES-22 (HU-15), DES-24 (HU-17) — both Done.
+- **Resolved mode: realignment-rebuild** (`needs-rebuild` present) — **genuine rebuild.** DES-78 is the realignment map's phase #10 "Trivia play" row: "Synchronized trivia substage orchestration" (`canon-realignment-after-mission-runtime-rewrite.md:106`), the **rebuild successor of the Canceled DES-44** (`:69`, `:146`) — **not** in the superseded column. Unlike the verification-dominant siblings HU-16/HU-21A, HU-33A **changes behaviour**: the flat-list "trivia session" round is re-scoped to a **per-substage** synchronized round with a **substage-advancement pointer** and **timer-driven substage advancement**. This is a delete + redefine + add-pointer + migration + broadcast change across all four layers.
+- **Superseded handling applied:** DES-44 (HU-33A cycle-1) is **Canceled** — its flat-list trivia-round code is the **reuse candidate** this rebuild harvests/reworks, never anchored on as a predecessor. Peer rebuilds DES-75 (HU-16), DES-76 (HU-21A), DES-77 (HU-22) are **Done/merged** and are build-on predecessors (below); DES-23/28/30 (their cycle-1 sources) are Canceled — do not anchor on them.
+- Predecessor DES ids (build-on, Done/merged): **DES-22 (HU-15)**, **DES-24 (HU-17)**, **DES-76 (HU-21A)**, **DES-77 (HU-22 — the direct seam this HU builds the round on)**, **DES-75 (HU-16)**. Landed-untouched: DES-25 (HU-18), DES-26 (HU-19), DES-27 (HU-20), DES-11 (HU-07A), DES-12 (HU-07B).
+- PRD DES id: **DES-70** → `backend/docs/prd/DES-70-primera-implementacion-de-session-operations-service-hu-15-a-hu-36.md` (authoritative; never re-fetch PRD scope from Linear). Overlaid by `backend/docs/canon-realignment-after-mission-runtime-rewrite.md`.
+- Governing ADR: **`backend/adr/0005-substage-advancement-pointer-and-timer-driven-orchestration.md`** (accepted) — fixes the `ActiveSubstageId` pointer + generic timer-driven `SubstageAdvancement` + trivia-only activation + `TriviaSubstageWinner`-emitted-not-computed contract **for DES-78**. This is a **required input**, not the coverage ADR. (Disambiguation: "ADR-0005 coverage" elsewhere = `backend/docs/adr/0005-coverlet-msbuild-for-aggregate-coverage.md`, a different file.)
+- Canonical source: `backend/services/session-operations-service/CONTEXT.md` §Trivia terms (`:125-159`), §SubstageAdvancement (`:121-123`), §SessionCompletion (`:177-178`), §Active (`:47-48`); `backend/docs/grilling-session-mission-restructure.md` §Trivia (`:55-70`), §Session Lifecycle (`:83-99`), §Completion (`:101-112`); `bd_umbral_entity_spec.md` §MissionRuntimeSnapshot (`:326-360`).
+- Branch: `feature/hu-33a-trivia-substage-orchestration-realign`, base **`develop`** (all build-on predecessors Done/merged — HU-22/DES-77 merged as commit `6ff5b5f`; no same-service predecessor In Progress).
 
 ## Required design patterns
 
+HU-33 is the only backlog HU mandating **three** patterns (`required_patterns_matrix.md:131,175`). HU-33A (round open/activation + close-and-advance) owns all three; HU-33B (round close/results) reuses the seams.
+
 | Pattern | Owning phase | Why (from patterns matrix) | Concrete obligation |
 |---|---|---|---|
-| `State` (mandated) | X.1 Domain | "Timer behavior depends on session state; question activation and auto-close are lifecycle transitions." | Question-timer behavior must be expressed through the existing `ILiveSessionState` model introduced by HU-22: only the `Active` state advances the question timer; `Paused` freezes it; `Finished`/`Cancelled` stop it. No ad-hoc `if (state == Active)` checks outside the state abstraction. |
-| `Facade` (mandated) | X.2 Application | "Round orchestration combines lifecycle control, coordination, and mode-specific progression." | The auto-question-activation flow (triggered on session → Active and on question-timer expiry) is coordinated by a single `TriviaRoundOrchestratorFacade`. It does not scatter activation logic across the timer worker, the event handler, and the endpoint. Endpoints and the worker stay thin. |
-| `Strategy` (mandated) | X.1 Domain | "Mode-specific progression policy; countdown/activation broadcast." | `IQuestionActivationStrategy` is a named interface even with a single implementation (`SequentialQuestionActivationStrategy`). It encapsulates the decision "given the current session state, which question activates next?" The `Facade` selects the strategy at activation time. This establishes the extension seam for HU-33B's full round engine. |
+| `State` (mandated) | X.1 Domain | `required_patterns_matrix.md:41,131`; `CONTEXT.md:197-199`: play-mode-specific internal phases stay subordinate to the `LiveSession` lifecycle. | Question activation, timer advance, and **substage advancement** are gated by the per-`SessionState` type via `LiveSessionStateFactory.For(State)`: only `Active` advances/activates; `Paused` freezes the active question timer and resumes the **same** question; `Finished`/`Cancelled` stop — **no ad-hoc `if (State == …)` checks** and no operator-forced advance. Already realized by HU-21A/HU-22; HU-33A **extends** the same dispatch to substage advancement. |
+| `Facade` (mandated) | X.2 Application | `required_patterns_matrix.md:40,131`; `CONTEXT.md:193-195`: session orchestration + outbound event/broadcast behind a narrow coordination service. | `TriviaRoundOrchestratorFacade` is the **single** orchestration entry point for activate-question, close-and-advance-question, and **close-substage-and-advance-substage**. It coordinates strategy selection, domain mutation, persistence, and SignalR broadcast — the timer worker and the session-`Active` event handler stay thin (they call the facade). No advancement logic scattered across worker/handler/endpoint. |
+| `Strategy` (mandated) | X.1 Domain | `required_patterns_matrix.md:44,131`; ADR-0004 (`Strategy` = mode-specific progression policy). | `IQuestionActivationStrategy` / `SequentialQuestionActivationStrategy` is re-scoped to return the next question **within the active substage** (`ActiveSubstageId`), or `null` when the active substage's questions are exhausted (the signal to advance the substage). It stays a named interface (extension seam for HU-33B's full round engine) even with one implementation. |
 
-Transport note: HU-33A carries **SignalR / WebSockets** (mandated from patterns
-matrix). `QuestionActivated` and `QuestionClosed` notifications must broadcast
-to the `live-session:{id}` group via the existing `SessionsHub`. Pre-game
-countdown ticks also broadcast via SignalR. This is a hard transport gate.
+Transport note: HU-33A carries **SignalR / WebSockets** (`required_patterns_matrix.md:57,131`) — a **hard gate** verified in X.4. `QuestionActivated`, `QuestionClosed`, and a **`SubstageAdvanced`** notification broadcast to the `live-session:{id}` group over `SessionsHub`; the pre-game countdown ticks over the existing timer broadcaster. **RabbitMQ is out of scope for HU-33A** (D-1 below) — the matrix lists RabbitMQ for HU-33 because the **results/winner** publication (round close → `ScoringMonitoring`) rides the round-close/scoring slices; HU-33A **emits the domain `SubstageAdvancedEvent`** (ADR-0005) but adds no cross-service publish until a consumer (HU-37A) lands. This mirrors HU-21A deferring RabbitMQ to HU-21B.
 
-## What predecessors have already landed (reuse candidates)
+Applies-where note (no new gate): HU-33A adds no new protected endpoint (D-3 below); the existing session reads/timer inherit the standard operator / participant-membership `AuthorizationBehaviour`/gateway guard (ADR-0001/0002). HU-33A is not in the applies-where `Proxy` set (HU-04/05/36B) — **no new `Proxy` gate**.
 
-All of this is on `feature/hu-22-timer-session` (which includes `develop`).
+## Resolved decisions (committed scope)
 
-**Domain layer**
-- `LiveSession` aggregate root with `TriviaSnapshot` (`TriviaSessionSnapshot`
-  containing ordered `TriviaQuestionSnapshot` items)
-- `TriviaQuestionSnapshot` already has `TimeLimitSeconds`, `SequenceOrder`,
-  `ScoreValue`, and `Explanation` — the question-level timer duration is already
-  stored in the snapshot
-- `SessionState` enum with `Scheduled`, `Preparing`, `Active`, `Paused`,
-  `Finished`, `Cancelled`; `LiveSession.Create` sets `State = Scheduled`
-- `LiveSession.MoveTo()` + `SessionStateTransitionPolicy` + `SessionTransitionChain`
-  (extensible CoR pipeline — HU-33A can add a `NoActiveQuestionGate` for `HU-34A`
-  without modifying the pipeline)
-- HU-22's session-level timer fields: `_sessionTimerTotalDuration`,
-  `_sessionTimerRemainingDuration`, `_sessionTimerAdvancingSince`,
-  `_sessionTimerExpiredAt` — HU-33A adds **separate** question-level timer fields
-- `ILiveSessionState` + `ActiveLiveSessionState`, `PausedLiveSessionState`, etc.
-  (state objects per `SessionState`) — HU-33A extends these to control question
-  timer behavior
-- `LiveSessionStateFactory` — resolves the state object for the current enum value
-- Domain events: `SessionStateChangedEvent`, `LiveSessionCreatedEvent`
+Surfaced rather than guessed (`canon-realignment-workflow.md` open-decisions protocol; generator constraint 3), resolved 2026-07-05 by ADR-0005 + the canon authority chain. These are committed scope, not pending gates.
 
-**Application layer**
-- `TransitionSessionStateCommandHandler` + `TransitionSessionStateFacade`
-  (orchestration precedent)
-- `SessionStateChangedNotificationHandler` (MediatR notification handler that
-  triggers SignalR broadcast — HU-33A adds a handler that listens for session →
-  Active to kick off the pre-game countdown)
-- Existing MediatR pipeline: `AuthorizationBehaviour`, `ValidationBehaviour`,
-  `ICurrentUser`
-- `ISessionStateBroadcaster` → `SessionStateBroadcaster` (broadcast via
-  `SessionsHub` group `live-session:{id}`)
-- `ISessionTimerBroadcaster` → `SignalRSessionTimerBroadcaster` (timer tick
-  broadcast — HU-33A adds `ISessionQuestionBroadcaster` for question events)
+- **D-1 — RESOLVED: SignalR only; no RabbitMQ publish in HU-33A.** ADR-0005: the `TriviaSubstageWinner` is **emitted, not computed** — session-ops raises `SubstageAdvancedEvent(fromSubstageId, fromPlayMode, toSubstageId)` (+ the existing `SessionStateChangedEvent(→Finished)`); `ScoringMonitoring` (HU-37A) consumes these to derive the winner. HU-37A does not exist yet and no cross-service consumer is registered, so **no RabbitMQ publish is added here** ("no dedicated event/publish until a consumer needs one"). HU-33A broadcasts advancement live via SignalR only.
+- **D-2 — RESOLVED: winner is NOT computed here.** The `ScoreEntry` ledger (HU-37A) and trivia answers (HU-34A/B) do not exist yet; computing the winner in session-ops would cross the `CONTEXT.md:187-189` Runtime-Authority boundary (scoring supplies derived views). HU-33A emits the completion signal; the winner is downstream.
+- **D-3 — RESOLVED: no new REST endpoint; broadcast-centric X.4.** The synchronized active question is already exposed to participants/operator via HU-22's `SessionTimerSnapshotDto.ActiveQuestion` on the two timer GETs. Answer submission (HU-34) and answer monitoring (HU-36) own their own surfaces. HU-33A's API layer therefore **verifies the SignalR broadcasts** (`QuestionActivated`/`QuestionClosed`/`SubstageAdvanced`) + the substage-scoped active-question value on the timer read; it adds **no** REST endpoint and **no operator advance endpoint** (canon: operators cannot force substage advancement — `CONTEXT.md:122`).
+- **D-4 — RESOLVED: generic advancement, trivia-only activation.** ADR-0005: `SubstageAdvancement` is timer-driven and **generic across play modes** (next substage in strict order, all teams together, no operator override). Advancing **into** a trivia substage activates its first question; advancing **into** a treasure-hunt substage **parks** (sets `ActiveSubstageId`, stops — its own runtime, HU-29–32, is downstream). A mixed mission run before the treasure-hunt runtime exists **parks** at the treasure-hunt substage rather than crashing. **DES-78 verifies end-to-end only on an all-trivia multi-substage mission** and does not claim mixed missions run.
 
-**Infrastructure layer**
-- `AuthoritativeSessionTimerWorker` (1-second `PeriodicTimer` background service)
-  — HU-33A **extends** `TickAsync` to also handle question-timer expiry: when
-  `MarkQuestionTimerExpiredIfElapsed` returns expired, call
-  `CloseActiveQuestion` + persist + broadcast `QuestionClosed`; then
-  auto-activate the next question (or transition to `Finished` if last)
-- `ILiveSessionRepository` with `ListActiveTimersAsync` — extend to also return
-  sessions with an active question timer
-- EF Core `live_sessions` table — HU-33A adds question-timer columns via migration
-- `SessionsHub` + `SessionsHub` group convention `live-session:{id}`
+## What predecessors have already landed
 
-**Frontend**
-- HU-22 landed the operator timer panel (`OperatorSessionTimerPanel`) and mobile
-  session-timer bar (`session-timer-bar.tsx`, `use-session-timer.ts`)
-- Reconnect surface already exists for delivering the current question state on
-  reconnect
+**Build-on (read for derivation):**
 
-**Coverage**
-- ADR-0005 gate applies. X.4 must measure and report the post-HU-22 coverage
-  before committing the gate number.
+- **DES-22 (HU-15) — Done.** `LiveSession.Create(...)` holds the immutable `MissionRuntimeSnapshot`: the ordered `StageSnapshots → SubstageSnapshots` tree in strict order (`StageSnapshot.cs`, `SubstageSnapshot.cs` with `SubstageSnapshotId`, `SequenceOrder`, `PlayMode`), the flat `TriviaQuestionSnapshots` and `TargetSnapshots` collections **each keyed to their owning substage by `SubstageSnapshotId`** (`TriviaQuestionSnapshot.cs:49`, `TargetSnapshot.SubstageSnapshotId`). This is the seam HU-33A walks — the snapshot already models the full substage structure; **no snapshot schema change is needed.**
+- **DES-77 (HU-22) — Done (the direct seam).** The authoritative timer is keyed off the active `TriviaQuestion` via `ActiveQuestionIndex`: the `_questionTimer*` window (`LiveSession.cs:15-18`), `ActivateQuestion` (`:248`), `MarkQuestionTimerExpiredIfElapsed` (`:272`), `CloseActiveQuestion` (`:277`), freeze/resume through `ActiveLiveSessionState`/`PausedLiveSessionState`, `AuthoritativeSessionTimerWorker` driving `CloseAndAdvanceAsync` on question expiry, and the whole-session countdown **deleted** (migration `20260705162936_DropSessionTimerColumns`). HU-22 explicitly **reserved question activation/advancement/close + `TriviaRoundOrchestratorFacade` + `SequentialQuestionActivationStrategy` + `QuestionActivated/ClosedEvent` + the substage pointer/advancement for DES-78** (`hu22-context.md:79,85`). HU-33A owns exactly that reserved seam.
+- **DES-76 (HU-21A) — Done.** Locked the canonical `Scheduled → Preparing → Active → Paused → Finished → Cancelled` machine, the CoR transition validators, `TransitionSessionStateFacade`, and the `SessionStateChanged` SignalR broadcast. HU-21A left the **first-substage start on `Preparing → Active`** as a downstream play-layer seam (`hu21a-context.md:73`) — HU-33A implements it (set `ActiveSubstageId`, activate first trivia question). Do not touch the transition matrix.
+- **DES-75 (HU-16) — Done.** Locked the whole-quiz snapshot-content-fidelity invariant (every question/option/correct-flag/score/timer copied in mission order). HU-33A executes against that frozen content; it does not re-verify fidelity.
+
+**Landed, untouched by this HU:** DES-25 (HU-18 team association), DES-26 (HU-19 operator assignment), DES-27 (HU-20 assigned-session reads), DES-11/12 (HU-07A/07B membership + reconnect) — build around the session aggregate but do not inform the round orchestration.
+
+**Superseded / not predecessors (do NOT anchor on):** DES-44 (HU-33A cycle-1, Canceled — the reuse candidate reworked here), DES-23/28/30 (cycle-1 HU-16/21A/22 sources, Canceled).
+
+**Coverage:** session-operations-service carries the HU-07/15/16/17/18/19/20/21A/22 baseline; measure the real service percentage against the ADR-0005 (coverlet) repo gate at X.4 — do not assume a carried-forward number.
 
 ## What this HU adds
 
 | Concern | New work |
 |---|---|
-| Active question tracking | `ActiveQuestionIndex` (nullable `int`) on `LiveSession` — points into `TriviaSnapshot.Questions`; null = no question active. Persisted as `active_question_index` column. |
-| Question-level timer | Four new fields on `LiveSession` mirroring the session timer: `_questionTimerTotalDuration`, `_questionTimerRemainingDuration`, `_questionTimerAdvancingSince`, `_questionTimerExpiredAt`. Timer duration = `TriviaQuestionSnapshot.TimeLimitSeconds`. |
-| `ActivateQuestion(int index, DateTimeOffset now)` | Domain method: validates session is `Active`, validates index is in bounds and not already active, sets `ActiveQuestionIndex`, initializes question timer, raises `QuestionActivatedEvent`. |
-| `MarkQuestionTimerExpiredIfElapsed(DateTimeOffset now)` | Domain method mirroring `MarkSessionTimerExpiredIfElapsed`: freezes question timer at zero and returns snapshot when elapsed. Called by the timer worker each tick. |
-| `CloseActiveQuestion(DateTimeOffset now)` | Domain method: clears `ActiveQuestionIndex`, freezes question timer, raises `QuestionClosedEvent`. Called by the timer worker on expiry. |
-| `QuestionActivatedEvent` + `QuestionClosedEvent` | Domain events carrying `LiveSessionId`, `QuestionIndex`, `SequenceOrder`, `TimeLimitSeconds` / `ClosedAt`. |
-| `IsQuestionTimerAdvancing` property | Delegates to `ILiveSessionState` — only `Active` state returns true; all others false. Mirrors `IsSessionTimerAdvancing`. |
-| `IQuestionActivationStrategy` + `SequentialQuestionActivationStrategy` | Strategy pattern: `Next(LiveSession session)` returns the index of the next question to activate, or null if the sequence is complete. |
-| Auto-activation on session start | `SessionStateChangedNotificationHandler` extension (or a new `TriviaRoundStartedNotificationHandler`): when session transitions to `Active`, schedule a pre-game countdown broadcast (N-second SignalR ticks), then auto-activate question 0 via `TriviaRoundOrchestratorFacade`. |
-| `TriviaRoundOrchestratorFacade` | **Facade** pattern: single orchestration entry point for (a) activate-question flow and (b) close-and-advance flow. Called by event handlers and timer worker. Coordinates strategy selection, domain mutation, persistence, and broadcast. |
-| Auto-close + auto-advance in timer worker | Extend `AuthoritativeSessionTimerWorker.TickAsync`: per active session, after session-timer tick, also call `MarkQuestionTimerExpiredIfElapsed`. If expired: call `facade.CloseAndAdvanceAsync(session)` → `CloseActiveQuestion`, pick next via Strategy, activate or transition session to `Finished`. Persist + broadcast. |
-| Migration | `active_question_index` (nullable int), `question_timer_total_duration`, `question_timer_remaining_duration`, `question_timer_advancing_since`, `question_timer_expired_at` on `live_sessions`. |
-| SignalR broadcasts | `QuestionActivated` notification (index, prompt, options, time limit) + `QuestionClosed` notification (index, closed at) broadcast to `live-session:{id}` group. Pre-game countdown ticks via existing timer broadcaster. |
-| API read surface | `GET /api/sessions/{liveSessionId}/trivia/active-question` — participant/operator read of the current active question (index, prompt, options — without revealing the correct option to participants). Read-only; does not trigger activation. |
-| Frontend | Participant question screen (shows active question, live countdown, options); operator live monitoring view (shows which question is active and timer). |
+| Active-substage pointer | `LiveSession.ActiveSubstageId` (nullable `Guid`) — the **single authoritative** pointer for the live substage, walking strict stage→substage order over the snapshot; null before `Active`. Persisted as `active_substage_id`. (ADR-0005.) |
+| First-substage start on `Active` | On `Preparing → Active`, set `ActiveSubstageId` to the **first substage** in strict order; if it is a trivia substage, activate its first question (via the facade). Implements the `CONTEXT.md:48` "entering `Active` immediately starts the first substage" seam HU-21A reserved. |
+| Substage-scoped question activation | Re-scope `ActiveQuestionIndex` semantics + `ActivateQuestion`/`EnsureCanActivateQuestion`/`CloseActiveQuestion` so activation/close operate over the **questions of the active substage** (`TriviaQuestionSnapshots.Where(q => q.SubstageSnapshotId == ActiveSubstageId)` ordered by `SequenceOrder`), not the flat global list. |
+| Substage advancement | New domain behaviour (`AdvanceToNextSubstage`/`CompleteActiveSubstageAndAdvance`): when the **last question of the active substage** closes, walk to the next substage in strict order. Trivia next → activate its first question; treasure-hunt next → **park** (D-4); no next → `SessionCompletion` → `MoveTo(Finished)`. Generic across modes; timer-driven; no operator override. |
+| `SubstageAdvancedEvent` | New domain event `(LiveSessionId, FromSubstageId, FromPlayMode, ToSubstageId?)` raised on each advancement (ADR-0005) — the fact `ScoringMonitoring` (HU-37A) will consume to derive `TriviaSubstageWinner`. |
+| `Strategy` re-scope | `SequentialQuestionActivationStrategy.Next` counts/orders questions **of the active substage** (via `ActiveSubstageId`), returns the next in-substage position or `null` when the substage is exhausted. |
+| Facade re-scope | `TriviaRoundOrchestratorFacade.CloseAndAdvanceAsync`: close question → next question **in the same substage**, else close substage → advance pointer → (trivia) activate first question / (treasure-hunt) park / (none) `Finished`. `ActivateNextQuestionAsync` and the session-`Active` handler set/read `ActiveSubstageId`. Broadcast `SubstageAdvanced`. |
+| Migration | `active_substage_id` (nullable `uuid`) on `live_sessions`. Mirror `20260604143000_AddTriviaRoundState.cs`. No snapshot-schema change (questions already carry `SubstageSnapshotId`). |
+| SignalR | Add a `SubstageAdvanced` notification (`fromSubstageId`, `fromPlayMode`, `toSubstageId?`) to `live-session:{id}`; keep `QuestionActivated`/`QuestionClosed`; the timer read's `ActiveQuestion` now reflects the active-substage question. |
+| Behavioural change (call out) | The session **no longer `Finished`s when the flat question list ends** (cycle-1 `TriviaRoundOrchestratorFacade.cs:84`); it advances substage-by-substage and reaches `Finished` only via `SessionCompletion` after the **final** substage completes. Contract note for the frontend/operator monitor. |
 
 ## Touched surfaces
 
-- `backend/services/session-operations-service/` — domain, application,
-  infrastructure, and API layers
-- `frontend/` — participant question screen, operator monitoring
-- `mobile/` — participant question screen + question timer bar
-- API contract boundary: `QuestionActivated` SignalR notification shape,
-  `QuestionClosed` SignalR notification shape, `GET active-question` response shape
+- `backend/services/session-operations-service/` — domain (`ActiveSubstageId` + substage advancement + `SubstageAdvancedEvent` + substage-scoped activation + State/Strategy re-scope), application (facade + session-`Active` handler re-scope + `SubstageAdvanced` broadcast DTO), infrastructure (migration + persistence config + worker verify), api (SignalR broadcast verification; no new REST route).
+- `frontend/` — participant question screen + operator monitoring reflect the synchronized active-substage question and substage advancement (behavioural change: no session-level "round over when questions end").
+- Runtime/contract boundary: new `SubstageAdvanced` SignalR notification; the timer read's `ActiveQuestion` is now the active-substage question. **No REST contract change** (D-3). The `SubstageAdvancedEvent` domain fact is the future `ScoringMonitoring` (HU-37A) integration seam.
 
 ## Committed phases
 
 | Commit | Phase | Description |
 |---|---|---|
-| — | — | No commits yet |
+| `766310c` | X.1 Domain | `LiveSession.ActiveSubstageId` + timer-driven `SubstageAdvancement`; `IQuestionActivationStrategy` re-scoped to active substage; flat-list `Finished` path removed (161 domain unit tests) |
+| `2cd9525` | X.2 Application | `TriviaRoundOrchestratorFacade` owns activate/close/advance; flat-list session-finish shortcut deleted (115 app unit tests) |
+| `d10d09d` | (cleanup) | Typed `IHubContext<SessionsHub>` question broadcaster, dropped reflection; moved impl Infrastructure → Api/Hubs |
+| `3b9ee0d` | X.3 Infrastructure | `active_substage_id` (nullable uuid) migration + `LiveSessionConfiguration` mapping; repo round-trip test; unmasked+fixed X.2 facade event-capture-before-persist bug (166 integration + 115 app unit tests) |
+| _pending_ | X.4 Api | Hub integration test: a facade-driven two-substage trivia round broadcasts `QuestionClosed`→`SubstageAdvanced`→`QuestionActivated` to `live-session:{id}` and the timer read exposes the next active-substage question; no new REST/operator-advance endpoint (D-3) |
 
 ## Known quirks / gotchas
 
-- **Question timer is separate from session timer.** HU-22's session timer counts
-  down total session duration (`MaximumTime`). The question timer counts down
-  each question's `TimeLimitSeconds`. Both timers run concurrently when the
-  session is `Active` with a question active. The worker must tick both.
-- **Session timer expiry ≠ question close.** The session timer expiring means the
-  total session time ran out (→ `Finished`). The question timer expiring means
-  this question's time ran out (→ close question, advance). These are independent
-  events that may coincide but must be handled separately.
-- **Pre-game countdown is broadcast-only.** It is a SignalR-only delay before
-  question 0 activates. It does not require a new DB column or state. Keep it
-  simple: a configurable N-second delay (e.g. 5 seconds) broadcast as countdown
-  ticks via the existing timer broadcaster before `ActivateQuestion(0)` is called.
-- **No operator activation endpoint.** The acceptance criteria state the operator
-  monitors without manually controlling each transition. Do not add an operator
-  endpoint to activate questions. Activation is fully automatic.
-- **`IQuestionActivationStrategy` exists to make the Strategy pattern explicit.**
-  HU-33B's full round engine will inject a different strategy. Having the
-  interface now means HU-33B does not need to refactor HU-33A's code.
-- **Extend `AuthoritativeSessionTimerWorker`, do not fork it.** The worker
-  already has the 1-second `PeriodicTimer` and the scope factory. HU-33A adds
-  question-timer handling inside `TickAsync` after the session-timer tick.
-  Keep the worker as one cohesive background service.
-- **`CloseAndAdvance` must be idempotent.** The timer worker ticks every second;
-  if close-and-advance is called while the previous advance is still persisting,
-  it must not double-activate. Guard with `ActiveQuestionIndex` null-check before
-  activating.
-- **`ListActiveTimersAsync` needs to return sessions with active question timers.**
-  Update or overload the repository query so the worker can find sessions where
-  `active_question_index IS NOT NULL` and `question_timer_expired_at IS NULL`.
-- **HU-34A depends on `ActiveQuestionIndex`.** The answer-submission slice will
-  check `LiveSession.ActiveQuestionIndex` to validate the submitted answer matches
-  the active question. Do not remove or rename this field.
+- **`ActiveQuestionIndex` becomes substage-scoped, not global.** Cycle-1 treats it as a position into the whole snapshot's flat `TriviaQuestionSnapshots` (`SequentialQuestionActivationStrategy.cs:15`, `TriviaRoundOrchestratorFacade.cs:84`). HU-33A re-scopes every consumer to order/count **only the active substage's** questions (`SubstageSnapshotId == ActiveSubstageId`). Grep every reader of `ActiveQuestionIndex` / `TriviaQuestionSnapshots` before editing — the strategy, the facade, `LiveSession.ActivateQuestion`, and `SessionTimerSnapshotDtoFactory` all apply the same ordering and must agree on the new substage scope.
+- **Do NOT re-derive from `TriviaQuiz`.** Play executes against the immutable `MissionRuntimeSnapshot` only (HU-15/16). Never read authoring content at runtime.
+- **`Finished` only via `SessionCompletion`.** Never operator-forced (`CONTEXT.md:56`, `grilling…:94`). The final substage completing is the **only** path to `Finished`; delete the cycle-1 "flat list exhausted → Finished" shortcut and route it through substage advancement.
+- **Advancement is generic + operator-supervised.** No operator command/endpoint forces advancement (`CONTEXT.md:122`, D-3). It is emitted solely by the authoritative timer worker on last-question expiry — that is what satisfies AC #3 ("el operador no controla manualmente el avance de subetapa").
+- **Trivia-only activation; treasure-hunt parks (D-4).** Advancing into a treasure-hunt substage sets `ActiveSubstageId` and stops. Do **not** build treasure-hunt play (HU-29–32, downstream). Verify end-to-end on an **all-trivia multi-substage** mission.
+- **Extend the timer worker, don't fork it.** `AuthoritativeSessionTimerWorker` already ticks the question timer and calls `CloseAndAdvanceAsync` (HU-22 left this seam). HU-33A makes `CloseAndAdvanceAsync` advance substages; the worker stays one cohesive service.
+- **`CloseAndAdvance` must stay idempotent.** The worker ticks every second; guard on `ActiveQuestionIndex`/`ActiveSubstageId` so a mid-persist tick does not double-advance (cycle-1 already null-guards the active-question — extend the guard to the substage boundary).
+- **Pause freezes the active question and resumes the same one** (`CONTEXT.md:52`, `grilling…:90`) — already realized by HU-22's `Paused`/`Active` `Enter` hooks; HU-33A keeps them and must not advance while `Paused`.
+- **`SubstageAdvancedEvent` is a domain event (MediatR), not a RabbitMQ publish** (D-1). Raise it; broadcast via SignalR; leave cross-service publication to HU-37A.
+- **Namespace is `umbral_backend.*`** across all layers; source root `src/`. Domain tests in `tests/UnitTests/`, application tests in `tests/Application.UnitTests/`, integration in `tests/IntegrationTests/`. API layer is **Controllers** (`Api/Controllers/SessionsController.cs`), not minimal-API endpoints — mirror existing files.
+- **Application-layer placement (ADR-0011/0012):** the `Facade` stays in `Application/Sessions/Common/` (shared by ≥2 slices); the `Strategy`, events, and `ActiveSubstageId` live in Domain. Do **not** introduce `Handlers/`/`DTOs/` type-buckets or a handler base class (generator constraint 11).
+
+## Per-phase derivation — authoritative for implementation
+
+> Primary source for the phase subagent (per `backend-agent.md` "Read first"). Do not re-read
+> the full canon or re-inspect the tree; open a cited section only to fill a gap a block leaves open.
+> Mode = **realignment-rebuild**: authority chain **canon docs > tracker AC > existing code**
+> (`canon-realignment-workflow.md:19-34`); keep/delete/decide per `:72-84`. Mirror-anchors point
+> **only** at code classified `keep`. Governing contract: `backend/adr/0005-substage-advancement-pointer-and-timer-driven-orchestration.md`.
+> Canon: trivia synchronized, timer-driven advancement, substage completes on final-question
+> expiry, all teams advance together (`grilling…:57-61`, `CONTEXT.md:129-139`); winner emitted, not
+> computed (ADR-0005; `CONTEXT.md:157-159`); `Finished` only via `SessionCompletion` (`CONTEXT.md:56,177-178`);
+> operators cannot force advancement (`CONTEXT.md:122`); questions carry `SubstageSnapshotId`
+> (`TriviaQuestionSnapshot.cs:49`). Patterns `required_patterns_matrix.md:40,41,44,131`; placement
+> ADR-0011 (`structure.md`) + ADR-0012.
+
+### Phase X.1 — Domain
+**Derive** (`CONTEXT.md:47-48,121-139,157-159,177-178`; `grilling…:57-61,87,94,103`; ADR-0005; `bd_umbral_entity_spec.md:326-360`):
+- `LiveSession.ActiveSubstageId` (nullable `Guid`) — the single authoritative live-substage pointer. Add `AdvanceToNextSubstage(now)` / `CompleteActiveSubstageAndAdvance(now)`: walk `MissionRuntimeSnapshot.StageSnapshots.SelectMany(s => s.SubstageSnapshots)` in strict stage-order → substage-order, find the substage after `ActiveSubstageId`. Next exists → set `ActiveSubstageId`, raise `SubstageAdvancedEvent(LiveSessionId, from, fromPlayMode, to)`, and if the new substage is `Trivia` leave it for the facade to activate its first question (treasure-hunt → park, D-4). Next is none → `SessionCompletion`: raise `SubstageAdvancedEvent(…, to: null)` then `MoveTo(Finished, now, policy)` (`Finished` only here — `CONTEXT.md:56`).
+- Re-scope question activation to the active substage: `ActivateQuestion` (`:248`)/`EnsureCanActivateQuestion` (`:453`)/`CloseActiveQuestion` (`:277`) and the ordering helper `GetOrderedTriviaQuestions` (`:501-506` — currently orders **all** snapshot questions with no substage filter, the key gap) resolve against the **active substage's** questions (`SubstageSnapshotId == ActiveSubstageId`, ordered by `SequenceOrder`). `CloseActiveQuestion` on the substage's **last** question is the trigger the facade turns into substage advancement. Keep the `_questionTimer*` window + freeze/resume (HU-22) untouched.
+- `SequentialQuestionActivationStrategy.Next` (`Strategy`) counts/orders **the active substage's** questions; returns the next in-substage position, `0` on entry to a trivia substage, or `null` when exhausted (advance signal).
+- `State` gates it: activation/advance only in `Active`; `Paused` freezes; `Finished`/`Cancelled` stop — via `LiveSessionStateFactory.For(State)`. No operator-forced advance.
+
+**Target files** (create | edit — file to mirror):
+- edit `src/Domain/Entities/LiveSession.cs` — add `ActiveSubstageId` + substage-advance methods; re-scope `ActivateQuestion` (`:248`)/`EnsureCanActivateQuestion` (`:453`)/`CloseActiveQuestion` (`:277`) to the active substage; mirror the existing `_questionTimer*` method shape
+- edit `src/Domain/Services/SequentialQuestionActivationStrategy.cs` — order/count the active substage's questions (replace the flat `snapshot.TriviaQuestionSnapshots.Count` at `:15`)
+- create `src/Domain/Events/SubstageAdvancedEvent.cs` — mirror `src/Domain/Events/QuestionClosedEvent.cs`
+- keep `src/Domain/ValueObjects/{StageSnapshot,SubstageSnapshot,TriviaQuestionSnapshot}.cs`, `src/Domain/Services/{IQuestionActivationStrategy,SessionStateTransitionPolicy}.cs`, `src/Domain/Services/SessionStates/*`, `src/Domain/Events/{QuestionActivatedEvent,QuestionClosedEvent,SessionStateChangedEvent}.cs`
+- edit `tests/UnitTests/Domain/Entities/LiveSessionTests.cs` (+ a substage-advancement test) — assert: entering `Active` sets `ActiveSubstageId` to the first substage; questions activate/close within the active substage only; closing the substage's **last** question advances to the next substage (trivia → first question ready; treasure-hunt → parked); no next → `Finished` via completion; a `SubstageAdvancedEvent` is raised per advancement; advance rejected outside `Active`
+
+**Pattern this phase owns:** `State` (activation/advance gated by per-`SessionState` type) + `Strategy` (substage-scoped `IQuestionActivationStrategy`).
+**Gate:** Domain build passes; a unit test locks: first-substage start on `Active`; substage-scoped activation/close; last-question close → substage advancement (trivia activates next, treasure-hunt parks, none → `Finished` via `SessionCompletion`); `SubstageAdvancedEvent` raised with `from/fromPlayMode/to`; advancement only in `Active`, frozen in `Paused`; **no flat-list "questions exhausted → Finished" path remains.** **`State`/`Strategy` verified — decided by per-state types + the strategy interface, not ad-hoc conditionals.**
+
+**Existing code (keep / delete / decide):**
+- keep the `_questionTimer*` window + freeze/resume on `LiveSession.cs` (`:15-18,272-278,398-449`), `SessionState`/`SessionStates/*`/`SessionStateTransitionPolicy`, the snapshot VOs, `QuestionActivated/ClosedEvent`, `IQuestionActivationStrategy` — canon-aligned (HU-15/16/21A/22); verify + mirror
+- delete/replace the **flat-list scope**: the whole-snapshot question count/order in `SequentialQuestionActivationStrategy.cs:15` and the flat activation range in `LiveSession.ActivateQuestion`/`EnsureCanActivateQuestion` — re-scope to the active substage; delete the cycle-1 assumption that the trivia round spans the whole snapshot
+- decide none — the snapshot already carries `SubstageSnapshotId` on every question/target (`TriviaQuestionSnapshot.cs:49`); no schema gap. `Finished`-shortcut lives in the Application facade (X.2), removed there.
+
+### Phase X.2 — Application — **owns `Facade`**
+**Derive** (`CONTEXT.md:193-195`; ADR-0005; the cycle-1 `TriviaRoundOrchestratorFacade` + `TriviaRoundStartedNotificationHandler`):
+- `TriviaRoundOrchestratorFacade.CloseAndAdvanceAsync` (rework `:50-86`): close the active question + broadcast `QuestionClosed`; ask the strategy for the next **in-substage** question — present → activate it; **absent** → the active substage is complete: call the domain substage-advance, persist, broadcast `SubstageAdvanced`, then (new substage trivia → activate its first question; treasure-hunt → park; none → the domain already moved to `Finished`, just persist). **Delete the direct `MoveTo(Finished)` at `:84`** — completion routes through substage advancement.
+- `TriviaRoundStartedNotificationHandler` (rework `:30-68`): on `SessionStateChangedEvent(→Active)`, set `ActiveSubstageId` to the first substage (domain call), run the pre-game countdown (keep), then `ActivateNextQuestionAsync` **only if** the first substage is trivia (treasure-hunt → parked).
+- `ActivateNextQuestionAsync` (`:29-48`) reads the active substage via the re-scoped strategy. Add a `SubstageAdvanced` broadcast DTO + broadcaster method (mirror `QuestionClosedNotificationDto`/`ISessionQuestionBroadcaster`).
+- **No RabbitMQ** (D-1); the domain `SubstageAdvancedEvent` is the downstream scoring seam.
+
+**Target files** (create | edit — file to mirror):
+- edit `src/Application/Sessions/Common/TriviaRoundOrchestratorFacade.cs` — substage-aware close-and-advance; remove the `:84` `Finished` shortcut
+- edit `src/Application/Sessions/EventHandlers/TriviaRoundStartedNotificationHandler.cs` — set first substage + trivia-only first-question activation
+- create `src/Application/Sessions/Common/SubstageAdvancedNotificationDto.cs` — mirror `QuestionClosedNotificationDto.cs`; add its method to `src/Application/Common/Interfaces/ISessionQuestionBroadcaster.cs`
+- edit `src/Application/Sessions/Common/TriviaQuestionSnapshotSelector.cs` (`:10-23` — currently orders **all** questions; re-scope to the active substage, matching the X.1 domain re-scope); the timer DTO factory `SessionTimerSnapshotDtoFactory.cs` (`:32-53`) reads the pointer through the selector and follows automatically — add a test asserting its `ActiveQuestion` is the active-substage question
+- keep `src/Application/Sessions/Common/{ITriviaRoundOrchestratorFacade,QuestionActivatedNotificationDto,QuestionClosedNotificationDto}.cs`, `src/Application/DependencyInjection.cs` (registrations `:43-44` unchanged)
+- edit/mirror `tests/Application.UnitTests/Sessions/Facades/TriviaRoundOrchestratorFacadeTests.cs` + `.../EventHandlers/TriviaRoundStartedNotificationHandlerTests.cs` — assert: last-question close advances the substage (trivia → next activates, treasure-hunt → parks, none → `Finished`); `SubstageAdvanced` broadcast; first-substage set on `Active`; idempotent double-tick does not double-advance
+
+**Pattern this phase owns:** `Facade` — the single orchestration entry point; worker/handler stay thin.
+**Gate:** Application build passes; a test proves the facade closes-and-advances within and across substages (trivia activates the next question or advances the substage; treasure-hunt parks; final substage completion → `Finished` via `SessionCompletion`), broadcasts `QuestionClosed`/`SubstageAdvanced`, and is idempotent under repeat ticks; the session-`Active` handler sets the first substage and activates the first question only for trivia; **no `MoveTo(Finished)` on flat-list exhaustion remains**; no RabbitMQ publish added. **`Facade` verified — orchestration not scattered across worker/handler/endpoint.**
+
+**Existing code (keep / delete / decide):**
+- keep `ITriviaRoundOrchestratorFacade`, the question notification DTOs, the DI registrations, `ISessionQuestionBroadcaster` (extended, not replaced)
+- delete the cycle-1 flat-list `Finished` shortcut in `TriviaRoundOrchestratorFacade.cs:84` — replace with substage advancement; re-scope `TriviaQuestionSnapshotSelector.cs:10-23` (all-questions → active-substage) alongside the X.1 domain re-scope
+- decide none
+
+### Phase X.3 — Infrastructure
+**Derive** (`AuthoritativeSessionTimerWorker.cs`; `LiveSessionConfiguration.cs`; `ApplicationDbContextModelSnapshot.cs`; ADR-0008 shared Postgres testcontainer):
+- New migration adds `active_substage_id` (`uuid`, nullable) to `live_sessions`; map it in `LiveSessionConfiguration`. Mirror `20260604143000_AddTriviaRoundState.cs`. No snapshot-content schema change (questions already carry `SubstageSnapshotId`).
+- `AuthoritativeSessionTimerWorker`: verify it still drives `CloseAndAdvanceAsync` on question-timer expiry (HU-22 left the call) and now advances substages through the reworked facade — **do not fork it**. `ListActiveTimersAsync` (advancing-question predicate) is unchanged.
+
+**Target files** (create | edit — file to mirror):
+- create `src/Infrastructure/Migrations/<timestamp>_AddActiveSubstagePointer.cs` — add `active_substage_id`; mirror `20260604143000_AddTriviaRoundState.cs`
+- edit `src/Infrastructure/Persistence/Configurations/LiveSessionConfiguration.cs` — map `ActiveSubstageId`
+- keep `src/Infrastructure/Realtime/AuthoritativeSessionTimerWorker.cs`, `src/Infrastructure/Persistence/Repositories/LiveSessionRepository.cs` (`ListActiveTimersAsync`), `src/Infrastructure/Realtime/SignalRSessionQuestionBroadcaster.cs` (extend for `SubstageAdvanced`)
+- edit/mirror `tests/IntegrationTests/Persistence/LiveSessionRepositoryIntegrationTests.cs` — round-trip a session with an `ActiveSubstageId` set; assert the column persists and the active substage survives reload
+
+**Pattern this phase owns:** none.
+**Gate:** Infrastructure build passes; a migration **adds** `active_substage_id` (assert via model snapshot — grep, do not full-read `ApplicationDbContextModelSnapshot.cs`); a repository integration test round-trips a session with the active-substage pointer and its active-substage question timer; the worker drives substage advancement through the facade on expiry (no fork).
+
+**Existing code (keep / delete / decide):**
+- keep the worker, `LiveSessionRepository`, `LiveSessionConfiguration` (edited, not replaced), `SignalRSessionQuestionBroadcaster` (extended)
+- delete none
+- decide none
+
+### Phase X.4 — Api
+**Derive** (`Api/Controllers/SessionsController.cs`; `Api/Hubs/*`; ADR-0001/0002 gateway auth; ADR-0005 coverage; D-3):
+- **No new REST endpoint** (D-3). Verify the two timer GETs' `SessionTimerSnapshotDto.ActiveQuestion` now reflects the **active-substage** question, and that the SignalR broadcasts (`QuestionActivated`, `QuestionClosed`, new `SubstageAdvanced`) reach the `live-session:{id}` group. **No operator advance endpoint** (canon forbids operator-forced advancement).
+- Behavioural change: a multi-substage trivia session advances substage-by-substage and reaches `Finished` only after the final substage — surface for the frontend/operator monitor.
+
+**Target files** (create | edit — file to mirror):
+- keep (verify, do not reshape) `src/Api/Controllers/SessionsController.cs`, `src/Api/Hubs/SessionsHub.cs`
+- edit/mirror `tests/IntegrationTests/Api/…` — a hub test that a trivia round drives `QuestionActivated` → `QuestionClosed` → (last question) `SubstageAdvanced` to `live-session:{id}`, and that the timer read exposes the active-substage question; auth enforced on the reads
+
+**Pattern this phase owns:** none new — `State`/`Strategy` in X.1, `Facade` in X.2; the reads inherit the standard operator/participant `AuthorizationBehaviour` guard (ADR-0001/0002); HU-33A is not in the applies-where `Proxy` set → no new gate. **SignalR transport gate verified here.**
+**Gate:** hub integration test (a synchronized trivia round broadcasts `QuestionActivated`/`QuestionClosed`/`SubstageAdvanced` to `live-session:{id}`; the timer read reflects the active-substage question; auth enforced) + **ADR-0005 coverage** (service ≥ repo gate); **no new REST/operator-advance endpoint added.**

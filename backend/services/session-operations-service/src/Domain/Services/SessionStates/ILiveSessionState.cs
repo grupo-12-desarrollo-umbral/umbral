@@ -17,4 +17,8 @@ internal interface ILiveSessionState
     AuthoritativeSessionTimerSnapshot MarkQuestionTimerExpiredIfElapsed(LiveSession session, DateTimeOffset occurredAt);
 
     bool IsQuestionTimerAdvancing(LiveSession session);
+
+    // Gates timer-driven substage advancement: only Active advances, every other state rejects
+    // (Paused freezes it). Keeps the "operator cannot force advancement" rule in the state type.
+    void EnsureCanAdvanceSubstage(LiveSession session);
 }

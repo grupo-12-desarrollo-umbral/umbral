@@ -14,7 +14,6 @@ public static class DependencyInjection
         builder.AddPersistenceServices();
         builder.Services.AddSingleton(TimeProvider.System);
         builder.Services.AddSingleton<ISessionTimerBroadcaster, SignalRSessionTimerBroadcaster>();
-        builder.Services.AddSingleton<ISessionQuestionBroadcaster, SignalRSessionQuestionBroadcaster>();
         builder.Services.AddHostedService<AuthoritativeSessionTimerWorker>();
 
         builder.Services.Configure<ParticipantMembershipAccessClientOptions>(

@@ -62,6 +62,9 @@ public sealed class LiveSessionConfiguration : IEntityTypeConfiguration<LiveSess
         builder.Property(session => session.ActiveQuestionIndex)
             .HasColumnName("active_question_index");
 
+        builder.Property(session => session.ActiveSubstageId)
+            .HasColumnName("active_substage_id");
+
         builder.Property<TimeSpan>("_questionTimerTotalDuration")
             .HasColumnName("question_timer_total_duration")
             .IsRequired();

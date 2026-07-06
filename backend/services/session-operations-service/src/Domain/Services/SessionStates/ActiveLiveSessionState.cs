@@ -33,4 +33,9 @@ internal sealed class ActiveLiveSessionState : LiveSessionStateBase
     {
         return session.HasAdvancingQuestionTimer();
     }
+
+    public override void EnsureCanAdvanceSubstage(LiveSession session)
+    {
+        // Active is the only state that advances substages (timer-driven).
+    }
 }

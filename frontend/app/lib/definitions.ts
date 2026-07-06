@@ -396,12 +396,24 @@ export type QuestionClosedNotificationDto = {
   wasExpiredByTimer: boolean
 }
 
+// SignalR "SubstageAdvanced" hub event payload (live-session:{id} group).
+// Broadcast when orchestration moves from one substage to the next.
+// toSubstageId absent/null ⇒ the FINAL substage just completed; the session will Finish next.
+export type SubstageAdvancedNotificationDto = {
+  liveSessionId: string
+  fromSubstageId: string
+  fromPlayMode: 'TreasureHunt' | 'Trivia' | string
+  toSubstageId: string | null
+}
+
 // Phases of the automated trivia round, derived from SignalR pushes only.
 export type TriviaRoundPhase =
   | 'idle'
   | 'pregame'
   | 'question-active'
   | 'between-questions'
+  | 'substage-advancing'
+  | 'complete'
 
 export class IdentityError extends Error {
   constructor(

@@ -43,4 +43,30 @@ internal static class LiveSessionFactory
             new DateTimeOffset(2026, 6, 3, 10, 0, 0, TimeSpan.Zero),
             missionRuntimeSnapshot);
     }
+
+    internal static LiveSession CreateScheduledMultiSubstageTrivia(int maximumTimeMinutes = 10)
+    {
+        var missionRuntimeSnapshot = MissionRuntimeSnapshotFactory.CreateMultiSubstageTriviaSnapshot(maximumTimeMinutes);
+
+        return LiveSession.Create(
+            SessionSource.Create(missionRuntimeSnapshot.SourceMissionId),
+            "tri-123",
+            "Trivia Session",
+            maximumTimeMinutes,
+            new DateTimeOffset(2026, 6, 3, 10, 0, 0, TimeSpan.Zero),
+            missionRuntimeSnapshot);
+    }
+
+    internal static LiveSession CreateScheduledTriviaThenTreasureHunt(int maximumTimeMinutes = 45)
+    {
+        var missionRuntimeSnapshot = MissionRuntimeSnapshotFactory.CreateTriviaThenTreasureHuntSnapshot(maximumTimeMinutes);
+
+        return LiveSession.Create(
+            SessionSource.Create(missionRuntimeSnapshot.SourceMissionId),
+            "mix-123",
+            "Mixed Session",
+            maximumTimeMinutes,
+            new DateTimeOffset(2026, 6, 3, 10, 0, 0, TimeSpan.Zero),
+            missionRuntimeSnapshot);
+    }
 }
