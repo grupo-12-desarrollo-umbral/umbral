@@ -126,6 +126,158 @@ public sealed class TriviaRoundOrchestratorFacadeTests
             .Be(SessionState.Finished);
     }
 
+    [Fact]
+    public async Task CloseAndAdvanceAsync_OnLastQuestionOfSubstage_AdvancesToNextTriviaSubstageAndActivatesFirstQuestion()
+    {
+        var session = LiveSessionTestFactory.CreateScheduledMultiSubstageTrivia();
+        ActivateFirstQuestion(session);
+        var substages = OrderedSubstages(session);
+        var repository = CreateRepository();
+        var broadcaster = new Mock<ISessionQuestionBroadcaster>();
+        var facade = CreateFacadeWithRealStrategy(repository, broadcaster);
+
+        await facade.CloseAndAdvanceAsync(session, Now, CancellationToken.None);
+
+        session.ActiveSubstageId.Should().Be(substages[1].SubstageSnapshotId);
+        session.ActiveQuestionIndex.Should().Be(0);
+        session.State.Should().Be(SessionState.Active);
+        broadcaster.Verify(
+            current => current.BroadcastSubstageAdvancedAsync(
+                It.Is<SubstageAdvancedNotificationDto>(notification =>
+                    notification.LiveSessionId == session.LiveSessionId &&
+                    notification.FromSubstageId == substages[0].SubstageSnapshotId &&
+                    notification.FromPlayMode == "Trivia" &&
+                    notification.ToSubstageId == substages[1].SubstageSnapshotId &&
+                    notification.AdvancedAt == Now),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+        broadcaster.Verify(
+            current => current.BroadcastQuestionActivatedAsync(
+                It.IsAny<QuestionActivatedNotificationDto>(),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task CloseAndAdvanceAsync_WhenNextSubstageIsTreasureHunt_ParksWithoutActivatingOrFinishing()
+    {
+        var session = LiveSessionTestFactory.CreateScheduledTriviaThenTreasureHunt();
+        ActivateFirstQuestion(session);
+        var substages = OrderedSubstages(session);
+        var repository = CreateRepository();
+        var broadcaster = new Mock<ISessionQuestionBroadcaster>();
+        var facade = CreateFacadeWithRealStrategy(repository, broadcaster);
+
+        await facade.CloseAndAdvanceAsync(session, Now, CancellationToken.None);
+
+        session.ActiveSubstageId.Should().Be(substages[1].SubstageSnapshotId);
+        session.ActiveQuestionIndex.Should().BeNull();
+        session.State.Should().Be(SessionState.Active);
+        broadcaster.Verify(
+            current => current.BroadcastSubstageAdvancedAsync(
+                It.Is<SubstageAdvancedNotificationDto>(notification =>
+                    notification.ToSubstageId == substages[1].SubstageSnapshotId &&
+                    notification.FromPlayMode == "Trivia"),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+        broadcaster.Verify(
+            current => current.BroadcastQuestionActivatedAsync(
+                It.IsAny<QuestionActivatedNotificationDto>(),
+                It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Fact]
+    public async Task CloseAndAdvanceAsync_OnLastQuestionOfFinalSubstage_FinishesViaSessionCompletion()
+    {
+        var session = LiveSessionTestFactory.CreateScheduledTrivia(questionCount: 1);
+        ActivateFirstQuestion(session);
+        var substages = OrderedSubstages(session);
+        var repository = CreateRepository();
+        var broadcaster = new Mock<ISessionQuestionBroadcaster>();
+        var facade = CreateFacadeWithRealStrategy(repository, broadcaster);
+
+        await facade.CloseAndAdvanceAsync(session, Now, CancellationToken.None);
+
+        session.State.Should().Be(SessionState.Finished);
+        session.ActiveQuestionIndex.Should().BeNull();
+        // Finished is reached ONLY through the domain's substage-completion path — the flat-list
+        // MoveTo(Finished) shortcut is gone: completion emits SubstageAdvancedEvent(to: null).
+        session.DomainEvents
+            .OfType<SubstageAdvancedEvent>()
+            .Last()
+            .ToSubstageId
+            .Should()
+            .BeNull();
+        session.DomainEvents
+            .OfType<SessionStateChangedEvent>()
+            .Last()
+            .CurrentState
+            .Should()
+            .Be(SessionState.Finished);
+        broadcaster.Verify(
+            current => current.BroadcastSubstageAdvancedAsync(
+                It.Is<SubstageAdvancedNotificationDto>(notification =>
+                    notification.FromSubstageId == substages[0].SubstageSnapshotId &&
+                    notification.ToSubstageId == null),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task CloseAndAdvanceAsync_WhenTickRepeatsAfterAdvance_DoesNotDoubleAdvanceOrRebroadcast()
+    {
+        var session = LiveSessionTestFactory.CreateScheduledTriviaThenTreasureHunt();
+        ActivateFirstQuestion(session);
+        var substages = OrderedSubstages(session);
+        var repository = CreateRepository();
+        var broadcaster = new Mock<ISessionQuestionBroadcaster>();
+        var facade = CreateFacadeWithRealStrategy(repository, broadcaster);
+
+        await facade.CloseAndAdvanceAsync(session, Now, CancellationToken.None);
+        await facade.CloseAndAdvanceAsync(session, Now.AddSeconds(1), CancellationToken.None);
+
+        session.ActiveSubstageId.Should().Be(substages[1].SubstageSnapshotId);
+        broadcaster.Verify(
+            current => current.BroadcastSubstageAdvancedAsync(
+                It.IsAny<SubstageAdvancedNotificationDto>(),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+        broadcaster.Verify(
+            current => current.BroadcastQuestionClosedAsync(
+                It.IsAny<QuestionClosedNotificationDto>(),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    private static TriviaRoundOrchestratorFacade CreateFacadeWithRealStrategy(
+        Mock<ILiveSessionRepository> repository,
+        Mock<ISessionQuestionBroadcaster> broadcaster)
+    {
+        return new TriviaRoundOrchestratorFacade(
+            repository.Object,
+            broadcaster.Object,
+            new SequentialQuestionActivationStrategy(),
+            new SessionStateTransitionPolicy());
+    }
+
+    private static void ActivateFirstQuestion(LiveSession session)
+    {
+        var policy = new SessionStateTransitionPolicy();
+        session.AssociateTeam(Guid.NewGuid(), "Red", "RED-01", 4);
+        session.MoveTo(SessionState.Preparing, Now.AddMinutes(-2), policy);
+        session.MoveTo(SessionState.Active, Now.AddMinutes(-1), policy);
+        session.ActivateQuestion(0, Now.AddMinutes(-1));
+    }
+
+    private static SubstageSnapshot[] OrderedSubstages(LiveSession session)
+    {
+        return session.MissionRuntimeSnapshot.StageSnapshots
+            .OrderBy(stage => stage.SequenceOrder)
+            .SelectMany(stage => stage.SubstageSnapshots.OrderBy(substage => substage.SequenceOrder))
+            .ToArray();
+    }
+
     private static Mock<ILiveSessionRepository> CreateRepository()
     {
         var repository = new Mock<ILiveSessionRepository>();

@@ -1,6 +1,7 @@
 using umbral_backend.Application.Common.Interfaces;
 using umbral_backend.Application.Common.Exceptions;
 using umbral_backend.Application.Sessions.Common;
+using umbral_backend.Domain.Entities;
 using umbral_backend.Domain.Enums;
 using umbral_backend.Domain.Events;
 
@@ -37,9 +38,12 @@ public sealed class TriviaRoundStartedNotificationHandler : INotificationHandler
         var session = await _liveSessionRepository.GetByIdAsync(notification.LiveSessionId, cancellationToken)
             ?? throw new NotFoundException(nameof(umbral_backend.Domain.Entities.LiveSession), notification.LiveSessionId.ToString());
 
+        // Entering Active already set ActiveSubstageId to the first substage (domain). Auto-activation
+        // is trivia-only (ADR-0005 D-4): a treasure-hunt first substage parks — no countdown, no
+        // question. The facade owns the activate flow; this handler stays thin.
         if (session.State != SessionState.Active
-            || !session.MissionRuntimeSnapshot.TriviaQuestionSnapshots.Any()
-            || session.ActiveQuestionIndex is not null)
+            || session.ActiveQuestionIndex is not null
+            || !ActiveSubstageIsTrivia(session))
         {
             return;
         }
@@ -65,5 +69,13 @@ public sealed class TriviaRoundStartedNotificationHandler : INotificationHandler
             session,
             _timeProvider.GetUtcNow(),
             cancellationToken);
+    }
+
+    private static bool ActiveSubstageIsTrivia(LiveSession session)
+    {
+        return session.MissionRuntimeSnapshot.StageSnapshots
+            .SelectMany(stage => stage.SubstageSnapshots)
+            .FirstOrDefault(substage => substage.SubstageSnapshotId == session.ActiveSubstageId)
+            ?.PlayMode == SubstagePlayMode.Trivia;
     }
 }

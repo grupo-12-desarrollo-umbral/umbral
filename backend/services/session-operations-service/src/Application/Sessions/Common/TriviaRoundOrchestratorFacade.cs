@@ -54,11 +54,16 @@ public sealed class TriviaRoundOrchestratorFacade : ITriviaRoundOrchestratorFaca
     {
         ArgumentNullException.ThrowIfNull(session);
 
+        // Idempotency guard: a duplicate/late timer tick after the question already closed (question
+        // exhausted -> substage advanced/parked/finished, all leave ActiveQuestionIndex null) returns
+        // here without re-closing or double-advancing.
         if (!session.ActiveQuestionIndex.HasValue)
         {
             return;
         }
 
+        // Resolved against the CURRENT (still active) question: is there another question left in
+        // this substage? Null => the active substage's last question just closed -> advance substage.
         var nextQuestionIndex = _questionActivationStrategy.Next(session);
         var closedQuestionIndex = session.ActiveQuestionIndex.Value;
 
@@ -81,8 +86,35 @@ public sealed class TriviaRoundOrchestratorFacade : ITriviaRoundOrchestratorFaca
             return;
         }
 
-        session.MoveTo(SessionState.Finished, now, _transitionPolicy);
+        await AdvanceSubstageAsync(session, now, cancellationToken);
+    }
+
+    // The active substage is exhausted: walk to the next substage (ADR-0005). The domain moves the
+    // pointer and raises SubstageAdvancedEvent (or finishes the session when no substage remains —
+    // the ONLY path to Finished). Advancing INTO a trivia substage activates its first question;
+    // a treasure-hunt substage parks (the substage-scoped strategy yields no question, D-4).
+    private async Task AdvanceSubstageAsync(
+        LiveSession session,
+        DateTimeOffset now,
+        CancellationToken cancellationToken)
+    {
+        session.CompleteActiveSubstageAndAdvance(now, _transitionPolicy);
         await _liveSessionRepository.UpdateAsync(session, cancellationToken);
+
+        var advancedEvent = session.DomainEvents.OfType<SubstageAdvancedEvent>().Last();
+        await _sessionQuestionBroadcaster.BroadcastSubstageAdvancedAsync(
+            new SubstageAdvancedNotificationDto(
+                session.LiveSessionId,
+                advancedEvent.FromSubstageId,
+                advancedEvent.FromPlayMode.ToString(),
+                advancedEvent.ToSubstageId,
+                now),
+            cancellationToken);
+
+        if (session.State == SessionState.Active)
+        {
+            await ActivateNextQuestionAsync(session, now, cancellationToken);
+        }
     }
 
     private async Task ActivateQuestionAsync(

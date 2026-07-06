@@ -11,4 +11,8 @@ public interface ISessionQuestionBroadcaster
     Task BroadcastQuestionClosedAsync(
         QuestionClosedNotificationDto notification,
         CancellationToken cancellationToken);
+
+    Task BroadcastSubstageAdvancedAsync(
+        SubstageAdvancedNotificationDto notification,
+        CancellationToken cancellationToken);
 }

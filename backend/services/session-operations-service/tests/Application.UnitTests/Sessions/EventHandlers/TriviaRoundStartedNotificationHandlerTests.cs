@@ -135,11 +135,20 @@ public sealed class TriviaRoundStartedNotificationHandlerTests
 
     private static LiveSession CreateTreasureHuntSession()
     {
-        return LiveSessionTestFactory.CreateScheduledTreasureHunt(
+        var session = LiveSessionTestFactory.CreateScheduledTreasureHunt(
             $"SES-{Guid.NewGuid():N}"[..12],
             "Treasure Session",
             45,
             Now.AddHours(1));
+
+        // Genuinely Active with a treasure-hunt first substage: the handler must PARK on the active
+        // substage's play mode (D-4), not merely because the session is not yet Active.
+        session.AssociateTeam(Guid.NewGuid(), "Alpha", "A-01", 4);
+        var transitionPolicy = new SessionStateTransitionPolicy();
+        session.MoveTo(SessionState.Preparing, Now.AddMinutes(-2), transitionPolicy);
+        session.MoveTo(SessionState.Active, Now.AddMinutes(-1), transitionPolicy);
+
+        return session;
     }
 
     private sealed class ImmediateDelayTimeProvider : TimeProvider

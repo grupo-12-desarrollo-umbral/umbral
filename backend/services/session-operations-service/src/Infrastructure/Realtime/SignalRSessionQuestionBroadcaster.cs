@@ -8,6 +8,7 @@ public sealed class SignalRSessionQuestionBroadcaster : ISessionQuestionBroadcas
 {
     public const string QuestionActivatedMethod = "QuestionActivated";
     public const string QuestionClosedMethod = "QuestionClosed";
+    public const string SubstageAdvancedMethod = "SubstageAdvanced";
 
     private const string SessionsHubTypeName = "umbral_backend.Api.Hubs.SessionsHub";
 
@@ -54,6 +55,25 @@ public sealed class SignalRSessionQuestionBroadcaster : ISessionQuestionBroadcas
         return clients
             .Group($"live-session:{notification.LiveSessionId:D}")
             .SendCoreAsync(QuestionClosedMethod, [notification], cancellationToken);
+    }
+
+    public Task BroadcastSubstageAdvancedAsync(
+        SubstageAdvancedNotificationDto notification,
+        CancellationToken cancellationToken)
+    {
+        var hubContext = ResolveSessionsHubContext();
+        if (hubContext is null)
+        {
+            return Task.CompletedTask;
+        }
+
+        var clients = (IHubClients)hubContext.GetType()
+            .GetProperty(nameof(IHubContext<Hub>.Clients))!
+            .GetValue(hubContext)!;
+
+        return clients
+            .Group($"live-session:{notification.LiveSessionId:D}")
+            .SendCoreAsync(SubstageAdvancedMethod, [notification], cancellationToken);
     }
 
     private object? ResolveSessionsHubContext()
