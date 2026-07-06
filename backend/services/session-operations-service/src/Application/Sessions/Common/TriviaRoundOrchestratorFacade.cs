@@ -99,9 +99,12 @@ public sealed class TriviaRoundOrchestratorFacade : ITriviaRoundOrchestratorFaca
         CancellationToken cancellationToken)
     {
         session.CompleteActiveSubstageAndAdvance(now, _transitionPolicy);
+
+        // Capture the event BEFORE persisting: UpdateAsync -> SaveChanges dispatches and clears
+        // domain events (DispatchDomainEventsInterceptor), so reading it afterwards finds none.
+        var advancedEvent = session.DomainEvents.OfType<SubstageAdvancedEvent>().Last();
         await _liveSessionRepository.UpdateAsync(session, cancellationToken);
 
-        var advancedEvent = session.DomainEvents.OfType<SubstageAdvancedEvent>().Last();
         await _sessionQuestionBroadcaster.BroadcastSubstageAdvancedAsync(
             new SubstageAdvancedNotificationDto(
                 session.LiveSessionId,
