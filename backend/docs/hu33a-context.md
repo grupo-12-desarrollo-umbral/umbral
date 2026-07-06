@@ -90,7 +90,11 @@ Surfaced rather than guessed (`canon-realignment-workflow.md` open-decisions pro
 
 | Commit | Phase | Description |
 |---|---|---|
-| — | — | No commits yet |
+| `766310c` | X.1 Domain | `LiveSession.ActiveSubstageId` + timer-driven `SubstageAdvancement`; `IQuestionActivationStrategy` re-scoped to active substage; flat-list `Finished` path removed (161 domain unit tests) |
+| `2cd9525` | X.2 Application | `TriviaRoundOrchestratorFacade` owns activate/close/advance; flat-list session-finish shortcut deleted (115 app unit tests) |
+| `d10d09d` | (cleanup) | Typed `IHubContext<SessionsHub>` question broadcaster, dropped reflection; moved impl Infrastructure → Api/Hubs |
+| `3b9ee0d` | X.3 Infrastructure | `active_substage_id` (nullable uuid) migration + `LiveSessionConfiguration` mapping; repo round-trip test; unmasked+fixed X.2 facade event-capture-before-persist bug (166 integration + 115 app unit tests) |
+| _pending_ | X.4 Api | Hub integration test: a facade-driven two-substage trivia round broadcasts `QuestionClosed`→`SubstageAdvanced`→`QuestionActivated` to `live-session:{id}` and the timer read exposes the next active-substage question; no new REST/operator-advance endpoint (D-3) |
 
 ## Known quirks / gotchas
 
