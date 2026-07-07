@@ -794,13 +794,14 @@ public sealed class IdentityAccessApiEndpointsTests : IAsyncLifetime
         payload.Should().NotBeNull();
         payload!.Capability.Should().Be("ParticipantExperience");
         payload.IsAllowed.Should().BeTrue();
+        payload.ReasonCode.Should().Be("eligible");
         payload.Reason.Should().Contain("validated");
         payload.LiveSessionId.Should().Be(liveSessionId);
         payload.TeamId.Should().Be(team.TeamId);
     }
 
     [Fact]
-    public async Task ValidateParticipantMembershipAccess_WithNonParticipantHeaders_ReturnsForbidden()
+    public async Task ValidateParticipantMembershipAccess_WithNonParticipantHeaders_ReturnsDeniedDecision()
     {
         await SeedUserAsync("kc-operator-01", "Operator User", "operator@example.com", Role.Operator);
         var team = await SeedTeamAsync("Red Foxes", "RED-01");
@@ -819,11 +820,16 @@ public sealed class IdentityAccessApiEndpointsTests : IAsyncLifetime
                 teamId = team.TeamId
             });
 
-        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var payload = await response.Content.ReadFromJsonAsync<ParticipantMembershipAccessDecisionResponse>();
+        payload.Should().NotBeNull();
+        payload!.IsAllowed.Should().BeFalse();
+        payload.ReasonCode.Should().Be("user-not-participant");
     }
 
     [Fact]
-    public async Task ValidateParticipantMembershipAccess_ForForeignTeam_ReturnsForbidden()
+    public async Task ValidateParticipantMembershipAccess_ForForeignTeam_ReturnsDeniedDecision()
     {
         await SeedUserAsync("kc-participant-01", "Participant User", "participant@example.com", Role.Participant);
         var ownTeam = await SeedTeamAsync("Red Foxes", "RED-01");
@@ -855,12 +861,12 @@ public sealed class IdentityAccessApiEndpointsTests : IAsyncLifetime
                 teamId = foreignTeam.TeamId
             });
 
-        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var problem = await response.Content.ReadFromJsonAsync<ProblemDetails>();
-        problem.Should().NotBeNull();
-        problem!.Status.Should().Be(StatusCodes.Status403Forbidden);
-        problem.Title.Should().Be("Forbidden.");
+        var payload = await response.Content.ReadFromJsonAsync<ParticipantMembershipAccessDecisionResponse>();
+        payload.Should().NotBeNull();
+        payload!.IsAllowed.Should().BeFalse();
+        payload.ReasonCode.Should().Be("participant-not-authorized-for-registered-team");
     }
 
     [Fact]
@@ -1175,6 +1181,7 @@ public sealed class IdentityAccessApiEndpointsTests : IAsyncLifetime
     private sealed record ParticipantMembershipAccessDecisionResponse(
         string Capability,
         bool IsAllowed,
+        string ReasonCode,
         string Reason,
         Guid LiveSessionId,
         Guid TeamId);

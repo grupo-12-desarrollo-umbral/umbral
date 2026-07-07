@@ -1,9 +1,7 @@
-using umbral_backend.Application.Common.Exceptions;
 using umbral_backend.Application.Common.Interfaces;
 using umbral_backend.Application.Permissions.Queries.ValidateParticipantMembershipAccess;
 using umbral_backend.Domain.Entities;
 using umbral_backend.Domain.Enums;
-using umbral_backend.Domain.Services;
 
 namespace umbral_backend.Application.UnitTests.Application.Permissions.Queries.ValidateParticipantMembershipAccess;
 
@@ -21,40 +19,43 @@ public sealed class ValidateParticipantMembershipAccessQueryHandlerTests
 
         result.Capability.Should().Be(nameof(ProtectedCapability.ParticipantExperience));
         result.IsAllowed.Should().BeTrue();
+        result.ReasonCode.Should().Be(ParticipantMembershipAccessReasonCodes.Eligible);
         result.LiveSessionId.Should().Be(query.LiveSessionId);
         result.TeamId.Should().Be(team.TeamId);
     }
 
     [Fact]
-    public async Task Handle_RejectsNonParticipantActor()
+    public async Task Handle_ReturnsDeniedDecisionForNonParticipantActor()
     {
         var actor = CreateUser(16, "kc-operator", Role.Operator);
         var team = CreateTeamWithParticipant(actor.Id);
         var handler = CreateHandler(actor, team);
 
-        var act = async () => await handler.Handle(
+        var result = await handler.Handle(
             new ValidateParticipantMembershipAccessQuery(Guid.NewGuid(), team.TeamId),
             CancellationToken.None);
 
-        await act.Should().ThrowAsync<umbral_backend.Domain.Exceptions.UserRoleNotAuthorizedException>();
+        result.IsAllowed.Should().BeFalse();
+        result.ReasonCode.Should().Be(ParticipantMembershipAccessReasonCodes.UserNotParticipant);
     }
 
     [Fact]
-    public async Task Handle_RejectsWhenParticipantHasNoMembership()
+    public async Task Handle_ReturnsDeniedDecisionWhenParticipantHasNoMembership()
     {
         var actor = CreateUser(17, "kc-participant-no-membership", Role.Participant);
         var team = RegisteredTeam.Register("Blue Team", "BLUE-01");
         var handler = CreateHandler(actor, team);
 
-        var act = async () => await handler.Handle(
+        var result = await handler.Handle(
             new ValidateParticipantMembershipAccessQuery(Guid.NewGuid(), team.TeamId),
             CancellationToken.None);
 
-        await act.Should().ThrowAsync<ForbiddenAccessException>();
+        result.IsAllowed.Should().BeFalse();
+        result.ReasonCode.Should().Be(ParticipantMembershipAccessReasonCodes.ParticipantNotAuthorizedForRegisteredTeam);
     }
 
     [Fact]
-    public async Task Handle_RejectsWhenParticipantTargetsAnotherTeam()
+    public async Task Handle_ReturnsDeniedDecisionWhenParticipantTargetsAnotherTeam()
     {
         var actor = CreateUser(18, "kc-participant-other-team", Role.Participant);
         var ownTeam = CreateTeamWithParticipant(actor.Id);
@@ -69,11 +70,47 @@ public sealed class ValidateParticipantMembershipAccessQueryHandlerTests
 
         var handler = CreateHandler(actor, teamRepository);
 
-        var act = async () => await handler.Handle(
+        var result = await handler.Handle(
             new ValidateParticipantMembershipAccessQuery(Guid.NewGuid(), otherTeam.TeamId),
             CancellationToken.None);
 
-        await act.Should().ThrowAsync<ForbiddenAccessException>();
+        result.IsAllowed.Should().BeFalse();
+        result.ReasonCode.Should().Be(ParticipantMembershipAccessReasonCodes.ParticipantNotAuthorizedForRegisteredTeam);
+    }
+
+    [Fact]
+    public async Task Handle_ReturnsDeniedDecisionWhenActorIsDeactivated()
+    {
+        var actor = CreateUser(19, "kc-participant-inactive", Role.Participant);
+        actor.DeactivateAccess();
+        var team = CreateTeamWithParticipant(actor.Id);
+        var handler = CreateHandler(actor, team);
+
+        var result = await handler.Handle(
+            new ValidateParticipantMembershipAccessQuery(Guid.NewGuid(), team.TeamId),
+            CancellationToken.None);
+
+        result.IsAllowed.Should().BeFalse();
+        result.ReasonCode.Should().Be(ParticipantMembershipAccessReasonCodes.UserAccessDeactivated);
+    }
+
+    [Fact]
+    public async Task Handle_ReturnsDeniedDecisionWhenTeamDoesNotExist()
+    {
+        var actor = CreateUser(20, "kc-participant-missing-team", Role.Participant);
+        var teamRepository = new Mock<ITeamRepository>();
+        teamRepository
+            .Setup(repository => repository.GetByIdWithMembershipsAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((RegisteredTeam?)null);
+
+        var handler = CreateHandler(actor, teamRepository);
+
+        var result = await handler.Handle(
+            new ValidateParticipantMembershipAccessQuery(Guid.NewGuid(), Guid.NewGuid()),
+            CancellationToken.None);
+
+        result.IsAllowed.Should().BeFalse();
+        result.ReasonCode.Should().Be(ParticipantMembershipAccessReasonCodes.RegisteredTeamNotFound);
     }
 
     private static ParticipantMembershipAccessAuthorizationProxy CreateHandler(User actor, RegisteredTeam team)
@@ -98,7 +135,6 @@ public sealed class ValidateParticipantMembershipAccessQueryHandlerTests
         return new ParticipantMembershipAccessAuthorizationProxy(
             teamRepository.Object,
             currentActor.Object,
-            new AccessPolicy(),
             new ValidateParticipantMembershipAccessQueryHandler());
     }
 

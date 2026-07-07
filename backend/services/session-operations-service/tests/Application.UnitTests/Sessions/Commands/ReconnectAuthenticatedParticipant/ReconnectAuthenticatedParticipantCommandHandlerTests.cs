@@ -223,6 +223,7 @@ public sealed class ReconnectAuthenticatedParticipantCommandHandlerTests
             .ReturnsAsync(new ParticipantMembershipAccessDecisionDto(
                 "ParticipantExperience",
                 isAllowed,
+                isAllowed ? "eligible" : "users-unavailable",
                 isAllowed ? "allowed" : "denied",
                 liveSessionId,
                 teamId));

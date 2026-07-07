@@ -13,6 +13,8 @@ public sealed class FakeParticipantMembershipAccessClient : IParticipantMembersh
 
     public string Capability { get; set; } = "ParticipantExperience";
 
+    public string ReasonCode { get; set; } = "eligible";
+
     public string Reason { get; set; } = "Membership validated.";
 
     public Task<ParticipantMembershipAccessDecisionDto> ValidateAsync(
@@ -24,6 +26,7 @@ public sealed class FakeParticipantMembershipAccessClient : IParticipantMembersh
         return Task.FromResult(new ParticipantMembershipAccessDecisionDto(
             Capability,
             IsAllowed,
+            ReasonCode,
             Reason,
             liveSessionId,
             teamId));
