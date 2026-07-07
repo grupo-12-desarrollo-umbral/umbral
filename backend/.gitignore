@@ -496,3 +496,6 @@ $RECYCLE.BIN/
 
 # Compact-summary build/test/gate logs (make routes verbose dotnet output here)
 .make-logs/
+
+# Local environment files
+.env
