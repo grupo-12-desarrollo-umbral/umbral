@@ -1,7 +1,5 @@
-using umbral_backend.Application.Common.Exceptions;
 using umbral_backend.Application.Common.Interfaces;
 using umbral_backend.Domain.Enums;
-using umbral_backend.Domain.Services;
 
 namespace umbral_backend.Application.Permissions.Queries.ValidateParticipantMembershipAccess;
 
@@ -10,18 +8,15 @@ public sealed class ParticipantMembershipAccessAuthorizationProxy
 {
     private readonly ITeamRepository _teamRepository;
     private readonly ICurrentActor _currentActor;
-    private readonly AccessPolicy _accessPolicy;
     private readonly ValidateParticipantMembershipAccessQueryHandler _inner;
 
     public ParticipantMembershipAccessAuthorizationProxy(
         ITeamRepository teamRepository,
         ICurrentActor currentActor,
-        AccessPolicy accessPolicy,
         ValidateParticipantMembershipAccessQueryHandler inner)
     {
         _teamRepository = teamRepository;
         _currentActor = currentActor;
-        _accessPolicy = accessPolicy;
         _inner = inner;
     }
 
@@ -31,18 +26,62 @@ public sealed class ParticipantMembershipAccessAuthorizationProxy
     {
         var actor = await _currentActor.GetActorAsync(cancellationToken);
 
-        _accessPolicy.EnsureCanAccess(actor, ProtectedCapability.ParticipantExperience);
-
         var team = await _teamRepository.GetByIdWithMembershipsAsync(request.TeamId, cancellationToken);
-        var belongsToTeam = team is not null
-            && team.IsActive
-            && team.Memberships.Any(membership => membership.UserId == actor.Id);
 
-        if (!belongsToTeam)
+        if (!actor.IsActive)
         {
-            throw new ForbiddenAccessException();
+            return Deny(
+                request,
+                ParticipantMembershipAccessReasonCodes.UserAccessDeactivated,
+                "User is deactivated in Users.");
+        }
+
+        if (actor.Role != Role.Participant)
+        {
+            return Deny(
+                request,
+                ParticipantMembershipAccessReasonCodes.UserNotParticipant,
+                "User is not a participant.");
+        }
+
+        if (team is null)
+        {
+            return Deny(
+                request,
+                ParticipantMembershipAccessReasonCodes.RegisteredTeamNotFound,
+                "Registered team was not found.");
+        }
+
+        if (!team.IsActive)
+        {
+            return Deny(
+                request,
+                ParticipantMembershipAccessReasonCodes.RegisteredTeamInactive,
+                "Registered team is inactive.");
+        }
+
+        if (!team.Memberships.Any(membership => membership.UserId == actor.Id))
+        {
+            return Deny(
+                request,
+                ParticipantMembershipAccessReasonCodes.ParticipantNotAuthorizedForRegisteredTeam,
+                "Participant is not authorized for the registered team.");
         }
 
         return await _inner.Handle(request, cancellationToken);
+    }
+
+    private static ParticipantMembershipAccessDecisionDto Deny(
+        ValidateParticipantMembershipAccessQuery request,
+        string reasonCode,
+        string reason)
+    {
+        return new ParticipantMembershipAccessDecisionDto(
+            nameof(ProtectedCapability.ParticipantExperience),
+            false,
+            reasonCode,
+            reason,
+            request.LiveSessionId,
+            request.TeamId);
     }
 }

@@ -20,6 +20,7 @@ public sealed class ValidateParticipantMembershipAccessQueryHandler
         return Task.FromResult(new ParticipantMembershipAccessDecisionDto(
             decision.Capability.ToString(),
             decision.IsAllowed,
+            ParticipantMembershipAccessReasonCodes.Eligible,
             decision.Reason,
             query.LiveSessionId,
             query.TeamId));

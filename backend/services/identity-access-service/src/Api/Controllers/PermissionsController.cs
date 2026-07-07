@@ -1,6 +1,4 @@
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using umbral_backend.Api.Services;
 using umbral_backend.Application.Permissions.Queries.CheckProtectedCapabilityAccess;
 using umbral_backend.Application.Permissions.Queries.ValidateParticipantMembershipAccess;
 using umbral_backend.Domain.Enums;
@@ -23,7 +21,6 @@ public sealed class PermissionsController(ISender sender) : ControllerBase
     }
 
     [HttpPost("participant-membership-access")]
-    [Authorize(Policy = AuthorizationPolicies.Participant)]
     public async Task<ActionResult<ParticipantMembershipAccessDecisionDto>> ValidateParticipantMembershipAccessAsync(
         ValidateParticipantMembershipAccessRequest request,
         CancellationToken cancellationToken)

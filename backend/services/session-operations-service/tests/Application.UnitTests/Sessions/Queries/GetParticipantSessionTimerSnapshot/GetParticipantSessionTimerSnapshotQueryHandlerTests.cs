@@ -163,6 +163,7 @@ public sealed class GetParticipantSessionTimerSnapshotQueryHandlerTests
             .ReturnsAsync(new ParticipantMembershipAccessDecisionDto(
                 "ParticipantExperience",
                 isAllowed,
+                isAllowed ? "eligible" : "users-unavailable",
                 isAllowed ? "allowed" : "denied",
                 liveSessionId,
                 teamId));
