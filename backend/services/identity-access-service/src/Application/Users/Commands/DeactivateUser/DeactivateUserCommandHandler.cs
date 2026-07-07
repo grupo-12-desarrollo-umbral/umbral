@@ -12,15 +12,18 @@ public sealed class DeactivateUserCommandHandler : IRequestHandler<DeactivateUse
     private readonly IUserRepository _userRepository;
     private readonly ICurrentActor _currentActor;
     private readonly AccessPolicy _accessPolicy;
+    private readonly IIdentityProviderAdminService _identityProviderAdmin;
 
     public DeactivateUserCommandHandler(
         IUserRepository userRepository,
         ICurrentActor currentActor,
-        AccessPolicy accessPolicy)
+        AccessPolicy accessPolicy,
+        IIdentityProviderAdminService identityProviderAdmin)
     {
         _userRepository = userRepository;
         _currentActor = currentActor;
         _accessPolicy = accessPolicy;
+        _identityProviderAdmin = identityProviderAdmin;
     }
 
     public async Task Handle(DeactivateUserCommand request, CancellationToken cancellationToken)
@@ -33,6 +36,12 @@ public sealed class DeactivateUserCommandHandler : IRequestHandler<DeactivateUse
             ?? throw new NotFoundException(nameof(User), request.UserId);
 
         user.DeactivateAccess();
+
+        // Keycloak-first: disable the account at the identity provider before committing
+        // IsActive=false. If the sync throws, UpdateAsync never runs, so both stores stay active —
+        // no half-closed gap where a deactivated app user still receives fresh JWTs. Mirrors
+        // AssignUserRole. See ADR-0007 (frontend/docs/adr/0007-role-authority-app-database).
+        await _identityProviderAdmin.SyncUserActiveStateAsync(user.ExternalIdentityId, isActive: false, cancellationToken);
 
         await _userRepository.UpdateAsync(user, cancellationToken);
     }
