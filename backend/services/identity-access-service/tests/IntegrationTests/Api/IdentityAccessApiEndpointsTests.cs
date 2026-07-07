@@ -766,104 +766,13 @@ public sealed class IdentityAccessApiEndpointsTests : IAsyncLifetime
         payload.Should().BeEmpty();
     }
 
-    [Theory]
-    [InlineData(Role.Administrator)]
-    [InlineData(Role.Operator)]
-    public async Task IssueJoinToken_WithAuthorizedHeaders_ReturnsCreatedAndPersistsHashedToken(Role actorRole)
-    {
-        var actorEmail = actorRole == Role.Administrator ? "admin@example.com" : "operator@example.com";
-        var actorExternalId = actorRole == Role.Administrator ? "kc-admin-01" : "kc-operator-01";
-        await SeedUserAsync(actorExternalId, $"{actorRole} User", actorEmail, actorRole);
-        var team = await SeedTeamAsync("Red Foxes", "RED-01");
-        var liveSessionId = Guid.NewGuid();
-
-        AddTrustedHeaders(
-            _client,
-            userId: actorExternalId,
-            role: actorRole.ToString(),
-            email: actorEmail);
-
-        var response = await _client.PostAsJsonAsync(
-            "/api/join-tokens",
-            new
-            {
-                liveSessionId,
-                teamId = team.TeamId,
-                expiresInSeconds = 300
-            });
-
-        response.StatusCode.Should().Be(HttpStatusCode.Created);
-        response.Headers.Location.Should().NotBeNull();
-
-        var payload = await response.Content.ReadFromJsonAsync<IssuedJoinTokenResponse>();
-        payload.Should().NotBeNull();
-        payload!.JoinTokenId.Should().NotBe(Guid.Empty);
-        payload.Token.Should().NotBeNullOrWhiteSpace();
-        payload.LiveSessionId.Should().Be(liveSessionId);
-        payload.TeamId.Should().Be(team.TeamId);
-        payload.ExpiresAt.Should().BeAfter(DateTimeOffset.UtcNow);
-
-        await using var scope = _factory.Services.CreateAsyncScope();
-        var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        var persistedJoinToken = await dbContext.JoinTokens.SingleAsync(item => item.JoinTokenId == payload.JoinTokenId);
-
-        persistedJoinToken.LiveSessionId.Should().Be(liveSessionId);
-        persistedJoinToken.TeamId.Should().Be(team.TeamId);
-        persistedJoinToken.TokenHash.Should().NotBe(payload.Token);
-        persistedJoinToken.TokenHash.Should().NotBeNullOrWhiteSpace();
-    }
-
-    [Fact]
-    public async Task IssueJoinToken_WithNonAdminOrOperatorHeaders_ReturnsForbidden()
-    {
-        await SeedUserAsync("kc-participant-01", "Participant User", "participant@example.com", Role.Participant);
-        var team = await SeedTeamAsync("Red Foxes", "RED-01");
-
-        AddTrustedHeaders(
-            _client,
-            userId: "kc-participant-01",
-            role: "Participant",
-            email: "participant@example.com");
-
-        var response = await _client.PostAsJsonAsync(
-            "/api/join-tokens",
-            new
-            {
-                liveSessionId = Guid.NewGuid(),
-                teamId = team.TeamId,
-                expiresInSeconds = 300
-            });
-
-        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
-    }
-
     [Fact]
     public async Task ValidateParticipantMembershipAccess_WithParticipantHeaders_ReturnsAllowedAccessDecision()
     {
-        await SeedUserAsync("kc-admin-01", "Admin User", "admin@example.com", Role.Administrator);
         var participant = await SeedUserAsync("kc-participant-01", "Participant User", "participant@example.com", Role.Participant);
         var team = await SeedTeamAsync("Red Foxes", "RED-01");
         await AddMembershipAsync(team.TeamId, participant.Id);
         var liveSessionId = Guid.NewGuid();
-
-        AddTrustedHeaders(
-            _client,
-            userId: "kc-admin-01",
-            role: "Administrator",
-            email: "admin@example.com");
-
-        var issuedTokenResponse = await _client.PostAsJsonAsync(
-            "/api/join-tokens",
-            new
-            {
-                liveSessionId,
-                teamId = team.TeamId,
-                expiresInSeconds = 300
-            });
-
-        issuedTokenResponse.StatusCode.Should().Be(HttpStatusCode.Created);
-        var issuedToken = await issuedTokenResponse.Content.ReadFromJsonAsync<IssuedJoinTokenResponse>();
-        issuedToken.Should().NotBeNull();
 
         AddTrustedHeaders(
             _client,
@@ -876,8 +785,7 @@ public sealed class IdentityAccessApiEndpointsTests : IAsyncLifetime
             new
             {
                 liveSessionId,
-                teamId = team.TeamId,
-                token = issuedToken!.Token
+                teamId = team.TeamId
             });
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -908,8 +816,7 @@ public sealed class IdentityAccessApiEndpointsTests : IAsyncLifetime
             new
             {
                 liveSessionId = Guid.NewGuid(),
-                teamId = team.TeamId,
-                token = "opaque-token"
+                teamId = team.TeamId
             });
 
         response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
@@ -1264,13 +1171,6 @@ public sealed class IdentityAccessApiEndpointsTests : IAsyncLifetime
         string Capability,
         bool IsAllowed,
         string Reason);
-
-    private sealed record IssuedJoinTokenResponse(
-        Guid JoinTokenId,
-        string Token,
-        Guid LiveSessionId,
-        Guid TeamId,
-        DateTimeOffset ExpiresAt);
 
     private sealed record ParticipantMembershipAccessDecisionResponse(
         string Capability,

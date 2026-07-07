@@ -30,6 +30,5 @@ public static class PersistenceServiceExtensions
         builder.Services.AddScoped<IDatabaseHealthCheck, DatabaseHealthCheck>();
         builder.Services.AddScoped<IUserRepository, UserRepository>();
         builder.Services.AddScoped<ITeamRepository, TeamRepository>();
-        builder.Services.AddScoped<IJoinTokenRepository, JoinTokenRepository>();
     }
 }

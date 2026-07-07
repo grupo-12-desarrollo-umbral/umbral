@@ -3,7 +3,7 @@ using umbral_backend.Application.Common.Interfaces;
 using umbral_backend.Domain.Enums;
 using umbral_backend.Domain.Services;
 
-namespace umbral_backend.Application.JoinTokens.Queries.ValidateParticipantMembershipAccess;
+namespace umbral_backend.Application.Permissions.Queries.ValidateParticipantMembershipAccess;
 
 public sealed class ParticipantMembershipAccessAuthorizationProxy
     : IRequestHandler<ValidateParticipantMembershipAccessQuery, ParticipantMembershipAccessDecisionDto>
