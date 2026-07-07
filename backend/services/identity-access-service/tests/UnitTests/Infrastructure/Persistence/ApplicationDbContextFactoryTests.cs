@@ -24,4 +24,16 @@ public sealed class ApplicationDbContextFactoryTests
             Environment.SetEnvironmentVariable("IDENTITY_ACCESS_SERVICE_CONNECTION_STRING", null);
         }
     }
+
+    [Fact]
+    public void CreateDbContext_FallsBackToDesignTimeConnectionString_WhenEnvironmentVariableAbsent()
+    {
+        Environment.SetEnvironmentVariable("IDENTITY_ACCESS_SERVICE_CONNECTION_STRING", null);
+
+        var factory = new ApplicationDbContextFactory();
+
+        using var context = factory.CreateDbContext([]);
+
+        context.Database.GetConnectionString().Should().Contain("Database=identity_access_service");
+    }
 }

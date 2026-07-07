@@ -4,6 +4,7 @@ using umbral_backend.Infrastructure.Identity;
 using umbral_backend.Infrastructure.Identity.Keycloak;
 using umbral_backend.Infrastructure.Security;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Options;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -17,8 +18,12 @@ public static class DependencyInjection
         builder.Services.TryAddScoped<ICurrentUser, CurrentUser>();
         builder.Services.TryAddSingleton<IJoinTokenTokenService, JoinTokenTokenService>();
 
-        builder.Services.Configure<KeycloakOptions>(
-            builder.Configuration.GetSection(KeycloakOptions.SectionName));
+        builder.Services.AddOptions<KeycloakOptions>()
+            .Bind(builder.Configuration.GetSection(KeycloakOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+        builder.Services.AddSingleton<IValidateOptions<KeycloakOptions>>(
+            new KeycloakOptionsValidator(builder.Environment.IsDevelopment()));
 
         builder.Services.AddHttpClient<IIdentityProviderAdminService, KeycloakAdminService>(client =>
         {
