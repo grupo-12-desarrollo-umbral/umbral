@@ -12,16 +12,13 @@ public sealed class SessionTeamAssociationFacade : ISessionTeamAssociationFacade
 {
     private readonly ILiveSessionRepository _liveSessionRepository;
     private readonly ITeamReferenceCatalogClient _teamReferenceCatalogClient;
-    private readonly ISessionTeamAssociationSyncClient _sessionTeamAssociationSyncClient;
 
     public SessionTeamAssociationFacade(
         ILiveSessionRepository liveSessionRepository,
-        ITeamReferenceCatalogClient teamReferenceCatalogClient,
-        ISessionTeamAssociationSyncClient sessionTeamAssociationSyncClient)
+        ITeamReferenceCatalogClient teamReferenceCatalogClient)
     {
         _liveSessionRepository = liveSessionRepository;
         _teamReferenceCatalogClient = teamReferenceCatalogClient;
-        _sessionTeamAssociationSyncClient = sessionTeamAssociationSyncClient;
     }
 
     public Task<AssociateTeamToSessionResultDto> AssociateAsync(
@@ -87,15 +84,6 @@ public sealed class SessionTeamAssociationFacade : ISessionTeamAssociationFacade
             Math.Max(1, teamReference.ParticipantCount));
 
         await _liveSessionRepository.UpdateAsync(liveSession, cancellationToken);
-
-        // Propagate to identity-access so the participant lobby reflects the association.
-        // Write-time coupling (not a transactional outbox); the sync call is idempotent so the
-        // operator can retry if it hard-fails.
-        await _sessionTeamAssociationSyncClient.SyncAssociationAsync(
-            liveSession.LiveSessionId,
-            liveSession.SessionCode,
-            teamReference.TeamId,
-            cancellationToken);
 
         return new AssociateTeamToSessionResultDto(
             liveSession.LiveSessionId,

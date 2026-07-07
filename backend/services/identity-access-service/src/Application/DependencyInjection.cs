@@ -6,7 +6,6 @@ using umbral_backend.Application.Users.Commands.AssignUserRole;
 using umbral_backend.Application.Common.Behaviours;
 using umbral_backend.Application.JoinTokens.Commands.IssueJoinToken;
 using umbral_backend.Application.JoinTokens.Queries.ValidateParticipantMembershipAccess;
-using umbral_backend.Application.Sessions.Queries.GetSessionTeamsForParticipant;
 using umbral_backend.Domain.Services;
 
 namespace Microsoft.Extensions.DependencyInjection;
@@ -39,6 +38,5 @@ public static class DependencyInjection
         builder.Services.AddScoped<AssignUserRoleCommandHandler>();
         builder.Services.AddScoped<IssueJoinTokenCommandHandler>();
         builder.Services.AddScoped<ValidateParticipantMembershipAccessQueryHandler>();
-        builder.Services.AddScoped<GetSessionTeamsForParticipantQueryHandler>();
     }
 }
