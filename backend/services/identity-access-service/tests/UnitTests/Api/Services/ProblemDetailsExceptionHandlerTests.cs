@@ -99,16 +99,6 @@ public sealed class ProblemDetailsExceptionHandlerTests
             "Conflict.");
         await AssertHandledAsync(
             handler,
-            new JoinTokenExpiredException(Guid.NewGuid(), DateTimeOffset.UtcNow.AddMinutes(-1), DateTimeOffset.UtcNow),
-            StatusCodes.Status409Conflict,
-            "Conflict.");
-        await AssertHandledAsync(
-            handler,
-            new JoinTokenReplayRejectedException(Guid.NewGuid(), global::umbral_backend.Domain.Enums.JoinTokenStatus.Consumed),
-            StatusCodes.Status409Conflict,
-            "Conflict.");
-        await AssertHandledAsync(
-            handler,
             new TeamDisplayNameRequiredException(),
             StatusCodes.Status400BadRequest,
             "Validation failed.");
@@ -117,11 +107,6 @@ public sealed class ProblemDetailsExceptionHandlerTests
             new UserNotParticipantRoleException(12, global::umbral_backend.Domain.Enums.Role.Operator),
             StatusCodes.Status422UnprocessableEntity,
             "Unprocessable entity.");
-        await AssertHandledAsync(
-            handler,
-            new JoinTokenExpirationInvalidException(),
-            StatusCodes.Status400BadRequest,
-            "Validation failed.");
     }
 
     [Fact]

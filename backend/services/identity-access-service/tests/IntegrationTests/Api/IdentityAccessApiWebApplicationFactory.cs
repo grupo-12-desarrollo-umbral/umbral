@@ -47,7 +47,7 @@ public sealed class IdentityAccessApiWebApplicationFactory : WebApplicationFacto
         var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
         await dbContext.Database.ExecuteSqlRawAsync(
-            "TRUNCATE TABLE join_tokens, users, registered_teams RESTART IDENTITY CASCADE;");
+            "TRUNCATE TABLE users, registered_teams RESTART IDENTITY CASCADE;");
     }
 
     protected override void Dispose(bool disposing)

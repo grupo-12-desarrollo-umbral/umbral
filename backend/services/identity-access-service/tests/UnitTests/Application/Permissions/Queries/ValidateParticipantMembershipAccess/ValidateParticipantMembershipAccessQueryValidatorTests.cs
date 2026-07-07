@@ -1,6 +1,6 @@
-using umbral_backend.Application.JoinTokens.Queries.ValidateParticipantMembershipAccess;
+using umbral_backend.Application.Permissions.Queries.ValidateParticipantMembershipAccess;
 
-namespace umbral_backend.Application.UnitTests.Application.JoinTokens.Queries.ValidateParticipantMembershipAccess;
+namespace umbral_backend.Application.UnitTests.Application.Permissions.Queries.ValidateParticipantMembershipAccess;
 
 public sealed class ValidateParticipantMembershipAccessQueryValidatorTests
 {
@@ -11,8 +11,7 @@ public sealed class ValidateParticipantMembershipAccessQueryValidatorTests
     {
         var result = await _validator.ValidateAsync(new ValidateParticipantMembershipAccessQuery(
             Guid.NewGuid(),
-            Guid.NewGuid(),
-            "join-token"));
+            Guid.NewGuid()));
 
         result.IsValid.Should().BeTrue();
     }
@@ -22,8 +21,7 @@ public sealed class ValidateParticipantMembershipAccessQueryValidatorTests
     {
         var result = await _validator.ValidateAsync(new ValidateParticipantMembershipAccessQuery(
             Guid.Empty,
-            Guid.Empty,
-            null));
+            Guid.Empty));
 
         result.IsValid.Should().BeFalse();
         result.Errors.Select(error => error.PropertyName).Should().BeEquivalentTo(

@@ -1,9 +1,8 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using umbral_backend.Api.Services;
-using umbral_backend.Application.JoinTokens.Queries.ValidateParticipantMembershipAccess;
 using umbral_backend.Application.Permissions.Queries.CheckProtectedCapabilityAccess;
-using umbral_backend.Application.Permissions.Queries.CheckProtectedCapabilityAccess;
+using umbral_backend.Application.Permissions.Queries.ValidateParticipantMembershipAccess;
 using umbral_backend.Domain.Enums;
 
 namespace umbral_backend.Api.Controllers;
@@ -30,14 +29,15 @@ public sealed class PermissionsController(ISender sender) : ControllerBase
         CancellationToken cancellationToken)
     {
         var result = await sender.Send(
-            new ValidateParticipantMembershipAccessQuery(request.LiveSessionId, request.TeamId, request.Token),
+            new ValidateParticipantMembershipAccessQuery(request.LiveSessionId, request.TeamId),
             cancellationToken);
 
         return Ok(result);
     }
 
+    // Join-token validation moved to session-operations (issue #87); Users answers team-membership
+    // eligibility only. A stray `token` field from an older client is ignored by the JSON binder.
     public sealed record ValidateParticipantMembershipAccessRequest(
         Guid LiveSessionId,
-        Guid TeamId,
-        string? Token);
+        Guid TeamId);
 }

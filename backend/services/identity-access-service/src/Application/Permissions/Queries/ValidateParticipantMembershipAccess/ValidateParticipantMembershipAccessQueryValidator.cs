@@ -1,4 +1,4 @@
-namespace umbral_backend.Application.JoinTokens.Queries.ValidateParticipantMembershipAccess;
+namespace umbral_backend.Application.Permissions.Queries.ValidateParticipantMembershipAccess;
 
 public sealed class ValidateParticipantMembershipAccessQueryValidator : AbstractValidator<ValidateParticipantMembershipAccessQuery>
 {

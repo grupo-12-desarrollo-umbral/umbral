@@ -16,8 +16,6 @@ public sealed class ApplicationDbContext : DbContext
 
     public DbSet<RegisteredTeamMembership> RegisteredTeamMemberships => Set<RegisteredTeamMembership>();
 
-    public DbSet<JoinToken> JoinTokens => Set<JoinToken>();
-
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
