@@ -458,15 +458,18 @@ test('admin can publish a ready draft quiz', async ({ adminPage: page }) => {
 })
 
 test('published quiz shows source ready as Yes in list view', async ({ adminPage: page }) => {
+  // Unique title: these e2e tests persist real rows, so a static title collides across reruns
+  // (many 'Published List Check' rows → strict-mode violation on the source-ready chip).
+  const quizTitle = `Published List Check ${Date.now()}`
   await page.goto('/dashboard')
-  await createReadyDraftQuiz(page, 'Published List Check')
+  await createReadyDraftQuiz(page, quizTitle)
 
   await page.click('[data-testid="publish-trivia-btn"]')
   await page.click('[data-testid="confirm-publish-btn"]')
 
   await page.getByRole('button', { name: '← Back to trivia quizzes' }).click()
 
-  const row = page.locator('[data-testid^="trivia-row-"]').filter({ hasText: 'Published List Check' })
+  const row = page.locator('[data-testid^="trivia-row-"]').filter({ hasText: quizTitle })
   await expect(row.locator('[data-testid^="trivia-source-ready-"]')).toContainText('Yes')
 })
 
