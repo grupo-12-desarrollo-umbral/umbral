@@ -63,7 +63,7 @@ labels, green base) and stops at the phase menu:
 ```text
 Read @backend/.agents/driver-agent.md.
 
-Run driver-agent for backend/docs/prompt_example_feature_hu<NN>.md.
+Run driver-agent for backend/docs/hu<NN>-brief.md.
 ```
 
 | Phase | Layer | Gate |
@@ -112,7 +112,7 @@ One full pass, generate → close-out. `<NN>` is the HU number, `<N>` the Linear
 |---|---|
 | Generate | `Read @backend/.agents/generator-agent.md. Run generator-agent for HU-<NN> DES-<N>.` |
 | Stop 1 | Review both generated files; regenerate on a defect, otherwise proceed |
-| Drive | `Read @backend/.agents/driver-agent.md. Run driver-agent for backend/docs/prompt_example_feature_hu<NN>.md.` |
+| Drive | `Read @backend/.agents/driver-agent.md. Run driver-agent for backend/docs/hu<NN>-brief.md.` |
 | Phase pick × 4 | `X.1` → `X.2` → `X.3` → `X.4` (one reply per phase) |
 | Pattern validate × 4 | Confirm the detected design pattern when the driver presents it (driver Step B) |
 | Commit approval × 4 | Approve each phase's commit when the gate is green (driver Step F) |
@@ -130,11 +130,12 @@ validations, and four commit approvals are the bulk of it.
 Dependencies come from each ticket's *Blocked by* + the realignment links.
 Phases 5–6 may run in parallel once DES-24 lands.
 
-> **Status as of 2026-06-30:** rows 1, 2, 2b done, and row 7's code is done
-> (PRs #31/#33/#48/#49/#50/#51/#53/#23). Row #3 (DES-24 / HU-17) is code-complete
-> and **in review (PR #72)** — all four layers implemented, 370/370 session-operations
-> tests green. The critical path now **advances to row #4 (DES-75 / HU-16)**, then the
-> 76 → 77 rebuild chain. DES-80 (row 2c) is an ungated low-priority pickup runnable any time.
+> **Status as of 2026-07-05:** rows 1, 2, 2b, 3, and 7 done. The 4→5→6 realign
+> chain is **complete** — DES-75 / HU-16 (PR #73), DES-76 / HU-21A (PR #75), and
+> DES-77 / HU-22 (PR #79) are all merged. The critical path now **advances to
+> row #10 (DES-78 / HU-33A)** — synchronized trivia substage — which is **In
+> Progress** (generate the brief, then drive). DES-80 (row 2c) remains an ungated
+> low-priority pickup runnable any time.
 
 | # | Ticket(s) | HU | What | Note |
 |---|---|---|---|---|
@@ -142,16 +143,30 @@ Phases 5–6 may run in parallel once DES-24 lands.
 | 2 | DES-22 | HU-15 | Create `LiveSession` from active mission; immutable snapshot | ✅ **DONE** (PR #50, 2026-06-22). |
 | 2b | DES-79 | HU-15 f/u | Archive-time enforcement: block/cascade when archiving a quiz referenced by an active mission | ✅ **DONE** (PRs #51 + #53, 2026-06-22). |
 | 2c | DES-80 | HU-14A f/u | `RemoveTriviaQuestion` command + question-removal domain slot + `TriviaQuestionRemoved` event | ⬜ **OPEN** (Backlog, Low) — deferred follow-up to HU-14A, **ungated** (HU-14A/DES-20 is Done); not a rebuild, not on the critical path — schedule any time (see below). |
-| 3 | DES-24 | HU-17 | Single mission source; drop "session from quiz" | 🔄 **IN REVIEW** (PR #72) — rebuild; all 4 layers (X.1–X.4) implemented, 370/370 session-operations tests green. Not merged. |
-| 4 | DES-75 | HU-16 | Trivia selection as a Substage, not a session | ⬜ **OPEN** (Todo) — rebuild (supersedes DES-23, shipped pre-canon as PR #19). **← next critical-path ticket** |
-| 5 | DES-76 | HU-21A | State machine `Scheduled→Preparing→Active→Paused→Finished→Cancelled` | ⬜ **OPEN** (Todo) — rebuild (supersedes DES-28, shipped pre-canon as PR #21) |
-| 6 | DES-77 | HU-22 | Timer keyed off active `SubstagePlayMode` | ⬜ **OPEN** (Todo) — rebuild (supersedes DES-30, shipped pre-canon as PR #22) |
+| 3 | DES-24 | HU-17 | Single mission source; drop "session from quiz" | ✅ **DONE** (PR #72) — rebuild; all 4 layers (X.1–X.4), 370/370 session-operations tests green. |
+| 4 | DES-75 | HU-16 | Trivia selection as a Substage, not a session | ✅ **DONE** (PR #73) — rebuild (supersedes DES-23, shipped pre-canon as PR #19). |
+| 5 | DES-76 | HU-21A | State machine `Scheduled→Preparing→Active→Paused→Finished→Cancelled` | ✅ **DONE** (PR #75) — rebuild (supersedes DES-28, shipped pre-canon as PR #21). |
+| 6 | DES-77 | HU-22 | Timer keyed off active `SubstagePlayMode` | ✅ **DONE** (PR #79) — rebuild (supersedes DES-30, shipped pre-canon as PR #22). |
 | 7 | DES-25 | HU-18 | Attach teams during `Scheduled` | ✅ code **DONE** (PR #23); only an AC reword may remain — confirm before re-running. |
 | 8 | DES-39/40/41/42/43 | HU-29–32 | Evidence intake + QR Target resolution + traceability | already #28-aligned |
 | 9 | DES-36/37/38 | HU-26–28 | Operator clue release | **resolve open decisions first** (see below) |
-| 10 | DES-78 + HU-33B/34–36 | HU-33A… | Synchronized trivia substage + answer registration | rebuild (supersedes DES-44) |
+| 10 | DES-78 + HU-33B/34–36 | HU-33A… | Synchronized trivia substage + answer registration | 🔄 **IN PROGRESS** (DES-78) — rebuild (supersedes DES-44); pointer/advancement contract in `backend/adr/0005-substage-advancement-pointer-and-timer-driven-orchestration.md`. **← next critical-path ticket** |
 | 11 | DES-54/55, HU-37/38/40 | HU-39… | `ScoreEntry` ledger + single session ranking | confirm DES-54/55 merge first |
 | 12 | DES-31, HU-24/25 | HU-23… | Live team/operator boards | last |
+
+## Unified order with the Users realignment (2026-07-06)
+
+The Users ↔ SessionOperations realignment (GitHub issues **#81, #82, #85, #86,
+#87, #88, #89, #90, #91** — decisions in `users-realignment-decisions-2026-07-06.md`)
+is a **separate track** from the canon rows above, but the two overlap in
+`session-operations-service`, so they interleave. Full sequence, post-DES-78:
+
+**#81 → #82 → #86 → #90 → HU-33B/34–36 → DES-39/40/41/42/43 → DES-54/55 → DES-36/37/38 → #87 → #88 → #91 → #89 → DES-31 → #85** (DES-80 anytime)
+
+- **#81, #82, #86, #90** — identity-access-side; no collision, run now in parallel.
+- **HU-33B/34–36, DES-39…43 (row 8), DES-54/55 (row 11), DES-36/37/38 (row 9), DES-31 (row 12)** — canon session-ops line (row 11 + row 9 are decision-blocked; resolve first).
+- **#87 → #88 → #91 → #89** — Users session-ops reshaping; needs #86 first, must land **before** DES-31 (boards) and never concurrent with an open session-ops PR.
+- **#85** — repo-wide rename `identity-access-service` → `users-service`; dead last, quiet window.
 
 ## Deferred follow-up — DES-79 (resolve the product decision before starting it)
 

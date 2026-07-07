@@ -15,12 +15,20 @@ The bounded context that owns `LiveSession`, `Team`, `SessionParticipant`, `Join
 _Avoid_: access service, auth service
 
 **JoinContext**:
-The session-scoped context for a participant entry attempt, binding one actor's join flow to a specific `LiveSession` and intended `Team`. It belongs to `SessionOperations` as part of live-session state, not to `Identity`.
+The session-scoped context for a participant entry attempt, binding one actor's join flow to a specific `LiveSession` and intended `Team`. It belongs to `SessionOperations` as part of live-session state, not to `Users`.
 _Avoid_: identity join record, auth context
 
 **SessionParticipant**:
 The participant record owned by `SessionOperations` for one actor inside one `LiveSession`, including runtime participation state after access has been granted.
 _Avoid_: user session, auth participant
+
+**Open Team Selection**:
+The pre-start session policy that allows an unassigned participant with no explicit pre-assignment for the session's attached teams to choose one attached `Team` for themselves while the `LiveSession` has not yet reached `Active`. This policy belongs to `SessionOperations` because it is scoped to one live session and disappears once runtime play has started. A pick produces a session-scoped `SessionParticipant`/`TeamMember` association only; it never writes a `RegisteredTeamMembership` back to `Users`.
+_Avoid_: users-owned eligibility, forced-team default, runtime reassignment, write-back to Users
+
+**Participation Block**:
+The runtime state applied to a `SessionParticipant` when further participation must stop immediately because a cross-context access fact, such as `User Deactivation`, invalidates continued access.
+_Avoid_: soft warning, future-join-only restriction
 
 **TeamMember**:
 The canonical term for a participant associated with a `Team` within session operations language. Use this term instead of older membership wording unless a distinct relationship model is introduced later.
@@ -181,12 +189,20 @@ _Avoid_: operator-finished session, manual finalization
 ## Boundary Rules
 
 **Admission Ownership**:
-`SessionOperations` owns the final admission decision because only it has the authoritative session-scoped facts needed to decide late join, reconnect, capacity, assignment, and live-state constraints.
+`SessionOperations` owns the final admission decision because only it has the authoritative session-scoped facts needed to decide late join, reconnect, capacity, assignment, live-state constraints, and whether `Open Team Selection` is still available before live play starts.
 _Avoid_: identity-side join authority
 
 **Runtime Authority**:
 `SessionOperations` owns live progression, team participation, clue release, and evidence intake. Other services may provide source facts, access facts, or derived scoring views, but they do not control runtime state transitions here.
 _Avoid_: scoring-owned progression, authoring-owned participation
+
+**Pre-Start Team Assignment**:
+A participant's team membership — whether from `Open Team Selection` or a choice within their `RegisteredTeamMembership` authorized set — is mutable only while the `LiveSession` is `Scheduled` or `Preparing`, and freezes once it reaches `Active`, `Paused`, `Finished`, or `Cancelled`. Switching is always confined to the participant's authorized set (all attached teams when they have no membership; their whitelisted teams otherwise) and is capacity-checked on the team being joined. A participant who holds no team when the session reaches `Active` is not admitted to active play; there is no auto-assignment.
+_Avoid_: runtime reassignment, post-activation team switch, auto-seating a no-show
+
+**Cross-Context Access Facts**:
+`SessionOperations` must react to access facts emitted by upstream contexts when those facts invalidate continued participation, including `User Deactivation` and registered-team eligibility revocation. It owns the runtime consequence, but not the upstream fact itself.
+_Avoid_: ignoring upstream deactivation, upstream-owned runtime mutation
 
 ## Required Patterns
 
@@ -212,6 +228,6 @@ _Avoid_: repeating authorization checks inline across every endpoint and handler
 
 ## Example Dialogue
 
-Dev: "So if late join is closed or the team is full, Session Operations rejects the entry even when Identity says the actor is valid?"
+Dev: "So if late join is closed or the team is full, Session Operations rejects the entry even when Users says the actor is valid?"
 
-Domain expert: "Exactly. Identity proves who the actor is; Session Operations decides whether entry is allowed right now."
+Domain expert: "Exactly. Users proves who the actor is; Session Operations decides whether entry is allowed right now."
