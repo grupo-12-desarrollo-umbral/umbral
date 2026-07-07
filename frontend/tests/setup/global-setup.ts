@@ -1,7 +1,4 @@
 import { execSync } from 'child_process'
-import { writeFileSync, unlinkSync, mkdtempSync } from 'fs'
-import { join } from 'path'
-import { tmpdir } from 'os'
 
 const DB_CONTAINER = 'backend-postgres-1'
 const KEYCLOAK_URL = process.env.KEYCLOAK_URL ?? 'http://localhost:8080'
@@ -60,18 +57,15 @@ const keycloakUsers: E2EKeycloakUser[] = [
 ]
 
 function runSql(db: string, sql: string, label: string): void {
-  const tmpDir = mkdtempSync(join(tmpdir(), 'umbral-e2e-seed-'))
-  const tmpFile = join(tmpDir, 'seed.sql')
-  writeFileSync(tmpFile, sql, 'utf-8')
-  try {
-    execSync(`docker cp "${tmpFile}" ${DB_CONTAINER}:/tmp/seed.sql`, { stdio: 'pipe', timeout: 10000 })
-    execSync(`docker exec ${DB_CONTAINER} psql -U postgres -d ${db} -f /tmp/seed.sql`, { stdio: 'pipe', timeout: 15000 })
-    execSync(`docker exec ${DB_CONTAINER} rm /tmp/seed.sql`, { stdio: 'pipe', timeout: 5000 })
-    console.log(`[global-setup] ${label}`)
-  } finally {
-    try { unlinkSync(tmpFile) } catch { /* ignore */ }
-    try { unlinkSync(tmpDir) } catch { /* ignore */ }
-  }
+  // Pipe SQL on stdin rather than `docker cp` to a temp file: docker cp fails with
+  // "file exists" when the container has a single-file bind-mount (init-dbs.sql), and
+  // stdin needs no temp file or cleanup.
+  execSync(`docker exec -i ${DB_CONTAINER} psql -U postgres -d ${db}`, {
+    input: sql,
+    stdio: ['pipe', 'pipe', 'pipe'],
+    timeout: 20000,
+  })
+  console.log(`[global-setup] ${label}`)
 }
 
 function seedViaDocker(): void {
