@@ -12,8 +12,6 @@ public sealed class ApplicationDbContext : DbContext
 
     public DbSet<User> Users => Set<User>();
 
-    public DbSet<IdentityProviderSession> IdentityProviderSessions => Set<IdentityProviderSession>();
-
     public DbSet<Team> Teams => Set<Team>();
 
     public DbSet<TeamMembership> TeamMemberships => Set<TeamMembership>();

@@ -99,7 +99,7 @@ public sealed class UserTests
     }
 
     [Fact]
-    public void RecordAccessDecisionAndStartIdentityProviderSession_AddDomainEventsAndChildren()
+    public void RecordAccessDecision_AddsDomainEvent()
     {
         var user = User.Provision("kc-05", "Alice", "alice@example.com", Role.Administrator);
         user.Id = 1;
@@ -107,15 +107,8 @@ public sealed class UserTests
         var decision = global::umbral_backend.Domain.ValueObjects.AccessDecision.Allow(ProtectedCapability.AdministratorPanel, "allowed");
 
         user.RecordAccessDecision(decision);
-        var session = user.StartIdentityProviderSession(
-            "Keycloak",
-            "sid-100",
-            DateTimeOffset.UtcNow,
-            DateTimeOffset.UtcNow.AddHours(1));
 
-        user.IdentityProviderSessions.Should().ContainSingle().Which.Should().BeSameAs(session);
         user.DomainEvents.Should().Contain(eventItem => eventItem is AccessDecisionRecordedEvent);
-        session.DomainEvents.Should().Contain(eventItem => eventItem is IdentityProviderSessionStartedEvent);
     }
 
     [Fact]

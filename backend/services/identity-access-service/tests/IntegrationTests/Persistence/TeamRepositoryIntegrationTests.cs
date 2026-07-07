@@ -362,7 +362,6 @@ public sealed class TeamRepositoryIntegrationTests
 
     private static async Task ResetDatabaseAsync(ApplicationDbContext context)
     {
-        await context.IdentityProviderSessions.ExecuteDeleteAsync();
         await context.TeamMemberships.ExecuteDeleteAsync();
         await context.SessionTeamAssociations.ExecuteDeleteAsync();
         await context.LiveSessionReferences.ExecuteDeleteAsync();

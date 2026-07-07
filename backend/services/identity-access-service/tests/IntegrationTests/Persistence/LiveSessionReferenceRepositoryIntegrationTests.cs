@@ -151,7 +151,6 @@ public sealed class LiveSessionReferenceRepositoryIntegrationTests
 
     private static async Task ResetDatabaseAsync(ApplicationDbContext context)
     {
-        await context.IdentityProviderSessions.ExecuteDeleteAsync();
         await context.JoinTokens.ExecuteDeleteAsync();
         await context.TeamMemberships.ExecuteDeleteAsync();
         await context.SessionTeamAssociations.ExecuteDeleteAsync();
