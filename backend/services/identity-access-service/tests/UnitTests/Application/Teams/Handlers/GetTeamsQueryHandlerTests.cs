@@ -18,14 +18,14 @@ public sealed class GetTeamsQueryHandlerTests
     public async Task Handle_ReturnsPagedTeamsForAuthorizedActor(Role actorRole)
     {
         var actor = CreateUser(2, $"kc-{actorRole}", actorRole);
-        var team = Team.Register("Red Team", "RED-01");
+        var team = RegisteredTeam.Register("Red Team", "RED-01");
         team.Created = DateTimeOffset.Parse("2026-05-31T12:00:00Z");
         team.LastModified = DateTimeOffset.Parse("2026-05-31T12:30:00Z");
 
         var teamRepository = new Mock<ITeamRepository>();
         teamRepository
             .Setup(repo => repo.ListAsync(2, 10, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new PagedResult<Team>
+            .ReturnsAsync(new PagedResult<RegisteredTeam>
             {
                 Items = new[] { team },
                 TotalCount = 7,

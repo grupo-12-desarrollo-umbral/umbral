@@ -14,15 +14,15 @@ public sealed class RegisterTeamCommandHandlerTests
     public async Task Handle_RegistersTeamAndPersistsIt()
     {
         var actor = CreateUser(1, "kc-admin", Role.Administrator);
-        Team? addedTeam = null;
+        RegisteredTeam? addedTeam = null;
 
         var teamRepository = new Mock<ITeamRepository>();
         teamRepository
             .Setup(repo => repo.TeamCodeExistsAsync("RED-01", null, It.IsAny<CancellationToken>()))
             .ReturnsAsync(false);
         teamRepository
-            .Setup(repo => repo.AddAsync(It.IsAny<Team>(), It.IsAny<CancellationToken>()))
-            .Callback<Team, CancellationToken>((team, _) => addedTeam = team)
+            .Setup(repo => repo.AddAsync(It.IsAny<RegisteredTeam>(), It.IsAny<CancellationToken>()))
+            .Callback<RegisteredTeam, CancellationToken>((team, _) => addedTeam = team)
             .Returns(Task.CompletedTask);
 
         var handler = CreateRegisterHandler(teamRepository, CreateCurrentActor(actor));
@@ -35,22 +35,22 @@ public sealed class RegisterTeamCommandHandlerTests
         addedTeam.DisplayName.Should().Be("Red Team");
         addedTeam.TeamCode.Should().Be("RED-01");
         addedTeam.DomainEvents.OfType<TeamRegisteredEvent>().Should().ContainSingle();
-        teamRepository.Verify(repo => repo.AddAsync(It.IsAny<Team>(), It.IsAny<CancellationToken>()), Times.Once);
+        teamRepository.Verify(repo => repo.AddAsync(It.IsAny<RegisteredTeam>(), It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
     public async Task Handle_AllowsOperatorToRegisterTeam()
     {
         var actor = CreateUser(1, "kc-operator", Role.Operator);
-        Team? addedTeam = null;
+        RegisteredTeam? addedTeam = null;
 
         var teamRepository = new Mock<ITeamRepository>();
         teamRepository
             .Setup(repo => repo.TeamCodeExistsAsync("RED-01", null, It.IsAny<CancellationToken>()))
             .ReturnsAsync(false);
         teamRepository
-            .Setup(repo => repo.AddAsync(It.IsAny<Team>(), It.IsAny<CancellationToken>()))
-            .Callback<Team, CancellationToken>((team, _) => addedTeam = team)
+            .Setup(repo => repo.AddAsync(It.IsAny<RegisteredTeam>(), It.IsAny<CancellationToken>()))
+            .Callback<RegisteredTeam, CancellationToken>((team, _) => addedTeam = team)
             .Returns(Task.CompletedTask);
 
         var handler = CreateRegisterHandler(teamRepository, CreateCurrentActor(actor));
@@ -60,7 +60,7 @@ public sealed class RegisterTeamCommandHandlerTests
         teamId.Should().NotBe(Guid.Empty);
         addedTeam.Should().NotBeNull();
         addedTeam!.TeamId.Should().Be(teamId);
-        teamRepository.Verify(repo => repo.AddAsync(It.IsAny<Team>(), It.IsAny<CancellationToken>()), Times.Once);
+        teamRepository.Verify(repo => repo.AddAsync(It.IsAny<RegisteredTeam>(), It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
@@ -79,7 +79,7 @@ public sealed class RegisterTeamCommandHandlerTests
 
         await act.Should().ThrowAsync<TeamCodeAlreadyExistsException>()
             .WithMessage("Team code 'RED-01' already exists.");
-        teamRepository.Verify(repo => repo.AddAsync(It.IsAny<Team>(), It.IsAny<CancellationToken>()), Times.Never);
+        teamRepository.Verify(repo => repo.AddAsync(It.IsAny<RegisteredTeam>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -97,7 +97,7 @@ public sealed class RegisterTeamCommandHandlerTests
         var act = async () => await handler.Handle(new RegisterTeamCommand(" ", "RED-01"), CancellationToken.None);
 
         await act.Should().ThrowAsync<TeamDisplayNameRequiredException>();
-        teamRepository.Verify(repo => repo.AddAsync(It.IsAny<Team>(), It.IsAny<CancellationToken>()), Times.Never);
+        teamRepository.Verify(repo => repo.AddAsync(It.IsAny<RegisteredTeam>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]

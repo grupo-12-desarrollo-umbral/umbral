@@ -2,11 +2,11 @@ using umbral_backend.Domain.Entities;
 
 namespace umbral_backend.Infrastructure.Persistence.Configurations;
 
-public sealed class TeamConfiguration : IEntityTypeConfiguration<Team>
+public sealed class RegisteredTeamConfiguration : IEntityTypeConfiguration<RegisteredTeam>
 {
-    public void Configure(Microsoft.EntityFrameworkCore.Metadata.Builders.EntityTypeBuilder<Team> builder)
+    public void Configure(Microsoft.EntityFrameworkCore.Metadata.Builders.EntityTypeBuilder<RegisteredTeam> builder)
     {
-        builder.ToTable("teams");
+        builder.ToTable("registered_teams");
 
         builder.Ignore(team => team.Id);
 

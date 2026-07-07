@@ -41,7 +41,7 @@ public sealed class GetTeamsQueryHandler : IRequestHandler<GetTeamsQuery, PagedR
         };
     }
 
-    private static TeamDto Map(Team team)
+    private static TeamDto Map(RegisteredTeam team)
     {
         return new TeamDto(
             team.TeamId,

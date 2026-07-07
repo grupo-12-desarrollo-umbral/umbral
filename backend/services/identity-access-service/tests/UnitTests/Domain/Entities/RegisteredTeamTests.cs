@@ -4,12 +4,12 @@ using umbral_backend.Domain.Exceptions;
 
 namespace umbral_backend.Application.UnitTests.Domain.Entities;
 
-public sealed class TeamTests
+public sealed class RegisteredTeamTests
 {
     [Fact]
     public void Register_WithValidValues_CreatesActiveTeamAndRaisesRegisteredEvent()
     {
-        var team = Team.Register(" Red Foxes ", " RF-01 ");
+        var team = RegisteredTeam.Register(" Red Foxes ", " RF-01 ");
 
         team.TeamId.Should().NotBe(Guid.Empty);
         team.DisplayName.Should().Be("Red Foxes");
@@ -25,21 +25,21 @@ public sealed class TeamTests
     [Fact]
     public void Register_WithBlankDisplayName_ThrowsException()
     {
-        FluentActions.Invoking(() => Team.Register(" ", "RF-01"))
+        FluentActions.Invoking(() => RegisteredTeam.Register(" ", "RF-01"))
             .Should().Throw<TeamDisplayNameRequiredException>();
     }
 
     [Fact]
     public void Register_WithBlankTeamCode_ThrowsException()
     {
-        FluentActions.Invoking(() => Team.Register("Red Foxes", " "))
+        FluentActions.Invoking(() => RegisteredTeam.Register("Red Foxes", " "))
             .Should().Throw<TeamCodeRequiredException>();
     }
 
     [Fact]
     public void UpdateDetails_OnInactiveTeam_IsAllowedAndRaisesUpdatedEvent()
     {
-        var team = Team.Register("Red Foxes", "RF-01");
+        var team = RegisteredTeam.Register("Red Foxes", "RF-01");
         team.ClearDomainEvents();
         team.Deactivate();
         team.ClearDomainEvents();
@@ -59,7 +59,7 @@ public sealed class TeamTests
     [Fact]
     public void UpdateDetails_WithBlankDisplayName_ThrowsException()
     {
-        var team = Team.Register("Red Foxes", "RF-01");
+        var team = RegisteredTeam.Register("Red Foxes", "RF-01");
 
         FluentActions.Invoking(() => team.UpdateDetails(" ", "BO-02"))
             .Should().Throw<TeamDisplayNameRequiredException>();
@@ -68,7 +68,7 @@ public sealed class TeamTests
     [Fact]
     public void UpdateDetails_WithBlankTeamCode_ThrowsException()
     {
-        var team = Team.Register("Red Foxes", "RF-01");
+        var team = RegisteredTeam.Register("Red Foxes", "RF-01");
 
         FluentActions.Invoking(() => team.UpdateDetails("Blue Owls", " "))
             .Should().Throw<TeamCodeRequiredException>();
@@ -77,7 +77,7 @@ public sealed class TeamTests
     [Fact]
     public void Deactivate_OnActiveTeam_SucceedsAndRaisesEvent()
     {
-        var team = Team.Register("Red Foxes", "RF-01");
+        var team = RegisteredTeam.Register("Red Foxes", "RF-01");
         team.ClearDomainEvents();
 
         team.Deactivate();
@@ -90,7 +90,7 @@ public sealed class TeamTests
     [Fact]
     public void Deactivate_OnAlreadyInactiveTeam_ThrowsException()
     {
-        var team = Team.Register("Red Foxes", "RF-01");
+        var team = RegisteredTeam.Register("Red Foxes", "RF-01");
         team.Deactivate();
         team.ClearDomainEvents();
 

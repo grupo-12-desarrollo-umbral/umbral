@@ -1,20 +1,22 @@
-﻿using umbral_backend.Domain.Events;
+using umbral_backend.Domain.Events;
 using umbral_backend.Domain.Exceptions;
 
 namespace umbral_backend.Domain.Entities;
 
-public sealed class Team : BaseAuditableEntity
+// Users-owned team catalog entry (reference data). Memberships form a may-join
+// eligibility whitelist for Participants — never a live assignment or lock.
+public sealed class RegisteredTeam : BaseAuditableEntity
 {
-    private readonly List<TeamMembership> _memberships = new();
+    private readonly List<RegisteredTeamMembership> _memberships = new();
 
-    private Team()
+    private RegisteredTeam()
     {
         TeamId = Guid.Empty;
         DisplayName = string.Empty;
         TeamCode = string.Empty;
     }
 
-    private Team(Guid teamId, string displayName, string teamCode)
+    private RegisteredTeam(Guid teamId, string displayName, string teamCode)
     {
         TeamId = teamId;
         DisplayName = RequireDisplayName(displayName);
@@ -30,11 +32,11 @@ public sealed class Team : BaseAuditableEntity
 
     public bool IsActive { get; private set; }
 
-    public IReadOnlyCollection<TeamMembership> Memberships => _memberships.AsReadOnly();
+    public IReadOnlyCollection<RegisteredTeamMembership> Memberships => _memberships.AsReadOnly();
 
-    public static Team Register(string displayName, string teamCode)
+    public static RegisteredTeam Register(string displayName, string teamCode)
     {
-        var team = new Team(Guid.NewGuid(), displayName, teamCode);
+        var team = new RegisteredTeam(Guid.NewGuid(), displayName, teamCode);
         team.AddDomainEvent(new TeamRegisteredEvent(team.TeamId, team.DisplayName, team.TeamCode));
 
         return team;
@@ -58,7 +60,9 @@ public sealed class Team : BaseAuditableEntity
         AddDomainEvent(new TeamDeactivatedEvent(TeamId));
     }
 
-    public TeamMembership AssignParticipant(int userId)
+    // Adds the participant to this team's eligibility whitelist (may-join authorization).
+    // It does not assign, seat, or lock the participant to the team.
+    public RegisteredTeamMembership AuthorizeParticipant(int userId)
     {
         if (!IsActive)
         {
@@ -67,12 +71,11 @@ public sealed class Team : BaseAuditableEntity
 
         if (_memberships.Any(membership => membership.UserId == userId))
         {
-            throw new ParticipantAlreadyAssignedToTeamException(TeamId, userId);
+            throw new ParticipantAlreadyAuthorizedForTeamException(TeamId, userId);
         }
 
-        var membership = TeamMembership.Assign(TeamId, userId, DateTimeOffset.UtcNow);
+        var membership = RegisteredTeamMembership.Authorize(TeamId, userId);
         _memberships.Add(membership);
-        AddDomainEvent(new ParticipantAssignedToTeamEvent(TeamId, userId));
 
         return membership;
     }

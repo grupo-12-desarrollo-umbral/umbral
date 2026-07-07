@@ -2,11 +2,11 @@ using umbral_backend.Domain.Entities;
 
 namespace umbral_backend.Infrastructure.Persistence.Configurations;
 
-public sealed class TeamMembershipConfiguration : IEntityTypeConfiguration<TeamMembership>
+public sealed class RegisteredTeamMembershipConfiguration : IEntityTypeConfiguration<RegisteredTeamMembership>
 {
-    public void Configure(Microsoft.EntityFrameworkCore.Metadata.Builders.EntityTypeBuilder<TeamMembership> builder)
+    public void Configure(Microsoft.EntityFrameworkCore.Metadata.Builders.EntityTypeBuilder<RegisteredTeamMembership> builder)
     {
-        builder.ToTable("team_memberships");
+        builder.ToTable("registered_team_memberships");
 
         builder.Ignore(membership => membership.Id);
 
@@ -24,14 +24,10 @@ public sealed class TeamMembershipConfiguration : IEntityTypeConfiguration<TeamM
             .HasColumnName("user_id")
             .IsRequired();
 
-        builder.Property(membership => membership.AssignedAt)
-            .HasColumnName("assigned_at")
-            .IsRequired();
-
         builder.HasIndex(membership => new { membership.TeamId, membership.UserId })
             .IsUnique();
 
-        builder.HasOne<Team>()
+        builder.HasOne<RegisteredTeam>()
             .WithMany(team => team.Memberships)
             .HasForeignKey(membership => membership.TeamId)
             .OnDelete(DeleteBehavior.Cascade);

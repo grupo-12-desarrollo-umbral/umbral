@@ -5,21 +5,21 @@ namespace umbral_backend.Application.Common.Interfaces;
 
 public interface ITeamRepository
 {
-    Task<Team?> GetByIdAsync(Guid teamId, CancellationToken cancellationToken);
+    Task<RegisteredTeam?> GetByIdAsync(Guid teamId, CancellationToken cancellationToken);
 
-    Task<Team?> GetByIdWithMembershipsAsync(Guid teamId, CancellationToken cancellationToken)
+    Task<RegisteredTeam?> GetByIdWithMembershipsAsync(Guid teamId, CancellationToken cancellationToken)
     {
         throw new NotSupportedException();
     }
 
-    Task<PagedResult<Team>> ListAsync(int page, int pageSize, CancellationToken cancellationToken);
+    Task<PagedResult<RegisteredTeam>> ListAsync(int page, int pageSize, CancellationToken cancellationToken);
 
     Task<bool> TeamCodeExistsAsync(string teamCode, Guid? excludeTeamId, CancellationToken cancellationToken)
     {
         throw new NotSupportedException();
     }
 
-    Task AddAsync(Team team, CancellationToken cancellationToken);
+    Task AddAsync(RegisteredTeam team, CancellationToken cancellationToken);
 
-    Task UpdateAsync(Team team, CancellationToken cancellationToken);
+    Task UpdateAsync(RegisteredTeam team, CancellationToken cancellationToken);
 }

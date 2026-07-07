@@ -17,9 +17,9 @@ public sealed class GetTeamParticipantsQueryHandlerTests
         var actor = CreateUser(1, $"kc-{actorRole}", actorRole);
         var firstParticipant = CreateUser(10, "kc-participant-01", Role.Participant);
         var secondParticipant = CreateUser(11, "kc-participant-02", Role.Participant);
-        var team = Team.Register("Red Team", "RED-01");
-        var firstMembership = team.AssignParticipant(firstParticipant.Id);
-        var secondMembership = team.AssignParticipant(secondParticipant.Id);
+        var team = RegisteredTeam.Register("Red Team", "RED-01");
+        var firstMembership = team.AuthorizeParticipant(firstParticipant.Id);
+        var secondMembership = team.AuthorizeParticipant(secondParticipant.Id);
 
         var teamRepository = new Mock<ITeamRepository>();
         teamRepository
@@ -41,7 +41,7 @@ public sealed class GetTeamParticipantsQueryHandlerTests
     public async Task Handle_WhenTeamHasNoMembers_ReturnsEmptyList(Role actorRole)
     {
         var actor = CreateUser(1, $"kc-{actorRole}", actorRole);
-        var team = Team.Register("Red Team", "RED-01");
+        var team = RegisteredTeam.Register("Red Team", "RED-01");
 
         var teamRepository = new Mock<ITeamRepository>();
         teamRepository
@@ -62,7 +62,7 @@ public sealed class GetTeamParticipantsQueryHandlerTests
         var teamRepository = new Mock<ITeamRepository>();
         teamRepository
             .Setup(repo => repo.GetByIdWithMembershipsAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync((Team?)null);
+            .ReturnsAsync((RegisteredTeam?)null);
 
         var handler = CreateHandler(teamRepository, CreateUserRepository(), actor);
 

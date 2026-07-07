@@ -15,7 +15,7 @@ public sealed class DeactivateTeamCommandHandlerTests
     public async Task Handle_DeactivatesTeamAndPersistsIt()
     {
         var actor = CreateUser(1, "kc-admin", Role.Administrator);
-        var team = Team.Register("Red Team", "RED-01");
+        var team = RegisteredTeam.Register("Red Team", "RED-01");
 
         var teamRepository = new Mock<ITeamRepository>();
         teamRepository
@@ -38,7 +38,7 @@ public sealed class DeactivateTeamCommandHandlerTests
     public async Task Handle_ThrowsWhenTeamIsAlreadyInactive()
     {
         var actor = CreateUser(1, "kc-admin", Role.Administrator);
-        var team = Team.Register("Red Team", "RED-01");
+        var team = RegisteredTeam.Register("Red Team", "RED-01");
         team.Deactivate();
 
         var teamRepository = new Mock<ITeamRepository>();
@@ -51,7 +51,7 @@ public sealed class DeactivateTeamCommandHandlerTests
         var act = async () => await handler.Handle(new DeactivateTeamCommand(team.TeamId), CancellationToken.None);
 
         await act.Should().ThrowAsync<TeamAlreadyDeactivatedException>();
-        teamRepository.Verify(repo => repo.UpdateAsync(It.IsAny<Team>(), It.IsAny<CancellationToken>()), Times.Never);
+        teamRepository.Verify(repo => repo.UpdateAsync(It.IsAny<RegisteredTeam>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -62,7 +62,7 @@ public sealed class DeactivateTeamCommandHandlerTests
         var teamRepository = new Mock<ITeamRepository>();
         teamRepository
             .Setup(repo => repo.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync((Team?)null);
+            .ReturnsAsync((RegisteredTeam?)null);
 
         var handler = CreateHandler(teamRepository, CreateCurrentActor(actor));
 
@@ -75,7 +75,7 @@ public sealed class DeactivateTeamCommandHandlerTests
     public async Task Handle_OperatorCanDeactivateTeam()
     {
         var actor = CreateUser(1, "kc-operator", Role.Operator);
-        var team = Team.Register("Red Team", "RED-01");
+        var team = RegisteredTeam.Register("Red Team", "RED-01");
 
         var teamRepository = new Mock<ITeamRepository>();
         teamRepository

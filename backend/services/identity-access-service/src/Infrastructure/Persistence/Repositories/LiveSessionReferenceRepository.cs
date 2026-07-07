@@ -54,9 +54,9 @@ public sealed class LiveSessionReferenceRepository : ILiveSessionReferenceReposi
 
         return await (
             from association in _context.SessionTeamAssociations.AsNoTracking()
-            join team in _context.Teams.AsNoTracking() on association.TeamId equals team.TeamId
+            join team in _context.RegisteredTeams.AsNoTracking() on association.TeamId equals team.TeamId
             where association.LiveSessionId == liveSessionId && team.IsActive
-            join membership in _context.TeamMemberships.AsNoTracking().Where(membership => membership.UserId == actor.Id)
+            join membership in _context.RegisteredTeamMemberships.AsNoTracking().Where(membership => membership.UserId == actor.Id)
                 on team.TeamId equals membership.TeamId into membershipGroup
             from membership in membershipGroup.DefaultIfEmpty()
             orderby team.DisplayName, team.TeamId
@@ -83,10 +83,10 @@ public sealed class LiveSessionReferenceRepository : ILiveSessionReferenceReposi
     {
         return (
             from association in _context.SessionTeamAssociations.AsNoTracking()
-            join membership in _context.TeamMemberships.AsNoTracking()
+            join membership in _context.RegisteredTeamMemberships.AsNoTracking()
                 on association.TeamId equals membership.TeamId
             where association.LiveSessionId == liveSessionId && membership.UserId == userId
-            orderby membership.AssignedAt, membership.TeamMembershipId
+            orderby membership.TeamMembershipId
             select new ParticipantSessionMembershipLookup(
                 membership.TeamId,
                 membership.TeamMembershipId))

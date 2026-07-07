@@ -7,7 +7,7 @@ using umbral_backend.Domain.Services;
 
 namespace umbral_backend.Application.Teams.Queries.GetTeamParticipants;
 
-public sealed class GetTeamParticipantsQueryHandler : IRequestHandler<GetTeamParticipantsQuery, IReadOnlyList<TeamMembershipDto>>
+public sealed class GetTeamParticipantsQueryHandler : IRequestHandler<GetTeamParticipantsQuery, IReadOnlyList<RegisteredTeamMembershipDto>>
 {
     private readonly ITeamRepository _teamRepository;
     private readonly IUserRepository _userRepository;
@@ -26,25 +26,24 @@ public sealed class GetTeamParticipantsQueryHandler : IRequestHandler<GetTeamPar
         _accessPolicy = accessPolicy;
     }
 
-    public async Task<IReadOnlyList<TeamMembershipDto>> Handle(GetTeamParticipantsQuery request, CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<RegisteredTeamMembershipDto>> Handle(GetTeamParticipantsQuery request, CancellationToken cancellationToken)
     {
         var actor = await _currentActor.GetActorAsync(cancellationToken);
         _accessPolicy.EnsureCanAccess(actor, ProtectedCapability.OperatorPanel);
 
         var team = await _teamRepository.GetByIdWithMembershipsAsync(request.TeamId, cancellationToken)
-            ?? throw new NotFoundException(nameof(Team), request.TeamId);
+            ?? throw new NotFoundException(nameof(RegisteredTeam), request.TeamId);
 
-        var memberships = new List<TeamMembershipDto>();
+        var memberships = new List<RegisteredTeamMembershipDto>();
         foreach (var membership in team.Memberships)
         {
             var user = await _userRepository.GetByIdAsync(membership.UserId, cancellationToken);
-            memberships.Add(new TeamMembershipDto(
+            memberships.Add(new RegisteredTeamMembershipDto(
                 membership.TeamMembershipId,
                 membership.TeamId,
                 membership.UserId,
                 user?.Email ?? "",
-                user?.DisplayName ?? "",
-                membership.AssignedAt));
+                user?.DisplayName ?? ""));
         }
 
         return memberships.AsReadOnly();

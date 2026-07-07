@@ -16,7 +16,7 @@ public sealed class GetTeamByIdQueryHandlerTests
     public async Task Handle_ReturnsTeamForAuthorizedActor(Role actorRole)
     {
         var actor = CreateUser(2, $"kc-{actorRole}", actorRole);
-        var team = Team.Register("Red Team", "RED-01");
+        var team = RegisteredTeam.Register("Red Team", "RED-01");
         team.Created = DateTimeOffset.Parse("2026-05-31T12:00:00Z");
         team.LastModified = DateTimeOffset.Parse("2026-05-31T12:30:00Z");
 
@@ -41,7 +41,7 @@ public sealed class GetTeamByIdQueryHandlerTests
         var teamRepository = new Mock<ITeamRepository>();
         teamRepository
             .Setup(repo => repo.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync((Team?)null);
+            .ReturnsAsync((RegisteredTeam?)null);
 
         var handler = CreateHandler(teamRepository, CreateCurrentActor(actor));
 
