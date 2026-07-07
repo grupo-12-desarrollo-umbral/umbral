@@ -25,8 +25,7 @@ public sealed class SessionTeamAssociationFacadeTests
             true,
             3);
         var teamCatalogClient = CreateTeamCatalogClient(teamReference);
-        var syncClient = new Mock<ISessionTeamAssociationSyncClient>();
-        var facade = new SessionTeamAssociationFacade(repository.Object, teamCatalogClient.Object, syncClient.Object);
+        var facade = new SessionTeamAssociationFacade(repository.Object, teamCatalogClient.Object);
 
         var result = await facade.AssociateAsync(
             new AssociateTeamToSessionCommand(session.LiveSessionId, teamReference.TeamId),
@@ -43,52 +42,6 @@ public sealed class SessionTeamAssociationFacadeTests
     }
 
     [Fact]
-    public async Task AssociateAsync_WhenTeamReferenceIsValid_SyncsAssociationToIdentityAccess()
-    {
-        var session = CreateScheduledSession();
-        var repository = CreateRepository(session);
-        var teamReference = new TeamReferenceDto(Guid.NewGuid(), "Alpha", "A-01", true, 3);
-        var teamCatalogClient = CreateTeamCatalogClient(teamReference);
-        var syncClient = new Mock<ISessionTeamAssociationSyncClient>();
-        var facade = new SessionTeamAssociationFacade(repository.Object, teamCatalogClient.Object, syncClient.Object);
-
-        await facade.AssociateAsync(
-            new AssociateTeamToSessionCommand(session.LiveSessionId, teamReference.TeamId),
-            CancellationToken.None);
-
-        syncClient.Verify(
-            client => client.SyncAssociationAsync(
-                session.LiveSessionId,
-                session.SessionCode,
-                teamReference.TeamId,
-                It.IsAny<CancellationToken>()),
-            Times.Once);
-    }
-
-    [Fact]
-    public async Task AssociateByCodeAsync_WhenTeamReferenceIsValid_SyncsAssociationToIdentityAccess()
-    {
-        var session = CreateScheduledSession();
-        var repository = CreateRepository(session);
-        var teamReference = new TeamReferenceDto(Guid.NewGuid(), "Alpha", "A-01", true, 3);
-        var teamCatalogClient = CreateTeamCatalogClient(teamReference);
-        var syncClient = new Mock<ISessionTeamAssociationSyncClient>();
-        var facade = new SessionTeamAssociationFacade(repository.Object, teamCatalogClient.Object, syncClient.Object);
-
-        await facade.AssociateByCodeAsync(
-            new AssociateTeamToSessionByCodeCommand(session.SessionCode, teamReference.TeamId),
-            CancellationToken.None);
-
-        syncClient.Verify(
-            client => client.SyncAssociationAsync(
-                session.LiveSessionId,
-                session.SessionCode,
-                teamReference.TeamId,
-                It.IsAny<CancellationToken>()),
-            Times.Once);
-    }
-
-    [Fact]
     public async Task AssociateAsync_WhenTeamReferenceIsAlreadyAssociated_ThrowsDomainException()
     {
         var referenceTeamId = Guid.NewGuid();
@@ -97,8 +50,7 @@ public sealed class SessionTeamAssociationFacadeTests
 
         var repository = CreateRepository(session);
         var teamCatalogClient = CreateTeamCatalogClient(new TeamReferenceDto(referenceTeamId, "Alpha", "A-01", true, 2));
-        var syncClient = new Mock<ISessionTeamAssociationSyncClient>();
-        var facade = new SessionTeamAssociationFacade(repository.Object, teamCatalogClient.Object, syncClient.Object);
+        var facade = new SessionTeamAssociationFacade(repository.Object, teamCatalogClient.Object);
 
         var act = async () => await facade.AssociateAsync(
             new AssociateTeamToSessionCommand(session.LiveSessionId, referenceTeamId),
@@ -115,8 +67,7 @@ public sealed class SessionTeamAssociationFacadeTests
         var repository = CreateRepository(session);
         var referenceTeamId = Guid.NewGuid();
         var teamCatalogClient = CreateTeamCatalogClient(new TeamReferenceDto(referenceTeamId, "Alpha", "A-01", false, 2));
-        var syncClient = new Mock<ISessionTeamAssociationSyncClient>();
-        var facade = new SessionTeamAssociationFacade(repository.Object, teamCatalogClient.Object, syncClient.Object);
+        var facade = new SessionTeamAssociationFacade(repository.Object, teamCatalogClient.Object);
 
         var act = async () => await facade.AssociateAsync(
             new AssociateTeamToSessionCommand(session.LiveSessionId, referenceTeamId),
@@ -135,8 +86,7 @@ public sealed class SessionTeamAssociationFacadeTests
         var repository = CreateRepository(session);
         var missingReferenceTeamId = Guid.NewGuid();
         var teamCatalogClient = CreateMissingTeamCatalogClient();
-        var syncClient = new Mock<ISessionTeamAssociationSyncClient>();
-        var facade = new SessionTeamAssociationFacade(repository.Object, teamCatalogClient.Object, syncClient.Object);
+        var facade = new SessionTeamAssociationFacade(repository.Object, teamCatalogClient.Object);
 
         var act = async () => await facade.AssociateAsync(
             new AssociateTeamToSessionCommand(session.LiveSessionId, missingReferenceTeamId),
@@ -154,8 +104,7 @@ public sealed class SessionTeamAssociationFacadeTests
         var repository = CreateRepository(session);
         var referenceTeamId = Guid.NewGuid();
         var teamCatalogClient = CreateTeamCatalogClient(new TeamReferenceDto(referenceTeamId, "Alpha", "A-01", true, 2));
-        var syncClient = new Mock<ISessionTeamAssociationSyncClient>();
-        var facade = new SessionTeamAssociationFacade(repository.Object, teamCatalogClient.Object, syncClient.Object);
+        var facade = new SessionTeamAssociationFacade(repository.Object, teamCatalogClient.Object);
 
         var act = async () => await facade.AssociateAsync(
             new AssociateTeamToSessionCommand(session.LiveSessionId, referenceTeamId),
@@ -177,8 +126,7 @@ public sealed class SessionTeamAssociationFacadeTests
 
         var repository = CreateRepository(session);
         var teamCatalogClient = CreateMissingTeamCatalogClient();
-        var syncClient = new Mock<ISessionTeamAssociationSyncClient>();
-        var facade = new SessionTeamAssociationFacade(repository.Object, teamCatalogClient.Object, syncClient.Object);
+        var facade = new SessionTeamAssociationFacade(repository.Object, teamCatalogClient.Object);
 
         var result = await facade.GetAssociatedTeamsAsync(
             new GetAssociatedTeamsForSessionQuery(session.LiveSessionId),
@@ -203,8 +151,7 @@ public sealed class SessionTeamAssociationFacadeTests
             true,
             3);
         var teamCatalogClient = CreateTeamCatalogClient(teamReference);
-        var syncClient = new Mock<ISessionTeamAssociationSyncClient>();
-        var facade = new SessionTeamAssociationFacade(repository.Object, teamCatalogClient.Object, syncClient.Object);
+        var facade = new SessionTeamAssociationFacade(repository.Object, teamCatalogClient.Object);
 
         var result = await facade.AssociateByCodeAsync(
             new AssociateTeamToSessionByCodeCommand(session.SessionCode, teamReference.TeamId),
@@ -229,8 +176,7 @@ public sealed class SessionTeamAssociationFacadeTests
             .ReturnsAsync((LiveSession?)null);
         var referenceTeamId = Guid.NewGuid();
         var teamCatalogClient = CreateTeamCatalogClient(new TeamReferenceDto(referenceTeamId, "Alpha", "A-01", true, 2));
-        var syncClient = new Mock<ISessionTeamAssociationSyncClient>();
-        var facade = new SessionTeamAssociationFacade(repository.Object, teamCatalogClient.Object, syncClient.Object);
+        var facade = new SessionTeamAssociationFacade(repository.Object, teamCatalogClient.Object);
 
         var act = async () => await facade.AssociateByCodeAsync(
             new AssociateTeamToSessionByCodeCommand("MISSING1", referenceTeamId),
@@ -253,8 +199,7 @@ public sealed class SessionTeamAssociationFacadeTests
 
         var repository = CreateRepository(session);
         var teamCatalogClient = CreateMissingTeamCatalogClient();
-        var syncClient = new Mock<ISessionTeamAssociationSyncClient>();
-        var facade = new SessionTeamAssociationFacade(repository.Object, teamCatalogClient.Object, syncClient.Object);
+        var facade = new SessionTeamAssociationFacade(repository.Object, teamCatalogClient.Object);
 
         var result = await facade.GetAssociatedTeamsByCodeAsync(
             new GetAssociatedTeamsForSessionByCodeQuery(session.SessionCode),
@@ -275,8 +220,7 @@ public sealed class SessionTeamAssociationFacadeTests
             .Setup(repo => repo.GetBySessionCodeAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((LiveSession?)null);
         var teamCatalogClient = CreateMissingTeamCatalogClient();
-        var syncClient = new Mock<ISessionTeamAssociationSyncClient>();
-        var facade = new SessionTeamAssociationFacade(repository.Object, teamCatalogClient.Object, syncClient.Object);
+        var facade = new SessionTeamAssociationFacade(repository.Object, teamCatalogClient.Object);
 
         var act = async () => await facade.GetAssociatedTeamsByCodeAsync(
             new GetAssociatedTeamsForSessionByCodeQuery("MISSING1"),

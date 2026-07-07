@@ -1143,122 +1143,6 @@ public sealed class IdentityAccessApiEndpointsTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task GetSessionTeams_WithParticipantHeaders_ReturnsJoinStatesForLobby()
-    {
-        var participant = await SeedUserAsync("kc-participant-01", "Participant User", "participant@example.com", Role.Participant);
-        var teammate = await SeedUserAsync("kc-participant-02", "Other Participant", "participant2@example.com", Role.Participant);
-        var ownTeam = await SeedTeamAsync("Blue Owls", "BLUE-01");
-        var otherTeam = await SeedTeamAsync("Red Foxes", "RED-01");
-        await AddMembershipAsync(ownTeam.TeamId, participant.Id);
-        await AddMembershipAsync(otherTeam.TeamId, teammate.Id);
-        var liveSessionReference = await SeedLiveSessionReferenceAsync("RSF231", ownTeam.TeamId, otherTeam.TeamId);
-
-        AddTrustedHeaders(
-            _client,
-            userId: participant.ExternalIdentityId,
-            role: "Participant",
-            email: participant.Email);
-
-        var response = await _client.GetAsync("/api/sessions/RSF231/teams");
-
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
-
-        var payload = await response.Content.ReadFromJsonAsync<SessionTeamLobbyResponse>();
-        payload.Should().NotBeNull();
-        payload!.LiveSessionId.Should().Be(liveSessionReference.LiveSessionId);
-        payload.SessionCode.Should().Be("RSF231");
-        payload.Teams.Should().Contain(team => team.TeamId == ownTeam.TeamId && team.JoinState == "mine");
-        payload.Teams.Should().Contain(team => team.TeamId == otherTeam.TeamId && team.JoinState == "locked");
-    }
-
-    [Fact]
-    public async Task GetSessionTeams_WithNonParticipantHeaders_ReturnsForbidden()
-    {
-        await SeedUserAsync("kc-operator-01", "Operator User", "operator@example.com", Role.Operator);
-
-        AddTrustedHeaders(
-            _client,
-            userId: "kc-operator-01",
-            role: "Operator",
-            email: "operator@example.com");
-
-        var response = await _client.GetAsync("/api/sessions/RSF231/teams");
-
-        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
-    }
-
-    [Fact]
-    public async Task AssociateTeamToSession_WithOperatorHeaders_CreatesReferenceAndAssociation()
-    {
-        var team = await SeedTeamAsync("Blue Owls", "BLUE-01");
-        var liveSessionId = Guid.NewGuid();
-
-        AddTrustedHeaders(
-            _client,
-            userId: "kc-operator-01",
-            role: "Operator",
-            email: "operator@example.com");
-
-        var response = await _client.PostAsJsonAsync(
-            "/api/sessions/RSF231/teams",
-            new { liveSessionId, teamId = team.TeamId });
-
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
-
-        await using var scope = _factory.Services.CreateAsyncScope();
-        var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-
-        var reference = await dbContext.LiveSessionReferences
-            .SingleAsync(item => item.LiveSessionId == liveSessionId);
-        reference.SessionCode.Should().Be("RSF231");
-
-        var association = await dbContext.SessionTeamAssociations
-            .SingleAsync(item => item.LiveSessionId == liveSessionId);
-        association.TeamId.Should().Be(team.TeamId);
-    }
-
-    [Fact]
-    public async Task AssociateTeamToSession_WhenTeamAlreadyAssociated_IsIdempotent()
-    {
-        var team = await SeedTeamAsync("Blue Owls", "BLUE-01");
-        var reference = await SeedLiveSessionReferenceAsync("RSF231", team.TeamId);
-
-        AddTrustedHeaders(
-            _client,
-            userId: "kc-operator-01",
-            role: "Operator",
-            email: "operator@example.com");
-
-        var response = await _client.PostAsJsonAsync(
-            "/api/sessions/RSF231/teams",
-            new { liveSessionId = reference.LiveSessionId, teamId = team.TeamId });
-
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
-
-        await using var scope = _factory.Services.CreateAsyncScope();
-        var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        var associations = dbContext.SessionTeamAssociations
-            .Where(item => item.LiveSessionId == reference.LiveSessionId && item.TeamId == team.TeamId);
-        (await associations.CountAsync()).Should().Be(1);
-    }
-
-    [Fact]
-    public async Task AssociateTeamToSession_WithParticipantHeaders_ReturnsForbidden()
-    {
-        AddTrustedHeaders(
-            _client,
-            userId: "kc-participant-01",
-            role: "Participant",
-            email: "participant@example.com");
-
-        var response = await _client.PostAsJsonAsync(
-            "/api/sessions/RSF231/teams",
-            new { liveSessionId = Guid.NewGuid(), teamId = Guid.NewGuid() });
-
-        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
-    }
-
-    [Fact]
     public async Task HealthEndpoint_WhenDatabaseAvailable_ReturnsHealthy()
     {
         var response = await _client.GetAsync("/health");
@@ -1325,24 +1209,6 @@ public sealed class IdentityAccessApiEndpointsTests : IAsyncLifetime
         dbContext.RegisteredTeams.Add(team);
         await dbContext.SaveChangesAsync();
         return team;
-    }
-
-    private async Task<LiveSessionReference> SeedLiveSessionReferenceAsync(
-        string sessionCode,
-        params Guid[] teamIds)
-    {
-        await using var scope = _factory.Services.CreateAsyncScope();
-        var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        var liveSessionReference = LiveSessionReference.Create(Guid.NewGuid(), sessionCode);
-
-        foreach (var teamId in teamIds)
-        {
-            liveSessionReference.AssociateTeam(teamId);
-        }
-
-        dbContext.LiveSessionReferences.Add(liveSessionReference);
-        await dbContext.SaveChangesAsync();
-        return liveSessionReference;
     }
 
     private async Task DeactivateTeamAsync(Guid teamId)
@@ -1412,16 +1278,6 @@ public sealed class IdentityAccessApiEndpointsTests : IAsyncLifetime
         string Reason,
         Guid LiveSessionId,
         Guid TeamId);
-
-    private sealed record SessionTeamLobbyResponse(
-        Guid LiveSessionId,
-        string SessionCode,
-        IReadOnlyCollection<SessionTeamLobbyTeamResponse> Teams);
-
-    private sealed record SessionTeamLobbyTeamResponse(
-        Guid TeamId,
-        string DisplayName,
-        string JoinState);
 
     private sealed record UserAccessCatalogItemResponse(
         int Id,

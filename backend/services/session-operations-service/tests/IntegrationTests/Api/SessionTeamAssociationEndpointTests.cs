@@ -66,11 +66,6 @@ public sealed class SessionTeamAssociationEndpointTests : IAsyncLifetime
             team.TeamId == payload.RuntimeTeamId &&
             team.ReferenceTeamId == referenceTeamId &&
             team.Capacity == 3);
-
-        _factory.SessionTeamAssociationSyncClient.SyncedAssociations.Should().ContainSingle(sync =>
-            sync.LiveSessionId == liveSession.LiveSessionId &&
-            sync.SessionCode == liveSession.SessionCode &&
-            sync.TeamId == referenceTeamId);
     }
 
     [Fact]
