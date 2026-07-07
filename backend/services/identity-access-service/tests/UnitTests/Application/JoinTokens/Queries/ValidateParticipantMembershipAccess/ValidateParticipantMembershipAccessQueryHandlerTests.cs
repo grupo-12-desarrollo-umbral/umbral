@@ -43,7 +43,7 @@ public sealed class ValidateParticipantMembershipAccessQueryHandlerTests
     public async Task Handle_RejectsWhenParticipantHasNoMembership()
     {
         var actor = CreateUser(17, "kc-participant-no-membership", Role.Participant);
-        var team = Team.Register("Blue Team", "BLUE-01");
+        var team = RegisteredTeam.Register("Blue Team", "BLUE-01");
         var handler = CreateHandler(actor, team, CreateJoinTokenRepository(), CreateTokenService(), TimeProvider.System);
 
         var act = async () => await handler.Handle(
@@ -58,7 +58,7 @@ public sealed class ValidateParticipantMembershipAccessQueryHandlerTests
     {
         var actor = CreateUser(18, "kc-participant-other-team", Role.Participant);
         var ownTeam = CreateTeamWithParticipant(actor.Id);
-        var otherTeam = Team.Register("Green Team", "GREEN-01");
+        var otherTeam = RegisteredTeam.Register("Green Team", "GREEN-01");
         var teamRepository = new Mock<ITeamRepository>();
         teamRepository
             .Setup(repository => repository.GetByIdWithMembershipsAsync(ownTeam.TeamId, It.IsAny<CancellationToken>()))
@@ -131,7 +131,7 @@ public sealed class ValidateParticipantMembershipAccessQueryHandlerTests
 
     private static ParticipantMembershipAccessAuthorizationProxy CreateHandler(
         User actor,
-        Team team,
+        RegisteredTeam team,
         Mock<IJoinTokenRepository> joinTokenRepository,
         Mock<IJoinTokenTokenService> tokenService,
         TimeProvider timeProvider)
@@ -185,10 +185,10 @@ public sealed class ValidateParticipantMembershipAccessQueryHandlerTests
         return tokenService;
     }
 
-    private static Team CreateTeamWithParticipant(int participantId)
+    private static RegisteredTeam CreateTeamWithParticipant(int participantId)
     {
-        var team = Team.Register("Red Team", "RED-01");
-        team.AssignParticipant(participantId);
+        var team = RegisteredTeam.Register("Red Team", "RED-01");
+        team.AuthorizeParticipant(participantId);
         return team;
     }
 

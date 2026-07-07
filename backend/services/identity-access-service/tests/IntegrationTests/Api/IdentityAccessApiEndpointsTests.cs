@@ -200,7 +200,7 @@ public sealed class IdentityAccessApiEndpointsTests : IAsyncLifetime
 
         await using var scope = _factory.Services.CreateAsyncScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        var persistedTeam = await dbContext.Teams.SingleAsync(storedTeam => storedTeam.TeamId == payload.TeamId);
+        var persistedTeam = await dbContext.RegisteredTeams.SingleAsync(storedTeam => storedTeam.TeamId == payload.TeamId);
 
         persistedTeam.DisplayName.Should().Be("Red Foxes");
         persistedTeam.TeamCode.Should().Be("RED-01");
@@ -507,7 +507,7 @@ public sealed class IdentityAccessApiEndpointsTests : IAsyncLifetime
     [Theory]
     [InlineData(Role.Administrator)]
     [InlineData(Role.Operator)]
-    public async Task AssignParticipantToTeam_WithAuthorizedHeaders_ReturnsCreatedAndPersistsMembership(Role actorRole)
+    public async Task AuthorizeParticipantForTeam_WithAuthorizedHeaders_ReturnsCreatedAndPersistsMembership(Role actorRole)
     {
         var actorExternalId = actorRole == Role.Administrator ? "kc-admin-01" : "kc-operator-01";
         var actorEmail = actorRole == Role.Administrator ? "admin@example.com" : "operator@example.com";
@@ -527,7 +527,7 @@ public sealed class IdentityAccessApiEndpointsTests : IAsyncLifetime
 
         response.StatusCode.Should().Be(HttpStatusCode.Created);
 
-        var payload = await response.Content.ReadFromJsonAsync<AssignParticipantToTeamResponse>();
+        var payload = await response.Content.ReadFromJsonAsync<AuthorizeParticipantForTeamResponse>();
         payload.Should().NotBeNull();
         payload!.TeamMembershipId.Should().NotBe(Guid.Empty);
 
@@ -545,14 +545,14 @@ public sealed class IdentityAccessApiEndpointsTests : IAsyncLifetime
 
         await using var scope = _factory.Services.CreateAsyncScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        var persistedMembership = await dbContext.TeamMemberships.SingleAsync();
+        var persistedMembership = await dbContext.RegisteredTeamMemberships.SingleAsync();
         persistedMembership.TeamMembershipId.Should().Be(payload.TeamMembershipId);
         persistedMembership.TeamId.Should().Be(team.TeamId);
         persistedMembership.UserId.Should().Be(participant.Id);
     }
 
     [Fact]
-    public async Task AssignParticipantToTeam_WhenTeamDoesNotExist_ReturnsNotFound()
+    public async Task AuthorizeParticipantForTeam_WhenTeamDoesNotExist_ReturnsNotFound()
     {
         await SeedUserAsync("kc-admin-01", "Admin User", "admin@example.com", Role.Administrator);
         var participant = await SeedUserAsync("kc-participant-01", "Participant User", "participant@example.com", Role.Participant);
@@ -571,7 +571,7 @@ public sealed class IdentityAccessApiEndpointsTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task AssignParticipantToTeam_WhenUserDoesNotExist_ReturnsNotFound()
+    public async Task AuthorizeParticipantForTeam_WhenUserDoesNotExist_ReturnsNotFound()
     {
         await SeedUserAsync("kc-admin-01", "Admin User", "admin@example.com", Role.Administrator);
         var team = await SeedTeamAsync("Red Foxes", "RED-01");
@@ -589,108 +589,10 @@ public sealed class IdentityAccessApiEndpointsTests : IAsyncLifetime
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
 
-    [Fact]
-    public async Task JoinTeamAsParticipant_WithParticipantHeaders_ReturnsCreatedAndPersistsMembership()
-    {
-        var participant = await SeedUserAsync("kc-participant-self-01", "Participant User", "participant-self-01@example.com", Role.Participant);
-        var team = await SeedTeamAsync("Blue Owls", "BLUE-01");
-        var liveSessionReference = await SeedLiveSessionReferenceAsync("RSF231", team.TeamId);
-
-        AddTrustedHeaders(
-            _client,
-            userId: participant.ExternalIdentityId,
-            role: "Participant",
-            email: participant.Email);
-
-        var response = await _client.PostAsJsonAsync(
-            $"/api/teams/{team.TeamId}/participants/self",
-            new { liveSessionId = liveSessionReference.LiveSessionId });
-
-        response.StatusCode.Should().Be(HttpStatusCode.Created);
-
-        var payload = await response.Content.ReadFromJsonAsync<JoinTeamAsParticipantResponse>();
-        payload.Should().NotBeNull();
-        payload!.TeamMembershipId.Should().NotBe(Guid.Empty);
-
-        await using var scope = _factory.Services.CreateAsyncScope();
-        var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        var membership = await dbContext.TeamMemberships.SingleAsync();
-        membership.TeamMembershipId.Should().Be(payload.TeamMembershipId);
-        membership.TeamId.Should().Be(team.TeamId);
-        membership.UserId.Should().Be(participant.Id);
-    }
-
-    [Fact]
-    public async Task JoinTeamAsParticipant_WhenReEnteringOwnTeam_ReturnsCreatedWithoutDuplicateMembership()
-    {
-        var participant = await SeedUserAsync("kc-participant-self-02", "Participant User", "participant-self-02@example.com", Role.Participant);
-        var team = await SeedTeamAsync("Blue Owls", "BLUE-01");
-        var liveSessionReference = await SeedLiveSessionReferenceAsync("RSF231", team.TeamId);
-        await AddMembershipAsync(team.TeamId, participant.Id);
-
-        AddTrustedHeaders(
-            _client,
-            userId: participant.ExternalIdentityId,
-            role: "Participant",
-            email: participant.Email);
-
-        var response = await _client.PostAsJsonAsync(
-            $"/api/teams/{team.TeamId}/participants/self",
-            new { liveSessionId = liveSessionReference.LiveSessionId });
-
-        response.StatusCode.Should().Be(HttpStatusCode.Created);
-
-        await using var scope = _factory.Services.CreateAsyncScope();
-        var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        (await dbContext.TeamMemberships.CountAsync()).Should().Be(1);
-    }
-
-    [Fact]
-    public async Task JoinTeamAsParticipant_WhenParticipantAlreadyBelongsToAnotherSessionTeam_ReturnsConflict()
-    {
-        var participant = await SeedUserAsync("kc-participant-self-03", "Participant User", "participant-self-03@example.com", Role.Participant);
-        var ownTeam = await SeedTeamAsync("Blue Owls", "BLUE-01");
-        var requestedTeam = await SeedTeamAsync("Red Foxes", "RED-01");
-        var liveSessionReference = await SeedLiveSessionReferenceAsync("RSF231", ownTeam.TeamId, requestedTeam.TeamId);
-        await AddMembershipAsync(ownTeam.TeamId, participant.Id);
-
-        AddTrustedHeaders(
-            _client,
-            userId: participant.ExternalIdentityId,
-            role: "Participant",
-            email: participant.Email);
-
-        var response = await _client.PostAsJsonAsync(
-            $"/api/teams/{requestedTeam.TeamId}/participants/self",
-            new { liveSessionId = liveSessionReference.LiveSessionId });
-
-        response.StatusCode.Should().Be(HttpStatusCode.Conflict);
-    }
-
-    [Fact]
-    public async Task JoinTeamAsParticipant_WithNonParticipantHeaders_ReturnsForbidden()
-    {
-        await SeedUserAsync("kc-operator-02", "Operator User", "operator2@example.com", Role.Operator);
-        var team = await SeedTeamAsync("Blue Owls", "BLUE-01");
-        var liveSessionReference = await SeedLiveSessionReferenceAsync("RSF231", team.TeamId);
-
-        AddTrustedHeaders(
-            _client,
-            userId: "kc-operator-02",
-            role: "Operator",
-            email: "operator2@example.com");
-
-        var response = await _client.PostAsJsonAsync(
-            $"/api/teams/{team.TeamId}/participants/self",
-            new { liveSessionId = liveSessionReference.LiveSessionId });
-
-        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
-    }
-
     [Theory]
     [InlineData(Role.Operator)]
     [InlineData(Role.Administrator)]
-    public async Task AssignParticipantToTeam_WhenUserIsNotParticipant_ReturnsUnprocessableEntity(Role targetRole)
+    public async Task AuthorizeParticipantForTeam_WhenUserIsNotParticipant_ReturnsUnprocessableEntity(Role targetRole)
     {
         await SeedUserAsync("kc-admin-01", "Admin User", "admin@example.com", Role.Administrator);
         var targetUser = await SeedUserAsync($"kc-{targetRole}-01", $"{targetRole} User", $"{targetRole.ToString().ToLowerInvariant()}@example.com", targetRole);
@@ -715,7 +617,7 @@ public sealed class IdentityAccessApiEndpointsTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task AssignParticipantToTeam_WhenTeamIsInactive_ReturnsConflict()
+    public async Task AuthorizeParticipantForTeam_WhenTeamIsInactive_ReturnsConflict()
     {
         await SeedUserAsync("kc-admin-01", "Admin User", "admin@example.com", Role.Administrator);
         var participant = await SeedUserAsync("kc-participant-01", "Participant User", "participant@example.com", Role.Participant);
@@ -736,7 +638,7 @@ public sealed class IdentityAccessApiEndpointsTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task AssignParticipantToTeam_WhenDuplicateAssignment_ReturnsConflict()
+    public async Task AuthorizeParticipantForTeam_WhenDuplicateAssignment_ReturnsConflict()
     {
         await SeedUserAsync("kc-admin-01", "Admin User", "admin@example.com", Role.Administrator);
         var participant = await SeedUserAsync("kc-participant-01", "Participant User", "participant@example.com", Role.Participant);
@@ -761,7 +663,7 @@ public sealed class IdentityAccessApiEndpointsTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task AssignParticipantToTeam_WithParticipantHeaders_ReturnsForbidden()
+    public async Task AuthorizeParticipantForTeam_WithParticipantHeaders_ReturnsForbidden()
     {
         await SeedUserAsync("kc-participant-actor-01", "Participant Actor", "participant.actor@example.com", Role.Participant);
         var participant = await SeedUserAsync("kc-participant-01", "Participant User", "participant@example.com", Role.Participant);
@@ -1024,11 +926,11 @@ public sealed class IdentityAccessApiEndpointsTests : IAsyncLifetime
         {
             var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
             var participant = await dbContext.Users.SingleAsync(user => user.ExternalIdentityId == "kc-participant-01");
-            var team = await dbContext.Teams
+            var team = await dbContext.RegisteredTeams
                 .Include(item => item.Memberships)
                 .SingleAsync(item => item.TeamId == ownTeam.TeamId);
 
-            team.AssignParticipant(participant.Id);
+            team.AuthorizeParticipant(participant.Id);
             await dbContext.SaveChangesAsync();
         }
 
@@ -1414,13 +1316,13 @@ public sealed class IdentityAccessApiEndpointsTests : IAsyncLifetime
         await dbContext.SaveChangesAsync();
     }
 
-    private async Task<Team> SeedTeamAsync(string displayName, string teamCode)
+    private async Task<RegisteredTeam> SeedTeamAsync(string displayName, string teamCode)
     {
         await using var scope = _factory.Services.CreateAsyncScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        var team = Team.Register(displayName, teamCode);
+        var team = RegisteredTeam.Register(displayName, teamCode);
 
-        dbContext.Teams.Add(team);
+        dbContext.RegisteredTeams.Add(team);
         await dbContext.SaveChangesAsync();
         return team;
     }
@@ -1447,7 +1349,7 @@ public sealed class IdentityAccessApiEndpointsTests : IAsyncLifetime
     {
         await using var scope = _factory.Services.CreateAsyncScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        var team = await dbContext.Teams.SingleAsync(t => t.TeamId == teamId);
+        var team = await dbContext.RegisteredTeams.SingleAsync(t => t.TeamId == teamId);
         team.Deactivate();
         await dbContext.SaveChangesAsync();
     }
@@ -1456,11 +1358,11 @@ public sealed class IdentityAccessApiEndpointsTests : IAsyncLifetime
     {
         await using var scope = _factory.Services.CreateAsyncScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        var team = await dbContext.Teams
+        var team = await dbContext.RegisteredTeams
             .Include(item => item.Memberships)
             .SingleAsync(item => item.TeamId == teamId);
 
-        team.AssignParticipant(userId);
+        team.AuthorizeParticipant(userId);
         await dbContext.SaveChangesAsync();
     }
 
@@ -1531,9 +1433,7 @@ public sealed class IdentityAccessApiEndpointsTests : IAsyncLifetime
 
     private sealed record RegisterTeamResponse(Guid TeamId);
 
-    private sealed record AssignParticipantToTeamResponse(Guid TeamMembershipId);
-
-    private sealed record JoinTeamAsParticipantResponse(Guid TeamMembershipId);
+    private sealed record AuthorizeParticipantForTeamResponse(Guid TeamMembershipId);
 
     private sealed record TeamResponse(
         Guid TeamId,
@@ -1548,8 +1448,7 @@ public sealed class IdentityAccessApiEndpointsTests : IAsyncLifetime
         Guid TeamId,
         int UserId,
         string Email,
-        string DisplayName,
-        DateTimeOffset AssignedAt);
+        string DisplayName);
 
     private sealed record PagedResponse<T>(
         IReadOnlyCollection<T> Items,

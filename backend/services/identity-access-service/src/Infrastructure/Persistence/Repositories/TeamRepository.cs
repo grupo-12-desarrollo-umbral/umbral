@@ -14,22 +14,22 @@ public sealed class TeamRepository : ITeamRepository
         _context = context;
     }
 
-    public Task<Team?> GetByIdAsync(Guid teamId, CancellationToken cancellationToken)
+    public Task<RegisteredTeam?> GetByIdAsync(Guid teamId, CancellationToken cancellationToken)
     {
-        return _context.Teams
+        return _context.RegisteredTeams
             .SingleOrDefaultAsync(team => team.TeamId == teamId, cancellationToken);
     }
 
-    public Task<Team?> GetByIdWithMembershipsAsync(Guid teamId, CancellationToken cancellationToken)
+    public Task<RegisteredTeam?> GetByIdWithMembershipsAsync(Guid teamId, CancellationToken cancellationToken)
     {
-        return _context.Teams
+        return _context.RegisteredTeams
             .Include(team => team.Memberships)
             .SingleOrDefaultAsync(team => team.TeamId == teamId, cancellationToken);
     }
 
-    public async Task<PagedResult<Team>> ListAsync(int page, int pageSize, CancellationToken cancellationToken)
+    public async Task<PagedResult<RegisteredTeam>> ListAsync(int page, int pageSize, CancellationToken cancellationToken)
     {
-        var query = _context.Teams
+        var query = _context.RegisteredTeams
             .AsNoTracking()
             .OrderBy(team => team.DisplayName)
             .ThenBy(team => team.TeamId);
@@ -40,7 +40,7 @@ public sealed class TeamRepository : ITeamRepository
             .Take(pageSize)
             .ToArrayAsync(cancellationToken);
 
-        return new PagedResult<Team>
+        return new PagedResult<RegisteredTeam>
         {
             Items = items,
             TotalCount = totalCount,
@@ -51,20 +51,20 @@ public sealed class TeamRepository : ITeamRepository
 
     public Task<bool> TeamCodeExistsAsync(string teamCode, Guid? excludeTeamId, CancellationToken cancellationToken)
     {
-        return _context.Teams.AnyAsync(
+        return _context.RegisteredTeams.AnyAsync(
             team => team.TeamCode == teamCode && (!excludeTeamId.HasValue || team.TeamId != excludeTeamId.Value),
             cancellationToken);
     }
 
-    public async Task AddAsync(Team team, CancellationToken cancellationToken)
+    public async Task AddAsync(RegisteredTeam team, CancellationToken cancellationToken)
     {
-        await _context.Teams.AddAsync(team, cancellationToken);
+        await _context.RegisteredTeams.AddAsync(team, cancellationToken);
         await _context.SaveChangesAsync(cancellationToken);
     }
 
-    public async Task UpdateAsync(Team team, CancellationToken cancellationToken)
+    public async Task UpdateAsync(RegisteredTeam team, CancellationToken cancellationToken)
     {
-        _context.Teams.Update(team);
+        _context.RegisteredTeams.Update(team);
         await _context.SaveChangesAsync(cancellationToken);
     }
 }

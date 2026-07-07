@@ -60,7 +60,7 @@ public sealed class UpdateTeamCommandHandlerTests
 
         await act.Should().ThrowAsync<TeamCodeAlreadyExistsException>()
             .WithMessage("Team code 'BLUE-01' already exists.");
-        teamRepository.Verify(repo => repo.UpdateAsync(It.IsAny<Team>(), It.IsAny<CancellationToken>()), Times.Never);
+        teamRepository.Verify(repo => repo.UpdateAsync(It.IsAny<RegisteredTeam>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -71,7 +71,7 @@ public sealed class UpdateTeamCommandHandlerTests
         var teamRepository = new Mock<ITeamRepository>();
         teamRepository
             .Setup(repo => repo.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync((Team?)null);
+            .ReturnsAsync((RegisteredTeam?)null);
 
         var handler = CreateHandler(teamRepository, CreateCurrentActor(actor));
 
@@ -157,8 +157,8 @@ public sealed class UpdateTeamCommandHandlerTests
         return user;
     }
 
-    private static Team CreateTeam(string displayName, string teamCode)
+    private static RegisteredTeam CreateTeam(string displayName, string teamCode)
     {
-        return Team.Register(displayName, teamCode);
+        return RegisteredTeam.Register(displayName, teamCode);
     }
 }

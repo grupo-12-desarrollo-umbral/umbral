@@ -1,16 +1,13 @@
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using umbral_backend.Api.Services;
 using umbral_backend.Application.Common.Models;
-using umbral_backend.Application.Teams.Commands.AssignParticipantToTeam;
-using umbral_backend.Application.Teams.Commands.JoinTeamAsParticipant;
+using umbral_backend.Application.Teams.Commands.AuthorizeParticipantForTeam;
 using umbral_backend.Application.Teams.Commands.DeactivateTeam;
 using umbral_backend.Application.Teams.Commands.RegisterTeam;
 using umbral_backend.Application.Teams.Commands.UpdateTeam;
 using umbral_backend.Application.Teams.Common;
 using umbral_backend.Application.Teams.Queries.GetTeamParticipants;
 using umbral_backend.Application.Teams.Queries.GetTeamById;
-using umbral_backend.Application.Teams.Queries.GetTeamParticipants;
 using umbral_backend.Application.Teams.Queries.GetTeams;
 
 namespace umbral_backend.Api.Controllers;
@@ -77,38 +74,22 @@ public sealed class TeamsController(ISender sender) : ControllerBase
     }
 
     [HttpPost("{id:guid}/participants")]
-    public async Task<ActionResult<AssignParticipantToTeamResponse>> AssignParticipantToTeamAsync(
+    public async Task<ActionResult<AuthorizeParticipantForTeamResponse>> AuthorizeParticipantForTeamAsync(
         Guid id,
-        AssignParticipantToTeamRequest request,
+        AuthorizeParticipantForTeamRequest request,
         CancellationToken cancellationToken)
     {
         var membershipId = await sender.Send(
-            new AssignParticipantToTeamCommand(id, request.UserId),
+            new AuthorizeParticipantForTeamCommand(id, request.UserId),
             cancellationToken);
 
         return Created(
             $"/api/teams/{id}/participants/{membershipId}",
-            new AssignParticipantToTeamResponse(membershipId));
-    }
-
-    [HttpPost("{id:guid}/participants/self")]
-    [Authorize(Policy = AuthorizationPolicies.Participant)]
-    public async Task<ActionResult<JoinTeamAsParticipantResponse>> JoinTeamAsParticipantAsync(
-        Guid id,
-        JoinTeamAsParticipantRequest request,
-        CancellationToken cancellationToken)
-    {
-        var membershipId = await sender.Send(
-            new JoinTeamAsParticipantCommand(request.LiveSessionId, id),
-            cancellationToken);
-
-        return Created(
-            $"/api/teams/{id}/participants/{membershipId}",
-            new JoinTeamAsParticipantResponse(membershipId));
+            new AuthorizeParticipantForTeamResponse(membershipId));
     }
 
     [HttpGet("{id:guid}/participants")]
-    public async Task<ActionResult<IReadOnlyList<TeamMembershipDto>>> GetTeamParticipantsAsync(
+    public async Task<ActionResult<IReadOnlyList<RegisteredTeamMembershipDto>>> GetTeamParticipantsAsync(
         Guid id,
         CancellationToken cancellationToken)
     {
@@ -124,11 +105,7 @@ public sealed class TeamsController(ISender sender) : ControllerBase
 
     public sealed record RegisterTeamResponse(Guid TeamId);
 
-    public sealed record AssignParticipantToTeamRequest(int UserId);
+    public sealed record AuthorizeParticipantForTeamRequest(int UserId);
 
-    public sealed record AssignParticipantToTeamResponse(Guid TeamMembershipId);
-
-    public sealed record JoinTeamAsParticipantRequest(Guid LiveSessionId);
-
-    public sealed record JoinTeamAsParticipantResponse(Guid TeamMembershipId);
+    public sealed record AuthorizeParticipantForTeamResponse(Guid TeamMembershipId);
 }

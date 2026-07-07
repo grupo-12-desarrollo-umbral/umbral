@@ -1,21 +1,19 @@
 using umbral_backend.Application.Common.Exceptions;
 using umbral_backend.Application.Common.Interfaces;
-using umbral_backend.Application.Teams.Commands.AssignParticipantToTeam;
 using umbral_backend.Domain.Entities;
 using umbral_backend.Domain.Enums;
-using umbral_backend.Domain.Exceptions;
 using umbral_backend.Domain.Services;
 
-namespace umbral_backend.Application.Teams.Commands.AssignParticipantToTeam;
+namespace umbral_backend.Application.Teams.Commands.AuthorizeParticipantForTeam;
 
-public sealed class AssignParticipantToTeamCommandHandler : IRequestHandler<AssignParticipantToTeamCommand, Guid>
+public sealed class AuthorizeParticipantForTeamCommandHandler : IRequestHandler<AuthorizeParticipantForTeamCommand, Guid>
 {
     private readonly ITeamRepository _teamRepository;
     private readonly IUserRepository _userRepository;
     private readonly ICurrentActor _currentActor;
     private readonly AccessPolicy _accessPolicy;
 
-    public AssignParticipantToTeamCommandHandler(
+    public AuthorizeParticipantForTeamCommandHandler(
         ITeamRepository teamRepository,
         IUserRepository userRepository,
         ICurrentActor currentActor,
@@ -27,13 +25,13 @@ public sealed class AssignParticipantToTeamCommandHandler : IRequestHandler<Assi
         _accessPolicy = accessPolicy;
     }
 
-    public async Task<Guid> Handle(AssignParticipantToTeamCommand request, CancellationToken cancellationToken)
+    public async Task<Guid> Handle(AuthorizeParticipantForTeamCommand request, CancellationToken cancellationToken)
     {
         var actor = await _currentActor.GetActorAsync(cancellationToken);
         _accessPolicy.EnsureCanAccess(actor, ProtectedCapability.OperatorPanel);
 
         var team = await _teamRepository.GetByIdWithMembershipsAsync(request.TeamId, cancellationToken)
-            ?? throw new NotFoundException(nameof(Team), request.TeamId);
+            ?? throw new NotFoundException(nameof(RegisteredTeam), request.TeamId);
 
         var user = await _userRepository.GetByIdAsync(request.UserId, cancellationToken)
             ?? throw new NotFoundException(nameof(User), request.UserId);
@@ -43,7 +41,7 @@ public sealed class AssignParticipantToTeamCommandHandler : IRequestHandler<Assi
             throw new UserNotParticipantRoleException(user.Id, user.Role);
         }
 
-        var membership = team.AssignParticipant(user.Id);
+        var membership = team.AuthorizeParticipant(user.Id);
 
         await _teamRepository.UpdateAsync(team, cancellationToken);
 
