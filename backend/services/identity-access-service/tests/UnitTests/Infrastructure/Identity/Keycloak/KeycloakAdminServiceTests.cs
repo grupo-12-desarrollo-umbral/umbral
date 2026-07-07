@@ -91,6 +91,75 @@ public sealed class KeycloakAdminServiceTests
         roleCalls.Should().Be(1); // deterministic failure is not retried
     }
 
+    [Fact]
+    public async Task SyncUserActiveStateAsync_Disable_PutsEnabledFalseOnUser()
+    {
+        var handler = new StubHandler(req => Ok(req));
+        var service = CreateService(handler);
+
+        await service.SyncUserActiveStateAsync("kc-user", isActive: false, CancellationToken.None);
+
+        var put = handler.Requests.SingleOrDefault(r =>
+            r.Method == HttpMethod.Put && r.RequestUri!.AbsolutePath.EndsWith("/users/kc-user"));
+        put.Should().NotBeNull();
+        (await put!.Content!.ReadAsStringAsync()).Should().Contain("\"enabled\":false");
+    }
+
+    [Fact]
+    public async Task SyncUserActiveStateAsync_AlreadyDisabled_IsIdempotent()
+    {
+        // Keycloak 204s on an unconditional PUT enabled=false regardless of prior state, so a
+        // repeat deactivation is a no-op that still completes successfully.
+        var handler = new StubHandler(req => Ok(req));
+        var service = CreateService(handler);
+
+        var act = async () => await service.SyncUserActiveStateAsync("kc-user", isActive: false, CancellationToken.None);
+
+        await act.Should().NotThrowAsync();
+    }
+
+    [Fact]
+    public async Task SyncUserActiveStateAsync_TransientFailureThenSuccess_Retries()
+    {
+        var tokenCalls = 0;
+        var handler = new StubHandler(req =>
+        {
+            if (req.RequestUri!.AbsolutePath.EndsWith(TokenPath) && ++tokenCalls == 1)
+            {
+                return new HttpResponseMessage(HttpStatusCode.InternalServerError);
+            }
+
+            return Ok(req);
+        });
+        var service = CreateService(handler);
+
+        await service.SyncUserActiveStateAsync("kc-user", isActive: false, CancellationToken.None);
+
+        tokenCalls.Should().BeGreaterThan(1);
+    }
+
+    [Fact]
+    public async Task SyncUserActiveStateAsync_KeycloakAlwaysUnavailable_ThrowsAfterRetries()
+    {
+        var putCalls = 0;
+        var handler = new StubHandler(req =>
+        {
+            if (req.Method == HttpMethod.Put)
+            {
+                putCalls++;
+                return new HttpResponseMessage(HttpStatusCode.ServiceUnavailable);
+            }
+
+            return Ok(req);
+        });
+        var service = CreateService(handler, maxAttempts: 3);
+
+        var act = async () => await service.SyncUserActiveStateAsync("kc-user", isActive: false, CancellationToken.None);
+
+        await act.Should().ThrowAsync<IdentityProviderUserStateSyncException>();
+        putCalls.Should().Be(3);
+    }
+
     private static KeycloakAdminService CreateService(StubHandler handler, int maxAttempts = 3)
     {
         var options = Options.Create(new KeycloakOptions

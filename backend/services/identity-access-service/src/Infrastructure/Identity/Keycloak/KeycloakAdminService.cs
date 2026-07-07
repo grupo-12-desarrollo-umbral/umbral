@@ -24,41 +24,96 @@ public sealed class KeycloakAdminService : IIdentityProviderAdminService
         _logger = logger;
     }
 
-    // Bounded retry over the whole sync operation. Transient failures (connection/5xx/timeout)
-    // are retried; on exhaustion — or a deterministic failure like a missing realm role — the
-    // caller gets an IdentityProviderRoleSyncException (503). Failures are never swallowed, so
-    // the handler (Keycloak-first) never commits the DB when Keycloak is out of reach.
-    // ponytail: in-process retry; swap for an outbox/queue only if durable at-least-once is needed.
-    public async Task SyncUserRoleAsync(string externalIdentityId, Role newRole, CancellationToken cancellationToken)
+    // Keycloak-first role propagation, retried through the shared bounded-retry loop. On
+    // exhaustion the caller gets an IdentityProviderRoleSyncException (503); a deterministic
+    // failure like a missing realm role surfaces immediately without retrying.
+    public Task SyncUserRoleAsync(string externalIdentityId, Role newRole, CancellationToken cancellationToken)
     {
         var realmRole = newRole.ToString();
+
+        return RunWithBoundedRetryAsync(
+            "role",
+            externalIdentityId,
+            ct => SyncOnceAsync(externalIdentityId, realmRole, ct),
+            () => _logger.LogInformation("Keycloak role for user {UserId} synced to {Role}", externalIdentityId, realmRole),
+            inner => new IdentityProviderRoleSyncException(
+                externalIdentityId, realmRole, "Keycloak Admin API unavailable after retries.", inner!),
+            cancellationToken);
+    }
+
+    // Keycloak-first enable/disable of the account. An unconditional PUT enabled=<isActive> is
+    // idempotent — Keycloak 204s whether or not the account already had that state. Same
+    // bounded-retry/fail-loud contract as SyncUserRoleAsync, so the handler never commits the
+    // app DB when Keycloak is unreachable.
+    public Task SyncUserActiveStateAsync(string externalIdentityId, bool isActive, CancellationToken cancellationToken)
+    {
+        return RunWithBoundedRetryAsync(
+            "active-state",
+            externalIdentityId,
+            ct => SetUserEnabledAsync(externalIdentityId, isActive, ct),
+            () => _logger.LogInformation("Keycloak active-state for user {UserId} synced to {IsActive}", externalIdentityId, isActive),
+            inner => new IdentityProviderUserStateSyncException(
+                externalIdentityId, isActive, "Keycloak Admin API unavailable after retries.", inner!),
+            cancellationToken);
+    }
+
+    // Bounded retry over a whole sync operation. Transient failures (connection/5xx/timeout) are
+    // retried; on exhaustion the caller-supplied onExhausted exception is thrown. A non-transient
+    // domain exception raised by the operation (e.g. missing realm role) escapes the catch filter
+    // and propagates immediately. Failures are never swallowed, so a Keycloak-first handler never
+    // commits the DB when Keycloak is out of reach.
+    // ponytail: in-process retry; swap for an outbox/queue only if durable at-least-once is needed.
+    private async Task RunWithBoundedRetryAsync(
+        string operation,
+        string externalIdentityId,
+        Func<CancellationToken, Task> attempt,
+        Action onSuccess,
+        Func<Exception?, Exception> onExhausted,
+        CancellationToken cancellationToken)
+    {
         var maxAttempts = Math.Max(1, _options.SyncMaxAttempts);
         Exception? lastTransientError = null;
 
-        for (var attempt = 1; attempt <= maxAttempts; attempt++)
+        for (var attemptNumber = 1; attemptNumber <= maxAttempts; attemptNumber++)
         {
             try
             {
-                await SyncOnceAsync(externalIdentityId, realmRole, cancellationToken);
-                _logger.LogInformation("Keycloak role for user {UserId} synced to {Role}", externalIdentityId, realmRole);
+                await attempt(cancellationToken);
+                onSuccess();
                 return;
             }
             catch (Exception ex) when (IsTransient(ex) && !cancellationToken.IsCancellationRequested)
             {
                 lastTransientError = ex;
                 _logger.LogWarning(
-                    ex, "Keycloak role sync attempt {Attempt}/{Max} failed for user {UserId}; retrying",
-                    attempt, maxAttempts, externalIdentityId);
+                    ex, "Keycloak {Operation} sync attempt {Attempt}/{Max} failed for user {UserId}; retrying",
+                    operation, attemptNumber, maxAttempts, externalIdentityId);
 
-                if (attempt < maxAttempts)
+                if (attemptNumber < maxAttempts)
                 {
-                    await Task.Delay(_options.SyncRetryBaseDelayMs * attempt, cancellationToken);
+                    await Task.Delay(_options.SyncRetryBaseDelayMs * attemptNumber, cancellationToken);
                 }
             }
         }
 
-        throw new IdentityProviderRoleSyncException(
-            externalIdentityId, realmRole, "Keycloak Admin API unavailable after retries.", lastTransientError!);
+        throw onExhausted(lastTransientError);
+    }
+
+    private async Task SetUserEnabledAsync(string externalIdentityId, bool isActive, CancellationToken cancellationToken)
+    {
+        var token = await GetAdminTokenAsync(cancellationToken);
+
+        var request = new HttpRequestMessage(
+            HttpMethod.Put,
+            $"{_options.AdminAuthority}/admin/realms/{_options.Realm}/users/{externalIdentityId}")
+        {
+            Content = JsonContent.Create(new { enabled = isActive }),
+        };
+
+        request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+
+        var response = await _httpClient.SendAsync(request, cancellationToken);
+        response.EnsureSuccessStatusCode();
     }
 
     private async Task SyncOnceAsync(string externalIdentityId, string realmRole, CancellationToken cancellationToken)
