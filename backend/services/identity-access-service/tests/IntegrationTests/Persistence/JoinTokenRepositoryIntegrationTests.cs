@@ -173,7 +173,6 @@ public sealed class JoinTokenRepositoryIntegrationTests
     private static async Task ResetDatabaseAsync(ApplicationDbContext context)
     {
         await context.JoinTokens.ExecuteDeleteAsync();
-        await context.IdentityProviderSessions.ExecuteDeleteAsync();
         await context.TeamMemberships.ExecuteDeleteAsync();
         await context.Teams.ExecuteDeleteAsync();
         await context.Users.ExecuteDeleteAsync();

@@ -78,15 +78,7 @@ public sealed class UserProvisioningRepositoryIntegrationTests
         var persistedUser = await repository.GetByExternalIdentityIdAsync("kc-admin", CancellationToken.None);
         persistedUser.Should().NotBeNull();
 
-        persistedUser!.StartIdentityProviderSession(
-            "Keycloak",
-            "session-01",
-            DateTimeOffset.UtcNow,
-            DateTimeOffset.UtcNow.AddHours(1));
-
-        await repository.UpdateAsync(persistedUser, CancellationToken.None);
-
-        persistedUser.DeactivateAccess();
+        persistedUser!.DeactivateAccess();
         await repository.UpdateAsync(persistedUser, CancellationToken.None);
 
         var activeRecord = await context.Users.SingleOrDefaultAsync(
@@ -96,8 +88,6 @@ public sealed class UserProvisioningRepositoryIntegrationTests
         var deactivatedUser = await repository.GetByIdAsync(persistedUser.Id, CancellationToken.None);
         deactivatedUser.Should().NotBeNull();
         deactivatedUser!.IsActive.Should().BeFalse();
-        deactivatedUser.IdentityProviderSessions.Should().ContainSingle();
-        deactivatedUser.IdentityProviderSessions.Single().ProviderSessionKey.Should().Be("session-01");
     }
 
     [Fact]
@@ -218,7 +208,6 @@ public sealed class UserProvisioningRepositoryIntegrationTests
 
     private static async Task ResetDatabaseAsync(ApplicationDbContext context)
     {
-        await context.IdentityProviderSessions.ExecuteDeleteAsync();
         await context.Users.ExecuteDeleteAsync();
     }
 

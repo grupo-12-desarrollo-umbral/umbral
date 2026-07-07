@@ -10,7 +10,6 @@ Keycloak authenticates users and issues tokens, but it does not own Umbral's app
 |---------------|------------------------------|
 | Authenticates credentials | **Post-Login Provisioning** — creates/syncs the application-side `User` record from Keycloak claims after a successful login |
 | Issues JWTs with realm roles | **Access Policy** — evaluates which `ProtectedCapability` a given `User`+`Role` may access, independent of token structure |
-| Manages OIDC sessions | **IdentityProviderSession** — persists a subset of IDP session state for Umbral's traceability, revocation, and correlation needs |
 | Revokes tokens | **User Deactivation** — marks a `User` as inactive in the application domain, blocking access regardless of token validity |
 | Manages realm roles via the admin UI | **Keycloak Role Sync** — when an admin changes a user's role via the dashboard, propagates the change to Keycloak's realm roles via the Admin API, keeping both in sync |
 | — | **Domain Events** — publishes `UserProvisioned`, `UserAccessDeactivated`, `UserRoleAssigned`, etc. for other bounded contexts to react to |
@@ -41,7 +40,6 @@ Application-side User, Role, Access Facts
 | Entity | Description |
 |--------|-------------|
 | `User` | Aggregate root. Represents an actor known to the platform. Has `ExternalIdentityId` (Keycloak `sub`), `DisplayName`, `Email`, `Role`, `IsActive`. |
-| `IdentityProviderSession` | Records Keycloak session state for traceability/revocation. Binding: `UserId`, `ProviderName`, `ProviderSessionKey`, `StartedAt`, `ExpiresAt`, `RevokedAt`. |
 
 ### Roles
 
@@ -66,9 +64,9 @@ Application-side User, Role, Access Facts
 - **`IdentityProvisioningPolicy`** — Synchronizes or creates a `User` from Keycloak claims ("Post-Login Provisioning"). For new users, provisions with the Keycloak-provided role. For existing users, synchronizes only the profile (display name, email) — the application-side role is left intact so admin dashboard changes are not overwritten on re-login. Validates that existing users' `ExternalIdentityId` matches.
 - **`AccessDecision`** — Value object: `Capability`, `IsAllowed`, `Reason`.
 
-### Domain Events (6)
+### Domain Events (4)
 
-`UserProvisioned`, `UserRoleAssigned`, `UserAccessDeactivated`, `AccessDecisionRecorded`, `IdentityProviderSessionStarted`, `IdentityProviderSessionEnded`.
+`UserProvisioned`, `UserRoleAssigned`, `UserAccessDeactivated`, `AccessDecisionRecorded`.
 
 ## Application Layer (CQRS + MediatR)
 
@@ -460,7 +458,7 @@ Failures are logged but do not roll back the DB update — the application DB is
 
 - **Database**: PostgreSQL via Npgsql.
 - **Connection string**: Configured as `umbral_backendDb` (environment variable or central config).
-- **Tables**: `users`, `identity_provider_sessions`.
+- **Tables**: `users`.
 - **Migrations**: Applied automatically at startup via `dbContext.Database.MigrateAsync()`.
 - **Interceptors**: `AuditableEntityInterceptor` (auto-sets Created/Modified timestamps) and `DispatchDomainEventsInterceptor` (publishes domain events via MediatR after save).
 - **Design-time factory**: `ApplicationDbContextFactory` reads connection string from env var `IDENTITY_ACCESS_SERVICE_CONNECTION_STRING`.
@@ -493,7 +491,6 @@ Coverage is collected per ADR-0005: `coverlet.msbuild` with `/p:CollectCoverage=
 | Area | Tests | What |
 |------|-------|------|
 | `User` entity | Provision, synchronize, role assignment, deactivate (twice → exception), events, validation (blank fields → exceptions) | Domain |
-| `IdentityProviderSession` entity | Start, end, idempotent end, validation (blank fields, invalid expiry) | Domain |
 | `ValueObject` base | Equality, null handling | Domain |
 | `BaseEntity` | Add/remove/clear domain events | Domain |
 | `IdentityProvisioningPolicy` | Provision new, synchronize existing (profile only, role left intact), identity mismatch → exception | Domain |
