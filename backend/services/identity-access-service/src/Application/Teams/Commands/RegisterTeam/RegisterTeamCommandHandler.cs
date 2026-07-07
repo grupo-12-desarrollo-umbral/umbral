@@ -36,7 +36,7 @@ public sealed class RegisterTeamCommandHandler : IRequestHandler<RegisterTeamCom
             throw new TeamCodeAlreadyExistsException(normalizedTeamCode);
         }
 
-        var team = Team.Register(request.DisplayName, request.TeamCode);
+        var team = RegisteredTeam.Register(request.DisplayName, request.TeamCode);
 
         await _teamRepository.AddAsync(team, cancellationToken);
 

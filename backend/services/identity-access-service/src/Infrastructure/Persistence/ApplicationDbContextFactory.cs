@@ -4,11 +4,16 @@ namespace umbral_backend.Infrastructure.Persistence;
 
 public sealed class ApplicationDbContextFactory : IDesignTimeDbContextFactory<ApplicationDbContext>
 {
+    // Design-time only (dotnet ef migrations/tooling). At runtime the app resolves its real
+    // connection string via AddPersistenceServices; this fallback must never reach production.
+    private const string DesignTimeFallbackConnectionString =
+        "Host=localhost;Database=identity_access_service;Username=postgres;Password=postgres";
+
     public ApplicationDbContext CreateDbContext(string[] args)
     {
         var optionsBuilder = new DbContextOptionsBuilder<ApplicationDbContext>();
         var connectionString = Environment.GetEnvironmentVariable("IDENTITY_ACCESS_SERVICE_CONNECTION_STRING")
-            ?? "Host=localhost;Database=identity_access_service;Username=postgres;Password=postgres";
+            ?? DesignTimeFallbackConnectionString;
 
         optionsBuilder.UseNpgsql(connectionString);
 

@@ -7,8 +7,6 @@ namespace umbral_backend.Domain.Entities;
 
 public sealed class User : BaseAuditableEntity
 {
-    private readonly List<IdentityProviderSession> _identityProviderSessions = new();
-
     private User()
     {
         ExternalIdentityId = string.Empty;
@@ -34,8 +32,6 @@ public sealed class User : BaseAuditableEntity
     public Role Role { get; private set; }
 
     public bool IsActive { get; private set; }
-
-    public IReadOnlyCollection<IdentityProviderSession> IdentityProviderSessions => _identityProviderSessions.AsReadOnly();
 
     public static User Provision(string externalIdentityId, string displayName, string email, Role role)
     {
@@ -80,21 +76,20 @@ public sealed class User : BaseAuditableEntity
         AddDomainEvent(new UserAccessDeactivatedEvent(this));
     }
 
+    public void ReactivateAccess()
+    {
+        if (IsActive)
+        {
+            throw new UserAccessAlreadyActiveException(Id);
+        }
+
+        IsActive = true;
+        AddDomainEvent(new UserAccessReactivatedEvent(this));
+    }
+
     public void RecordAccessDecision(AccessDecision decision)
     {
         AddDomainEvent(new AccessDecisionRecordedEvent(this, decision));
-    }
-
-    public IdentityProviderSession StartIdentityProviderSession(
-        string providerName,
-        string providerSessionKey,
-        DateTimeOffset startedAt,
-        DateTimeOffset expiresAt)
-    {
-        var session = IdentityProviderSession.Start(Id, providerName, providerSessionKey, startedAt, expiresAt);
-        _identityProviderSessions.Add(session);
-
-        return session;
     }
 
     private static string RequireExternalIdentityId(string externalIdentityId)

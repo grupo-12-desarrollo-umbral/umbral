@@ -3,6 +3,7 @@ using umbral_backend.Application.Users.Queries.GetUsers;
 using umbral_backend.Application.Users.Commands.AuthenticateUser;
 using umbral_backend.Application.Users.Commands.AssignUserRole;
 using umbral_backend.Application.Users.Commands.DeactivateUser;
+using umbral_backend.Application.Users.Commands.ReactivateUser;
 using umbral_backend.Application.Users.Common;
 using umbral_backend.Application.Common.Models;
 using umbral_backend.Application.Users.Queries.GetAuthenticatedActorProfile;
@@ -49,6 +50,15 @@ public sealed class UsersController(ISender sender) : ControllerBase
         CancellationToken cancellationToken)
     {
         await sender.Send(new DeactivateUserCommand(id), cancellationToken);
+        return NoContent();
+    }
+
+    [HttpPost("{id:int}/access")]
+    public async Task<IActionResult> ReactivateUserAccessAsync(
+        int id,
+        CancellationToken cancellationToken)
+    {
+        await sender.Send(new ReactivateUserCommand(id), cancellationToken);
         return NoContent();
     }
 

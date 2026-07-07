@@ -22,56 +22,6 @@ namespace umbral_backend.Infrastructure.Persistence.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
-            modelBuilder.Entity("umbral_backend.Domain.Entities.IdentityProviderSession", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<DateTimeOffset>("Created")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("CreatedBy")
-                        .HasColumnType("text");
-
-                    b.Property<DateTimeOffset>("ExpiresAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<DateTimeOffset>("LastModified")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("LastModifiedBy")
-                        .HasColumnType("text");
-
-                    b.Property<string>("ProviderName")
-                        .IsRequired()
-                        .HasMaxLength(128)
-                        .HasColumnType("character varying(128)");
-
-                    b.Property<string>("ProviderSessionKey")
-                        .IsRequired()
-                        .HasMaxLength(256)
-                        .HasColumnType("character varying(256)");
-
-                    b.Property<DateTimeOffset?>("RevokedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<DateTimeOffset>("StartedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int>("UserId")
-                        .HasColumnType("integer");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("UserId", "ProviderName", "ProviderSessionKey")
-                        .IsUnique();
-
-                    b.ToTable("identity_provider_sessions", (string)null);
-                });
-
             modelBuilder.Entity("umbral_backend.Domain.Entities.JoinToken", b =>
                 {
                     b.Property<Guid>("JoinTokenId")
@@ -152,31 +102,7 @@ namespace umbral_backend.Infrastructure.Persistence.Migrations
                     b.ToTable("live_sessions", (string)null);
                 });
 
-            modelBuilder.Entity("umbral_backend.Domain.Entities.SessionTeamAssociation", b =>
-                {
-                    b.Property<Guid>("SessionTeamAssociationId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("id");
-
-                    b.Property<Guid>("LiveSessionId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("live_session_id");
-
-                    b.Property<Guid>("TeamId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("team_id");
-
-                    b.HasKey("SessionTeamAssociationId");
-
-                    b.HasIndex("LiveSessionId", "TeamId")
-                        .IsUnique();
-
-                    b.HasIndex("TeamId");
-
-                    b.ToTable("session_team_associations", (string)null);
-                });
-
-            modelBuilder.Entity("umbral_backend.Domain.Entities.Team", b =>
+            modelBuilder.Entity("umbral_backend.Domain.Entities.RegisteredTeam", b =>
                 {
                     b.Property<Guid>("TeamId")
                         .HasColumnType("uuid")
@@ -219,18 +145,14 @@ namespace umbral_backend.Infrastructure.Persistence.Migrations
                     b.HasIndex("TeamCode")
                         .IsUnique();
 
-                    b.ToTable("teams", (string)null);
+                    b.ToTable("registered_teams", (string)null);
                 });
 
-            modelBuilder.Entity("umbral_backend.Domain.Entities.TeamMembership", b =>
+            modelBuilder.Entity("umbral_backend.Domain.Entities.RegisteredTeamMembership", b =>
                 {
                     b.Property<Guid>("TeamMembershipId")
                         .HasColumnType("uuid")
                         .HasColumnName("id");
-
-                    b.Property<DateTimeOffset>("AssignedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("assigned_at");
 
                     b.Property<Guid>("TeamId")
                         .HasColumnType("uuid")
@@ -247,7 +169,31 @@ namespace umbral_backend.Infrastructure.Persistence.Migrations
                     b.HasIndex("TeamId", "UserId")
                         .IsUnique();
 
-                    b.ToTable("team_memberships", (string)null);
+                    b.ToTable("registered_team_memberships", (string)null);
+                });
+
+            modelBuilder.Entity("umbral_backend.Domain.Entities.SessionTeamAssociation", b =>
+                {
+                    b.Property<Guid>("SessionTeamAssociationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("LiveSessionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("live_session_id");
+
+                    b.Property<Guid>("TeamId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("team_id");
+
+                    b.HasKey("SessionTeamAssociationId");
+
+                    b.HasIndex("TeamId");
+
+                    b.HasIndex("LiveSessionId", "TeamId")
+                        .IsUnique();
+
+                    b.ToTable("session_team_associations", (string)null);
                 });
 
             modelBuilder.Entity("umbral_backend.Domain.Entities.User", b =>
@@ -301,10 +247,16 @@ namespace umbral_backend.Infrastructure.Persistence.Migrations
                     b.ToTable("users", (string)null);
                 });
 
-            modelBuilder.Entity("umbral_backend.Domain.Entities.IdentityProviderSession", b =>
+            modelBuilder.Entity("umbral_backend.Domain.Entities.RegisteredTeamMembership", b =>
                 {
+                    b.HasOne("umbral_backend.Domain.Entities.RegisteredTeam", null)
+                        .WithMany("Memberships")
+                        .HasForeignKey("TeamId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
                     b.HasOne("umbral_backend.Domain.Entities.User", null)
-                        .WithMany("IdentityProviderSessions")
+                        .WithMany()
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
@@ -318,24 +270,9 @@ namespace umbral_backend.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("umbral_backend.Domain.Entities.Team", null)
+                    b.HasOne("umbral_backend.Domain.Entities.RegisteredTeam", null)
                         .WithMany()
                         .HasForeignKey("TeamId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-                });
-
-            modelBuilder.Entity("umbral_backend.Domain.Entities.TeamMembership", b =>
-                {
-                    b.HasOne("umbral_backend.Domain.Entities.Team", null)
-                        .WithMany("Memberships")
-                        .HasForeignKey("TeamId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("umbral_backend.Domain.Entities.User", null)
-                        .WithMany()
-                        .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });
@@ -345,14 +282,9 @@ namespace umbral_backend.Infrastructure.Persistence.Migrations
                     b.Navigation("TeamAssociations");
                 });
 
-            modelBuilder.Entity("umbral_backend.Domain.Entities.Team", b =>
+            modelBuilder.Entity("umbral_backend.Domain.Entities.RegisteredTeam", b =>
                 {
                     b.Navigation("Memberships");
-                });
-
-            modelBuilder.Entity("umbral_backend.Domain.Entities.User", b =>
-                {
-                    b.Navigation("IdentityProviderSessions");
                 });
 #pragma warning restore 612, 618
         }

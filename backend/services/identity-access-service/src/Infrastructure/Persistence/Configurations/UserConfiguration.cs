@@ -38,13 +38,5 @@ public sealed class UserConfiguration : IEntityTypeConfiguration<User>
 
         builder.HasIndex(user => user.ExternalIdentityId)
             .IsUnique();
-
-        builder.HasMany(user => user.IdentityProviderSessions)
-            .WithOne()
-            .HasForeignKey(session => session.UserId)
-            .OnDelete(DeleteBehavior.Cascade);
-
-        builder.Navigation(user => user.IdentityProviderSessions)
-            .UsePropertyAccessMode(PropertyAccessMode.Field);
     }
 }

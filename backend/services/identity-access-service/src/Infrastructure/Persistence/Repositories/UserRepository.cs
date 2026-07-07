@@ -16,7 +16,6 @@ public sealed class UserRepository : IUserRepository
     public Task<User?> GetByExternalIdentityIdAsync(string externalIdentityId, CancellationToken cancellationToken)
     {
         return _context.Users
-            .Include(user => user.IdentityProviderSessions)
             .SingleOrDefaultAsync(
                 user => user.ExternalIdentityId == externalIdentityId,
                 cancellationToken);
@@ -25,7 +24,6 @@ public sealed class UserRepository : IUserRepository
     public Task<User?> GetByIdAsync(int userId, CancellationToken cancellationToken)
     {
         return _context.Users
-            .Include(user => user.IdentityProviderSessions)
             .SingleOrDefaultAsync(
                 user => user.Id == userId,
                 cancellationToken);

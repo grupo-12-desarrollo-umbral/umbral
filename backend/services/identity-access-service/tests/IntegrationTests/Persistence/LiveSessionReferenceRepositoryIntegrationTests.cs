@@ -25,17 +25,17 @@ public sealed class LiveSessionReferenceRepositoryIntegrationTests
 
         var participant = User.Provision("kc-participant-01", "Participant User", "participant@example.com", Role.Participant);
         var otherParticipant = User.Provision("kc-participant-02", "Other Participant", "participant2@example.com", Role.Participant);
-        var ownTeam = Team.Register("Blue Owls", "BLUE-01");
-        var joinableTeam = Team.Register("Red Foxes", "RED-01");
-        var inactiveTeam = Team.Register("Grey Wolves", "GREY-01");
+        var ownTeam = RegisteredTeam.Register("Blue Owls", "BLUE-01");
+        var joinableTeam = RegisteredTeam.Register("Red Foxes", "RED-01");
+        var inactiveTeam = RegisteredTeam.Register("Grey Wolves", "GREY-01");
         inactiveTeam.Deactivate();
 
         setupContext.Users.AddRange(participant, otherParticipant);
-        setupContext.Teams.AddRange(ownTeam, joinableTeam, inactiveTeam);
+        setupContext.RegisteredTeams.AddRange(ownTeam, joinableTeam, inactiveTeam);
         await setupContext.SaveChangesAsync();
 
-        ownTeam.AssignParticipant(participant.Id);
-        joinableTeam.AssignParticipant(otherParticipant.Id);
+        ownTeam.AuthorizeParticipant(participant.Id);
+        joinableTeam.AuthorizeParticipant(otherParticipant.Id);
 
         var liveSessionReference = LiveSessionReference.Create(Guid.NewGuid(), "RSF231");
         liveSessionReference.AssociateTeam(ownTeam.TeamId);
@@ -88,15 +88,15 @@ public sealed class LiveSessionReferenceRepositoryIntegrationTests
         await ResetDatabaseAsync(setupContext);
 
         var participant = User.Provision("kc-participant-03", "Participant User", "participant3@example.com", Role.Participant);
-        var sessionTeam = Team.Register("Blue Owls", "BLUE-01");
-        var outsideTeam = Team.Register("Red Foxes", "RED-01");
+        var sessionTeam = RegisteredTeam.Register("Blue Owls", "BLUE-01");
+        var outsideTeam = RegisteredTeam.Register("Red Foxes", "RED-01");
 
         setupContext.Users.Add(participant);
-        setupContext.Teams.AddRange(sessionTeam, outsideTeam);
+        setupContext.RegisteredTeams.AddRange(sessionTeam, outsideTeam);
         await setupContext.SaveChangesAsync();
 
-        var expectedMembership = sessionTeam.AssignParticipant(participant.Id);
-        outsideTeam.AssignParticipant(participant.Id);
+        var expectedMembership = sessionTeam.AuthorizeParticipant(participant.Id);
+        outsideTeam.AuthorizeParticipant(participant.Id);
 
         var liveSessionReference = LiveSessionReference.Create(Guid.NewGuid(), "RSF231");
         liveSessionReference.AssociateTeam(sessionTeam.TeamId);
@@ -124,12 +124,12 @@ public sealed class LiveSessionReferenceRepositoryIntegrationTests
         await using var setupContext = BuildContext();
         await ResetDatabaseAsync(setupContext);
 
-        var associatedTeam = Team.Register("Blue Owls", "BLUE-01");
-        var foreignTeam = Team.Register("Red Foxes", "RED-01");
+        var associatedTeam = RegisteredTeam.Register("Blue Owls", "BLUE-01");
+        var foreignTeam = RegisteredTeam.Register("Red Foxes", "RED-01");
         var liveSessionReference = LiveSessionReference.Create(Guid.NewGuid(), "RSF231");
         liveSessionReference.AssociateTeam(associatedTeam.TeamId);
 
-        setupContext.Teams.AddRange(associatedTeam, foreignTeam);
+        setupContext.RegisteredTeams.AddRange(associatedTeam, foreignTeam);
         setupContext.LiveSessionReferences.Add(liveSessionReference);
         await setupContext.SaveChangesAsync();
 
@@ -151,12 +151,11 @@ public sealed class LiveSessionReferenceRepositoryIntegrationTests
 
     private static async Task ResetDatabaseAsync(ApplicationDbContext context)
     {
-        await context.IdentityProviderSessions.ExecuteDeleteAsync();
         await context.JoinTokens.ExecuteDeleteAsync();
-        await context.TeamMemberships.ExecuteDeleteAsync();
+        await context.RegisteredTeamMemberships.ExecuteDeleteAsync();
         await context.SessionTeamAssociations.ExecuteDeleteAsync();
         await context.LiveSessionReferences.ExecuteDeleteAsync();
-        await context.Teams.ExecuteDeleteAsync();
+        await context.RegisteredTeams.ExecuteDeleteAsync();
         await context.Users.ExecuteDeleteAsync();
     }
 

@@ -32,7 +32,7 @@ public sealed class SessionTeamAssociationConfiguration : IEntityTypeConfigurati
             .HasForeignKey(association => association.LiveSessionId)
             .OnDelete(DeleteBehavior.Cascade);
 
-        builder.HasOne<Team>()
+        builder.HasOne<RegisteredTeam>()
             .WithMany()
             .HasForeignKey(association => association.TeamId)
             .OnDelete(DeleteBehavior.Cascade);

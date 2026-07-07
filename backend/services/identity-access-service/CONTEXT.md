@@ -18,10 +18,6 @@ _Avoid_: account record, auth principal
 The authorization concept that classifies what kind of platform capabilities a `User` may access.
 _Avoid_: permission set, profile type
 
-**IdentityProviderSession**:
-The persisted `Users` concept that records the subset of external identity-provider session state Umbral must reason about for traceability, revocation, correlation, or policy enforcement. It is domain-relevant session language, not a purely infrastructural artifact.
-_Avoid_: optional session model, infrastructure-only login state
-
 **AccessToken**:
 An infrastructure or identity-provider artifact used to support authentication and request propagation. It is not a standalone Umbral domain entity.
 _Avoid_: domain token, business credential

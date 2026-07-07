@@ -30,7 +30,7 @@ public sealed class UpdateTeamCommandHandler : IRequestHandler<UpdateTeamCommand
         _accessPolicy.EnsureCanAccess(actor, ProtectedCapability.OperatorPanel);
 
         var team = await _teamRepository.GetByIdAsync(request.TeamId, cancellationToken)
-            ?? throw new NotFoundException(nameof(Team), request.TeamId);
+            ?? throw new NotFoundException(nameof(RegisteredTeam), request.TeamId);
 
         var normalizedTeamCode = request.TeamCode.Trim();
 

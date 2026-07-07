@@ -143,14 +143,14 @@ public sealed class JoinTokenRepositoryIntegrationTests
         await ResetDatabaseAsync(setupContext);
 
         var participant = User.Provision("kc-participant-join", "Pat Join", "pat.join@example.com", Role.Participant);
-        var team = Team.Register("Session Team", "SESSION-01");
+        var team = RegisteredTeam.Register("Session Team", "SESSION-01");
         var joinToken = CreateJoinToken(liveSessionId: Guid.NewGuid(), teamId: team.TeamId, issuedByUserId: 99);
 
         setupContext.Users.Add(participant);
-        setupContext.Teams.Add(team);
+        setupContext.RegisteredTeams.Add(team);
         await setupContext.SaveChangesAsync(CancellationToken.None);
 
-        team.AssignParticipant(participant.Id);
+        team.AuthorizeParticipant(participant.Id);
         setupContext.JoinTokens.Add(joinToken);
         await setupContext.SaveChangesAsync(CancellationToken.None);
 
@@ -173,9 +173,8 @@ public sealed class JoinTokenRepositoryIntegrationTests
     private static async Task ResetDatabaseAsync(ApplicationDbContext context)
     {
         await context.JoinTokens.ExecuteDeleteAsync();
-        await context.IdentityProviderSessions.ExecuteDeleteAsync();
-        await context.TeamMemberships.ExecuteDeleteAsync();
-        await context.Teams.ExecuteDeleteAsync();
+        await context.RegisteredTeamMemberships.ExecuteDeleteAsync();
+        await context.RegisteredTeams.ExecuteDeleteAsync();
         await context.Users.ExecuteDeleteAsync();
     }
 

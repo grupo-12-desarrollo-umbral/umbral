@@ -7,7 +7,6 @@ using umbral_backend.Application.Common.Behaviours;
 using umbral_backend.Application.JoinTokens.Commands.IssueJoinToken;
 using umbral_backend.Application.JoinTokens.Queries.ValidateParticipantMembershipAccess;
 using umbral_backend.Application.Sessions.Queries.GetSessionTeamsForParticipant;
-using umbral_backend.Application.Teams.Commands.JoinTeamAsParticipant;
 using umbral_backend.Domain.Services;
 
 namespace Microsoft.Extensions.DependencyInjection;
@@ -33,8 +32,6 @@ public static class DependencyInjection
         builder.Services.AddScoped<IdentityProvisioningPolicy>();
         builder.Services.AddScoped<AccessPolicy>();
 
-        builder.Services.AddScoped<ParticipantSessionMembershipPolicy>();
-
         // Concrete use-case handlers (the real subjects). Each is wrapped by its mandated
         // *AuthorizationProxy, which MediatR's assembly scan discovers as the IRequestHandler
         // for the request — the guard therefore runs before the handler. The concrete handler
@@ -43,6 +40,5 @@ public static class DependencyInjection
         builder.Services.AddScoped<IssueJoinTokenCommandHandler>();
         builder.Services.AddScoped<ValidateParticipantMembershipAccessQueryHandler>();
         builder.Services.AddScoped<GetSessionTeamsForParticipantQueryHandler>();
-        builder.Services.AddScoped<JoinTeamAsParticipantCommandHandler>();
     }
 }

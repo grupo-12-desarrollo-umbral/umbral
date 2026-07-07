@@ -94,12 +94,7 @@ public sealed class ProblemDetailsExceptionHandlerTests
             "Conflict.");
         await AssertHandledAsync(
             handler,
-            new ParticipantAlreadyAssignedToTeamException(Guid.NewGuid(), 42),
-            StatusCodes.Status409Conflict,
-            "Conflict.");
-        await AssertHandledAsync(
-            handler,
-            new ParticipantLockedToAnotherSessionTeamException(42, Guid.NewGuid(), Guid.NewGuid()),
+            new ParticipantAlreadyAuthorizedForTeamException(Guid.NewGuid(), 42),
             StatusCodes.Status409Conflict,
             "Conflict.");
         await AssertHandledAsync(
