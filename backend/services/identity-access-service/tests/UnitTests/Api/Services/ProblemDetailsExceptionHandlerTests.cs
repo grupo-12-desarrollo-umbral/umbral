@@ -22,7 +22,8 @@ public sealed class ProblemDetailsExceptionHandlerTests
             [ErrorCategory.Conflict] = StatusCodes.Status409Conflict,
             [ErrorCategory.Forbidden] = StatusCodes.Status403Forbidden,
             [ErrorCategory.Unauthorized] = StatusCodes.Status401Unauthorized,
-            [ErrorCategory.Unprocessable] = StatusCodes.Status422UnprocessableEntity
+            [ErrorCategory.Unprocessable] = StatusCodes.Status422UnprocessableEntity,
+            [ErrorCategory.ServiceUnavailable] = StatusCodes.Status503ServiceUnavailable
         };
 
     // Every concrete DomainException in the Domain assembly, one Theory case each. The key is the

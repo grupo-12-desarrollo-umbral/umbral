@@ -33,9 +33,12 @@ public sealed class AssignUserRoleCommandHandler
 
         user.AssignRole(newRole);
 
-        await _userRepository.UpdateAsync(user, cancellationToken);
-
+        // Keycloak-first: propagate to the identity provider before committing the app DB.
+        // If the sync throws, UpdateAsync never runs, so both stores keep the old role — the two
+        // can't silently diverge. See ADR-0007 (frontend/docs/adr/0007-role-authority-app-database).
         await _identityProviderAdmin.SyncUserRoleAsync(user.ExternalIdentityId, newRole, cancellationToken);
+
+        await _userRepository.UpdateAsync(user, cancellationToken);
     }
 
     private static bool TryParseRole(string role, out Role parsedRole)

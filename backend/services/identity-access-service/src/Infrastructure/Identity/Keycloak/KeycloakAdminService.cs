@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using umbral_backend.Application.Common.Interfaces;
 using umbral_backend.Domain.Enums;
+using umbral_backend.Domain.Exceptions;
 
 namespace umbral_backend.Infrastructure.Identity.Keycloak;
 
@@ -23,48 +24,81 @@ public sealed class KeycloakAdminService : IIdentityProviderAdminService
         _logger = logger;
     }
 
+    // Bounded retry over the whole sync operation. Transient failures (connection/5xx/timeout)
+    // are retried; on exhaustion — or a deterministic failure like a missing realm role — the
+    // caller gets an IdentityProviderRoleSyncException (503). Failures are never swallowed, so
+    // the handler (Keycloak-first) never commits the DB when Keycloak is out of reach.
+    // ponytail: in-process retry; swap for an outbox/queue only if durable at-least-once is needed.
     public async Task SyncUserRoleAsync(string externalIdentityId, Role newRole, CancellationToken cancellationToken)
     {
-        try
+        var realmRole = newRole.ToString();
+        var maxAttempts = Math.Max(1, _options.SyncMaxAttempts);
+        Exception? lastTransientError = null;
+
+        for (var attempt = 1; attempt <= maxAttempts; attempt++)
         {
-            var token = await GetAdminTokenAsync(cancellationToken);
-            var realmRole = newRole.ToString();
-
-            var availableRoles = await GetRealmRolesAsync(token, cancellationToken);
-            var targetRole = availableRoles.FirstOrDefault(r =>
-                string.Equals(r.Name, realmRole, StringComparison.OrdinalIgnoreCase));
-
-            if (targetRole is null)
+            try
             {
-                _logger.LogWarning("Realm role '{Role}' not found in Keycloak", realmRole);
+                await SyncOnceAsync(externalIdentityId, realmRole, cancellationToken);
+                _logger.LogInformation("Keycloak role for user {UserId} synced to {Role}", externalIdentityId, realmRole);
                 return;
             }
-
-            var currentRoles = await GetUserRealmRolesAsync(token, externalIdentityId, cancellationToken);
-            var rolesToRemove = currentRoles
-                .Where(r => !string.Equals(r.Name, realmRole, StringComparison.OrdinalIgnoreCase))
-                .ToList();
-
-            if (rolesToRemove.Count > 0)
+            catch (Exception ex) when (IsTransient(ex) && !cancellationToken.IsCancellationRequested)
             {
-                await RemoveRealmRolesAsync(token, externalIdentityId, rolesToRemove, cancellationToken);
+                lastTransientError = ex;
+                _logger.LogWarning(
+                    ex, "Keycloak role sync attempt {Attempt}/{Max} failed for user {UserId}; retrying",
+                    attempt, maxAttempts, externalIdentityId);
+
+                if (attempt < maxAttempts)
+                {
+                    await Task.Delay(_options.SyncRetryBaseDelayMs * attempt, cancellationToken);
+                }
             }
-
-            var alreadyAssigned = currentRoles.Any(r =>
-                string.Equals(r.Name, realmRole, StringComparison.OrdinalIgnoreCase));
-
-            if (!alreadyAssigned)
-            {
-                await AddRealmRoleAsync(token, externalIdentityId, targetRole, cancellationToken);
-            }
-
-            _logger.LogInformation("Keycloak role for user {UserId} synced to {Role}", externalIdentityId, realmRole);
         }
-        catch (Exception ex)
+
+        throw new IdentityProviderRoleSyncException(
+            externalIdentityId, realmRole, "Keycloak Admin API unavailable after retries.", lastTransientError!);
+    }
+
+    private async Task SyncOnceAsync(string externalIdentityId, string realmRole, CancellationToken cancellationToken)
+    {
+        var token = await GetAdminTokenAsync(cancellationToken);
+
+        var availableRoles = await GetRealmRolesAsync(token, cancellationToken);
+        var targetRole = availableRoles.FirstOrDefault(r =>
+            string.Equals(r.Name, realmRole, StringComparison.OrdinalIgnoreCase));
+
+        if (targetRole is null)
         {
-            _logger.LogError(ex, "Failed to sync Keycloak role for user {UserId}", externalIdentityId);
+            // Deterministic: retrying will not conjure the role. Surface it — do not swallow.
+            throw new IdentityProviderRoleSyncException(
+                externalIdentityId, realmRole, $"Realm role '{realmRole}' not found in Keycloak.");
+        }
+
+        var currentRoles = await GetUserRealmRolesAsync(token, externalIdentityId, cancellationToken);
+        var rolesToRemove = currentRoles
+            .Where(r => !string.Equals(r.Name, realmRole, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+        if (rolesToRemove.Count > 0)
+        {
+            await RemoveRealmRolesAsync(token, externalIdentityId, rolesToRemove, cancellationToken);
+        }
+
+        var alreadyAssigned = currentRoles.Any(r =>
+            string.Equals(r.Name, realmRole, StringComparison.OrdinalIgnoreCase));
+
+        if (!alreadyAssigned)
+        {
+            await AddRealmRoleAsync(token, externalIdentityId, targetRole, cancellationToken);
         }
     }
+
+    // Transient = worth retrying. A non-transient IdentityProviderRoleSyncException (e.g. missing
+    // realm role) propagates immediately; caller cancellation is never retried.
+    private static bool IsTransient(Exception ex) =>
+        ex is HttpRequestException || ex is TaskCanceledException || ex is TimeoutException;
 
     private async Task<string> GetAdminTokenAsync(CancellationToken cancellationToken)
     {
