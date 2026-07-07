@@ -99,6 +99,32 @@ public sealed class UserTests
     }
 
     [Fact]
+    public void ReactivateAccess_WhenDeactivated_RestoresActiveStateAndRaisesEvent()
+    {
+        var user = User.Provision("kc-05", "Reactivate Me", "reactivate@example.com", Role.Operator);
+        user.DeactivateAccess();
+        user.ClearDomainEvents();
+
+        user.ReactivateAccess();
+
+        user.IsActive.Should().BeTrue();
+        user.ExternalIdentityId.Should().Be("kc-05");
+        user.DisplayName.Should().Be("Reactivate Me");
+        user.Email.Should().Be("reactivate@example.com");
+        user.Role.Should().Be(Role.Operator);
+        user.DomainEvents.Should().ContainSingle(eventItem => eventItem is UserAccessReactivatedEvent);
+    }
+
+    [Fact]
+    public void ReactivateAccess_WhenAlreadyActive_ThrowsException()
+    {
+        var user = User.Provision("kc-06", "Already Active", "active@example.com", Role.Operator);
+
+        FluentActions.Invoking(user.ReactivateAccess)
+            .Should().Throw<UserAccessAlreadyActiveException>();
+    }
+
+    [Fact]
     public void RecordAccessDecision_AddsDomainEvent()
     {
         var user = User.Provision("kc-05", "Alice", "alice@example.com", Role.Administrator);

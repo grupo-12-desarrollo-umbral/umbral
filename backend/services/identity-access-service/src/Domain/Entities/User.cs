@@ -76,6 +76,17 @@ public sealed class User : BaseAuditableEntity
         AddDomainEvent(new UserAccessDeactivatedEvent(this));
     }
 
+    public void ReactivateAccess()
+    {
+        if (IsActive)
+        {
+            throw new UserAccessAlreadyActiveException(Id);
+        }
+
+        IsActive = true;
+        AddDomainEvent(new UserAccessReactivatedEvent(this));
+    }
+
     public void RecordAccessDecision(AccessDecision decision)
     {
         AddDomainEvent(new AccessDecisionRecordedEvent(this, decision));
