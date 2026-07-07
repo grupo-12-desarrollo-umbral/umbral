@@ -11,5 +11,6 @@ public enum ErrorCategory
     Conflict,
     Forbidden,
     Unauthorized,
-    Unprocessable
+    Unprocessable,
+    ServiceUnavailable
 }

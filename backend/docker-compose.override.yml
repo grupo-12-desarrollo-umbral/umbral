@@ -17,17 +17,25 @@
 # Compose uses the SDK `image` instead (requires Compose v2.24+).
 # Polling file watcher is forced on: inotify events don't always cross bind
 # mounts, and silent no-reload is worse than a little extra CPU.
-# A shared nuget volume keeps restores warm across restarts.
+#
+# The container runs as the host uid (DOCKER_UID/GID, default 1000) so the
+# obj/bin `dotnet watch` writes into the bind-mounted source are owned by you,
+# not root — otherwise every background rebuild re-roots the tree and breaks
+# host-side `dotnet build`/`test`. A non-root uid can't write /root, so HOME
+# and the NuGet cache move to /tmp/nuget, backed by the host cache to stay warm.
 # ─────────────────────────────────────────────────────────────────────────────
 
 x-dotnet-watch: &dotnet-watch
   image: mcr.microsoft.com/dotnet/sdk:10.0-preview
   build: !reset null
+  user: "${DOCKER_UID:-1000}:${DOCKER_GID:-1000}"
   command: ["dotnet", "watch", "run", "--no-launch-profile", "--non-interactive"]
   environment:
     DOTNET_USE_POLLING_FILE_WATCHER: "true"
     DOTNET_CLI_TELEMETRY_OPTOUT: "1"
     DOTNET_NOLOGO: "1"
+    HOME: "/tmp"
+    NUGET_PACKAGES: "/tmp/nuget"
 
 services:
   api-gateway:
@@ -35,31 +43,25 @@ services:
     working_dir: /src/src
     volumes:
       - ./api-gateway/src:/src/src
-      - nuget-packages-gateway:/root/.nuget/packages
+      - ${HOME}/.nuget/packages:/tmp/nuget
 
   mission-design-service:
     <<: *dotnet-watch
     working_dir: /src/src/Api
     volumes:
       - ./services/mission-design-service/src:/src/src
-      - nuget-packages-mission:/root/.nuget/packages
+      - ${HOME}/.nuget/packages:/tmp/nuget
 
   identity-access-service:
     <<: *dotnet-watch
     working_dir: /src/src/Api
     volumes:
       - ./services/identity-access-service/src:/src/src
-      - nuget-packages-identity:/root/.nuget/packages
+      - ${HOME}/.nuget/packages:/tmp/nuget
 
   session-operations-service:
     <<: *dotnet-watch
     working_dir: /src/src/Api
     volumes:
       - ./services/session-operations-service/src:/src/src
-      - nuget-packages-session:/root/.nuget/packages
-
-volumes:
-  nuget-packages-gateway:
-  nuget-packages-mission:
-  nuget-packages-identity:
-  nuget-packages-session:
+      - ${HOME}/.nuget/packages:/tmp/nuget

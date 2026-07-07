@@ -76,6 +76,7 @@ public sealed class ProblemDetailsExceptionHandler : IExceptionHandler
         ErrorCategory.Forbidden => StatusCodes.Status403Forbidden,
         ErrorCategory.Unauthorized => StatusCodes.Status401Unauthorized,
         ErrorCategory.Unprocessable => StatusCodes.Status422UnprocessableEntity,
+        ErrorCategory.ServiceUnavailable => StatusCodes.Status503ServiceUnavailable,
         _ => StatusCodes.Status500InternalServerError
     };
 
@@ -87,6 +88,7 @@ public sealed class ProblemDetailsExceptionHandler : IExceptionHandler
         ErrorCategory.Forbidden => "Forbidden.",
         ErrorCategory.Unauthorized => "Unauthorized.",
         ErrorCategory.Unprocessable => "Unprocessable entity.",
+        ErrorCategory.ServiceUnavailable => "Service unavailable.",
         _ => "An unexpected error occurred."
     };
 }

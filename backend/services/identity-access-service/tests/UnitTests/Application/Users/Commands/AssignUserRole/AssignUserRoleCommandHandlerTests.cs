@@ -40,6 +40,30 @@ public sealed class AssignUserRoleCommandHandlerTests
     }
 
     [Fact]
+    public async Task Handle_WhenKeycloakSyncFails_DoesNotPersistUpdate()
+    {
+        var target = CreateUser(2, "kc-user", Role.Operator);
+
+        var repository = new Mock<IUserRepository>();
+        repository
+            .Setup(repo => repo.GetByIdAsync(target.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(target);
+
+        var identityProviderAdmin = new Mock<IIdentityProviderAdminService>();
+        identityProviderAdmin
+            .Setup(admin => admin.SyncUserRoleAsync(target.ExternalIdentityId, Role.Participant, It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new IdentityProviderRoleSyncException(target.ExternalIdentityId, "Participant", "Keycloak unavailable."));
+
+        var handler = new AssignUserRoleCommandHandler(repository.Object, identityProviderAdmin.Object);
+
+        var act = async () => await handler.Handle(new AssignUserRoleCommand(target.Id, "Participant"), CancellationToken.None);
+
+        // Keycloak-first: a sync failure aborts before the DB is committed, so the two stores stay in agreement.
+        await act.Should().ThrowAsync<IdentityProviderRoleSyncException>();
+        repository.Verify(repo => repo.UpdateAsync(It.IsAny<User>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
     public async Task Handle_SameRoleAssignmentIsIdempotent()
     {
         var target = CreateUser(2, "kc-user", Role.Operator);

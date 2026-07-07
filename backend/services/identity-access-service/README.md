@@ -176,7 +176,7 @@ Paginated catalog of all users. Returns every role — authorization gates what 
 
 ### `PATCH /api/users/{id}/role`
 
-Change a user's role. Persists the change to the application database, then syncs the new realm role to Keycloak via the Admin API. Idempotent: assigning the same role again succeeds without error.
+Change a user's role. Syncs the new realm role to Keycloak via the Admin API **first**, then persists the change to the application database — if Keycloak is unreachable (after retries) the DB is not committed and the caller gets `503`, so the two stores never silently diverge (see ADR-0007). Idempotent: assigning the same role again succeeds without error.
 
 **Auth:** `Administrator` only
 
@@ -434,25 +434,28 @@ All exceptions are mapped to RFC 7807 `ProblemDetails`:
 | `TeamCodeRequiredException` | 400 |
 | `TeamDisplayNameRequiredException` | 400 |
 | `DeactivatedUserRoleAssignmentNotAllowedException` | 422 |
+| `IdentityProviderRoleSyncException` | 503 |
 | Everything else | 500 |
 
 ### Keycloak Admin Role Sync
 
-When an admin changes a user's role via `PATCH /api/users/{id}/role`, the handler persists the change to the application DB and then calls `KeycloakAdminService.SyncUserRoleAsync()`. This service:
+When an admin changes a user's role via `PATCH /api/users/{id}/role`, the handler calls `KeycloakAdminService.SyncUserRoleAsync()` **before** committing the app DB. This service:
 
 1. Authenticates with the Keycloak master realm using the `admin-cli` client via `KEYCLOAK_ADMIN` / `KEYCLOAK_ADMIN_PASSWORD` (configured in docker-compose).
 2. Fetches available realm roles from Keycloak.
 3. Retrieves the user's current realm role mappings.
 4. Removes existing roles (except the one being assigned) and adds the target role.
 
-Failures are logged but do not roll back the DB update — the application DB is the source of truth. Configuration lives in the `Keycloak` section of `appsettings.json`:
+Transient failures (connection/5xx/timeout) are retried in-process (`SyncMaxAttempts`, `SyncRetryBaseDelayMs`); a deterministic failure such as a missing realm role fails fast. If the sync cannot complete, `SyncUserRoleAsync` throws `IdentityProviderRoleSyncException` → **HTTP 503** and the DB is **not** updated, so the app DB never moves ahead of Keycloak. See [ADR-0007](../../../frontend/docs/adr/0007-role-authority-app-database.md) for the "source of truth under partial failure" rationale. Configuration lives in the `Keycloak` section of `appsettings.json`:
 
 ```json
 "Keycloak": {
   "AdminAuthority": "http://keycloak:8080",
   "Realm": "umbral",
   "AdminUsername": "admin",
-  "AdminPassword": "admin"
+  "AdminPassword": "admin",
+  "SyncMaxAttempts": 3,
+  "SyncRetryBaseDelayMs": 200
 }
 ```
 
