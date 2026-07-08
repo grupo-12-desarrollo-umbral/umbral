@@ -86,7 +86,7 @@ public sealed class GetParticipantSessionTimerSnapshotQueryHandlerTests
         var repository = CreateRepository(session);
         var handler = CreateHandler(
             repository,
-            CreateAccessClient(session.LiveSessionId, teamId, isAllowed: false),
+            CreateGuard(session.LiveSessionId, teamId, isAllowed: false),
             ActivatedAt.AddSeconds(5));
 
         var act = async () => await handler.Handle(
@@ -108,7 +108,7 @@ public sealed class GetParticipantSessionTimerSnapshotQueryHandlerTests
             .ReturnsAsync((LiveSession?)null);
         var handler = CreateHandler(
             repository,
-            CreateAccessClient(liveSessionId, teamId, isAllowed: true),
+            CreateGuard(liveSessionId, teamId, isAllowed: true),
             StartsAt.AddMinutes(2));
 
         var act = async () => await handler.Handle(
@@ -127,18 +127,18 @@ public sealed class GetParticipantSessionTimerSnapshotQueryHandlerTests
     {
         return CreateHandler(
             CreateRepository(session),
-            CreateAccessClient(session.LiveSessionId, teamId, isAllowed),
+            CreateGuard(session.LiveSessionId, teamId, isAllowed),
             observedAt);
     }
 
     private static GetParticipantSessionTimerSnapshotQueryHandler CreateHandler(
         Mock<ILiveSessionRepository> repository,
-        Mock<IParticipantMembershipAccessClient> accessClient,
+        Mock<IRuntimeParticipationGuard> guard,
         DateTimeOffset observedAt)
     {
         return new GetParticipantSessionTimerSnapshotQueryHandler(
             repository.Object,
-            accessClient.Object,
+            guard.Object,
             new FixedTimeProvider(observedAt));
     }
 
@@ -152,23 +152,28 @@ public sealed class GetParticipantSessionTimerSnapshotQueryHandlerTests
         return repository;
     }
 
-    private static Mock<IParticipantMembershipAccessClient> CreateAccessClient(
+    private static Mock<IRuntimeParticipationGuard> CreateGuard(
         Guid liveSessionId,
         Guid teamId,
         bool isAllowed)
     {
-        var accessClient = new Mock<IParticipantMembershipAccessClient>();
-        accessClient
-            .Setup(client => client.ValidateAsync(liveSessionId, teamId, It.IsAny<string?>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new ParticipantMembershipAccessDecisionDto(
-                "ParticipantExperience",
-                isAllowed,
-                isAllowed ? "eligible" : "users-unavailable",
-                isAllowed ? "allowed" : "denied",
-                liveSessionId,
-                teamId));
+        var guard = new Mock<IRuntimeParticipationGuard>();
+        var setup = guard.Setup(g => g.EnsureAllowedAsync(
+            liveSessionId,
+            teamId,
+            It.IsAny<string?>(),
+            It.IsAny<CancellationToken>()));
 
-        return accessClient;
+        if (isAllowed)
+        {
+            setup.Returns(Task.CompletedTask);
+        }
+        else
+        {
+            setup.ThrowsAsync(new ForbiddenAccessException());
+        }
+
+        return guard;
     }
 
     private static LiveSession CreateActiveTriviaSession(DateTimeOffset activatedAt)

@@ -10,20 +10,20 @@ public sealed class ReconnectAuthenticatedParticipantCommandHandler
     : IRequestHandler<ReconnectAuthenticatedParticipantCommand, ReconnectParticipantResultDto>
 {
     private readonly ILiveSessionRepository _liveSessionRepository;
-    private readonly IParticipantMembershipAccessClient _participantMembershipAccessClient;
+    private readonly IRuntimeParticipationGuard _runtimeParticipationGuard;
     private readonly ICurrentUser _currentUser;
     private readonly JoinPolicy _joinPolicy;
     private readonly TimeProvider _timeProvider;
 
     public ReconnectAuthenticatedParticipantCommandHandler(
         ILiveSessionRepository liveSessionRepository,
-        IParticipantMembershipAccessClient participantMembershipAccessClient,
+        IRuntimeParticipationGuard runtimeParticipationGuard,
         ICurrentUser currentUser,
         JoinPolicy joinPolicy,
         TimeProvider timeProvider)
     {
         _liveSessionRepository = liveSessionRepository;
-        _participantMembershipAccessClient = participantMembershipAccessClient;
+        _runtimeParticipationGuard = runtimeParticipationGuard;
         _currentUser = currentUser;
         _joinPolicy = joinPolicy;
         _timeProvider = timeProvider;
@@ -33,16 +33,11 @@ public sealed class ReconnectAuthenticatedParticipantCommandHandler
         ReconnectAuthenticatedParticipantCommand request,
         CancellationToken cancellationToken)
     {
-        var accessDecision = await _participantMembershipAccessClient.ValidateAsync(
+        await _runtimeParticipationGuard.EnsureAllowedAsync(
             request.LiveSessionId,
             request.TeamId,
             request.Token,
             cancellationToken);
-
-        if (!accessDecision.IsAllowed)
-        {
-            throw new ForbiddenAccessException();
-        }
 
         var liveSession = await _liveSessionRepository.GetByIdAsync(request.LiveSessionId, cancellationToken)
             ?? throw new NotFoundException(nameof(LiveSession), request.LiveSessionId);
