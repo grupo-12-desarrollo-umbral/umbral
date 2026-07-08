@@ -214,6 +214,52 @@ public sealed class LiveSession : BaseAuditableEntity
         return (existingParticipant, existingTeam, true);
     }
 
+    // Pre-start team pick / switch (Open Team Selection write path, #88 policy + #89 rules). A
+    // participant self-assigns into an attached team, or switches from their current pick to another.
+    // The #88 policy gates pre-start availability + authorized set; here we add the #89 rules:
+    // capacity-checked on the team being joined, and switching out frees the old slot (decisions §8).
+    // Freezes automatically once the session leaves Scheduled/Preparing — the policy throws.
+    public (SessionParticipant Participant, Team Team) SelectTeam(
+        Guid externalIdentityId,
+        string displayName,
+        Guid targetTeamId,
+        IReadOnlySet<Guid> authorizedReferenceTeamIds,
+        DateTimeOffset occurredAt,
+        OpenTeamSelectionPolicy openTeamSelectionPolicy)
+    {
+        ArgumentNullException.ThrowIfNull(openTeamSelectionPolicy);
+
+        var target = GetTeam(targetTeamId);
+        openTeamSelectionPolicy.EnsureCanSelfAssign(this, target, authorizedReferenceTeamIds);
+
+        var participant = _participants.SingleOrDefault(participant => participant.ExternalIdentityId == externalIdentityId);
+        var currentTeam = participant is null ? null : FindAssignedTeam(participant.SessionParticipantId);
+
+        if (currentTeam is not null && currentTeam.TeamId == target.TeamId)
+        {
+            return (participant!, currentTeam); // Re-picking the current team is a no-op.
+        }
+
+        // Capacity is checked on the team being joined (§8); the participant does not yet hold a slot
+        // there, so a free slot is required. The old slot is released only after this passes.
+        if (target.ActiveMemberCount >= target.Capacity)
+        {
+            throw new TeamCapacityReachedException(target.TeamId, target.Capacity);
+        }
+
+        if (participant is null)
+        {
+            participant = SessionParticipant.Join(LiveSessionId, externalIdentityId, displayName, occurredAt);
+            _participants.Add(participant);
+        }
+
+        currentTeam?.ReleaseParticipant(participant.SessionParticipantId, occurredAt);
+        target.AssignParticipant(participant, occurredAt);
+
+        AddDomainEvent(new ParticipantAssignedToTeamEvent(LiveSessionId, participant.SessionParticipantId, target.TeamId, occurredAt));
+        return (participant, target);
+    }
+
     public void DisconnectParticipant(Guid participantId, DateTimeOffset occurredAt)
     {
         var participant = _participants.Single(participant => participant.SessionParticipantId == participantId);

@@ -123,6 +123,18 @@ public sealed class Team : BaseEntity
         JoinStatus = TeamJoinStatus.Closed;
     }
 
+    // Releases the participant's active membership, freeing a capacity slot. Used when a participant
+    // switches teams pre-start (#89, decisions §8: "Switching out frees a slot"). No-op if they hold
+    // no active membership here.
+    internal void ReleaseParticipant(Guid sessionParticipantId, DateTimeOffset occurredAt)
+    {
+        var member = _members.SingleOrDefault(member =>
+            member.SessionParticipantId == sessionParticipantId &&
+            member.IsActive);
+
+        member?.Remove(occurredAt);
+    }
+
     internal TeamMember AssignParticipant(SessionParticipant participant, DateTimeOffset occurredAt)
     {
         var existingMember = _members.SingleOrDefault(member =>
