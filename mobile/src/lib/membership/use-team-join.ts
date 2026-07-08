@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import {
   joinSessionTeam,
-  type JoinSessionTeamRequest,
   type JoinSessionTeamResponse,
 } from '@/lib/api/teams';
 import { ApiError } from '@/lib/api/client';
@@ -54,14 +53,14 @@ export function useTeamJoin() {
   const [outcome, setOutcome] = useState<TeamJoinOutcome | null>(null);
 
   async function join(
+    sessionCode: string,
     teamId: string,
-    request: JoinSessionTeamRequest,
   ): Promise<TeamJoinOutcome> {
     setStatus('joining');
     setOutcome(null);
     let result: TeamJoinOutcome;
     try {
-      const response = await joinSessionTeam(teamId, request);
+      const response = await joinSessionTeam(sessionCode, teamId);
       result = { kind: 'joined', response };
     } catch (error) {
       result = resolveTeamJoinError(error);

@@ -12,10 +12,6 @@ export type SessionTeamLobbyDto = {
   teams: SessionTeamDto[];
 };
 
-export type JoinSessionTeamRequest = {
-  liveSessionId: string;
-};
-
 export type JoinSessionTeamResponse = {
   teamMembershipId: string;
 };
@@ -24,7 +20,7 @@ export function listSessionTeams(
   sessionCode: string,
 ): Promise<SessionTeamLobbyDto> {
   return apiClient.get<SessionTeamLobbyDto>(
-    `/api/sessions/${encodeURIComponent(sessionCode)}/teams`,
+    `/api/sessions/by-code/${encodeURIComponent(sessionCode)}/teams/lobby`,
     {
       cache: 'no-store',
       headers: {
@@ -35,12 +31,13 @@ export function listSessionTeams(
   );
 }
 
+// Runtime teamId already binds the session, so the route carries everything — no body.
 export function joinSessionTeam(
+  sessionCode: string,
   teamId: string,
-  request: JoinSessionTeamRequest,
 ): Promise<JoinSessionTeamResponse> {
   return apiClient.post<JoinSessionTeamResponse>(
-    `/api/teams/${encodeURIComponent(teamId)}/participants/self`,
-    request,
+    `/api/sessions/by-code/${encodeURIComponent(sessionCode)}/teams/${encodeURIComponent(teamId)}/join`,
+    undefined,
   );
 }
