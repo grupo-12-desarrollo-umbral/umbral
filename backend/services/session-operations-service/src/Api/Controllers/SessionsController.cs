@@ -5,6 +5,7 @@ using umbral_backend.Application.Sessions.Commands.AssociateTeamToSession;
 using umbral_backend.Application.Sessions.Commands.AssignOperatorToSession;
 using umbral_backend.Application.Sessions.Commands.CreateSession;
 using umbral_backend.Application.Sessions.Commands.ReconnectAuthenticatedParticipant;
+using umbral_backend.Application.Sessions.Commands.SelectTeam;
 using umbral_backend.Application.Sessions.Commands.TransitionSessionState;
 using umbral_backend.Application.Sessions.Common;
 using umbral_backend.Application.Sessions.Queries.GetOperatorSessionTimerSnapshot;
@@ -161,6 +162,20 @@ public sealed class SessionsController(ISender sender) : ControllerBase
     {
         var result = await sender.Send(
             new GetParticipantSessionTimerSnapshotQuery(liveSessionId, teamId, token),
+            cancellationToken);
+
+        return Ok(result);
+    }
+
+    [HttpPost("by-code/{sessionCode}/teams/{runtimeTeamId:guid}/join")]
+    [Authorize(Policy = AuthorizationPolicies.Participant)]
+    public async Task<ActionResult<SelectTeamResultDto>> SelectTeamAsync(
+        string sessionCode,
+        Guid runtimeTeamId,
+        CancellationToken cancellationToken)
+    {
+        var result = await sender.Send(
+            new SelectTeamCommand(sessionCode, runtimeTeamId),
             cancellationToken);
 
         return Ok(result);

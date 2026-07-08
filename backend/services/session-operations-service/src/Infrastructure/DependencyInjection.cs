@@ -48,6 +48,12 @@ public static class DependencyInjection
             client.Timeout = TimeSpan.FromSeconds(10);
         });
 
+        builder.Services.AddHttpClient<IParticipantEligibleTeamsClient, ParticipantEligibleTeamsClient>(client =>
+        {
+            client.BaseAddress = new Uri(identityAccessBaseAddress);
+            client.Timeout = TimeSpan.FromSeconds(10);
+        });
+
         builder.Services.Configure<MissionRuntimeSourceOptions>(
             builder.Configuration.GetSection(MissionRuntimeSourceOptions.SectionName));
 
