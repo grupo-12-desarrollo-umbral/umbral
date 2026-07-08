@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using umbral_backend.Application.Permissions.Queries.CheckProtectedCapabilityAccess;
+using umbral_backend.Application.Permissions.Queries.GetParticipantEligibleTeams;
 using umbral_backend.Application.Permissions.Queries.ValidateParticipantMembershipAccess;
 using umbral_backend.Domain.Enums;
 
@@ -28,6 +29,15 @@ public sealed class PermissionsController(ISender sender) : ControllerBase
         var result = await sender.Send(
             new ValidateParticipantMembershipAccessQuery(request.LiveSessionId, request.TeamId),
             cancellationToken);
+
+        return Ok(result);
+    }
+
+    [HttpGet("participant-eligible-teams")]
+    public async Task<ActionResult<ParticipantEligibleTeamsDto>> GetParticipantEligibleTeamsAsync(
+        CancellationToken cancellationToken)
+    {
+        var result = await sender.Send(new GetParticipantEligibleTeamsQuery(), cancellationToken);
 
         return Ok(result);
     }

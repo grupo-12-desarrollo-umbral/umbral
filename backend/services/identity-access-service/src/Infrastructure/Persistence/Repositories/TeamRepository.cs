@@ -27,6 +27,16 @@ public sealed class TeamRepository : ITeamRepository
             .SingleOrDefaultAsync(team => team.TeamId == teamId, cancellationToken);
     }
 
+    public async Task<IReadOnlyList<RegisteredTeam>> ListActiveByParticipantAsync(int userId, CancellationToken cancellationToken)
+    {
+        return await _context.RegisteredTeams
+            .AsNoTracking()
+            .Where(team => team.IsActive && team.Memberships.Any(membership => membership.UserId == userId))
+            .OrderBy(team => team.DisplayName)
+            .ThenBy(team => team.TeamId)
+            .ToArrayAsync(cancellationToken);
+    }
+
     public async Task<PagedResult<RegisteredTeam>> ListAsync(int page, int pageSize, CancellationToken cancellationToken)
     {
         var query = _context.RegisteredTeams

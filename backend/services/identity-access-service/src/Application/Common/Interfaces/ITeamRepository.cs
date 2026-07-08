@@ -12,6 +12,12 @@ public interface ITeamRepository
         throw new NotSupportedException();
     }
 
+    // Active teams the participant is whitelisted for (may-join eligibility set).
+    Task<IReadOnlyList<RegisteredTeam>> ListActiveByParticipantAsync(int userId, CancellationToken cancellationToken)
+    {
+        throw new NotSupportedException();
+    }
+
     Task<PagedResult<RegisteredTeam>> ListAsync(int page, int pageSize, CancellationToken cancellationToken);
 
     Task<bool> TeamCodeExistsAsync(string teamCode, Guid? excludeTeamId, CancellationToken cancellationToken)
