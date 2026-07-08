@@ -3,6 +3,7 @@ using Microsoft.Extensions.Hosting;
 using umbral_backend.Application.Common.Interfaces;
 using umbral_backend.Infrastructure.Integrations.MissionDesign;
 using umbral_backend.Infrastructure.Identity;
+using umbral_backend.Infrastructure.Messaging;
 using umbral_backend.Infrastructure.Realtime;
 
 namespace Microsoft.Extensions.DependencyInjection;
@@ -15,6 +16,10 @@ public static class DependencyInjection
         builder.Services.AddSingleton(TimeProvider.System);
         builder.Services.AddSingleton<ISessionTimerBroadcaster, SignalRSessionTimerBroadcaster>();
         builder.Services.AddHostedService<AuthoritativeSessionTimerWorker>();
+
+        builder.Services.Configure<RabbitMqOptions>(
+            builder.Configuration.GetSection(RabbitMqOptions.SectionName));
+        builder.Services.AddSingleton<IIntegrationEventPublisher, RabbitMqIntegrationEventPublisher>();
 
         builder.Services.Configure<ParticipantMembershipAccessClientOptions>(
             builder.Configuration.GetSection(ParticipantMembershipAccessClientOptions.SectionName));

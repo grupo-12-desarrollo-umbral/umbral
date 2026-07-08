@@ -1,4 +1,5 @@
 using System.Reflection;
+using umbral_backend.Domain.Common;
 using umbral_backend.Domain.Entities;
 using umbral_backend.Domain.Enums;
 using umbral_backend.Domain.Events;
@@ -744,8 +745,13 @@ public sealed class LiveSessionTests
         advancedEvent.FromPlayMode.Should().Be(SubstagePlayMode.Trivia);
         advancedEvent.ToSubstageId.Should().BeNull();
 
-        session.DomainEvents.OfType<SessionStateChangedEvent>()
-            .Should().ContainSingle(stateEvent => stateEvent.CurrentState == SessionState.Finished);
+        // HU-33B: the →Finished fact (raised ONLY here, via SessionCompletion) carries the
+        // history-correlation fields the async publication/history consumer needs.
+        var finishedEvent = session.DomainEvents.OfType<SessionStateChangedEvent>()
+            .Single(stateEvent => stateEvent.CurrentState == SessionState.Finished);
+        finishedEvent.LiveSessionId.Should().Be(session.LiveSessionId);
+        finishedEvent.PreviousState.Should().Be(SessionState.Active);
+        finishedEvent.ChangedAt.Should().Be(advancedAt.AddSeconds(30));
     }
 
     [Fact]
@@ -782,6 +788,41 @@ public sealed class LiveSessionTests
         var next = strategy.Next(session);
 
         next.Should().BeNull();
+    }
+
+    // HU-33B D-1: session-ops EMITS the round-close/finish facts but computes no puntaje/ranking
+    // (that is ScoringMonitoring, derived downstream). Driving a full trivia round to Finished leaves
+    // every team's score untouched — the domain never scores on close/finish.
+    [Fact]
+    public void TriviaRound_OnCloseAndFinishViaSessionCompletion_ComputesNoTeamScoreOrRanking()
+    {
+        var session = ActivateTriviaSession();
+        var at = new DateTimeOffset(2026, 6, 3, 10, 2, 0, TimeSpan.Zero);
+        session.ActivateQuestion(0, at);
+        session.CloseActiveQuestion(at.AddSeconds(30));
+        session.CompleteActiveSubstageAndAdvance(at.AddSeconds(30), new SessionStateTransitionPolicy());
+
+        session.State.Should().Be(SessionState.Finished);
+        session.Teams.Should().NotBeEmpty()
+            .And.OnlyContain(team => team.CurrentScore == null && team.LastScoreCalculatedAt == null);
+    }
+
+    // HU-33B D-2: the publishable facts are the REUSED QuestionClosedEvent + SessionStateChangedEvent —
+    // no new Domain/Events/* type is introduced for round-close/finish publication (SessionResultsFinalized
+    // is an Application integration-event contract, not a domain event, and scoring/ranking stay downstream).
+    [Fact]
+    public void Domain_HasNoNewPublicationEvent_ReusesQuestionClosedAndSessionStateChangedFacts()
+    {
+        var domainEventTypeNames = typeof(SessionStateChangedEvent).Assembly.GetTypes()
+            .Where(type => typeof(BaseEvent).IsAssignableFrom(type) && !type.IsAbstract)
+            .Select(type => type.Name)
+            .ToList();
+
+        domainEventTypeNames.Should().Contain(new[] { nameof(QuestionClosedEvent), nameof(SessionStateChangedEvent) });
+        domainEventTypeNames.Should().NotContain(name =>
+            name.Contains("Score", StringComparison.Ordinal) ||
+            name.Contains("Ranking", StringComparison.Ordinal) ||
+            name.Contains("Finalized", StringComparison.Ordinal));
     }
 
     private static IReadOnlyList<SubstageSnapshot> OrderedSubstages(LiveSession session)
