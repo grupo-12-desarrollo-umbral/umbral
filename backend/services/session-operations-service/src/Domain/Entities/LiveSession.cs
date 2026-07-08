@@ -586,6 +586,14 @@ public sealed class LiveSession : BaseAuditableEntity
         }
     }
 
+    // Read accessor for the lobby (#108): the attached team the external participant currently holds
+    // an active membership in, or null. Maps ExternalIdentityId → the private assigned-team lookup.
+    public Team? FindTeamForExternalParticipant(Guid externalIdentityId)
+    {
+        var participant = _participants.SingleOrDefault(participant => participant.ExternalIdentityId == externalIdentityId);
+        return participant is null ? null : FindAssignedTeam(participant.SessionParticipantId);
+    }
+
     private Team? FindAssignedTeam(Guid sessionParticipantId)
     {
         return _teams.SingleOrDefault(team =>

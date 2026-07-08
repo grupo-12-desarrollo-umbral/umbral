@@ -11,6 +11,7 @@ using umbral_backend.Application.Sessions.Common;
 using umbral_backend.Application.Sessions.Queries.GetOperatorSessionTimerSnapshot;
 using umbral_backend.Application.Sessions.Queries.GetParticipantSessionTimerSnapshot;
 using umbral_backend.Application.Sessions.Queries.GetAssociatedTeamsForSession;
+using umbral_backend.Application.Sessions.Queries.GetSessionTeamLobby;
 using umbral_backend.Application.Sessions.Queries.ListAssignableSessions;
 using umbral_backend.Domain.Enums;
 
@@ -164,6 +165,16 @@ public sealed class SessionsController(ISender sender) : ControllerBase
             new GetParticipantSessionTimerSnapshotQuery(liveSessionId, teamId, token),
             cancellationToken);
 
+        return Ok(result);
+    }
+
+    [HttpGet("by-code/{sessionCode}/teams/lobby")]
+    [Authorize(Policy = AuthorizationPolicies.Participant)]
+    public async Task<ActionResult<SessionTeamLobbyDto>> GetSessionTeamLobbyByCodeAsync(
+        string sessionCode,
+        CancellationToken cancellationToken)
+    {
+        var result = await sender.Send(new GetSessionTeamLobbyByCodeQuery(sessionCode), cancellationToken);
         return Ok(result);
     }
 
