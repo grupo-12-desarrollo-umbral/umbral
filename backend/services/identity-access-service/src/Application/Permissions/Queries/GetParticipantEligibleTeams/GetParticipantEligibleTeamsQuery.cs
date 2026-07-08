@@ -1,0 +1,3 @@
+namespace umbral_backend.Application.Permissions.Queries.GetParticipantEligibleTeams;
+
+public sealed record GetParticipantEligibleTeamsQuery : IRequest<ParticipantEligibleTeamsDto>;
