@@ -31,6 +31,7 @@ public static class DependencyInjection
         });
 
         builder.Services.AddSingleton<JoinPolicy>();
+        builder.Services.AddSingleton<OpenTeamSelectionPolicy>();
         builder.Services.AddSingleton<SessionCreationPolicy>();
         builder.Services.AddSingleton<SessionStateTransitionPolicy>();
         builder.Services.AddSingleton<TimeProvider>(TimeProvider.System);
