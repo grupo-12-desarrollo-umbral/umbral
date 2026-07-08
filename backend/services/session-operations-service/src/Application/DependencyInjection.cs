@@ -36,6 +36,7 @@ public static class DependencyInjection
         builder.Services.AddSingleton<SessionStateTransitionPolicy>();
         builder.Services.AddSingleton<TimeProvider>(TimeProvider.System);
 
+        builder.Services.AddScoped<IRuntimeParticipationGuard, RuntimeParticipationGuard>();
         builder.Services.AddScoped<ISessionAdministrationAccessResolver, SessionAdministrationAuthorizationProxy>();
         builder.Services.AddScoped<ISessionTeamAssociationFacade, SessionTeamAssociationFacade>();
         builder.Services.AddScoped<IAssignOperatorToSessionFacade, AssignOperatorToSessionFacade>();

@@ -594,6 +594,16 @@ public sealed class LiveSession : BaseAuditableEntity
         return participant is null ? null : FindAssignedTeam(participant.SessionParticipantId);
     }
 
+    // Participation Block (#91): mark the external participant blocked after a runtime access
+    // re-check denies (deactivation/membership revocation). Returns the participant only on the
+    // transition (so callers persist/evict once); null if absent or already blocked. The team slot
+    // is intentionally kept — a later Users re-allow recovers the participant in place on reconnect.
+    public SessionParticipant? BlockExternalParticipant(Guid externalIdentityId, DateTimeOffset occurredAt)
+    {
+        var participant = _participants.SingleOrDefault(participant => participant.ExternalIdentityId == externalIdentityId);
+        return participant is not null && participant.Block(occurredAt) ? participant : null;
+    }
+
     private Team? FindAssignedTeam(Guid sessionParticipantId)
     {
         return _teams.SingleOrDefault(team =>

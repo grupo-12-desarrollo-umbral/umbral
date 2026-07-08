@@ -10,16 +10,16 @@ public sealed class GetParticipantSessionTimerSnapshotQueryHandler
     : IRequestHandler<GetParticipantSessionTimerSnapshotQuery, SessionTimerSnapshotDto>
 {
     private readonly ILiveSessionRepository _liveSessionRepository;
-    private readonly IParticipantMembershipAccessClient _participantMembershipAccessClient;
+    private readonly IRuntimeParticipationGuard _runtimeParticipationGuard;
     private readonly TimeProvider _timeProvider;
 
     public GetParticipantSessionTimerSnapshotQueryHandler(
         ILiveSessionRepository liveSessionRepository,
-        IParticipantMembershipAccessClient participantMembershipAccessClient,
+        IRuntimeParticipationGuard runtimeParticipationGuard,
         TimeProvider timeProvider)
     {
         _liveSessionRepository = liveSessionRepository;
-        _participantMembershipAccessClient = participantMembershipAccessClient;
+        _runtimeParticipationGuard = runtimeParticipationGuard;
         _timeProvider = timeProvider;
     }
 
@@ -27,16 +27,11 @@ public sealed class GetParticipantSessionTimerSnapshotQueryHandler
         GetParticipantSessionTimerSnapshotQuery request,
         CancellationToken cancellationToken)
     {
-        var accessDecision = await _participantMembershipAccessClient.ValidateAsync(
+        await _runtimeParticipationGuard.EnsureAllowedAsync(
             request.LiveSessionId,
             request.TeamId,
             request.Token,
             cancellationToken);
-
-        if (!accessDecision.IsAllowed)
-        {
-            throw new ForbiddenAccessException();
-        }
 
         var liveSession = await _liveSessionRepository.GetByIdAsync(request.LiveSessionId, cancellationToken)
             ?? throw new NotFoundException(nameof(LiveSession), request.LiveSessionId);

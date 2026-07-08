@@ -30,10 +30,10 @@ public sealed class ReconnectAuthenticatedParticipantCommandHandlerTests
             new DateTimeOffset(2026, 6, 3, 10, 6, 0, TimeSpan.Zero));
 
         var repository = CreateRepository(session);
-        var accessClient = CreateAccessClient(session.LiveSessionId, team.TeamId, isAllowed: true);
+        var guard = CreateGuard(session.LiveSessionId, team.TeamId, isAllowed: true);
         var currentUser = CreateCurrentUser(participantIdentity);
         var command = new ReconnectAuthenticatedParticipantCommand(session.LiveSessionId, team.TeamId, "Nora", "join-token");
-        var handler = CreateHandler(repository, accessClient, currentUser, new FixedTimeProvider(new DateTimeOffset(2026, 6, 3, 10, 7, 0, TimeSpan.Zero)));
+        var handler = CreateHandler(repository, guard, currentUser, new FixedTimeProvider(new DateTimeOffset(2026, 6, 3, 10, 7, 0, TimeSpan.Zero)));
 
         var result = await handler.Handle(command, CancellationToken.None);
 
@@ -78,14 +78,14 @@ public sealed class ReconnectAuthenticatedParticipantCommandHandlerTests
         session.DisconnectParticipant(firstAdmission.Participant.SessionParticipantId, activeAt.AddSeconds(5));
 
         var repository = CreateRepository(session);
-        var accessClient = CreateAccessClient(session.LiveSessionId, identityReferenceTeamId, isAllowed: true);
+        var guard = CreateGuard(session.LiveSessionId, identityReferenceTeamId, isAllowed: true);
         var currentUser = CreateCurrentUser(participantIdentity);
         var command = new ReconnectAuthenticatedParticipantCommand(
             session.LiveSessionId,
             identityReferenceTeamId,
             "Nora",
             null);
-        var handler = CreateHandler(repository, accessClient, currentUser, new FixedTimeProvider(reconnectAt));
+        var handler = CreateHandler(repository, guard, currentUser, new FixedTimeProvider(reconnectAt));
 
         var result = await handler.Handle(command, CancellationToken.None);
 
@@ -106,10 +106,10 @@ public sealed class ReconnectAuthenticatedParticipantCommandHandlerTests
         var session = CreateActiveSession();
         var team = session.Teams.Single();
         var repository = CreateRepository(session);
-        var accessClient = CreateAccessClient(session.LiveSessionId, team.TeamId, isAllowed: true);
+        var guard = CreateGuard(session.LiveSessionId, team.TeamId, isAllowed: true);
         var currentUser = CreateCurrentUser(Guid.NewGuid());
         var command = new ReconnectAuthenticatedParticipantCommand(session.LiveSessionId, team.TeamId, "Nova", null);
-        var handler = CreateHandler(repository, accessClient, currentUser, new FixedTimeProvider(DateTimeOffset.UtcNow));
+        var handler = CreateHandler(repository, guard, currentUser, new FixedTimeProvider(DateTimeOffset.UtcNow));
 
         var act = async () => await handler.Handle(command, CancellationToken.None);
 
@@ -123,10 +123,10 @@ public sealed class ReconnectAuthenticatedParticipantCommandHandlerTests
         var session = CreateScheduledSession();
         var team = session.AssociateTeam(Guid.NewGuid(), "Alpha", "A-01", 4);
         var repository = CreateRepository(session);
-        var accessClient = CreateAccessClient(session.LiveSessionId, team.TeamId, isAllowed: false);
+        var guard = CreateGuard(session.LiveSessionId, team.TeamId, isAllowed: false);
         var currentUser = CreateCurrentUser(Guid.NewGuid());
         var command = new ReconnectAuthenticatedParticipantCommand(session.LiveSessionId, team.TeamId, "Nora", null);
-        var handler = CreateHandler(repository, accessClient, currentUser, new FixedTimeProvider(DateTimeOffset.UtcNow));
+        var handler = CreateHandler(repository, guard, currentUser, new FixedTimeProvider(DateTimeOffset.UtcNow));
 
         var act = async () => await handler.Handle(command, CancellationToken.None);
 
@@ -156,10 +156,10 @@ public sealed class ReconnectAuthenticatedParticipantCommandHandlerTests
         session.MoveTo(SessionState.Finished, new DateTimeOffset(2026, 6, 3, 10, 9, 0, TimeSpan.Zero), transitionPolicy);
 
         var repository = CreateRepository(session);
-        var accessClient = CreateAccessClient(session.LiveSessionId, team.TeamId, isAllowed: true);
+        var guard = CreateGuard(session.LiveSessionId, team.TeamId, isAllowed: true);
         var currentUser = CreateCurrentUser(participantIdentity);
         var command = new ReconnectAuthenticatedParticipantCommand(session.LiveSessionId, team.TeamId, "Nora", null);
-        var handler = CreateHandler(repository, accessClient, currentUser, new FixedTimeProvider(DateTimeOffset.UtcNow));
+        var handler = CreateHandler(repository, guard, currentUser, new FixedTimeProvider(DateTimeOffset.UtcNow));
 
         var act = async () => await handler.Handle(command, CancellationToken.None);
 
@@ -175,10 +175,10 @@ public sealed class ReconnectAuthenticatedParticipantCommandHandlerTests
         session.AdmitParticipant(Guid.NewGuid(), "P2", team.TeamId, DateTimeOffset.UtcNow.AddMinutes(-1), new JoinPolicy());
 
         var repository = CreateRepository(session);
-        var accessClient = CreateAccessClient(session.LiveSessionId, team.TeamId, isAllowed: true);
+        var guard = CreateGuard(session.LiveSessionId, team.TeamId, isAllowed: true);
         var currentUser = CreateCurrentUser(Guid.NewGuid());
         var command = new ReconnectAuthenticatedParticipantCommand(session.LiveSessionId, team.TeamId, "P3", null);
-        var handler = CreateHandler(repository, accessClient, currentUser, new FixedTimeProvider(DateTimeOffset.UtcNow));
+        var handler = CreateHandler(repository, guard, currentUser, new FixedTimeProvider(DateTimeOffset.UtcNow));
 
         var act = async () => await handler.Handle(command, CancellationToken.None);
 
@@ -187,13 +187,13 @@ public sealed class ReconnectAuthenticatedParticipantCommandHandlerTests
 
     private static ReconnectAuthenticatedParticipantCommandHandler CreateHandler(
         Mock<ILiveSessionRepository> repository,
-        Mock<IParticipantMembershipAccessClient> accessClient,
+        Mock<IRuntimeParticipationGuard> guard,
         Mock<ICurrentUser> currentUser,
         TimeProvider timeProvider)
     {
         return new ReconnectAuthenticatedParticipantCommandHandler(
             repository.Object,
-            accessClient.Object,
+            guard.Object,
             currentUser.Object,
             new JoinPolicy(),
             timeProvider);
@@ -212,23 +212,28 @@ public sealed class ReconnectAuthenticatedParticipantCommandHandlerTests
         return repository;
     }
 
-    private static Mock<IParticipantMembershipAccessClient> CreateAccessClient(
+    private static Mock<IRuntimeParticipationGuard> CreateGuard(
         Guid liveSessionId,
         Guid teamId,
         bool isAllowed)
     {
-        var accessClient = new Mock<IParticipantMembershipAccessClient>();
-        accessClient
-            .Setup(client => client.ValidateAsync(liveSessionId, teamId, It.IsAny<string?>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new ParticipantMembershipAccessDecisionDto(
-                "ParticipantExperience",
-                isAllowed,
-                isAllowed ? "eligible" : "users-unavailable",
-                isAllowed ? "allowed" : "denied",
-                liveSessionId,
-                teamId));
+        var guard = new Mock<IRuntimeParticipationGuard>();
+        var setup = guard.Setup(g => g.EnsureAllowedAsync(
+            liveSessionId,
+            teamId,
+            It.IsAny<string?>(),
+            It.IsAny<CancellationToken>()));
 
-        return accessClient;
+        if (isAllowed)
+        {
+            setup.Returns(Task.CompletedTask);
+        }
+        else
+        {
+            setup.ThrowsAsync(new ForbiddenAccessException());
+        }
+
+        return guard;
     }
 
     private static Mock<ICurrentUser> CreateCurrentUser(Guid participantIdentity)

@@ -52,6 +52,8 @@ public sealed class SessionParticipant : BaseEntity
 
     public bool IsRemoved => ParticipantStatus == ParticipantStatus.Removed;
 
+    public bool IsBlocked => ParticipantStatus == ParticipantStatus.Blocked;
+
     public static SessionParticipant Join(Guid liveSessionId, Guid externalIdentityId, string displayName, DateTimeOffset joinedAt)
     {
         return new SessionParticipant(liveSessionId, externalIdentityId, displayName, joinedAt);
@@ -88,6 +90,20 @@ public sealed class SessionParticipant : BaseEntity
     {
         ParticipantStatus = ParticipantStatus.Removed;
         LastSeenAt = occurredAt;
+    }
+
+    // Participation Block (#91). Idempotent: returns true only on the transition, so a repeated
+    // denied re-check does not re-persist/re-notify. Removed stays terminal.
+    public bool Block(DateTimeOffset occurredAt)
+    {
+        if (IsRemoved || IsBlocked)
+        {
+            return false;
+        }
+
+        ParticipantStatus = ParticipantStatus.Blocked;
+        LastSeenAt = occurredAt;
+        return true;
     }
 
     public void RefreshPresence(DateTimeOffset seenAt)
