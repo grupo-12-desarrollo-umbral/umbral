@@ -104,7 +104,7 @@ export default function TeamLobbyScreen() {
     resetJoin();
     resetAccess();
     setJoiningTeamId(teamId);
-    const joinResult = await join(teamId, { liveSessionId });
+    const joinResult = await join(sessionCode, teamId);
 
     if (joinResult.kind === 'unauthorized') {
       signOut();
