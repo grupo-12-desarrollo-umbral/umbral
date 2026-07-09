@@ -59,7 +59,11 @@ public sealed class DomainExceptionHubFilterTests
 
         var payload = await CapturePayloadAsync(new Exception(SecretMessage));
 
-        payload.GetProperty("traceId").GetString().Should().Be(activity.Id);
+        payload.GetProperty("traceId").GetString()
+            .Should().Be(activity.TraceId.ToString())
+            .And.MatchRegex(
+                "^[0-9a-f]{32}$",
+                "clients paste the traceId straight into a log search, which indexes the bare trace-id");
     }
 
     [Fact]

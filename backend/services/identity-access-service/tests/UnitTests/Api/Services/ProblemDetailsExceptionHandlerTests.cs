@@ -218,7 +218,11 @@ public sealed class ProblemDetailsExceptionHandlerTests
 
         var problem = await ReadProblemDetailsAsync(httpContext);
         problem.Extensions.Should().ContainKey("traceId");
-        problem.Extensions["traceId"]!.ToString().Should().Be(activity.Id);
+        problem.Extensions["traceId"]!.ToString()
+            .Should().Be(activity.TraceId.ToString())
+            .And.MatchRegex(
+                "^[0-9a-f]{32}$",
+                "clients paste the traceId straight into a log search, which indexes the bare trace-id");
     }
 
     private static async Task AssertHandledAsync(

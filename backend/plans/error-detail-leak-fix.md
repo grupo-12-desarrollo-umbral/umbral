@@ -1,14 +1,19 @@
 # Fix: unclassified errors leak internals and log nothing
 
-> **Status — the `traceId` is now a real W3C id (issue #124, landed 2026-07-09).** When this plan
-> shipped (PR #123), no `ActivitySource` had a listener, so `Activity.Current` was null on every
+> **Status — the `traceId` is now a real W3C trace id (issue #124, landed 2026-07-09).** When this
+> plan shipped (PR #123), no `ActivitySource` had a listener, so `Activity.Current` was null on every
 > request and the services actually emitted the per-process fallback (`0HN7ABC123XYZ:00000001` for
 > REST, the SignalR `ConnectionId` for the hub). The `00-4bf92f…-01` examples below were therefore
 > *aspirational* at the time. The OpenTelemetry wiring (`backend/plans/otel-wiring.md`, Phases 1–4)
-> registered that listener, so `Activity.Current` is now non-null and the `00-…-01` shape is
-> **produced verbatim**, not illustrative. Measured behind the gateway on a genuinely unclassified
-> 500: `"traceId":"00-7d7f1929d8de9ca4fa5fe0c4eeb29412-874052e02b8dd01f-01"` — a real W3C trace id
-> with the sampled flag on. The hub emits the same real W3C id — see the hub section below.
+> registered that listener, so `Activity.Current` is now non-null and the id is real.
+>
+> The examples below are also the wrong *shape*. They show `Activity.Current.Id` — the full
+> `traceparent`, `00-<trace-id>-<span-id>-01` — which is what the services first emitted. Log
+> backends index the bare 32-hex trace-id, so a client pasting that value into Seq matched nothing;
+> you had to hand-extract the middle segment. Both handlers now emit `Activity.Current.TraceId`
+> instead, so the value is pasteable as-is. Measured behind the gateway on a genuinely unclassified
+> 500: `"traceId":"7d7f1929d8de9ca4fa5fe0c4eeb29412"`. The hub emits the same, with the SignalR
+> `ConnectionId` still the fallback when no `Activity` is current.
 
 ## Why this is needed
 
@@ -98,7 +103,7 @@ start until they do — that's how they drifted last time.
   "title": "An unexpected error occurred.",
   "detail": "An unexpected error occurred.",   // was: exception.Message
   "status": 500,
-  "traceId": "00-4bf92f...-01"                 // new
+  "traceId": "4bf92f3577b34da6a3ce929d0e0e4736"  // new
 }
 
 // 401 — the UnauthorizedAccessException arm
@@ -107,7 +112,7 @@ start until they do — that's how they drifted last time.
   "title": "Unauthorized.",
   "detail": "Unauthorized.",                   // was: exception.Message
   "status": 401,
-  "traceId": "00-4bf92f...-01"                 // new
+  "traceId": "4bf92f3577b34da6a3ce929d0e0e4736"  // new
 }
 ```
 
@@ -119,7 +124,8 @@ Emit it as `problem.Extensions["traceId"]`, not a new `Problem()` parameter, so
 the classified arms are untouched. Source, in this order:
 
 ```csharp
-Activity.Current?.Id ?? httpContext.TraceIdentifier   // never null: TraceIdentifier is always set
+// TraceId, not Id: the bare 32-hex trace-id is what log backends index.
+Activity.Current?.TraceId.ToString() ?? httpContext.TraceIdentifier   // never null: TraceIdentifier is always set
 ```
 
 #### Hub: the `"ERROR"` arm only
@@ -142,7 +148,7 @@ byte-identical to today.
 There is no `HttpContext` inside a hub invocation, so the fallback differs:
 
 ```csharp
-Activity.Current?.Id ?? invocationContext.Context.ConnectionId
+Activity.Current?.TraceId.ToString() ?? invocationContext.Context.ConnectionId
 ```
 
 **Which side wins is settled: a real W3C id, not `ConnectionId`.** Spike S1
@@ -150,8 +156,8 @@ Activity.Current?.Id ?? invocationContext.Context.ConnectionId
 wired, `AddAspNetCoreInstrumentation()` registers the `Microsoft.AspNetCore.SignalR.Server`
 `ActivitySource` itself (no explicit `AddSource` is needed), each hub invocation opens its own
 activity carrying a real W3C trace id — a **new root trace**, not a child of the connection's HTTP
-request activity — so `Activity.Current?.Id` is non-null and the hub emits the same `00-…-01` id as
-the REST path. The `ConnectionId` fallback is **not** dead: it still runs whenever no listener is
+request activity — so `Activity.Current` is non-null and the hub emits the same bare 32-hex trace id
+as the REST path. The `ConnectionId` fallback is **not** dead: it still runs whenever no listener is
 registered, which is exactly what `DomainExceptionHubFilterTests`' `…_WithoutActivity_FallsBackToConnectionId`
 case (line 73) exercises by constructing the filter directly with `Activity.Current = null` — it never
 boots the `WebApplicationFactory`, so no OTel registration reaches it. In a real running hub, the W3C

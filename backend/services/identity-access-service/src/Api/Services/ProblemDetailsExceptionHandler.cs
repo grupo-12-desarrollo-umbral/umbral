@@ -68,8 +68,10 @@ public sealed class ProblemDetailsExceptionHandler(ILogger<ProblemDetailsExcepti
             traceId);
     }
 
+    // Activity.Id is the whole traceparent (00-<trace>-<span>-01), but log backends index the bare
+    // 32-hex trace-id, so emit that: whatever a client quotes must be pasteable into a log search.
     private static string TraceId(HttpContext httpContext) =>
-        Activity.Current?.Id ?? httpContext.TraceIdentifier;
+        Activity.Current?.TraceId.ToString() ?? httpContext.TraceIdentifier;
 
     private static ProblemDetails Correlated(ProblemDetails problem, string traceId)
     {

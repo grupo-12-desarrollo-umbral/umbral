@@ -59,8 +59,9 @@ public sealed class DomainExceptionHubFilter(ILogger<DomainExceptionHubFilter> l
                 PayloadOptions);
         }
 
-        // No HttpContext inside a hub invocation, so the connection id is the fallback correlator.
-        var traceId = Activity.Current?.Id ?? invocationContext.Context.ConnectionId;
+        // The bare 32-hex trace-id, not Activity.Id's full traceparent: what a client quotes must be
+        // pasteable into a log search. No HttpContext in a hub, so the connection id is the fallback.
+        var traceId = Activity.Current?.TraceId.ToString() ?? invocationContext.Context.ConnectionId;
         logger.LogError(exception, "Unhandled exception. TraceId: {TraceId}", traceId);
 
         return JsonSerializer.Serialize(

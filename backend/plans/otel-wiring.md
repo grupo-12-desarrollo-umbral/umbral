@@ -405,9 +405,11 @@ Two parsing traps, both real, both hit this session:
 - **`service.name` lives in `Resource`, not `Properties`**, and Seq nests dotted keys — it is
   `Resource[Name=service].Value.name`, not a flat `service.name`.
 
-Minor, worth knowing: the handler passes the full `Activity.Current.Id` (`00-…-01`) as its `{TraceId}`
-property, but that name collides with Seq's reserved `TraceId` field, so Seq renders the bare 32-hex trace
-id. Same identity, shadowed rendering. Not a bug, and not worth a code change.
+Worth knowing: the handler's `{TraceId}` log property collides with Seq's reserved `TraceId` field, so Seq
+renders its own bare 32-hex trace id rather than whatever the handler logged. That shadowing is why the
+handler originally passing the full `Activity.Current.Id` (`00-…-01`) went unnoticed — the log looked right
+while the id returned to clients was unsearchable. Both handlers now emit `Activity.Current.TraceId`, so
+the logged value, the returned value and Seq's index agree.
 
 ---
 
@@ -417,16 +419,17 @@ Phases 1–4 landed, so the services now genuinely produce the W3C id PR #123's 
 `plans/error-detail-leak-fix.md` advertised. The debt is therefore paid by **recording that it is now
 true**, not by amending the docs down — exactly the branch the two items below hoped for.
 
-- `plans/error-detail-leak-fix.md` gained a status banner tying the `00-4bf92f…-01` examples to
+- `plans/error-detail-leak-fix.md` gained a status banner tying its `traceId` examples to
   issue #124 having landed: they were aspirational when PR #123 shipped (no listener → `Activity.Current`
-  null → the per-process `0HN7…:00000001` / `ConnectionId` fallbacks actually emitted), and are now
-  produced verbatim. The banner carries the measured id
-  `00-7d7f1929d8de9ca4fa5fe0c4eeb29412-874052e02b8dd01f-01`.
+  null → the per-process `0HN7…:00000001` / `ConnectionId` fallbacks actually emitted), and the id is now
+  real. The banner also corrects their *shape*: the handlers emit `Activity.Current.TraceId`, the bare
+  32-hex `7d7f1929d8de9ca4fa5fe0c4eeb29412`, not the full `traceparent` those examples showed — a client
+  has to be able to paste the value into a log search unedited.
 - The hub-id question S1 left open is now settled **in that doc**: the SignalR hub emits a **real W3C
   id, not `ConnectionId`**. `AddAspNetCoreInstrumentation()` registers the
   `Microsoft.AspNetCore.SignalR.Server` source, each invocation is a new root trace with its own W3C id,
-  so `Activity.Current?.Id` wins in a running hub. The `ConnectionId` fallback is explicitly **not**
-  called dead — it still exists at `DomainExceptionHubFilter.cs:63` and `DomainExceptionHubFilterTests.cs:73`
+  so `Activity.Current` is non-null in a running hub. The `ConnectionId` fallback is explicitly **not**
+  called dead — it still exists in `DomainExceptionHubFilter` and `DomainExceptionHubFilterTests`
   still asserts it, because that test constructs the filter directly with `Activity.Current = null` and
   never boots the factory.
 - **DOCS ONLY.** No `.cs`, `.csproj`, `Directory.Packages.props`, `appsettings.json` or compose file was
