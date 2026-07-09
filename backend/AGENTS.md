@@ -8,6 +8,18 @@ Before writing any service code, read `.agents/backend-agent.md`. It defines the
 
 When the user asks to commit changes, always invoke the `/conventional-commits` skill before running `git commit`. When creating a PR, always invoke the `/safe-pr-creator` skill before running `gh pr create`.
 
+## ADR citations
+
+The backend has two ADR sequences — `backend/adr/` and `backend/docs/adr/` — whose numbers
+collide on `0001`–`0005`. A bare `ADR-0005` names both the substage-advancement ADR and the
+coverage-gate ADR; likewise `ADR-0004` names both ProblemDetails mapping and the required-patterns
+ADR. **Cite anything in that range by path**, not by number. `0006`+ exist only under
+`backend/docs/adr/` and are unambiguous.
+
+Never invent a sub-anchor like `ADR-0005 D-4` — these ADRs have no numbered decisions; quote the
+heading or the sentence instead. A new ADR under `backend/adr/` starts at `0014`, so the collision
+stops growing.
+
 ## Structure Enforcement
 
 Before creating or moving any file, read `structure.md` and place it
@@ -47,7 +59,7 @@ Run the .NET toolchain through the sandbox-hardened Makefile — never call
 
     make -C backend build SVC=<service>   # compile Api + test projects
     make -C backend test  SVC=<service>   # run unit + integration tests
-    make -C backend gate  SVC=<service>   # ADR-0005 coverage gate
+    make -C backend gate  SVC=<service>   # coverage gate (docs/adr/0005-coverlet-msbuild-*)
     make -C backend structure-guard [SVC=<service>]   # ADR-0011 vertical-slice layout guard
     make -C backend ef    SVC=<service> ARGS="migrations add Foo"
     make -C backend clean-artifacts SVC=<service>   # reclaim foreign-owned bin/obj if a build/test pre-flight fails
