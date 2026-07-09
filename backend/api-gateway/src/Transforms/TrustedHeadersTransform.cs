@@ -12,8 +12,12 @@ public sealed class TrustedHeadersTransform : RequestTransform
             AddIfPresent(context, "X-User-Email", user.FindFirstValue(ClaimTypes.Email) ?? user.FindFirstValue("email"));
         }
 
-        // Strip the original token; downstream services must not re-validate it.
+        // Strip the original token; downstream services must not re-validate it. It arrives one of
+        // two ways — the Authorization header, or SignalR's ?access_token query (ADR-0002) — and the
+        // gateway has already consumed both by now. Leaving the query one in place would forward a
+        // replayable JWT into the downstream request log.
         context.ProxyRequest.Headers.Remove("Authorization");
+        context.Query.Collection.Remove(WebSocketTokenExtractionTransform.AccessTokenQueryKey);
 
         return ValueTask.CompletedTask;
     }

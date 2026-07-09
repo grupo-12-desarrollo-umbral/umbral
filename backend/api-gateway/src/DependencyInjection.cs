@@ -6,6 +6,10 @@ public static class DependencyInjection
 
     public static void AddGatewayServices(this IHostApplicationBuilder builder)
     {
+        // Strip access_token (and friends) from the request-logging and forwarder records that would
+        // otherwise write a replayable JWT to stdout — SignalR sends its token in the query (ADR-0002).
+        RedactingLoggerFactory.AddQueryParameterRedaction(builder.Logging);
+
         var frontendOrigins = builder.Configuration
             .GetSection("Frontend:AllowedOrigins")
             .Get<string[]>()?
