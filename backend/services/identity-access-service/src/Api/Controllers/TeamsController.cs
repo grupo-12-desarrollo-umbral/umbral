@@ -1,11 +1,11 @@
 using Microsoft.AspNetCore.Mvc;
 using umbral_backend.Api.Services;
 using umbral_backend.Application.Common.Models;
+using umbral_backend.Application.Dtos.Teams;
 using umbral_backend.Application.Teams.Commands.AuthorizeParticipantForTeam;
 using umbral_backend.Application.Teams.Commands.DeactivateTeam;
 using umbral_backend.Application.Teams.Commands.RegisterTeam;
 using umbral_backend.Application.Teams.Commands.UpdateTeam;
-using umbral_backend.Application.Teams.Common;
 using umbral_backend.Application.Teams.Queries.GetTeamParticipants;
 using umbral_backend.Application.Teams.Queries.GetTeamById;
 using umbral_backend.Application.Teams.Queries.GetTeams;

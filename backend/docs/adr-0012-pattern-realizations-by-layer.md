@@ -187,7 +187,8 @@ green build + tests (`make -C backend test SVC=<service>`). Full procedure in
 [`plans/application-layer-cqrs-refactor.md`](../plans/application-layer-cqrs-refactor.md) §Phase 2.
 
 **identity-access** — `refactor/app-layer-identity-access`
-1. Slice-collapse `Application/<Area>/Handlers/*` → `Commands|Queries/<UseCase>/`, DTOs into their slices
+1. Slice-collapse `Application/<Area>/Handlers/*` → `Commands|Queries/<UseCase>/`, response DTOs into the
+   central `Application/Dtos/<Area>/` root (ADR-0013), single-consumer Facades inline into their handlers
    (areas: Users, Teams, Sessions, JoinTokens, Permissions). Mechanical, behavior-preserving.
 2. Collapse the `*Executor` forwarding into handlers — **keep** the `*AuthorizationProxy` guards
    (matrix-named, HU-01/02/03/06/07A/07B/19/20). See §6 above.
@@ -198,7 +199,10 @@ green build + tests (`make -C backend test SVC=<service>`). Full procedure in
 **session-operations** — `refactor/app-layer-session-operations`
 1. Slice-collapse `Sessions/Handlers/*` → `Commands|Queries/<UseCase>/`. **Keep** `StateTransitions/`
    (State + CoR, §3/§4) and `EventHandlers/`.
-2. Dissolve `Sessions/Facades/` → both facades to `Sessions/Common/` (§5).
+2. Inline the three **single-consumer** facades (`CreateSession`, `AssignOperatorToSession`,
+   `TransitionSessionState`) into their handlers and delete the class + interface (ADR-0013 Option C).
+   The two **shared** facades are **already in `Sessions/Common/`** (§5) — no `Sessions/Facades/` bucket
+   exists to dissolve.
 3. Collapse the three `*Executor`s (`ISessionAdministrationAccessExecutor`,
    `IDisconnectParticipantExecutor`, `IReconnectAuthenticatedParticipantExecutor`) — **keep**
    `SessionAdministrationAuthorizationProxy`.

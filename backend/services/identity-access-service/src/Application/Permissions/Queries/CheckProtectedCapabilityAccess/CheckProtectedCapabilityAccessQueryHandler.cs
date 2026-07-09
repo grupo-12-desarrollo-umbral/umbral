@@ -1,6 +1,6 @@
 using umbral_backend.Application.Common.Exceptions;
 using umbral_backend.Application.Common.Interfaces;
-using umbral_backend.Application.Permissions.Queries.CheckProtectedCapabilityAccess;
+using umbral_backend.Application.Dtos.Permissions;
 using umbral_backend.Domain.Entities;
 using umbral_backend.Domain.Exceptions;
 using umbral_backend.Domain.Services;

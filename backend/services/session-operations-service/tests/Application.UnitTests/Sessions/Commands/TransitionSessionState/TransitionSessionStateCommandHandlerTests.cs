@@ -162,14 +162,12 @@ public sealed class TransitionSessionStateCommandHandlerTests
             new OperatorAssignmentGate(),
             new ParticipantReadinessGate()
         });
-        var facade = new TransitionSessionStateFacade(
+        return new TransitionSessionStateCommandHandler(
             accessResolver,
             chain,
             transitionPolicy,
             repository.Object,
             new FixedTimeProvider(Now));
-
-        return new TransitionSessionStateCommandHandler(facade);
     }
 
     private static Mock<ILiveSessionRepository> CreateRepository(LiveSession session)

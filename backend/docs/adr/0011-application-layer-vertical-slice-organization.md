@@ -28,28 +28,41 @@ mandatory.
 ## Decision
 
 1. **Organize by vertical slice.** One folder per use case under
-   `Application/<Area>/Commands/<UseCase>/` or `Queries/<UseCase>/`, containing the
-   request, its handler, its validator, and (for queries) the response DTO it owns.
+   `Application/<Area>/Commands/<UseCase>/` or `Queries/<UseCase>/`, containing **only the
+   request-pipeline files** — the request, its handler, and (commands) its validator.
+   Response DTOs do **not** live in the slice; they live in the central
+   `Application/Dtos/<Area>/` root (see §2).
    The `Commands/`/`Queries/` split is **mandatory** and sits between `<Area>` and the
    use-case folder: do **not** flatten an area into a single bag of use-case folders
    (e.g. `Application/<Area>/<UseCase>/`) and do **not** introduce a generic
    `UseCases/` wrapper segment. The path is always `<Area>/{Commands|Queries}/<UseCase>/`,
    and handler/request type names keep the `Command`/`Query` suffix
    (`<UseCase>CommandHandler`, `<UseCase>QueryHandler`).
-2. **No `Handlers/`, `DTOs/`, or `Facades/` type-buckets.** Helpers shared by ≥2 slices
-   and the area's mandated-pattern implementations live in `Application/<Area>/Common/`,
-   grouped by **concern** (e.g. `Common/Authoring/`), never by type; cross-cutting
+2. **Response DTOs live in a central `Application/Dtos/<Area>/`; no per-area `Handlers/`,
+   `DTOs/`, or `Facades/` type-buckets.** Every response DTO (command result **and** query
+   response) lives in the per-service `Application/Dtos/` root, sub-grouped by area
+   (`Dtos/Sessions/`, `Dtos/Trivia/`); a command that returns `Guid`/`Unit` carries no
+   result DTO at all. Helpers shared by ≥2 slices and the area's mandated-pattern
+   implementations live in `Application/<Area>/Common/`, grouped by **concern**
+   (e.g. `Common/Authoring/`, `Common/Authorization/`), never by type; cross-cutting
    concerns (Behaviours, Interfaces, Exceptions, Security, Models) in `Application/Common/`.
-   A mandated `Facade` is kept, but lives **co-located in the slice it orchestrates**
-   (single consumer) or in `<Area>/Common/` (shared by ≥2 slices) — not in a `Facades/`
-   bucket. `EventHandlers/` and `StateTransitions/` are **not** type-buckets in this
-   sense: they are the mandated event-dispatch and `State`-machine structural units and
-   are preserved.
+   A mandated **`Facade` with a single consumer is realized by its MediatR handler** —
+   the orchestration lives inline in `Handle`, the handler *is* the Facade, and there is
+   no standalone `*Facade.cs`; a standalone Facade class exists **only when shared by ≥2
+   slices**, and then lives in `<Area>/Common/` — never in a `Facades/` bucket. A mandated
+   `Proxy` stays a decorator (§4) and lives co-located in its slice **or** in
+   `<Area>/Common/Authorization/` (relocate single-consumer proxies there to keep the
+   slice pipeline-pure; shared ones must live there). `EventHandlers/` and
+   `StateTransitions/` are **not** type-buckets in this sense: they are the mandated
+   event-dispatch and `State`-machine structural units and are preserved.
 3. **ADR-0004 stands unchanged.** Mandated patterns (`Proxy` access-guards, `Facade`
    orchestration / event publication, `State` lifecycle, `Strategy`, `Template
    Method`, `Chain of Responsibility`, `Composite`) remain mandatory deliverables,
-   realized inside the relevant slice or the area `Common/`. A pattern instance may
-   be removed **only when both** hold: (a) it is not named for that use case by
+   realized inside the relevant slice or the area `Common/`. A single-consumer `Facade`
+   is realized **by the handler itself** (orchestration inlined into `Handle`, per §2):
+   this is realization, **not removal** — the pattern still exists, its canonical home is
+   simply the handler ([ADR-0012](0012-design-pattern-placement-convention.md)). A pattern
+   instance may be removed **only when both** hold: (a) it is not named for that use case by
    `docs/required_patterns_matrix.md` or a phase gate, **and** (b) it
    is pure forwarding ceremony that adds no behavior (e.g. an `IService`/`IExecutor`
    indirection that only relays a call). **Where each mandated pattern physically lives across
@@ -79,8 +92,9 @@ mandatory.
 - `structure.md` baseline tree and its "intentionally separated" note are updated to
   match this ADR. No change to ADR-0004 or the patterns matrix.
 - A structural CI guard (`scripts/structure-guard.sh`, `make structure-guard`) fails
-  the build if a `Handlers/`, `DTOs/`, or `Facades/` directory reappears under
-  `Application/`, if a generic `UseCases/` wrapper directory appears, if the mandatory
+  the build if a `Handlers/`, per-area `DTOs/`/`Dtos/`, or `Facades/` directory appears
+  under `Application/` (the central `Application/Dtos/` root is exempt — it is the
+  sanctioned DTO home), if a generic `UseCases/` wrapper directory appears, if the mandatory
   `Commands/`/`Queries/` level is missing — i.e. a `*CommandHandler.cs`/`*QueryHandler.cs`
   whose grandparent folder is not `Commands`/`Queries` (a flattened area or a missing
   use-case folder) — or if an un-mandated forwarding `*Executor` type is present.

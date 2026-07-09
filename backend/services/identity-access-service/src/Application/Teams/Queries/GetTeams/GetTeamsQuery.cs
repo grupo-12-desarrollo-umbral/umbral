@@ -1,6 +1,6 @@
 using umbral_backend.Application.Common.Models;
 using umbral_backend.Application.Common.Security;
-using umbral_backend.Application.Teams.Common;
+using umbral_backend.Application.Dtos.Teams;
 
 namespace umbral_backend.Application.Teams.Queries.GetTeams;
 

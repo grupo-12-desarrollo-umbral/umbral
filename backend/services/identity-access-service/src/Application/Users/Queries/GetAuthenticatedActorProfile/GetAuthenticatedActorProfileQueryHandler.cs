@@ -1,6 +1,6 @@
 using umbral_backend.Application.Common.Exceptions;
-using umbral_backend.Application.Users.Common;
 using umbral_backend.Application.Common.Interfaces;
+using umbral_backend.Application.Dtos.Users;
 using umbral_backend.Application.Users.Queries.GetAuthenticatedActorProfile;
 using umbral_backend.Domain.Entities;
 

@@ -11,7 +11,7 @@ using umbral_backend.Domain.Services;
 
 namespace umbral_backend.Application.UnitTests.Sessions.Commands.CreateSession;
 
-// HU-17 X.2: locks the single-source invariant at the application layer. The facade is the
+// HU-17 X.2: locks the single-source invariant at the application layer. The handler is the
 // only creation entry point; it builds the MissionRuntimeSnapshot solely from the one requested
 // mission, and the command carries no non-mission source field.
 public sealed class CreateSessionSingleSourceInvariantTests
@@ -19,7 +19,7 @@ public sealed class CreateSessionSingleSourceInvariantTests
     private const int MissionId = 7;
 
     [Fact]
-    public async Task CreateAsync_BuildsSnapshotSolelyFromTheRequestedMission()
+    public async Task Handle_BuildsSnapshotSolelyFromTheRequestedMission()
     {
         var command = new CreateSessionCommand(
             MissionId,
@@ -44,13 +44,13 @@ public sealed class CreateSessionSingleSourceInvariantTests
             .Setup(source => source.GetByIdAsync(MissionId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(SingleMissionRuntime());
 
-        var facade = new CreateSessionFacade(
+        var handler = new CreateSessionCommandHandler(
             repository.Object,
             readinessSource.Object,
             runtimeSource.Object,
             new SessionCreationPolicy());
 
-        await facade.CreateAsync(command, CancellationToken.None);
+        await handler.Handle(command, CancellationToken.None);
 
         // Only the requested mission was consulted — no second/external source merged in.
         runtimeSource.Verify(source => source.GetByIdAsync(MissionId, It.IsAny<CancellationToken>()), Times.Once);
@@ -95,7 +95,23 @@ public sealed class CreateSessionSingleSourceInvariantTests
         applicationTypes.Should().NotContain(type => type.Name.StartsWith("CreateTriviaSession", StringComparison.Ordinal));
         applicationTypes.Should().NotContain(type => type.Name == "IPublishedTriviaQuizSource");
         applicationTypes.Should().NotContain(type => type.Name == "PublishedTriviaQuizDto");
-        applicationTypes.Should().ContainSingle(type => type == typeof(ICreateSessionFacade));
+
+        // Exactly one type in the layer produces a CreateSessionResultDto, and it is the handler.
+        // Comparing against typeof(handler) directly would be a tautology — it must be a search
+        // over what the layer actually exposes, so a second creation path trips it.
+        applicationTypes
+            .Where(type => type is { IsClass: true, IsAbstract: false })
+            .Where(type => type.GetInterfaces().Any(contract =>
+                contract.IsGenericType
+                && contract.GetGenericTypeDefinition() == typeof(MediatR.IRequestHandler<,>)
+                && contract.GetGenericArguments()[1] == typeof(CreateSessionResultDto)))
+            .Should().ContainSingle()
+            .Which.Should().Be(typeof(CreateSessionCommandHandler));
+
+        // Option C: the single-consumer facade is realized by the handler, never a standalone type.
+        applicationTypes.Should().NotContain(type =>
+            type.Namespace == typeof(CreateSessionCommand).Namespace
+            && type.Name.EndsWith("Facade", StringComparison.Ordinal));
     }
 
     private static MissionRuntimeDto SingleMissionRuntime()

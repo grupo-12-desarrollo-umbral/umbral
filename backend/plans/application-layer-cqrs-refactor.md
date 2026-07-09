@@ -62,15 +62,16 @@ Application/<Area>/Queries/<UseCase>/
     <UseCase>Query.cs
     <UseCase>QueryHandler.cs
     <UseCase>QueryValidator.cs     // only if the query has inputs to validate
-    <UseCase>Dto.cs                // response model owned by the query that returns it
+Application/Dtos/<Area>/           // ALL response DTOs (command result + query response) — central home (ADR-0013)
 Application/<Area>/Common/         // shared-by-≥2-slices mappers/guards + mandated patterns for the area
 Application/Common/                // cross-cutting: Behaviours, Interfaces, Exceptions, Security, Models
 ```
 
 Rules (also enforced in code review + the Phase-4 guard):
-- **No** `Handlers/`, `DTOs/`, or `Facades/` type-buckets. Handler + owned DTO sit in the use-case
-  folder; a mandated Facade sits in the slice it orchestrates (single consumer) or `<Area>/Common/`
-  (shared), grouped by concern — never collected in a `Facades/` bucket. (`EventHandlers/` and
+- **No** per-area `Handlers/`, `DTOs/`, or `Facades/` type-buckets. The slice holds pipeline files only;
+  every response DTO lives in the central `Application/Dtos/<Area>/` root (ADR-0013). A single-consumer
+  mandated Facade is **realized by its handler** (inline, no class); a Facade shared by ≥2 slices lives
+  in `<Area>/Common/`, grouped by concern — never in a `Facades/` bucket. (`EventHandlers/` and
   `StateTransitions/` are preserved — they are the mandated event-dispatch / `State`-machine units,
   not type-buckets.)
 - **Keep mandated patterns** (ADR-0004). A `Proxy`/`Facade`/`Template Method`/`State`/`Strategy`/`CoR`
@@ -174,23 +175,26 @@ forwarding-triplet and type-bucket rows in context.
 
 #### Facade handling (session-operations)
 
-The earlier draft named only three Facades and left the `Sessions/Facades/` bucket and two Facades
-unaddressed. The complete, verified verdict — every Facade is **kept** (each realizes a matrix-named or
-genuinely-shared orchestration), and the `Sessions/Facades/` **type-bucket is dissolved**: each Facade
-moves to the slice it orchestrates (single consumer) or `<Area>/Common/` (shared by ≥2 slices).
+Per **ADR-0013 (Option C)**: a **single-consumer** mandated Facade is realized **inline by its
+handler** (no standalone class); a Facade **shared by ≥2 consumers** stays a discrete class and moves
+to `<Area>/Common/`. Every Facade's orchestration is **kept** (each realizes a matrix-named or
+genuinely-shared responsibility) — the single-consumer ones move *into* their handler, not away.
 Verdicts grounded in `docs/trivia_sprint_required_patterns_matrix.md` + consumer counts.
 
 | Facade | Today | Matrix | Consumers | Destination |
 | --- | --- | --- | --- | --- |
-| `AssignOperatorToSessionFacade` | `Commands/AssignOperatorToSession/` | HU-19 `Facade` | in slice | keep — already co-located ✓ |
-| `TransitionSessionStateFacade` | `Commands/TransitionSessionState/` | HU-21A/33A/33B `State`+`Facade` | in slice | keep — already co-located ✓ |
-| `CreateSessionFacade` | `Commands/CreateSession/` | **HU-16 `Facade`** | in slice | keep — already co-located ✓ (was missing from the old keep-list) |
-| `TriviaRoundOrchestratorFacade` | `Sessions/Facades/` | HU-33A/33B `Facade` | **2** (`Sessions/EventHandlers/TriviaRoundStartedNotificationHandler` + `Infrastructure/Realtime/AuthoritativeSessionTimerWorker.cs:57`) | keep; **move to `Sessions/Common/`** (shared by ≥2 consumers) — do NOT co-locate in the event-handler slice |
-| `SessionTeamAssociationFacade` | `Sessions/Facades/` | realizes HU-18's session-side team assignment (`Facade`) | **4** (`AssociateTeamToSession{,ByCode}`, `GetAssociatedTeamsForSession{,ByCode}`) | keep; **move to `Sessions/Common/`** (shared by ≥2 slices) — do NOT fold |
+| `AssignOperatorToSessionFacade` | `Commands/AssignOperatorToSession/` | HU-19 `Facade` | 1 (its handler) | **inline into `AssignOperatorToSessionCommandHandler`**; delete class + interface |
+| `TransitionSessionStateFacade` | `Commands/TransitionSessionState/` | HU-21A/33A/33B `State`+`Facade` | 1 (its handler) | **inline into `TransitionSessionStateCommandHandler`**; delete class + interface |
+| `CreateSessionFacade` | `Commands/CreateSession/` | **HU-16 `Facade`** | 1 (its handler) | **inline into `CreateSessionCommandHandler`**; delete class + interface |
+| `TriviaRoundOrchestratorFacade` | `Sessions/Common/` (+ interface) | HU-33A/33B `Facade` | **2** (`Sessions/EventHandlers/TriviaRoundStartedNotificationHandler` + `Infrastructure/Realtime/AuthoritativeSessionTimerWorker.cs:57`) | keep — **already in `Common/`** ✓ |
+| `SessionTeamAssociationFacade` | `Sessions/Common/` (+ interface) | realizes HU-18's session-side team assignment (`Facade`) | **4** (`AssociateTeamToSession{,ByCode}`, `GetAssociatedTeamsForSession{,ByCode}`) | keep — **already in `Common/`** ✓ |
 
-After the moves, delete the empty `Sessions/Facades/` folder and fix the `...Sessions.Facades` namespace
-import + the five `DependencyInjection.cs` registrations. The structural guard forbids a `Facades/`
-directory, so this is enforced (mandated Facade *files* in slices/`Common/` are never flagged).
+The two shared facades **already live in `Sessions/Common/`** (with their `I*Facade.cs` interfaces) —
+there is **no `Sessions/Facades/` bucket** to dissolve; that earlier step is already done. Remaining DI
+work is only for the inlined ones: drop the three single-consumer `AddScoped<IFacade,Facade>` lines
+entirely; the two shared registrations already point at `Sessions/Common/` and are unchanged. The
+structural guard forbids a `Facades/` directory, so a bucket can't reappear (mandated Facade *files* in
+`Common/` are never flagged).
 
 **Genuine Facade vs forwarding ceremony (the test for §3 de-ceremony).** A Facade is **genuine** when it
 coordinates **≥2 collaborators** behind one interface, hiding a multi-step workflow (transaction boundary,

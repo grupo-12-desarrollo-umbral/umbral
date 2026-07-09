@@ -36,10 +36,10 @@ Everything below is that test applied to a specific shape.
       pass-throughs under a Proxy/Facade that relay one call to one collaborator
       and add no behavior. Inline into the handler. (Keep the Proxy/Facade
       itself if the matrix names it for that HU.)
-- [ ] **Type-bucket folders** — `Handlers/`, `DTOs/`, `Facades/`. Co-locate
-      handler + owned DTO in the use-case slice; a mandated Facade lives in its
-      slice (single consumer) or `<Area>/Common/` (shared by ≥2). Enforced by
-      `scripts/structure-guard.sh`.
+- [ ] **Type-bucket folders** — per-area `Handlers/`, `DTOs/`, `Facades/`. Slice holds
+      pipeline files only; response DTOs go to the central `Application/Dtos/<Area>/` root; a
+      single-consumer mandated Facade is realized **inline in its handler**, a shared one lives
+      in `<Area>/Common/` (ADR-0013). Enforced by `scripts/structure-guard.sh`.
 - [ ] **Stale `.gitkeep`** in folders that now hold real files.
 
 ## KEEP — do NOT "simplify" these in later phases

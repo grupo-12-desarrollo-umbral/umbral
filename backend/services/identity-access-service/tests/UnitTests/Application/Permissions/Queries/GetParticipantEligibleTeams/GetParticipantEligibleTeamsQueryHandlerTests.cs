@@ -1,4 +1,6 @@
 using umbral_backend.Application.Common.Interfaces;
+using umbral_backend.Application.Dtos.Permissions;
+using umbral_backend.Application.Permissions.Common;
 using umbral_backend.Application.Permissions.Queries.GetParticipantEligibleTeams;
 using umbral_backend.Application.Permissions.Queries.ValidateParticipantMembershipAccess;
 using umbral_backend.Domain.Entities;
