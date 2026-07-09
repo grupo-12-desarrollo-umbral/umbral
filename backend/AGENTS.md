@@ -18,11 +18,16 @@ without updating `structure.md` first.
 
 The Application layer organizes **by vertical slice** (ADR-0011): one folder per
 use case at `Application/<Area>/{Commands|Queries}/<UseCase>/`, holding the
-request, its handler, its validator, and (for queries) the DTO it owns. No
-`Handlers/`, `DTOs/`, or `Facades/` type-buckets; shared helpers and mandated
-patterns go in `<Area>/Common/`, cross-cutting concerns in `Application/Common/`.
-`make -C backend structure-guard` (run automatically by `build` for converged
-services) fails the build if the layout regresses.
+request, its handler, and its validator. Response DTOs are not co-located: every
+command result and query response lives in the central `Application/Dtos/<Area>/`
+root, and a command returning `Guid`/`Unit` carries no result DTO at all.
+Outbound contracts that no handler returns — SignalR notification payloads,
+integration events — are not response DTOs and stay in `<Area>/Common/`.
+No `Handlers/` or `Facades/` type-buckets, and no per-area `Dtos/` bucket;
+shared helpers and mandated patterns go in `<Area>/Common/`, cross-cutting
+concerns in `Application/Common/`. `make -C backend structure-guard` (run
+automatically by `build` for converged services) fails the build if the layout
+regresses.
 
 ## Local dev loop (hot reload)
 
