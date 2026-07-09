@@ -63,10 +63,10 @@ Legend: ✅ aligned · 📝 canon-drift comment added · 🔨 rebuild ticket fil
 
 | Ticket | HU | Status | Disposition |
 |---|---|---|---|
-| DES-23 | HU-16 | Done (cycle 1) | 🔨 superseded by **DES-75** |
-| DES-28 | HU-21A | Done (cycle 1) | 🔨 rebuilt as **DES-76** |
-| DES-30 | HU-22 | Done (cycle 1) | 🔨 rebuilt as **DES-77** |
-| DES-44 | HU-33A | Done (cycle 1) | 🔨 rebuilt as **DES-78** |
+| DES-23 | HU-16 | Canceled 2026-06-30 | 🔨 superseded by **DES-75** |
+| DES-28 | HU-21A | Canceled 2026-06-30 | 🔨 rebuilt as **DES-76** |
+| DES-30 | HU-22 | Canceled 2026-06-30 | 🔨 rebuilt as **DES-77** |
+| DES-44 | HU-33A | Canceled 2026-06-30 | 🔨 rebuilt as **DES-78** |
 | DES-25 | HU-18 | Done (cycle 1) | 📝 wording (team association is allowed in `Scheduled`) |
 | DES-12 | HU-07B | Done (cycle 1) | 📝 wording (trivia-as-session → substage) |
 | DES-18 | HU-12 | Done (cycle 1) | 📝 wording (quiz selectable into substage) |
@@ -79,8 +79,9 @@ Legend: ✅ aligned · 📝 canon-drift comment added · 🔨 rebuild ticket fil
 | DES-36 | HU-26 | Todo | 📝 minor: clue scoped to `Target`; release doesn't advance |
 | DES-37 | HU-27 | Todo | 📝 auto clue-release by advancement rules conflicts with canon |
 | DES-38 | HU-28 | Todo | 📝 runtime clues vs immutable snapshot tension |
-| DES-54 | HU-39A | Backlog | 📝 reframe to unified session ranking |
-| DES-55 | HU-39B | Backlog | 📝 subsume into DES-54 (no trivia-session ranking) |
+| DES-54 | HU-39 | Backlog | ✅ reframed to unified session ranking (2026-07-09); absorbed DES-52 + DES-55 |
+| DES-55 | HU-39B | **Canceled** | ✅ subsumed into DES-54 (2026-07-09); ACs preserved. Not archived — manual UI step |
+| DES-52 | HU-37B | **Canceled** | ✅ subsumed into DES-54 (2026-07-09); ledger-source AC preserved. Not archived |
 | DES-70 | PRD HU-15–36 | Backlog | 📝 authority pointer to rewritten PRD/arch docs |
 | DES-62 | PRD HU-09–14 | Backlog | 📝 authority pointer to rewritten entity/DDD docs |
 | DES-22 | HU-15 | Todo | foundation (mission→session) — see order below |
@@ -104,13 +105,14 @@ Dependencies come from each ticket's *Blocked by* plus the realignment links
 | 8 | Treasure-hunt play | HU-29/30A/30B/31/32 (DES-39/40/41/42/43) | Evidence intake + QR `Target` resolution + traceability (already canon-aligned) | DES-75/76 |
 | 9 | Clue model (decision first) | **DES-36** (HU-26), **DES-37** (HU-27), **DES-38** (HU-28) | Operator clue release per team; decide fate of rule-based auto-release & runtime-authored clues | Phase 8 |
 | 10 | Trivia play | **DES-78** (HU-33A realign), HU-33B/34A/34B/35/36A/36B | Synchronized trivia substage orchestration + answer registration/rejection | DES-75/76 |
-| 11 | Scoring & ranking | HU-37A/B, HU-38, **DES-54** (HU-39A unified), **DES-55** (HU-39B subsume), HU-40A/B | `ScoreEntry` ledger + single session ranking with `ResolutionTime` tie-break | Phases 8 & 10 |
+| 11 | Scoring & ranking | **DES-51** (HU-37 ledger), HU-38, **DES-54** (HU-39 unified ranking), HU-40A/B | `ScoreEntry` ledger + single session ranking with `ResolutionTime` tie-break | Phases 8 & 10 |
 | 12 | Boards & queries | **DES-31** (HU-23), HU-24A/B, HU-25A/B | Live team/operator boards over the target-based + ranking model | Phase 11 |
 
 ### Open decisions blocking clean implementation
 - **DES-37 (HU-27):** rule-based automatic clue release is not in canon — eliminate, merge into HU-26, or redefine.
 - **DES-38 (HU-28):** operator-authored runtime clues conflict with the immutable snapshot — model as an explicit exception or reinterpret as *release* of pre-snapshotted clues.
-- **DES-54/DES-55 (HU-39A/B):** confirm the merge into a single session ranking before rewriting AC.
+- ~~**DES-54/DES-55 (HU-39A/B):** confirm the merge into a single session ranking before rewriting AC.~~
+  ✅ **Done 2026-07-09.** Merged into `DES-54` (`HU-39`); AC rewritten; DES-55 Canceled.
 
 ## Addendum — second-review drift fixes (2026-06-17)
 
@@ -145,8 +147,9 @@ agent picks up pre-canon ACs:
 | DES-30 | HU-22 | DES-77 | timer keyed off active `SubstagePlayMode`, not session-level mode |
 | DES-44 | HU-33A | DES-78 | trivia orchestration as `Substage`, not a standalone session |
 
-These remain in `Done` state — **archiving is not exposed via the Linear MCP tools**, so
-full removal from active views needs the Linear UI. The `ready-for-agent` label still on
+These were labeled while still in `Done`; all four were moved to `Canceled` on 2026-06-30.
+**Archiving is not exposed via the Linear MCP tools**, so full removal from active views
+needs the Linear UI. The `ready-for-agent` label still on
 DES-23/30/44 is now stale (superseded issues should not be agent-picked) and should be
 stripped in that same UI pass — but stripping it is **hygiene, not the safety mechanism**.
 The generator-agent stops on any ticket in the superseded column above **regardless of
@@ -161,3 +164,96 @@ The four were suspected orphaned AC-fragment sub-issues of HU-07A. Verified: eac
 DES-11 (HU-07A, Done 2026-06-03, all 6 ACs checked `[X]`) — pure fragments, no independent
 scope. They were **already archived** on 2026-06-15 (`archivedAt` set) shortly after
 creation. No action needed.
+
+## Addendum — A/B merge pass (2026-07-09)
+
+Source: `ab-ticket-merge-findings-handoff-2026-07-09.md` and its validation companion
+`ab-ticket-merge-validation-handoff-2026-07-09.md`.
+
+### Supersession map
+
+The `🔨` rows above are supersessions by **rebuild** (canon rewrote the ticket). This pass
+added one supersession by **merge** (two tickets, one invariant):
+
+| Superseded | HU | Survivor | Kind | Edge work |
+|---|---|---|---|---|
+| DES-23 | HU-16 | DES-75 | rebuild | none — blocks no live ticket |
+| DES-47 | HU-34B | **DES-46** (`HU-34`) | merge | `blocks` → `relatedTo`; ACs absorbed |
+
+DES-47's four rejection ACs live in DES-46 under *"Rechazo de respuestas tardías o
+repetidas"*. Acceptance and rejection are the two branches of one first-write-wins guard,
+not two deliverables. DES-47 carries a `⛔ SUPERSEDED` banner and **awaits manual archive**
+(MCP cannot archive). It has no `ready-for-agent` label, so the generator agent will not
+pick it.
+
+### Stale-blocker repair
+
+Twelve live tickets were blocked by the canceled DES-28/30/44 and were re-pointed at their
+rebuilds:
+
+| Canceled | Rebuild | Re-pointed dependents |
+|---|---|---|
+| DES-28 | DES-76 | DES-29, DES-32, DES-36, DES-37, DES-38, DES-39, DES-42, DES-53 |
+| DES-30 | DES-77 | DES-31, DES-36, DES-38, DES-39, DES-42, DES-59 |
+| DES-44 | DES-78 | DES-46, DES-49 *(DES-45 was already correct)* |
+
+Startable with zero live blockers after the repair: **DES-46** (critical-path head),
+DES-32, DES-53, DES-29. The canceled tickets retain `blocks` edges only among themselves —
+canceled on both ends, so no live ticket reads them.
+
+### Resolved 2026-07-09
+
+- ~~The `DES-51 → DES-42 → DES-31 → DES-51` cycle is **live and unbroken**~~ — **broken.**
+  `DES-31 → DES-51` was dropped with sign-off. It stranded **20 of the 27 open backend HUs**,
+  not the six recorded here earlier; that undercount is corrected. `DES-31` is now startable.
+- ~~The DES-52/54/55 three-way fold is gated on amending DES-85~~ — **DES-85 amended and the
+  fold applied.** `DES-52` and `DES-55` are Canceled (folded into `DES-54`, ACs preserved);
+  `DES-51` is `HU-37`, `DES-54` is `HU-39`. The six tickets DES-55 blocked
+  (`DES-33/34/35/48/57/61`) were re-pointed onto `DES-54`. Both folded tickets are
+  **Canceled, not archived** — archiving is a manual Linear-UI step.
+
+### Still open
+
+- DES-41's blocker points at DES-42, not DES-40. Re-pointing asserts that generic evidence
+  rejection does not need the QR form to exist first — a design call, gated on ADR-0010.
+- **Five `Done` tickets still carry `ready-for-agent`:** DES-26, DES-45, DES-76, DES-77,
+  DES-78. Same stale-label bug fixed on DES-25; it was never a one-off.
+- **DES-51 (`Todo`) `blocks` DES-45 (`Done`)** — a completed ticket behind an unstarted
+  blocker. DES-45's body calls DES-51 "consumidor downstream," so the edge likely points
+  backwards. Unresolved; not touched.
+
+### DES-85 does not moot the HU-37/HU-39 fold — it carries the same pre-canon debt
+
+The PRD `prd/DES-85-primera-implementacion-de-scoring-monitoring-service-hu-37-a-hu-40.md`
+is **internally inconsistent** on this point. Its domain decisions support the fold; its
+slice list contradicts it.
+
+Supporting the fold:
+- `:179` — *"`Ranking` belongs to exactly one `LiveSession`"*. One ranking per session. There
+  is no second ranking for a "trivia session" to own.
+- `:211-215` — the functional backbone's step 3 is *"ranking recalculation **and** ranking
+  snapshots"*, i.e. HU-37B and HU-39A/B in one step.
+
+Contradicting it:
+- `:198-204` — *"The first delivery should align with the existing HU split"*, then enumerates
+  `HU-37A`/`HU-37B`/`HU-39A`/`HU-39B`/`HU-40A`/`HU-40B`. This **restates** the backlog split as
+  a premise rather than deriving it.
+- User story 21 (`:130-131`) — *"ranking snapshots for **trivia sessions**"*. Trivia is a
+  `SubstagePlayMode`, not a `SessionSource` (see the canon delta above). This is the exact
+  premise commit `c35f6c2` deleted.
+
+**Verdict:** DES-85 is not an authority that overrides the merge; it inherited the stale split
+from the same backlog the merge is fixing.
+
+> ✅ **Applied 2026-07-09.** The local PRD was amended with **four** edits, not three: drop
+> US-21 (and renumber 22–34), **rewrite US-20** — its *"for mission sessions / mission-mode
+> supervision"* qualifier was the dangling half of the US-21 distinction — collapse the
+> `HU-39A`/`HU-39B` bullet, and fold `HU-37B` into the ranking step. The fourth edit fixes the
+> *Further Notes* implementation-order bullet, which restated the old split verbatim; without
+> it the PRD contradicted itself in a second place. The `52 + 55 → 54` fold then proceeded,
+> stripping DES-51's duplicated ranking AC. The Linear PRD ticket **DES-85 itself is not yet
+> amended** — only the local copy under `backend/docs/prd/`.
+
+**Relocation worry resolved:** DES-51, DES-54 and DES-55 already carry
+`svc:scoring-monitoring-service`. The cluster is not about to move out of session-ops; it
+already left.

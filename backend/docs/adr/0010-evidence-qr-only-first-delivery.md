@@ -47,7 +47,8 @@ Text/photo evidence modes are not part of the current canonical model.
 - DES-39 (HU-29) and DES-40 (HU-30A) are active backlog items again as the
   generic evidence intake and shared context-validation stories under the
   umbrella model.
-- DES-41 (HU-30B), DES-42 (HU-31), DES-43 (HU-32), DES-46/DES-47 (HU-34A/B),
-  DES-51 (HU-37A), DES-56 (HU-40A), DES-60, and DES-70 must be interpreted
+- DES-41 (HU-30B), DES-42 (HU-31), DES-43 (HU-32), DES-46 (HU-34),
+  DES-51 (HU-37), DES-56 (HU-40A), DES-60, and DES-70 must be interpreted
   with the umbrella terminology: treasure-hunt QR evidence is one form, trivia
   answer submission is the other.
+  *(Updated 2026-07-09: DES-47/HU-34B merged into DES-46/HU-34; `HU-37A` → `HU-37`.)*
