@@ -1,4 +1,6 @@
+using System.Diagnostics;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.SignalR;
 using umbral_backend.Domain.Exceptions;
 
@@ -19,11 +21,18 @@ namespace umbral_backend.Api.Hubs;
 /// <see cref="ErrorCategory"/> — the mobile reconnect policy branches on the specific situation, so those
 /// strings are part of the hub's published contract and must stay stable.
 /// </remarks>
-public sealed class DomainExceptionHubFilter : IHubFilter
+/// <remarks>
+/// The <c>ERROR</c> arm catches what no one anticipated, so its message may carry constraint or
+/// column names straight to a mobile client. That arm alone substitutes a generic message and
+/// correlates to the logged exception through a <c>traceId</c>; the curated codes are unchanged.
+/// </remarks>
+public sealed class DomainExceptionHubFilter(ILogger<DomainExceptionHubFilter> logger) : IHubFilter
 {
     private static readonly JsonSerializerOptions PayloadOptions = new()
     {
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        // Keeps the five curated payloads byte-identical to before traceId existed.
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
     };
 
     public async ValueTask<object?> InvokeMethodAsync(
@@ -36,14 +45,28 @@ public sealed class DomainExceptionHubFilter : IHubFilter
         }
         catch (Exception exception) when (exception is not HubException and not OperationCanceledException)
         {
-            throw new HubException(BuildPayload(exception));
+            throw new HubException(BuildPayload(exception, invocationContext));
         }
     }
 
-    private static string BuildPayload(Exception exception) =>
-        JsonSerializer.Serialize(
-            new HubErrorPayload(MapCode(exception), exception.Message),
+    private string BuildPayload(Exception exception, HubInvocationContext invocationContext)
+    {
+        var code = MapCode(exception);
+        if (code != "ERROR")
+        {
+            return JsonSerializer.Serialize(
+                new HubErrorPayload(code, exception.Message),
+                PayloadOptions);
+        }
+
+        // No HttpContext inside a hub invocation, so the connection id is the fallback correlator.
+        var traceId = Activity.Current?.Id ?? invocationContext.Context.ConnectionId;
+        logger.LogError(exception, "Unhandled exception. TraceId: {TraceId}", traceId);
+
+        return JsonSerializer.Serialize(
+            new HubErrorPayload(code, "An unexpected error occurred.", traceId),
             PayloadOptions);
+    }
 
     private static string MapCode(Exception exception) => exception switch
     {
@@ -72,5 +95,5 @@ public sealed class DomainExceptionHubFilter : IHubFilter
         _ => "ERROR"
     };
 
-    private sealed record HubErrorPayload(string Code, string Message);
+    private sealed record HubErrorPayload(string Code, string Message, string? TraceId = null);
 }

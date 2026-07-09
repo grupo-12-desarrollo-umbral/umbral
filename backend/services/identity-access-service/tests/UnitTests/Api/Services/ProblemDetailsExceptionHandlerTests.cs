@@ -1,8 +1,11 @@
+using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 using FluentValidation.Results;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using umbral_backend.Api.Services;
 using umbral_backend.Application.Common.Exceptions;
 using umbral_backend.Domain.Exceptions;
@@ -47,7 +50,7 @@ public sealed class ProblemDetailsExceptionHandlerTests
         var exception = (Exception)RuntimeHelpers.GetUninitializedObject(type);
         var category = ((IErrorMetadata)exception).Category;
 
-        var handler = new ProblemDetailsExceptionHandler();
+        var handler = new ProblemDetailsExceptionHandler(NullLogger<ProblemDetailsExceptionHandler>.Instance);
         var httpContext = CreateHttpContext();
         await handler.TryHandleAsync(httpContext, exception, CancellationToken.None);
         var problem = await ReadProblemDetailsAsync(httpContext);
@@ -62,7 +65,7 @@ public sealed class ProblemDetailsExceptionHandlerTests
     [Fact]
     public async Task TryHandleAsync_ForKnownExceptions_ReturnsExpectedStatusCode()
     {
-        var handler = new ProblemDetailsExceptionHandler();
+        var handler = new ProblemDetailsExceptionHandler(NullLogger<ProblemDetailsExceptionHandler>.Instance);
 
         await AssertHandledAsync(handler, new NotFoundException("User", "kc-01"), StatusCodes.Status404NotFound, "Resource not found.");
         await AssertHandledAsync(handler, new UnauthorizedAccessException("missing headers"), StatusCodes.Status401Unauthorized, "Unauthorized.");
@@ -112,7 +115,7 @@ public sealed class ProblemDetailsExceptionHandlerTests
     [Fact]
     public async Task TryHandleAsync_ForValidationException_ReturnsBadRequestWithCombinedDetail()
     {
-        var handler = new ProblemDetailsExceptionHandler();
+        var handler = new ProblemDetailsExceptionHandler(NullLogger<ProblemDetailsExceptionHandler>.Instance);
         var httpContext = CreateHttpContext();
         var exception = new ValidationException(
         [
@@ -135,7 +138,7 @@ public sealed class ProblemDetailsExceptionHandlerTests
     [Fact]
     public async Task TryHandleAsync_ForDeactivatedUserRoleAssignment_ReturnsUnprocessableEntity()
     {
-        var handler = new ProblemDetailsExceptionHandler();
+        var handler = new ProblemDetailsExceptionHandler(NullLogger<ProblemDetailsExceptionHandler>.Instance);
         var httpContext = CreateHttpContext();
         var exception = new DeactivatedUserRoleAssignmentNotAllowedException(22);
 
@@ -153,7 +156,7 @@ public sealed class ProblemDetailsExceptionHandlerTests
     [Fact]
     public async Task TryHandleAsync_ForUnknownException_ReturnsInternalServerError()
     {
-        var handler = new ProblemDetailsExceptionHandler();
+        var handler = new ProblemDetailsExceptionHandler(NullLogger<ProblemDetailsExceptionHandler>.Instance);
         var httpContext = CreateHttpContext();
 
         var handled = await handler.TryHandleAsync(httpContext, new InvalidOperationException("boom"), CancellationToken.None);
@@ -163,6 +166,59 @@ public sealed class ProblemDetailsExceptionHandlerTests
 
         var problem = await ReadProblemDetailsAsync(httpContext);
         problem.Title.Should().Be("An unexpected error occurred.");
+    }
+
+    // The unclassified arm catches what nobody anticipated (Npgsql, KeyNotFound, NullReference),
+    // whose messages carry constraint names, column names and connection strings.
+    private const string SecretMessage = "SECRET-CONNECTION-STRING";
+
+    [Fact]
+    public async Task TryHandleAsync_UnclassifiedException_DetailDoesNotEchoMessage()
+    {
+        var handler = new ProblemDetailsExceptionHandler(NullLogger<ProblemDetailsExceptionHandler>.Instance);
+        var httpContext = CreateHttpContext();
+
+        await handler.TryHandleAsync(httpContext, new Exception(SecretMessage), CancellationToken.None);
+
+        var problem = await ReadProblemDetailsAsync(httpContext);
+        problem.Status.Should().Be(StatusCodes.Status500InternalServerError);
+        problem.Detail.Should().Be("An unexpected error occurred.");
+        problem.Detail.Should().NotContain(SecretMessage);
+    }
+
+    [Fact]
+    public async Task TryHandleAsync_UnclassifiedException_LogsTheException()
+    {
+        var logger = new Mock<ILogger<ProblemDetailsExceptionHandler>>();
+        var handler = new ProblemDetailsExceptionHandler(logger.Object);
+        var exception = new Exception(SecretMessage);
+
+        await handler.TryHandleAsync(CreateHttpContext(), exception, CancellationToken.None);
+
+        // The exception instance itself must reach the sink: it is the only record that survives,
+        // and asserting on the message alone would pass against a logger that drops the exception.
+        logger.Verify(
+            instance => instance.Log(
+                LogLevel.Error,
+                It.IsAny<EventId>(),
+                It.IsAny<It.IsAnyType>(),
+                exception,
+                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task TryHandleAsync_UnclassifiedException_EmitsTraceId()
+    {
+        using var activity = new Activity(nameof(TryHandleAsync_UnclassifiedException_EmitsTraceId)).Start();
+        var handler = new ProblemDetailsExceptionHandler(NullLogger<ProblemDetailsExceptionHandler>.Instance);
+        var httpContext = CreateHttpContext();
+
+        await handler.TryHandleAsync(httpContext, new Exception(SecretMessage), CancellationToken.None);
+
+        var problem = await ReadProblemDetailsAsync(httpContext);
+        problem.Extensions.Should().ContainKey("traceId");
+        problem.Extensions["traceId"]!.ToString().Should().Be(activity.Id);
     }
 
     private static async Task AssertHandledAsync(

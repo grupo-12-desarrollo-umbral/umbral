@@ -1,9 +1,13 @@
+using System.Diagnostics;
 using System.IO;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 using FluentValidation.Results;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
+using Moq;
 using umbral_backend.Api.Services;
 using umbral_backend.Application.Common.Exceptions;
 using umbral_backend.Domain.Exceptions;
@@ -12,7 +16,8 @@ namespace umbral_backend.Infrastructure.IntegrationTests.Api;
 
 public sealed class ProblemDetailsExceptionHandlerTests
 {
-    private readonly ProblemDetailsExceptionHandler _handler = new();
+    private readonly ProblemDetailsExceptionHandler _handler =
+        new(NullLogger<ProblemDetailsExceptionHandler>.Instance);
 
     // The category -> HTTP status contract, restated independently of the handler so the
     // coverage test verifies the mapping rather than trusting it. Every category maps to a
@@ -52,7 +57,8 @@ public sealed class ProblemDetailsExceptionHandlerTests
 
         problem.Status.Should().Be(StatusCodes.Status401Unauthorized);
         problem.Title.Should().Be("Unauthorized.");
-        problem.Detail.Should().Be("Missing trusted headers.");
+        problem.Detail.Should().Be("Unauthorized.");
+        problem.Detail.Should().NotContain("Missing trusted headers.");
     }
 
     [Fact]
@@ -81,7 +87,8 @@ public sealed class ProblemDetailsExceptionHandlerTests
 
         problem.Status.Should().Be(StatusCodes.Status500InternalServerError);
         problem.Title.Should().Be("An unexpected error occurred.");
-        problem.Detail.Should().Be("boom");
+        problem.Detail.Should().Be("An unexpected error occurred.");
+        problem.Detail.Should().NotContain("boom");
     }
 
     // Every concrete DomainException in the Domain assembly, one Theory case each. The key is the
@@ -112,6 +119,53 @@ public sealed class ProblemDetailsExceptionHandlerTests
             $"{type.Name} is categorised {category} and must map to that status, never a silent 500");
         problem.Type.Should().NotBeNullOrWhiteSpace(
             $"{type.Name} should carry a stable Type slug");
+    }
+
+    // The unclassified arm catches what nobody anticipated (Npgsql, KeyNotFound, NullReference),
+    // whose messages carry constraint names, column names and connection strings.
+    private const string SecretMessage = "SECRET-CONNECTION-STRING";
+
+    [Fact]
+    public async Task TryHandleAsync_UnclassifiedException_DetailDoesNotEchoMessage()
+    {
+        var problem = await HandleAsync(new Exception(SecretMessage));
+
+        problem.Status.Should().Be(StatusCodes.Status500InternalServerError);
+        problem.Detail.Should().Be("An unexpected error occurred.");
+        problem.Detail.Should().NotContain(SecretMessage);
+    }
+
+    [Fact]
+    public async Task TryHandleAsync_UnclassifiedException_LogsTheException()
+    {
+        var logger = new Mock<ILogger<ProblemDetailsExceptionHandler>>();
+        var handler = new ProblemDetailsExceptionHandler(logger.Object);
+        var exception = new Exception(SecretMessage);
+        var httpContext = new DefaultHttpContext { Response = { Body = new MemoryStream() } };
+
+        await handler.TryHandleAsync(httpContext, exception, CancellationToken.None);
+
+        // The exception instance itself must reach the sink: it is the only record that survives,
+        // and asserting on the message alone would pass against a logger that drops the exception.
+        logger.Verify(
+            instance => instance.Log(
+                LogLevel.Error,
+                It.IsAny<EventId>(),
+                It.IsAny<It.IsAnyType>(),
+                exception,
+                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task TryHandleAsync_UnclassifiedException_EmitsTraceId()
+    {
+        using var activity = new Activity(nameof(TryHandleAsync_UnclassifiedException_EmitsTraceId)).Start();
+
+        var problem = await HandleAsync(new Exception(SecretMessage));
+
+        problem.Extensions.Should().ContainKey("traceId");
+        problem.Extensions["traceId"]!.ToString().Should().Be(activity.Id);
     }
 
     private async Task<ProblemDetails> HandleAsync(Exception exception)

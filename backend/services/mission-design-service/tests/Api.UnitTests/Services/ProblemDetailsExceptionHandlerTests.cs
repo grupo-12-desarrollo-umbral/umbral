@@ -1,8 +1,12 @@
+using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
+using Moq;
 using umbral_backend.Api.Services;
 using umbral_backend.Application.Common.Exceptions;
 using umbral_backend.Domain.Enums;
@@ -68,7 +72,7 @@ public class ProblemDetailsExceptionHandlerTests
 
     private static async Task<ProblemDetails> InvokeHandlerAndReadProblemDetails(HttpContext httpContext, Exception exception)
     {
-        var handler = new ProblemDetailsExceptionHandler();
+        var handler = new ProblemDetailsExceptionHandler(NullLogger<ProblemDetailsExceptionHandler>.Instance);
         httpContext.Features.Set<IExceptionHandlerFeature>(new ExceptionHandlerFeature { Error = exception });
 
         await handler.TryHandleAsync(httpContext, exception, CancellationToken.None);
@@ -365,6 +369,55 @@ public class ProblemDetailsExceptionHandlerTests
         problem.Status.Should().Be(500);
         problem.Title.Should().Be("An unexpected error occurred.");
         httpContext.Response.StatusCode.Should().Be(500);
+    }
+
+    // The unclassified arm catches what nobody anticipated (Npgsql, KeyNotFound, NullReference),
+    // whose messages carry constraint names, column names and connection strings.
+    private const string SecretMessage = "SECRET-CONNECTION-STRING";
+
+    [Fact]
+    public async Task TryHandleAsync_UnclassifiedException_DetailDoesNotEchoMessage()
+    {
+        var httpContext = CreateHttpContext();
+
+        var problem = await InvokeHandlerAndReadProblemDetails(httpContext, new Exception(SecretMessage));
+
+        problem.Status.Should().Be(StatusCodes.Status500InternalServerError);
+        problem.Detail.Should().Be("An unexpected error occurred.");
+        problem.Detail.Should().NotContain(SecretMessage);
+    }
+
+    [Fact]
+    public async Task TryHandleAsync_UnclassifiedException_LogsTheException()
+    {
+        var logger = new Mock<ILogger<ProblemDetailsExceptionHandler>>();
+        var handler = new ProblemDetailsExceptionHandler(logger.Object);
+        var exception = new Exception(SecretMessage);
+
+        await handler.TryHandleAsync(CreateHttpContext(), exception, CancellationToken.None);
+
+        // The exception instance itself must reach the sink: it is the only record that survives,
+        // and asserting on the message alone would pass against a logger that drops the exception.
+        logger.Verify(
+            instance => instance.Log(
+                LogLevel.Error,
+                It.IsAny<EventId>(),
+                It.IsAny<It.IsAnyType>(),
+                exception,
+                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task TryHandleAsync_UnclassifiedException_EmitsTraceId()
+    {
+        using var activity = new Activity(nameof(TryHandleAsync_UnclassifiedException_EmitsTraceId)).Start();
+        var httpContext = CreateHttpContext();
+
+        var problem = await InvokeHandlerAndReadProblemDetails(httpContext, new Exception(SecretMessage));
+
+        problem.Extensions.Should().ContainKey("traceId");
+        problem.Extensions["traceId"]!.ToString().Should().Be(activity.Id);
     }
 
     private sealed class ExceptionHandlerFeature : IExceptionHandlerFeature
