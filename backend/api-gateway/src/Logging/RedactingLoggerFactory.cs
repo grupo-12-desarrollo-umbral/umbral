@@ -6,8 +6,9 @@ namespace ApiGateway.Logging;
 
 /// <summary>
 /// Wraps the real <see cref="ILoggerFactory"/> so records from the framework categories that echo
-/// the raw request query string have their sensitive parameters redacted before any sink (stdout
-/// today, OTLP once PR #125 lands) observes them.
+/// the raw request query string have their sensitive parameters redacted before any sink — stdout
+/// or the OTLP exporter — observes them. Redaction runs in the delegating logger, ahead of the
+/// fan-out to every <see cref="ILoggerProvider"/>, so no sink can see the unredacted record.
 /// </summary>
 /// <remarks>
 /// Interception at the logger — not a middleware that rewrites <c>HttpContext.Request.QueryString</c>

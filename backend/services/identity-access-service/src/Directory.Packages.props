@@ -17,6 +17,17 @@
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.0" />
     <PackageVersion Include="Microsoft.Extensions.Hosting" Version="10.0.0" />
     <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.0" />
+    <PackageVersion Include="Npgsql.OpenTelemetry" Version="10.0.0" />
+    <!-- GHSA-g94r-2vxg-569j: OpenTelemetry.Api below 1.15.3 unbounded-allocates parsing inbound
+         traceparent/baggage headers (patched in 1.15.3). This pin is defence-in-depth, not the
+         mechanism: the OTel 1.16.0 stack already floors OpenTelemetry.Api at 1.16.0 via
+         ProviderBuilderExtensions, which outranks Npgsql.OpenTelemetry's 1.14.0. Kept so a future
+         downgrade of that stack cannot silently let Npgsql's floor win. -->
+    <PackageVersion Include="OpenTelemetry.Api" Version="1.16.0" />
+    <PackageVersion Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.16.0" />
+    <PackageVersion Include="OpenTelemetry.Extensions.Hosting" Version="1.16.0" />
+    <PackageVersion Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.16.0" />
+    <PackageVersion Include="OpenTelemetry.Instrumentation.Http" Version="1.16.0" />
     <PackageVersion Include="Scalar.AspNetCore" Version="2.0.36" />
   </ItemGroup>
 </Project>
