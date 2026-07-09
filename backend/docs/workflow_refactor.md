@@ -168,9 +168,14 @@ Phases 5–6 may run in parallel once DES-24 lands.
 > (critical-path head), `DES-31`, `DES-32`, `DES-53`, `DES-29`, `DES-13`, `DES-80`,
 > and `DES-81` (mobile spike). `DES-49` opens as soon as `DES-46` lands.
 >
-> ⚠️ **Five `Done` tickets still carry `ready-for-agent`:** `DES-26`, `DES-45`,
-> `DES-76`, `DES-77`, `DES-78`. They look agent-pickable and are not. Same bug that
-> was fixed on `DES-25`; it was never a one-off. Strip the label.
+> ℹ️ **`ready-for-agent` on `Done` tickets is cosmetic — do not strip it.** A full sweep
+> (2026-07-09) found **19 of 26** `Done` tickets carry it, not the five an earlier note
+> claimed. It is **not** an agent-pickup trap: the generator is invoked with an explicit
+> `DES` id, never selects by this label, and classifies supersession at its front door —
+> *"The generator must not depend on that strip having happened"* (`generator-agent.md:40-44`).
+> `ticket-playbook.md:76` agrees: *"hygiene, not the safety net."*
+> ⚠️ **Never strip it from a PRD ticket** (`DES-62/67/70/85`): PRD resolution finds them by
+> `svc:<service>` **+ `ready-for-agent`** (`generator-agent.md:68-71`).
 
 | # | Ticket(s) | HU | What | Note |
 |---|---|---|---|---|
@@ -206,7 +211,8 @@ state-change audit — also unblocks DES-56), `DES-32`, `DES-53`, `DES-13`, `DES
 > since that read surface belongs to `DES-56` (HU-40A), which this HU blocks.
 
 (Archived/superseded, ignore: DES-71/72/73/74 — old participant-lobby sub-issues,
-closed out by #108/#110/#115. DES-47 — merged into DES-46, archived 2026-07-09.)
+closed out by #108/#110/#115. DES-47 — merged into DES-46 on 2026-07-09; **Canceled, not
+archived** — archiving is a manual Linear-UI step still pending.)
 
 ## Unified order with the Users realignment (updated 2026-07-09)
 
@@ -228,8 +234,11 @@ Mobile track, independent: **DES-81 → DES-82 → DES-83 / DES-84** (DES-84 aft
 forward any time.)
 
 This is a **verified topological order over live `blockedBy` relations** as of
-2026-07-09, not the historical phase grouping. Structural corrections against earlier
-versions of this line:
+2026-07-09, not the historical phase grouping. **Re-validated 2026-07-09** against a full
+relation fetch of every `Todo` (23), `Backlog` (22) and `Canceled` (7) ticket: the graph is
+acyclic, no live ticket blocks a `Done` ticket, and no live ticket has any edge into a
+`Canceled` one. Every edge below was checked against the order. Structural corrections
+against earlier versions of this line:
 
 1. **The cycle is gone.** `DES-31 → DES-51` was dropped, so this order is now actually
    runnable end to end. No back-edge to `DES-31` remains.
@@ -241,9 +250,9 @@ versions of this line:
 4. **`DES-60` and `DES-61` were absent from every earlier version of this line.**
    `DES-60` needs DES-42/40/56/51; `DES-61` needs DES-34/35/54.
 
-Also corrected here: `DES-47` is gone (merged into `DES-46`, archived), `DES-46` is plain
-`HU-34` not `HU-34A`, `DES-51` is `HU-37` and `DES-54` is `HU-39`, and `DES-52` / `DES-55`
-are **Canceled** — folded into `DES-54`, no longer build steps.
+Also corrected here: `DES-47` is gone (merged into `DES-46`; **Canceled, not archived**),
+`DES-46` is plain `HU-34` not `HU-34A`, `DES-51` is `HU-37` and `DES-54` is `HU-39`, and
+`DES-52` / `DES-55` are **Canceled** — folded into `DES-54`, no longer build steps.
 
 Every entry is a Linear DES id except the last, which is a GitHub issue. ⚠️ **`GH #85`
 (the rename) is not `DES-85` (the scoring PRD).** They are unrelated tickets that
