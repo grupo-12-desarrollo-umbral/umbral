@@ -39,8 +39,9 @@ public sealed class TriviaRoundStartedNotificationHandler : INotificationHandler
             ?? throw new NotFoundException(nameof(umbral_backend.Domain.Entities.LiveSession), notification.LiveSessionId.ToString());
 
         // Entering Active already set ActiveSubstageId to the first substage (domain). Auto-activation
-        // is trivia-only (ADR-0005 D-4): a treasure-hunt first substage parks — no countdown, no
-        // question. The facade owns the activate flow; this handler stays thin.
+        // is trivia-only (backend/adr/0005-substage-advancement-pointer-and-timer-driven-orchestration.md):
+        // a treasure-hunt first substage parks — no countdown, no question. The facade owns the
+        // activate flow; this handler stays thin.
         if (session.State != SessionState.Active
             || session.ActiveQuestionIndex is not null
             || !ActiveSubstageIsTrivia(session))
