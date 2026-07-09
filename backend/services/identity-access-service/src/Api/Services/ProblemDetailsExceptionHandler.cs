@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
 using umbral_backend.Domain.Exceptions;
@@ -11,9 +12,13 @@ namespace umbral_backend.Api.Services;
 /// enumerates concrete types. Every <see cref="DomainException"/> is forced to declare an
 /// <see cref="ErrorCategory"/> at compile time, so no domain exception can silently fall through
 /// to HTTP 500; application-layer exceptions opt in by implementing <see cref="IErrorMetadata"/>.
-/// Anything implementing neither hits the HTTP 500 fallback by design.
+/// Anything implementing neither hits the HTTP 500 fallback by design: those exceptions are
+/// unanticipated, so their messages may carry constraint names, column names or connection strings.
+/// The unclassified and unauthorized arms therefore return a generic <c>Detail</c> and correlate to
+/// the logged exception through a <c>traceId</c> extension instead of echoing <c>exception.Message</c>.
 /// </summary>
-public sealed class ProblemDetailsExceptionHandler : IExceptionHandler
+public sealed class ProblemDetailsExceptionHandler(ILogger<ProblemDetailsExceptionHandler> logger)
+    : IExceptionHandler
 {
     public async ValueTask<bool> TryHandleAsync(
         HttpContext httpContext,
@@ -28,21 +33,48 @@ public sealed class ProblemDetailsExceptionHandler : IExceptionHandler
                 metadata.ErrorCode,
                 TitleFor(metadata.Category),
                 exception.Message),
-            UnauthorizedAccessException => Problem(
-                StatusCodes.Status401Unauthorized,
-                "unauthorized",
-                "Unauthorized.",
-                exception.Message),
-            _ => Problem(
-                StatusCodes.Status500InternalServerError,
-                "internal-error",
-                "An unexpected error occurred.",
-                exception.Message)
+            // Thrown deliberately by AuthorizationBehaviour and handler guards, so there is nothing
+            // to log — but the message is a framework default, so it is not worth echoing either.
+            UnauthorizedAccessException => Correlated(
+                Problem(
+                    StatusCodes.Status401Unauthorized,
+                    "unauthorized",
+                    "Unauthorized.",
+                    "Unauthorized."),
+                TraceId(httpContext)),
+            _ => Unhandled(exception, httpContext)
         };
 
         httpContext.Response.StatusCode = problemDetails.Status ?? StatusCodes.Status500InternalServerError;
         await httpContext.Response.WriteAsJsonAsync(problemDetails, cancellationToken);
         return true;
+    }
+
+    private ProblemDetails Unhandled(Exception exception, HttpContext httpContext)
+    {
+        var traceId = TraceId(httpContext);
+
+        // The sole record of this exception: TryHandleAsync always returns true, so
+        // ExceptionHandlerMiddleware never logs, and anything thrown outside the MediatR
+        // pipeline never reaches UnhandledExceptionBehaviour either.
+        logger.LogError(exception, "Unhandled exception. TraceId: {TraceId}", traceId);
+
+        return Correlated(
+            Problem(
+                StatusCodes.Status500InternalServerError,
+                "internal-error",
+                "An unexpected error occurred.",
+                "An unexpected error occurred."),
+            traceId);
+    }
+
+    private static string TraceId(HttpContext httpContext) =>
+        Activity.Current?.Id ?? httpContext.TraceIdentifier;
+
+    private static ProblemDetails Correlated(ProblemDetails problem, string traceId)
+    {
+        problem.Extensions["traceId"] = traceId;
+        return problem;
     }
 
     private static ProblemDetails Problem(int status, string type, string title, string detail) =>
