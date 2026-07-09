@@ -409,8 +409,12 @@ umbral-backend/
 │   ├── src/
 │   │   ├── Program.cs
 │   │   ├── DependencyInjection.cs
+│   │   ├── Logging/
+│   │   │   ├── SensitiveQueryLogRedactor.cs          # Redacts ?access_token & friends from log text
+│   │   │   └── RedactingLoggerFactory.cs             # ILoggerFactory decorator applying that redaction
 │   │   ├── Transforms/
-│   │   │   └── WebSocketTokenExtractionTransform.cs  # Extracts ?access_token for SignalR upgrades — see ADR-0002
+│   │   │   ├── WebSocketTokenExtractionTransform.cs  # Extracts ?access_token for SignalR upgrades — see ADR-0002
+│   │   │   └── TrustedHeadersTransform.cs            # Injects X-User-* headers; strips the token from the forwarded request
 │   │   ├── appsettings.json
 │   │   └── ApiGateway.csproj
 │   └── README.md
