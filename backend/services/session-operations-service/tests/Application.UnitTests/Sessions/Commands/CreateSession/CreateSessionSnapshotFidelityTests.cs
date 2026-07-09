@@ -7,8 +7,8 @@ using umbral_backend.Domain.Services;
 
 namespace umbral_backend.Application.UnitTests.Sessions.Commands.CreateSession;
 
-// HU-16 (DES-75) X.2: locks the trivia-slice fidelity depth of the Facade obligation.
-// The single CreateSessionFacade must copy the *whole* published quiz into
+// HU-16 (DES-75) X.2: locks the trivia-slice fidelity depth of the creation obligation.
+// The single CreateSessionCommandHandler must copy the *whole* published quiz into
 // MissionRuntimeSnapshot.TriviaQuestionSnapshots — every question and option, with content
 // parity (prompt/score/timer/explanation/correct-flag) in strict mission order, no partial copy.
 public sealed class CreateSessionSnapshotFidelityTests
@@ -69,9 +69,9 @@ public sealed class CreateSessionSnapshotFidelityTests
                     ])
             ]);
 
-        var facade = CreateFacade(repository, runtime);
+        var handler = CreateHandler(repository, runtime);
 
-        await facade.CreateAsync(command, CancellationToken.None);
+        await handler.Handle(command, CancellationToken.None);
 
         persisted.Should().NotBeNull();
         var snapshots = persisted!.MissionRuntimeSnapshot.TriviaQuestionSnapshots;
@@ -112,7 +112,7 @@ public sealed class CreateSessionSnapshotFidelityTests
         }
     }
 
-    private static CreateSessionFacade CreateFacade(Mock<ILiveSessionRepository> repository, MissionRuntimeDto runtime)
+    private static CreateSessionCommandHandler CreateHandler(Mock<ILiveSessionRepository> repository, MissionRuntimeDto runtime)
     {
         var readinessSource = new Mock<IMissionReadinessSource>();
         readinessSource
@@ -124,7 +124,7 @@ public sealed class CreateSessionSnapshotFidelityTests
             .Setup(source => source.GetByIdAsync(MissionId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(runtime);
 
-        return new CreateSessionFacade(
+        return new CreateSessionCommandHandler(
             repository.Object,
             readinessSource.Object,
             runtimeSource.Object,

@@ -140,13 +140,12 @@ public sealed class AssignOperatorToSessionCommandHandlerTests
                 currentUser.Object.Role ?? "Unknown",
                 true));
         var accessResolver = new SessionAdministrationAuthorizationProxy(currentUser.Object, repository.Object, actorClient.Object);
-        var facade = new AssignOperatorToSessionFacade(
+
+        return new AssignOperatorToSessionCommandHandler(
             accessResolver,
             eligibilityClient.Object,
             repository.Object,
             timeProvider);
-
-        return new AssignOperatorToSessionCommandHandler(facade);
     }
 
     private static Mock<ILiveSessionRepository> CreateRepository(LiveSession session)

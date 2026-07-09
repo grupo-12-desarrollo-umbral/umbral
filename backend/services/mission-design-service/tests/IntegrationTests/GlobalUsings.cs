@@ -6,4 +6,6 @@ global using Microsoft.EntityFrameworkCore;
 global using Microsoft.Extensions.DependencyInjection;
 global using System.Net;
 global using System.Net.Http.Json;
+global using umbral_backend.Application.Dtos.Missions;
+global using umbral_backend.Application.Dtos.Trivias;
 global using Xunit;

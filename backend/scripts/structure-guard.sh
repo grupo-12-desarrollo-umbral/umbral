@@ -7,12 +7,14 @@
 # This is the structural CI guard ADR-0011's Consequences section calls for.
 #
 # Rules enforced (ADR-0011 Decision §1/§2):
-#   A. No `Handlers/`, `DTOs/`, or `Facades/` type-bucket directory anywhere under
-#      Application/. The handler and its owned DTO live in the use-case folder; a
-#      mandated Facade lives co-located in the slice it orchestrates, or — if shared by
-#      ≥2 slices — in `<Area>/Common/` grouped by CONCERN (not a `Facades/` bucket).
-#      The rule keys on the directory NAME, so a co-located `*Facade.cs` file is never
-#      flagged — only the type-bucket folder is.
+#   A. No `Handlers/`, `DTOs/`/`Dtos/`, or `Facades/` type-bucket directory nested under
+#      an <Area> — EXCEPT the single central `Application/Dtos/` root, which is the
+#      sanctioned home for all response DTOs (grouped by area; ADR-0011 §1/§2). A
+#      single-consumer Facade is inlined into its handler (the handler realizes it); a
+#      standalone `*Facade.cs` exists only when shared by ≥2 slices and then lives in
+#      `<Area>/Common/` grouped by CONCERN. The rule keys on the directory NAME, so a
+#      co-located `*Facade.cs`/`*Proxy.cs` file is never flagged — only the type-bucket
+#      folder (or a per-area `DTOs/`/`Dtos/` bucket) is.
 #   B. No generic `UseCases/` wrapper directory under Application/ — the path is
 #      <Area>/{Commands|Queries}/<UseCase>/, not a flat bag of use cases.
 #   C. The Commands/Queries level is MANDATORY. Every `<X>CommandHandler.cs` must
@@ -28,15 +30,24 @@
 #      "Executor"), so any `*Executor` under Application/ is the un-mandated bottom of
 #      that triplet and must be collapsed into its handler (ADR-0011 §3). Exempt only
 #      via EXECUTOR_ALLOWLIST below.
+#   E. No slice-local `*Facade.cs`/`I*Facade.cs`. Option C (ADR-0013): a single-consumer
+#      Facade is realized by its MediatR handler, so a standalone Facade type inside a
+#      use-case slice is the ceremony that inlining removed. A Facade shared by >=2 slices
+#      is legal and lives in `<Area>/Common/`, which never sits under Commands/ or
+#      Queries/ — so the path decides, and the guard needs no consumer counting.
 #
 # Scope: only `services/*/src/Application`. Domain/Infrastructure/Api are untouched.
-# Mandated PATTERNS are never flagged — the rules key on type-bucket directory names,
-# on *CommandHandler/*QueryHandler placement, and on the un-mandated `Executor` suffix,
-# never on whether a pattern is realized. So co-located `*Proxy.cs`/`*Facade.cs` files,
-# and the plan-preserved `EventHandlers/` and `StateTransitions/` folders (mandated
-# State machine + event dispatch — ADR-0011 §1, plan Phase 2), are left alone. Only the
-# `Facades/` type-BUCKET folder is forbidden (Rule A): a Facade belongs in its slice or
-# in `<Area>/Common/`, not collected by type.
+# Mandated PATTERNS are never flagged for being realized — the rules key on directory
+# names, on *CommandHandler/*QueryHandler placement, on the un-mandated `Executor`
+# suffix, and on a Facade's PLACEMENT (Rule E), never on whether a pattern exists. So
+# co-located `*Proxy.cs` files (a Proxy is a cross-cutting decorator and stays a type —
+# ADR-0012), and the plan-preserved `EventHandlers/` and `StateTransitions/` folders
+# (mandated State machine + event dispatch — ADR-0011 §1, plan Phase 2), are left alone.
+# A Facade is different: Rule E forbids it INSIDE a use-case slice because Option C
+# realizes a single-consumer Facade in its handler; shared ones live in `<Area>/Common/`.
+# The `Facades/` type-BUCKET folder is forbidden separately (Rule A) — never collect by
+# type. Response DTOs live in the central `Application/Dtos/` root, never a per-area
+# `DTOs/`/`Dtos/` bucket.
 set -euo pipefail
 
 # Allowlist for Rule D: backend-relative paths of `*Executor` files that are
@@ -68,13 +79,16 @@ for app in "${APP_DIRS[@]}"; do
     checked=$((checked + 1))
     svc=$(echo "$app" | cut -d/ -f2)
 
-    # Rule A — Handlers/, DTOs/, or Facades/ type-buckets.
+    # Rule A — Handlers/, DTOs/Dtos/, or Facades/ type-buckets. The central
+    # Application/Dtos/ root is the sanctioned DTO home and is exempt; a per-area
+    # DTOs/Dtos/ bucket is not.
     while IFS= read -r d; do
         echo "✗ [$svc] forbidden type-bucket directory: $d" >&2
-        echo "      → co-locate the handler/DTO/Facade in its use-case slice, or move a" >&2
-        echo "        shared Facade into <Area>/Common/ grouped by concern (ADR-0011 §2)." >&2
+        echo "      → response DTOs go in the central Application/Dtos/ root; inline a" >&2
+        echo "        single-consumer Facade into its handler, or move a shared Facade" >&2
+        echo "        into <Area>/Common/ grouped by concern (ADR-0011 §1/§2)." >&2
         violations=$((violations + 1))
-    done < <(find "$app" -type d \( -name Handlers -o -name DTOs -o -name Facades \) 2>/dev/null | sort)
+    done < <(find "$app" -type d \( -name Handlers -o -name DTOs -o -name Dtos -o -name Facades \) ! -path "$app/Dtos" 2>/dev/null | sort)
 
     # Rule B — generic UseCases/ wrapper segment.
     while IFS= read -r d; do
@@ -117,6 +131,19 @@ for app in "${APP_DIRS[@]}"; do
         echo "      → collapse the IService/IExecutor pass-through into the handler; 'Executor' is not an ADR-0004 pattern (ADR-0011 §3)." >&2
         violations=$((violations + 1))
     done < <(find "$app" -type f -name '*Executor*.cs' 2>/dev/null | sort)
+
+    # Rule E — a slice-local Facade. Option C (ADR-0013): a single-consumer Facade is
+    # realized by its handler, never a standalone type. Any `*Facade.cs`/`I*Facade.cs`
+    # inside a use-case slice is therefore that inlined-away ceremony coming back. A
+    # Facade shared by >=2 slices is legal and lives in `<Area>/Common/`, which is never
+    # under Commands/ or Queries/ — so the path alone decides, no consumer counting.
+    while IFS= read -r f; do
+        echo "✗ [$svc] slice-local Facade (Option C inlines it into the handler): $f" >&2
+        echo "      → move the orchestration into the sibling *CommandHandler.Handle and delete" >&2
+        echo "        the Facade + interface; if >=2 slices consume it, move it to <Area>/Common/" >&2
+        echo "        grouped by concern instead (ADR-0011 §1/§2, ADR-0013)." >&2
+        violations=$((violations + 1))
+    done < <(find "$app" -type f -name '*Facade.cs' \( -path '*/Commands/*' -o -path '*/Queries/*' \) 2>/dev/null | sort)
 done
 
 if [[ $checked -eq 0 ]]; then

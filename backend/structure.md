@@ -63,12 +63,16 @@ umbral-backend/
 │   │   │   │   │   │   ├── AuthorizeAttribute.cs
 │   │   │   │   │   └── Mappings/
 │   │   │   │   │       └── MappingProfile.cs                     # Only if AutoMapper is kept
+│   │   │   │   ├── Dtos/                                         # central home for ALL response DTOs, sub-grouped by area (ADR-0011 §1/§2)
+│   │   │   │   │   └── <Area>/
+│   │   │   │   │       ├── <Entity>DetailsDto.cs
+│   │   │   │   │       └── <Entity>ListItemDto.cs
 │   │   │   │   │
 │   │   │   │   ├── <Entity>/                                     # Example: Orders, Customers, Billing
 │   │   │   │   │   ├── Commands/
 │   │   │   │   │   │   ├── Create<Entity>/
 │   │   │   │   │   │   │   ├── Create<Entity>Command.cs
-│   │   │   │   │   │   │   ├── Create<Entity>CommandHandler.cs    # handler co-located with its request (ADR-0011)
+│   │   │   │   │   │   │   ├── Create<Entity>CommandHandler.cs    # pipeline files only; handler realizes a single-consumer Facade inline (ADR-0011/0012)
 │   │   │   │   │   │   │   └── Create<Entity>CommandValidator.cs
 │   │   │   │   │   │   ├── Update<Entity>/
 │   │   │   │   │   │   │   ├── Update<Entity>Command.cs
@@ -80,13 +84,11 @@ umbral-backend/
 │   │   │   │   │   ├── Queries/
 │   │   │   │   │   │   ├── Get<Entity>ById/
 │   │   │   │   │   │   │   ├── Get<Entity>ByIdQuery.cs
-│   │   │   │   │   │   │   ├── Get<Entity>ByIdQueryHandler.cs
-│   │   │   │   │   │   │   └── <Entity>DetailsDto.cs              # response model owned by the query that returns it
+│   │   │   │   │   │   │   └── Get<Entity>ByIdQueryHandler.cs     # response DTO lives in Application/Dtos/<Area>/, not here
 │   │   │   │   │   │   └── Get<Entity>List/
 │   │   │   │   │   │       ├── Get<Entity>ListQuery.cs
-│   │   │   │   │   │       ├── Get<Entity>ListQueryHandler.cs
-│   │   │   │   │   │       └── <Entity>ListItemDto.cs
-│   │   │   │   │   ├── Common/                                   # shared-by-≥2-slices mappers/guards + mandated patterns for this area (Proxy/Facade/Template Method/CoR) — see ADR-0004
+│   │   │   │   │   │       └── Get<Entity>ListQueryHandler.cs
+│   │   │   │   │   ├── Common/                                   # shared-by-≥2-slices mappers/guards + mandated patterns for this area (Proxy, shared Facade, Template Method/CoR) — see ADR-0004; Common/Authorization/ holds relocated *AuthorizationProxy decorators
 │   │   │   │   │   ├── Events/                                   # Optional application events
 │   │   │   │   │   │   └── <Entity>CreatedEvent.cs
 │   │   │   │   │   └── EventHandlers/                            # Optional application event handlers
@@ -276,15 +278,19 @@ Other services do not carry `Infrastructure/Identity/Keycloak/`. They read actor
 - Commands mutate state.
 - Queries read state.
 - One handler should handle one command or one query.
-- Each use case is a self-contained vertical slice: the request, its handler, and its validator live
-  together in one `Commands/<UseCase>/` or `Queries/<UseCase>/` folder. No `Handlers/` type-bucket (ADR-0011).
+- Each use case is a self-contained vertical slice holding **only its pipeline files**: the request,
+  its handler, and (commands) its validator, together in one `Commands/<UseCase>/` or
+  `Queries/<UseCase>/` folder. No `Handlers/` type-bucket (ADR-0011). A single-consumer `Facade` is
+  realized **inline in the handler**; a single-consumer `Proxy` stays a decorator, relocated to
+  `Application/<Entity>/Common/Authorization/` to keep the slice pipeline-pure (ADR-0011 §2/§4).
 
 ### DTOs
 
-- A response DTO lives in the folder of the query (or command) that owns it.
-- A DTO genuinely shared by ≥2 slices of the same area lives in `Application/<Entity>/Common/`.
-- No `DTOs/` type-bucket (ADR-0011). Mandated-pattern implementations for the area also live in
-  `Application/<Entity>/Common/` — see ADR-0004.
+- Every response DTO (command result AND query response) lives in the central `Application/Dtos/<Area>/`
+  root, sub-grouped by area — **not** in the slice.
+- A command returning `Guid`/`Unit` carries no result DTO at all.
+- No per-area `DTOs/`/`Dtos/` type-bucket, and no DTO co-located in a slice (ADR-0011 §1/§2). Mandated-pattern
+  implementations for the area live in `Application/<Entity>/Common/` — see ADR-0004.
 
 ### Events
 

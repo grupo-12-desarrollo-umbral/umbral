@@ -1,3 +1,4 @@
+using umbral_backend.Application.Dtos.Teams;
 using umbral_backend.Application.Common.Security;
 
 namespace umbral_backend.Application.Teams.Queries.GetTeamParticipants;
