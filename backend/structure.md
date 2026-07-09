@@ -33,6 +33,7 @@ umbral-backend/
 │   │   │   │   │   └── WebhookHub.cs
 │   │   │   │   ├── Services/                                    # Adapters for request context
 │   │   │   │   ├── DependencyInjection.cs
+│   │   │   │   ├── ObservabilityExtensions.cs                  # OpenTelemetry tracing + log export wiring
 │   │   │   │   ├── Program.cs
 │   │   │   │   ├── GlobalUsings.cs
 │   │   │   │
@@ -409,6 +410,7 @@ umbral-backend/
 │   ├── src/
 │   │   ├── Program.cs
 │   │   ├── DependencyInjection.cs
+│   │   ├── ObservabilityExtensions.cs                # OpenTelemetry tracing + log export wiring
 │   │   ├── Logging/
 │   │   │   ├── SensitiveQueryLogRedactor.cs          # Redacts ?access_token & friends from log text
 │   │   │   └── RedactingLoggerFactory.cs             # ILoggerFactory decorator applying that redaction
@@ -420,7 +422,11 @@ umbral-backend/
 │   └── README.md
 ├── docs/
 ├── deploy/
-│   └── docker-compose.yml                            # Keycloak, api-gateway, postgres, rabbitmq
+│   ├── keycloak/import/                             # Realm import consumed by the keycloak container
+│   └── postgres/init-dbs.sql                        # Per-service database bootstrap
+├── docker-compose.yml                               # postgres, keycloak, rabbitmq, seq, api-gateway,
+│                                                    # mission-design, identity-access, session-operations
+├── docker-compose.override.yml                      # DEV-ONLY hot-reload loop; auto-loads on bare `up`
 ├── .gitignore
 └── README.md
 ```

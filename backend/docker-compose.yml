@@ -50,6 +50,18 @@ services:
       - "5672:5672"
       - "15672:15672"
 
+  # Telemetry sink for the four app services. Traces and logs arrive over OTLP;
+  # the services carry no exporter config of their own, only the OTEL_* vars below.
+  seq:
+    image: datalust/seq:2025.2
+    environment:
+      ACCEPT_EULA: Y
+      # 2025.2 refuses to boot on ACCEPT_EULA alone: "No default admin password was supplied".
+      SEQ_FIRSTRUN_NOAUTHENTICATION: "true"
+    ports:
+      - "8341:80" # UI + query API
+      - "5341:5341" # OTLP ingest
+
   api-gateway:
     build:
       context: ./api-gateway
@@ -59,6 +71,8 @@ services:
         condition: service_healthy
       identity-access-service:
         condition: service_started
+      seq:
+        condition: service_started
     environment:
       ASPNETCORE_ENVIRONMENT: Development
       ASPNETCORE_URLS: http://+:8080
@@ -66,6 +80,12 @@ services:
       Keycloak__Audience: umbral-web
       ReverseProxy__Clusters__mission-design__Destinations__d1__Address: http://mission-design-service:8080/
       ReverseProxy__Clusters__identity__Destinations__d1__Address: http://identity-access-service:8080/
+      # Base URL; the exporter appends /v1/traces and /v1/logs. Seq serves no /v1/metrics.
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://seq:5341/ingest/otlp
+      # Mandatory: the exporter defaults to gRPC, Seq speaks OTLP over HTTP only,
+      # and the mismatch fails silently — telemetry simply never arrives.
+      OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
+      OTEL_SERVICE_NAME: api-gateway
     ports:
       - "8000:8080"
 
@@ -76,10 +96,15 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      seq:
+        condition: service_started
     environment:
       ASPNETCORE_ENVIRONMENT: Development
       ASPNETCORE_URLS: http://+:8080
       ConnectionStrings__umbral_backendDb: Host=postgres;Port=5432;Database=mission_design;Username=postgres;Password=postgres
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://seq:5341/ingest/otlp
+      OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
+      OTEL_SERVICE_NAME: mission-design-service
     ports:
       - "5001:8080"
 
@@ -90,10 +115,15 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      seq:
+        condition: service_started
     environment:
       ASPNETCORE_ENVIRONMENT: Development
       ASPNETCORE_URLS: http://+:8080
       ConnectionStrings__umbral_backendDb: Host=postgres;Port=5432;Database=identity_access;Username=postgres;Password=postgres
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://seq:5341/ingest/otlp
+      OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
+      OTEL_SERVICE_NAME: identity-access-service
     ports:
       - "5002:8080"
 
@@ -106,6 +136,8 @@ services:
         condition: service_healthy
       api-gateway:
         condition: service_started
+      seq:
+        condition: service_started
     environment:
       ASPNETCORE_ENVIRONMENT: Development
       ASPNETCORE_URLS: http://+:8080
@@ -114,6 +146,9 @@ services:
       PublishedTriviaQuizSource__BaseAddress: http://mission-design-service:8080/
       MissionReadinessSource__BaseAddress: http://mission-design-service:8080/
       MissionRuntimeSource__BaseAddress: http://mission-design-service:8080/
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://seq:5341/ingest/otlp
+      OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
+      OTEL_SERVICE_NAME: session-operations-service
     ports:
       - "5003:8080"
 

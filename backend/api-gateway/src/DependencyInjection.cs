@@ -8,7 +8,11 @@ public static class DependencyInjection
     {
         // Strip access_token (and friends) from the request-logging and forwarder records that would
         // otherwise write a replayable JWT to stdout — SignalR sends its token in the query (ADR-0002).
+        // Redaction happens inside the ILoggerFactory decorator, so it covers the OTLP exporter that
+        // AddObservability registers below just as it covers the console sink, whatever the order here.
         RedactingLoggerFactory.AddQueryParameterRedaction(builder.Logging);
+
+        builder.AddObservability();
 
         var frontendOrigins = builder.Configuration
             .GetSection("Frontend:AllowedOrigins")

@@ -16,6 +16,7 @@ public static class DependencyInjection
 {
     public static void AddWebServices(this IHostApplicationBuilder builder)
     {
+        builder.AddObservability();
         builder.Services.AddDatabaseDeveloperPageExceptionFilter();
         builder.Services.AddHttpContextAccessor();
         builder.Services.AddSignalR(options =>
