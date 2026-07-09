@@ -189,7 +189,7 @@ Phases 5–6 may run in parallel once DES-24 lands.
 | 6 | DES-77 | HU-22 | Timer keyed off active `SubstagePlayMode` | ✅ **DONE** (PR #79) — rebuild (supersedes DES-30, shipped pre-canon as PR #22). |
 | 7 | DES-25 | HU-18 | Attach teams during `Scheduled` | ✅ **DONE** (PR #23) — Linear now `Done`; the AC reword landed, nothing remains. |
 | 8 | DES-78 + DES-45 | HU-33A/33B | Synchronized trivia substage + auto-close + final results | ✅ **DONE** — DES-78 rebuild (supersedes DES-44), pointer/advancement contract in `backend/adr/0005-substage-advancement-pointer-and-timer-driven-orchestration.md`; DES-45 by PR #119 (`b849bf8`). |
-| 9 | **DES-46** | HU-34 | Register first valid team answer + reject late/repeated (one first-write-wins guard) | ⬜ **← CRITICAL PATH, START HERE.** Zero live blockers. Merged ticket: absorbed DES-47 (HU-34B) on 2026-07-09; **DES-47 is Canceled (not archived) — do not cite it.** ⚠️ Its body defers common intake/validation to HU-29/HU-30A (row 11), which carry **no blocker edge** to it — decide before generating whether to inline the intake or wait. |
+| 9 | **DES-46** | HU-34 | Register first valid team answer + reject late/repeated (one first-write-wins guard) | ⬜ **← CRITICAL PATH, START HERE.** Zero live blockers. Merged ticket: absorbed DES-47 (HU-34B) on 2026-07-09; **DES-47 is Canceled (not archived) — do not cite it.** ⚠️ Its body defers common intake/validation to HU-29/HU-30A (row 12), which carry **no blocker edge** to it — decide before generating whether to inline the intake or wait. |
 | 10 | DES-49 | HU-36A | Operator sees only answered/not-answered during the open question | ⬜ Blocked only by DES-46. Owns the respondido/no-respondido **visibility-state gate** (assigned here rather than merging DES-49/50). |
 | 11 | **DES-31** | HU-23 | Live team board (score, timer, available clues) | ⬜ **STARTABLE** — cycle broken 2026-07-09, only blocker `DES-77` is Done. Gates rows 12–13 and much of 17–18; running it early releases the most work. |
 | 12 | DES-42 → DES-41 ; DES-39 → DES-40 ; then DES-43 | HU-31 / 30B / 29 / 30A / 32 | QR `Target` resolution → explained rejection ; evidence umbrella intake → context validation ; then traceability | ⬜ Opens with DES-31. **Two independent chains, not one.** DES-42→DES-41 and DES-39→DES-40 are parallel; DES-43 needs **all three** of DES-42/41/40. The old `39/40/41/42/43` reading was backwards — DES-41 is blocked by DES-42. Re-pointing DES-41 → DES-40 is a **design call** gated on ADR-0010 (*in revisión*). |
@@ -265,20 +265,21 @@ Done, and no longer ordering constraints on anything:
   discharges the two constraints that used to shape this list: they needed #86
   first, and they had to land **before** DES-31 (boards). Both satisfied.
 - ~~**DES-45**~~ (HU-33B) — closed by PR #119.
-- ~~**DES-47**~~ (HU-34B) — merged into DES-46, archived 2026-07-09.
+- ~~**DES-47**~~ (HU-34B) — merged into DES-46 on 2026-07-09; `Canceled`, pending manual archive.
 
 Still to run — grouped by what actually gates them:
 
 - **Ungated today:** `DES-46` (critical path), `DES-49` (after 46), `DES-32`, `DES-53`, `DES-29`, `DES-13`, `DES-80`.
 - **Gated on the cycle break alone:** `DES-31`, then `DES-39/40/42/41/43` and `DES-36/37/38`.
 - **Gated on the cycle *and* a design call:** `DES-41`'s blocker re-point (ADR-0010, *in revisión*); `DES-36/37/38`'s clue-model decisions.
-- **Gated on the cycle *and* DES-85:** `DES-51/52/54/55`, then `DES-48/50/57`. Amend the PRD before folding 52 + 55 into 54.
+- **Gated on the cycle *and* DES-85:** `DES-51/54`, then `DES-48/50/57`. The 52 + 55 fold into 54 is applied, and the PRD was amended to match (repo copy *and* Linear ticket) on 2026-07-09.
 - **GH #85** — repo-wide rename `identity-access-service` → `users-service`; dead last, quiet window. Has no Linear ticket.
 
 Not in this order — separate tracks that appeared since 2026-07-06:
 
 - **DES-81/82/83/84** (`mobile` label) — EN-M1 trivia display contract spike + HU-M1/M2/M3 team-space question display, submit, and closed-state. A mobile line that consumes the HU-34–36 backend contract; sequence it against row 10, not against this list.
-- **DES-85** — the `scoring-monitoring-service` PRD described in row 11.
+- **DES-85** — the `scoring-monitoring-service` PRD (HU-37–40). A reference doc, not buildable
+  work; it governs rows 14, 15 and 18.
 
 ## Deferred follow-up — DES-79 (resolve the product decision before starting it)
 
@@ -336,9 +337,11 @@ This section used to hold the open decision. It is settled; kept for the reasoni
   exactly as `HU-21B` → `HU-21` on DES-29.
 - **DES-85 did not override the fold — it inherited the same stale split**, and was amended
   (drop US-21, rewrite US-20, collapse the `HU-39A`/`HU-39B` bullet, fold `HU-37B` into the
-  ranking step, fix the *Further Notes* order bullet). ⚠️ Only the **repo copy** under
-  `backend/docs/prd/` was amended; the **Linear ticket DES-85 still carries the old text** and
-  is still `ready-for-agent`. Full argument in `canon-realignment-after-mission-runtime-rewrite.md`.
+  ranking step, fix the *Further Notes* order bullet). Both the **repo copy** under
+  `backend/docs/prd/` and the **Linear ticket DES-85** were amended on 2026-07-09; they match.
+  ⚠️ DES-85 keeps its `ready-for-agent` label **on purpose** — PRD resolution finds PRD tickets by
+  `svc:<service>` **+ `ready-for-agent`** (`generator-agent.md:68-71`). Never strip it.
+  Full argument in `canon-realignment-after-mission-runtime-rewrite.md`.
 - ⚠️ **`DES-52` and `DES-55` are `Canceled`, not archived.** Archiving is a manual Linear-UI
   step — see the hygiene section below.
 
@@ -350,7 +353,9 @@ Mostly settled as of 2026-07-09:
   is gone from all of them — no agent can grab pre-canon acceptance criteria.
   They are still **unarchived**; archiving them is cosmetic at this point.
 - ✅ **DES-71/72/73/74** are archived, so the "ignore" note above is now literally true.
-- ✅ **DES-47** is merged into DES-46 and archived (2026-07-09). It no longer appears in
-  any `Todo` query.
-- ✅ **DES-25** — stale `ready-for-agent` stripped (2026-07-09). No `Done` ticket now
-  carries an agent-pickable label.
+- ✅ **DES-47** is merged into DES-46 (2026-07-09) and `Canceled`, so it no longer appears in
+  any `Todo` query. ⚠️ **Canceled, not archived** (`archivedAt: null`) — archive it by hand,
+  along with DES-52 and DES-55.
+- ℹ️ **DES-25** — stale `ready-for-agent` stripped (2026-07-09). That was a one-ticket fix, not
+  a sweep: **19 of 26 `Done` tickets still carry the label**, and that is fine — see the
+  cosmetic-drift note above. Do not strip them.
