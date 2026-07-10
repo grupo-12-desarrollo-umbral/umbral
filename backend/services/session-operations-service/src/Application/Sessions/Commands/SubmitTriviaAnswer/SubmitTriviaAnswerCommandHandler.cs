@@ -3,6 +3,7 @@ using umbral_backend.Application.Common.Interfaces;
 using umbral_backend.Application.Dtos.Sessions;
 using umbral_backend.Application.Sessions.Common.TriviaAnswerValidation;
 using umbral_backend.Domain.Entities;
+using umbral_backend.Domain.Exceptions;
 
 namespace umbral_backend.Application.Sessions.Commands.SubmitTriviaAnswer;
 
@@ -75,15 +76,24 @@ public sealed class SubmitTriviaAnswerCommandHandler
             submission.SubmittedAt);
     }
 
-    private Guid? ResolveParticipantId(LiveSession session)
+    // Attribution guard (HU-34): an accepted trivia answer must always be attributable to a session
+    // participant. The RuntimeParticipationLink authorizes by (session, team, token) — never by caller
+    // identity — so identity is resolved here, once, to a real participant of THIS session. An absent or
+    // unparseable identity claim, or an authenticated non-participant, is rejected before any write; the
+    // resolved id is non-nullable so the domain skeleton records a real submitter, never NULL.
+    private Guid ResolveParticipantId(LiveSession session)
     {
-        if (!Guid.TryParse(_currentUser.Id, out var externalIdentityId))
+        if (Guid.TryParse(_currentUser.Id, out var externalIdentityId))
         {
-            return null;
+            var participant = session.Participants
+                .SingleOrDefault(participant => participant.ExternalIdentityId == externalIdentityId);
+
+            if (participant is not null)
+            {
+                return participant.SessionParticipantId;
+            }
         }
 
-        return session.Participants
-            .SingleOrDefault(participant => participant.ExternalIdentityId == externalIdentityId)?
-            .SessionParticipantId;
+        throw new AnswerSubmitterIsNotSessionParticipantException();
     }
 }

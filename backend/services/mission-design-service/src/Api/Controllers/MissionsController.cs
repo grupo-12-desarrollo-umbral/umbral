@@ -213,6 +213,7 @@ public sealed class MissionsController(ISender sender) : ControllerBase
                 request.Name,
                 request.QrCode,
                 request.SequenceOrder,
+                request.Score,
                 request.IsActive,
                 request.WinnerScore),
             cancellationToken);
@@ -239,6 +240,7 @@ public sealed class MissionsController(ISender sender) : ControllerBase
                 request.QrCode,
                 request.SequenceOrder,
                 request.IsActive,
+                request.Score,
                 request.WinnerScore),
             cancellationToken);
 
@@ -360,6 +362,7 @@ public sealed class MissionsController(ISender sender) : ControllerBase
         string Name,
         string QrCode,
         int SequenceOrder,
+        int? Score = null,
         bool IsActive = true,
         int? WinnerScore = null);
 
@@ -368,6 +371,7 @@ public sealed class MissionsController(ISender sender) : ControllerBase
         string QrCode,
         int SequenceOrder,
         bool IsActive,
+        int? Score = null,
         int? WinnerScore = null);
 
     public sealed record AssociateClueWithTargetRequest(int ClueId);
@@ -477,7 +481,8 @@ public sealed class MissionsController(ISender sender) : ControllerBase
         string QrCode,
         int SequenceOrder,
         bool IsActive,
-        int? ClueId)
+        int? ClueId,
+        int? Score)
     {
         public static MissionTargetResponse FromDto(MissionTargetDto dto)
         {
@@ -487,7 +492,8 @@ public sealed class MissionsController(ISender sender) : ControllerBase
                 dto.QrCode,
                 dto.SequenceOrder,
                 dto.IsActive,
-                dto.ClueId);
+                dto.ClueId,
+                dto.Score);
         }
     }
 
@@ -583,6 +589,7 @@ public sealed class MissionsController(ISender sender) : ControllerBase
         string QrCode,
         int SequenceOrder,
         bool IsActive,
+        int? Score,
         MissionRuntimeClueResponse? Clue)
     {
         public static MissionRuntimeTargetResponse FromDto(MissionRuntimePlanTargetDto dto)
@@ -592,6 +599,7 @@ public sealed class MissionsController(ISender sender) : ControllerBase
                 dto.QrCode,
                 dto.SequenceOrder,
                 dto.IsActive,
+                dto.Score,
                 dto.Clue is null ? null : MissionRuntimeClueResponse.FromDto(dto.Clue));
         }
     }

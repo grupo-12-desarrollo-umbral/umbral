@@ -360,7 +360,7 @@ public sealed class LiveSession : BaseAuditableEntity
     public TriviaAnswerSubmission RegisterTriviaAnswer(
         Guid teamId,
         int selectedOptionSequenceOrder,
-        Guid? submittedByParticipantId,
+        Guid submittedByParticipantId,
         DateTimeOffset submittedAt)
     {
         EnsureSessionAdmitsTriviaAnswer();                                     // 1. session/runtime state gate
@@ -444,7 +444,7 @@ public sealed class LiveSession : BaseAuditableEntity
         Team team,
         TriviaQuestionSnapshot question,
         TriviaOptionSnapshot selectedOption,
-        Guid? submittedByParticipantId,
+        Guid submittedByParticipantId,
         DateTimeOffset submittedAt)
     {
         var isCorrect = selectedOption.IsCorrect;

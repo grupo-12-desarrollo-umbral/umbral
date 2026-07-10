@@ -62,10 +62,14 @@ services:
       - "8341:80" # UI + query API
       - "5341:5341" # OTLP ingest
 
+  # The four app services run under `dotnet watch`, which exits 255 when a rude edit or a lost
+  # console kills the watcher. Without a policy the container just stays dead while the rest of
+  # the stack keeps running, which reads as "the service is broken" long after the cause is gone.
   api-gateway:
     build:
       context: ./api-gateway
       dockerfile: Dockerfile
+    restart: unless-stopped
     depends_on:
       keycloak:
         condition: service_healthy
@@ -93,6 +97,7 @@ services:
     build:
       context: ./services/mission-design-service
       dockerfile: Dockerfile
+    restart: unless-stopped
     depends_on:
       postgres:
         condition: service_healthy
@@ -112,6 +117,7 @@ services:
     build:
       context: ./services/identity-access-service
       dockerfile: Dockerfile
+    restart: unless-stopped
     depends_on:
       postgres:
         condition: service_healthy
@@ -131,6 +137,7 @@ services:
     build:
       context: ./services/session-operations-service
       dockerfile: Dockerfile
+    restart: unless-stopped
     depends_on:
       postgres:
         condition: service_healthy

@@ -118,7 +118,7 @@ public class MissionTargetResponseTests
     [Fact]
     public void FromDto_MapsAllFields()
     {
-        var dto = new MissionTargetDto(10, "Target A", "QR-A", 1, true, 40);
+        var dto = new MissionTargetDto(10, "Target A", "QR-A", 1, true, 40, 25);
 
         var response = MissionTargetResponse.FromDto(dto);
 
@@ -128,6 +128,7 @@ public class MissionTargetResponseTests
         response.SequenceOrder.Should().Be(1);
         response.IsActive.Should().BeTrue();
         response.ClueId.Should().Be(40);
+        response.Score.Should().Be(25);
     }
 }
 

@@ -19,7 +19,7 @@ public sealed class TriviaAnswerSubmission : EvidenceSubmission
         Guid activeSubstageId,
         int questionSequenceOrder,
         int selectedOptionSequenceOrder,
-        Guid? submittedByParticipantId,
+        Guid submittedByParticipantId,
         DateTimeOffset submittedAt,
         bool isCorrect,
         int scoreValue)
@@ -57,7 +57,7 @@ public sealed class TriviaAnswerSubmission : EvidenceSubmission
         Guid activeSubstageId,
         int questionSequenceOrder,
         int selectedOptionSequenceOrder,
-        Guid? submittedByParticipantId,
+        Guid submittedByParticipantId,
         DateTimeOffset submittedAt,
         bool isCorrect,
         int scoreValue)

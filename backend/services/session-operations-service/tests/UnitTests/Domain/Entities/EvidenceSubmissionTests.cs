@@ -23,7 +23,7 @@ public sealed class EvidenceSubmissionTests
             substageId,
             questionSequenceOrder: 1,
             selectedOptionSequenceOrder: 1,
-            submittedByParticipantId: null,
+            submittedByParticipantId: Guid.NewGuid(),
             DateTimeOffset.UtcNow,
             isCorrect: true,
             scoreValue: 100);

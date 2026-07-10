@@ -26,10 +26,32 @@ public class SubstageTests
     public void AddTarget_OrdersTargetsBySequence()
     {
         var substage = Substage.CreateTreasureHunt("Sub", 1);
-        substage.AddTarget("Second", "QR-2", 2);
-        substage.AddTarget("First", "QR-1", 1);
+        substage.AddTarget("Second", "QR-2", 2, 30);
+        substage.AddTarget("First", "QR-1", 1, 20);
 
         substage.Targets.Select(t => t.Name).Should().ContainInOrder("First", "Second");
+    }
+
+    [Fact]
+    public void AddTarget_WithoutExplicitScore_InheritsWinnerScore()
+    {
+        var substage = Substage.CreateTreasureHunt("Sub", 1);
+        substage.SetWinnerScore(50);
+
+        var target = substage.AddTarget("First", "QR-1", 1);
+
+        target.Score!.Points.Should().Be(50);
+    }
+
+    [Fact]
+    public void SetWinnerScore_BackfillsTargetsThatStillLackScore()
+    {
+        var substage = Substage.CreateTreasureHunt("Sub", 1);
+        var target = substage.AddTarget("First", "QR-1", 1);
+
+        substage.SetWinnerScore(50);
+
+        target.Score!.Points.Should().Be(50);
     }
 
     [Fact]
