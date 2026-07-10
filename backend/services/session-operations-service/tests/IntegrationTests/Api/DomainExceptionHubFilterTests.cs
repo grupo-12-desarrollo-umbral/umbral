@@ -94,6 +94,109 @@ public sealed class DomainExceptionHubFilterTests
         logger.Invocations.Should().BeEmpty("a classified 4xx is not an unhandled exception");
     }
 
+    public static IEnumerable<object[]> CuratedExceptions() =>
+        new[]
+        {
+            new object[] { new ParticipantRemovedFromSessionException(Guid.NewGuid()), "PARTICIPANT_REMOVED" },
+            new object[] { new ParticipantAssignedToDifferentTeamException(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid()), "WRONG_TEAM" },
+            new object[] { new ParticipantAlreadyConnectedException(Guid.NewGuid()), "ALREADY_CONNECTED" },
+            new object[] { new TeamCapacityReachedException(Guid.NewGuid(), 4), "TEAM_UNAVAILABLE" },
+            new object[] { new TeamJoinClosedException(Guid.NewGuid()), "TEAM_UNAVAILABLE" },
+        };
+
+    [Theory]
+    [MemberData(nameof(CuratedExceptions))]
+    public async Task InvokeMethodAsync_CuratedException_MapsToItsContractCode(Exception exception, string expectedCode)
+    {
+        var payload = await CapturePayloadAsync(exception);
+
+        payload.GetProperty("code").GetString().Should().Be(expectedCode);
+        // These curated exceptions declare no PublicDetail, so the generic per-code MessageFor arm
+        // supplies an identifier-free message (never the interpolated exception message).
+        payload.GetProperty("message").GetString().Should().NotBeNullOrWhiteSpace();
+        payload.TryGetProperty("traceId", out _).Should().BeFalse();
+    }
+
+    public static IEnumerable<object[]> CategoryCodes() =>
+        new[]
+        {
+            new object[] { ErrorCategory.NotFound, "NOT_FOUND" },
+            new object[] { ErrorCategory.Validation, "VALIDATION_FAILED" },
+            new object[] { ErrorCategory.Conflict, "CONFLICT" },
+            new object[] { ErrorCategory.Forbidden, "FORBIDDEN" },
+            new object[] { ErrorCategory.Unauthorized, "UNAUTHORIZED" },
+            new object[] { ErrorCategory.Unprocessable, "UNPROCESSABLE" },
+        };
+
+    [Theory]
+    [MemberData(nameof(CategoryCodes))]
+    public async Task InvokeMethodAsync_MetadataException_DerivesCodeAndMessageFromCategory(
+        ErrorCategory category,
+        string expectedCode)
+    {
+        var payload = await CapturePayloadAsync(new FakeMetadataException(category));
+
+        payload.GetProperty("code").GetString().Should().Be(expectedCode);
+        payload.GetProperty("message").GetString().Should().NotBeNullOrWhiteSpace();
+    }
+
+    [Fact]
+    public async Task InvokeMethodAsync_MetadataWithUnknownCategory_CollapsesToError()
+    {
+        // An out-of-range category exercises the default arm of CodeFor → "ERROR" → the traceId path.
+        var payload = await CapturePayloadAsync(new FakeMetadataException((ErrorCategory)999));
+
+        payload.GetProperty("code").GetString().Should().Be("ERROR");
+        payload.GetProperty("message").GetString().Should().Be("An unexpected error occurred.");
+    }
+
+    [Fact]
+    public async Task InvokeMethodAsync_UnauthorizedAccess_MapsToUnauthorized()
+    {
+        var payload = await CapturePayloadAsync(new UnauthorizedAccessException("no headers"));
+
+        payload.GetProperty("code").GetString().Should().Be("UNAUTHORIZED");
+        payload.GetProperty("message").GetString().Should().Be("Authentication is required to perform this action.");
+    }
+
+    [Fact]
+    public async Task InvokeMethodAsync_HubException_IsRethrownUnwrapped()
+    {
+        var filter = new DomainExceptionHubFilter(NullLogger<DomainExceptionHubFilter>.Instance);
+        var original = new HubException("already a hub error");
+
+        var thrown = await Assert.ThrowsAsync<HubException>(async () =>
+            await filter.InvokeMethodAsync(CreateInvocationContext(), _ => throw original));
+
+        thrown.Should().BeSameAs(original);
+    }
+
+    [Fact]
+    public async Task InvokeMethodAsync_OperationCanceled_IsNotWrapped()
+    {
+        var filter = new DomainExceptionHubFilter(NullLogger<DomainExceptionHubFilter>.Instance);
+
+        await Assert.ThrowsAsync<OperationCanceledException>(async () =>
+            await filter.InvokeMethodAsync(CreateInvocationContext(), _ => throw new OperationCanceledException()));
+    }
+
+    [Fact]
+    public async Task InvokeMethodAsync_Success_ReturnsResult()
+    {
+        var filter = new DomainExceptionHubFilter(NullLogger<DomainExceptionHubFilter>.Instance);
+
+        var result = await filter.InvokeMethodAsync(CreateInvocationContext(), _ => ValueTask.FromResult<object?>("ok"));
+
+        result.Should().Be("ok");
+    }
+
+    private sealed class FakeMetadataException(ErrorCategory category) : Exception, IErrorMetadata
+    {
+        public ErrorCategory Category => category;
+        public string ErrorCode => "synthetic-error";
+        public string? PublicDetail => null;
+    }
+
     private static async Task<JsonElement> CapturePayloadAsync(
         Exception exception,
         ILogger<DomainExceptionHubFilter>? logger = null)

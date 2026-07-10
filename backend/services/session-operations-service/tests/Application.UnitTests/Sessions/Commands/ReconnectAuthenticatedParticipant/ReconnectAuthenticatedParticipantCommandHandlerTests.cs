@@ -135,6 +135,44 @@ public sealed class ReconnectAuthenticatedParticipantCommandHandlerTests
     }
 
     [Fact]
+    public async Task Handle_WhenSessionDoesNotExist_ThrowsNotFoundException()
+    {
+        var liveSessionId = Guid.NewGuid();
+        var teamId = Guid.NewGuid();
+        var repository = new Mock<ILiveSessionRepository>();
+        repository
+            .Setup(repo => repo.GetByIdAsync(liveSessionId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((LiveSession?)null);
+        var guard = CreateGuard(liveSessionId, teamId, isAllowed: true);
+        var currentUser = CreateCurrentUser(Guid.NewGuid());
+        var command = new ReconnectAuthenticatedParticipantCommand(liveSessionId, teamId, "Nora", null);
+        var handler = CreateHandler(repository, guard, currentUser, new FixedTimeProvider(DateTimeOffset.UtcNow));
+
+        var act = async () => await handler.Handle(command, CancellationToken.None);
+
+        await act.Should().ThrowAsync<NotFoundException>();
+        repository.Verify(repo => repo.UpdateAsync(It.IsAny<LiveSession>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task Handle_WhenCurrentUserIdIsNotAGuid_ThrowsUnauthorizedException()
+    {
+        var session = CreateScheduledSession();
+        var team = session.AssociateTeam(Guid.NewGuid(), "Alpha", "A-01", 4);
+        var repository = CreateRepository(session);
+        var guard = CreateGuard(session.LiveSessionId, team.TeamId, isAllowed: true);
+        var currentUser = new Mock<ICurrentUser>();
+        currentUser.SetupGet(user => user.Id).Returns("not-a-guid");
+        var command = new ReconnectAuthenticatedParticipantCommand(session.LiveSessionId, team.TeamId, "Nora", null);
+        var handler = CreateHandler(repository, guard, currentUser, new FixedTimeProvider(DateTimeOffset.UtcNow));
+
+        var act = async () => await handler.Handle(command, CancellationToken.None);
+
+        await act.Should().ThrowAsync<UnauthorizedAccessException>();
+        repository.Verify(repo => repo.UpdateAsync(It.IsAny<LiveSession>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
     public async Task Handle_WhenDisconnectedParticipantTargetsFinishedSession_ThrowsException()
     {
         var transitionPolicy = new SessionStateTransitionPolicy();

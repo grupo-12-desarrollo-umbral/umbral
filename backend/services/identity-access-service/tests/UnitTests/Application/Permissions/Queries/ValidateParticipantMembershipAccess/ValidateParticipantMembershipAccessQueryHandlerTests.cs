@@ -115,6 +115,22 @@ public sealed class ValidateParticipantMembershipAccessQueryHandlerTests
         result.ReasonCode.Should().Be(ParticipantMembershipAccessReasonCodes.RegisteredTeamNotFound);
     }
 
+    [Fact]
+    public async Task Handle_ReturnsDeniedDecisionWhenTeamIsInactive()
+    {
+        var actor = CreateUser(21, "kc-participant-inactive-team", Role.Participant);
+        var team = CreateTeamWithParticipant(actor.Id);
+        team.Deactivate();
+        var handler = CreateHandler(actor, team);
+
+        var result = await handler.Handle(
+            new ValidateParticipantMembershipAccessQuery(Guid.NewGuid(), team.TeamId),
+            CancellationToken.None);
+
+        result.IsAllowed.Should().BeFalse();
+        result.ReasonCode.Should().Be(ParticipantMembershipAccessReasonCodes.RegisteredTeamInactive);
+    }
+
     private static ParticipantMembershipAccessAuthorizationProxy CreateHandler(User actor, RegisteredTeam team)
     {
         var teamRepository = new Mock<ITeamRepository>();

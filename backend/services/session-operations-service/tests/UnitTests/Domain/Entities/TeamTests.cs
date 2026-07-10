@@ -1,3 +1,4 @@
+using System.Reflection;
 using umbral_backend.Domain.Entities;
 using umbral_backend.Domain.Enums;
 using umbral_backend.Domain.Exceptions;
@@ -80,5 +81,22 @@ public sealed class TeamTests
         team.ReopenForNewParticipants();
 
         team.JoinStatus.Should().Be(TeamJoinStatus.Open);
+    }
+
+    [Fact]
+    public void AssignParticipant_WhenParticipantIsAlreadyActiveMember_ReturnsExistingMember()
+    {
+        var team = Team.Register(Guid.NewGuid(), "Alpha", "A-01", 4);
+        var participant = SessionParticipant.Join(Guid.NewGuid(), Guid.NewGuid(), "Nora", DateTimeOffset.UtcNow);
+        participant.MarkActive(DateTimeOffset.UtcNow);
+        var assign = typeof(Team).GetMethod(
+            "AssignParticipant",
+            BindingFlags.Instance | BindingFlags.NonPublic)!;
+        var first = assign.Invoke(team, [participant, DateTimeOffset.UtcNow]);
+
+        var second = assign.Invoke(team, [participant, DateTimeOffset.UtcNow.AddSeconds(1)]);
+
+        second.Should().BeSameAs(first);
+        team.Members.Should().ContainSingle();
     }
 }

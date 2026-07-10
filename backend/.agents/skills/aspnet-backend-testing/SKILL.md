@@ -26,7 +26,7 @@ Build the test strategy around the solution's existing layers first, then place 
    - Infrastructure: integration tests with real technical dependencies
    - Presentation/API: integration tests through the ASP.NET host
    - End-to-end: only critical full-system workflows
-4. Enforce a minimum of 93% line coverage for the project.
+4. Enforce a minimum of 93% line coverage and 93% branch coverage for the project.
 
 ## Workflow
 

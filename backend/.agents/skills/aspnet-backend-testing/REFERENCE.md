@@ -194,12 +194,12 @@ Not a backend concern. Owned by the frontend project.
 
 ## Coverage Policy
 
-This skill assumes a minimum project coverage target of 93%.
+This skill assumes a minimum project coverage target of 93% for both line and branch coverage.
 
 Enforcement guidance:
 
 - collect coverage in CI on every mainline change
-- fail the build when coverage drops below 93%
+- fail the build when either line or branch coverage drops below 93%
 - exclude generated code deliberately, not broadly
 - review uncovered code for risk, not only for percentage
 

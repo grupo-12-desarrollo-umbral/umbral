@@ -17,4 +17,8 @@
     <ProjectReference Include="..\Domain\Domain.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="umbral_backend.Application.UnitTests" />
+  </ItemGroup>
+
 </Project>

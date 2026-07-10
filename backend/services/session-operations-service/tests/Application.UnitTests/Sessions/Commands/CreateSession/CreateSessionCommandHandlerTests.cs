@@ -136,6 +136,83 @@ public sealed class CreateSessionCommandHandlerTests
         repository.Verify(repo => repo.UpdateAsync(It.IsAny<LiveSession>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
+    [Fact]
+    public async Task Handle_WhenSubstagePlayModeIsUnknown_ThrowsValidation()
+    {
+        // An unparseable play mode drives ParsePlayMode's TryParse-false arm and the switch default arm.
+        var command = CreateCommand();
+        var repository = new Mock<ILiveSessionRepository>();
+        var handler = CreateHandler(
+            repository,
+            EligibleMissionSource(command.MissionId),
+            RuntimeSource(command.MissionId, RuntimeWithUnknownPlayMode()));
+
+        var act = async () => await handler.Handle(command, CancellationToken.None);
+
+        await act.Should().ThrowAsync<ValidationException>();
+        repository.Verify(repo => repo.UpdateAsync(It.IsAny<LiveSession>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task Handle_WhenTreasureTargetHasNoClue_CreatesSessionWithNullClueFields()
+    {
+        // A treasure target with a null Clue exercises the `target.Clue?.Text` null-conditional arm.
+        var command = CreateCommand();
+        LiveSession? persistedSession = null;
+        var repository = new Mock<ILiveSessionRepository>();
+        repository
+            .Setup(repo => repo.UpdateAsync(It.IsAny<LiveSession>(), It.IsAny<CancellationToken>()))
+            .Callback<LiveSession, CancellationToken>((session, _) => persistedSession = session)
+            .Returns(Task.CompletedTask);
+        var handler = CreateHandler(
+            repository,
+            EligibleMissionSource(command.MissionId),
+            RuntimeSource(command.MissionId, RuntimeWithClicklessTreasureTarget()));
+
+        await handler.Handle(command, CancellationToken.None);
+
+        var target = persistedSession!.MissionRuntimeSnapshot.TargetSnapshots.Single();
+        target.ClueText.Should().BeNull();
+        target.ClueVisibilityPolicy.Should().BeNull();
+    }
+
+    private static MissionRuntimeDto RuntimeWithUnknownPlayMode()
+    {
+        return new MissionRuntimeDto(
+            "Foundations of Science",
+            45,
+            [
+                new MissionRuntimeStageDto(
+                    "Stage One",
+                    1,
+                    [
+                        new MissionRuntimeSubstageDto("Mystery Round", 1, "NotAPlayMode", [], [])
+                    ])
+            ]);
+    }
+
+    private static MissionRuntimeDto RuntimeWithClicklessTreasureTarget()
+    {
+        return new MissionRuntimeDto(
+            "Foundations of Science",
+            45,
+            [
+                new MissionRuntimeStageDto(
+                    "Stage One",
+                    1,
+                    [
+                        new MissionRuntimeSubstageDto(
+                            "Treasure Route",
+                            1,
+                            SubstagePlayMode.TreasureHunt.ToString(),
+                            [
+                                new MissionRuntimeTargetDto("Main Exhibit", "QR-001", 1, true, 100, null)
+                            ],
+                            [])
+                    ])
+            ]);
+    }
+
     private static CreateSessionCommand CreateCommand()
     {
         return new CreateSessionCommand(

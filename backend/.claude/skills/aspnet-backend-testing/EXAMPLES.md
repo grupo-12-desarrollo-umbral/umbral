@@ -82,7 +82,7 @@ dotnet test tests/IntegrationTests/Infrastructure.IntegrationTests.csproj \
   /p:CoverletOutput=$TMP/merged.xml \
   /p:MergeWith=$TMP/step1.json \
   /p:Threshold=93 \
-  /p:ThresholdType=line \
+  /p:ThresholdType=\"line,branch\" \
   /p:ThresholdStat=total
 ```
 
@@ -99,8 +99,10 @@ dotnet test tests/Api.UnitTests/Api.UnitTests.csproj \
 dotnet test tests/IntegrationTests/Infrastructure.IntegrationTests.csproj \
   /p:CollectCoverage=true /p:CoverletOutputFormat=cobertura \
   /p:CoverletOutput=$TMP/merged.xml /p:MergeWith=$TMP/step2.json \
-  /p:Threshold=93 /p:ThresholdType=line /p:ThresholdStat=total
+  /p:Threshold=93 /p:ThresholdType=\"line,branch\" /p:ThresholdStat=total
 ```
+
+The quotes around `\"line,branch\"` are load-bearing: the comma must reach MSBuild inside the property value, otherwise MSBuild treats it as a separate switch and fails with `MSB1006 Property is not valid`. coverlet applies the single `/p:Threshold` value to every listed type, so one bar gates both line and branch.
 
 ## Example Placement Calls
 

@@ -64,4 +64,17 @@ public sealed class JoinPolicyTests
 
         act.Should().NotThrow();
     }
+
+    [Fact]
+    public void EnsureCanReconnect_WhenParticipantRemoved_ThrowsException()
+    {
+        var session = LiveSessionFactory.CreateScheduledTreasureHunt();
+        var alpha = session.RegisterTeam("Alpha", "A-01", 4);
+        var joined = session.AdmitParticipant(Guid.NewGuid(), "Nora", alpha.TeamId, DateTimeOffset.UtcNow, _policy);
+        joined.Participant.Remove(DateTimeOffset.UtcNow.AddMinutes(1));
+
+        var act = () => _policy.EnsureCanReconnect(session, joined.Participant, alpha, alpha.TeamId);
+
+        act.Should().Throw<ParticipantRemovedFromSessionException>();
+    }
 }

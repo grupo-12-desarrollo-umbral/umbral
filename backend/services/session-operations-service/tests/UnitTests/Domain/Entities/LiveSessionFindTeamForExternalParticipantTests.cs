@@ -21,4 +21,16 @@ public sealed class LiveSessionFindTeamForExternalParticipantTests
         session.FindTeamForExternalParticipant(identity)!.TeamId.Should().Be(red.TeamId);
         session.FindTeamForExternalParticipant(Guid.NewGuid()).Should().BeNull();
     }
+
+    [Fact]
+    public void FindTeamForExternalParticipant_WhenParticipantIsAssignedToSecondTeam_SkipsNonMatchingTeam()
+    {
+        var session = LiveSessionFactory.CreateScheduledTreasureHunt();
+        session.AssociateTeam(Guid.NewGuid(), "Red", "RED-01", capacity: 4);
+        var blue = session.AssociateTeam(Guid.NewGuid(), "Blue", "BLU-01", capacity: 4);
+        var identity = Guid.NewGuid();
+        session.SelectTeam(identity, "Nora", blue.TeamId, new HashSet<Guid>(), At, new OpenTeamSelectionPolicy());
+
+        session.FindTeamForExternalParticipant(identity)!.TeamId.Should().Be(blue.TeamId);
+    }
 }

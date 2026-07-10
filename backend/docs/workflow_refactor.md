@@ -622,6 +622,12 @@ ADR-0003), and `TriviaQuestionSnapshot` keys questions by `(SubstageSnapshotId, 
     value applies to every listed type and a per-service ratchet needs a different mechanism —
     likely cobertura XML parsing, which **ADR-0005 explicitly moved away from**. Resolve before
     committing to an approach.
+  - ✅ **Resolved / done (2026-07-10).** coverlet 6.0.4 does **not** support per-type values — a
+    single `/p:Threshold` applies to every listed type. Solution: keep the single 93% bar and gate
+    both dimensions via `/p:ThresholdType=\"line,branch\"` (comma must be quoted or MSBuild fails
+    with `MSB1006`). `cover-gate.sh` is flipped, all three services clear ≥93% branch (identity
+    96.2%, mission 95.3%, session 95.1%), `make gate-all` is green, and ADR-0005 + `current_workflow.md`
+    + the `aspnet-backend-testing` skill docs (both copies) are updated.
 - **`GH #139` — controller try/catch.** A course requirement asks for it; controllers today
   contain **zero** `catch` by design, and `ProblemDetailsExceptionHandler` maps `ErrorCategory`
   to status codes in one place. Outcome is an ADR. If the requirement is non-negotiable the

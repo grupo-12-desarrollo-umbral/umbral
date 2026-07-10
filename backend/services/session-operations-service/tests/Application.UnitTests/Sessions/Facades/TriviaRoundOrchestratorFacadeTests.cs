@@ -49,6 +49,35 @@ public sealed class TriviaRoundOrchestratorFacadeTests
     }
 
     [Fact]
+    public async Task ActivateNextQuestionAsync_WhenQuestionIsAlreadyActive_ReturnsWithoutPersistingOrBroadcasting()
+    {
+        var session = CreateTriviaSession();
+        session.MoveTo(SessionState.Preparing, Now.AddMinutes(-1), new SessionStateTransitionPolicy());
+        session.MoveTo(SessionState.Active, Now, new SessionStateTransitionPolicy());
+        session.ActivateQuestion(0, Now);
+        var repository = CreateRepository();
+        var broadcaster = new Mock<ISessionQuestionBroadcaster>();
+        var strategy = new Mock<IQuestionActivationStrategy>();
+        var facade = new TriviaRoundOrchestratorFacade(
+            repository.Object,
+            broadcaster.Object,
+            strategy.Object,
+            new SessionStateTransitionPolicy());
+
+        await facade.ActivateNextQuestionAsync(session, Now.AddSeconds(1), CancellationToken.None);
+
+        repository.Verify(
+            repo => repo.UpdateAsync(It.IsAny<LiveSession>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+        broadcaster.Verify(
+            current => current.BroadcastQuestionActivatedAsync(
+                It.IsAny<QuestionActivatedNotificationDto>(),
+                It.IsAny<CancellationToken>()),
+            Times.Never);
+        strategy.Verify(activationStrategy => activationStrategy.Next(It.IsAny<LiveSession>()), Times.Never);
+    }
+
+    [Fact]
     public async Task CloseAndAdvanceAsync_OnNonLastQuestion_BroadcastsClosureThenActivatesNextQuestion()
     {
         var session = CreateTriviaSession();

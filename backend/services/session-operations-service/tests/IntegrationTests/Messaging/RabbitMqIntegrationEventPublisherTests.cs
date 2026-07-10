@@ -194,8 +194,29 @@ public sealed class RabbitMqIntegrationEventPublisherTests
         logger.Errors.Should().NotBeEmpty("a broker-down publish must be logged");
     }
 
+    [Fact]
+    public async Task PublishAsync_WhenEventHasNoRoutingKey_LogsWarningAndDoesNotDrainToBroker()
+    {
+        var logger = new CapturingLogger<RabbitMqIntegrationEventPublisher>();
+        var options = Options.Create(new RabbitMqOptions { HostName = "127.0.0.1", Port = 1 });
+
+        await using (var publisher = new RabbitMqIntegrationEventPublisher(options, logger))
+        {
+            var publish = () => publisher.PublishAsync(new UnmappedIntegrationEvent(Guid.NewGuid()), CancellationToken.None);
+
+            await publish.Should().NotThrowAsync();
+        }
+
+        logger.Warnings.Should().ContainSingle(message => message.Contains(nameof(UnmappedIntegrationEvent), StringComparison.Ordinal));
+        logger.Errors.Should().BeEmpty("unmapped events return before the background drain touches RabbitMQ");
+    }
+
+    private sealed record UnmappedIntegrationEvent(Guid Id);
+
     private sealed class CapturingLogger<T> : ILogger<T>
     {
+        public List<string> Warnings { get; } = new();
+
         public List<string> Errors { get; } = new();
 
         public IDisposable BeginScope<TState>(TState state) where TState : notnull => NullScope.Instance;
@@ -209,6 +230,10 @@ public sealed class RabbitMqIntegrationEventPublisherTests
             if (logLevel >= LogLevel.Error)
             {
                 Errors.Add(formatter(state, exception));
+            }
+            else if (logLevel >= LogLevel.Warning)
+            {
+                Warnings.Add(formatter(state, exception));
             }
         }
 
