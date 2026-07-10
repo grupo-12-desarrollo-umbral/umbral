@@ -14,5 +14,4 @@ public sealed record UpdateTargetCommand(
     string QrCode,
     int SequenceOrder,
     bool IsActive,
-    int? Score = null,
-    int? WinnerScore = null) : IRequest<MissionDto>;
+    int? Score = null) : IRequest<MissionDto>;

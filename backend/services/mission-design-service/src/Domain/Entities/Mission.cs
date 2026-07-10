@@ -147,7 +147,7 @@ public sealed class Mission : BaseAuditableEntity
 
     // ---- Treasure-hunt target authoring -------------------------------------
 
-    public Target AddTarget(int stageId, int substageId, string name, string qrCode, int sequenceOrder, int? score = null, bool isActive = true)
+    public Target AddTarget(int stageId, int substageId, string name, string qrCode, int sequenceOrder, int score, bool isActive = true)
     {
         var substage = FindSubstage(stageId, substageId);
         var target = substage.AddTarget(name, qrCode, sequenceOrder, score, isActive);
@@ -173,14 +173,6 @@ public sealed class Mission : BaseAuditableEntity
         substage.RemoveTarget(targetId);
 
         AddDomainEvent(new TargetRemovedFromSubstageEvent(this, substage, targetId));
-        RefreshActivationState();
-    }
-
-    public void SetTreasureHuntWinnerScore(int stageId, int substageId, int points)
-    {
-        var substage = FindSubstage(stageId, substageId);
-        substage.SetWinnerScore(points);
-
         RefreshActivationState();
     }
 

@@ -1,6 +1,6 @@
 # Prompt Example — HU-34 Team trivia answer first-write-wins
 
-Concrete prompt sequence for driving `DES-46` / `HU-34` through the full backend + frontend slice
+Concrete prompt sequence for driving `DES-46` / `HU-34` through the backend slice
 on `feature/hu-34-trivia-team-answer-first-write-wins`. Follows
 [workflow_for_prompts.md](./workflow_for_prompts.md).
 
@@ -11,10 +11,17 @@ reused validation sequence." The merged `DES-46` already absorbed `DES-47`; do n
 accept/reject branches back apart.
 
 When working from the monorepo root, make the target workload explicit in each prompt.
-For backend steps, point to `@backend/.agents/backend-agent.md`. For frontend steps,
-point to `@frontend/AGENTS.md`. Do not ask for backend and frontend implementation in
-the same phase prompt; coordinate them as separate scoped steps tied together by the
-verified API contract.
+For backend steps, point to `@backend/.agents/backend-agent.md`.
+
+This document now reflects the current ticket split:
+
+- `DES-46` / `HU-34` owns the backend first-write-wins contract only.
+- `DES-84` owns the participant answer-submission client on mobile.
+- `DES-49` owns the operator answered/not-answered monitoring surface on web.
+
+Do not ask for backend and client implementation in the same phase prompt. Coordinate
+follow-up mobile/web work as separate ticket-scoped steps tied together by the verified
+backend contract.
 
 ---
 
@@ -70,7 +77,7 @@ No same-service predecessor is currently In Progress, so the branch base is `dev
 | Fixed workflow | one stable answer-registration skeleton; later shared extraction to HU-29/HU-30A |
 | Ordered validators | runtime participation, active question, timer window, duplicate-team-answer |
 | Accepted-answer facts | operator-only answered signal + `AnswerRegistered` async publish |
-| Frontend | participant answer-submission surface and contract plumbing |
+| Follow-up client work | `DES-84` (mobile participant submission) + `DES-49` (web operator monitoring) consume the backend contract later |
 
 ### Branch state and prerequisite
 
@@ -166,14 +173,16 @@ In the remaining examples below, `HU-34` and `DES-46` are the resolved values fo
 ```text
 Prepare the HU-34 slice on branch feature/hu-34-trivia-team-answer-first-write-wins.
 Use the HU id and DES id resolved from Linear in the previous step.
-This slice affects backend session-operations-service and frontend.
+This slice affects backend `session-operations-service` only.
 
 The pre-resolved orient at the top of this document lists what existing code has already
 landed and what HU-34 adds. Do not re-read the PRD for scoping unless you need to resolve
 a precise implementation detail.
 
 Move DES-46 to In Progress if the team process requires it, and output the exact scope,
-branch name, base branch, and touched surfaces.
+branch name, base branch, and touched surfaces. Note explicitly that client follow-up
+work belongs to `DES-84` (mobile) and `DES-49` (web operator monitor), not to this
+branch.
 ```
 
 ---
@@ -257,7 +266,7 @@ Gate:
 - the uniqueness rule (one accepted answer per team/question/session) is enforced at the persisted model boundary
 - RabbitMQ transport reuses the existing service-owned publisher seam; no second publisher stack or exchange bootstrap is introduced
 
-Do not touch Api or frontend.
+Do not touch Api.
 ```
 
 Commit:
@@ -288,7 +297,7 @@ Gate:
 - RabbitMQ `AnswerRegistered` publish is observable after transactional success
 - service coverage passes the repo gate
 
-Do not touch frontend.
+Do not touch frontend or mobile.
 ```
 
 Commit:
@@ -320,78 +329,39 @@ Then smoke the new write path and transports through the gateway:
 
 ---
 
-## 9. Frontend slice — generate the implementation plan
+## 9. Follow-up tickets — hand off the verified contract
 
 ```text
-Generate a multi phase plan in a markdown file — following the **frontend plan concreteness rule** (below), modelled on the exemplar closest to this slice's shape (`@frontend/plans/hu-03-frontend-role-permission-assignment.md` for a small 1–few-endpoint surface; `@frontend/plans/hu-10a-frontend-mission-hierarchy-authoring.md` for a large/multi-endpoint or partially-blocked surface) — save it in `@frontend/plans/` for the following:
-Use @frontend/AGENTS.md.
+Do not implement client code as part of `DES-46`.
 
-Backend contract to plan against:
-- new participant write endpoint for the accepted answer path
-- accepted-answer response returns acceptance metadata only
-- new operator-only `TeamAnswered` SignalR notification
-- existing timer / `QuestionActivated` / `QuestionClosed` / `SubstageAdvanced` contracts remain in force
+Instead, record the verified backend contract that downstream tickets must consume:
 
-Existing verified frontend anchors to inspect before writing the plan:
-- `frontend/app/lib/definitions.ts` — current timer + trivia round DTOs already exist
-- `frontend/app/actions/sessions.ts` — current operator timer action pattern
-- `frontend/app/lib/realtime/session-state-client.ts` and `frontend/app/lib/realtime/use-trivia-round-state.ts` — current SignalR trivia-runtime plumbing
-- `frontend/app/dashboard/DashboardClient.tsx`, `TriviaRoundPanel.tsx`, `OperatorSessionTimerPanel.tsx` — current operator runtime surface
-- `frontend/app/dashboard/DashboardClient.tsx` participant branch is still a minimal placeholder
+- participant/team answer submit endpoint shape
+- accepted-answer response shape (acceptance metadata only)
+- rejection shapes / ProblemDetails reasons for late, duplicate, invalid-context, and forbidden cases
+- operator-only `TeamAnswered` SignalR notification shape
+- confirmation that existing timer / `QuestionActivated` / `QuestionClosed` / `SubstageAdvanced` contracts remain in force
 
-Scope the frontend plan to:
-- add the participant-side answer submission flow on top of the existing trivia runtime
-- define the DTO / server-action / client-call contract for the new answer endpoint
-- wire the accepted-answer response into participant state without leaking correctness/points
-- consume the operator-only `TeamAnswered` signal where the current source supports it
-- if the full operator answered/not-answered UI is still downstream HU-36A scope, record that as an explicit boundary and keep this slice to contract/state plumbing only
-- do not modify backend code in the frontend plan
+Then hand off the contract to the correct follow-up tickets:
 
-1. **Proportion concreteness to certainty.** Write code-complete detail — exact DTO/request types,
-   real component skeletons, exact client-fn + server-action bodies, a `data-testid` contract — only
-   for the **fully-knowable near-term increments** (typically the foundation + first authoring
-   increment). Keep later, large, or blocked increments at **contract + gate altitude**: a contract
-   table, scope, and gate, with no invented bodies. Never write code for an increment blocked on an
-   open question.
-2. **Verify every code anchor against the real source before writing it.** Open the files the plan
-   names — exported vs. private helpers, exact signatures, the const/env it reads, the line a refactor
-   targets — and write only what the source actually supports. A confident-but-wrong anchor (e.g.
-   "reuse `getIdentityHeaders`" when it is not exported) is worse than an altitude note. If a detail
-   is not verifiable, state the assumption under Open Questions rather than inventing it.
-3. **Required sections** (both exemplars carry these; a plan missing one is a defect): Context ·
-   Verified Backend Contract (endpoint/shape table) · Architecture Decisions · **Environment**
-   (env vars / config consts reused) · **data-testid contract** · phased Scope + Gate per increment ·
-   **Acceptance-criteria → test mapping** · Open Questions / Dependencies · Out of Scope.
-4. **Final forms only, sequential by default.** Write only the final version of each anchor — no
-   "wrong → revised" trails — and keep increments sequential unless the slice genuinely parallelizes.
+- `DES-84` for the mobile participant answer-submission flow
+- `DES-49` for the web operator answered/not-answered monitoring flow
 
-Gate:
-- the plan reflects the verified backend contract and real frontend anchors
-- participant answer flow is the primary frontend surface
-- any operator monitor UI work beyond the transport/state seam is either concretely sourced or explicitly left to HU-36A
-- no backend code changes are included
-
-Commit message:
-
-feat(frontend): team trivia answer first-write-wins — HU-34
-
-Ref: HU-34
-Ref: DES-46
-Ref: DES-70
+Output:
+- the verified contract table
+- the explicit ticket split (`DES-46` backend, `DES-84` mobile, `DES-49` web monitor)
+- any open questions the backend contract still leaves for the follow-up tickets
 ```
 
 ---
 
-## 9b. Implement the frontend plan
+## 9b. Optional follow-up execution
 
 ```text
-Use @frontend/AGENTS.md and the Step 9 plan path.
-Implement phase by phase in the plan's order, per the plan's own Scope / Gate / Commit Sequence.
+If the team explicitly chooses to continue after `DES-46`, start a new ticket-scoped session for
+either `DES-84` (mobile) or `DES-49` (web operator monitoring).
 
-The Step 9 plan is the source of truth and supersedes the Step 9 seed scope.
-Stop at any increment the plan marks blocked on an Open Question (name it).
-Do not re-generate the plan.
-Do not modify backend code.
+Do not continue client implementation under the `DES-46` scope or branch.
 ```
 
 ---
@@ -411,13 +381,17 @@ Before opening the PR, confirm all DES-46 acceptance criteria are satisfied:
 - the final accepted answer is not overwritten
 - the rejection reason is consistent
 
+Also confirm the ticket boundary:
+- participant answer-submission UI is not part of this PR; it belongs to `DES-84`
+- operator answered/not-answered monitor UI is not part of this PR; it belongs to `DES-49`
+
 Then open the PR:
 
 gh pr create \
   --base develop \
   --head feature/hu-34-trivia-team-answer-first-write-wins \
   --title "feat(session-operations): HU-34 team trivia answer first-write-wins" \
-  --body "Implements HU-34 / DES-46: participant answer submission for the synchronized active trivia question with first-write-wins semantics, typed late/duplicate rejection, accepted-answer transport to operator-only SignalR and RabbitMQ, and the paired frontend participant answer flow. Reuses the existing HU-33 runtime/timer seams and HU-33B RabbitMQ publisher. DES-47 remains merged/canceled and is not cited as separate scope."
+  --body "Implements HU-34 / DES-46: backend first-write-wins registration for the synchronized active trivia question, typed late/duplicate rejection, and accepted-answer transport to operator-only SignalR and RabbitMQ. Reuses the existing HU-33 runtime/timer seams and HU-33B RabbitMQ publisher. DES-47 remains merged/canceled and is not cited as separate scope. Follow-up client work stays split: DES-84 for mobile participant submission and DES-49 for web operator monitoring."
 ```
 
 ---
@@ -434,7 +408,11 @@ gh pr create \
   pipeline can extract it cleanly.
 - **Why the answered signal is operator-only:** `SessionsHub` currently places both operators and
   participants in `live-session:{id}`. Reusing that group would leak supervision state to players.
-  HU-34 must introduce the privacy boundary now; HU-36A can build the full monitor UI on top of it later.
+  HU-34 must introduce the privacy boundary now; `DES-49` can build the full monitor UI on top of it later.
 - **Why the RabbitMQ contract follows the current service seam:** the historical sprint handoff
   froze an older exchange/routing-key sketch, but the current codebase already standardized on a
   service-owned publisher seam in HU-33B. HU-34 stays coherent with the as-built transport.
+- **Why this document no longer includes a frontend implementation step:** the current repo and
+  ticket split no longer treat HU-34 as a combined backend + web frontend slice. The participant
+  submission client is tracked separately on mobile (`DES-84`), and the operator monitor is tracked
+  separately on web (`DES-49`).

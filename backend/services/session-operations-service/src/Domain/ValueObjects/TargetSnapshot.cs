@@ -19,6 +19,7 @@ public sealed class TargetSnapshot : ValueObject
         string qrCode,
         int sequenceOrder,
         bool isActive,
+        int? score,
         string? clueText,
         string? clueVisibilityPolicy)
     {
@@ -38,6 +39,7 @@ public sealed class TargetSnapshot : ValueObject
         QrCode = qrCode.Trim();
         SequenceOrder = sequenceOrder;
         IsActive = isActive;
+        Score = score;
         ClueText = string.IsNullOrWhiteSpace(clueText) ? null : clueText.Trim();
         ClueVisibilityPolicy = string.IsNullOrWhiteSpace(clueVisibilityPolicy) ? null : clueVisibilityPolicy.Trim();
     }
@@ -54,6 +56,8 @@ public sealed class TargetSnapshot : ValueObject
 
     public bool IsActive { get; }
 
+    public int? Score { get; }
+
     public string? ClueText { get; }
 
     public string? ClueVisibilityPolicy { get; }
@@ -64,6 +68,7 @@ public sealed class TargetSnapshot : ValueObject
         string qrCode,
         int sequenceOrder,
         bool isActive,
+        int? score,
         string? clueText,
         string? clueVisibilityPolicy)
     {
@@ -74,6 +79,7 @@ public sealed class TargetSnapshot : ValueObject
             qrCode,
             sequenceOrder,
             isActive,
+            score,
             clueText,
             clueVisibilityPolicy);
     }
@@ -86,6 +92,7 @@ public sealed class TargetSnapshot : ValueObject
         yield return QrCode;
         yield return SequenceOrder;
         yield return IsActive;
+        yield return Score;
         yield return ClueText;
         yield return ClueVisibilityPolicy;
     }

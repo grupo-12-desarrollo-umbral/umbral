@@ -261,7 +261,6 @@ public sealed class MissionEndpointsTests : IClassFixture<PostgreSqlFixture>, IA
         readinessBeforeTargets.Should().NotBeNull();
         readinessBeforeTargets!.IsReady.Should().BeFalse();
         readinessBeforeTargets.Failures.Should().Contain(failure => failure.Contains("must have at least one active target", StringComparison.Ordinal));
-        readinessBeforeTargets.Failures.Should().Contain(failure => failure.Contains("must define a winner score", StringComparison.Ordinal));
 
         var addClueResponse = await _client.PostAsJsonAsync(
             $"/api/missions/{missionId}/nodes",
@@ -288,14 +287,13 @@ public sealed class MissionEndpointsTests : IClassFixture<PostgreSqlFixture>, IA
                 qrCode = "QR-001",
                 sequenceOrder = 1,
                 isActive = true,
-                winnerScore = 35
+                score = 35
             });
         addTargetResponse.StatusCode.Should().Be(HttpStatusCode.OK);
 
         var missionAfterTarget = await addTargetResponse.Content.ReadFromJsonAsync<MissionsController.MissionResponse>();
         missionAfterTarget.Should().NotBeNull();
         var targetId = missionAfterTarget!.Stages.Single().Substages.Single().Targets.Single().Id;
-        missionAfterTarget.Stages.Single().Substages.Single().WinnerScore.Should().Be(35);
         missionAfterTarget.Stages.Single().Substages.Single().Targets.Single().Score.Should().Be(35);
 
         var associateClueResponse = await _client.PostAsJsonAsync(
@@ -393,7 +391,7 @@ public sealed class MissionEndpointsTests : IClassFixture<PostgreSqlFixture>, IA
                 qrCode = "QR-UPDATED",
                 sequenceOrder = 4,
                 isActive = false,
-                winnerScore = 50
+                score = 50
             });
         updateTargetResponse.StatusCode.Should().Be(HttpStatusCode.OK);
 
@@ -405,7 +403,6 @@ public sealed class MissionEndpointsTests : IClassFixture<PostgreSqlFixture>, IA
         updatedTarget.SequenceOrder.Should().Be(4);
         updatedTarget.IsActive.Should().BeFalse();
         updatedTarget.Score.Should().Be(50);
-        missionAfterTargetUpdate.Stages.Single().Substages.Single().WinnerScore.Should().Be(50);
 
         var associateClueResponse = await _client.PostAsJsonAsync(
             $"/api/missions/{missionId}/stages/{stageId}/substages/{substageId}/targets/{targetId}/clue-association",
@@ -457,7 +454,6 @@ public sealed class MissionEndpointsTests : IClassFixture<PostgreSqlFixture>, IA
         missionAfterPlayModeAssign.Difficulty.Should().Be("Easy");
         triviaSubstage.PlayMode.Should().Be("Trivia");
         triviaSubstage.Targets.Should().BeEmpty();
-        triviaSubstage.WinnerScore.Should().BeNull();
     }
 
     [Fact]
@@ -594,8 +590,7 @@ public sealed class MissionEndpointsTests : IClassFixture<PostgreSqlFixture>, IA
                 qrCode = "QR-BEACON",
                 sequenceOrder = 1,
                 score = 40,
-                isActive = true,
-                winnerScore = 40
+                isActive = true
             });
         addTargetResponse.EnsureSuccessStatusCode();
 
@@ -636,7 +631,6 @@ public sealed class MissionEndpointsTests : IClassFixture<PostgreSqlFixture>, IA
         treasureSubstage.Title.Should().Be("Treasure Hunt");
         treasureSubstage.SequenceOrder.Should().Be(1);
         treasureSubstage.PlayMode.Should().Be("TreasureHunt");
-        treasureSubstage.WinnerScore.Should().Be(40);
         treasureSubstage.TriviaQuestions.Should().BeEmpty();
         treasureSubstage.Targets.Should().ContainSingle();
         treasureSubstage.Targets[0].Name.Should().Be("Beacon");
@@ -652,7 +646,6 @@ public sealed class MissionEndpointsTests : IClassFixture<PostgreSqlFixture>, IA
         triviaSubstage.Title.Should().Be("Trivia Round");
         triviaSubstage.SequenceOrder.Should().Be(1);
         triviaSubstage.PlayMode.Should().Be("Trivia");
-        triviaSubstage.WinnerScore.Should().BeNull();
         triviaSubstage.Targets.Should().BeEmpty();
         triviaSubstage.TriviaQuestions.Select(question => question.Prompt).Should().Equal("First question", "Second question");
         triviaSubstage.TriviaQuestions.Select(question => question.SequenceOrder).Should().Equal(1, 2);
@@ -746,7 +739,11 @@ public sealed class MissionEndpointsTests : IClassFixture<PostgreSqlFixture>, IA
 
         var problem = await archiveResponse.Content.ReadFromJsonAsync<ProblemDetails>();
         problem.Should().NotBeNull();
-        problem!.Detail.Should().Contain("Active Quiz Guard Mission");
+        // The client sees a curated, actionable reason but never the interpolated mission name:
+        // the referencing mission identities stay in the server-side diagnostic message only.
+        problem!.Detail.Should().Contain("referenced by one or more active missions");
+        problem.Detail.Should().NotContain("Active Quiz Guard Mission");
+        problem.Type.Should().Be("trivia-quiz-referenced-by-active-mission");
 
         // The quiz remains published and the mission remains ready: the block had no side effects.
         var quizDetail = await _client.GetFromJsonAsync<TriviasController.TriviaQuizResponse>(
@@ -914,7 +911,7 @@ public sealed class MissionEndpointsTests : IClassFixture<PostgreSqlFixture>, IA
                 qrCode = "QR-001",
                 sequenceOrder = 1,
                 isActive = true,
-                winnerScore = 35
+                score = 35
             });
 
         response.EnsureSuccessStatusCode();

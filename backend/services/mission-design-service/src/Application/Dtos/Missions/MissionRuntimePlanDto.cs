@@ -14,7 +14,6 @@ public sealed record MissionRuntimePlanSubstageDto(
     string Title,
     int SequenceOrder,
     string PlayMode,
-    int? WinnerScore,
     IReadOnlyList<MissionRuntimePlanTargetDto> Targets,
     IReadOnlyList<MissionRuntimePlanTriviaQuestionDto> TriviaQuestions);
 
@@ -23,7 +22,7 @@ public sealed record MissionRuntimePlanTargetDto(
     string QrCode,
     int SequenceOrder,
     bool IsActive,
-    int? Score,
+    int Score,
     MissionRuntimePlanClueDto? Clue);
 
 public sealed record MissionRuntimePlanClueDto(

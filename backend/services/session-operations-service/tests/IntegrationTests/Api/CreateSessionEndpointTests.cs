@@ -390,7 +390,6 @@ public sealed class CreateSessionEndpointTests : IAsyncLifetime
                             "Trivia Round",
                             1,
                             "Trivia",
-                            null,
                             [],
                             [])
                     ])
@@ -411,7 +410,6 @@ public sealed class CreateSessionEndpointTests : IAsyncLifetime
                             "Trivia Round",
                             1,
                             "Trivia",
-                            null,
                             [],
                             [
                                 new MissionRuntimeTriviaQuestionDto(
@@ -443,7 +441,6 @@ public sealed class CreateSessionEndpointTests : IAsyncLifetime
                             "Trivia Round",
                             1,
                             "Trivia",
-                            null,
                             [],
                             [
                                 new MissionRuntimeTriviaQuestionDto(

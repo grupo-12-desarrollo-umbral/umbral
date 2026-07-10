@@ -31,7 +31,7 @@ public class MissionActivationPolicyRuntimePlanTests
     }
 
     [Fact]
-    public void EvaluateReadiness_WhenTreasureSubstageMissingTargetAndScore_ReportsBoth()
+    public void EvaluateReadiness_WhenTreasureSubstageMissingTarget_ReportsMissingActiveTarget()
     {
         var mission = NewMission();
         var stage = mission.AddStage("Stage", 1);
@@ -43,7 +43,6 @@ public class MissionActivationPolicyRuntimePlanTests
         var failures = MissionActivationPolicy.EvaluateReadiness(mission);
 
         failures.Should().Contain(f => f.Contains("active target"));
-        failures.Should().Contain(f => f.Contains("winner score"));
     }
 
     [Fact]
@@ -55,8 +54,7 @@ public class MissionActivationPolicyRuntimePlanTests
         var substage = Substage.CreateTreasureHunt("Sub", 1);
         substage.Id = 2;
         mission.AddSubstage(1, substage);
-        mission.AddTarget(1, 2, "Statue", "QR-1", 1, isActive: false);
-        mission.SetTreasureHuntWinnerScore(1, 2, 50);
+        mission.AddTarget(1, 2, "Statue", "QR-1", 1, 50, isActive: false);
 
         var failures = MissionActivationPolicy.EvaluateReadiness(mission);
 
@@ -87,8 +85,7 @@ public class MissionActivationPolicyRuntimePlanTests
         var substage = Substage.CreateTreasureHunt("Sub", 1);
         substage.Id = 2;
         mission.AddSubstage(1, substage);
-        mission.AddTarget(1, 2, "Statue", "QR-1", 1);
-        mission.SetTreasureHuntWinnerScore(1, 2, 50);
+        mission.AddTarget(1, 2, "Statue", "QR-1", 1, 50);
 
         MissionActivationPolicy.EvaluateReadiness(mission).Should().BeEmpty();
         MissionActivationPolicy.SatisfiesRuntimePlan(mission).Should().BeTrue();

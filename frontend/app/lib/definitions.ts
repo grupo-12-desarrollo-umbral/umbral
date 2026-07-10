@@ -96,6 +96,7 @@ export type MissionTargetDto = {
   sequenceOrder: number
   isActive: boolean
   clueId: number | null
+  score: number
 }
 
 export type TriviaQuizSelectionDto = { triviaQuizId: number }
@@ -105,7 +106,6 @@ export type MissionSubstageDto = {
   title: string
   sequenceOrder: number
   playMode: 'TreasureHunt' | 'Trivia' // JSON string enum
-  winnerScore: number | null
   triviaQuizSelection: TriviaQuizSelectionDto | null
   targets: MissionTargetDto[]
   clues: MissionClueDto[]
@@ -150,8 +150,8 @@ export type AddTargetRequest = {
   name: string
   qrCode: string
   sequenceOrder: number
+  score: number
   isActive?: boolean
-  winnerScore?: number
 }
 
 export type UpdateTargetRequest = {
@@ -159,7 +159,7 @@ export type UpdateTargetRequest = {
   qrCode: string
   sequenceOrder: number
   isActive: boolean
-  winnerScore?: number
+  score?: number
 }
 
 export type TriviaQuizSelectionRequest = { triviaQuizId: number }

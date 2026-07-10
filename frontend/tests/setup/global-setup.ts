@@ -56,11 +56,11 @@ const keycloakUsers: E2EKeycloakUser[] = [
   },
 ]
 
-function runSql(db: string, sql: string, label: string): void {
+export function runSql(db: string, sql: string, label: string): void {
   // Pipe SQL on stdin rather than `docker cp` to a temp file: docker cp fails with
   // "file exists" when the container has a single-file bind-mount (init-dbs.sql), and
   // stdin needs no temp file or cleanup.
-  execSync(`docker exec -i ${DB_CONTAINER} psql -U postgres -d ${db}`, {
+  execSync(`docker exec -i ${DB_CONTAINER} psql -v ON_ERROR_STOP=1 -U postgres -d ${db}`, {
     input: sql,
     stdio: ['pipe', 'pipe', 'pipe'],
     timeout: 20000,
@@ -70,8 +70,8 @@ function runSql(db: string, sql: string, label: string): void {
 
 function seedViaDocker(): void {
   runSql('identity_access', `
-DELETE FROM team_memberships;
-DELETE FROM teams;
+DELETE FROM registered_team_memberships;
+DELETE FROM registered_teams;
 -- op-1 is seeded later (seedOperatorIdentity) with its resolved Keycloak sub, not the literal
 -- username: only operator session-listing goes gateway→JWT, which keys the actor by sub.
 INSERT INTO users ("ExternalIdentityId", "DisplayName", "Email", "Role", "IsActive", "Created", "LastModified")
@@ -86,7 +86,7 @@ ON CONFLICT ("ExternalIdentityId") DO UPDATE SET
   "IsActive" = EXCLUDED."IsActive",
   "LastModified" = NOW();
 
-INSERT INTO teams (id, display_name, team_code, is_active, created_at, updated_at)
+INSERT INTO registered_teams (id, display_name, team_code, is_active, created_at, updated_at)
 VALUES
   ('a0000000-0000-0000-0000-000000000001', 'Gilded Owls',    'OWLS',  true,  NOW(), NOW()),
   ('a0000000-0000-0000-0000-000000000002', 'Maple Runners',  'MAPLE', true,  NOW(), NOW()),

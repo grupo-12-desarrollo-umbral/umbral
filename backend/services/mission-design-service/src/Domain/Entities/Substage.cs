@@ -1,6 +1,5 @@
 using umbral_backend.Domain.Enums;
 using umbral_backend.Domain.Exceptions;
-using umbral_backend.Domain.ValueObjects;
 
 namespace umbral_backend.Domain.Entities;
 
@@ -9,7 +8,7 @@ namespace umbral_backend.Domain.Entities;
 /// <see cref="SubstagePlayMode"/>.
 /// <list type="bullet">
 /// <item><c>TreasureHunt</c>: owns ordered <see cref="Target"/>s (target-based
-/// progression) plus a winner <see cref="ScoreValue"/>.</item>
+/// progression), each carrying its own score.</item>
 /// <item><c>Trivia</c>: references one published <c>TriviaQuiz</c> by identity. The
 /// whole quiz is selected; <c>TriviaQuiz</c> is reusable authoring content, not
 /// runtime session source content.</item>
@@ -39,8 +38,6 @@ public sealed class Substage : MissionNode
     public IReadOnlyList<Target> Targets =>
         _targets.OrderBy(target => target.SequenceOrder).ToList().AsReadOnly();
 
-    public ScoreValue? WinnerScore { get; private set; }
-
     // Trivia content: identity of the single published TriviaQuiz selected in full.
     public int? TriviaQuizId { get; private set; }
 
@@ -57,12 +54,11 @@ public sealed class Substage : MissionNode
         return new Substage(title, sequenceOrder, SubstagePlayMode.Trivia);
     }
 
-    public Target AddTarget(string name, string qrCode, int sequenceOrder, int? score = null, bool isActive = true)
+    public Target AddTarget(string name, string qrCode, int sequenceOrder, int score, bool isActive = true)
     {
         EnsurePlayMode(SubstagePlayMode.TreasureHunt);
 
-        var resolvedScore = score ?? WinnerScore?.Points;
-        var target = Target.Create(name, qrCode, sequenceOrder, resolvedScore, isActive);
+        var target = Target.Create(name, qrCode, sequenceOrder, score, isActive);
         _targets.Add(target);
         return target;
     }
@@ -82,17 +78,6 @@ public sealed class Substage : MissionNode
 
         var target = FindTarget(targetId);
         _targets.Remove(target);
-    }
-
-    public void SetWinnerScore(int points)
-    {
-        EnsurePlayMode(SubstagePlayMode.TreasureHunt);
-        WinnerScore = ScoreValue.Create(points);
-
-        foreach (var target in _targets)
-        {
-            target.AdoptScoreIfMissing(points);
-        }
     }
 
     public Clue AddClue(Clue clue)

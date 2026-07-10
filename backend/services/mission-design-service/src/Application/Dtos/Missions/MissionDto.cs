@@ -20,7 +20,6 @@ public sealed record MissionSubstageDto(
     string Title,
     int SequenceOrder,
     string PlayMode,
-    int? WinnerScore,
     TriviaQuizSelectionDto? TriviaQuizSelection,
     IReadOnlyList<MissionTargetDto>? Targets = null,
     IReadOnlyList<MissionClueDto>? Clues = null);
@@ -32,7 +31,7 @@ public sealed record MissionTargetDto(
     int SequenceOrder,
     bool IsActive,
     int? ClueId,
-    int? Score);
+    int Score);
 
 public sealed record MissionClueDto(
     int Id,

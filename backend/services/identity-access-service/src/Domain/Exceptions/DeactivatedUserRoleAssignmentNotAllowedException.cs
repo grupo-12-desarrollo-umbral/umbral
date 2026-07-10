@@ -8,4 +8,8 @@ public sealed class DeactivatedUserRoleAssignmentNotAllowedException : DomainExc
     }
 
     public override ErrorCategory Category => ErrorCategory.Unprocessable;
+
+    // Safe to expose: client-actionable and identifier-free (the interpolated user id stays in the
+    // diagnostic Message only).
+    public override string? PublicDetail => "The user is deactivated and cannot receive a new role assignment.";
 }

@@ -36,7 +36,6 @@ public static class MissionDtoMapper
             substage.Title,
             substage.SequenceOrder,
             substage.PlayMode.ToString(),
-            substage.WinnerScore?.Points,
             substage.TriviaQuizId is null
                 ? null
                 : new TriviaQuizSelectionDto(substage.TriviaQuizId.Value),
@@ -56,7 +55,7 @@ public static class MissionDtoMapper
             target.SequenceOrder,
             target.IsActive,
             target.ClueId,
-            target.Score?.Points);
+            target.Score.Points);
     }
 
     private static MissionClueDto MapClue(Clue clue)

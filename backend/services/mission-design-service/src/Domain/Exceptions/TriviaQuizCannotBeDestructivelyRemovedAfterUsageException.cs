@@ -8,4 +8,7 @@ public sealed class TriviaQuizCannotBeDestructivelyRemovedAfterUsageException : 
     }
 
     public override ErrorCategory Category => ErrorCategory.Conflict;
+
+    // Safe to expose: the message is a static, identifier-free removal rule.
+    public override string? PublicDetail => Message;
 }

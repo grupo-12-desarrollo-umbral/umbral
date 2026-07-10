@@ -86,7 +86,6 @@ public sealed class MissionRuntimeSource : IMissionRuntimeSource
         string Title,
         int SequenceOrder,
         string PlayMode,
-        int? WinnerScore,
         IReadOnlyList<MissionRuntimeTargetResponse> Targets,
         IReadOnlyList<MissionRuntimeTriviaQuestionResponse> TriviaQuestions)
     {
@@ -96,7 +95,6 @@ public sealed class MissionRuntimeSource : IMissionRuntimeSource
                 Title,
                 SequenceOrder,
                 PlayMode,
-                WinnerScore,
                 Targets
                     .Select(target => target.ToMissionRuntimeTargetDto())
                     .ToArray(),
@@ -111,6 +109,7 @@ public sealed class MissionRuntimeSource : IMissionRuntimeSource
         string QrCode,
         int SequenceOrder,
         bool IsActive,
+        int? Score,
         MissionRuntimeClueResponse? Clue)
     {
         public MissionRuntimeTargetDto ToMissionRuntimeTargetDto()
@@ -120,6 +119,7 @@ public sealed class MissionRuntimeSource : IMissionRuntimeSource
                 QrCode,
                 SequenceOrder,
                 IsActive,
+                Score,
                 Clue?.ToMissionRuntimeClueDto());
         }
     }

@@ -109,12 +109,6 @@ public sealed class MissionConfiguration : IEntityTypeConfiguration<Mission>
                 substageBuilder.Ignore(substage => substage.Targets);
                 substageBuilder.Ignore(substage => substage.DomainEvents);
 
-                substageBuilder.OwnsOne(substage => substage.WinnerScore, winnerScoreBuilder =>
-                {
-                    winnerScoreBuilder.Property(score => score.Points)
-                        .HasColumnName("WinnerScore");
-                });
-
                 substageBuilder.HasIndex("StageId", nameof(Substage.SequenceOrder))
                     .IsUnique();
 
@@ -149,6 +143,8 @@ public sealed class MissionConfiguration : IEntityTypeConfiguration<Mission>
                         scoreBuilder.Property(score => score.Points)
                             .HasColumnName("Score");
                     });
+
+                    targetBuilder.Navigation(target => target.Score).IsRequired();
 
                     targetBuilder.Ignore(target => target.DomainEvents);
 

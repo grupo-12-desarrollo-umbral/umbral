@@ -1,3 +1,4 @@
+using umbral_backend.Application.Missions.Commands.AddTarget;
 using umbral_backend.Application.Missions.Commands.RemoveMissionNode;
 using umbral_backend.Application.Missions.Commands.RemoveTarget;
 using umbral_backend.Application.Missions.Commands.UnassociateClueFromTarget;
@@ -113,28 +114,39 @@ public sealed class MissionMutationValidatorsTests
     }
 
     [Fact]
-    public void UpdateTarget_ZeroWinnerScore_FailsValidation()
-    {
-        var result = new UpdateTargetCommandValidator()
-            .Validate(new UpdateTargetCommand(1, 2, 3, 4, "Name", "QR", 1, true, WinnerScore: 0));
-
-        result.Errors.Should().Contain(e => e.PropertyName == nameof(UpdateTargetCommand.WinnerScore));
-    }
-
-    [Fact]
-    public void UpdateTarget_NullWinnerScore_PassesValidation()
-    {
-        var result = new UpdateTargetCommandValidator()
-            .Validate(new UpdateTargetCommand(1, 2, 3, 4, "Name", "QR", 1, true, WinnerScore: null));
-
-        result.IsValid.Should().BeTrue();
-    }
-
-    [Fact]
     public void UpdateTarget_ZeroScore_FailsValidation()
     {
         var result = new UpdateTargetCommandValidator()
             .Validate(new UpdateTargetCommand(1, 2, 3, 4, "Name", "QR", 1, true, 0));
+
+        result.Errors.Should().Contain(e => e.PropertyName == nameof(UpdateTargetCommand.Score));
+    }
+
+    // ── AddTarget ─────────────────────────────────────────────────────────────
+
+    [Fact]
+    public void AddTarget_ZeroScore_FailsValidation()
+    {
+        var result = new AddTargetCommandValidator()
+            .Validate(new AddTargetCommand(1, 2, 3, "Name", "QR", 1, Score: 0));
+
+        result.Errors.Should().Contain(e => e.PropertyName == nameof(AddTargetCommand.Score));
+    }
+
+    [Fact]
+    public void AddTarget_ScoreAboveMaximum_FailsValidation()
+    {
+        var result = new AddTargetCommandValidator()
+            .Validate(new AddTargetCommand(1, 2, 3, "Name", "QR", 1, Score: 101));
+
+        result.Errors.Should().Contain(e => e.PropertyName == nameof(AddTargetCommand.Score));
+    }
+
+    [Fact]
+    public void UpdateTarget_ScoreAboveMaximum_FailsValidation()
+    {
+        var result = new UpdateTargetCommandValidator()
+            .Validate(new UpdateTargetCommand(1, 2, 3, 4, "Name", "QR", 1, IsActive: true, Score: 101));
 
         result.Errors.Should().Contain(e => e.PropertyName == nameof(UpdateTargetCommand.Score));
     }

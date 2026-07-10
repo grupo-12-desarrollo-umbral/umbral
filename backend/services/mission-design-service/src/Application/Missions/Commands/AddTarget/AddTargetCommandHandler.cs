@@ -27,13 +27,8 @@ public sealed class AddTargetCommandHandler
             request.Name,
             request.QrCode,
             request.SequenceOrder,
-            request.Score ?? request.WinnerScore,
+            request.Score,
             request.IsActive);
-
-        if (request.WinnerScore is not null)
-        {
-            mission.SetTreasureHuntWinnerScore(request.StageId, request.SubstageId, request.WinnerScore.Value);
-        }
 
         await _missionRepository.UpdateAsync(mission, cancellationToken);
         return MissionDtoMapper.Map(mission);

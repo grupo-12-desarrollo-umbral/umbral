@@ -24,7 +24,7 @@ public sealed class MissionRuntimeSnapshotTests
     [Fact]
     public void Create_WithDuplicateTargetQrCodes_ThrowsException()
     {
-        var treasureSubstage = SubstageSnapshot.CreateTreasureHunt("Treasure Route", 1, winnerScore: 100);
+        var treasureSubstage = SubstageSnapshot.CreateTreasureHunt("Treasure Route", 1);
         var stage = StageSnapshot.Create("Stage One", 1, [treasureSubstage]);
 
         var act = () => MissionRuntimeSnapshot.Create(
@@ -44,7 +44,7 @@ public sealed class MissionRuntimeSnapshotTests
     [Fact]
     public void Create_TreasureHuntSubstageWithoutTarget_ThrowsException()
     {
-        var treasureSubstage = SubstageSnapshot.CreateTreasureHunt("Treasure Route", 1, winnerScore: 100);
+        var treasureSubstage = SubstageSnapshot.CreateTreasureHunt("Treasure Route", 1);
         var stage = StageSnapshot.Create("Stage One", 1, [treasureSubstage]);
 
         var act = () => MissionRuntimeSnapshot.Create(
@@ -56,6 +56,23 @@ public sealed class MissionRuntimeSnapshotTests
             []);
 
         act.Should().Throw<TreasureHuntSubstageSnapshotMustContainTargetsException>();
+    }
+
+    [Fact]
+    public void Create_TreasureHuntTargetWithoutScore_ThrowsException()
+    {
+        var treasureSubstage = SubstageSnapshot.CreateTreasureHunt("Treasure Route", 1);
+        var stage = StageSnapshot.Create("Stage One", 1, [treasureSubstage]);
+
+        var act = () => MissionRuntimeSnapshot.Create(
+            Guid.NewGuid(),
+            "Runtime Plan",
+            MaximumTime.Create(30),
+            [stage],
+            [MissionRuntimeSnapshotFactory.CreateTarget(treasureSubstage.SubstageSnapshotId, score: null)],
+            []);
+
+        act.Should().Throw<TreasureHuntTargetSnapshotScoreRequiredException>();
     }
 
     [Fact]
@@ -78,7 +95,7 @@ public sealed class MissionRuntimeSnapshotTests
     [Fact]
     public void Create_CopiesCollectionsImmutably()
     {
-        var treasureSubstage = SubstageSnapshot.CreateTreasureHunt("Treasure Route", 1, winnerScore: 100);
+        var treasureSubstage = SubstageSnapshot.CreateTreasureHunt("Treasure Route", 1);
         var triviaSubstage = SubstageSnapshot.CreateTrivia("Trivia Round", 2);
         var stages = new List<StageSnapshot> { StageSnapshot.Create("Stage One", 1, [treasureSubstage, triviaSubstage]) };
         var targets = new List<TargetSnapshot> { MissionRuntimeSnapshotFactory.CreateTarget(treasureSubstage.SubstageSnapshotId) };
