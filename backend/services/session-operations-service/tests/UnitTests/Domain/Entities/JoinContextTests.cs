@@ -85,4 +85,16 @@ public sealed class JoinContextTests
 
         act.Should().Throw<JoinContextAlreadyClosedException>();
     }
+
+    [Fact]
+    public void Expire_AtOrAfterExpiresAt_MarksExpired()
+    {
+        var now = DateTimeOffset.UtcNow;
+        var joinContext = JoinContext.Create(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), now, now.AddMinutes(5));
+
+        // occurredAt >= ExpiresAt → the valid arm of the expiration guard.
+        joinContext.Expire(now.AddMinutes(5));
+
+        joinContext.Status.Should().Be(JoinContextStatus.Expired);
+    }
 }

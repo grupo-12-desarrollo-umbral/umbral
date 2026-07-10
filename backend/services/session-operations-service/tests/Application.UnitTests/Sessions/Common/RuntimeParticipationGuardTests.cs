@@ -78,6 +78,41 @@ public sealed class RuntimeParticipationGuardTests
         notifier.Verify(n => n.NotifyBlockedAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
+    [Fact]
+    public async Task EnsureAllowedAsync_WhenDeniedAndSessionCannotBeLoaded_ThrowsWithoutPersistingOrNotifying()
+    {
+        var (session, teamId) = CreateSessionWithParticipant();
+        var repository = new Mock<ILiveSessionRepository>();
+        repository
+            .Setup(repo => repo.GetByIdAsync(session.LiveSessionId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((LiveSession?)null);
+        var notifier = new Mock<IParticipantBlockNotifier>();
+        var accessClient = new Mock<IParticipantMembershipAccessClient>();
+        accessClient
+            .Setup(client => client.ValidateAsync(session.LiveSessionId, teamId, It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ParticipantMembershipAccessDecisionDto(
+                "ParticipantExperience",
+                false,
+                "user-access-deactivated",
+                "denied",
+                session.LiveSessionId,
+                teamId));
+        var currentUser = new Mock<ICurrentUser>();
+        currentUser.SetupGet(user => user.Id).Returns(ParticipantIdentity.ToString());
+        var guard = new RuntimeParticipationGuard(
+            accessClient.Object,
+            repository.Object,
+            currentUser.Object,
+            notifier.Object,
+            TimeProvider.System);
+
+        var act = async () => await guard.EnsureAllowedAsync(session.LiveSessionId, teamId, "token", CancellationToken.None);
+
+        await act.Should().ThrowAsync<ForbiddenAccessException>();
+        repository.Verify(repo => repo.UpdateAsync(It.IsAny<LiveSession>(), It.IsAny<CancellationToken>()), Times.Never);
+        notifier.Verify(n => n.NotifyBlockedAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
     private static (LiveSession Session, Guid TeamId) CreateSessionWithParticipant()
     {
         var session = LiveSessionTestFactory.CreateScheduledTreasureHunt();

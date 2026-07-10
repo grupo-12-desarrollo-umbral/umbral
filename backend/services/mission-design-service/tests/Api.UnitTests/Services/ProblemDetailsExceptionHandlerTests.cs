@@ -426,6 +426,61 @@ public class ProblemDetailsExceptionHandlerTests
                 "clients paste the traceId straight into a log search, which indexes the bare trace-id");
     }
 
+    // The Unauthorized and Unprocessable categories have no concrete domain exception in this
+    // service, and every real classified exception declares a PublicDetail-less mapping only for
+    // NotFound/Validation/Conflict/Forbidden. A synthetic IErrorMetadata exercises the remaining
+    // StatusFor/TitleFor/DetailFor arms — including the out-of-range default — so the whole switch
+    // triple is proven rather than trusted.
+    private sealed class FakeMetadataException(ErrorCategory category)
+        : Exception, IErrorMetadata
+    {
+        public ErrorCategory Category { get; } = category;
+
+        public string ErrorCode => "fake-metadata";
+    }
+
+    [Fact]
+    public async Task TryHandleAsync_UnauthorizedCategory_Returns401WithGenericDetail()
+    {
+        var httpContext = CreateHttpContext();
+        var problem = await InvokeHandlerAndReadProblemDetails(
+            httpContext,
+            new FakeMetadataException(ErrorCategory.Unauthorized));
+
+        problem.Status.Should().Be(401);
+        problem.Title.Should().Be("Unauthorized.");
+        problem.Detail.Should().Be("Authentication is required to perform this action.");
+        httpContext.Response.StatusCode.Should().Be(401);
+    }
+
+    [Fact]
+    public async Task TryHandleAsync_UnprocessableCategory_Returns422WithGenericDetail()
+    {
+        var httpContext = CreateHttpContext();
+        var problem = await InvokeHandlerAndReadProblemDetails(
+            httpContext,
+            new FakeMetadataException(ErrorCategory.Unprocessable));
+
+        problem.Status.Should().Be(422);
+        problem.Title.Should().Be("Unprocessable entity.");
+        problem.Detail.Should().Be("The request could not be processed.");
+        httpContext.Response.StatusCode.Should().Be(422);
+    }
+
+    [Fact]
+    public async Task TryHandleAsync_UnknownCategory_FallsBackToGeneric500()
+    {
+        var httpContext = CreateHttpContext();
+        var problem = await InvokeHandlerAndReadProblemDetails(
+            httpContext,
+            new FakeMetadataException((ErrorCategory)999));
+
+        problem.Status.Should().Be(500);
+        problem.Title.Should().Be("An unexpected error occurred.");
+        problem.Detail.Should().Be("An unexpected error occurred.");
+        httpContext.Response.StatusCode.Should().Be(500);
+    }
+
     private sealed class ExceptionHandlerFeature : IExceptionHandlerFeature
     {
         public Exception Error { get; init; } = null!;

@@ -161,6 +161,44 @@ public sealed class SelectTeamCommandHandlerTests
         await act.Should().ThrowAsync<TeamNotInAuthorizedSetException>();
     }
 
+    [Fact]
+    public async Task Handle_WhenEmailIsMissing_FallsBackToDefaultDisplayName()
+    {
+        // Null email → ResolveDisplayName's IsNullOrWhiteSpace arm returns the "Participant" default.
+        var session = CreateScheduledSession();
+        var referenceTeamId = Guid.NewGuid();
+        var team = session.AssociateTeam(referenceTeamId, "Alpha", "A-01", 4);
+        var repository = CreateRepository(session);
+        var eligible = CreateEligibleClient(isEligible: true, referenceTeamId);
+        var currentUser = new Mock<ICurrentUser>();
+        currentUser.SetupGet(user => user.Id).Returns(Guid.NewGuid().ToString());
+        currentUser.SetupGet(user => user.Email).Returns((string?)null);
+        currentUser.SetupGet(user => user.Role).Returns("Participant");
+        var handler = CreateHandler(repository, eligible, currentUser);
+
+        var result = await handler.Handle(new SelectTeamCommand(SessionCode, team.TeamId), CancellationToken.None);
+
+        result.TeamId.Should().Be(team.TeamId);
+    }
+
+    [Fact]
+    public async Task Handle_WhenEmailHasBlankLocalPart_FallsBackToWholeEmail()
+    {
+        // An email whose local part is whitespace exercises the ternary's whitespace-local-part arm,
+        // returning the whole email rather than the empty local part.
+        var session = CreateScheduledSession();
+        var referenceTeamId = Guid.NewGuid();
+        var team = session.AssociateTeam(referenceTeamId, "Alpha", "A-01", 4);
+        var repository = CreateRepository(session);
+        var eligible = CreateEligibleClient(isEligible: true, referenceTeamId);
+        var currentUser = CreateCurrentUser(Guid.NewGuid(), "  @example.com");
+        var handler = CreateHandler(repository, eligible, currentUser);
+
+        var result = await handler.Handle(new SelectTeamCommand(SessionCode, team.TeamId), CancellationToken.None);
+
+        result.TeamId.Should().Be(team.TeamId);
+    }
+
     private static SelectTeamCommandHandler CreateHandler(
         Mock<ILiveSessionRepository> repository,
         Mock<IParticipantEligibleTeamsClient> eligible,

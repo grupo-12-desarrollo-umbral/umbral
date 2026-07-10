@@ -38,6 +38,17 @@ public sealed class OpenTeamSelectionPolicyTests
     }
 
     [Fact]
+    public void SelectableTeams_WhenRuntimeOnlyTeamExists_IgnoresItForWhitelistMatching()
+    {
+        var session = CreateScheduledSessionWithTeams(out var red, out _, out _);
+        session.RegisterTeam("Walk-ins", "WLK-01", capacity: 4);
+
+        var selectable = _policy.SelectableTeams(session, SetOf(RedRef));
+
+        selectable.Should().ContainSingle().Which.Should().Be(red);
+    }
+
+    [Fact]
     public void SelectableTeams_WhenWhitelistTouchesNoAttachedTeam_TreatsParticipantAsUnassigned()
     {
         // Membership only for a team not attached to this session => "no membership for any attached

@@ -140,6 +140,25 @@ public sealed class SessionTeamAssociationFacadeTests
     }
 
     [Fact]
+    public async Task GetAssociatedTeamsAsync_WhenSessionDoesNotExist_ThrowsNotFoundException()
+    {
+        var liveSessionId = Guid.NewGuid();
+        var repository = new Mock<ILiveSessionRepository>();
+        repository
+            .Setup(repo => repo.GetByIdAsync(liveSessionId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((LiveSession?)null);
+        var teamCatalogClient = CreateMissingTeamCatalogClient();
+        var facade = new SessionTeamAssociationFacade(repository.Object, teamCatalogClient.Object);
+
+        var act = async () => await facade.GetAssociatedTeamsAsync(
+            new GetAssociatedTeamsForSessionQuery(liveSessionId),
+            CancellationToken.None);
+
+        await act.Should().ThrowAsync<NotFoundException>()
+            .WithMessage($"*{liveSessionId}*");
+    }
+
+    [Fact]
     public async Task AssociateByCodeAsync_WhenTeamReferenceIsValid_AssociatesTeamAndPersistsSession()
     {
         var session = CreateScheduledSession();

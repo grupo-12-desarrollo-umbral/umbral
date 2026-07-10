@@ -437,6 +437,63 @@ public class TriviaQuizTests
     }
 
     [Fact]
+    public void Duplicate_WhenQuestionHasNoTimeLimit_ClonesNullTimeLimit()
+    {
+        // A directly-assembled question with a null time limit exercises the CloneQuestion
+        // null-conditional (TimeLimit?.Seconds), which the publishable-quiz path never reaches.
+        var sourceQuiz = TriviaQuiz.Create(
+            "Draft Quiz",
+            "Warm-up trivia",
+            [
+                TriviaQuestion.Create(
+                    "Capital of France?",
+                    1,
+                    100,
+                    null,
+                    null,
+                    [
+                        TriviaOption.Create("Paris", 1, true),
+                        TriviaOption.Create("Berlin", 2, false)
+                    ])
+            ]);
+        sourceQuiz.Id = 55;
+
+        var duplicate = sourceQuiz.Duplicate();
+
+        duplicate.Questions.Should().ContainSingle();
+        duplicate.Questions.Single().TimeLimit.Should().BeNull();
+        duplicate.SourceTriviaQuizId.Should().Be(55);
+    }
+
+    [Fact]
+    public void Duplicate_WhenSourceIsItselfAnUnpersistedDuplicate_CarriesForwardOriginalLineage()
+    {
+        // A duplicate that was never persisted has Id 0, so ResolveDuplicateLineageSourceId must
+        // fall back to the original source id instead of the (zero) transient id.
+        var original = TriviaQuiz.Create("Intro Quiz", "Warm-up trivia");
+        original.AddQuestion(
+            "Capital of France?",
+            1,
+            100,
+            45,
+            null,
+            [
+                TriviaOption.Create("Paris", 1, true),
+                TriviaOption.Create("Berlin", 2, false)
+            ]);
+        original.Id = 41;
+        original.Publish(new DateTimeOffset(2026, 6, 1, 14, 30, 0, TimeSpan.Zero));
+
+        var firstCopy = original.Duplicate();
+        firstCopy.Id.Should().Be(default);
+        firstCopy.SourceTriviaQuizId.Should().Be(41);
+
+        var secondCopy = firstCopy.Duplicate();
+
+        secondCopy.SourceTriviaQuizId.Should().Be(41);
+    }
+
+    [Fact]
     public void RetireFromFutureUse_WhenQuizHasUsageHistory_ArchivesQuizThroughSharedWorkflow()
     {
         var publishedAt = new DateTimeOffset(2026, 6, 1, 14, 30, 0, TimeSpan.Zero);

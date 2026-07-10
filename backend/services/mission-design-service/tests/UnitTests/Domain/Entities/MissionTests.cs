@@ -131,4 +131,36 @@ public class MissionTests
 
         act.Should().Throw<MissionDescriptionRequiredException>();
     }
+
+    [Fact]
+    public void AddTarget_WhenSubstageDoesNotExist_ThrowsMissionNodeNotFound()
+    {
+        var mission = Mission.Create("Mission One", "Briefing", "Advanced", 45);
+        var stage = mission.AddStage("Stage 1", 1);
+        stage.Id = 10;
+
+        var act = () => mission.AddTarget(stage.Id, substageId: 999, "Target 1", "QR-1", 1);
+
+        act.Should().Throw<MissionNodeNotFoundException>();
+    }
+
+    [Fact]
+    public void StructureChange_OnDeactivatedMission_LeavesActivationInactive()
+    {
+        var mission = Mission.Create("Mission One", "Briefing", "Advanced", 45);
+        var stage = mission.AddStage("Stage 1", 1);
+        stage.Id = 10;
+        var substage = mission.AddSubstage(stage.Id, Substage.CreateTreasureHunt("Substage 1", 1));
+        substage.Id = 20;
+        mission.AddTarget(stage.Id, substage.Id, "Target 1", "QR-1", 1);
+        mission.Activate();
+        mission.Deactivate(new DateTimeOffset(2026, 6, 1, 12, 0, 0, TimeSpan.Zero));
+        mission.IsActive.Should().BeFalse();
+
+        // An authoring change on a deactivated mission must not resurrect its activation state.
+        mission.AddStage("Stage 2", 2);
+
+        mission.IsActive.Should().BeFalse();
+        mission.ActivationState.Should().Be(MissionActivation.Inactive);
+    }
 }

@@ -1,3 +1,4 @@
+using umbral_backend.Application.Common.Exceptions;
 using umbral_backend.Application.Common.Interfaces;
 using umbral_backend.Application.Sessions.Common;
 using umbral_backend.Application.Sessions.Queries.ListAssignableSessions;
@@ -64,6 +65,32 @@ public sealed class ListAssignableSessionsQueryHandlerTests
 
         result.Should().BeEquivalentTo(expected);
         repository.Verify(repo => repo.ListAssignableSummariesAsync(27, true, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task Handle_WhenCurrentUserIdIsMissing_ThrowsUnauthorized()
+    {
+        var repository = new Mock<ILiveSessionRepository>();
+        var currentUser = CreateCurrentUser(id: null, role: "Operator");
+        var actorClient = new Mock<IAuthenticatedActorProfileAccessClient>();
+        var handler = new ListAssignableSessionsQueryHandler(repository.Object, currentUser.Object, actorClient.Object);
+
+        var act = async () => await handler.Handle(new ListAssignableSessionsQuery(), CancellationToken.None);
+
+        await act.Should().ThrowAsync<UnauthorizedAccessException>();
+    }
+
+    [Fact]
+    public async Task Handle_WhenRoleIsNeitherAdministratorNorOperator_ThrowsForbidden()
+    {
+        var repository = new Mock<ILiveSessionRepository>();
+        var currentUser = CreateCurrentUser("kc-participant-01", "Participant");
+        var actorClient = CreateActorClient(5, "kc-participant-01", "Participant");
+        var handler = new ListAssignableSessionsQueryHandler(repository.Object, currentUser.Object, actorClient.Object);
+
+        var act = async () => await handler.Handle(new ListAssignableSessionsQuery(), CancellationToken.None);
+
+        await act.Should().ThrowAsync<ForbiddenAccessException>();
     }
 
     private static Mock<ICurrentUser> CreateCurrentUser(string? id, string? role)

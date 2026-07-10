@@ -108,4 +108,15 @@ public sealed class SessionParticipantTests
 
         act.Should().Throw<ParticipantRemovedFromSessionException>();
     }
+
+    [Fact]
+    public void MarkActive_WhenRemoved_ThrowsException()
+    {
+        var participant = SessionParticipant.Join(Guid.NewGuid(), Guid.NewGuid(), "Nora", DateTimeOffset.UtcNow);
+        participant.Remove(DateTimeOffset.UtcNow.AddMinutes(1));
+
+        var act = () => participant.MarkActive(DateTimeOffset.UtcNow.AddMinutes(2));
+
+        act.Should().Throw<ParticipantRemovedFromSessionException>();
+    }
 }

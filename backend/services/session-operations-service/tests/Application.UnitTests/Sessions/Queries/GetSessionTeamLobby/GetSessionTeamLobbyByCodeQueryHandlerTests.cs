@@ -111,6 +111,29 @@ public sealed class GetSessionTeamLobbyByCodeQueryHandlerTests
         await act.Should().ThrowAsync<NotFoundException>();
     }
 
+    [Fact]
+    public async Task Handle_WhenCurrentUserIdIsNotAGuid_ThrowsUnauthorizedException()
+    {
+        var session = CreateSession(out _, out _);
+        var repository = CreateRepository(session, session.SessionCode);
+        var eligibleTeams = new Mock<IParticipantEligibleTeamsClient>();
+        eligibleTeams
+            .Setup(client => client.GetAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Eligible());
+        var currentUser = new Mock<ICurrentUser>();
+        currentUser.SetupGet(user => user.Id).Returns("not-a-guid");
+        var handler = new GetSessionTeamLobbyByCodeQueryHandler(
+            repository.Object,
+            eligibleTeams.Object,
+            currentUser.Object,
+            new OpenTeamSelectionPolicy());
+
+        var act = async () => await Handle(handler, session.SessionCode);
+
+        await act.Should().ThrowAsync<UnauthorizedAccessException>();
+        eligibleTeams.Verify(client => client.GetAsync(It.IsAny<CancellationToken>()), Times.Never);
+    }
+
     private static Task<SessionTeamLobbyDto> Handle(GetSessionTeamLobbyByCodeQueryHandler handler, string sessionCode)
     {
         return handler.Handle(new GetSessionTeamLobbyByCodeQuery(sessionCode), CancellationToken.None);

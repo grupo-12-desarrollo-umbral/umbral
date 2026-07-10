@@ -395,6 +395,19 @@ public sealed class LiveSessionTests
         snapshot.IsAdvancing.Should().BeFalse();
     }
 
+    [Fact]
+    public void GetAuthoritativeSessionTimerSnapshot_WhenSessionHasNoActiveSubstage_HasNoAdvancingCountdown()
+    {
+        var session = LiveSessionFactory.CreateScheduledTrivia(maximumTimeMinutes: 10);
+        var observedAt = new DateTimeOffset(2026, 6, 3, 10, 3, 0, TimeSpan.Zero);
+
+        var snapshot = session.GetAuthoritativeSessionTimerSnapshot(observedAt);
+
+        snapshot.TotalDuration.Should().Be(TimeSpan.Zero);
+        snapshot.RemainingDuration.Should().Be(TimeSpan.Zero);
+        snapshot.IsAdvancing.Should().BeFalse();
+    }
+
     // Pause freezes the active-substage timer; Active resumes the SAME question at the frozen remainder.
     [Fact]
     public void GetAuthoritativeSessionTimerSnapshot_WhenPausedThenResumed_FreezesAndResumesSameQuestion()
@@ -421,6 +434,40 @@ public sealed class LiveSessionTests
         resumed.RemainingDuration.Should().Be(TimeSpan.FromSeconds(15));
         resumed.IsAdvancing.Should().BeTrue();
         resumed.AdvancingSince.Should().Be(resumedAt);
+    }
+
+    [Fact]
+    public void GetAuthoritativeSessionTimerSnapshot_WhenObservedBeforeActivation_ReturnsFullQuestionWindow()
+    {
+        var session = ActivateTriviaSession();
+        var activatedAt = new DateTimeOffset(2026, 6, 3, 10, 1, 0, TimeSpan.Zero);
+        session.ActivateQuestion(0, activatedAt);
+
+        var snapshot = session.GetAuthoritativeSessionTimerSnapshot(activatedAt.AddSeconds(-1));
+
+        snapshot.RemainingDuration.Should().Be(TimeSpan.FromSeconds(30));
+        snapshot.IsAdvancing.Should().BeTrue();
+    }
+
+    [Fact]
+    public void MoveTo_ResumingExpiredQuestionTimer_KeepsOriginalExpiry()
+    {
+        var session = ActivateTriviaSession();
+        var activatedAt = new DateTimeOffset(2026, 6, 3, 10, 1, 0, TimeSpan.Zero);
+        var expiredAt = activatedAt.AddSeconds(30);
+        var pausedAt = expiredAt.AddSeconds(5);
+        var resumedAt = pausedAt.AddSeconds(5);
+        session.ActivateQuestion(0, activatedAt);
+        session.MarkQuestionTimerExpiredIfElapsed(expiredAt);
+
+        session.MoveTo(SessionState.Paused, pausedAt, new SessionStateTransitionPolicy());
+        session.MoveTo(SessionState.Active, resumedAt, new SessionStateTransitionPolicy());
+
+        var snapshot = session.GetAuthoritativeSessionTimerSnapshot(resumedAt);
+        snapshot.RemainingDuration.Should().Be(TimeSpan.Zero);
+        snapshot.IsExpired.Should().BeTrue();
+        snapshot.ExpiredAt.Should().Be(expiredAt);
+        snapshot.IsAdvancing.Should().BeFalse();
     }
 
     // AC #2 / OD-3: no whole-session `_sessionTimer*` countdown and no session-level `SessionMode` remain.
@@ -642,6 +689,22 @@ public sealed class LiveSessionTests
     }
 
     [Fact]
+    public void SequentialQuestionActivationStrategy_WhenSecondTriviaSubstageIsActive_CountsOnlyThatSubstage()
+    {
+        var session = LiveSessionFactory.CreateScheduledMultiSubstageTrivia();
+        Activate(session);
+        var advancedAt = new DateTimeOffset(2026, 6, 3, 10, 2, 0, TimeSpan.Zero);
+        session.ActivateQuestion(0, advancedAt);
+        session.CloseActiveQuestion(advancedAt.AddSeconds(30));
+        session.CompleteActiveSubstageAndAdvance(advancedAt.AddSeconds(30), new SessionStateTransitionPolicy());
+        var strategy = new SequentialQuestionActivationStrategy();
+
+        var next = strategy.Next(session);
+
+        next.Should().Be(0);
+    }
+
+    [Fact]
     public void MoveTo_EnteringActive_SetsActiveSubstageToFirstSubstageInStrictOrder()
     {
         var session = LiveSessionFactory.CreateScheduledMultiSubstageTrivia();
@@ -767,6 +830,17 @@ public sealed class LiveSessionTests
     }
 
     [Fact]
+    public void CompleteActiveSubstageAndAdvance_WhenActivePointerIsMissing_ThrowsNoActiveSubstage()
+    {
+        var session = ActivateTriviaSession();
+        SetPrivateProperty(session, nameof(LiveSession.ActiveSubstageId), null);
+
+        var act = () => session.CompleteActiveSubstageAndAdvance(DateTimeOffset.UtcNow, new SessionStateTransitionPolicy());
+
+        act.Should().Throw<NoActiveSubstageException>();
+    }
+
+    [Fact]
     public void SequentialQuestionActivationStrategy_WhenQuestionIsActive_ReturnsNextBySequence()
     {
         var session = ActivateTriviaSessionWithThreeQuestions();
@@ -784,6 +858,18 @@ public sealed class LiveSessionTests
         var session = ActivateTriviaSessionWithThreeQuestions();
         var strategy = new SequentialQuestionActivationStrategy();
         session.ActivateQuestion(2, DateTimeOffset.UtcNow);
+
+        var next = strategy.Next(session);
+
+        next.Should().BeNull();
+    }
+
+    [Fact]
+    public void SequentialQuestionActivationStrategy_WhenPersistedQuestionIndexIsNegative_ReturnsNull()
+    {
+        var session = ActivateTriviaSessionWithThreeQuestions();
+        SetPrivateProperty(session, nameof(LiveSession.ActiveQuestionIndex), -1);
+        var strategy = new SequentialQuestionActivationStrategy();
 
         var next = strategy.Next(session);
 
@@ -863,6 +949,47 @@ public sealed class LiveSessionTests
         registered.IsCorrect.Should().BeTrue();
         registered.ScoreValue.Should().Be(100);
         registered.SubmittedAt.Should().Be(submittedAt);
+    }
+
+    [Fact]
+    public void RegisterTriviaAnswer_WhenTeamIsAddressedByReferenceId_AcceptsForRuntimeTeam()
+    {
+        var session = ActivateTriviaSession();
+        var team = session.Teams.First();
+        var referenceTeamId = team.ReferenceTeamId!.Value;
+        var activatedAt = new DateTimeOffset(2026, 6, 3, 10, 1, 0, TimeSpan.Zero);
+        session.ActivateQuestion(0, activatedAt);
+
+        var submission = session.RegisterTriviaAnswer(
+            referenceTeamId,
+            selectedOptionSequenceOrder: 1,
+            Guid.NewGuid(),
+            activatedAt.AddSeconds(5));
+
+        submission.TeamId.Should().Be(team.TeamId);
+    }
+
+    [Fact]
+    public void RegisterTriviaAnswer_WhenDifferentTeamAlreadyAnswered_AllowsFirstAnswerForSecondTeam()
+    {
+        var session = LiveSessionFactory.CreateScheduledTrivia();
+        var firstTeam = session.AssociateTeam(Guid.NewGuid(), "Alpha", "A-01", 4);
+        var secondTeam = session.AssociateTeam(Guid.NewGuid(), "Bravo", "B-01", 4);
+        var policy = new SessionStateTransitionPolicy();
+        var activeAt = new DateTimeOffset(2026, 6, 3, 10, 1, 0, TimeSpan.Zero);
+        session.MoveTo(SessionState.Preparing, activeAt.AddMinutes(-1), policy);
+        session.MoveTo(SessionState.Active, activeAt, policy);
+        session.ActivateQuestion(0, activeAt);
+        session.RegisterTriviaAnswer(firstTeam.TeamId, selectedOptionSequenceOrder: 1, Guid.NewGuid(), activeAt.AddSeconds(3));
+
+        var submission = session.RegisterTriviaAnswer(
+            secondTeam.TeamId,
+            selectedOptionSequenceOrder: 1,
+            Guid.NewGuid(),
+            activeAt.AddSeconds(5));
+
+        submission.TeamId.Should().Be(secondTeam.TeamId);
+        session.TriviaAnswerSubmissions.Should().HaveCount(2);
     }
 
     [Fact]
@@ -951,6 +1078,22 @@ public sealed class LiveSessionTests
         session.CompleteActiveSubstageAndAdvance(advancedAt.AddSeconds(30), new SessionStateTransitionPolicy());
 
         var act = () => session.RegisterTriviaAnswer(team.TeamId, selectedOptionSequenceOrder: 1, Guid.NewGuid(), advancedAt.AddSeconds(31));
+
+        act.Should().Throw<TriviaAnswerRequiresTriviaSubstageException>();
+    }
+
+    [Fact]
+    public void RegisterTriviaAnswer_WhenActivePointerIsMissing_RejectsWithSubstageReason()
+    {
+        var session = ActivateTriviaSession();
+        var team = session.Teams.First();
+        SetPrivateProperty(session, nameof(LiveSession.ActiveSubstageId), null);
+
+        var act = () => session.RegisterTriviaAnswer(
+            team.TeamId,
+            selectedOptionSequenceOrder: 1,
+            Guid.NewGuid(),
+            new DateTimeOffset(2026, 6, 3, 10, 1, 0, TimeSpan.Zero));
 
         act.Should().Throw<TriviaAnswerRequiresTriviaSubstageException>();
     }
@@ -1059,5 +1202,12 @@ public sealed class LiveSessionTests
         session.AssociateTeam(Guid.NewGuid(), "Alpha", "A-01", 4);
         session.MoveTo(SessionState.Preparing, preparingAt, policy);
         session.MoveTo(SessionState.Active, activeAt, policy);
+    }
+
+    private static void SetPrivateProperty(LiveSession session, string propertyName, object? value)
+    {
+        typeof(LiveSession)
+            .GetProperty(propertyName, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)!
+            .SetValue(session, value);
     }
 }

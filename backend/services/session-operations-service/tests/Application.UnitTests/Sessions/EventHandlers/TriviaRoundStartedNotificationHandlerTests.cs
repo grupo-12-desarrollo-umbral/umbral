@@ -116,6 +116,80 @@ public sealed class TriviaRoundStartedNotificationHandlerTests
             Times.Never);
     }
 
+    [Fact]
+    public async Task Handle_WhenQuestionAlreadyActive_DoesNotBroadcastOrActivate()
+    {
+        // Active trivia session that already has an active question → the `ActiveQuestionIndex is not null`
+        // arm of the guard short-circuits, so the handler neither broadcasts a countdown nor re-activates.
+        var session = CreateTriviaSession();
+        session.ActivateQuestion(0, Now);
+        var repository = new Mock<ILiveSessionRepository>();
+        repository
+            .Setup(repo => repo.GetByIdAsync(session.LiveSessionId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(session);
+        var timerBroadcaster = new Mock<ISessionTimerBroadcaster>();
+        var facade = new Mock<ITriviaRoundOrchestratorFacade>();
+        var handler = new TriviaRoundStartedNotificationHandler(
+            repository.Object,
+            timerBroadcaster.Object,
+            facade.Object,
+            new ImmediateDelayTimeProvider(Now));
+
+        await handler.Handle(
+            new SessionStateChangedEvent(session.LiveSessionId, SessionState.Preparing, SessionState.Active, Now),
+            CancellationToken.None);
+
+        timerBroadcaster.Verify(
+            broadcaster => broadcaster.BroadcastTimerUpdatedAsync(
+                It.IsAny<SessionTimerUpdatedNotificationDto>(),
+                It.IsAny<CancellationToken>()),
+            Times.Never);
+        facade.Verify(
+            current => current.ActivateNextQuestionAsync(
+                It.IsAny<LiveSession>(),
+                It.IsAny<DateTimeOffset>(),
+                It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Fact]
+    public async Task Handle_WhenSecondTriviaSubstageIsActive_BroadcastsCountdownThenActivatesNextQuestion()
+    {
+        var session = LiveSessionTestFactory.CreateScheduledMultiSubstageTrivia();
+        var policy = new SessionStateTransitionPolicy();
+        session.AssociateTeam(Guid.NewGuid(), "Alpha", "A-01", 4);
+        session.MoveTo(SessionState.Preparing, Now.AddMinutes(-3), policy);
+        session.MoveTo(SessionState.Active, Now.AddMinutes(-2), policy);
+        session.ActivateQuestion(0, Now.AddMinutes(-2));
+        session.CloseActiveQuestion(Now.AddMinutes(-1));
+        session.CompleteActiveSubstageAndAdvance(Now.AddMinutes(-1), policy);
+        session.ActiveQuestionIndex.Should().BeNull();
+        var repository = new Mock<ILiveSessionRepository>();
+        repository
+            .Setup(repo => repo.GetByIdAsync(session.LiveSessionId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(session);
+        var timerBroadcaster = new Mock<ISessionTimerBroadcaster>();
+        var facade = new Mock<ITriviaRoundOrchestratorFacade>();
+        var handler = new TriviaRoundStartedNotificationHandler(
+            repository.Object,
+            timerBroadcaster.Object,
+            facade.Object,
+            new ImmediateDelayTimeProvider(Now));
+
+        await handler.Handle(
+            new SessionStateChangedEvent(session.LiveSessionId, SessionState.Preparing, SessionState.Active, Now),
+            CancellationToken.None);
+
+        timerBroadcaster.Verify(
+            broadcaster => broadcaster.BroadcastTimerUpdatedAsync(
+                It.IsAny<SessionTimerUpdatedNotificationDto>(),
+                It.IsAny<CancellationToken>()),
+            Times.Exactly(5));
+        facade.Verify(
+            current => current.ActivateNextQuestionAsync(session, Now, It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
     private static LiveSession CreateTriviaSession()
     {
         var session = LiveSessionTestFactory.CreateScheduledTrivia(
