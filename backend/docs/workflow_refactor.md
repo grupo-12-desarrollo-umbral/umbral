@@ -164,9 +164,20 @@ Phases 5–6 may run in parallel once DES-24 lands.
 > used to block — `DES-33/34/35/48/57/61` — were re-pointed onto `DES-54`.
 > ⚠️ Both remain **Canceled, not archived**; archiving is a manual Linear-UI step.
 >
-> **Startable right now, with zero live blockers — eight tickets:** `DES-46`
+> ### ⚠️ New — DES-86 gates the QR chain (created 2026-07-09)
+>
+> `DES-86` migrates treasure-hunt scoring from **winner-takes-all** (`Substage.WinnerScore`)
+> to **per-target `ScoreValue`**. The canon docs were corrected on 2026-07-09; the code was
+> not. `WinnerScore` still appears **94× across 42 files** in `mission-design-service` +
+> `session-operations-service`. It **blocks `DES-42`** (HU-31), the first ticket to touch that
+> code: HU-31's generated spec will be per-target while the code underneath is winner-takes-all.
+> `DES-86` is itself **ungated** — pull it forward any time before row 12.
+> Two contract decisions must be settled inside it, not during HU-31 — see the DES-86 section below.
+
+> **Startable right now, with zero live blockers — nine tickets:** `DES-46`
 > (critical-path head), `DES-31`, `DES-32`, `DES-53`, `DES-29`, `DES-13`, `DES-80`,
-> and `DES-81` (mobile spike). `DES-49` opens as soon as `DES-46` lands.
+> `DES-86` (gates `DES-42`), and `DES-81` (mobile spike). `DES-49` opens as soon as
+> `DES-46` lands.
 >
 > ℹ️ **`ready-for-agent` on `Done` tickets is cosmetic — do not strip it.** A full sweep
 > (2026-07-09) found **19 of 26** `Done` tickets carry it, not the five an earlier note
@@ -192,7 +203,8 @@ Phases 5–6 may run in parallel once DES-24 lands.
 | 9 | **DES-46** | HU-34 | Register first valid team answer + reject late/repeated (one first-write-wins guard) | ⬜ **← CRITICAL PATH, START HERE.** Zero live blockers. Merged ticket: absorbed DES-47 (HU-34B) on 2026-07-09; **DES-47 is Canceled (not archived) — do not cite it.** ⚠️ Its body defers common intake/validation to HU-29/HU-30A (row 12), which carry **no blocker edge** to it — decide before generating whether to inline the intake or wait. |
 | 10 | DES-49 | HU-36A | Operator sees only answered/not-answered during the open question | ⬜ Blocked only by DES-46. Owns the respondido/no-respondido **visibility-state gate** (assigned here rather than merging DES-49/50). |
 | 11 | **DES-31** | HU-23 | Live team board (score, timer, available clues) | ⬜ **STARTABLE** — cycle broken 2026-07-09, only blocker `DES-77` is Done. Gates rows 12–13 and much of 17–18; running it early releases the most work. |
-| 12 | DES-42 → DES-41 ; DES-39 → DES-40 ; then DES-43 | HU-31 / 30B / 29 / 30A / 32 | QR `Target` resolution → explained rejection ; evidence umbrella intake → context validation ; then traceability | ⬜ Opens with DES-31. **Two independent chains, not one.** DES-42→DES-41 and DES-39→DES-40 are parallel; DES-43 needs **all three** of DES-42/41/40. The old `39/40/41/42/43` reading was backwards — DES-41 is blocked by DES-42. Re-pointing DES-41 → DES-40 is a **design call** gated on ADR-0010 (*in revisión*). |
+| 11b | **DES-86** | — (refactor) | Per-target `ScoreValue` replaces `Substage.WinnerScore` (winner-takes-all → cumulative per-objective scoring) | ⬜ **UNGATED — run before row 12.** Not an HU: a two-service refactor (`mission-design` + `session-operations`), so the per-ticket loop's one-service assumption does not hold. **Blocks DES-42.** Canon docs already corrected (2026-07-09); code is not. Settle the two contract decisions here — see the DES-86 section below. |
+| 12 | DES-42 → DES-41 ; DES-39 → DES-40 ; then DES-43 | HU-31 / 30B / 29 / 30A / 32 | QR `Target` resolution → explained rejection ; evidence umbrella intake → context validation ; then traceability | ⬜ Opens with DES-31. ⚠️ **DES-42 also needs DES-86 (row 11b)** — without it the driver hits winner-takes-all code while building to a per-target spec. **Two independent chains, not one.** DES-42→DES-41 and DES-39→DES-40 are parallel; DES-43 needs **all three** of DES-42/41/40. The old `39/40/41/42/43` reading was backwards — DES-41 is blocked by DES-42. Re-pointing DES-41 → DES-40 is a **design call** gated on ADR-0010 (*in revisión*). |
 | 13 | DES-36 → DES-37 / DES-38 | HU-26–28 | Operator clue release | ⬜ Opens with DES-31. **Resolve the open decisions first** (see below). DES-37 is blocked by DES-36; DES-38 is blocked by DES-31 only, so it can run beside DES-36. |
 | 14 | DES-53 → DES-51 | HU-38 / 37 | Justified penalties → `ScoreEntry` ledger | DES-53 is **startable now** (zero live blockers) and gates DES-51. DES-51 also needs DES-42 (row 12) + DES-46 (row 9). `HU-37A` → **`HU-37`**; DES-52 (HU-37B) folded into DES-54 and Canceled. |
 | 15 | DES-54 | HU-39 | Single session `Ranking` derived from the ledger, `ResolutionTime` tie-break, refresh + real-time view | Blocked by DES-51 (+ DES-45, Done). **Fold applied 2026-07-09**: absorbed DES-52 and DES-55. `HU-39A` → **`HU-39`**. Now the sole gate for DES-33/34/35/48/57/61. |
@@ -203,7 +215,8 @@ Phases 5–6 may run in parallel once DES-24 lands.
 | M | DES-81 → DES-82 → DES-83 / DES-84 | HU-M1–M3 / EN-M1 | Mobile trivia: contract spike → active-question display → question-closed state / answer submission | ⬜ **DES-81 is ungated and startable now.** Separate mobile track. DES-84's body names DES-46 as a backend dependency, but the graph carries only a `relatedTo` edge — treat DES-46 as a real precondition regardless. |
 
 **Ungated pickups, runnable any time:** `DES-80` (row 2c), `DES-29` (session
-state-change audit — also unblocks DES-56), `DES-32`, `DES-53`, `DES-13`, `DES-81`.
+state-change audit — also unblocks DES-56), `DES-32`, `DES-53`, `DES-13`, `DES-81`,
+and `DES-86` (row 11b — ungated, but **must** land before `DES-42`).
 
 > ✅ **Done 2026-07-09.** `DES-29` was renamed from the orphaned `HU-21B` to plain `HU-21`
 > (there is no `HU-21A` any more — DES-28 was canceled and rebuilt as DES-76), and its
@@ -223,15 +236,19 @@ was a **separate track** from the canon rows above that interleaved with them in
 is closed except **GH #85**, so the remaining sequence is just the canon session-ops
 line with the rename pinned to the end:
 
-**DES-46 → DES-49 → DES-31 → DES-42 → DES-39 → DES-40 → DES-41 → DES-43
+**DES-46 → DES-49 → DES-31 → DES-86 → DES-42 → DES-39 → DES-40 → DES-41 → DES-43
 → DES-36 → DES-37 / DES-38 → DES-53 → DES-51 → DES-54 → DES-50 → DES-48
 → DES-32 → DES-34 → DES-35 → DES-33 → DES-29 → DES-56 → DES-57 → DES-60
 → DES-61 → DES-13 → DES-59 → DES-58 → GH #85**
 
+`DES-86` is placed immediately before `DES-42` because that is its only ordering
+constraint — it has **no blockers of its own** and does not wait on `DES-31`. Pull it
+forward whenever there is a quiet window; it just cannot land after `DES-42` starts.
+
 Mobile track, independent: **DES-81 → DES-82 → DES-83 / DES-84** (DES-84 after DES-46).
 
-(`DES-80`, `DES-29`, `DES-32`, `DES-53`, `DES-13`, `DES-81` are ungated and may be pulled
-forward any time.)
+(`DES-80`, `DES-29`, `DES-32`, `DES-53`, `DES-13`, `DES-81`, `DES-86` are ungated and may be
+pulled forward any time.)
 
 This is a **verified topological order over live `blockedBy` relations** as of
 2026-07-09, not the historical phase grouping. **Re-validated 2026-07-09** against a full
@@ -249,6 +266,10 @@ against earlier versions of this line:
    so scheduling the QR chain first shortens the critical path to the ledger.
 4. **`DES-60` and `DES-61` were absent from every earlier version of this line.**
    `DES-60` needs DES-42/40/56/51; `DES-61` needs DES-34/35/54.
+5. **`DES-86` is new (2026-07-09) and precedes `DES-42`.** It is the only ordering
+   constraint that does not come from a `blockedBy` edge discovered in the graph — it was
+   created *because* the graph could not express it: no ticket referenced the stale
+   winner-takes-all model, so nothing blocked `DES-42` on fixing it.
 
 Also corrected here: `DES-47` is gone (merged into `DES-46`; **Canceled, not archived**),
 `DES-46` is plain `HU-34` not `HU-34A`, `DES-51` is `HU-37` and `DES-54` is `HU-39`, and
@@ -269,8 +290,9 @@ Done, and no longer ordering constraints on anything:
 
 Still to run — grouped by what actually gates them:
 
-- **Ungated today:** `DES-46` (critical path), `DES-49` (after 46), `DES-32`, `DES-53`, `DES-29`, `DES-13`, `DES-80`.
+- **Ungated today:** `DES-46` (critical path), `DES-49` (after 46), `DES-32`, `DES-53`, `DES-29`, `DES-13`, `DES-80`, `DES-86`.
 - **Gated on the cycle break alone:** `DES-31`, then `DES-39/40/42/41/43` and `DES-36/37/38`.
+  ⚠️ `DES-42` additionally waits on `DES-86` (per-target scoring), which is ungated.
 - **Gated on the cycle *and* a design call:** `DES-41`'s blocker re-point (ADR-0010, *in revisión*); `DES-36/37/38`'s clue-model decisions.
 - **Gated on the cycle *and* DES-85:** `DES-51/54`, then `DES-48/50/57`. The 52 + 55 fold into 54 is applied, and the PRD was amended to match (repo copy *and* Linear ticket) on 2026-07-09.
 - **GH #85** — repo-wide rename `identity-access-service` → `users-service`; dead last, quiet window. Has no Linear ticket.
@@ -312,6 +334,56 @@ per-question removal slot (only `AddQuestion` / `UpdateQuestion`). Unlike DES-79
 Run it through the standard per-ticket loop (generate → drive X.1→X.4 → close-out).
 Rationale recorded in `hu14a-context.md` ("Deferred scope — RemoveTriviaQuestion") and the
 `DES-62` PRD note.
+
+## Gating refactor — DES-86 (per-target scoring; run before row 12)
+
+`DES-86` migrates treasure-hunt scoring from **winner-takes-all** to **per-target
+`ScoreValue`**: every `Target` carries its own score (1-100), teams accumulate points for
+each objective they resolve, and the first team to resolve all targets triggers
+**advancement** without zeroing anyone else's points.
+
+Origin: `target-score-handoff.md` (2026-07-09). The canon docs
+(`grilling-session-mission-restructure.md`, `bd_umbral_entity_spec.md`,
+`session-operations-service/CONTEXT.md`) were corrected that day; **the code was not.**
+
+- **Why it gates row 12.** The generator reads canon docs, so `DES-42` (HU-31) will be
+  specced per-target — but `WinnerScore` still appears **94× across 42 files** in
+  `mission-design-service` + `session-operations-service`. The driver would build a
+  per-target spec on top of winner-takes-all code.
+- **Not a field rename.** Two domain invariants encode the old model, and they do *not*
+  get the same treatment:
+  - `TriviaSubstageSnapshotCannotDeclareWinnerScoreException` is **deleted** — its only
+    production throw guards `SubstageSnapshot`'s constructor against a `winnerScore`
+    argument. Remove the field and the exception has no referent.
+  - `TreasureHuntSubstageSnapshotWinnerScoreRequiredException` is **re-homed from the
+    substage to the target**, not inverted. It throws once, at `MissionRuntimeSnapshot.cs:132`
+    inside `EnsureSubstageInvariants`. The contiguous guard at `:135` already walks
+    `targetSnapshots` filtered by `SubstageSnapshotId` — the per-target check belongs there.
+  - Removing `WinnerScore` from `SubstageSnapshot.GetEqualityComponents()` **changes
+    value-object equality**. Expect snapshot-comparison fallout in tests.
+- **Two contract decisions to settle inside DES-86**, not during HU-31 — no ticket or ADR
+  resolves either today:
+  1. **`TargetResolved` must carry the resolved target's `ScoreValue`.** `DES-51` (HU-37)
+     requires every score change to produce a `ScoreEntry` with its origin, so
+     `scoring-monitoring` needs the number. The event does not exist in code yet, so it can
+     be defined correctly from the start. Precedent: `AnswerRegisteredEvent` (HU-34,
+     `f2edb1e`) already carries `isCorrect` + `scoreValue` for exactly this reason.
+  2. **Which bounded context owns `ScoreValue`.** `DES-85` declares it a value object of
+     `ScoringMonitoring` and puts score computation in `session-operations-service` out of
+     scope. The proposed reading — **`MissionDesign` authors the points, `SessionOperations`
+     relays them in the event, `ScoringMonitoring` accumulates them in the ledger**, with no
+     mutable total outside `ScoreEntry` — matches how the trivia side already landed, but
+     **nobody has ratified it**. If it is rejected, DES-86's acceptance criteria change.
+- **⚠️ Two services, one ticket.** The per-ticket loop above assumes a single service per
+  worktree. `DES-86` touches `mission-design-service` and `session-operations-service`
+  together — the migration must land in both or the runtime snapshot projection breaks.
+  Decide the worktree/PR shape before invoking the driver.
+
+**No ticket needed editing.** The eight tickets the handoff lists (`DES-39/40/41/42/51/53/54/85`)
+were re-verified against live Linear: none mentions `WinnerScoreValue`, winner-takes-all, or
+"non-winning teams receive zero". But none **specifies** scoring granularity either — `DES-42`
+never mentions points in any AC — which is precisely why the two decisions above are homeless
+and must be nailed down in `DES-86`.
 
 ## Open decisions blocking row 13 — clue model (resolve before starting it)
 

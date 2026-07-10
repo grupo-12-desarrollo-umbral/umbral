@@ -1,24 +1,27 @@
-# Post-HU-34A Mobile Trivia Breakdown
+# Post-HU-34 Mobile Trivia Breakdown
 
-Concrete mobile HU / enabler sequence for the participant app after `HU-34A` exists in
+Concrete mobile HU / enabler sequence for participant trivia gameplay against
 `session-operations-service`.
 
-Date: 2026-06-04
+Date: 2026-06-04 · Revised 2026-07-09 against live tickets DES-81/82/83/84.
+`HU-34A` was merged into plain `HU-34` (DES-46) on 2026-07-09; it absorbed `HU-34B`.
+The filename keeps the old `hu-34a` spelling because all four tickets cite it as Parent.
 
 ---
 
-## Why this starts after HU-34A
+## What actually gates what
 
-`HU-34A` is the first point where the backend can honestly support participant trivia
-gameplay on mobile:
+`HU-22` (timer) and `HU-33A` (active-question orchestration) have shipped, so the
+**display** half of trivia gameplay is buildable now. `HU-34` (DES-46, first-valid-answer
+acceptance) is still unstarted, and it gates the **submit** half only.
 
-- `HU-22` provides the authoritative timer.
-- `HU-33A` provides active-question orchestration.
-- `HU-34A` provides first-valid-answer acceptance for a team.
+- `HU-22` (DES-77, Done) — authoritative timer.
+- `HU-33A` (DES-78, Done) — active-question orchestration.
+- `HU-33B` (DES-45, Done) — question close + final results.
+- `HU-34` (DES-46, Todo) — first-valid-answer acceptance. **Gates `HU-M2` alone.**
 
-Before that, the mobile app can admit a participant into a live team space, but it does
-not yet have a verified trivia-runtime contract for rendering questions or submitting
-answers.
+The submit-answer shape does not exist yet; `HU-34` authors it. No mobile slice may
+freeze it in advance — `HU-M2` consumes it once it is real.
 
 Today the mobile baseline is:
 
@@ -33,18 +36,20 @@ It does **not** yet display trivia questions, answer options, reveal state, or r
 
 ## Recommended order
 
-1. `EN-M1` — mobile gameplay contract spike
-2. `HU-M1` — active question display + countdown
-3. `HU-M2` — submit first answer from mobile
-4. `HU-M3` — post-submit / question-closed state
-5. `HU-M4` — result reveal + explanation
-6. `HU-M5` — live score / ranking
+This is a branch, not a chain. `HU-M3` does not wait on `HU-M2`.
+
+1. `EN-M1` — mobile gameplay contract spike — *startable now*
+2. `HU-M1` — active question display + countdown — *after `EN-M1`*
+3. `HU-M3` — question-closed participant state — *after `HU-M1`; needs no backend work*
+   `HU-M2` — submit first answer from mobile — *after `HU-M1` **and** `HU-34` (DES-46)*
+4. `HU-M4` — result reveal + explanation — *scoring/reveal era*
+   `HU-M5` — live score / ranking — *scoring/reveal era*
 
 ---
 
 ## EN-M1 — Mobile gameplay contract spike
 
-**Depends on:** `HU-34A`
+**Depends on:** nothing. Display-only scope; the submit contract is deferred to `HU-M2`.
 
 ### Goal
 
@@ -55,11 +60,14 @@ gameplay against verified backend shapes instead of guessed DTOs and event names
 
 - current active question snapshot
 - remaining time
-- whether the caller's team already answered
-- submit-answer invoke / endpoint shape
 - question-closed event shape
-- reveal event shape
-- score / ranking event shape if available
+
+Deferred, not frozen here — no backend shape exists yet:
+
+- whether the caller's team already answered → `HU-34` (DES-46)
+- submit-answer invoke / endpoint shape → `HU-34` (DES-46)
+- reveal event shape → `HU-35` (DES-48)
+- score / ranking event shape → `HU-37` / `HU-39` (DES-51 / DES-54)
 
 ### Mobile deliverables
 
@@ -69,8 +77,8 @@ gameplay against verified backend shapes instead of guessed DTOs and event names
 
 ### Notes
 
-This is the gating enabler for the rest of the mobile gameplay work. Without it, question
-rendering and answer submission would be speculative.
+This is the gating enabler for `HU-M1` and everything downstream. Without it, question
+rendering would be speculative. Answer submission is out of scope by design.
 
 ---
 
@@ -106,7 +114,8 @@ that shows the active trivia question.
 
 ## HU-M2 — Submit first answer from mobile
 
-**Depends on:** `HU-M1`, `HU-34A`
+**Depends on:** `HU-M1`, `HU-34` (DES-46). Consumes the submit contract `HU-34` authors —
+it is not frozen by `EN-M1`.
 
 ### Goal
 
@@ -119,6 +128,7 @@ question.
 - submit action wired to the verified backend contract
 - local pending state while submission is in flight
 - interaction lock after successful submission
+- “answer submitted” waiting state after an accepted submission
 - rejection handling for:
   - late answer
   - duplicate answer
@@ -134,41 +144,42 @@ question.
 
 ---
 
-## HU-M3 — Post-submit / question-closed participant state
+## HU-M3 — Question-closed participant state
 
-**Depends on:** `HU-M2`, close semantics from `HU-33A`
+**Depends on:** `HU-M1`. Close facts from `HU-33B` (DES-45, Done). **Not blocked by
+`HU-M2`** — close-state UI stands on its own.
 
 ### Goal
 
-Keep the participant experience coherent after a submission succeeds and when the question
-window closes.
+Keep the participant experience coherent when the question window closes. Post-submit
+waiting state belongs to `HU-M2`, which owns submission.
 
 ### Mobile scope
 
-- “answer submitted” waiting state after accepted submission
 - “question closed” state when the timer expires or the backend closes the question
 - immediate interaction lock once the question is closed
+- re-fetch the participant-timer snapshot after close to discover the next question
 - clear distinction between:
-  - team already answered
-  - question closed before this team answered
+  - team already answered — only reachable once `HU-M2` ships
+  - question closed before this team answered — the only observable variant until then
   - waiting for reveal / next state
 
 ### Acceptance criteria
 
-- after a successful answer, the participant sees a stable waiting state
 - after close, answer controls are no longer interactive
+- after close, the next active question or a waiting state is rendered from the snapshot
 - reconnecting into a closed question restores the correct closed/waiting state
 
 ### Notes
 
-This is the minimum honest finish for the `HU-34A` era. It completes the playable
-question loop even before reveal and ranking land.
+With `HU-M1` this completes the playable display loop without any new backend work.
+`HU-M2` closes the interaction loop once `HU-34` lands.
 
 ---
 
 ## HU-M4 — Result reveal + explanation
 
-**Depends on:** `HU-35`, likely `HU-33B`
+**Depends on:** `HU-35` (DES-48). Close facts from `HU-33B` (DES-45, Done).
 
 ### Goal
 
@@ -191,7 +202,8 @@ Show participants the outcome of the closed question.
 
 ## HU-M5 — Live score / ranking
 
-**Depends on:** `HU-37A`, `HU-37B`, `HU-39B`
+**Depends on:** `HU-37` (DES-51), `HU-39` (DES-54). `HU-37B` and `HU-39B` were canceled on
+2026-07-09 and folded into `HU-39`; do not cite them.
 
 ### Goal
 
@@ -218,17 +230,22 @@ submission.
 
 ## Smallest playable mobile trivia cut
 
-If the goal is the smallest playable participant experience immediately after `HU-34A`,
-build only:
+Two cuts, split by whether `HU-34` (DES-46) has landed.
+
+**Display cut — buildable today, no backend work:**
 
 1. `EN-M1`
 2. `HU-M1`
-3. `HU-M2`
-4. `HU-M3`
+3. `HU-M3`
 
-That yields the minimal honest loop:
+`login → session code → team lobby → team-space → active question + countdown → question closes → next question`
 
-`login → session code → team lobby → team-space → active question → submit answer → wait for close`
+Participants watch the trivia run without answering. This is the honest ceiling until
+`HU-34` ships.
+
+**Interaction cut — adds `HU-M2` once `HU-34` (DES-46) lands:**
+
+`… → active question → submit answer → wait for close`
 
 Leave reveal and ranking for the next slices once their backend contracts are real.
 

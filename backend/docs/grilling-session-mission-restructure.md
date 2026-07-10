@@ -37,10 +37,9 @@ This document records the domain decisions made during the grilling session for 
 - A team can successfully resolve each target at most once.
 - A team wins a treasure-hunt substage by being first to resolve all targets in that substage.
 - When the treasure-hunt substage winner is decided, all teams advance to the next substage.
-- The `TreasureHuntSubstageWinner` receives a snapshotted `ScoreValue`.
-- Non-winning teams receive zero for that treasure-hunt substage.
-- Treasure-hunt winner score is authored per treasure-hunt substage as `WinnerScoreValue`, integer 1-100.
-- `WinnerScoreValue` is snapshotted into runtime.
+- Each `Target` has a snapshotted `ScoreValue` (integer 1-100).
+- Teams accumulate score for each target they resolve.
+- The first team to resolve all targets becomes `TreasureHuntSubstageWinner` and advances all teams to the next substage, but all teams keep their earned points.
 
 ## Clues
 
@@ -123,7 +122,7 @@ General readiness:
 Treasure-hunt substage readiness:
 
 - Has at least one target.
-- Has `WinnerScoreValue` 1-100.
+- Every target has a `ScoreValue` 1-100.
 - Clues are optional.
 
 Trivia substage readiness:
