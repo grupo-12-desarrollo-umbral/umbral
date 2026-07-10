@@ -10,6 +10,7 @@ public sealed class AddTargetCommandValidator : AbstractValidator<AddTargetComma
         RuleFor(command => command.Name).NotEmpty().MaximumLength(200);
         RuleFor(command => command.QrCode).NotEmpty().MaximumLength(500);
         RuleFor(command => command.SequenceOrder).GreaterThan(0);
+        RuleFor(command => command.Score).GreaterThan(0).When(command => command.Score is not null);
         RuleFor(command => command.WinnerScore).GreaterThan(0).When(command => command.WinnerScore is not null);
     }
 }

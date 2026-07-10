@@ -287,7 +287,7 @@ public sealed class MissionMutationCommandHandlerTests
     // ── UpdateTarget ──────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task UpdateTarget_UpdatesTargetFieldsAndWinnerScore()
+    public async Task UpdateTarget_UpdatesTargetFieldsScoreAndWinnerScore()
     {
         var repository = new InMemoryMissionRepository();
         var mission = Mission.Create("Mission", "Briefing", "Advanced", 45);
@@ -302,12 +302,13 @@ public sealed class MissionMutationCommandHandlerTests
         var handler = new UpdateTargetCommandHandler(repository);
 
         var result = await handler.Handle(
-            new UpdateTargetCommand(mission.Id, stage.Id, substage.Id, target.Id, "Updated Target", "QR-2", 2, false, 50),
+            new UpdateTargetCommand(mission.Id, stage.Id, substage.Id, target.Id, "Updated Target", "QR-2", 2, false, 50, 50),
             CancellationToken.None);
 
         var updatedTarget = result.Stages!.Single().Substages!.Single().Targets!.Single();
         updatedTarget.Name.Should().Be("Updated Target");
         updatedTarget.QrCode.Should().Be("QR-2");
+        updatedTarget.Score.Should().Be(50);
         result.Stages!.Single().Substages!.Single().WinnerScore.Should().Be(50);
     }
 

@@ -33,6 +33,38 @@ internal static class LiveSessionTestFactory
         return session;
     }
 
+    // Same Active/active-question setup as above, but with one participant admitted into the team
+    // (during Preparing, the only window JoinPolicy allows) so the HU-34 handler can resolve the caller
+    // identity to a real session participant. Exposes the participant's external identity id (the claim
+    // the handler reads via ICurrentUser.Id) so a test can wire the current user to a genuine member.
+    internal static LiveSession CreateActiveTriviaWithActiveQuestionAndParticipant(
+        out Guid teamId,
+        out Guid triviaSubstageSnapshotId,
+        out Guid participantExternalIdentityId,
+        string sessionCode = "tri-123")
+    {
+        var session = CreateScheduledTrivia(sessionCode: sessionCode);
+        var policy = new SessionStateTransitionPolicy();
+
+        var team = session.AssociateTeam(Guid.NewGuid(), "Alpha", "A-01", 4);
+        session.MoveTo(SessionState.Preparing, TriviaQuestionActivatedAt.AddMinutes(-1), policy);
+
+        participantExternalIdentityId = Guid.NewGuid();
+        session.AdmitParticipant(
+            participantExternalIdentityId,
+            "Alice",
+            team.TeamId,
+            TriviaQuestionActivatedAt.AddSeconds(-45),
+            new JoinPolicy());
+
+        session.MoveTo(SessionState.Active, TriviaQuestionActivatedAt.AddSeconds(-30), policy);
+        session.ActivateQuestion(0, TriviaQuestionActivatedAt);
+
+        teamId = team.TeamId;
+        triviaSubstageSnapshotId = session.ActiveSubstageId!.Value;
+        return session;
+    }
+
     internal static LiveSession CreateScheduledTreasureHunt(
         string sessionCode = "abc123",
         string title = "Museum Hunt",

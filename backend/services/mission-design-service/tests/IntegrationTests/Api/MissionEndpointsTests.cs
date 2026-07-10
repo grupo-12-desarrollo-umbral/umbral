@@ -296,6 +296,7 @@ public sealed class MissionEndpointsTests : IClassFixture<PostgreSqlFixture>, IA
         missionAfterTarget.Should().NotBeNull();
         var targetId = missionAfterTarget!.Stages.Single().Substages.Single().Targets.Single().Id;
         missionAfterTarget.Stages.Single().Substages.Single().WinnerScore.Should().Be(35);
+        missionAfterTarget.Stages.Single().Substages.Single().Targets.Single().Score.Should().Be(35);
 
         var associateClueResponse = await _client.PostAsJsonAsync(
             $"/api/missions/{missionId}/stages/{stageId}/substages/{substageId}/targets/{targetId}/clue-association",
@@ -403,6 +404,7 @@ public sealed class MissionEndpointsTests : IClassFixture<PostgreSqlFixture>, IA
         updatedTarget.QrCode.Should().Be("QR-UPDATED");
         updatedTarget.SequenceOrder.Should().Be(4);
         updatedTarget.IsActive.Should().BeFalse();
+        updatedTarget.Score.Should().Be(50);
         missionAfterTargetUpdate.Stages.Single().Substages.Single().WinnerScore.Should().Be(50);
 
         var associateClueResponse = await _client.PostAsJsonAsync(
@@ -591,6 +593,7 @@ public sealed class MissionEndpointsTests : IClassFixture<PostgreSqlFixture>, IA
                 name = "Beacon",
                 qrCode = "QR-BEACON",
                 sequenceOrder = 1,
+                score = 40,
                 isActive = true,
                 winnerScore = 40
             });
@@ -640,6 +643,7 @@ public sealed class MissionEndpointsTests : IClassFixture<PostgreSqlFixture>, IA
         treasureSubstage.Targets[0].QrCode.Should().Be("QR-BEACON");
         treasureSubstage.Targets[0].SequenceOrder.Should().Be(1);
         treasureSubstage.Targets[0].IsActive.Should().BeTrue();
+        treasureSubstage.Targets[0].Score.Should().Be(40);
         treasureSubstage.Targets[0].Clue.Should().NotBeNull();
         treasureSubstage.Targets[0].Clue!.Text.Should().Be("Look beneath the arch.");
         treasureSubstage.Targets[0].Clue!.VisibilityPolicy.Should().Be("VisibleWhenSubstageStarts");

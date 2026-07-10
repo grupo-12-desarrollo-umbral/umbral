@@ -42,13 +42,15 @@ public sealed class TriviaAnswerSubmissionTests
     [Fact]
     public void Accept_WithWrongOption_RecordsZeroScoreButStaysAccepted()
     {
+        var participantId = Guid.NewGuid();
+
         var submission = TriviaAnswerSubmission.Accept(
             Guid.NewGuid(),
             Guid.NewGuid(),
             Guid.NewGuid(),
             questionSequenceOrder: 1,
             selectedOptionSequenceOrder: 2,
-            submittedByParticipantId: null,
+            participantId,
             new DateTimeOffset(2026, 6, 3, 10, 1, 5, TimeSpan.Zero),
             isCorrect: false,
             scoreValue: 0);
@@ -56,7 +58,8 @@ public sealed class TriviaAnswerSubmissionTests
         submission.ValidationState.Should().Be(EvidenceValidationState.Accepted);
         submission.IsCorrect.Should().BeFalse();
         submission.ScoreValue.Should().Be(0);
-        submission.SubmittedByParticipantId.Should().BeNull();
+        // A wrong answer is still attributed to its submitter — acceptance never means anonymous.
+        submission.SubmittedByParticipantId.Should().Be(participantId);
     }
 
     [Fact]
@@ -68,7 +71,7 @@ public sealed class TriviaAnswerSubmissionTests
             Guid.NewGuid(),
             1,
             1,
-            null,
+            Guid.NewGuid(),
             DateTimeOffset.UtcNow,
             isCorrect: true,
             scoreValue: 100);

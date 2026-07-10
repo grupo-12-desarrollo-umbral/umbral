@@ -91,7 +91,7 @@ public sealed class TriviaAnswerValidationChainTests
     {
         var session = LiveSessionTestFactory.CreateActiveTriviaWithActiveQuestion(out var teamId, out var substageId);
         // Register a first accepted answer so only the duplicate gate remains to fail.
-        session.RegisterTriviaAnswer(teamId, selectedOptionSequenceOrder: 1, submittedByParticipantId: null,
+        session.RegisterTriviaAnswer(teamId, selectedOptionSequenceOrder: 1, submittedByParticipantId: Guid.NewGuid(),
             LiveSessionTestFactory.TriviaQuestionActivatedAt.AddSeconds(3));
 
         var inTime = LiveSessionTestFactory.TriviaQuestionActivatedAt.AddSeconds(5);

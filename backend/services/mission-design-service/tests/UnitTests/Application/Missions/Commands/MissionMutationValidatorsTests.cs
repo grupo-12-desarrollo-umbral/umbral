@@ -130,6 +130,15 @@ public sealed class MissionMutationValidatorsTests
         result.IsValid.Should().BeTrue();
     }
 
+    [Fact]
+    public void UpdateTarget_ZeroScore_FailsValidation()
+    {
+        var result = new UpdateTargetCommandValidator()
+            .Validate(new UpdateTargetCommand(1, 2, 3, 4, "Name", "QR", 1, true, 0));
+
+        result.Errors.Should().Contain(e => e.PropertyName == nameof(UpdateTargetCommand.Score));
+    }
+
     // ── UpdateTriviaQuizSelection ─────────────────────────────────────────────
 
     [Fact]

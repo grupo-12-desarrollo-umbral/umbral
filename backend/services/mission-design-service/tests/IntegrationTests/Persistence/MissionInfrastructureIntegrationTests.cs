@@ -241,6 +241,7 @@ public sealed class MissionInfrastructureIntegrationTests : IClassFixture<Postgr
         reloadedMission!.Stages.Should().ContainSingle();
         reloadedMission.Stages[0].Substages.Should().HaveCount(2);
         reloadedMission.Stages[0].Substages.ElementAt(0).Targets.Should().ContainSingle();
+        reloadedMission.Stages[0].Substages.ElementAt(0).Targets[0].Score!.Points.Should().Be(40);
         reloadedMission.Stages[0].Substages.ElementAt(0).WinnerScore!.Points.Should().Be(40);
         reloadedMission.Stages[0].Substages.ElementAt(0).Clues.Should().ContainSingle();
         reloadedMission.Stages[0].Substages.ElementAt(0).Targets[0].ClueId.Should().Be(reloadedMission.Stages[0].Substages.ElementAt(0).Clues.Single().Id);

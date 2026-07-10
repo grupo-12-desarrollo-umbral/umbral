@@ -57,21 +57,22 @@ public sealed class Substage : MissionNode
         return new Substage(title, sequenceOrder, SubstagePlayMode.Trivia);
     }
 
-    public Target AddTarget(string name, string qrCode, int sequenceOrder, bool isActive = true)
+    public Target AddTarget(string name, string qrCode, int sequenceOrder, int? score = null, bool isActive = true)
     {
         EnsurePlayMode(SubstagePlayMode.TreasureHunt);
 
-        var target = Target.Create(name, qrCode, sequenceOrder, isActive);
+        var resolvedScore = score ?? WinnerScore?.Points;
+        var target = Target.Create(name, qrCode, sequenceOrder, resolvedScore, isActive);
         _targets.Add(target);
         return target;
     }
 
-    public Target UpdateTarget(int targetId, string name, string qrCode, int sequenceOrder, bool isActive)
+    public Target UpdateTarget(int targetId, string name, string qrCode, int sequenceOrder, bool isActive, int? score = null)
     {
         EnsurePlayMode(SubstagePlayMode.TreasureHunt);
 
         var target = FindTarget(targetId);
-        target.UpdateDetails(name, qrCode, sequenceOrder, isActive);
+        target.UpdateDetails(name, qrCode, sequenceOrder, isActive, score);
         return target;
     }
 
@@ -87,6 +88,11 @@ public sealed class Substage : MissionNode
     {
         EnsurePlayMode(SubstagePlayMode.TreasureHunt);
         WinnerScore = ScoreValue.Create(points);
+
+        foreach (var target in _targets)
+        {
+            target.AdoptScoreIfMissing(points);
+        }
     }
 
     public Clue AddClue(Clue clue)

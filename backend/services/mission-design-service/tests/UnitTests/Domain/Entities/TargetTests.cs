@@ -8,11 +8,12 @@ public class TargetTests
     [Fact]
     public void Create_TrimsAndStoresFields()
     {
-        var target = Target.Create(" Statue ", " QR-1 ", 1);
+        var target = Target.Create(" Statue ", " QR-1 ", 1, 25);
 
         target.Name.Should().Be("Statue");
         target.QrCode.Should().Be("QR-1");
         target.SequenceOrder.Should().Be(1);
+        target.Score!.Points.Should().Be(25);
         target.IsActive.Should().BeTrue();
         target.ClueId.Should().BeNull();
     }
@@ -52,14 +53,25 @@ public class TargetTests
     [Fact]
     public void UpdateDetails_OverwritesFields()
     {
-        var target = Target.Create("Statue", "QR-1", 1);
+        var target = Target.Create("Statue", "QR-1", 1, 25);
 
-        target.UpdateDetails("Fountain", "QR-2", 2, isActive: false);
+        target.UpdateDetails("Fountain", "QR-2", 2, isActive: false, score: 30);
 
         target.Name.Should().Be("Fountain");
         target.QrCode.Should().Be("QR-2");
         target.SequenceOrder.Should().Be(2);
+        target.Score!.Points.Should().Be(30);
         target.IsActive.Should().BeFalse();
+    }
+
+    [Fact]
+    public void UpdateDetails_WithoutScore_PreservesExistingScore()
+    {
+        var target = Target.Create("Statue", "QR-1", 1, 25);
+
+        target.UpdateDetails("Fountain", "QR-2", 2, isActive: false);
+
+        target.Score!.Points.Should().Be(25);
     }
 
     [Fact]

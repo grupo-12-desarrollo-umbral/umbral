@@ -55,7 +55,8 @@ public static class MissionDtoMapper
             target.QrCode,
             target.SequenceOrder,
             target.IsActive,
-            target.ClueId);
+            target.ClueId,
+            target.Score?.Points);
     }
 
     private static MissionClueDto MapClue(Clue clue)

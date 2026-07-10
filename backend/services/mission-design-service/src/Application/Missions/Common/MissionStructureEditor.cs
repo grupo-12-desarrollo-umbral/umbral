@@ -166,6 +166,7 @@ internal static class MissionStructureEditor
             existing.Name,
             existing.QrCode,
             existing.SequenceOrder,
+            existing.Score?.Points,
             existing.IsActive);
         replacement.Id = existing.Id;
         RefreshReadiness(mission);

@@ -27,6 +27,7 @@ public sealed class AddTargetCommandHandler
             request.Name,
             request.QrCode,
             request.SequenceOrder,
+            request.Score ?? request.WinnerScore,
             request.IsActive);
 
         if (request.WinnerScore is not null)

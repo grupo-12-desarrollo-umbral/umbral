@@ -144,6 +144,12 @@ public sealed class MissionConfiguration : IEntityTypeConfiguration<Mission>
 
                     targetBuilder.Property(target => target.ClueId);
 
+                    targetBuilder.OwnsOne(target => target.Score, scoreBuilder =>
+                    {
+                        scoreBuilder.Property(score => score.Points)
+                            .HasColumnName("Score");
+                    });
+
                     targetBuilder.Ignore(target => target.DomainEvents);
 
                     targetBuilder.HasIndex("SubstageId", nameof(Target.SequenceOrder))

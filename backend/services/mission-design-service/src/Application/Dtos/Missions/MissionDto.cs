@@ -31,7 +31,8 @@ public sealed record MissionTargetDto(
     string QrCode,
     int SequenceOrder,
     bool IsActive,
-    int? ClueId);
+    int? ClueId,
+    int? Score);
 
 public sealed record MissionClueDto(
     int Id,

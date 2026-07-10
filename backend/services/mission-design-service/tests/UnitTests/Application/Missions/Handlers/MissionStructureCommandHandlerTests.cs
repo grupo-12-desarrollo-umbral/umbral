@@ -66,19 +66,19 @@ public sealed class MissionStructureCommandHandlerTests
     }
 
     [Fact]
-    public async Task AddTarget_AddsTargetAndWinnerScoreToTreasureHuntSubstage()
+    public async Task AddTarget_AddsTargetScoreAndWinnerScoreToTreasureHuntSubstage()
     {
         var repository = new InMemoryMissionRepository();
         var mission = CreateMissionWithTreasureSubstage(repository, out var stage, out var substage);
         var handler = new AddTargetCommandHandler(repository);
 
         var result = await handler.Handle(
-            new AddTargetCommand(mission.Id, stage.Id, substage.Id, "Target A", "QR-A", 1, WinnerScore: 25),
+            new AddTargetCommand(mission.Id, stage.Id, substage.Id, "Target A", "QR-A", 1, Score: 25, WinnerScore: 25),
             CancellationToken.None);
 
         var resultSubstage = result.Stages!.Single().Substages!.Single();
         resultSubstage.WinnerScore.Should().Be(25);
-        resultSubstage.Targets!.Should().ContainSingle(target => target.Name == "Target A" && target.QrCode == "QR-A");
+        resultSubstage.Targets!.Should().ContainSingle(target => target.Name == "Target A" && target.QrCode == "QR-A" && target.Score == 25);
     }
 
     [Fact]

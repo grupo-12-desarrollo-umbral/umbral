@@ -1,4 +1,5 @@
 using umbral_backend.Domain.Exceptions;
+using umbral_backend.Domain.ValueObjects;
 
 namespace umbral_backend.Domain.Entities;
 
@@ -17,11 +18,12 @@ public sealed class Target : BaseEntity
         QrCode = string.Empty;
     }
 
-    private Target(string name, string qrCode, int sequenceOrder, bool isActive)
+    private Target(string name, string qrCode, int sequenceOrder, ScoreValue? score, bool isActive)
     {
         Name = name;
         QrCode = qrCode;
         SequenceOrder = sequenceOrder;
+        Score = score;
         IsActive = isActive;
     }
 
@@ -31,25 +33,33 @@ public sealed class Target : BaseEntity
 
     public int SequenceOrder { get; private set; }
 
+    public ScoreValue? Score { get; private set; }
+
     public bool IsActive { get; private set; }
 
     public int? ClueId { get; private set; }
 
-    public static Target Create(string name, string qrCode, int sequenceOrder, bool isActive = true)
+    public static Target Create(string name, string qrCode, int sequenceOrder, int? score = null, bool isActive = true)
     {
         return new Target(
             ValidateName(name),
             ValidateQrCode(qrCode),
             ValidateSequenceOrder(sequenceOrder),
+            ValidateScore(score),
             isActive);
     }
 
-    public void UpdateDetails(string name, string qrCode, int sequenceOrder, bool isActive)
+    public void UpdateDetails(string name, string qrCode, int sequenceOrder, bool isActive, int? score = null)
     {
         Name = ValidateName(name);
         QrCode = ValidateQrCode(qrCode);
         SequenceOrder = ValidateSequenceOrder(sequenceOrder);
         IsActive = isActive;
+
+        if (score is not null)
+        {
+            Score = ValidateScore(score);
+        }
     }
 
     internal void AssociateClue(int clueId)
@@ -66,6 +76,11 @@ public sealed class Target : BaseEntity
     internal void ClearClue()
     {
         ClueId = null;
+    }
+
+    internal void AdoptScoreIfMissing(int score)
+    {
+        Score ??= ValidateScore(score);
     }
 
     private static string ValidateName(string name)
@@ -96,5 +111,10 @@ public sealed class Target : BaseEntity
         }
 
         return sequenceOrder;
+    }
+
+    private static ScoreValue? ValidateScore(int? score)
+    {
+        return score is null ? null : ScoreValue.Create(score.Value);
     }
 }

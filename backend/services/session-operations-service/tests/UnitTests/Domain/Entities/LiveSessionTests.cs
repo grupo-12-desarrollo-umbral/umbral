@@ -873,7 +873,7 @@ public sealed class LiveSessionTests
         var activatedAt = new DateTimeOffset(2026, 6, 3, 10, 1, 0, TimeSpan.Zero);
         session.ActivateQuestion(0, activatedAt);
 
-        var submission = session.RegisterTriviaAnswer(team.TeamId, selectedOptionSequenceOrder: 2, submittedByParticipantId: null, activatedAt.AddSeconds(5));
+        var submission = session.RegisterTriviaAnswer(team.TeamId, selectedOptionSequenceOrder: 2, submittedByParticipantId: Guid.NewGuid(), activatedAt.AddSeconds(5));
 
         submission.ValidationState.Should().Be(EvidenceValidationState.Accepted);
         submission.IsCorrect.Should().BeFalse();
@@ -888,9 +888,9 @@ public sealed class LiveSessionTests
         var team = session.Teams.First();
         var activatedAt = new DateTimeOffset(2026, 6, 3, 10, 1, 0, TimeSpan.Zero);
         session.ActivateQuestion(0, activatedAt);
-        session.RegisterTriviaAnswer(team.TeamId, selectedOptionSequenceOrder: 1, null, activatedAt.AddSeconds(3));
+        session.RegisterTriviaAnswer(team.TeamId, selectedOptionSequenceOrder: 1, Guid.NewGuid(), activatedAt.AddSeconds(3));
 
-        var act = () => session.RegisterTriviaAnswer(team.TeamId, selectedOptionSequenceOrder: 2, null, activatedAt.AddSeconds(6));
+        var act = () => session.RegisterTriviaAnswer(team.TeamId, selectedOptionSequenceOrder: 2, Guid.NewGuid(), activatedAt.AddSeconds(6));
 
         act.Should().Throw<DuplicateTriviaAnswerException>();
         session.TriviaAnswerSubmissions.Should().ContainSingle();
@@ -906,7 +906,7 @@ public sealed class LiveSessionTests
         var activatedAt = new DateTimeOffset(2026, 6, 3, 10, 1, 0, TimeSpan.Zero);
         session.ActivateQuestion(0, activatedAt);
 
-        var act = () => session.RegisterTriviaAnswer(team.TeamId, selectedOptionSequenceOrder: 1, null, activatedAt.AddSeconds(31));
+        var act = () => session.RegisterTriviaAnswer(team.TeamId, selectedOptionSequenceOrder: 1, Guid.NewGuid(), activatedAt.AddSeconds(31));
 
         act.Should().Throw<LateTriviaAnswerException>();
         session.TriviaAnswerSubmissions.Should().BeEmpty();
@@ -919,7 +919,7 @@ public sealed class LiveSessionTests
         var session = ActivateTriviaSession();
         var team = session.Teams.First();
 
-        var act = () => session.RegisterTriviaAnswer(team.TeamId, selectedOptionSequenceOrder: 1, null, new DateTimeOffset(2026, 6, 3, 10, 1, 0, TimeSpan.Zero));
+        var act = () => session.RegisterTriviaAnswer(team.TeamId, selectedOptionSequenceOrder: 1, Guid.NewGuid(), new DateTimeOffset(2026, 6, 3, 10, 1, 0, TimeSpan.Zero));
 
         act.Should().Throw<TriviaAnswerRequiresActiveQuestionException>();
         session.DomainEvents.OfType<AnswerRegisteredEvent>().Should().BeEmpty();
@@ -933,7 +933,7 @@ public sealed class LiveSessionTests
         var activatedAt = new DateTimeOffset(2026, 6, 3, 10, 1, 0, TimeSpan.Zero);
         session.ActivateQuestion(0, activatedAt);
 
-        var act = () => session.RegisterTriviaAnswer(team.TeamId, selectedOptionSequenceOrder: 99, null, activatedAt.AddSeconds(5));
+        var act = () => session.RegisterTriviaAnswer(team.TeamId, selectedOptionSequenceOrder: 99, Guid.NewGuid(), activatedAt.AddSeconds(5));
 
         act.Should().Throw<InvalidTriviaAnswerOptionException>();
         session.TriviaAnswerSubmissions.Should().BeEmpty();
@@ -950,7 +950,7 @@ public sealed class LiveSessionTests
         session.CloseActiveQuestion(advancedAt.AddSeconds(30));
         session.CompleteActiveSubstageAndAdvance(advancedAt.AddSeconds(30), new SessionStateTransitionPolicy());
 
-        var act = () => session.RegisterTriviaAnswer(team.TeamId, selectedOptionSequenceOrder: 1, null, advancedAt.AddSeconds(31));
+        var act = () => session.RegisterTriviaAnswer(team.TeamId, selectedOptionSequenceOrder: 1, Guid.NewGuid(), advancedAt.AddSeconds(31));
 
         act.Should().Throw<TriviaAnswerRequiresTriviaSubstageException>();
     }
@@ -964,7 +964,7 @@ public sealed class LiveSessionTests
         session.ActivateQuestion(0, activatedAt);
         session.MoveTo(SessionState.Paused, activatedAt.AddSeconds(5), new SessionStateTransitionPolicy());
 
-        var act = () => session.RegisterTriviaAnswer(team.TeamId, selectedOptionSequenceOrder: 1, null, activatedAt.AddSeconds(6));
+        var act = () => session.RegisterTriviaAnswer(team.TeamId, selectedOptionSequenceOrder: 1, Guid.NewGuid(), activatedAt.AddSeconds(6));
 
         act.Should().Throw<TriviaAnswerRequiresActiveSessionException>();
         session.DomainEvents.OfType<AnswerRegisteredEvent>().Should().BeEmpty();
@@ -979,7 +979,7 @@ public sealed class LiveSessionTests
         session.ActivateQuestion(0, activatedAt);
         session.MoveTo(SessionState.Cancelled, activatedAt.AddSeconds(5), new SessionStateTransitionPolicy());
 
-        var act = () => session.RegisterTriviaAnswer(team.TeamId, selectedOptionSequenceOrder: 1, null, activatedAt.AddSeconds(6));
+        var act = () => session.RegisterTriviaAnswer(team.TeamId, selectedOptionSequenceOrder: 1, Guid.NewGuid(), activatedAt.AddSeconds(6));
 
         act.Should().Throw<TriviaAnswerRequiresActiveSessionException>();
     }
@@ -995,7 +995,7 @@ public sealed class LiveSessionTests
         session.CompleteActiveSubstageAndAdvance(at.AddSeconds(30), new SessionStateTransitionPolicy());
 
         session.State.Should().Be(SessionState.Finished);
-        var act = () => session.RegisterTriviaAnswer(team.TeamId, selectedOptionSequenceOrder: 1, null, at.AddSeconds(31));
+        var act = () => session.RegisterTriviaAnswer(team.TeamId, selectedOptionSequenceOrder: 1, Guid.NewGuid(), at.AddSeconds(31));
 
         act.Should().Throw<TriviaAnswerRequiresActiveSessionException>();
     }

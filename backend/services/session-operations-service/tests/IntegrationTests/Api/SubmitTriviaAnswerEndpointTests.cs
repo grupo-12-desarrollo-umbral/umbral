@@ -43,7 +43,7 @@ public sealed class SubmitTriviaAnswerEndpointTests : IAsyncLifetime
     public async Task SubmitAnswer_FirstInTimeAnswer_ReturnsAcceptanceMetadataWithoutCorrectnessOrPoints()
     {
         var seeded = await SeedTriviaSessionAsync(TriviaAnswerSeedState.ActiveQuestion);
-        AddTrustedHeaders(_client, Guid.NewGuid().ToString(), "Participant", "participant@example.com");
+        AddTrustedHeaders(_client, seeded.ParticipantExternalIdentityId.ToString(), "Participant", "participant@example.com");
 
         var response = await _client.PostAsJsonAsync(BuildAnswersUrl(seeded), CorrectAnswer(seeded));
 
@@ -72,7 +72,7 @@ public sealed class SubmitTriviaAnswerEndpointTests : IAsyncLifetime
     public async Task SubmitAnswer_RepeatAttemptForSameTeamAndQuestion_ReturnsConflictProblemDetails()
     {
         var seeded = await SeedTriviaSessionAsync(TriviaAnswerSeedState.ActiveQuestion);
-        AddTrustedHeaders(_client, Guid.NewGuid().ToString(), "Participant", "participant@example.com");
+        AddTrustedHeaders(_client, seeded.ParticipantExternalIdentityId.ToString(), "Participant", "participant@example.com");
 
         var first = await _client.PostAsJsonAsync(BuildAnswersUrl(seeded), CorrectAnswer(seeded));
         first.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -92,7 +92,7 @@ public sealed class SubmitTriviaAnswerEndpointTests : IAsyncLifetime
     public async Task SubmitAnswer_AfterWindowClosed_ReturnsConflictProblemDetails()
     {
         var seeded = await SeedTriviaSessionAsync(TriviaAnswerSeedState.ExpiredQuestion);
-        AddTrustedHeaders(_client, Guid.NewGuid().ToString(), "Participant", "participant@example.com");
+        AddTrustedHeaders(_client, seeded.ParticipantExternalIdentityId.ToString(), "Participant", "participant@example.com");
 
         var response = await _client.PostAsJsonAsync(BuildAnswersUrl(seeded), CorrectAnswer(seeded));
 
@@ -107,7 +107,7 @@ public sealed class SubmitTriviaAnswerEndpointTests : IAsyncLifetime
     public async Task SubmitAnswer_WhenNoActiveQuestion_ReturnsConflictProblemDetails()
     {
         var seeded = await SeedTriviaSessionAsync(TriviaAnswerSeedState.NoActiveQuestion);
-        AddTrustedHeaders(_client, Guid.NewGuid().ToString(), "Participant", "participant@example.com");
+        AddTrustedHeaders(_client, seeded.ParticipantExternalIdentityId.ToString(), "Participant", "participant@example.com");
 
         var response = await _client.PostAsJsonAsync(BuildAnswersUrl(seeded), CorrectAnswer(seeded));
 
@@ -124,7 +124,7 @@ public sealed class SubmitTriviaAnswerEndpointTests : IAsyncLifetime
     {
         var seeded = await SeedTriviaSessionAsync(TriviaAnswerSeedState.ActiveQuestion);
         _factory.AccessClient.IsAllowed = false;
-        AddTrustedHeaders(_client, Guid.NewGuid().ToString(), "Participant", "participant@example.com");
+        AddTrustedHeaders(_client, seeded.ParticipantExternalIdentityId.ToString(), "Participant", "participant@example.com");
 
         var response = await _client.PostAsJsonAsync(BuildAnswersUrl(seeded), CorrectAnswer(seeded));
 
@@ -172,7 +172,7 @@ public sealed class SubmitTriviaAnswerEndpointTests : IAsyncLifetime
     public async Task SubmitAnswer_WithNonPositiveOptionOrder_ReturnsBadRequest()
     {
         var seeded = await SeedTriviaSessionAsync(TriviaAnswerSeedState.ActiveQuestion);
-        AddTrustedHeaders(_client, Guid.NewGuid().ToString(), "Participant", "participant@example.com");
+        AddTrustedHeaders(_client, seeded.ParticipantExternalIdentityId.ToString(), "Participant", "participant@example.com");
 
         var response = await _client.PostAsJsonAsync(
             BuildAnswersUrl(seeded),
@@ -221,6 +221,17 @@ public sealed class SubmitTriviaAnswerEndpointTests : IAsyncLifetime
 
         var transitionPolicy = new SessionStateTransitionPolicy();
         session.MoveTo(SessionState.Preparing, createdAt.AddMinutes(1), transitionPolicy);
+
+        // HU-34 attribution: an accepted answer must be attributable to a real participant, so admit one
+        // (during Preparing, the only window JoinPolicy allows) and hand the caller its external identity.
+        var participantExternalIdentityId = Guid.NewGuid();
+        session.AdmitParticipant(
+            participantExternalIdentityId,
+            "Red One",
+            team.TeamId,
+            createdAt.AddMinutes(1).AddSeconds(30),
+            new JoinPolicy());
+
         session.MoveTo(SessionState.Active, createdAt.AddMinutes(2), transitionPolicy);
 
         switch (seedState)
@@ -240,7 +251,7 @@ public sealed class SubmitTriviaAnswerEndpointTests : IAsyncLifetime
         dbContext.LiveSessions.Add(session);
         await dbContext.SaveChangesAsync();
 
-        return new SeededSession(session.LiveSessionId, team.TeamId, triviaSubstage.SubstageSnapshotId);
+        return new SeededSession(session.LiveSessionId, team.TeamId, triviaSubstage.SubstageSnapshotId, participantExternalIdentityId);
     }
 
     private static MissionRuntimeSnapshot CreateTreasureHuntSnapshot(Guid sourceMissionId)
@@ -312,7 +323,11 @@ public sealed class SubmitTriviaAnswerEndpointTests : IAsyncLifetime
         NoActiveQuestion
     }
 
-    private sealed record SeededSession(Guid LiveSessionId, Guid TeamId, Guid TriviaSubstageSnapshotId);
+    private sealed record SeededSession(
+        Guid LiveSessionId,
+        Guid TeamId,
+        Guid TriviaSubstageSnapshotId,
+        Guid ParticipantExternalIdentityId);
 
     private sealed record SubmitTriviaAnswerRequest(
         Guid TeamId,

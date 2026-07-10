@@ -12,5 +12,6 @@ public sealed record AddTargetCommand(
     string Name,
     string QrCode,
     int SequenceOrder,
+    int? Score = null,
     bool IsActive = true,
     int? WinnerScore = null) : IRequest<MissionDto>;

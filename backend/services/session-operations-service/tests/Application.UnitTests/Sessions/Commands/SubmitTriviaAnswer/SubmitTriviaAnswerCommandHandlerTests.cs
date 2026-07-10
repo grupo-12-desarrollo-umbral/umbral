@@ -17,11 +17,14 @@ public sealed class SubmitTriviaAnswerCommandHandlerTests
     private const string SessionCode = "tri-123";
 
     [Fact]
-    public async Task Handle_WhenFirstInTimeAnswer_AcceptsPersistsAndRaisesAnswerRegistered()
+    public async Task Handle_WhenFirstInTimeAnswer_AcceptsPersistsAndAttributesToResolvedParticipant()
     {
-        var session = LiveSessionTestFactory.CreateActiveTriviaWithActiveQuestion(out var teamId, out var substageId, SessionCode);
+        var session = LiveSessionTestFactory.CreateActiveTriviaWithActiveQuestionAndParticipant(
+            out var teamId, out var substageId, out var participantExternalIdentityId, SessionCode);
         var repository = CreateRepository(session);
-        var handler = CreateHandler(repository, runtimeAllowed: true, atSecondsAfterActivation: 5);
+        var handler = CreateHandler(
+            repository, runtimeAllowed: true, atSecondsAfterActivation: 5,
+            currentUserId: participantExternalIdentityId.ToString(), currentUserIdProvided: true);
 
         var result = await handler.Handle(
             new SubmitTriviaAnswerCommand(session.LiveSessionId, teamId, substageId, QuestionSequenceOrder: 1, SelectedOptionSequenceOrder: 1),
@@ -32,6 +35,11 @@ public sealed class SubmitTriviaAnswerCommandHandlerTests
         result.TriviaSubstageSnapshotId.Should().Be(substageId);
         result.QuestionSequenceOrder.Should().Be(1);
         session.TriviaAnswerSubmissions.Should().ContainSingle();
+        // The resolved caller identity reaches the submission as a non-null attribution.
+        var expectedParticipantId = session.Participants
+            .Single(participant => participant.ExternalIdentityId == participantExternalIdentityId)
+            .SessionParticipantId;
+        session.TriviaAnswerSubmissions.Single().SubmittedByParticipantId.Should().Be(expectedParticipantId);
         session.DomainEvents.OfType<AnswerRegisteredEvent>().Should().ContainSingle();
         repository.Verify(repo => repo.UpdateAsync(session, It.IsAny<CancellationToken>()), Times.Once);
     }
@@ -52,7 +60,7 @@ public sealed class SubmitTriviaAnswerCommandHandlerTests
     public async Task Handle_WhenTeamAlreadyAnswered_RejectsDuplicateAndDoesNotPersistAgain()
     {
         var session = LiveSessionTestFactory.CreateActiveTriviaWithActiveQuestion(out var teamId, out var substageId, SessionCode);
-        session.RegisterTriviaAnswer(teamId, selectedOptionSequenceOrder: 1, submittedByParticipantId: null,
+        session.RegisterTriviaAnswer(teamId, selectedOptionSequenceOrder: 1, submittedByParticipantId: Guid.NewGuid(),
             LiveSessionTestFactory.TriviaQuestionActivatedAt.AddSeconds(3));
         var repository = CreateRepository(session);
         var handler = CreateHandler(repository, runtimeAllowed: true, atSecondsAfterActivation: 6);
@@ -114,6 +122,52 @@ public sealed class SubmitTriviaAnswerCommandHandlerTests
         repository.Verify(repo => repo.UpdateAsync(It.IsAny<LiveSession>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
+    // Attribution gap (HU-34): the chain authorizes by (session, team, token), never by caller identity,
+    // so an authenticated caller who is NOT a participant of this session passes every link. The handler
+    // must reject before any write instead of persisting an answer attributable to nobody.
+    [Fact]
+    public async Task Handle_WhenAuthenticatedCallerIsNotSessionParticipant_RejectsAndDoesNotPersist()
+    {
+        var session = LiveSessionTestFactory.CreateActiveTriviaWithActiveQuestion(out var teamId, out var substageId, SessionCode);
+        var repository = CreateRepository(session);
+        // A valid, parseable identity that is simply not a member of this session's participants.
+        var handler = CreateHandler(
+            repository, runtimeAllowed: true, atSecondsAfterActivation: 5,
+            currentUserId: Guid.NewGuid().ToString(), currentUserIdProvided: true);
+
+        var act = async () => await handler.Handle(
+            new SubmitTriviaAnswerCommand(session.LiveSessionId, teamId, substageId, QuestionSequenceOrder: 1, SelectedOptionSequenceOrder: 1),
+            CancellationToken.None);
+
+        await act.Should().ThrowAsync<AnswerSubmitterIsNotSessionParticipantException>();
+        session.TriviaAnswerSubmissions.Should().BeEmpty();
+        session.DomainEvents.OfType<AnswerRegisteredEvent>().Should().BeEmpty();
+        repository.Verify(repo => repo.UpdateAsync(It.IsAny<LiveSession>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    // The same guard closes the absent/unparseable identity claim: no usable identity cannot resolve to
+    // a participant, so the answer is rejected rather than silently attributed to NULL.
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("not-a-guid")]
+    public async Task Handle_WhenCurrentUserIdIsAbsentOrUnparseable_RejectsAndDoesNotPersist(string? currentUserId)
+    {
+        var session = LiveSessionTestFactory.CreateActiveTriviaWithActiveQuestion(out var teamId, out var substageId, SessionCode);
+        var repository = CreateRepository(session);
+        var handler = CreateHandler(
+            repository, runtimeAllowed: true, atSecondsAfterActivation: 5,
+            currentUserId: currentUserId, currentUserIdProvided: true);
+
+        var act = async () => await handler.Handle(
+            new SubmitTriviaAnswerCommand(session.LiveSessionId, teamId, substageId, QuestionSequenceOrder: 1, SelectedOptionSequenceOrder: 1),
+            CancellationToken.None);
+
+        await act.Should().ThrowAsync<AnswerSubmitterIsNotSessionParticipantException>();
+        session.TriviaAnswerSubmissions.Should().BeEmpty();
+        repository.Verify(repo => repo.UpdateAsync(It.IsAny<LiveSession>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
     [Fact]
     public async Task Handle_WhenSessionNotFound_ThrowsNotFound()
     {
@@ -133,7 +187,9 @@ public sealed class SubmitTriviaAnswerCommandHandlerTests
     private static SubmitTriviaAnswerCommandHandler CreateHandler(
         Mock<ILiveSessionRepository> repository,
         bool runtimeAllowed,
-        int atSecondsAfterActivation)
+        int atSecondsAfterActivation,
+        string? currentUserId = null,
+        bool currentUserIdProvided = false)
     {
         var guard = new Mock<IRuntimeParticipationGuard>();
         var setup = guard.Setup(g => g.EnsureAllowedAsync(
@@ -156,7 +212,8 @@ public sealed class SubmitTriviaAnswerCommandHandlerTests
         });
 
         var currentUser = new Mock<ICurrentUser>();
-        currentUser.SetupGet(user => user.Id).Returns(Guid.NewGuid().ToString());
+        currentUser.SetupGet(user => user.Id)
+            .Returns(currentUserIdProvided ? currentUserId : Guid.NewGuid().ToString());
 
         var timeProvider = new FixedTimeProvider(
             LiveSessionTestFactory.TriviaQuestionActivatedAt.AddSeconds(atSecondsAfterActivation));

@@ -1,6 +1,8 @@
 <Project>
   <PropertyGroup>
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+    <!-- Lets the Microsoft.OpenApi pin below reach a package we never reference directly. -->
+    <CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
   </PropertyGroup>
   <ItemGroup>
     <PackageVersion Include="Ardalis.GuardClauses" Version="5.0.0" />
@@ -13,6 +15,13 @@
     <PackageVersion Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.0" />
     <PackageVersion Include="Microsoft.AspNetCore.Diagnostics.EntityFrameworkCore" Version="10.0.0" />
     <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="10.0.0" />
+    <!-- GHSA-v5pm-xwqc-g5wc / CVE-2026-49451: Microsoft.OpenApi 2.0.0-preview.11..2.7.4 recurses
+         without bound on a circular $ref and takes the process down (patched in 2.7.5). Pulled in
+         transitively by Microsoft.AspNetCore.OpenApi 10.0.0; nothing references it directly, which
+         is why the fix is a transitive pin rather than a PackageReference. These services only
+         serve their own generated document, so exposure is low — but MSBuild fails the build on
+         NU1903 regardless. Drop this pin once Microsoft.AspNetCore.OpenApi floors it itself. -->
+    <PackageVersion Include="Microsoft.OpenApi" Version="2.7.5" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="10.0.0" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.0" />
     <PackageVersion Include="Microsoft.Extensions.Hosting" Version="10.0.0" />
