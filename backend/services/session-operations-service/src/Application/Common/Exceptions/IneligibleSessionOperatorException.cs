@@ -15,4 +15,7 @@ public sealed class IneligibleSessionOperatorException : Exception, IErrorMetada
     public ErrorCategory Category => ErrorCategory.Validation;
 
     public string ErrorCode => "ineligible-session-operator";
+
+    // Safe to expose: the eligibility rule is client-actionable and the identifier stays out.
+    public string? PublicDetail => "The user is not eligible to be assigned as a session operator.";
 }

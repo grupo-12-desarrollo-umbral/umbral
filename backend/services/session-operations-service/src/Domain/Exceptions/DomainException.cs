@@ -24,6 +24,14 @@ public abstract class DomainException : Exception, IErrorMetadata
 
     /// <inheritdoc />
     /// <remarks>
+    /// Suppressed by default so a domain message — which routinely interpolates identifiers —
+    /// never reaches the client. A concrete exception overrides this with a curated,
+    /// identifier-free sentence when its explanation is safe to expose.
+    /// </remarks>
+    public virtual string? PublicDetail => null;
+
+    /// <inheritdoc />
+    /// <remarks>
     /// Derived from the concrete type name by default
     /// (<c>TeamNotFoundException</c> → <c>team-not-found</c>); override to preserve an existing
     /// client-facing slug.

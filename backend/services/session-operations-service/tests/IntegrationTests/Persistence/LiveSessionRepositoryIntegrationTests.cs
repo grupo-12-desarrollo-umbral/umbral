@@ -718,7 +718,7 @@ public sealed class LiveSessionRepositoryIntegrationTests
 
     private static MissionRuntimeSnapshot CreateTreasureHuntRuntimeSnapshot(Guid sourceMissionId, int maximumTimeMinutes)
     {
-        var treasureHuntSubstage = SubstageSnapshot.CreateTreasureHunt("Treasure Hunt", 1, 100);
+        var treasureHuntSubstage = SubstageSnapshot.CreateTreasureHunt("Treasure Hunt", 1);
 
         return MissionRuntimeSnapshot.Create(
             sourceMissionId,
@@ -734,6 +734,7 @@ public sealed class LiveSessionRepositoryIntegrationTests
                     "QR-ALPHA",
                     1,
                     true,
+                    100,
                     "Look under the stairs",
                     "AfterPreviousTarget")
             ],
@@ -780,7 +781,7 @@ public sealed class LiveSessionRepositoryIntegrationTests
 
     private static MissionRuntimeSnapshot CreateMixedRuntimeSnapshot(Guid sourceMissionId, int maximumTimeMinutes)
     {
-        var treasureHuntSubstage = SubstageSnapshot.CreateTreasureHunt("Treasure Hunt", 1, 100);
+        var treasureHuntSubstage = SubstageSnapshot.CreateTreasureHunt("Treasure Hunt", 1);
         var triviaSubstage = SubstageSnapshot.CreateTrivia("Trivia Round", 2);
 
         return MissionRuntimeSnapshot.Create(
@@ -797,6 +798,7 @@ public sealed class LiveSessionRepositoryIntegrationTests
                     "QR-ALPHA",
                     1,
                     true,
+                    100,
                     "Look under the stairs",
                     "AfterPreviousTarget")
             ],

@@ -171,7 +171,7 @@ public sealed class MissionMutationCommandHandlerTests
         stage.Id = 10;
         var substage = mission.AddSubstage(stage.Id, Substage.CreateTreasureHunt("Substage", 1));
         substage.Id = 20;
-        var target = mission.AddTarget(stage.Id, substage.Id, "Target", "QR-1", 1);
+        var target = mission.AddTarget(stage.Id, substage.Id, "Target", "QR-1", 1, 25);
         target.Id = 30;
 
         var handler = new RemoveTargetCommandHandler(repository);
@@ -287,7 +287,7 @@ public sealed class MissionMutationCommandHandlerTests
     // ── UpdateTarget ──────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task UpdateTarget_UpdatesTargetFieldsScoreAndWinnerScore()
+    public async Task UpdateTarget_UpdatesTargetFieldsAndScore()
     {
         var repository = new InMemoryMissionRepository();
         var mission = Mission.Create("Mission", "Briefing", "Advanced", 45);
@@ -296,24 +296,23 @@ public sealed class MissionMutationCommandHandlerTests
         stage.Id = 10;
         var substage = mission.AddSubstage(stage.Id, Substage.CreateTreasureHunt("Substage", 1));
         substage.Id = 20;
-        var target = mission.AddTarget(stage.Id, substage.Id, "Target", "QR-1", 1);
+        var target = mission.AddTarget(stage.Id, substage.Id, "Target", "QR-1", 1, 25);
         target.Id = 30;
 
         var handler = new UpdateTargetCommandHandler(repository);
 
         var result = await handler.Handle(
-            new UpdateTargetCommand(mission.Id, stage.Id, substage.Id, target.Id, "Updated Target", "QR-2", 2, false, 50, 50),
+            new UpdateTargetCommand(mission.Id, stage.Id, substage.Id, target.Id, "Updated Target", "QR-2", 2, false, 50),
             CancellationToken.None);
 
         var updatedTarget = result.Stages!.Single().Substages!.Single().Targets!.Single();
         updatedTarget.Name.Should().Be("Updated Target");
         updatedTarget.QrCode.Should().Be("QR-2");
         updatedTarget.Score.Should().Be(50);
-        result.Stages!.Single().Substages!.Single().WinnerScore.Should().Be(50);
     }
 
     [Fact]
-    public async Task UpdateTarget_WithoutWinnerScore_UpdatesOnlyTargetFields()
+    public async Task UpdateTarget_WithoutScore_UpdatesOnlyTargetFields()
     {
         var repository = new InMemoryMissionRepository();
         var mission = Mission.Create("Mission", "Briefing", "Advanced", 45);
@@ -322,7 +321,7 @@ public sealed class MissionMutationCommandHandlerTests
         stage.Id = 10;
         var substage = mission.AddSubstage(stage.Id, Substage.CreateTreasureHunt("Substage", 1));
         substage.Id = 20;
-        var target = mission.AddTarget(stage.Id, substage.Id, "Target", "QR-1", 1);
+        var target = mission.AddTarget(stage.Id, substage.Id, "Target", "QR-1", 1, 25);
         target.Id = 30;
 
         var handler = new UpdateTargetCommandHandler(repository);

@@ -10,7 +10,7 @@ namespace umbral_backend.Domain.Services;
 /// <para>
 /// A mission is runtime-ready when every stage has at least one substage, every
 /// substage declares exactly one play mode, every <c>TreasureHunt</c> substage has
-/// at least one active target and a winner score, and every <c>Trivia</c> substage
+/// at least one active target, and every <c>Trivia</c> substage
 /// selects a published trivia quiz.
 /// </para>
 /// </summary>
@@ -89,12 +89,6 @@ public static class MissionActivationPolicy
         {
             failures.Add(
                 $"Treasure-hunt substage '{substage.Title}' in stage '{stage.Title}' must have at least one active target.");
-        }
-
-        if (substage.WinnerScore is null)
-        {
-            failures.Add(
-                $"Treasure-hunt substage '{substage.Title}' in stage '{stage.Title}' must define a winner score.");
         }
     }
 

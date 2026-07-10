@@ -16,6 +16,9 @@ namespace umbral_backend.Api.Services;
 /// unanticipated, so their messages may carry constraint names, column names or connection strings.
 /// The unclassified and unauthorized arms therefore return a generic <c>Detail</c> and correlate to
 /// the logged exception through a <c>traceId</c> extension instead of echoing <c>exception.Message</c>.
+/// Classified exceptions are equally guarded: their <c>Detail</c> is the exception's curated,
+/// identifier-free <see cref="IErrorMetadata.PublicDetail"/> when it opts in, and otherwise a generic
+/// per-category sentence — a domain message is never echoed, since it routinely interpolates ids.
 /// </summary>
 public sealed class ProblemDetailsExceptionHandler(ILogger<ProblemDetailsExceptionHandler> logger)
     : IExceptionHandler
@@ -32,7 +35,7 @@ public sealed class ProblemDetailsExceptionHandler(ILogger<ProblemDetailsExcepti
                 StatusFor(metadata.Category),
                 metadata.ErrorCode,
                 TitleFor(metadata.Category),
-                exception.Message),
+                metadata.PublicDetail ?? DetailFor(metadata.Category)),
             // Thrown deliberately by AuthorizationBehaviour and handler guards, so there is nothing
             // to log — but the message is a framework default, so it is not worth echoing either.
             UnauthorizedAccessException => Correlated(
@@ -126,6 +129,19 @@ public sealed class ProblemDetailsExceptionHandler(ILogger<ProblemDetailsExcepti
         ErrorCategory.Forbidden => "Forbidden.",
         ErrorCategory.Unauthorized => "Unauthorized.",
         ErrorCategory.Unprocessable => "Unprocessable entity.",
+        _ => "An unexpected error occurred."
+    };
+
+    // The safe fallback Detail for a classified exception that declares no PublicDetail: generic
+    // enough to leak nothing, while the stable ErrorCode (Type) still tells the client what failed.
+    private static string DetailFor(ErrorCategory category) => category switch
+    {
+        ErrorCategory.NotFound => "The requested resource was not found.",
+        ErrorCategory.Validation => "The request was invalid.",
+        ErrorCategory.Conflict => "The request conflicts with the current state of the resource.",
+        ErrorCategory.Forbidden => "You do not have permission to perform this action.",
+        ErrorCategory.Unauthorized => "Authentication is required to perform this action.",
+        ErrorCategory.Unprocessable => "The request could not be processed.",
         _ => "An unexpected error occurred."
     };
 }

@@ -65,7 +65,7 @@ public sealed class CreateSessionSnapshotFidelityTests
                     1,
                     [
                         new MissionRuntimeSubstageDto(
-                            "Trivia Round", 1, SubstagePlayMode.Trivia.ToString(), null, [], sourceQuestions)
+                            "Trivia Round", 1, SubstagePlayMode.Trivia.ToString(), [], sourceQuestions)
                     ])
             ]);
 

@@ -7,7 +7,7 @@ internal static class MissionRuntimeSnapshotFactory
 {
     internal static MissionRuntimeSnapshot CreateTreasureHuntSnapshot(int maximumTimeMinutes = 45)
     {
-        var treasureSubstage = SubstageSnapshot.CreateTreasureHunt("Treasure Route", 1, winnerScore: 100);
+        var treasureSubstage = SubstageSnapshot.CreateTreasureHunt("Treasure Route", 1);
         var stage = StageSnapshot.Create("Stage One", 1, [treasureSubstage]);
 
         return MissionRuntimeSnapshot.Create(
@@ -57,7 +57,7 @@ internal static class MissionRuntimeSnapshotFactory
     internal static MissionRuntimeSnapshot CreateTriviaThenTreasureHuntSnapshot(int maximumTimeMinutes = 45)
     {
         var triviaSubstage = SubstageSnapshot.CreateTrivia("Trivia Round", 1);
-        var treasureSubstage = SubstageSnapshot.CreateTreasureHunt("Treasure Route", 2, winnerScore: 100);
+        var treasureSubstage = SubstageSnapshot.CreateTreasureHunt("Treasure Route", 2);
         var stage = StageSnapshot.Create("Stage One", 1, [triviaSubstage, treasureSubstage]);
 
         return MissionRuntimeSnapshot.Create(
@@ -69,7 +69,7 @@ internal static class MissionRuntimeSnapshotFactory
             CreateQuestions(triviaSubstage.SubstageSnapshotId, 1));
     }
 
-    internal static TargetSnapshot CreateTarget(Guid substageSnapshotId, string qrCode = "QR-001", int sequenceOrder = 1)
+    internal static TargetSnapshot CreateTarget(Guid substageSnapshotId, string qrCode = "QR-001", int sequenceOrder = 1, int? score = 100)
     {
         return TargetSnapshot.Create(
             substageSnapshotId,
@@ -77,6 +77,7 @@ internal static class MissionRuntimeSnapshotFactory
             qrCode,
             sequenceOrder,
             isActive: true,
+            score: score,
             clueText: "Look near the entrance.",
             clueVisibilityPolicy: "VisibleAtStart");
     }

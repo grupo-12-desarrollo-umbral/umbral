@@ -84,8 +84,7 @@ public sealed class CreateSessionCommandHandler
                 {
                     SubstagePlayMode.TreasureHunt => SubstageSnapshot.CreateTreasureHunt(
                         substage.Title,
-                        substage.SequenceOrder,
-                        substage.WinnerScore ?? 0),
+                        substage.SequenceOrder),
                     SubstagePlayMode.Trivia => SubstageSnapshot.CreateTrivia(
                         substage.Title,
                         substage.SequenceOrder),
@@ -105,6 +104,7 @@ public sealed class CreateSessionCommandHandler
                                 target.QrCode,
                                 target.SequenceOrder,
                                 target.IsActive,
+                                target.Score,
                                 target.Clue?.Text,
                                 target.Clue?.VisibilityPolicy)));
 

@@ -67,11 +67,6 @@ export function MissionTree({
                         >
                           {PLAY_MODE_LABELS[substage.playMode]}
                         </span>
-                        {substage.playMode === 'Trivia' && substage.winnerScore !== null && (
-                          <span className={styles.treeClueText}>
-                            Winner score: {substage.winnerScore}
-                          </span>
-                        )}
                       </div>
                       <NodeRowControls
                         missionId={mission.id}

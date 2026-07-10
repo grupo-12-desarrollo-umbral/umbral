@@ -44,7 +44,7 @@ public sealed class MissionRuntimePlanCommandValidatorTests
     {
         var validator = new AddTargetCommandValidator();
 
-        var result = validator.Validate(new AddTargetCommand(1, 0, 0, "Target", "QR", 1));
+        var result = validator.Validate(new AddTargetCommand(1, 0, 0, "Target", "QR", 1, Score: 1));
 
         result.Errors.Should().Contain(error => error.PropertyName == nameof(AddTargetCommand.StageId));
         result.Errors.Should().Contain(error => error.PropertyName == nameof(AddTargetCommand.SubstageId));

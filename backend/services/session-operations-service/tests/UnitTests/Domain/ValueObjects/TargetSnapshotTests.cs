@@ -14,6 +14,7 @@ public sealed class TargetSnapshotTests
             "QR-001",
             1,
             true,
+            100,
             "Look near the entrance.",
             "VisibleAtStart");
 

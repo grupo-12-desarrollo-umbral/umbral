@@ -33,6 +33,8 @@ public sealed class MissionRuntimeSourceIntegrationTests
                                     Title = "Treasure Hunt",
                                     SequenceOrder = 1,
                                     PlayMode = "TreasureHunt",
+                                    // WinnerScore is still emitted by mission-design during the F1/F2
+                                    // migration window; session-operations must ignore it.
                                     WinnerScore = 100,
                                     Targets = new[]
                                     {
@@ -42,6 +44,7 @@ public sealed class MissionRuntimeSourceIntegrationTests
                                             QrCode = "QR-ALPHA",
                                             SequenceOrder = 1,
                                             IsActive = true,
+                                            Score = 100,
                                             Clue = new
                                             {
                                                 Text = "Look under the stairs",
@@ -91,8 +94,8 @@ public sealed class MissionRuntimeSourceIntegrationTests
         runtime.Stages.Should().ContainSingle();
 
         var treasureHuntSubstage = runtime.Stages.Single().Substages.Single(substage => substage.PlayMode == "TreasureHunt");
-        treasureHuntSubstage.WinnerScore.Should().Be(100);
         treasureHuntSubstage.Targets.Should().ContainSingle();
+        treasureHuntSubstage.Targets.Single().Score.Should().Be(100);
         treasureHuntSubstage.Targets.Single().Clue!.Text.Should().Be("Look under the stairs");
 
         var triviaSubstage = runtime.Stages.Single().Substages.Single(substage => substage.PlayMode == "Trivia");

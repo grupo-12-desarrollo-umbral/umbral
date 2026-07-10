@@ -24,7 +24,7 @@ public class TargetTests
     [InlineData("  ")]
     public void Create_WhenNameBlank_Throws(string? name)
     {
-        var act = () => Target.Create(name!, "QR-1", 1);
+        var act = () => Target.Create(name!, "QR-1", 1, 25);
 
         act.Should().Throw<TargetNameRequiredException>();
     }
@@ -35,7 +35,7 @@ public class TargetTests
     [InlineData("  ")]
     public void Create_WhenQrCodeBlank_Throws(string? qrCode)
     {
-        var act = () => Target.Create("Statue", qrCode!, 1);
+        var act = () => Target.Create("Statue", qrCode!, 1, 25);
 
         act.Should().Throw<TargetQrCodeRequiredException>();
     }
@@ -45,7 +45,7 @@ public class TargetTests
     [InlineData(-3)]
     public void Create_WhenSequenceOrderNotPositive_Throws(int sequenceOrder)
     {
-        var act = () => Target.Create("Statue", "QR-1", sequenceOrder);
+        var act = () => Target.Create("Statue", "QR-1", sequenceOrder, 25);
 
         act.Should().Throw<TargetSequenceOrderMustBePositiveException>();
     }
@@ -77,14 +77,14 @@ public class TargetTests
     [Fact]
     public void AssociateClue_AllowsReassociatingSameClue()
     {
-        var target = Target.Create("Statue", "QR-1", 1);
+        var target = Target.Create("Statue", "QR-1", 1, 25);
         var substage = Substage.CreateTreasureHunt("Sub", 1);
-        substage.AddTarget("Statue", "QR-1", 1);
+        substage.AddTarget("Statue", "QR-1", 1, 25);
         var clue = Clue.Create("Hint", 1, "text");
         clue.Id = 5;
         substage.AddClue(clue);
 
-        var added = substage.AddTarget("Tree", "QR-2", 2);
+        var added = substage.AddTarget("Tree", "QR-2", 2, 25);
         added.Id = 9;
         substage.AssociateClueWithTarget(9, clue);
         substage.AssociateClueWithTarget(9, clue); // idempotent

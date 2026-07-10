@@ -1,4 +1,4 @@
-using umbral_backend.Domain.Exceptions;
+using umbral_backend.Domain.Enums;
 using umbral_backend.Domain.ValueObjects;
 
 namespace umbral_backend.SessionOperations.UnitTests.Domain.ValueObjects;
@@ -6,30 +6,20 @@ namespace umbral_backend.SessionOperations.UnitTests.Domain.ValueObjects;
 public sealed class SubstageSnapshotTests
 {
     [Fact]
-    public void CreateTreasureHunt_PreservesWinnerScore()
+    public void CreateTreasureHunt_SetsTreasureHuntPlayMode()
     {
-        var snapshot = SubstageSnapshot.CreateTreasureHunt("Treasure Route", 1, winnerScore: 150);
+        var snapshot = SubstageSnapshot.CreateTreasureHunt("Treasure Route", 1);
 
-        snapshot.WinnerScore.Should().Be(150);
+        snapshot.PlayMode.Should().Be(SubstagePlayMode.TreasureHunt);
+        snapshot.SequenceOrder.Should().Be(1);
     }
 
     [Fact]
-    public void TriviaCtor_WithWinnerScore_ThrowsException()
+    public void CreateTrivia_SetsTriviaPlayMode()
     {
-        var ctor = typeof(SubstageSnapshot)
-            .GetConstructors(System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)
-            .Single(constructor => constructor.GetParameters().Length == 5);
+        var snapshot = SubstageSnapshot.CreateTrivia("Trivia Round", 2);
 
-        var act = () => ctor.Invoke(
-            [
-                Guid.NewGuid(),
-                "Trivia Round",
-                1,
-                umbral_backend.Domain.Enums.SubstagePlayMode.Trivia,
-                100
-            ]);
-
-        act.Should().Throw<System.Reflection.TargetInvocationException>()
-            .WithInnerException<TriviaSubstageSnapshotCannotDeclareWinnerScoreException>();
+        snapshot.PlayMode.Should().Be(SubstagePlayMode.Trivia);
+        snapshot.SequenceOrder.Should().Be(2);
     }
 }

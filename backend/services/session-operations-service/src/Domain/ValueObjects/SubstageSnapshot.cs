@@ -15,24 +15,17 @@ public sealed class SubstageSnapshot : ValueObject
         Guid substageSnapshotId,
         string title,
         int sequenceOrder,
-        SubstagePlayMode playMode,
-        int? winnerScore)
+        SubstagePlayMode playMode)
     {
         if (substageSnapshotId == Guid.Empty)
         {
             throw new SubstageSnapshotIdRequiredException();
         }
 
-        if (playMode == SubstagePlayMode.Trivia && winnerScore.HasValue)
-        {
-            throw new TriviaSubstageSnapshotCannotDeclareWinnerScoreException();
-        }
-
         SubstageSnapshotId = substageSnapshotId;
         Title = title.Trim();
         SequenceOrder = sequenceOrder;
         PlayMode = playMode;
-        WinnerScore = winnerScore;
     }
 
     public Guid SubstageSnapshotId { get; }
@@ -43,16 +36,14 @@ public sealed class SubstageSnapshot : ValueObject
 
     public SubstagePlayMode PlayMode { get; }
 
-    public int? WinnerScore { get; }
-
-    public static SubstageSnapshot CreateTreasureHunt(string title, int sequenceOrder, int winnerScore)
+    public static SubstageSnapshot CreateTreasureHunt(string title, int sequenceOrder)
     {
-        return new SubstageSnapshot(Guid.NewGuid(), title, sequenceOrder, SubstagePlayMode.TreasureHunt, winnerScore);
+        return new SubstageSnapshot(Guid.NewGuid(), title, sequenceOrder, SubstagePlayMode.TreasureHunt);
     }
 
     public static SubstageSnapshot CreateTrivia(string title, int sequenceOrder)
     {
-        return new SubstageSnapshot(Guid.NewGuid(), title, sequenceOrder, SubstagePlayMode.Trivia, winnerScore: null);
+        return new SubstageSnapshot(Guid.NewGuid(), title, sequenceOrder, SubstagePlayMode.Trivia);
     }
 
     protected override IEnumerable<object?> GetEqualityComponents()
@@ -61,6 +52,5 @@ public sealed class SubstageSnapshot : ValueObject
         yield return Title;
         yield return SequenceOrder;
         yield return PlayMode;
-        yield return WinnerScore;
     }
 }

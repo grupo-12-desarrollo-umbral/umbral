@@ -10,4 +10,8 @@ public sealed class LateJoinNotAllowedException : DomainException
     }
 
     public override ErrorCategory Category => ErrorCategory.Forbidden;
+
+    // Safe to expose: the message interpolates only the session state (an enum), never an
+    // identifier, and mobile surfaces this reason verbatim through the LATE_JOIN_NOT_ALLOWED code.
+    public override string? PublicDetail => Message;
 }

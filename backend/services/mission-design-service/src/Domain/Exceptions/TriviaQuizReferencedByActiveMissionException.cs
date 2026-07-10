@@ -24,4 +24,10 @@ public sealed class TriviaQuizReferencedByActiveMissionException : DomainExcepti
     public IReadOnlyCollection<string> ActiveMissionReferences { get; }
 
     public override ErrorCategory Category => ErrorCategory.Conflict;
+
+    // Safe to expose: the guidance is client-actionable, while the interpolated quiz id and the
+    // referencing mission names stay in the diagnostic Message only.
+    public override string? PublicDetail =>
+        "The trivia quiz cannot be archived because it is referenced by one or more active missions. "
+        + "Deactivate the mission or change its trivia selection before archiving the quiz.";
 }

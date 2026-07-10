@@ -8,4 +8,7 @@ public sealed class TriviaQuizMustHaveAtLeastOneQuestionToPublishException : Dom
     }
 
     public override ErrorCategory Category => ErrorCategory.Conflict;
+
+    // Safe to expose: the message is a static, identifier-free publication rule.
+    public override string? PublicDetail => Message;
 }

@@ -29,12 +29,7 @@ public sealed class UpdateTargetCommandHandler
             request.QrCode,
             request.SequenceOrder,
             request.IsActive,
-            request.Score ?? request.WinnerScore);
-
-        if (request.WinnerScore is not null)
-        {
-            mission.SetTreasureHuntWinnerScore(request.StageId, request.SubstageId, request.WinnerScore.Value);
-        }
+            request.Score);
 
         await _missionRepository.UpdateAsync(mission, cancellationToken);
         return MissionDtoMapper.Map(mission);

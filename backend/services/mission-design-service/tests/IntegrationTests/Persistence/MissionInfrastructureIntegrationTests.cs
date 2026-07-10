@@ -219,8 +219,7 @@ public sealed class MissionInfrastructureIntegrationTests : IClassFixture<Postgr
         var stage = mission.AddStage("Stage 1", 1);
         var treasureSubstage = mission.AddSubstage(stage.Id, Domain.Entities.Substage.CreateTreasureHunt("Treasure", 1));
         var clue = mission.AddClue(stage.Id, treasureSubstage.Id, Domain.Entities.Clue.Create("Clue 1", 1, "Look under the bridge."));
-        var target = mission.AddTarget(stage.Id, treasureSubstage.Id, "Target 1", "QR-001", 1);
-        mission.SetTreasureHuntWinnerScore(stage.Id, treasureSubstage.Id, 40);
+        var target = mission.AddTarget(stage.Id, treasureSubstage.Id, "Target 1", "QR-001", 1, 40);
 
         // Persist the treasure substage first so EF assigns the DB identities that the
         // remaining authoring steps look nodes up by. The API flow saves per step, so
@@ -241,8 +240,7 @@ public sealed class MissionInfrastructureIntegrationTests : IClassFixture<Postgr
         reloadedMission!.Stages.Should().ContainSingle();
         reloadedMission.Stages[0].Substages.Should().HaveCount(2);
         reloadedMission.Stages[0].Substages.ElementAt(0).Targets.Should().ContainSingle();
-        reloadedMission.Stages[0].Substages.ElementAt(0).Targets[0].Score!.Points.Should().Be(40);
-        reloadedMission.Stages[0].Substages.ElementAt(0).WinnerScore!.Points.Should().Be(40);
+        reloadedMission.Stages[0].Substages.ElementAt(0).Targets[0].Score.Points.Should().Be(40);
         reloadedMission.Stages[0].Substages.ElementAt(0).Clues.Should().ContainSingle();
         reloadedMission.Stages[0].Substages.ElementAt(0).Targets[0].ClueId.Should().Be(reloadedMission.Stages[0].Substages.ElementAt(0).Clues.Single().Id);
         reloadedMission.Stages[0].Substages.ElementAt(1).TriviaQuizId.Should().Be(publishedQuiz.Id);

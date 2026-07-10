@@ -70,13 +70,12 @@ public sealed class ErrorCodeContractTests
             ["TeamNotFoundException"] = "team-not-found",
             ["TeamNotInAuthorizedSetException"] = "team-not-in-authorized-set",
             ["TreasureHuntSubstageSnapshotMustContainTargetsException"] = "treasure-hunt-substage-snapshot-must-contain-targets",
-            ["TreasureHuntSubstageSnapshotWinnerScoreRequiredException"] = "treasure-hunt-substage-snapshot-winner-score-required",
+            ["TreasureHuntTargetSnapshotScoreRequiredException"] = "treasure-hunt-target-snapshot-score-required",
             ["TriviaAnswerRequiresActiveQuestionException"] = "trivia-answer-requires-active-question",
             ["TriviaAnswerRequiresActiveSessionException"] = "trivia-answer-requires-active-session",
             ["TriviaAnswerRequiresTriviaSubstageException"] = "trivia-answer-requires-trivia-substage",
             ["TriviaQuestionSnapshotRequiresAtLeastTwoOptionsException"] = "trivia-question-snapshot-requires-at-least-two-options",
             ["TriviaQuestionSnapshotRequiresCorrectOptionException"] = "trivia-question-snapshot-requires-correct-option",
-            ["TriviaSubstageSnapshotCannotDeclareWinnerScoreException"] = "trivia-substage-snapshot-cannot-declare-winner-score",
             // Overridden slug:
             ["TriviaSubstageSnapshotMustContainQuestionsException"] = "trivia-substage-empty",
         };

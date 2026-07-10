@@ -197,9 +197,6 @@ public sealed class LiveSessionConfiguration : IEntityTypeConfiguration<LiveSess
                         .HasMaxLength(32)
                         .IsRequired();
 
-                    substageBuilder.Property(substage => substage.WinnerScore)
-                        .HasColumnName("winner_score");
-
                     substageBuilder.HasIndex("stage_snapshot_id", nameof(Domain.ValueObjects.SubstageSnapshot.SequenceOrder))
                         .IsUnique();
                 });
@@ -243,6 +240,9 @@ public sealed class LiveSessionConfiguration : IEntityTypeConfiguration<LiveSess
                 targetBuilder.Property(target => target.IsActive)
                     .HasColumnName("is_active")
                     .IsRequired();
+
+                targetBuilder.Property(target => target.Score)
+                    .HasColumnName("score");
 
                 targetBuilder.Property(target => target.ClueText)
                     .HasColumnName("clue_text")

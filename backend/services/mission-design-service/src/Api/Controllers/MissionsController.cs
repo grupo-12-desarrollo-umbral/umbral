@@ -214,8 +214,7 @@ public sealed class MissionsController(ISender sender) : ControllerBase
                 request.QrCode,
                 request.SequenceOrder,
                 request.Score,
-                request.IsActive,
-                request.WinnerScore),
+                request.IsActive),
             cancellationToken);
 
         return Ok(MissionResponse.FromDto(mission));
@@ -240,8 +239,7 @@ public sealed class MissionsController(ISender sender) : ControllerBase
                 request.QrCode,
                 request.SequenceOrder,
                 request.IsActive,
-                request.Score,
-                request.WinnerScore),
+                request.Score),
             cancellationToken);
 
         return Ok(MissionResponse.FromDto(mission));
@@ -362,17 +360,15 @@ public sealed class MissionsController(ISender sender) : ControllerBase
         string Name,
         string QrCode,
         int SequenceOrder,
-        int? Score = null,
-        bool IsActive = true,
-        int? WinnerScore = null);
+        int Score,
+        bool IsActive = true);
 
     public sealed record UpdateTargetRequest(
         string Name,
         string QrCode,
         int SequenceOrder,
         bool IsActive,
-        int? Score = null,
-        int? WinnerScore = null);
+        int? Score = null);
 
     public sealed record AssociateClueWithTargetRequest(int ClueId);
 
@@ -456,7 +452,6 @@ public sealed class MissionsController(ISender sender) : ControllerBase
         string Title,
         int SequenceOrder,
         string PlayMode,
-        int? WinnerScore,
         TriviaQuizSelectionResponse? TriviaQuizSelection,
         IReadOnlyList<MissionTargetResponse> Targets,
         IReadOnlyList<MissionClueResponse> Clues)
@@ -468,7 +463,6 @@ public sealed class MissionsController(ISender sender) : ControllerBase
                 dto.Title,
                 dto.SequenceOrder,
                 dto.PlayMode,
-                dto.WinnerScore,
                 dto.TriviaQuizSelection is null ? null : TriviaQuizSelectionResponse.FromDto(dto.TriviaQuizSelection),
                 dto.Targets?.Select(MissionTargetResponse.FromDto).ToList() ?? [],
                 dto.Clues?.Select(MissionClueResponse.FromDto).ToList() ?? []);
@@ -482,7 +476,7 @@ public sealed class MissionsController(ISender sender) : ControllerBase
         int SequenceOrder,
         bool IsActive,
         int? ClueId,
-        int? Score)
+        int Score)
     {
         public static MissionTargetResponse FromDto(MissionTargetDto dto)
         {
@@ -568,7 +562,6 @@ public sealed class MissionsController(ISender sender) : ControllerBase
         string Title,
         int SequenceOrder,
         string PlayMode,
-        int? WinnerScore,
         IReadOnlyList<MissionRuntimeTargetResponse> Targets,
         IReadOnlyList<MissionRuntimeTriviaQuestionResponse> TriviaQuestions)
     {
@@ -578,7 +571,6 @@ public sealed class MissionsController(ISender sender) : ControllerBase
                 dto.Title,
                 dto.SequenceOrder,
                 dto.PlayMode,
-                dto.WinnerScore,
                 dto.Targets.Select(MissionRuntimeTargetResponse.FromDto).ToList(),
                 dto.TriviaQuestions.Select(MissionRuntimeTriviaQuestionResponse.FromDto).ToList());
         }
@@ -589,7 +581,7 @@ public sealed class MissionsController(ISender sender) : ControllerBase
         string QrCode,
         int SequenceOrder,
         bool IsActive,
-        int? Score,
+        int Score,
         MissionRuntimeClueResponse? Clue)
     {
         public static MissionRuntimeTargetResponse FromDto(MissionRuntimePlanTargetDto dto)

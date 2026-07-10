@@ -117,7 +117,6 @@ public sealed class MissionReadModelRepository : IMissionReadModelRepository
             substage.Title,
             substage.SequenceOrder,
             substage.PlayMode.ToString(),
-            substage.WinnerScore?.Points,
             substage.Targets
                 .Select(target => MapTarget(target, cluesById))
                 .ToList(),
@@ -133,7 +132,7 @@ public sealed class MissionReadModelRepository : IMissionReadModelRepository
             target.QrCode,
             target.SequenceOrder,
             target.IsActive,
-            target.Score?.Points,
+            target.Score.Points,
             target.ClueId is int clueId && cluesById.TryGetValue(clueId, out var clue)
                 ? new MissionRuntimePlanClueDto(clue.Text, clue.Visibility.ToString())
                 : null);

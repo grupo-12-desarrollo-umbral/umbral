@@ -66,7 +66,7 @@ public class MissionStageResponseTests
     [Fact]
     public void FromDto_MapsIdTitleSequenceOrderAndSubstages()
     {
-        var substageDto = new MissionSubstageDto(5, "Sub", 1, "TreasureHunt", null, null, null, null);
+        var substageDto = new MissionSubstageDto(5, "Sub", 1, "TreasureHunt", null, null, null);
         var dto = new MissionStageDto(3, "Stage", 2, [substageDto]);
 
         var response = MissionStageResponse.FromDto(dto);
@@ -94,7 +94,7 @@ public class MissionSubstageResponseTests
     public void FromDto_WithTriviaQuizSelection_MapsSelection()
     {
         var selectionDto = new TriviaQuizSelectionDto(7);
-        var dto = new MissionSubstageDto(2, "Trivia Sub", 1, "Trivia", null, selectionDto, null, null);
+        var dto = new MissionSubstageDto(2, "Trivia Sub", 1, "Trivia", selectionDto, null, null);
 
         var response = MissionSubstageResponse.FromDto(dto);
 
@@ -105,7 +105,7 @@ public class MissionSubstageResponseTests
     [Fact]
     public void FromDto_WithNullTriviaQuizSelection_MapsToNull()
     {
-        var dto = new MissionSubstageDto(1, "Sub", 1, "TreasureHunt", null, null, null, null);
+        var dto = new MissionSubstageDto(1, "Sub", 1, "TreasureHunt", null, null, null);
 
         var response = MissionSubstageResponse.FromDto(dto);
 

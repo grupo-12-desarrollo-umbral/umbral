@@ -33,38 +33,6 @@ public class SubstageTests
     }
 
     [Fact]
-    public void AddTarget_WithoutExplicitScore_InheritsWinnerScore()
-    {
-        var substage = Substage.CreateTreasureHunt("Sub", 1);
-        substage.SetWinnerScore(50);
-
-        var target = substage.AddTarget("First", "QR-1", 1);
-
-        target.Score!.Points.Should().Be(50);
-    }
-
-    [Fact]
-    public void SetWinnerScore_BackfillsTargetsThatStillLackScore()
-    {
-        var substage = Substage.CreateTreasureHunt("Sub", 1);
-        var target = substage.AddTarget("First", "QR-1", 1);
-
-        substage.SetWinnerScore(50);
-
-        target.Score!.Points.Should().Be(50);
-    }
-
-    [Fact]
-    public void SetWinnerScore_OnTrivia_Throws()
-    {
-        var substage = Substage.CreateTrivia("Sub", 1);
-
-        var act = () => substage.SetWinnerScore(50);
-
-        act.Should().Throw<SubstagePlayModeMismatchException>();
-    }
-
-    [Fact]
     public void SelectTriviaQuiz_OnTreasureHunt_Throws()
     {
         var substage = Substage.CreateTreasureHunt("Sub", 1);
@@ -88,7 +56,7 @@ public class SubstageTests
     public void AssociateClueWithTarget_WhenTargetAlreadyHasDifferentClue_Throws()
     {
         var substage = Substage.CreateTreasureHunt("Sub", 1);
-        var target = substage.AddTarget("Statue", "QR-1", 1);
+        var target = substage.AddTarget("Statue", "QR-1", 1, 25);
         target.Id = 9;
 
         var firstClue = Clue.Create("Hint A", 1, "text");

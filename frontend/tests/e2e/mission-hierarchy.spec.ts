@@ -85,14 +85,12 @@ async function addTarget(
   substageId: string,
   name: string,
   qrCode: string,
-  winnerScore?: string,
+  score: string,
 ): Promise<string> {
   await page.click(`[data-testid="add-target-btn-${substageId}"]`)
   await page.fill('[data-testid="target-name-input"]', name)
   await page.fill('[data-testid="target-qrcode-input"]', qrCode)
-  if (winnerScore !== undefined) {
-    await page.fill('[data-testid="target-winnerscore-input"]', winnerScore)
-  }
+  await page.fill('[data-testid="target-score-input"]', score)
   await page.locator('[data-testid="target-name-input"]').first().press('Tab')
   // Click the Save button inside the add target form
   await page.locator('button:has-text("Save"):not([data-testid*="confirm"])').first().click()
@@ -154,6 +152,33 @@ test('admin edits and removes a node', async ({ adminPage: page }) => {
   await expect(page.locator(`[data-testid="stage-node-${stageId}"]`)).toHaveCount(0)
 })
 
+// The edit form seeds each field on mount, so re-opening it must show the saved
+// node — never a value left over from an earlier, abandoned edit.
+test('the node edit form reseeds from the saved node', async ({ adminPage: page }) => {
+  await createMission(page, 'Node Edit Reseed')
+  const stageId = await addStage(page, 'Original')
+  const stageNode = page.locator(`[data-testid="stage-node-${stageId}"]`)
+  const titleInput = page.locator('[data-testid="node-title-input"]')
+
+  await page.click(`[data-testid="edit-node-btn-${stageId}"]`)
+  await titleInput.fill('Renamed')
+  await page.locator('button:has-text("Save"):not([data-testid*="confirm"])').first().click()
+  await expect(stageNode).toContainText('Renamed')
+
+  // Re-opening shows the persisted title, not the one captured at first mount.
+  await page.click(`[data-testid="edit-node-btn-${stageId}"]`)
+  await expect(titleInput).toHaveValue('Renamed')
+
+  // Cancel discards the typing rather than carrying it into the next open.
+  await titleInput.fill('Abandoned')
+  await stageNode.locator('button:has-text("Cancel")').first().click()
+  // The edit form closed and the row reverted to the saved node.
+  await expect(titleInput).toHaveCount(0)
+  await expect(stageNode).toContainText('Renamed')
+  await page.click(`[data-testid="edit-node-btn-${stageId}"]`)
+  await expect(titleInput).toHaveValue('Renamed')
+})
+
 // ---------------------------------------------------------------------------
 // 2.2 — Play-mode + treasure hunt (AC2, AC3)
 // ---------------------------------------------------------------------------
@@ -176,6 +201,34 @@ test('admin sets a substage to TreasureHunt and adds a target with a clue', asyn
   await page.click(`[data-testid="associate-clue-btn-${targetId}"]`)
   // The target now shows the clue association
   await expect(targetRow).toContainText('clue #', { timeout: 5000 })
+})
+
+// The edit form seeds each field on mount, so re-opening it must show the saved
+// target — never a value left over from an earlier, abandoned edit.
+test('the target edit form reseeds from the saved target', async ({ adminPage: page }) => {
+  await createMission(page, 'Target Edit')
+  const stageId = await addStage(page, 'Stage')
+  const substageId = await addSubstage(page, stageId, 'Hunt Substage')
+  const targetId = await addTarget(page, substageId, 'Waterfall', 'QR-WATERFALL', '10')
+  const targetRow = page.locator(`[data-testid="target-node-${targetId}"]`)
+  const scoreBadge = page.locator(`[data-testid="target-score-${targetId}"]`)
+  const scoreInput = page.locator(`[data-testid="target-score-input-${targetId}"]`)
+
+  await page.click(`[data-testid="edit-target-btn-${targetId}"]`)
+  await scoreInput.fill('55')
+  await targetRow.locator('button:has-text("Save")').click()
+  await expect(scoreBadge).toContainText('Score: 55', { timeout: 5000 })
+
+  // Re-opening shows the persisted score, not the one captured at first mount.
+  await page.click(`[data-testid="edit-target-btn-${targetId}"]`)
+  await expect(scoreInput).toHaveValue('55')
+
+  // Cancel discards the typing rather than carrying it into the next open.
+  await scoreInput.fill('99')
+  await targetRow.locator('button:has-text("Cancel")').click()
+  await expect(scoreBadge).toContainText('Score: 55')
+  await page.click(`[data-testid="edit-target-btn-${targetId}"]`)
+  await expect(scoreInput).toHaveValue('55')
 })
 
 test('switching play mode warns the other mode content is discarded', async ({ adminPage: page }) => {

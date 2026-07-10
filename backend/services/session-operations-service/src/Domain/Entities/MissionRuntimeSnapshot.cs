@@ -127,14 +127,18 @@ public sealed class MissionRuntimeSnapshot : BaseEntity
             {
                 if (substage.PlayMode == SubstagePlayMode.TreasureHunt)
                 {
-                    if (substage.WinnerScore is null || substage.WinnerScore.Value <= 0)
-                    {
-                        throw new TreasureHuntSubstageSnapshotWinnerScoreRequiredException();
-                    }
+                    var substageTargets = targetSnapshots
+                        .Where(target => target.SubstageSnapshotId == substage.SubstageSnapshotId)
+                        .ToArray();
 
-                    if (!targetSnapshots.Any(target => target.SubstageSnapshotId == substage.SubstageSnapshotId))
+                    if (substageTargets.Length == 0)
                     {
                         throw new TreasureHuntSubstageSnapshotMustContainTargetsException();
+                    }
+
+                    if (substageTargets.Any(target => target.Score is null || target.Score.Value <= 0))
+                    {
+                        throw new TreasureHuntTargetSnapshotScoreRequiredException();
                     }
 
                     continue;

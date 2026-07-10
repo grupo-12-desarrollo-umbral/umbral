@@ -54,8 +54,12 @@ public sealed class DomainExceptionHubFilter(ILogger<DomainExceptionHubFilter> l
         var code = MapCode(exception);
         if (code != "ERROR")
         {
+            // Classified 4xx: never echo exception.Message (it routinely interpolates participant
+            // and team ids). Clients key on the code, so the prose is safe to replace with the
+            // exception's curated, identifier-free PublicDetail — or a generic per-code fallback.
+            var message = (exception as IErrorMetadata)?.PublicDetail ?? MessageFor(code);
             return JsonSerializer.Serialize(
-                new HubErrorPayload(code, exception.Message),
+                new HubErrorPayload(code, message),
                 PayloadOptions);
         }
 
@@ -83,6 +87,24 @@ public sealed class DomainExceptionHubFilter(ILogger<DomainExceptionHubFilter> l
         IErrorMetadata metadata => CodeFor(metadata.Category),
         UnauthorizedAccessException => "UNAUTHORIZED",
         _ => "ERROR"
+    };
+
+    // Generic, identifier-free prose for a classified exception that declares no PublicDetail. The
+    // code carries the contract; this only spares a client that surfaces the message a bare blank.
+    private static string MessageFor(string code) => code switch
+    {
+        "LATE_JOIN_NOT_ALLOWED" => "New participant joins are not allowed in the session's current state.",
+        "PARTICIPANT_REMOVED" => "You have been removed from this session.",
+        "WRONG_TEAM" => "You are assigned to a different team in this session.",
+        "ALREADY_CONNECTED" => "This participant is already connected to the session.",
+        "TEAM_UNAVAILABLE" => "This team is not accepting new participants.",
+        "NOT_FOUND" => "The requested resource was not found.",
+        "VALIDATION_FAILED" => "The request was invalid.",
+        "CONFLICT" => "The request conflicts with the current state of the resource.",
+        "FORBIDDEN" => "You do not have permission to perform this action.",
+        "UNAUTHORIZED" => "Authentication is required to perform this action.",
+        "UNPROCESSABLE" => "The request could not be processed.",
+        _ => "The request could not be completed."
     };
 
     private static string CodeFor(ErrorCategory category) => category switch

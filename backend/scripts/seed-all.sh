@@ -73,16 +73,6 @@ for CODE in "${!SESSIONS[@]}"; do
   " 2>/dev/null || true
 done
 
-while IFS= read -r live_session_id; do
-  [[ -z "$live_session_id" ]] && continue
-  psql -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d identity_access -c "
-    DELETE FROM session_team_associations WHERE live_session_id = '$live_session_id';
-    DELETE FROM live_sessions WHERE id = '$live_session_id';
-  " 2>/dev/null || true
-done < <(psql -At -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d session_operations -c "
-  SELECT id FROM live_sessions WHERE title_snapshot = '$SEEDED_LIVE_TRIVIA_TITLE';
-" 2>/dev/null || true)
-
 psql -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d session_operations -c "
   DELETE FROM live_sessions WHERE title_snapshot = '$SEEDED_LIVE_TRIVIA_TITLE';
 " 2>/dev/null || true
@@ -297,24 +287,14 @@ UNION ALL SELECT \"Id\", 'Europa', 3, false FROM q1
 UNION ALL SELECT \"Id\", 'Oceania', 4, false FROM q1;
 "
 
-echo "  identity_access (sessions + teams) …"
+echo "  identity_access (registered teams) …"
 for CODE in "${!SESSIONS[@]}"; do
   IFS=: read -r SID STATE TID TCODE TDISPLAY <<< "${SESSIONS[$CODE]}"
 
   psql -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d identity_access -c "
-    INSERT INTO live_sessions (id, session_code, created_at, updated_at)
-    VALUES ('$SID', '$CODE', now(), now())
-    ON CONFLICT (id) DO NOTHING;
-  "
-  psql -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d identity_access -c "
-    INSERT INTO teams (id, display_name, team_code, is_active, created_at, updated_at)
+    INSERT INTO registered_teams (id, display_name, team_code, is_active, created_at, updated_at)
     VALUES ('$TID', '$TDISPLAY Team', '$TCODE', true, now(), now())
     ON CONFLICT (id) DO NOTHING;
-  "
-  psql -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d identity_access -c "
-    INSERT INTO session_team_associations (id, live_session_id, team_id)
-    VALUES (gen_random_uuid(), '$SID', '$TID')
-    ON CONFLICT (live_session_id, team_id) DO NOTHING;
   "
 done
 
@@ -416,14 +396,9 @@ for CODE in "${!SECOND_TEAMS[@]}"; do
   RUNTIME_TID="c${TID:1}"
 
   psql -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d identity_access -c "
-    INSERT INTO teams (id, display_name, team_code, is_active, created_at, updated_at)
+    INSERT INTO registered_teams (id, display_name, team_code, is_active, created_at, updated_at)
     VALUES ('$TID', '$TDISPLAY Team', '$TCODE', true, now(), now())
     ON CONFLICT (id) DO NOTHING;
-  "
-  psql -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d identity_access -c "
-    INSERT INTO session_team_associations (id, live_session_id, team_id)
-    VALUES (gen_random_uuid(), '$SID', '$TID')
-    ON CONFLICT (live_session_id, team_id) DO NOTHING;
   "
   psql -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d session_operations -c "
     INSERT INTO live_session_teams (

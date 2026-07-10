@@ -92,8 +92,8 @@ export function SubstageEditor({
 
 // ---------------------------------------------------------------------------
 // Trivia selection (Trivia play-mode only). A Trivia substage carries ONLY a
-// published-quiz selection — winnerScore is a TreasureHunt concept (set via the
-// target form), so it is intentionally absent here. The picker reuses the
+// published-quiz selection — per-target score is a TreasureHunt concept (set via
+// the target form), so it is intentionally absent here. The picker reuses the
 // existing trivia client, filtered to Published quizzes.
 // ---------------------------------------------------------------------------
 
@@ -265,7 +265,7 @@ function PlayModeControl({
         <span className={styles.confirmRow}>
           <span role="alert" data-testid="playmode-switch-warning">
             Switching to {PLAY_MODE_LABELS[pending]} discards the other mode&rsquo;s content
-            (targets, clue associations, trivia selection, and winner score).
+            (targets, clue associations, and trivia selection).
           </span>
           <button
             className={styles.dangerButton}
@@ -302,6 +302,18 @@ function PlayModeControl({
 // Target authoring (TreasureHunt only).
 // ---------------------------------------------------------------------------
 
+// Score is a required whole number 1..100 (backend-enforced). Returns null when
+// the raw input does not parse to a value in range.
+function parseTargetScore(raw: string): number | null {
+  const value = Number(raw)
+  if (raw.trim() === '' || !Number.isInteger(value) || value < 1 || value > 100) {
+    return null
+  }
+  return value
+}
+
+const SCORE_ERROR = 'Score must be a whole number between 1 and 100.'
+
 function AddTargetControl({
   missionId,
   stageId,
@@ -319,7 +331,7 @@ function AddTargetControl({
   const [name, setName] = useState('')
   const [qrCode, setQrCode] = useState('')
   const [isActive, setIsActive] = useState(true)
-  const [winnerScore, setWinnerScore] = useState('')
+  const [score, setScore] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
 
@@ -327,15 +339,15 @@ function AddTargetControl({
     setName('')
     setQrCode('')
     setIsActive(true)
-    setWinnerScore('')
+    setScore('')
     setError(null)
     setOpen(false)
   }
 
   function submit() {
-    const parsedScore = winnerScore.trim() === '' ? undefined : Number(winnerScore)
-    if (parsedScore !== undefined && Number.isNaN(parsedScore)) {
-      setError('Winner score must be a number.')
+    const parsedScore = parseTargetScore(score)
+    if (parsedScore === null) {
+      setError(SCORE_ERROR)
       return
     }
     startTransition(async () => {
@@ -345,8 +357,8 @@ function AddTargetControl({
           name: name.trim(),
           qrCode: qrCode.trim(),
           sequenceOrder: nextOrder,
+          score: parsedScore,
           isActive,
-          ...(parsedScore !== undefined ? { winnerScore: parsedScore } : {}),
         })
         onMutated(updated)
         reset()
@@ -384,14 +396,14 @@ function AddTargetControl({
           />
         </label>
         <label className={styles.nodeField}>
-          <span className={styles.fieldLabel}>Winner score (optional)</span>
+          <span className={styles.fieldLabel}>Score (1-100)</span>
           <input
             className={styles.inlineInput}
-            data-testid="target-winnerscore-input"
+            data-testid="target-score-input"
             type="number"
-            value={winnerScore}
-            onChange={(e) => setWinnerScore(e.target.value)}
-            placeholder="Winner score (optional)"
+            value={score}
+            onChange={(e) => setScore(e.target.value)}
+            placeholder="1-100"
           />
         </label>
         <label className={styles.inlineCheck}>
@@ -449,6 +461,156 @@ function AddTargetControl({
   )
 }
 
+// The edit form is a separate component so it mounts when the row enters edit
+// mode: every field seeds from the current `target` on that mount. Holding this
+// state in the always-mounted TargetRow would freeze it at first render and
+// re-open the form with values that `onMutated` has since replaced.
+function TargetEditForm({
+  missionId,
+  stageId,
+  substageId,
+  target,
+  onMutated,
+  onDone,
+}: {
+  missionId: number
+  stageId: number
+  substageId: number
+  target: MissionSubstageDto['targets'][number]
+  onMutated: OnMutated
+  onDone: () => void
+}) {
+  const [name, setName] = useState(target.name)
+  const [qrCode, setQrCode] = useState(target.qrCode)
+  const [sequenceOrder, setSequenceOrder] = useState(String(target.sequenceOrder))
+  const [isActive, setIsActive] = useState(target.isActive)
+  const [score, setScore] = useState(String(target.score))
+  const [error, setError] = useState<string | null>(null)
+  const [isPending, startTransition] = useTransition()
+
+  function saveEdit() {
+    const seq = parseInt(sequenceOrder, 10)
+    if (Number.isNaN(seq)) {
+      setError('Sequence order must be a number.')
+      return
+    }
+    const parsedScore = parseTargetScore(score)
+    if (parsedScore === null) {
+      setError(SCORE_ERROR)
+      return
+    }
+    startTransition(async () => {
+      setError(null)
+      try {
+        const updated = await updateTarget(missionId, stageId, substageId, target.id, {
+          name: name.trim(),
+          qrCode: qrCode.trim(),
+          sequenceOrder: seq,
+          isActive,
+          score: parsedScore,
+        })
+        onMutated(updated)
+        onDone()
+      } catch (e) {
+        setError(e instanceof Error ? e.message : 'Could not update target.')
+      }
+    })
+  }
+
+  return (
+    <div className={styles.nodeForm} data-testid={`target-node-${target.id}`}>
+      <div className={styles.nodeFormGrid}>
+        <label className={styles.nodeField}>
+          <span className={styles.fieldLabel}>Target name</span>
+          <input
+            className={styles.inlineInput}
+            data-testid="target-name-input"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Target name"
+          />
+        </label>
+        <label className={styles.nodeField}>
+          <span className={styles.fieldLabel}>Order</span>
+          <input
+            className={styles.inlineInput}
+            data-testid="target-sequence-input"
+            type="number"
+            value={sequenceOrder}
+            onChange={(e) => setSequenceOrder(e.target.value)}
+          />
+        </label>
+        <label className={styles.nodeField}>
+          <span className={styles.fieldLabel}>Score (1-100)</span>
+          <input
+            className={styles.inlineInput}
+            data-testid={`target-score-input-${target.id}`}
+            type="number"
+            value={score}
+            onChange={(e) => setScore(e.target.value)}
+            placeholder="1-100"
+          />
+        </label>
+        <label className={styles.inlineCheck}>
+          <input
+            data-testid="target-active-input"
+            type="checkbox"
+            checked={isActive}
+            onChange={(e) => setIsActive(e.target.checked)}
+          />{' '}
+          Active
+        </label>
+        <div className={styles.qrField}>
+          <span className={styles.fieldLabel}>QR code</span>
+          <div className={styles.qrInputRow}>
+            <input
+              className={styles.inlineInput}
+              data-testid="target-qrcode-input"
+              value={qrCode}
+              onChange={(e) => setQrCode(e.target.value)}
+              placeholder="QR code"
+            />
+            <button
+              className={styles.smallButton}
+              data-testid={`generate-qr-btn-${target.id}`}
+              disabled={isPending}
+              onClick={() => setQrCode(generateTargetQrCode())}
+              type="button"
+            >
+              Generate
+            </button>
+          </div>
+          <p className={styles.qrHelp}>{TARGET_QR_HELP}</p>
+          <QrPreview code={qrCode} testId={`qr-preview-${target.id}`} />
+        </div>
+      </div>
+      <div className={styles.nodeFormActions}>
+        <button
+          className={styles.smallButton}
+          disabled={isPending || name.trim() === '' || qrCode.trim() === ''}
+          onClick={saveEdit}
+          type="button"
+        >
+          Save
+        </button>
+        <button
+          className={styles.inlineButton}
+          disabled={isPending}
+          onClick={onDone}
+          type="button"
+        >
+          Cancel
+        </button>
+      </div>
+      {error && (
+        <p className={styles.formError} role="alert" data-testid="node-error">
+          {error}
+        </p>
+      )}
+    </div>
+  )
+}
+
 function TargetRow({
   missionId,
   stageId,
@@ -464,36 +626,9 @@ function TargetRow({
 }) {
   const [editing, setEditing] = useState(false)
   const [confirmRemove, setConfirmRemove] = useState(false)
-  const [name, setName] = useState(target.name)
-  const [qrCode, setQrCode] = useState(target.qrCode)
-  const [sequenceOrder, setSequenceOrder] = useState(String(target.sequenceOrder))
-  const [isActive, setIsActive] = useState(target.isActive)
   const [selectedClueId, setSelectedClueId] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
-
-  function saveEdit() {
-    const seq = parseInt(sequenceOrder, 10)
-    if (Number.isNaN(seq)) {
-      setError('Sequence order must be a number.')
-      return
-    }
-    startTransition(async () => {
-      setError(null)
-      try {
-        const updated = await updateTarget(missionId, stageId, substage.id, target.id, {
-          name: name.trim(),
-          qrCode: qrCode.trim(),
-          sequenceOrder: seq,
-          isActive,
-        })
-        onMutated(updated)
-        setEditing(false)
-      } catch (e) {
-        setError(e instanceof Error ? e.message : 'Could not update target.')
-      }
-    })
-  }
 
   function remove() {
     startTransition(async () => {
@@ -547,88 +682,14 @@ function TargetRow({
 
   if (editing) {
     return (
-      <div className={styles.nodeForm} data-testid={`target-node-${target.id}`}>
-        <div className={styles.nodeFormGrid}>
-          <label className={styles.nodeField}>
-            <span className={styles.fieldLabel}>Target name</span>
-            <input
-              className={styles.inlineInput}
-              data-testid="target-name-input"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Target name"
-            />
-          </label>
-          <label className={styles.nodeField}>
-            <span className={styles.fieldLabel}>Order</span>
-            <input
-              className={styles.inlineInput}
-              data-testid="target-sequence-input"
-              type="number"
-              value={sequenceOrder}
-              onChange={(e) => setSequenceOrder(e.target.value)}
-            />
-          </label>
-          <label className={styles.inlineCheck}>
-            <input
-              data-testid="target-active-input"
-              type="checkbox"
-              checked={isActive}
-              onChange={(e) => setIsActive(e.target.checked)}
-            />{' '}
-            Active
-          </label>
-          <div className={styles.qrField}>
-            <span className={styles.fieldLabel}>QR code</span>
-            <div className={styles.qrInputRow}>
-              <input
-                className={styles.inlineInput}
-                data-testid="target-qrcode-input"
-                value={qrCode}
-                onChange={(e) => setQrCode(e.target.value)}
-                placeholder="QR code"
-              />
-              <button
-                className={styles.smallButton}
-                data-testid={`generate-qr-btn-${target.id}`}
-                disabled={isPending}
-                onClick={() => setQrCode(generateTargetQrCode())}
-                type="button"
-              >
-                Generate
-              </button>
-            </div>
-            <p className={styles.qrHelp}>{TARGET_QR_HELP}</p>
-            <QrPreview code={qrCode} testId={`qr-preview-${target.id}`} />
-          </div>
-        </div>
-        <div className={styles.nodeFormActions}>
-          <button
-            className={styles.smallButton}
-            disabled={isPending || name.trim() === '' || qrCode.trim() === ''}
-            onClick={saveEdit}
-            type="button"
-          >
-            Save
-          </button>
-          <button
-            className={styles.inlineButton}
-            disabled={isPending}
-            onClick={() => {
-              setEditing(false)
-              setError(null)
-            }}
-            type="button"
-          >
-            Cancel
-          </button>
-        </div>
-        {error && (
-          <p className={styles.formError} role="alert" data-testid="node-error">
-            {error}
-          </p>
-        )}
-      </div>
+      <TargetEditForm
+        missionId={missionId}
+        stageId={stageId}
+        substageId={substage.id}
+        target={target}
+        onMutated={onMutated}
+        onDone={() => setEditing(false)}
+      />
     )
   }
 
@@ -643,6 +704,9 @@ function TargetRow({
         <span className={styles.treeTargetInfo}>
           <span className={styles.treeClueTitle}>{target.name}</span>
           <span className={styles.qrPreviewCode}>{target.qrCode}</span>
+          <span className={styles.treeClueText} data-testid={`target-score-${target.id}`}>
+            Score: {target.score}
+          </span>
           {!target.isActive && (
             <span className={styles.chip} data-tone="muted">
               Inactive

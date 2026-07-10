@@ -134,7 +134,7 @@ internal static class LiveSessionTestFactory
         DateTimeOffset? scheduledAt = null)
     {
         var triviaSubstage = SubstageSnapshot.CreateTrivia("Trivia Round", 1);
-        var treasureSubstage = SubstageSnapshot.CreateTreasureHunt("Treasure Route", 2, winnerScore: 100);
+        var treasureSubstage = SubstageSnapshot.CreateTreasureHunt("Treasure Route", 2);
         var missionRuntimeSnapshot = MissionRuntimeSnapshot.Create(
             Guid.NewGuid(),
             "Mixed Mission",
@@ -147,6 +147,7 @@ internal static class LiveSessionTestFactory
                     "QR-001",
                     1,
                     isActive: true,
+                    score: 100,
                     clueText: "Look near the entrance.",
                     clueVisibilityPolicy: "VisibleAtStart")
             ],
@@ -190,7 +191,7 @@ internal static class LiveSessionTestFactory
 
     private static MissionRuntimeSnapshot CreateTreasureHuntRuntimeSnapshot(int maximumTimeMinutes)
     {
-        var treasureSubstage = SubstageSnapshot.CreateTreasureHunt("Treasure Route", 1, winnerScore: 100);
+        var treasureSubstage = SubstageSnapshot.CreateTreasureHunt("Treasure Route", 1);
 
         return MissionRuntimeSnapshot.Create(
             Guid.NewGuid(),
@@ -204,6 +205,7 @@ internal static class LiveSessionTestFactory
                     "QR-001",
                     1,
                     isActive: true,
+                    score: 100,
                     clueText: "Look near the entrance.",
                     clueVisibilityPolicy: "VisibleAtStart")
             ],

@@ -249,28 +249,32 @@ export function AddClueControl({
 // Per-node edit + remove. Remove mirrors the panel's deactivate confirm pattern.
 // ---------------------------------------------------------------------------
 
-export function NodeRowControls({
+// The edit form is a separate component so it mounts when the row enters edit
+// mode: every field seeds from the node's current values on that mount. Holding
+// this state in the always-mounted NodeRowControls would freeze it at first
+// render, so cancelling an edit and re-opening would restore the abandoned
+// values rather than the persisted ones.
+function NodeEditForm({
   missionId,
   nodeId,
-  nodeKind,
+  isClue,
   initialTitle,
   initialSequenceOrder,
   initialClueText,
   initialVisibility,
   onMutated,
+  onDone,
 }: {
   missionId: number
   nodeId: number
-  nodeKind: 'Stage' | 'Substage' | 'Clue'
+  isClue: boolean
   initialTitle: string
   initialSequenceOrder: number
   initialClueText?: string
   initialVisibility?: string
   onMutated: OnMutated
+  onDone: () => void
 }) {
-  const isClue = nodeKind === 'Clue'
-  const [editing, setEditing] = useState(false)
-  const [confirmRemove, setConfirmRemove] = useState(false)
   const [title, setTitle] = useState(initialTitle)
   const [sequenceOrder, setSequenceOrder] = useState(String(initialSequenceOrder))
   const [clueText, setClueText] = useState(initialClueText ?? '')
@@ -297,12 +301,117 @@ export function NodeRowControls({
           ...(isClue ? { clueText, clueVisibilityPolicy: visibility } : {}),
         })
         onMutated(updated)
-        setEditing(false)
+        onDone()
       } catch (e) {
         setError(e instanceof Error ? e.message : 'Could not update node.')
       }
     })
   }
+
+  return (
+    <div className={styles.nodeForm}>
+      <div className={styles.nodeFormGrid}>
+        <label className={styles.nodeField}>
+          <span className={styles.fieldLabel}>{isClue ? 'Clue title' : 'Title'}</span>
+          <input
+            className={styles.inlineInput}
+            data-testid="node-title-input"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="Title"
+          />
+        </label>
+        <label className={styles.nodeField}>
+          <span className={styles.fieldLabel}>Order</span>
+          <input
+            className={styles.inlineInput}
+            data-testid="node-sequence-input"
+            type="number"
+            value={sequenceOrder}
+            onChange={(e) => setSequenceOrder(e.target.value)}
+          />
+        </label>
+        {isClue && (
+          <>
+            <label className={styles.nodeField}>
+              <span className={styles.fieldLabel}>Clue text</span>
+              <input
+                className={styles.inlineInput}
+                data-testid="clue-text-input"
+                value={clueText}
+                onChange={(e) => setClueText(e.target.value)}
+                placeholder="Clue text"
+              />
+            </label>
+            <label className={styles.nodeField}>
+              <span className={styles.fieldLabel}>Clue visibility</span>
+              <select
+                className={styles.inlineInput}
+                data-testid="clue-visibility-input"
+                value={visibility}
+                onChange={(e) => setVisibility(e.target.value as ClueVisibility)}
+              >
+                {CLUE_VISIBILITY_POLICIES.map((p) => (
+                  <option key={p} value={p}>
+                    {clueVisibilityLabel(p)}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </>
+        )}
+      </div>
+      <div className={styles.nodeFormActions}>
+        <button
+          className={styles.smallButton}
+          disabled={isPending || title.trim() === ''}
+          onClick={saveEdit}
+          type="button"
+        >
+          Save
+        </button>
+        <button
+          className={styles.inlineButton}
+          disabled={isPending}
+          onClick={onDone}
+          type="button"
+        >
+          Cancel
+        </button>
+      </div>
+      {error && (
+        <p className={styles.formError} role="alert" data-testid="node-error">
+          {error}
+        </p>
+      )}
+    </div>
+  )
+}
+
+export function NodeRowControls({
+  missionId,
+  nodeId,
+  nodeKind,
+  initialTitle,
+  initialSequenceOrder,
+  initialClueText,
+  initialVisibility,
+  onMutated,
+}: {
+  missionId: number
+  nodeId: number
+  nodeKind: 'Stage' | 'Substage' | 'Clue'
+  initialTitle: string
+  initialSequenceOrder: number
+  initialClueText?: string
+  initialVisibility?: string
+  onMutated: OnMutated
+}) {
+  const isClue = nodeKind === 'Clue'
+  const [editing, setEditing] = useState(false)
+  const [confirmRemove, setConfirmRemove] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [isPending, startTransition] = useTransition()
 
   function remove() {
     startTransition(async () => {
@@ -319,85 +428,17 @@ export function NodeRowControls({
 
   if (editing) {
     return (
-      <div className={styles.nodeForm}>
-        <div className={styles.nodeFormGrid}>
-          <label className={styles.nodeField}>
-            <span className={styles.fieldLabel}>{isClue ? 'Clue title' : 'Title'}</span>
-            <input
-              className={styles.inlineInput}
-              data-testid="node-title-input"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="Title"
-            />
-          </label>
-          <label className={styles.nodeField}>
-            <span className={styles.fieldLabel}>Order</span>
-            <input
-              className={styles.inlineInput}
-              data-testid="node-sequence-input"
-              type="number"
-              value={sequenceOrder}
-              onChange={(e) => setSequenceOrder(e.target.value)}
-            />
-          </label>
-          {isClue && (
-            <>
-              <label className={styles.nodeField}>
-                <span className={styles.fieldLabel}>Clue text</span>
-                <input
-                  className={styles.inlineInput}
-                  data-testid="clue-text-input"
-                  value={clueText}
-                  onChange={(e) => setClueText(e.target.value)}
-                  placeholder="Clue text"
-                />
-              </label>
-              <label className={styles.nodeField}>
-                <span className={styles.fieldLabel}>Clue visibility</span>
-                <select
-                  className={styles.inlineInput}
-                  data-testid="clue-visibility-input"
-                  value={visibility}
-                  onChange={(e) => setVisibility(e.target.value as ClueVisibility)}
-                >
-                  {CLUE_VISIBILITY_POLICIES.map((p) => (
-                    <option key={p} value={p}>
-                      {clueVisibilityLabel(p)}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            </>
-          )}
-        </div>
-        <div className={styles.nodeFormActions}>
-          <button
-            className={styles.smallButton}
-            disabled={isPending || title.trim() === ''}
-            onClick={saveEdit}
-            type="button"
-          >
-            Save
-          </button>
-          <button
-            className={styles.inlineButton}
-            disabled={isPending}
-            onClick={() => {
-              setEditing(false)
-              setError(null)
-            }}
-            type="button"
-          >
-            Cancel
-          </button>
-        </div>
-        {error && (
-          <p className={styles.formError} role="alert" data-testid="node-error">
-            {error}
-          </p>
-        )}
-      </div>
+      <NodeEditForm
+        missionId={missionId}
+        nodeId={nodeId}
+        isClue={isClue}
+        initialTitle={initialTitle}
+        initialSequenceOrder={initialSequenceOrder}
+        initialClueText={initialClueText}
+        initialVisibility={initialVisibility}
+        onMutated={onMutated}
+        onDone={() => setEditing(false)}
+      />
     )
   }
 

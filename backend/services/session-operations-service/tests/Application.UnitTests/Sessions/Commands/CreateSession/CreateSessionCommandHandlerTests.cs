@@ -194,13 +194,13 @@ public sealed class CreateSessionCommandHandlerTests
                             "Treasure Route",
                             1,
                             SubstagePlayMode.TreasureHunt.ToString(),
-                            100,
                             [
                                 new MissionRuntimeTargetDto(
                                     "Main Exhibit",
                                     "QR-001",
                                     1,
                                     true,
+                                    100,
                                     new MissionRuntimeClueDto("Look near the entrance.", "VisibleAtStart"))
                             ],
                             []),
@@ -208,7 +208,6 @@ public sealed class CreateSessionCommandHandlerTests
                             "Trivia Round",
                             2,
                             SubstagePlayMode.Trivia.ToString(),
-                            null,
                             [],
                             [
                                 new MissionRuntimeTriviaQuestionDto(
@@ -242,7 +241,6 @@ public sealed class CreateSessionCommandHandlerTests
                             "Trivia Round",
                             1,
                             SubstagePlayMode.Trivia.ToString(),
-                            null,
                             [],
                             [])
                     ])

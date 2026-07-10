@@ -128,7 +128,6 @@ public sealed class CreateSessionSingleSourceInvariantTests
                             "Trivia Round",
                             1,
                             SubstagePlayMode.Trivia.ToString(),
-                            null,
                             [],
                             [
                                 new MissionRuntimeTriviaQuestionDto(

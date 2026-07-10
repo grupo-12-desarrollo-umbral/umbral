@@ -20,7 +20,7 @@ public sealed class StageSnapshotTests
             "Stage One",
             1,
             [
-                SubstageSnapshot.CreateTreasureHunt("Treasure Route", 2, winnerScore: 100),
+                SubstageSnapshot.CreateTreasureHunt("Treasure Route", 2),
                 SubstageSnapshot.CreateTrivia("Trivia Round", 3)
             ]);
 

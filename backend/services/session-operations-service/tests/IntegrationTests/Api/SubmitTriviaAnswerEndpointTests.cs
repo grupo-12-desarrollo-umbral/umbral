@@ -256,7 +256,7 @@ public sealed class SubmitTriviaAnswerEndpointTests : IAsyncLifetime
 
     private static MissionRuntimeSnapshot CreateTreasureHuntSnapshot(Guid sourceMissionId)
     {
-        var treasureHuntSubstage = SubstageSnapshot.CreateTreasureHunt("Treasure Hunt", 1, 100);
+        var treasureHuntSubstage = SubstageSnapshot.CreateTreasureHunt("Treasure Hunt", 1);
 
         return MissionRuntimeSnapshot.Create(
             sourceMissionId,
@@ -272,6 +272,7 @@ public sealed class SubmitTriviaAnswerEndpointTests : IAsyncLifetime
                     "QR-ALPHA",
                     1,
                     true,
+                    100,
                     "Look under the stairs",
                     "AfterPreviousTarget")
             ],

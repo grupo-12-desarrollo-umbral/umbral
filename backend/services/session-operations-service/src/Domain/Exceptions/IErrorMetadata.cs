@@ -12,4 +12,13 @@ public interface IErrorMetadata
 
     /// <summary>Stable kebab-case slug clients can branch on (RFC 7807 <c>type</c>).</summary>
     string ErrorCode { get; }
+
+    /// <summary>
+    /// Optional client-safe explanation for the RFC 7807 <c>detail</c> field. Defaults to
+    /// <see langword="null"/>: the exception message is treated as diagnostic-only and never
+    /// reaches the client, because domain messages routinely interpolate identifiers
+    /// (team ids, participant ids, user ids). An exception opts in by overriding this with a
+    /// curated, identifier-free sentence when its explanation is safe to expose.
+    /// </summary>
+    string? PublicDetail => null;
 }
