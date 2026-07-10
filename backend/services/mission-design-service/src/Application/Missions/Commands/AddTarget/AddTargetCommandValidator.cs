@@ -2,9 +2,8 @@ namespace umbral_backend.Application.Missions.Commands.AddTarget;
 
 public sealed class AddTargetCommandValidator : AbstractValidator<AddTargetCommand>
 {
-    private const int MinimumScore = 1;
-    private const int MaximumScore = 100;
-
+    // Score is intentionally absent: it is derived from the mission's difficulty
+    // (see Mission.AddTarget), never supplied by the caller.
     public AddTargetCommandValidator()
     {
         RuleFor(command => command.MissionId).GreaterThan(0);
@@ -13,6 +12,5 @@ public sealed class AddTargetCommandValidator : AbstractValidator<AddTargetComma
         RuleFor(command => command.Name).NotEmpty().MaximumLength(200);
         RuleFor(command => command.QrCode).NotEmpty().MaximumLength(500);
         RuleFor(command => command.SequenceOrder).GreaterThan(0);
-        RuleFor(command => command.Score).InclusiveBetween(MinimumScore, MaximumScore);
     }
 }

@@ -62,6 +62,13 @@ public sealed class Target : BaseEntity
         }
     }
 
+    // Re-derives the score from the owning mission's difficulty. Called by the
+    // aggregate when difficulty changes; score is never authored directly.
+    internal void Reprice(int score)
+    {
+        Score = ScoreValue.Create(score);
+    }
+
     internal void AssociateClue(int clueId)
     {
         // Guidance only: associating a clue never resolves or advances the target.

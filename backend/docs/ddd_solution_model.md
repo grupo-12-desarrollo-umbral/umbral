@@ -415,7 +415,7 @@ Required implementation patterns from ADR-0004 apply here:
 
 - `MissionActivationPolicy`
   - decides whether a mission is ready for live use
-  - requires at least one stage, at least one substage per stage, exactly one play mode per substage, target and winner-score readiness for treasure hunt, and published question selections for trivia substages
+  - requires at least one stage, at least one substage per stage, exactly one play mode per substage, target readiness for treasure hunt (each target's score is difficulty-derived, not authored — see [ADR-0015](adr/0015-per-target-scoring-ownership.md)), and published question selections for trivia substages
 - `MissionStructurePolicy`
   - protects mission hierarchy invariants
 - `TriviaPublicationPolicy`

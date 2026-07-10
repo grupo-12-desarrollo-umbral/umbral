@@ -17,6 +17,18 @@ export const metadata: Metadata = {
   description: "Warm, high-density command center UI for live game operators and admins.",
 };
 
+// Applies the saved (or OS-preferred) theme before first paint so a light-theme
+// user never sees a dark flash while the dashboard hydrates.
+const themeBootstrap = `(function () {
+  try {
+    var saved = localStorage.getItem('umbral-theme');
+    var theme = saved === 'dark' || saved === 'light'
+      ? saved
+      : (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+    document.documentElement.dataset.theme = theme;
+  } catch (e) {}
+})();`;
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -26,7 +38,11 @@ export default function RootLayout({
     <html
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      suppressHydrationWarning
     >
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeBootstrap }} />
+      </head>
       <body className="min-h-full flex flex-col">{children}</body>
     </html>
   );

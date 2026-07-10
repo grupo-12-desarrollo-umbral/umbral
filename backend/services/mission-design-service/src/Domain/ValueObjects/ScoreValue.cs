@@ -4,7 +4,14 @@ namespace umbral_backend.Domain.ValueObjects;
 
 public sealed class ScoreValue : ValueObject
 {
-    public const int MaximumPoints = 100;
+    public const int MaximumPoints = 150;
+
+    // A target's score is not chosen by operators: it is derived as
+    // BaseTargetScore * Difficulty.ScoreFactor (50 * {1,2,3} => 50 / 100 / 150),
+    // so every score is a multiple of PointsIncrement within [Increment, Maximum].
+    public const int BaseTargetScore = 50;
+
+    public const int PointsIncrement = 10;
 
     private ScoreValue()
     {
@@ -27,6 +34,11 @@ public sealed class ScoreValue : ValueObject
         if (points > MaximumPoints)
         {
             throw new ScoreValueExceedsMaximumException();
+        }
+
+        if (points % PointsIncrement != 0)
+        {
+            throw new ScoreValueMustBeMultipleOfTenException();
         }
 
         return new ScoreValue(points);

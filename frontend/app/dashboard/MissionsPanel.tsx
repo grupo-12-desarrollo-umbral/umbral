@@ -325,9 +325,9 @@ export function MissionsPanel(_props: { role: DashboardRole }) {
           <tbody>
             {listData.map((mission) => (
               <tr key={mission.id} data-testid={`mission-row-${mission.id}`}>
-                <td>{mission.name}</td>
-                <td>{mission.description}</td>
-                <td>
+                <td data-label="Name">{mission.name}</td>
+                <td data-label="Description">{mission.description}</td>
+                <td data-label="Difficulty">
                   <span
                     className={styles.chip}
                     data-testid={`mission-difficulty-${mission.id}`}
@@ -335,7 +335,7 @@ export function MissionsPanel(_props: { role: DashboardRole }) {
                     {mission.difficulty}
                   </span>
                 </td>
-                <td>
+                <td data-label="Status">
                   <span
                     className={styles.chip}
                     data-tone={mission.isActive ? (mission.isSourceReady ? 'success' : 'warning') : 'muted'}
@@ -344,7 +344,7 @@ export function MissionsPanel(_props: { role: DashboardRole }) {
                     {mission.activationState}
                   </span>
                 </td>
-                <td>
+                <td data-label="Actions">
                   <button
                     className={styles.inlineButton}
                     data-testid={`view-mission-btn-${mission.id}`}

@@ -116,7 +116,7 @@ Suggested fields:
 | `targetCode`          | Business identifier used for validation                  |
 | `validationType`      | Declares how the target is resolved, for example QR scan |
 | `expectedValue`       | Expected comparison or match value                       |
-| `scoreValue`          | Points awarded for resolving this target (integer 1-100) |
+| `scoreValue`          | Points awarded for resolving this target — **derived** from the owning `Mission`'s `Difficulty` as `50 × ScoreFactor` (Beginner/Intermediate/Advanced ⇒ 50/100/150), not authored; re-derived when the mission's difficulty changes |
 | `clueNodeId`          | Optional associated `Clue` node                          |
 | `isActive`            | Allows deactivation without deleting the target          |
 
@@ -889,7 +889,7 @@ These concepts should be referenced by the entities above even when they are not
 
 | Concept                   | Type         | Used by                                  | Why it matters                                    |
 | ------------------------- | ------------ | ---------------------------------------- | ------------------------------------------------- |
-| `Difficulty`              | Value Object | `Mission`                                | Supports academic mission classification.         |
+| `Difficulty`              | Value Object | `Mission`, `Target` score                | Supports academic mission classification; its `ScoreFactor` (1/2/3) derives each `Target`'s `scoreValue`. |
 | `MaximumTime`             | Value Object | `Mission`, `LiveSession`                 | Supports time-bound execution rules.              |
 | `SessionSource`           | Value Object | `LiveSession`                            | Identifies the active source mission.             |
 | `SubstagePlayMode`        | Enum         | `MissionNode`, `MissionRuntimeSnapshot`  | Restricts each substage to `TreasureHunt` or `Trivia`. |

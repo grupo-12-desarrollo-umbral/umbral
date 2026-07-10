@@ -33,6 +33,7 @@ public sealed class ErrorCodeContractTests
             ["QuestionTimerExceedsMaximumException"] = "question-timer-exceeds-maximum",
             ["QuestionTimerMustBePositiveException"] = "question-timer-must-be-positive",
             ["ScoreValueExceedsMaximumException"] = "score-value-exceeds-maximum",
+            ["ScoreValueMustBeMultipleOfTenException"] = "score-value-must-be-multiple-of-ten",
             ["ScoreValueMustBePositiveException"] = "score-value-must-be-positive",
             ["SubstagePlayModeMismatchException"] = "substage-play-mode-mismatch",
             ["SubstageRequiresPlayModeException"] = "substage-requires-play-mode",

@@ -91,6 +91,7 @@ public sealed class Mission : BaseAuditableEntity
         Description = description.Trim();
         Difficulty = Difficulty.Create(difficulty);
         MaximumTime = MaximumTime.Create(maximumTimeMinutes);
+        RepriceTargets();
         RefreshActivationState();
 
         AddDomainEvent(new MissionDetailsUpdatedEvent(this));
@@ -147,24 +148,39 @@ public sealed class Mission : BaseAuditableEntity
 
     // ---- Treasure-hunt target authoring -------------------------------------
 
-    public Target AddTarget(int stageId, int substageId, string name, string qrCode, int sequenceOrder, int score, bool isActive = true)
+    public Target AddTarget(int stageId, int substageId, string name, string qrCode, int sequenceOrder, bool isActive = true)
     {
         var substage = FindSubstage(stageId, substageId);
-        var target = substage.AddTarget(name, qrCode, sequenceOrder, score, isActive);
+        var target = substage.AddTarget(name, qrCode, sequenceOrder, DeriveTargetScore(), isActive);
 
         AddDomainEvent(new TargetAddedToSubstageEvent(this, substage, target));
         RefreshActivationState();
         return target;
     }
 
-    public Target UpdateTarget(int stageId, int substageId, int targetId, string name, string qrCode, int sequenceOrder, bool isActive, int? score = null)
+    public Target UpdateTarget(int stageId, int substageId, int targetId, string name, string qrCode, int sequenceOrder, bool isActive)
     {
         var substage = FindSubstage(stageId, substageId);
-        var target = substage.UpdateTarget(targetId, name, qrCode, sequenceOrder, isActive, score);
+        var target = substage.UpdateTarget(targetId, name, qrCode, sequenceOrder, isActive, DeriveTargetScore());
 
         AddDomainEvent(new TargetUpdatedEvent(this, substage, target));
         RefreshActivationState();
         return target;
+    }
+
+    // A target's score is not authored: it is fixed by the mission's difficulty
+    // (base 50 * difficulty factor). Derived on add/update and re-derived for every
+    // target when the mission's difficulty changes, so scores never drift from it.
+    private int DeriveTargetScore() => ScoreValue.BaseTargetScore * Difficulty.ScoreFactor;
+
+    private void RepriceTargets()
+    {
+        var score = DeriveTargetScore();
+
+        foreach (var target in _stages.SelectMany(stage => stage.Substages).SelectMany(substage => substage.Targets))
+        {
+            target.Reprice(score);
+        }
     }
 
     public void RemoveTarget(int stageId, int substageId, int targetId)

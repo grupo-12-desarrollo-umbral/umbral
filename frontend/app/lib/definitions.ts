@@ -146,11 +146,12 @@ export type UpdateMissionNodeRequest = {
 
 export type AssignPlayModeRequest = { playMode: 'TreasureHunt' | 'Trivia' }
 
+// score is intentionally absent: the server derives it from the mission's
+// difficulty (base 50 * tier factor). It is read back on MissionTargetDto.
 export type AddTargetRequest = {
   name: string
   qrCode: string
   sequenceOrder: number
-  score: number
   isActive?: boolean
 }
 
@@ -159,7 +160,6 @@ export type UpdateTargetRequest = {
   qrCode: string
   sequenceOrder: number
   isActive: boolean
-  score?: number
 }
 
 export type TriviaQuizSelectionRequest = { triviaQuizId: number }

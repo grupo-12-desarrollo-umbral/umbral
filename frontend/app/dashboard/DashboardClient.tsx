@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useReducer, useState, useTransition } from 'react';
+import { useCallback, useEffect, useReducer, useState, useSyncExternalStore, useTransition } from 'react';
 import { logout } from '@/app/actions/auth';
 import { refreshSession } from '@/app/actions/session';
 import { getUsersPage, deactivateUser, assignUserRole } from '@/app/actions/users';
@@ -143,21 +143,54 @@ function formatDateTime(value: string | null | undefined) {
   return new Date(value).toLocaleString()
 }
 
-function getPreferredTheme(): Theme {
-  if (typeof window === 'undefined') {
-    return 'dark';
-  }
-
-  const saved = window.localStorage.getItem('umbral-theme');
-  if (saved === 'dark' || saved === 'light') {
-    return saved;
-  }
-
-  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-}
-
 function getOperatorDefaultSession() {
   return 'assigned-list';
+}
+
+// Theme is owned by the root layout's bootstrap script, which sets
+// `data-theme` on <html> before first paint. Reading it through an external
+// store keeps the toggle's icon/label in sync with the real theme: SSR and the
+// first client render both use the server snapshot, then React reconciles to
+// the attribute after hydration — no frozen, mislabelled control.
+const THEME_EVENT = 'umbral-theme-change';
+
+function subscribeTheme(onChange: () => void) {
+  window.addEventListener(THEME_EVENT, onChange);
+  window.addEventListener('storage', onChange);
+  return () => {
+    window.removeEventListener(THEME_EVENT, onChange);
+    window.removeEventListener('storage', onChange);
+  };
+}
+
+function getThemeSnapshot(): Theme {
+  return document.documentElement.dataset.theme === 'light' ? 'light' : 'dark';
+}
+
+function getThemeServerSnapshot(): Theme {
+  return 'dark';
+}
+
+// Sidebar collapse lives in localStorage and is read through an external store so
+// SSR and first client render agree (both "expanded"); React reconciles to the
+// persisted value after hydration without a mismatch on the derived nav attributes.
+const SIDEBAR_EVENT = 'umbral-sidebar-change';
+
+function subscribeSidebar(onChange: () => void) {
+  window.addEventListener(SIDEBAR_EVENT, onChange);
+  window.addEventListener('storage', onChange);
+  return () => {
+    window.removeEventListener(SIDEBAR_EVENT, onChange);
+    window.removeEventListener('storage', onChange);
+  };
+}
+
+function getSidebarCollapsed() {
+  return window.localStorage.getItem('umbral-sidebar') === 'collapsed';
+}
+
+function getSidebarServerSnapshot() {
+  return false;
 }
 
 function getNavigationLabel(role: DashboardRole, key: string) {
@@ -215,7 +248,12 @@ export default function DashboardClient({
   displayName: string;
 }) {
   const [role, setRole] = useState<DashboardRole>(initialRole);
-  const [theme, setTheme] = useState<Theme>(() => getPreferredTheme());
+  const theme = useSyncExternalStore(subscribeTheme, getThemeSnapshot, getThemeServerSnapshot);
+  const sidebarCollapsed = useSyncExternalStore(
+    subscribeSidebar,
+    getSidebarCollapsed,
+    getSidebarServerSnapshot,
+  );
 
   useEffect(() => {
     refreshSession().then((result) => {
@@ -256,11 +294,6 @@ export default function DashboardClient({
     handleSubstageAdvanced,
   } = triviaRound
   const isOperatorSessionsWorkspace = role === 'operator' && activeNav === 'sessions';
-
-  useEffect(() => {
-    document.documentElement.dataset.theme = theme;
-    window.localStorage.setItem('umbral-theme', theme);
-  }, [theme]);
 
   useEffect(() => {
     if (!toast) {
@@ -469,7 +502,16 @@ export default function DashboardClient({
   }
 
   function toggleTheme() {
-    setTheme((current) => (current === 'dark' ? 'light' : 'dark'));
+    const next: Theme = getThemeSnapshot() === 'dark' ? 'light' : 'dark';
+    document.documentElement.dataset.theme = next;
+    window.localStorage.setItem('umbral-theme', next);
+    window.dispatchEvent(new Event(THEME_EVENT));
+  }
+
+  function toggleSidebar() {
+    const next = !getSidebarCollapsed();
+    window.localStorage.setItem('umbral-sidebar', next ? 'collapsed' : 'expanded');
+    window.dispatchEvent(new Event(SIDEBAR_EVENT));
   }
 
   function applyTransitionResult(result: TransitionSessionStateResultDto) {
@@ -575,7 +617,7 @@ export default function DashboardClient({
         Skip to main content
       </a>
 
-      <div className={styles.frame}>
+      <div className={styles.frame} data-collapsed={sidebarCollapsed}>
         <aside className={styles.sidebar} aria-label="Primary navigation">
           <div className={styles.brand}>
             <div className={styles.brandMark} aria-hidden="true">
@@ -596,11 +638,13 @@ export default function DashboardClient({
                 className={styles.navItem}
                 data-active={activeNav === item.key}
                 data-testid={`nav-${item.key}`}
+                aria-current={activeNav === item.key ? 'page' : undefined}
                 onClick={() => setActiveNav(item.key)}
+                title={sidebarCollapsed ? getNavigationLabel(role, item.key) : undefined}
                 type="button"
               >
-                <span aria-hidden="true">{item.icon}</span>
-                <span>{getNavigationLabel(role, item.key)}</span>
+                <span className={styles.navIcon} aria-hidden="true">{item.icon}</span>
+                <span className={styles.navLabel}>{getNavigationLabel(role, item.key)}</span>
                 <span className={styles.navMarker} aria-hidden="true" />
               </button>
             ))}
@@ -624,9 +668,15 @@ export default function DashboardClient({
               </p>
             </section>
 
-            <button className={styles.collapseButton} type="button">
-              <span aria-hidden="true">‹</span>
-              Collapse
+            <button
+              className={styles.collapseButton}
+              type="button"
+              onClick={toggleSidebar}
+              aria-pressed={sidebarCollapsed}
+              title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            >
+              <span aria-hidden="true">{sidebarCollapsed ? '›' : '‹'}</span>
+              <span className={styles.navLabel}>{sidebarCollapsed ? 'Expand' : 'Collapse'}</span>
             </button>
           </div>
         </aside>
@@ -707,7 +757,13 @@ export default function DashboardClient({
                 </span>
               </div>
 
-              <button className={styles.themeButton} onClick={toggleTheme} type="button" suppressHydrationWarning>
+              <button
+                className={styles.themeButton}
+                onClick={toggleTheme}
+                type="button"
+                aria-label={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
+                title={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
+              >
                 {theme === 'dark' ? '☾' : '☼'}
               </button>
 
@@ -766,6 +822,23 @@ export default function DashboardClient({
                   Review the sessions you are responsible for, or ask an administrator to assign or reassign a session when the live floor changes.
                 </p>
               </div>
+
+              {operatorSessionsError && (
+                <p className={styles.errorBanner} role="alert">
+                  {operatorSessionsError}
+                </p>
+              )}
+
+              {isLoadingOperatorSessions && (
+                <p className={styles.panelMeta}>Loading your assigned sessions…</p>
+              )}
+
+              {operatorSessionsRequestState === 'loaded' && activeOperatorSessions.length === 0 && (
+                <p className={styles.emptyStateCopy} data-testid="no-assigned-sessions">
+                  No active sessions are assigned to you right now. When an administrator assigns
+                  one, it will appear here.
+                </p>
+              )}
 
               <div className={styles.sessionCards}>
                 {activeOperatorSessions.map((session) => {
@@ -980,7 +1053,7 @@ export default function DashboardClient({
                     </div>
                   </div>
 
-                  <dl className={styles.sessionMeta}>
+                  <dl className={styles.detailList}>
                     <dt>Title</dt>
                     <dd>{selectedOperatorSession.title}</dd>
                     <dt>Code</dt>
@@ -1139,8 +1212,18 @@ export default function DashboardClient({
 
       {toast && (
         <div aria-live="polite" className={styles.toast} role="status">
-          <div className={styles.toastTitle}>{toast.title}</div>
-          <div className={styles.toastBody}>{toast.body}</div>
+          <div className={styles.toastContent}>
+            <div className={styles.toastTitle}>{toast.title}</div>
+            <div className={styles.toastBody}>{toast.body}</div>
+          </div>
+          <button
+            className={styles.toastClose}
+            onClick={() => setToast(null)}
+            type="button"
+            aria-label="Dismiss notification"
+          >
+            ×
+          </button>
         </div>
       )}
     </div>
@@ -1237,15 +1320,15 @@ function UsersPanel({ role }: { role: DashboardRole }) {
       </div>
 
       {error && (
-        <div className={styles.chip} data-tone="critical">
+        <p className={styles.errorBanner} role="alert">
           {error}
-        </div>
+        </p>
       )}
 
       {roleError && (
-        <div className={styles.chip} data-tone="critical">
+        <p className={styles.errorBanner} role="alert">
           {roleError}
-        </div>
+        </p>
       )}
 
       {data && (
@@ -1263,9 +1346,9 @@ function UsersPanel({ role }: { role: DashboardRole }) {
             <tbody>
               {data.items.map((user) => (
                 <tr key={user.id}>
-                  <td>{user.displayName}</td>
-                  <td>{user.email}</td>
-                  <td>
+                  <td data-label="Name">{user.displayName}</td>
+                  <td data-label="Email">{user.email}</td>
+                  <td data-label="Role">
                     {role === 'admin' && roleEditId === user.id ? (
                       <select
                         className={styles.inlineSelect}
@@ -1281,7 +1364,7 @@ function UsersPanel({ role }: { role: DashboardRole }) {
                       user.role
                     )}
                   </td>
-                  <td>
+                  <td data-label="Status">
                     <span
                       className={styles.chip}
                       data-tone={user.isActive ? 'success' : 'critical'}
@@ -1290,7 +1373,7 @@ function UsersPanel({ role }: { role: DashboardRole }) {
                     </span>
                   </td>
                   {role === 'admin' && (
-                    <td>
+                    <td data-label="Actions">
                       {user.isActive && confirmId !== user.id && roleEditId !== user.id && (
                         <button
                           className={styles.inlineButton}

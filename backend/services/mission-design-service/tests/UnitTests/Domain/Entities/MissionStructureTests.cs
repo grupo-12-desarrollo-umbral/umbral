@@ -96,10 +96,36 @@ public class MissionStructureTests
         TreasureSubstageWith(mission, 10, 100);
         mission.ClearDomainEvents();
 
-        var target = mission.AddTarget(10, 100, "Statue", "QR-1", 1, 25);
+        var target = mission.AddTarget(10, 100, "Statue", "QR-1", 1);
 
         target.QrCode.Should().Be("QR-1");
         mission.DomainEvents.Should().Contain(e => e is TargetAddedToSubstageEvent);
+    }
+
+    [Fact]
+    public void AddTarget_DerivesScoreFromMissionDifficulty()
+    {
+        var mission = NewMission(); // Advanced => 50 * 3
+        StageWith(mission, 10);
+        TreasureSubstageWith(mission, 10, 100);
+
+        var target = mission.AddTarget(10, 100, "Statue", "QR-1", 1);
+
+        target.Score.Points.Should().Be(150);
+    }
+
+    [Fact]
+    public void UpdateDetails_WhenDifficultyChanges_RepricesEveryTarget()
+    {
+        var mission = NewMission(); // Advanced => 150
+        StageWith(mission, 10);
+        TreasureSubstageWith(mission, 10, 100);
+        var target = mission.AddTarget(10, 100, "Statue", "QR-1", 1);
+        target.Score.Points.Should().Be(150);
+
+        mission.UpdateDetails("Mission", "Briefing", "Beginner", 45); // Beginner => 50
+
+        target.Score.Points.Should().Be(50);
     }
 
     [Fact]
@@ -109,7 +135,7 @@ public class MissionStructureTests
         StageWith(mission, 10);
         TriviaSubstageWith(mission, 10, 100);
 
-        var act = () => mission.AddTarget(10, 100, "Statue", "QR-1", 1, 25);
+        var act = () => mission.AddTarget(10, 100, "Statue", "QR-1", 1);
 
         act.Should().Throw<SubstagePlayModeMismatchException>();
     }
@@ -120,7 +146,7 @@ public class MissionStructureTests
         var mission = NewMission();
         StageWith(mission, 10);
         var substage = TreasureSubstageWith(mission, 10, 100);
-        mission.AddTarget(10, 100, "Statue", "QR-1", 1, 50);
+        mission.AddTarget(10, 100, "Statue", "QR-1", 1);
         mission.Activate();
 
         var clue = Clue.Create("Hint", 1, "Look north");
@@ -143,7 +169,7 @@ public class MissionStructureTests
         var mission = NewMission();
         StageWith(mission, 10);
         TreasureSubstageWith(mission, 10, 100);
-        var target = mission.AddTarget(10, 100, "Statue", "QR-1", 1, 25);
+        var target = mission.AddTarget(10, 100, "Statue", "QR-1", 1);
         target.Id = 700;
 
         var foreignClue = Clue.Create("Hint", 1, "Look north");
@@ -184,7 +210,7 @@ public class MissionStructureTests
         var mission = NewMission();
         StageWith(mission, 10);
         TreasureSubstageWith(mission, 10, 100);
-        mission.AddTarget(10, 100, "Statue", "QR-1", 1, 25, isActive: false);
+        mission.AddTarget(10, 100, "Statue", "QR-1", 1, isActive: false);
 
         var act = mission.Activate;
 
@@ -233,7 +259,7 @@ public class MissionStructureTests
         var mission = NewMission();
         StageWith(mission, 10);
         TreasureSubstageWith(mission, 10, 100);
-        mission.AddTarget(10, 100, "Statue", "QR-1", 1, 50);
+        mission.AddTarget(10, 100, "Statue", "QR-1", 1);
         return mission;
     }
 }

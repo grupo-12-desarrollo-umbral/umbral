@@ -91,4 +91,14 @@ public class DifficultyTests
 
         (a != b).Should().BeFalse();
     }
+
+    [Theory]
+    [InlineData("Beginner", 1)]
+    [InlineData("Intermediate", 2)]
+    [InlineData("Advanced", 3)]
+    [InlineData("advanced", 3)]
+    public void ScoreFactor_IsTheOneBasedTier(string value, int expected)
+    {
+        Difficulty.Create(value).ScoreFactor.Should().Be(expected);
+    }
 }

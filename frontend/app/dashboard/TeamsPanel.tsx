@@ -456,9 +456,9 @@ export function TeamsPanel({ role }: { role: DashboardRole }) {
               <tbody>
                 {participants.map((m) => (
                   <tr key={m.teamMembershipId} data-testid={`participant-row-${m.teamMembershipId}`}>
-                    <td data-testid={`participant-user-${m.userId}`}>{m.userId}</td>
-                    <td data-testid={`participant-email-${m.userId}`}>{m.email}</td>
-                    <td>{new Date(m.assignedAt).toLocaleDateString()}</td>
+                    <td data-label="User" data-testid={`participant-user-${m.userId}`}>{m.userId}</td>
+                    <td data-label="Email" data-testid={`participant-email-${m.userId}`}>{m.email}</td>
+                    <td data-label="Assigned">{new Date(m.assignedAt).toLocaleDateString()}</td>
                   </tr>
                 ))}
               </tbody>
