@@ -75,7 +75,7 @@ Suggested fields:
 | `sequenceOrder` | Explicit order among siblings                               |
 | `isRequired`    | Indicates whether the node is required for completion rules |
 | `substagePlayMode` | Required when `nodeType` is `Substage`: `TreasureHunt` or `Trivia` |
-| `winnerScoreValue` | Required for treasure-hunt substages; awarded to the first team that resolves all targets |
+| `winnerScoreValue` | *Deprecated — replaced by per-target `scoreValue`* |
 | `createdAt`     | Audit creation timestamp                                    |
 | `updatedAt`     | Audit last modification timestamp                           |
 
@@ -116,6 +116,7 @@ Suggested fields:
 | `targetCode`          | Business identifier used for validation                  |
 | `validationType`      | Declares how the target is resolved, for example QR scan |
 | `expectedValue`       | Expected comparison or match value                       |
+| `scoreValue`          | Points awarded for resolving this target (integer 1-100) |
 | `clueNodeId`          | Optional associated `Clue` node                          |
 | `isActive`            | Allows deactivation without deleting the target          |
 
@@ -355,7 +356,7 @@ Key constraints:
 - the snapshot cannot be edited after `LiveSession` creation
 - target QR identifiers must be unique within the snapshot
 - runtime order is strict mission order: stage order, then substage order
-- treasure-hunt substages require at least one target and a winner score value
+- treasure-hunt substages require at least one target, each with a `scoreValue`
 - trivia substages require at least one selected question with timer, score, valid options, and correct answer
 
 ### `Team`
@@ -595,7 +596,7 @@ Key constraints:
 - target resolution does not require clue visibility
 - all targets in the active treasure-hunt substage are active immediately
 - the first team to resolve all targets in the active treasure-hunt substage becomes `TreasureHuntSubstageWinner`
-- only the treasure-hunt substage winner receives the snapshotted winner score; non-winning teams receive zero for that substage
+- a team accumulates score for each target it resolves; the first team to resolve all targets becomes `TreasureHuntSubstageWinner`
 
 ### `TriviaAnswerSubmission`
 
@@ -893,7 +894,7 @@ These concepts should be referenced by the entities above even when they are not
 | `SessionSource`           | Value Object | `LiveSession`                            | Identifies the active source mission.             |
 | `SubstagePlayMode`        | Enum         | `MissionNode`, `MissionRuntimeSnapshot`  | Restricts each substage to `TreasureHunt` or `Trivia`. |
 | `TeamCode`                | Value Object | `Team`                                   | Supports team identification and join flow.       |
-| `ScoreValue`              | Value Object | `ScoreEntry`, treasure-hunt substage winner award, `TriviaQuestion` | Keeps score quantities explicit and rule-safe.    |
+| `ScoreValue`              | Value Object | `ScoreEntry`, `Target` score, `TriviaQuestion` | Keeps score quantities explicit and rule-safe.    |
 | `PenaltyReason`           | Value Object | `Penalty`                                | Supports traceability and justified penalties.    |
 | `ResolutionTime`            | Value Object | `Ranking`                                | Supports tie-break rule using active play time.   |
 | `QuestionTimer`           | Value Object | `TriviaQuestion`                         | Supports trivia answer time limits.               |

@@ -122,9 +122,9 @@ _Avoid_: clue progression, clue completion
 The first `Team` to resolve all targets in a treasure-hunt `Substage`.
 _Avoid_: clue winner, checkpoint winner
 
-**TreasureHuntSubstageScore**:
-The snapshotted `ScoreValue` awarded to the `TreasureHuntSubstageWinner`; non-winning teams receive zero for that treasure-hunt `Substage`.
-_Avoid_: target partial score, clue score
+**TreasureHuntTargetScore**:
+The snapshotted `ScoreValue` awarded per resolved `Target` in a treasure-hunt `Substage`. Teams accumulate points across all targets they resolve.
+_Avoid_: winner lump score, clue score
 
 **SubstageAdvancement**:
 The runtime transition that moves teams from one `Substage` to the next by strict mission order and play-mode rules. In a treasure-hunt `Substage`, all teams advance when the `TreasureHuntSubstageWinner` is decided; operators cannot manually force substage advancement.
