@@ -13,6 +13,11 @@ import type {
   SessionStateChangedNotificationDto,
 } from './sessions-hub-types';
 import type { SessionTimerUpdatedNotificationDto } from './timer-types';
+import type {
+  QuestionActivatedNotificationDto,
+  QuestionClosedNotificationDto,
+  SubstageAdvancedNotificationDto,
+} from './trivia-types';
 
 const KEEP_ALIVE_INTERVAL_MS = 15_000;
 const SERVER_TIMEOUT_MS = 30_000;
@@ -30,6 +35,15 @@ export type SessionsHubClient = {
   ) => () => void;
   onStateChanged: (
     cb: (notification: SessionStateChangedNotificationDto) => void,
+  ) => () => void;
+  onQuestionActivated: (
+    cb: (notification: QuestionActivatedNotificationDto) => void,
+  ) => () => void;
+  onQuestionClosed: (
+    cb: (notification: QuestionClosedNotificationDto) => void,
+  ) => () => void;
+  onSubstageAdvanced: (
+    cb: (notification: SubstageAdvancedNotificationDto) => void,
   ) => () => void;
 };
 
@@ -72,6 +86,18 @@ export function createSessionsHubConnection(): SessionsHubClient {
     onStateChanged(cb) {
       connection.on('SessionStateChanged', cb);
       return () => connection.off('SessionStateChanged', cb);
+    },
+    onQuestionActivated(cb) {
+      connection.on('QuestionActivated', cb);
+      return () => connection.off('QuestionActivated', cb);
+    },
+    onQuestionClosed(cb) {
+      connection.on('QuestionClosed', cb);
+      return () => connection.off('QuestionClosed', cb);
+    },
+    onSubstageAdvanced(cb) {
+      connection.on('SubstageAdvanced', cb);
+      return () => connection.off('SubstageAdvanced', cb);
     },
   };
 }

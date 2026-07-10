@@ -1,3 +1,5 @@
+import type { ActiveQuestionSnapshotDto } from './trivia-types';
+
 export type SessionTimerSnapshotDto = {
   liveSessionId: string;
   teamId: string | null;
@@ -10,6 +12,9 @@ export type SessionTimerSnapshotDto = {
   observedAt: string;
   advancingSince: string | null;
   expiredAt: string | null;
+  // Active-question snapshot for the reconnect / late-join path; null when no question is active.
+  // Backend added this to SessionTimerSnapshotDto (HU-33A); it was missing from this mobile type.
+  activeQuestion?: ActiveQuestionSnapshotDto | null;
 };
 
 export type SessionTimerUpdatedNotificationDto = {
