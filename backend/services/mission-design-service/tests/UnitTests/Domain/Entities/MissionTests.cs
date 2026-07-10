@@ -47,7 +47,7 @@ public class MissionTests
         stage.Id = 10;
         var substage = mission.AddSubstage(stage.Id, Substage.CreateTreasureHunt("Substage 1", 1));
         substage.Id = 20;
-        mission.AddTarget(stage.Id, substage.Id, "Target 1", "QR-1", 1, 25);
+        mission.AddTarget(stage.Id, substage.Id, "Target 1", "QR-1", 1);
         mission.Activate();
         mission.ClearDomainEvents();
 

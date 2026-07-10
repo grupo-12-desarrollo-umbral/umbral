@@ -31,10 +31,21 @@ public class ScoreValueTests
         act.Should().Throw<ScoreValueExceedsMaximumException>();
     }
 
+    [Theory]
+    [InlineData(5)]
+    [InlineData(25)]
+    [InlineData(99)]
+    public void Create_WhenNotAMultipleOfTen_Throws(int points)
+    {
+        var act = () => ScoreValue.Create(points);
+
+        act.Should().Throw<ScoreValueMustBeMultipleOfTenException>();
+    }
+
     [Fact]
     public void Equality_IsValueBased()
     {
         ScoreValue.Create(30).Should().Be(ScoreValue.Create(30));
-        ScoreValue.Create(30).Should().NotBe(ScoreValue.Create(31));
+        ScoreValue.Create(30).Should().NotBe(ScoreValue.Create(40));
     }
 }

@@ -104,7 +104,7 @@ function AddNodeControl({
   const titleLabel = isClue ? 'Clue title' : `${nodeType} title`
 
   return (
-    <div className={styles.nodeForm}>
+    <div className={isClue ? `${styles.nodeForm} ${styles.nodeFormWide}` : styles.nodeForm}>
       <div className={styles.nodeFormGrid}>
         <label className={styles.nodeField}>
           <span className={styles.fieldLabel}>{titleLabel}</span>
@@ -309,7 +309,7 @@ function NodeEditForm({
   }
 
   return (
-    <div className={styles.nodeForm}>
+    <div className={isClue ? `${styles.nodeForm} ${styles.nodeFormWide}` : styles.nodeForm}>
       <div className={styles.nodeFormGrid}>
         <label className={styles.nodeField}>
           <span className={styles.fieldLabel}>{isClue ? 'Clue title' : 'Title'}</span>

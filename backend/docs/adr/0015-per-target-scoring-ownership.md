@@ -16,6 +16,18 @@ so its ordering was not assumed here — this ADR defines the `TargetResolved` p
 own footing, and still does. *(Updated 2026-07-10: ADR-0010 is now Accepted. The two
 decisions remain independent; nothing below changes.)*
 
+**Amended 2026-07-10 (difficulty-derived scoring).** The *ownership split* below — MissionDesign
+produces the point, SessionOperations relays it, ScoringMonitoring accumulates it — **still
+holds and is unchanged**. What changed is *how MissionDesign produces the number*: a `Target`'s
+`ScoreValue` is **no longer authored** per target. It is **derived** from the owning mission's
+`Difficulty` as `ScoreValue.BaseTargetScore (50) × Difficulty.ScoreFactor` (Beginner/Intermediate/
+Advanced ⇒ 50/100/150) at add/update time, and re-derived for every target when a mission's
+difficulty changes (`Mission.RepriceTargets` / `Target.Reprice`). `ScoreValue.MaximumPoints` rose
+`100 → 150` to fit the Advanced tier. Wherever Decision §2 below says the point is "authored" or
+"set at authoring time", and wherever the range "`1`-`100`" appears, read "derived from mission
+difficulty" and "`{50, 100, 150}`". Shipped in `c9e0e3b` (see
+`docs/difficulty-derived-target-score-handoff-2026-07-10.md`).
+
 ## Context
 
 - `DES-86` migrates treasure-hunt scoring from **winner-takes-all** to **per-target

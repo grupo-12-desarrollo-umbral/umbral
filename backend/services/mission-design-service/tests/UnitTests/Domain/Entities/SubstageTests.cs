@@ -56,7 +56,7 @@ public class SubstageTests
     public void AssociateClueWithTarget_WhenTargetAlreadyHasDifferentClue_Throws()
     {
         var substage = Substage.CreateTreasureHunt("Sub", 1);
-        var target = substage.AddTarget("Statue", "QR-1", 1, 25);
+        var target = substage.AddTarget("Statue", "QR-1", 1, 20);
         target.Id = 9;
 
         var firstClue = Clue.Create("Hint A", 1, "text");

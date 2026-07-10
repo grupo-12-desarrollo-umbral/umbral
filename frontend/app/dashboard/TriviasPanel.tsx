@@ -14,6 +14,7 @@ import {
   retireTriviaQuiz,
 } from '@/app/actions/trivias'
 import type { TriviaQuizSummaryDto, TriviaQuizDto, TriviaQuestionDto, TriviaQuestionRequest } from '@/app/lib/definitions'
+import { TriviaQuestionList } from './TriviaQuestionList'
 import styles from './dashboard.module.css'
 
 type DashboardRole = 'operator' | 'admin' | 'participant'
@@ -281,12 +282,13 @@ export function TriviasPanel({ role }: { role: DashboardRole }) {
     quiz: TriviaQuizDto,
   ) {
     const isDraft = quiz.status === 'Draft'
+    const canEdit = role === 'admin' && isDraft
 
     return (
       <div data-testid="trivia-questions-section">
         <div className={styles.subsectionHeader}>
           <h3>Questions</h3>
-          {role === 'admin' && isDraft && (
+          {canEdit && (
             <button
               className={styles.primaryButton}
               data-testid="add-question-btn"
@@ -299,73 +301,28 @@ export function TriviasPanel({ role }: { role: DashboardRole }) {
           )}
         </div>
 
-        {questions.length === 0 ? (
-          <p className={styles.mutedText}>No questions added yet.</p>
-        ) : (
-          <table className={styles.table}>
-            <thead>
-              <tr>
-                <th>Order</th>
-                <th>Prompt</th>
-                <th>Score</th>
-                <th>Timer (s)</th>
-                <th>Explanation</th>
-                <th>Status</th>
-                <th>Options</th>
-                {role === 'admin' && isDraft && <th>Actions</th>}
-              </tr>
-            </thead>
-            <tbody>
-              {[...questions]
-                .sort((a, b) => a.sequenceOrder - b.sequenceOrder)
-                .map((q) => (
-                  <tr key={q.id} data-testid={`question-row-${q.id}`}>
-                    <td>{q.sequenceOrder}</td>
-                    <td>{q.prompt}</td>
-                    <td>{q.scoreValue ?? '—'}</td>
-                    <td>{q.timeLimitSeconds ?? '—'}</td>
-                    <td>{q.explanation ?? '—'}</td>
-                    <td>
-                      <span className={styles.chip} data-tone={q.isActive ? 'success' : 'muted'}>
-                        {q.isActive ? 'Active' : 'Inactive'}
-                      </span>
-                    </td>
-                    <td>
-                      <ul style={{ margin: 0, paddingLeft: '1.2rem', color: 'var(--text-secondary)' }}>
-                        {[...q.options]
-                          .sort((a, b) => a.sequenceOrder - b.sequenceOrder)
-                          .map((opt) => (
-                            <li key={opt.id}>
-                              {opt.optionText}
-                              {opt.isCorrect && (
-                                <span style={{ marginLeft: '0.4rem', color: 'var(--success)' }}>✓</span>
-                              )}
-                            </li>
-                          ))}
-                      </ul>
-                    </td>
-                    {role === 'admin' && isDraft && (
-                      <td>
-                        <button
-                          className={styles.inlineButton}
-                          data-testid={`edit-question-btn-${q.id}`}
-                          disabled={isPending}
-                          onClick={() => {
-                            setQuestionError(null)
-                            setSelectedQuestion(q)
-                            setView('edit-question')
-                          }}
-                          type="button"
-                        >
-                          Edit
-                        </button>
-                      </td>
-                    )}
-                  </tr>
-                ))}
-            </tbody>
-          </table>
-        )}
+        <TriviaQuestionList
+          questions={questions}
+          renderRowActions={
+            canEdit
+              ? (q) => (
+                  <button
+                    className={styles.inlineButton}
+                    data-testid={`edit-question-btn-${q.id}`}
+                    disabled={isPending}
+                    onClick={() => {
+                      setQuestionError(null)
+                      setSelectedQuestion(q)
+                      setView('edit-question')
+                    }}
+                    type="button"
+                  >
+                    Edit
+                  </button>
+                )
+              : undefined
+          }
+        />
       </div>
     )
   }
@@ -756,9 +713,9 @@ export function TriviasPanel({ role }: { role: DashboardRole }) {
             <tbody>
               {listData.map((quiz) => (
                 <tr key={quiz.id} data-testid={`trivia-row-${quiz.id}`}>
-                  <td>{quiz.title}</td>
-                  <td>{quiz.description}</td>
-                  <td>
+                  <td data-label="Title">{quiz.title}</td>
+                  <td data-label="Description">{quiz.description}</td>
+                  <td data-label="Status">
                     <span
                       className={styles.chip}
                       data-tone={statusTone(quiz.status)}
@@ -767,7 +724,7 @@ export function TriviasPanel({ role }: { role: DashboardRole }) {
                       {quiz.status}
                     </span>
                   </td>
-                  <td>
+                  <td data-label="Source ready">
                     <span
                       className={styles.chip}
                       data-tone={quiz.isSourceReady ? 'success' : 'muted'}
@@ -776,7 +733,7 @@ export function TriviasPanel({ role }: { role: DashboardRole }) {
                       {quiz.isSourceReady ? 'Yes' : 'No'}
                     </span>
                   </td>
-                  <td>
+                  <td data-label="Provenance">
                     {quiz.isDuplicate ? (
                       <span
                         className={styles.chip}
@@ -797,7 +754,7 @@ export function TriviasPanel({ role }: { role: DashboardRole }) {
                       <span style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>—</span>
                     )}
                   </td>
-                  <td>
+                  <td data-label="Actions">
                     <button
                       className={styles.inlineButton}
                       data-testid={`view-trivia-btn-${quiz.id}`}

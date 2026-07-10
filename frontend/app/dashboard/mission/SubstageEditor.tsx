@@ -1,7 +1,12 @@
 'use client'
 
 import { useEffect, useState, useTransition } from 'react'
-import type { MissionDto, MissionSubstageDto, TriviaQuizSummaryDto } from '@/app/lib/definitions'
+import type {
+  MissionDto,
+  MissionSubstageDto,
+  TriviaQuizDto,
+  TriviaQuizSummaryDto,
+} from '@/app/lib/definitions'
 import {
   assignSubstagePlayMode,
   addTarget,
@@ -12,7 +17,8 @@ import {
   setTriviaQuizSelection,
   updateTriviaQuizSelection,
 } from '@/app/actions/mission-structure'
-import { getTriviaQuizzes } from '@/app/actions/trivias'
+import { getTriviaQuizzes, getTriviaQuiz } from '@/app/actions/trivias'
+import { TriviaQuestionList } from '../TriviaQuestionList'
 import { nextSequenceOrder } from './NodeControls'
 import { QrPreview } from './QrPreview'
 import {
@@ -30,11 +36,13 @@ export function SubstageEditor({
   missionId,
   stageId,
   substage,
+  difficulty,
   onMutated,
 }: {
   missionId: number
   stageId: number
   substage: MissionSubstageDto
+  difficulty: string
   onMutated: OnMutated
 }) {
   return (
@@ -59,6 +67,7 @@ export function SubstageEditor({
                 stageId={stageId}
                 substage={substage}
                 target={target}
+                difficulty={difficulty}
                 onMutated={onMutated}
               />
             ))
@@ -69,6 +78,7 @@ export function SubstageEditor({
               stageId={stageId}
               substageId={substage.id}
               nextOrder={nextSequenceOrder(substage.targets)}
+              difficulty={difficulty}
               onMutated={onMutated}
             />
           </div>
@@ -115,6 +125,14 @@ function TriviaSelectionControl({
   const [error, setError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
 
+  // Quiz preview (issue #146): the full quiz — questions, options, correct answer —
+  // fetched lazily on first expand and cached until the selection changes. `preview`
+  // is only trusted when `preview.id === current`.
+  const [preview, setPreview] = useState<TriviaQuizDto | null>(null)
+  const [previewOpen, setPreviewOpen] = useState(false)
+  const [previewLoading, setPreviewLoading] = useState(false)
+  const [previewError, setPreviewError] = useState<string | null>(null)
+
   useEffect(() => {
     let active = true
     getTriviaQuizzes()
@@ -128,6 +146,24 @@ function TriviaSelectionControl({
       active = false
     }
   }, [])
+
+  function loadPreview(quizId: number) {
+    setPreviewLoading(true)
+    setPreviewError(null)
+    getTriviaQuiz(quizId)
+      .then((quiz) => setPreview(quiz))
+      .catch(() => setPreviewError('Could not load quiz preview.'))
+      .finally(() => setPreviewLoading(false))
+  }
+
+  function togglePreview() {
+    if (current === null) return
+    const willOpen = !previewOpen
+    setPreviewOpen(willOpen)
+    if (willOpen && (preview === null || preview.id !== current)) {
+      loadPreview(current)
+    }
+  }
 
   function save() {
     const quizId = Number(selected)
@@ -143,6 +179,10 @@ function TriviaSelectionControl({
             ? await setTriviaQuizSelection(missionId, stageId, substage.id, quizId)
             : await updateTriviaQuizSelection(missionId, stageId, substage.id, quizId)
         onMutated(updated)
+        // Selection changed: drop the stale preview and refresh it if it's open.
+        setPreview(null)
+        setPreviewError(null)
+        if (previewOpen) loadPreview(quizId)
       } catch (e) {
         // Selecting a non-published / missing quiz is API-enforced; surfaced verbatim.
         setError(e instanceof Error ? e.message : 'Could not save quiz selection.')
@@ -151,38 +191,79 @@ function TriviaSelectionControl({
   }
 
   return (
-    <div className={styles.playModeRow}>
-      <label className={styles.nodeField}>
-        <span className={styles.fieldLabel}>Quiz</span>
-        <select
-          className={styles.inlineInput}
-          data-testid={`trivia-quiz-select-${substage.id}`}
-          value={selected}
-          disabled={isPending || quizzes === null}
-          onChange={(e) => setSelected(e.target.value)}
-        >
-          <option value="">{quizzes === null ? 'Loading…' : 'Select quiz…'}</option>
-          {(quizzes ?? []).map((quiz) => (
-            <option key={quiz.id} value={quiz.id}>
-              {quiz.title}
-            </option>
-          ))}
-        </select>
-      </label>
+    <div className={styles.triviaSelect}>
+      <div className={styles.playModeRow}>
+        <label className={styles.nodeField}>
+          <span className={styles.fieldLabel}>Quiz</span>
+          <select
+            className={styles.inlineInput}
+            data-testid={`trivia-quiz-select-${substage.id}`}
+            value={selected}
+            disabled={isPending || quizzes === null}
+            onChange={(e) => setSelected(e.target.value)}
+          >
+            <option value="">{quizzes === null ? 'Loading…' : 'Select quiz…'}</option>
+            {(quizzes ?? []).map((quiz) => (
+              <option key={quiz.id} value={quiz.id}>
+                {quiz.title}
+              </option>
+            ))}
+          </select>
+        </label>
 
-      <button
-        className={styles.smallButton}
-        disabled={isPending || selected === ''}
-        onClick={save}
-        type="button"
-      >
-        {current === null ? 'Select quiz' : 'Change quiz'}
-      </button>
+        <button
+          className={styles.smallButton}
+          disabled={isPending || selected === ''}
+          onClick={save}
+          type="button"
+        >
+          {current === null ? 'Select quiz' : 'Change quiz'}
+        </button>
+
+        {current !== null && (
+          <span>
+            Selected: {quizzes?.find((q) => q.id === current)?.title ?? `#${current}`}
+          </span>
+        )}
+      </div>
 
       {current !== null && (
-        <span>
-          Selected: {quizzes?.find((q) => q.id === current)?.title ?? `#${current}`}
-        </span>
+        <div className={styles.triviaPreview} data-testid={`trivia-quiz-preview-${substage.id}`}>
+          <button
+            type="button"
+            className={styles.qrPreviewToggle}
+            aria-expanded={previewOpen}
+            data-testid={`trivia-quiz-preview-toggle-${substage.id}`}
+            onClick={togglePreview}
+          >
+            {previewOpen ? '▾ Hide questions' : '▸ Preview questions'}
+          </button>
+
+          {previewOpen && (
+            <div className={styles.triviaPreviewBody}>
+              {previewLoading && <p className={styles.treeEmpty}>Loading quiz…</p>}
+              {previewError && (
+                <p className={styles.formError} role="alert">
+                  {previewError}
+                </p>
+              )}
+              {preview && preview.id === current && !previewLoading && (
+                <>
+                  <div className={styles.triviaPreviewMeta}>
+                    <span className={styles.treeClueTitle}>{preview.title}</span>
+                    <span
+                      className={styles.chip}
+                      data-tone={preview.status === 'Published' ? 'success' : 'muted'}
+                    >
+                      {preview.status}
+                    </span>
+                  </div>
+                  <TriviaQuestionList questions={preview.questions} />
+                </>
+              )}
+            </div>
+          )}
+        </div>
       )}
 
       {loadError && (
@@ -243,50 +324,54 @@ function PlayModeControl({
   }
 
   return (
-    <div className={styles.playModeRow}>
-      <label className={styles.nodeField}>
-        <span className={styles.fieldLabel}>Play mode</span>
-        <select
-          className={styles.inlineInput}
-          data-testid={`playmode-select-${substage.id}`}
-          value={pending ?? substage.playMode}
-          disabled={isPending}
-          onChange={(e) => onSelect(e.target.value)}
-        >
-          {PLAY_MODES.map((m) => (
-            <option key={m} value={m}>
-              {PLAY_MODE_LABELS[m]}
-            </option>
-          ))}
-        </select>
-      </label>
+    <div className={styles.playModeControl}>
+      <div className={styles.playModeRow}>
+        <label className={styles.nodeField}>
+          <span className={styles.fieldLabel}>Play mode</span>
+          <select
+            className={styles.inlineInput}
+            data-testid={`playmode-select-${substage.id}`}
+            value={pending ?? substage.playMode}
+            disabled={isPending}
+            onChange={(e) => onSelect(e.target.value)}
+          >
+            {PLAY_MODES.map((m) => (
+              <option key={m} value={m}>
+                {PLAY_MODE_LABELS[m]}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
 
       {pending !== null && (
-        <span className={styles.confirmRow}>
-          <span role="alert" data-testid="playmode-switch-warning">
+        <div className={styles.playModeWarning} role="alert" data-testid="playmode-switch-warning">
+          <span>
             Switching to {PLAY_MODE_LABELS[pending]} discards the other mode&rsquo;s content
             (targets, clue associations, and trivia selection).
           </span>
-          <button
-            className={styles.dangerButton}
-            disabled={isPending}
-            onClick={confirm}
-            type="button"
-          >
-            Confirm switch
-          </button>
-          <button
-            className={styles.inlineButton}
-            disabled={isPending}
-            onClick={() => {
-              setPending(null)
-              setError(null)
-            }}
-            type="button"
-          >
-            Cancel
-          </button>
-        </span>
+          <div className={styles.playModeWarningActions}>
+            <button
+              className={styles.dangerButton}
+              disabled={isPending}
+              onClick={confirm}
+              type="button"
+            >
+              Confirm switch
+            </button>
+            <button
+              className={styles.inlineButton}
+              disabled={isPending}
+              onClick={() => {
+                setPending(null)
+                setError(null)
+              }}
+              type="button"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
       )}
 
       {error && (
@@ -302,54 +387,51 @@ function PlayModeControl({
 // Target authoring (TreasureHunt only).
 // ---------------------------------------------------------------------------
 
-// Score is a required whole number 1..100 (backend-enforced). Returns null when
-// the raw input does not parse to a value in range.
-function parseTargetScore(raw: string): number | null {
-  const value = Number(raw)
-  if (raw.trim() === '' || !Number.isInteger(value) || value < 1 || value > 100) {
-    return null
-  }
-  return value
-}
+// A target's score is not authored: the backend derives it from the mission's
+// difficulty as BASE_TARGET_SCORE * factor, where the factor is the 1-based tier
+// (Beginner=1, Intermediate=2, Advanced=3). Mirrored here only to preview the value
+// the server will assign; the server remains the source of truth.
+const BASE_TARGET_SCORE = 50
+const DIFFICULTY_TIERS = ['Beginner', 'Intermediate', 'Advanced']
 
-const SCORE_ERROR = 'Score must be a whole number between 1 and 100.'
+function deriveTargetScore(difficulty: string): number | null {
+  const tier = DIFFICULTY_TIERS.findIndex((d) => d.toLowerCase() === difficulty.toLowerCase())
+  return tier === -1 ? null : BASE_TARGET_SCORE * (tier + 1)
+}
 
 function AddTargetControl({
   missionId,
   stageId,
   substageId,
   nextOrder,
+  difficulty,
   onMutated,
 }: {
   missionId: number
   stageId: number
   substageId: number
   nextOrder: number
+  difficulty: string
   onMutated: OnMutated
 }) {
   const [open, setOpen] = useState(false)
   const [name, setName] = useState('')
   const [qrCode, setQrCode] = useState('')
   const [isActive, setIsActive] = useState(true)
-  const [score, setScore] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
+
+  const derivedScore = deriveTargetScore(difficulty)
 
   function reset() {
     setName('')
     setQrCode('')
     setIsActive(true)
-    setScore('')
     setError(null)
     setOpen(false)
   }
 
   function submit() {
-    const parsedScore = parseTargetScore(score)
-    if (parsedScore === null) {
-      setError(SCORE_ERROR)
-      return
-    }
     startTransition(async () => {
       setError(null)
       try {
@@ -357,7 +439,6 @@ function AddTargetControl({
           name: name.trim(),
           qrCode: qrCode.trim(),
           sequenceOrder: nextOrder,
-          score: parsedScore,
           isActive,
         })
         onMutated(updated)
@@ -383,7 +464,7 @@ function AddTargetControl({
   }
 
   return (
-    <div className={styles.nodeForm}>
+    <div className={`${styles.nodeForm} ${styles.nodeFormWide}`}>
       <div className={styles.nodeFormGrid}>
         <label className={styles.nodeField}>
           <span className={styles.fieldLabel}>Target name</span>
@@ -396,15 +477,10 @@ function AddTargetControl({
           />
         </label>
         <label className={styles.nodeField}>
-          <span className={styles.fieldLabel}>Score (1-100)</span>
-          <input
-            className={styles.inlineInput}
-            data-testid="target-score-input"
-            type="number"
-            value={score}
-            onChange={(e) => setScore(e.target.value)}
-            placeholder="1-100"
-          />
+          <span className={styles.fieldLabel}>Score</span>
+          <span className={styles.inlineInput} data-testid="target-score-derived" aria-readonly="true">
+            {derivedScore ?? '—'} <small>(set by {difficulty} difficulty)</small>
+          </span>
         </label>
         <label className={styles.inlineCheck}>
           <input
@@ -469,6 +545,7 @@ function TargetEditForm({
   missionId,
   stageId,
   substageId,
+  clues,
   target,
   onMutated,
   onDone,
@@ -476,6 +553,7 @@ function TargetEditForm({
   missionId: number
   stageId: number
   substageId: number
+  clues: MissionSubstageDto['clues']
   target: MissionSubstageDto['targets'][number]
   onMutated: OnMutated
   onDone: () => void
@@ -484,7 +562,8 @@ function TargetEditForm({
   const [qrCode, setQrCode] = useState(target.qrCode)
   const [sequenceOrder, setSequenceOrder] = useState(String(target.sequenceOrder))
   const [isActive, setIsActive] = useState(target.isActive)
-  const [score, setScore] = useState(String(target.score))
+  // '' = no clue. Seeded from the current association so a save can change or clear it.
+  const [clueId, setClueId] = useState(target.clueId === null ? '' : String(target.clueId))
   const [error, setError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
 
@@ -494,21 +573,32 @@ function TargetEditForm({
       setError('Sequence order must be a number.')
       return
     }
-    const parsedScore = parseTargetScore(score)
-    if (parsedScore === null) {
-      setError(SCORE_ERROR)
-      return
-    }
     startTransition(async () => {
       setError(null)
       try {
-        const updated = await updateTarget(missionId, stageId, substageId, target.id, {
+        let updated = await updateTarget(missionId, stageId, substageId, target.id, {
           name: name.trim(),
           qrCode: qrCode.trim(),
           sequenceOrder: seq,
           isActive,
-          score: parsedScore,
         })
+        // Reconcile the clue association against the picker. Max one clue per target,
+        // so a change means clearing the old link before adding the new one.
+        const desired = clueId === '' ? null : Number(clueId)
+        if (desired !== target.clueId) {
+          if (target.clueId !== null) {
+            updated = await unassociateClueFromTarget(missionId, stageId, substageId, target.id)
+          }
+          if (desired !== null) {
+            updated = await associateClueWithTarget(
+              missionId,
+              stageId,
+              substageId,
+              target.id,
+              desired,
+            )
+          }
+        }
         onMutated(updated)
         onDone()
       } catch (e) {
@@ -541,15 +631,21 @@ function TargetEditForm({
           />
         </label>
         <label className={styles.nodeField}>
-          <span className={styles.fieldLabel}>Score (1-100)</span>
-          <input
+          <span className={styles.fieldLabel}>Associated clue</span>
+          <select
             className={styles.inlineInput}
-            data-testid={`target-score-input-${target.id}`}
-            type="number"
-            value={score}
-            onChange={(e) => setScore(e.target.value)}
-            placeholder="1-100"
-          />
+            data-testid={`clue-select-${target.id}`}
+            value={clueId}
+            disabled={isPending || clues.length === 0}
+            onChange={(e) => setClueId(e.target.value)}
+          >
+            <option value="">{clues.length === 0 ? 'No clues yet' : 'No clue'}</option>
+            {clues.map((clue) => (
+              <option key={clue.id} value={clue.id}>
+                {clue.title}
+              </option>
+            ))}
+          </select>
         </label>
         <label className={styles.inlineCheck}>
           <input
@@ -616,17 +712,18 @@ function TargetRow({
   stageId,
   substage,
   target,
+  difficulty,
   onMutated,
 }: {
   missionId: number
   stageId: number
   substage: MissionSubstageDto
   target: MissionSubstageDto['targets'][number]
+  difficulty: string
   onMutated: OnMutated
 }) {
   const [editing, setEditing] = useState(false)
   const [confirmRemove, setConfirmRemove] = useState(false)
-  const [selectedClueId, setSelectedClueId] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
 
@@ -643,49 +740,13 @@ function TargetRow({
     })
   }
 
-  function associate() {
-    const clueId = Number(selectedClueId)
-    if (selectedClueId === '' || Number.isNaN(clueId)) {
-      setError('Select a clue to associate.')
-      return
-    }
-    startTransition(async () => {
-      setError(null)
-      try {
-        const updated = await associateClueWithTarget(
-          missionId,
-          stageId,
-          substage.id,
-          target.id,
-          clueId,
-        )
-        onMutated(updated)
-        setSelectedClueId('')
-      } catch (e) {
-        // Max one clue per target is API-enforced; its rejection is surfaced verbatim.
-        setError(e instanceof Error ? e.message : 'Could not associate clue.')
-      }
-    })
-  }
-
-  function unassociate() {
-    startTransition(async () => {
-      setError(null)
-      try {
-        const updated = await unassociateClueFromTarget(missionId, stageId, substage.id, target.id)
-        onMutated(updated)
-      } catch (e) {
-        setError(e instanceof Error ? e.message : 'Could not remove clue association.')
-      }
-    })
-  }
-
   if (editing) {
     return (
       <TargetEditForm
         missionId={missionId}
         stageId={stageId}
         substageId={substage.id}
+        clues={substage.clues}
         target={target}
         onMutated={onMutated}
         onDone={() => setEditing(false)}
@@ -705,7 +766,7 @@ function TargetRow({
           <span className={styles.treeClueTitle}>{target.name}</span>
           <span className={styles.qrPreviewCode}>{target.qrCode}</span>
           <span className={styles.treeClueText} data-testid={`target-score-${target.id}`}>
-            Score: {target.score}
+            Score: {target.score} ({difficulty})
           </span>
           {!target.isActive && (
             <span className={styles.chip} data-tone="muted">
@@ -733,44 +794,6 @@ function TargetRow({
         >
           Edit
         </button>
-
-        {target.clueId === null ? (
-          <>
-            <select
-              className={styles.inlineInput}
-              data-testid={`clue-select-${target.id}`}
-              value={selectedClueId}
-              disabled={isPending || substage.clues.length === 0}
-              onChange={(e) => setSelectedClueId(e.target.value)}
-            >
-              <option value="">Select clue…</option>
-              {substage.clues.map((clue) => (
-                <option key={clue.id} value={clue.id}>
-                  {clue.title}
-                </option>
-              ))}
-            </select>
-            <button
-              className={styles.inlineButton}
-              data-testid={`associate-clue-btn-${target.id}`}
-              disabled={isPending || substage.clues.length === 0}
-              onClick={associate}
-              type="button"
-            >
-              Associate clue
-            </button>
-          </>
-        ) : (
-          <button
-            className={styles.inlineButton}
-            data-testid={`unassociate-clue-btn-${target.id}`}
-            disabled={isPending}
-            onClick={unassociate}
-            type="button"
-          >
-            Remove clue
-          </button>
-        )}
 
         {!confirmRemove && (
           <button

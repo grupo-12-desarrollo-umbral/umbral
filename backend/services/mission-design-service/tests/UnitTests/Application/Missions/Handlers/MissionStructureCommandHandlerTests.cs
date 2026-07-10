@@ -66,18 +66,19 @@ public sealed class MissionStructureCommandHandlerTests
     }
 
     [Fact]
-    public async Task AddTarget_AddsScoredTargetToTreasureHuntSubstage()
+    public async Task AddTarget_AddsTargetWithDifficultyDerivedScore()
     {
         var repository = new InMemoryMissionRepository();
         var mission = CreateMissionWithTreasureSubstage(repository, out var stage, out var substage);
         var handler = new AddTargetCommandHandler(repository);
 
         var result = await handler.Handle(
-            new AddTargetCommand(mission.Id, stage.Id, substage.Id, "Target A", "QR-A", 1, Score: 25),
+            new AddTargetCommand(mission.Id, stage.Id, substage.Id, "Target A", "QR-A", 1),
             CancellationToken.None);
 
+        // Score is derived from the mission's difficulty (Advanced => 50 * 3).
         var resultSubstage = result.Stages!.Single().Substages!.Single();
-        resultSubstage.Targets!.Should().ContainSingle(target => target.Name == "Target A" && target.QrCode == "QR-A" && target.Score == 25);
+        resultSubstage.Targets!.Should().ContainSingle(target => target.Name == "Target A" && target.QrCode == "QR-A" && target.Score == 150);
     }
 
     [Fact]
@@ -87,7 +88,7 @@ public sealed class MissionStructureCommandHandlerTests
         var mission = CreateMissionWithTreasureSubstage(repository, out var stage, out var substage);
         var clue = mission.AddClue(stage.Id, substage.Id, Clue.Create("Clue", 1, "Look up"));
         clue.Id = 40;
-        var target = mission.AddTarget(stage.Id, substage.Id, "Target", "QR", 1, 25);
+        var target = mission.AddTarget(stage.Id, substage.Id, "Target", "QR", 1);
         target.Id = 50;
 
         var associateHandler = new AssociateClueWithTargetCommandHandler(repository);
@@ -147,7 +148,7 @@ public sealed class MissionStructureCommandHandlerTests
     {
         var repository = new InMemoryMissionRepository();
         var mission = CreateMissionWithTreasureSubstage(repository, out var stage, out var substage);
-        mission.AddTarget(stage.Id, substage.Id, "Target", "QR", 1, 10);
+        mission.AddTarget(stage.Id, substage.Id, "Target", "QR", 1);
 
         var handler = new ActivateMissionCommandHandler(repository, new InMemoryTriviaQuizRepository());
 

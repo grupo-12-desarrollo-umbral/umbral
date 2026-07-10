@@ -85,12 +85,11 @@ async function addTarget(
   substageId: string,
   name: string,
   qrCode: string,
-  score: string,
 ): Promise<string> {
+  // Score is not entered: the server derives it from the mission's difficulty.
   await page.click(`[data-testid="add-target-btn-${substageId}"]`)
   await page.fill('[data-testid="target-name-input"]', name)
   await page.fill('[data-testid="target-qrcode-input"]', qrCode)
-  await page.fill('[data-testid="target-score-input"]', score)
   await page.locator('[data-testid="target-name-input"]').first().press('Tab')
   // Click the Save button inside the add target form
   await page.locator('button:has-text("Save"):not([data-testid*="confirm"])').first().click()
@@ -191,14 +190,18 @@ test('admin sets a substage to TreasureHunt and adds a target with a clue', asyn
   // Add a clue
   const clueId = await addClue(page, substageId, 'Cave Clue', 'Look behind the waterfall')
   // Add a target
-  const targetId = await addTarget(page, substageId, 'Waterfall', 'QR-WATERFALL', '100')
-  // Associate clue with target
+  const targetId = await addTarget(page, substageId, 'Waterfall', 'QR-WATERFALL')
+  // The score is derived from the mission's difficulty (Intermediate => 50 * 2).
+  await expect(page.locator(`[data-testid="target-score-${targetId}"]`)).toContainText(
+    'Score: 100 (Intermediate)',
+  )
+  // Associate a clue from within the target's edit form
   const targetRow = page.locator(`[data-testid="target-node-${targetId}"]`)
   await expect(targetRow).toBeVisible()
-  // The clue selector is visible
+  await page.click(`[data-testid="edit-target-btn-${targetId}"]`)
   await expect(page.locator(`[data-testid="clue-select-${targetId}"]`)).toBeVisible()
   await page.selectOption(`[data-testid="clue-select-${targetId}"]`, String(clueId))
-  await page.click(`[data-testid="associate-clue-btn-${targetId}"]`)
+  await page.locator(`[data-testid="target-node-${targetId}"]`).locator('button:has-text("Save")').click()
   // The target now shows the clue association
   await expect(targetRow).toContainText('clue #', { timeout: 5000 })
 })
@@ -209,26 +212,25 @@ test('the target edit form reseeds from the saved target', async ({ adminPage: p
   await createMission(page, 'Target Edit')
   const stageId = await addStage(page, 'Stage')
   const substageId = await addSubstage(page, stageId, 'Hunt Substage')
-  const targetId = await addTarget(page, substageId, 'Waterfall', 'QR-WATERFALL', '10')
+  const targetId = await addTarget(page, substageId, 'Waterfall', 'QR-WATERFALL')
   const targetRow = page.locator(`[data-testid="target-node-${targetId}"]`)
-  const scoreBadge = page.locator(`[data-testid="target-score-${targetId}"]`)
-  const scoreInput = page.locator(`[data-testid="target-score-input-${targetId}"]`)
+  const nameInput = page.locator('[data-testid="target-name-input"]')
 
   await page.click(`[data-testid="edit-target-btn-${targetId}"]`)
-  await scoreInput.fill('55')
+  await nameInput.fill('Cavern')
   await targetRow.locator('button:has-text("Save")').click()
-  await expect(scoreBadge).toContainText('Score: 55', { timeout: 5000 })
+  await expect(targetRow).toContainText('Cavern', { timeout: 5000 })
 
-  // Re-opening shows the persisted score, not the one captured at first mount.
+  // Re-opening shows the persisted name, not the one captured at first mount.
   await page.click(`[data-testid="edit-target-btn-${targetId}"]`)
-  await expect(scoreInput).toHaveValue('55')
+  await expect(nameInput).toHaveValue('Cavern')
 
-  // Cancel discards the typing rather than carrying it into the next open.
-  await scoreInput.fill('99')
+  // Cancel discards the edit rather than carrying it into the next open.
+  await nameInput.fill('Discarded')
   await targetRow.locator('button:has-text("Cancel")').click()
-  await expect(scoreBadge).toContainText('Score: 55')
+  await expect(targetRow).toContainText('Cavern')
   await page.click(`[data-testid="edit-target-btn-${targetId}"]`)
-  await expect(scoreInput).toHaveValue('55')
+  await expect(nameInput).toHaveValue('Cavern')
 })
 
 test('switching play mode warns the other mode content is discarded', async ({ adminPage: page }) => {

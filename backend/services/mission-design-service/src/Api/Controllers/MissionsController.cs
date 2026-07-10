@@ -213,7 +213,6 @@ public sealed class MissionsController(ISender sender) : ControllerBase
                 request.Name,
                 request.QrCode,
                 request.SequenceOrder,
-                request.Score,
                 request.IsActive),
             cancellationToken);
 
@@ -238,8 +237,7 @@ public sealed class MissionsController(ISender sender) : ControllerBase
                 request.Name,
                 request.QrCode,
                 request.SequenceOrder,
-                request.IsActive,
-                request.Score),
+                request.IsActive),
             cancellationToken);
 
         return Ok(MissionResponse.FromDto(mission));
@@ -360,15 +358,13 @@ public sealed class MissionsController(ISender sender) : ControllerBase
         string Name,
         string QrCode,
         int SequenceOrder,
-        int Score,
         bool IsActive = true);
 
     public sealed record UpdateTargetRequest(
         string Name,
         string QrCode,
         int SequenceOrder,
-        bool IsActive,
-        int? Score = null);
+        bool IsActive);
 
     public sealed record AssociateClueWithTargetRequest(int ClueId);
 

@@ -28,8 +28,7 @@ public sealed class UpdateTargetCommandHandler
             request.Name,
             request.QrCode,
             request.SequenceOrder,
-            request.IsActive,
-            request.Score);
+            request.IsActive);
 
         await _missionRepository.UpdateAsync(mission, cancellationToken);
         return MissionDtoMapper.Map(mission);

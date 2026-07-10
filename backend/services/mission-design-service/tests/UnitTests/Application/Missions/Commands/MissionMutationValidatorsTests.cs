@@ -113,42 +113,17 @@ public sealed class MissionMutationValidatorsTests
         result.Errors.Should().Contain(e => e.PropertyName == nameof(UpdateTargetCommand.QrCode));
     }
 
-    [Fact]
-    public void UpdateTarget_ZeroScore_FailsValidation()
-    {
-        var result = new UpdateTargetCommandValidator()
-            .Validate(new UpdateTargetCommand(1, 2, 3, 4, "Name", "QR", 1, true, 0));
-
-        result.Errors.Should().Contain(e => e.PropertyName == nameof(UpdateTargetCommand.Score));
-    }
-
     // ── AddTarget ─────────────────────────────────────────────────────────────
 
+    // Score is not a command field: it is derived from the mission's difficulty,
+    // so the validators no longer carry any score rule.
     [Fact]
-    public void AddTarget_ZeroScore_FailsValidation()
+    public void AddTarget_ValidCommand_PassesValidation()
     {
         var result = new AddTargetCommandValidator()
-            .Validate(new AddTargetCommand(1, 2, 3, "Name", "QR", 1, Score: 0));
+            .Validate(new AddTargetCommand(1, 2, 3, "Name", "QR", 1));
 
-        result.Errors.Should().Contain(e => e.PropertyName == nameof(AddTargetCommand.Score));
-    }
-
-    [Fact]
-    public void AddTarget_ScoreAboveMaximum_FailsValidation()
-    {
-        var result = new AddTargetCommandValidator()
-            .Validate(new AddTargetCommand(1, 2, 3, "Name", "QR", 1, Score: 101));
-
-        result.Errors.Should().Contain(e => e.PropertyName == nameof(AddTargetCommand.Score));
-    }
-
-    [Fact]
-    public void UpdateTarget_ScoreAboveMaximum_FailsValidation()
-    {
-        var result = new UpdateTargetCommandValidator()
-            .Validate(new UpdateTargetCommand(1, 2, 3, 4, "Name", "QR", 1, IsActive: true, Score: 101));
-
-        result.Errors.Should().Contain(e => e.PropertyName == nameof(UpdateTargetCommand.Score));
+        result.IsValid.Should().BeTrue();
     }
 
     // ── UpdateTriviaQuizSelection ─────────────────────────────────────────────

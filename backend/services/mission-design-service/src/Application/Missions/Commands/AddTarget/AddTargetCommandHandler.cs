@@ -27,7 +27,6 @@ public sealed class AddTargetCommandHandler
             request.Name,
             request.QrCode,
             request.SequenceOrder,
-            request.Score,
             request.IsActive);
 
         await _missionRepository.UpdateAsync(mission, cancellationToken);

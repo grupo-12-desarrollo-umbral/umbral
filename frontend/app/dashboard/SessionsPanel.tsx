@@ -272,7 +272,7 @@ export function SessionsPanel({
             <div className={styles.sessionsPanelStack}>
               <section className={styles.sessionCard} data-testid="selected-session-setup-card">
                 <h3>{selectedAssignedSession.title}</h3>
-                <dl className={styles.sessionMeta}>
+                <dl className={styles.detailList}>
                   <dt>Session code</dt>
                   <dd>{selectedAssignedSession.sessionCode}</dd>
 
