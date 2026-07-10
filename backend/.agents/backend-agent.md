@@ -174,7 +174,8 @@ ask the driver** — do not silently drop it.
 - EF Core configurations go in `Infrastructure/Persistence/Configurations/` — one file per entity
 - `ApplicationDbContext` implements `IApplicationDbContext`
 - Interceptors: `AuditableEntityInterceptor` (sets Created/Modified), `DispatchDomainEventsInterceptor`
-- SignalR notifier implements `INotifier` — session-operations-service only
+- SignalR is an **Api** concern, not Infrastructure: the hub lives in `Api/Hubs/`, so the adapter that implements the Application port (`INotifier` / `I*Broadcaster`) and injects `IHubContext<THub>` also lives in `Api/Hubs/` (Phase X.4), never here — session-operations-service only
+- Infrastructure must NOT reach an Api type, and **never by reflection / type-name string** — `Type.GetType("...Api...")`, `AppDomain.CurrentDomain.GetAssemblies()`, `MakeGenericType(typeof(IHubContext<>))` — to dodge the missing project reference. That launders an Infrastructure→Api dependency past the compiler and is a Clean Architecture violation caught by `make layer-guard` (`scripts/layer-guard.sh`). The fix is to move the adapter into the layer that owns the type, not a cleverer lookup
 - RabbitMQ publisher implements outbound contract from `ddd_solution_model.md` section 10 — session-operations and scoring-monitoring only
 - Keycloak wiring under `Infrastructure/Identity/Keycloak/` — identity-access-service only
 
@@ -185,7 +186,7 @@ ask the driver** — do not silently drop it.
 - `Program.cs` wires `Application.DependencyInjection`, `Infrastructure.DependencyInjection`, controllers
 - No business logic in controller actions — dispatch to MediatR and return the mapped result. Do NOT add per-action try/catch: let exceptions bubble to the global `ProblemDetailsExceptionHandler` (registered via `UseExceptionHandler`), which is the single place that maps them to RFC 7807 `ProblemDetails`
 - Endpoint authorization is declared with `[Authorize(Policy = ...)]` attributes on the controller or action (policy constants in `Api/Services/AuthorizationPolicies.cs`)
-- SignalR hub in `Api/Hubs/` — session-operations-service only
+- SignalR hub **and its broadcasters** in `Api/Hubs/` — session-operations-service only. A broadcaster implements an Application-defined port (`INotifier` / `I*Broadcaster`) and injects `IHubContext<THub>` by constructor (no reflection); it is registered in the Api composition root. Inner layers depend only on the port — only Api sees the hub type
 
 ---
 
@@ -244,7 +245,11 @@ MSBuild node-reuse so the build survives the agent sandbox.
     owned entities / `OwnsMany`, MVC controllers / attribute routing, LINQ). Rely on
     knowledge and verify by building through the Makefile. Web search is only for
     genuinely version-specific behaviour you cannot confirm by building.
-12. Grep generated files (`ApplicationDbContextModelSnapshot.cs`, migration
+12. Never let an inner layer (Domain/Application/Infrastructure) name or resolve an
+    outer-layer (Api) type by reflection or a type-name string to sidestep the
+    dependency rule — put the adapter in the layer that owns the type and depend on
+    an Application port instead. Enforced by `make layer-guard` (`scripts/layer-guard.sh`).
+13. Grep generated files (`ApplicationDbContextModelSnapshot.cs`, migration
     files) for the specific entity/property you need first. If the grep hit does
     not show the configuration shape you need (e.g. the surrounding owned-type
     mapping), a targeted `read` with `offset`/`limit` around the match is

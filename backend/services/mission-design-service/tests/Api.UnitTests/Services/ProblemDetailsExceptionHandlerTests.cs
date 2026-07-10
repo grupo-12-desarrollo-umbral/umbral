@@ -77,6 +77,8 @@ public class ProblemDetailsExceptionHandlerTests
 
         await handler.TryHandleAsync(httpContext, exception, CancellationToken.None);
 
+        // RFC 7807 media type is locked for every handled path, not just fixed.
+        httpContext.Response.ContentType.Should().Be("application/problem+json");
         httpContext.Response.Body.Seek(0, SeekOrigin.Begin);
         return await JsonSerializer.DeserializeAsync<ProblemDetails>(httpContext.Response.Body)
             ?? new ProblemDetails();

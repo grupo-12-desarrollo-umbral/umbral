@@ -543,6 +543,112 @@ public sealed class LiveSessionRepositoryIntegrationTests
         reloadedSession.LastStateChangedAt.Should().BeCloseTo(cancelledAt, TimeSpan.FromMicroseconds(1));
     }
 
+    // HU-34: an accepted trivia answer (base EvidenceSubmission umbrella + TriviaAnswerSubmission
+    // specialization) must survive a save -> reload round-trip through the aggregate repository.
+    [Fact]
+    public async Task UpdateAsync_RoundTripsAcceptedTriviaAnswerThroughAggregate()
+    {
+        await using var resetContext = BuildContext();
+        await ResetDatabaseAsync(resetContext);
+
+        var activeAt = new DateTimeOffset(2026, 6, 4, 12, 0, 0, TimeSpan.Zero);
+        var liveSession = CreateActiveTriviaQuestionSession(activeAt);
+        var teamId = liveSession.Teams.Single().TeamId;
+        var participantId = Guid.NewGuid();
+
+        await using (var seedContext = BuildContext())
+        {
+            seedContext.LiveSessions.Add(liveSession);
+            await seedContext.SaveChangesAsync(CancellationToken.None);
+        }
+
+        var submittedAt = activeAt.AddSeconds(5);
+
+        await using (var actContext = BuildContext())
+        {
+            var repository = new LiveSessionRepository(actContext);
+            var persistedSession = await repository.GetByIdAsync(liveSession.LiveSessionId, CancellationToken.None);
+
+            persistedSession.Should().NotBeNull();
+
+            // Option 1 ("Paris") is the correct option worth 50 points on the first active question.
+            persistedSession!.RegisterTriviaAnswer(teamId, 1, participantId, submittedAt);
+
+            await repository.UpdateAsync(persistedSession, CancellationToken.None);
+        }
+
+        await using var assertContext = BuildContext();
+        var reloadedSession = await new LiveSessionRepository(assertContext)
+            .GetByIdAsync(liveSession.LiveSessionId, CancellationToken.None);
+
+        reloadedSession.Should().NotBeNull();
+        reloadedSession!.TriviaAnswerSubmissions.Should().ContainSingle();
+
+        var answer = reloadedSession.TriviaAnswerSubmissions.Single();
+
+        // Base EvidenceSubmission umbrella node round-trips.
+        answer.EvidenceSubmissionId.Should().NotBe(Guid.Empty);
+        answer.LiveSessionId.Should().Be(liveSession.LiveSessionId);
+        answer.TeamId.Should().Be(teamId);
+        answer.ActiveSubstageId.Should().Be(reloadedSession.ActiveSubstageId!.Value);
+        answer.SubmissionType.Should().Be(EvidenceSubmissionType.TriviaAnswer);
+        answer.SubmittedByParticipantId.Should().Be(participantId);
+        answer.SubmittedAt.Should().BeCloseTo(submittedAt, TimeSpan.FromMicroseconds(1));
+        answer.ValidationState.Should().Be(EvidenceValidationState.Accepted);
+
+        // Trivia specialization node round-trips with the snapshotted correctness/score.
+        answer.QuestionSequenceOrder.Should().Be(1);
+        answer.SelectedOptionSequenceOrder.Should().Be(1);
+        answer.IsCorrect.Should().BeTrue();
+        answer.ScoreValue.Should().Be(50);
+    }
+
+    // HU-34 first-write-wins is also guarded at the DB boundary: two aggregates loaded before either
+    // committed (each blind to the other's answer, so the in-memory duplicate guard cannot see it)
+    // must not both persist an answer for the same team + snapshotted question. The unique index
+    // rejects the second write with a DbUpdateException.
+    [Fact]
+    public async Task UpdateAsync_RejectsSecondAnswerForSameTeamAndQuestionAtDatabase()
+    {
+        await using var resetContext = BuildContext();
+        await ResetDatabaseAsync(resetContext);
+
+        var activeAt = new DateTimeOffset(2026, 6, 4, 12, 0, 0, TimeSpan.Zero);
+        var liveSession = CreateActiveTriviaQuestionSession(activeAt);
+        var teamId = liveSession.Teams.Single().TeamId;
+
+        await using (var seedContext = BuildContext())
+        {
+            seedContext.LiveSessions.Add(liveSession);
+            await seedContext.SaveChangesAsync(CancellationToken.None);
+        }
+
+        var submittedAt = activeAt.AddSeconds(5);
+
+        await using var firstContext = BuildContext();
+        await using var secondContext = BuildContext();
+
+        var firstSession = await new LiveSessionRepository(firstContext)
+            .GetByIdAsync(liveSession.LiveSessionId, CancellationToken.None);
+        var secondSession = await new LiveSessionRepository(secondContext)
+            .GetByIdAsync(liveSession.LiveSessionId, CancellationToken.None);
+
+        firstSession.Should().NotBeNull();
+        secondSession.Should().NotBeNull();
+
+        // Both copies register an answer for the same team/question — each blind to the other.
+        firstSession!.RegisterTriviaAnswer(teamId, 1, Guid.NewGuid(), submittedAt);
+        secondSession!.RegisterTriviaAnswer(teamId, 2, Guid.NewGuid(), submittedAt);
+
+        await new LiveSessionRepository(firstContext).UpdateAsync(firstSession, CancellationToken.None);
+
+        var secondWrite = async () =>
+            await new LiveSessionRepository(secondContext).UpdateAsync(secondSession, CancellationToken.None);
+
+        await secondWrite.Should().ThrowAsync<DbUpdateException>(
+            "the unique index on team + snapshotted question must reject a second accepted answer");
+    }
+
     private ApplicationDbContext BuildContext()
     {
         return _contextFactory.Create();

@@ -9,7 +9,6 @@ using umbral_backend.Domain.Enums;
 using umbral_backend.Domain.Services;
 using umbral_backend.Domain.ValueObjects;
 using umbral_backend.Infrastructure.Persistence;
-using umbral_backend.Infrastructure.Realtime;
 
 namespace umbral_backend.Infrastructure.IntegrationTests.Api;
 

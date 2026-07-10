@@ -542,6 +542,85 @@ public sealed class LiveSessionConfiguration : IEntityTypeConfiguration<LiveSess
             joinContextBuilder.HasIndex(joinContext => new { joinContext.LiveSessionId, joinContext.TeamId });
         });
 
+        // Accepted trivia answers: the base EvidenceSubmission fields + the TriviaAnswerSubmission
+        // specialization, owned by the session aggregate. Only the concrete leaf is mapped
+        // (EvidenceSubmission is abstract and never surfaces as its own table), so its inherited
+        // columns flatten onto this one table. TriviaAnswerSubmission derives from BaseEntity (NOT
+        // BaseAuditableEntity), so it carries no created_by/updated_by/created_at/updated_at audit
+        // columns — the only base-class ceremony to strip is BaseEntity.Id, ignored exactly as the
+        // Teams/Participants/JoinContexts children do.
+        builder.OwnsMany(session => session.TriviaAnswerSubmissions, answerBuilder =>
+        {
+            answerBuilder.ToTable("live_session_trivia_answer_submissions");
+            answerBuilder.WithOwner().HasForeignKey(answer => answer.LiveSessionId);
+
+            answerBuilder.Ignore(answer => answer.Id);
+            answerBuilder.HasKey(answer => answer.EvidenceSubmissionId);
+
+            answerBuilder.Property(answer => answer.EvidenceSubmissionId)
+                .HasColumnName("id")
+                .ValueGeneratedNever();
+
+            answerBuilder.Property(answer => answer.LiveSessionId)
+                .HasColumnName("live_session_id")
+                .IsRequired();
+
+            answerBuilder.Property(answer => answer.TeamId)
+                .HasColumnName("team_id")
+                .IsRequired();
+
+            answerBuilder.Property(answer => answer.ActiveSubstageId)
+                .HasColumnName("active_substage_id")
+                .IsRequired();
+
+            answerBuilder.Property(answer => answer.SubmissionType)
+                .HasColumnName("submission_type")
+                .HasConversion<string>()
+                .HasMaxLength(32)
+                .IsRequired();
+
+            answerBuilder.Property(answer => answer.SubmittedByParticipantId)
+                .HasColumnName("submitted_by_participant_id");
+
+            answerBuilder.Property(answer => answer.SubmittedAt)
+                .HasColumnName("submitted_at")
+                .IsRequired();
+
+            answerBuilder.Property(answer => answer.ValidationState)
+                .HasColumnName("validation_state")
+                .HasConversion<string>()
+                .HasMaxLength(32)
+                .IsRequired();
+
+            answerBuilder.Property(answer => answer.QuestionSequenceOrder)
+                .HasColumnName("question_sequence_order")
+                .IsRequired();
+
+            answerBuilder.Property(answer => answer.SelectedOptionSequenceOrder)
+                .HasColumnName("selected_option_sequence_order")
+                .IsRequired();
+
+            answerBuilder.Property(answer => answer.IsCorrect)
+                .HasColumnName("is_correct")
+                .IsRequired();
+
+            answerBuilder.Property(answer => answer.ScoreValue)
+                .HasColumnName("score_value")
+                .IsRequired();
+
+            // First-write-wins enforced at the DB boundary: exactly one accepted answer per team per
+            // snapshotted trivia question. Mirrors the domain's EnsureFirstAnswerWins composite key
+            // (team + substage snapshot + question sequence order), scoped to the owning session.
+            answerBuilder.HasIndex(answer => new
+                {
+                    answer.LiveSessionId,
+                    answer.TeamId,
+                    answer.ActiveSubstageId,
+                    answer.QuestionSequenceOrder,
+                })
+                .IsUnique();
+        });
+
         builder.Navigation(session => session.Teams)
             .UsePropertyAccessMode(PropertyAccessMode.Field);
 
@@ -549,6 +628,9 @@ public sealed class LiveSessionConfiguration : IEntityTypeConfiguration<LiveSess
             .UsePropertyAccessMode(PropertyAccessMode.Field);
 
         builder.Navigation(session => session.JoinContexts)
+            .UsePropertyAccessMode(PropertyAccessMode.Field);
+
+        builder.Navigation(session => session.TriviaAnswerSubmissions)
             .UsePropertyAccessMode(PropertyAccessMode.Field);
 
         builder.Navigation(session => session.MissionRuntimeSnapshot)

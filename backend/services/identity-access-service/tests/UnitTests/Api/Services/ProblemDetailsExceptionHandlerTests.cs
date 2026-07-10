@@ -256,6 +256,8 @@ public sealed class ProblemDetailsExceptionHandlerTests
 
     private static async Task<ProblemDetails> ReadProblemDetailsAsync(DefaultHttpContext httpContext)
     {
+        // RFC 7807 media type is locked for every handled path, not just fixed.
+        httpContext.Response.ContentType.Should().Be("application/problem+json");
         httpContext.Response.Body.Position = 0;
         return (await JsonSerializer.DeserializeAsync<ProblemDetails>(httpContext.Response.Body))!;
     }

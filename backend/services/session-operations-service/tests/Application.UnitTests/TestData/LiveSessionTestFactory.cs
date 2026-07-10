@@ -1,10 +1,38 @@
 using umbral_backend.Domain.Entities;
+using umbral_backend.Domain.Enums;
+using umbral_backend.Domain.Services;
 using umbral_backend.Domain.ValueObjects;
 
 namespace umbral_backend.Application.UnitTests.TestData;
 
 internal static class LiveSessionTestFactory
 {
+    // Fixed clock reference used by the HU-34 active-trivia setup so tests can reason about the
+    // question timer window deterministically.
+    internal static readonly DateTimeOffset TriviaQuestionActivatedAt =
+        new(2026, 6, 3, 10, 1, 0, TimeSpan.Zero);
+
+    // Builds an Active trivia session with one associated team and question index 0 already active,
+    // ready for HU-34 answer-registration tests. The single question is SequenceOrder 1, score 100,
+    // 30s window, option 1 correct / option 2 wrong (see CreateTriviaQuestions).
+    internal static LiveSession CreateActiveTriviaWithActiveQuestion(
+        out Guid teamId,
+        out Guid triviaSubstageSnapshotId,
+        string sessionCode = "tri-123")
+    {
+        var session = CreateScheduledTrivia(sessionCode: sessionCode);
+        var policy = new SessionStateTransitionPolicy();
+
+        var team = session.AssociateTeam(Guid.NewGuid(), "Alpha", "A-01", 4);
+        session.MoveTo(SessionState.Preparing, TriviaQuestionActivatedAt.AddMinutes(-1), policy);
+        session.MoveTo(SessionState.Active, TriviaQuestionActivatedAt.AddSeconds(-30), policy);
+        session.ActivateQuestion(0, TriviaQuestionActivatedAt);
+
+        teamId = team.TeamId;
+        triviaSubstageSnapshotId = session.ActiveSubstageId!.Value;
+        return session;
+    }
+
     internal static LiveSession CreateScheduledTreasureHunt(
         string sessionCode = "abc123",
         string title = "Museum Hunt",

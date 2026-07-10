@@ -172,6 +172,34 @@ public sealed class ProblemDetailsExceptionHandlerTests
                 "clients paste the traceId straight into a log search, which indexes the bare trace-id");
     }
 
+    [Fact]
+    public async Task TryHandleAsync_ValidationException_KeepsBodyShapeUnderProblemJsonMediaType()
+    {
+        var exception = new ValidationException(
+        [
+            new ValidationFailure("DisplayName", "Display name is required.")
+        ]);
+
+        var httpContext = new DefaultHttpContext { Response = { Body = new MemoryStream() } };
+        await _handler.TryHandleAsync(httpContext, exception, CancellationToken.None);
+
+        httpContext.Response.ContentType.Should().Be("application/problem+json");
+
+        httpContext.Response.Body.Position = 0;
+        using var document = await JsonDocument.ParseAsync(httpContext.Response.Body);
+        var root = document.RootElement;
+
+        // The media-type fix must not disturb the RFC 7807 body: type/title/status/detail and the
+        // validation-only errors object are all consumer contract.
+        root.GetProperty("type").GetString().Should().Be("validation-failed");
+        root.GetProperty("title").GetString().Should().Be("Validation failed.");
+        root.GetProperty("status").GetInt32().Should().Be(StatusCodes.Status400BadRequest);
+        root.GetProperty("detail").GetString().Should().Contain("Display name is required.");
+        root.GetProperty("errors").GetProperty("DisplayName")
+            .EnumerateArray().Select(entry => entry.GetString())
+            .Should().Contain("Display name is required.");
+    }
+
     private async Task<ProblemDetails> HandleAsync(Exception exception)
     {
         var httpContext = new DefaultHttpContext();
@@ -180,6 +208,8 @@ public sealed class ProblemDetailsExceptionHandlerTests
         var handled = await _handler.TryHandleAsync(httpContext, exception, CancellationToken.None);
 
         handled.Should().BeTrue();
+        // RFC 7807 media type is locked for every handled path, not just fixed.
+        httpContext.Response.ContentType.Should().Be("application/problem+json");
         httpContext.Response.Body.Position = 0;
 
         var problem = await JsonSerializer.DeserializeAsync<ProblemDetails>(

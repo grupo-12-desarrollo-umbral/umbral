@@ -89,6 +89,92 @@ public sealed class RabbitMqIntegrationEventPublisherTests
         }
     }
 
+    // HU-34: the accepted-answer contract publishes through the SAME service-owned exchange on its
+    // own routing key, proving the existing transport carries the new contract without new infra.
+    [Fact]
+    public async Task PublishedAnswerRegisteredEvent_IsReceivedOnBoundQueue()
+    {
+        var rabbit = new RabbitMqBuilder()
+            .WithImage("rabbitmq:3-management")
+            .WithUsername("guest")
+            .WithPassword("guest")
+            .Build();
+        try
+        {
+            await rabbit.StartAsync();
+        }
+        catch (Exception)
+        {
+            // Docker/Testcontainers unavailable — resilience is covered by the broker-down test.
+            await rabbit.DisposeAsync();
+            return;
+        }
+
+        try
+        {
+            var options = new RabbitMqOptions
+            {
+                HostName = rabbit.Hostname,
+                Port = rabbit.GetMappedPublicPort(5672),
+                UserName = "guest",
+                Password = "guest",
+            };
+
+            const string queueName = "test.session.answer.registered";
+            var factory = new ConnectionFactory
+            {
+                HostName = options.HostName,
+                Port = options.Port,
+                UserName = options.UserName,
+                Password = options.Password,
+            };
+
+            await using var connection = await factory.CreateConnectionAsync();
+            await using var channel = await connection.CreateChannelAsync();
+            await channel.ExchangeDeclareAsync(options.Exchange, ExchangeType.Topic, durable: true, autoDelete: false);
+            await channel.QueueDeclareAsync(queueName, durable: true, exclusive: false, autoDelete: false);
+            await channel.QueueBindAsync(
+                queueName, options.Exchange, RabbitMqIntegrationEventPublisher.AnswerRegisteredRoutingKey);
+
+            var sessionId = Guid.NewGuid();
+            var teamId = Guid.NewGuid();
+            var submissionId = Guid.NewGuid();
+            var substageSnapshotId = Guid.NewGuid();
+            var submittedAt = DateTimeOffset.UtcNow;
+
+            await using (var publisher = new RabbitMqIntegrationEventPublisher(
+                Options.Create(options), NullLogger<RabbitMqIntegrationEventPublisher>.Instance))
+            {
+                await publisher.PublishAsync(
+                    new AnswerRegisteredIntegrationEvent(
+                        sessionId, teamId, submissionId, substageSnapshotId, 1, 1, true, 50, submittedAt),
+                    CancellationToken.None);
+
+                BasicGetResult? delivery = null;
+                for (var attempt = 0; attempt < 50 && delivery is null; attempt++)
+                {
+                    delivery = await channel.BasicGetAsync(queueName, autoAck: true);
+                    if (delivery is null)
+                    {
+                        await Task.Delay(200);
+                    }
+                }
+
+                delivery.Should().NotBeNull("the published answer event must land on the bound queue");
+                var received = JsonSerializer.Deserialize<AnswerRegisteredIntegrationEvent>(delivery!.Body.Span);
+                received!.LiveSessionId.Should().Be(sessionId);
+                received.TeamId.Should().Be(teamId);
+                received.TriviaAnswerSubmissionId.Should().Be(submissionId);
+                received.IsCorrect.Should().BeTrue();
+                received.ScoreValue.Should().Be(50);
+            }
+        }
+        finally
+        {
+            await rabbit.DisposeAsync();
+        }
+    }
+
     [Fact]
     public async Task BrokerDownPublish_LogsAndDoesNotThrow()
     {

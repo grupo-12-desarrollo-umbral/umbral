@@ -57,7 +57,7 @@ INTEGRATION_PROJECTS := $(shell find $(SVCDIR)/tests -maxdepth 3 -name '*Integra
 # behavioural gate, not a coverlet report).
 GATEABLE_SERVICES := $(sort $(foreach p,$(wildcard services/*/tests/IntegrationTests/*.csproj),$(word 2,$(subst /, ,$(p)))))
 
-.PHONY: help build test gate gate-all clean clean-all clean-artifacts guard-artifacts structure-guard structure-guard-converged ef
+.PHONY: help build test gate gate-all clean clean-all clean-artifacts guard-artifacts structure-guard structure-guard-converged layer-guard ef
 
 # Fail fast (before any dotnet call) when this service's bin/obj are owned by
 # someone other than you — the #1 cause of the confusing NuGet "Access to the
@@ -86,6 +86,12 @@ build test gate: guard-artifacts
 # of `build` — the build recipe itself is unchanged.
 build: structure-guard-converged
 
+# `build` also enforces the Clean Architecture dependency rule against cross-layer
+# reflection laundering (scripts/layer-guard.sh). Unlike the structural guard this
+# is UNCONDITIONAL — the prohibition has no per-service migration, so every build
+# runs it (scoped to $(SVC) when set). Extra prerequisite; build recipe unchanged.
+build: layer-guard
+
 help:
 	@echo "Targets (pass SVC=<service>):"
 	@echo "  build   compile Api + all test projects"
@@ -97,6 +103,7 @@ help:
 	@echo "  clean-artifacts reclaim stale + foreign-owned (Codex nobody:nogroup) bin/obj incl. api-gateway; uses sudo if needed"
 	@echo "  ef      dotnet ef passthrough — also pass ARGS=\"migrations add ...\""
 	@echo "  structure-guard  enforce the ADR-0011 Application-layer vertical-slice layout (all services, or SVC=<svc>)"
+	@echo "  layer-guard      forbid cross-layer reflection laundering (inner layer naming an Api type by string; all services, or SVC=<svc>)"
 	@echo "  (build/test/gate pre-flight-check bin/obj ownership; foreign-owned → fail fast with the fix)"
 	@echo "  (build/test/gate echo a compact summary; full dotnet output → $(LOGDIR)/<target>-<svc>.log)"
 
@@ -221,6 +228,19 @@ structure-guard:
 	  SVC="$(SVC)" scripts/structure-guard.sh; \
 	else \
 	  SVC="" scripts/structure-guard.sh; \
+	fi
+
+# Clean Architecture dependency-rule guard: forbids an inner layer (Domain/
+# Application/Infrastructure) from naming or reflectively resolving an Api-layer
+# type — the reflection/type-name-string laundering that .csproj refs and
+# NetArchTest cannot see (no dotnet, so no bin/obj pre-flight needed). Scans every
+# service by default; SVC=<service> narrows to one, forwarded only when set on the
+# command line. See scripts/layer-guard.sh for the rules.
+layer-guard:
+	@if [ "$(origin SVC)" = "command line" ]; then \
+	  SVC="$(SVC)" scripts/layer-guard.sh; \
+	else \
+	  SVC="" scripts/layer-guard.sh; \
 	fi
 
 # Build-time gate: run the structural guard for $(SVC) only when it has converged
