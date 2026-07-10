@@ -308,8 +308,8 @@ editor) — no API change, no backend dependency.
 
 ### The whole line, serialized (2026-07-10)
 
-Every live ticket in one order, lanes folded in. **32 Linear tickets** and **14 GitHub
-issues** (`#137`–`#149` + `#85`). `DES-46` (PR #133) and `DES-86` (PR #136) are absent
+Every live ticket in one order, lanes folded in. **32 Linear tickets** and **17 GitHub
+issues** (`#137`–`#149` + `#85` + `#154`–`#156`, the `#153` geolocation track). `DES-46` (PR #133) and `DES-86` (PR #136) are absent
 because they are **done**; the 7 PRD tickets (`DES-62/66/67/68/69/70/85`) are absent
 because they are reference documents, not buildable slices.
 
@@ -317,7 +317,7 @@ because they are reference documents, not buildable slices.
 GH#149 (branch coverage) → GH#139 (try/catch ADR) → GH#147 (gateway handler)
 → GH#137 (account-flow ADR) → GH#138 (clue-semantics ADR)
 → DES-49 (HU-36A) → DES-31 (HU-23) → GH#145 (substage clues bug)
-→ DES-42 (HU-31) → DES-39 (HU-29) → DES-40 (HU-30A) → DES-41 (HU-30B) → DES-43 (HU-32)
+→ DES-87 (score nullability contract) → DES-42 (HU-31) → DES-39 (HU-29) → DES-40 (HU-30A) → DES-41 (HU-30B) → DES-43 (HU-32)
 → DES-36 (HU-26) → DES-38 (HU-28) → DES-37 (HU-27)
 → DES-53 (HU-38) → DES-51 (HU-37) → DES-54 (HU-39) → DES-50 (HU-36B) → DES-48 (HU-35)
 → DES-32 (HU-24A) → DES-34 (HU-25A) → DES-35 (HU-25B) → DES-33 (HU-24B) → DES-61 (ENABLER CQRS)
@@ -327,16 +327,28 @@ GH#149 (branch coverage) → GH#139 (try/catch ADR) → GH#147 (gateway handler)
 → GH#143 (participant self-registration) → GH#144 (forgot-password)
 → DES-81 (EN-M1) → DES-82 (HU-M1) → DES-83 (HU-M3) → DES-84 (HU-M2)
 → DES-58 (ENABLER React Native)
+→ GH#154 (target coordinates) → GH#155 (treasure-hunt play surface, Focus Tabs) → GH#156 (map view)
 → GH#146 (quiz preview) → DES-80 (HU-14A follow-up) → GH#85 (rename)
 ```
 
 **One valid serialization, not the only one.** What is actually forced, and what is not:
 
 - **Forced.** `#138` + `#145` before `DES-36`. The whole identity block before `GH #85`.
-  Everything else in the line follows a live `blockedBy` edge. (`DES-86` used to force two
-  more — `#145` after it, and it before `DES-42` — both discharged when PR #136 landed.)
+  `DES-87` before `DES-42` — not a `blockedBy` edge (like `DES-86`'s old slot, the graph can't
+  express it), but `DES-42` reads `TargetSnapshot.Score` into the `TargetResolved` payload, and
+  `DES-87` contracts that field from `int?` to `int`; run out of order and `DES-42` propagates a
+  null no producer can emit, which `DES-51`'s ledger then inherits. Everything else in the line
+  follows a live `blockedBy` edge. (`DES-86` used to force two more — `#145` after it, and it
+  before `DES-42` — both discharged when PR #136 landed.)
 - **Free.** `GH #146` and `DES-80` are fully independent — parked late only because nothing
   needs them. Pull either into any quiet window.
+- **The `#153` geolocation track (`GH #154`/`#155`/`#156`)** is its own feature line, child issues
+  of `GH #153`. `#154` (backend target coordinates — `mission-design` + `session-operations`) and
+  `#155` (mobile play surface, Focus Tabs layout) are **both ungated** — pull them forward any time;
+  the Focus Tabs layout is settled by a prototype (`mobile/docs/prototype-treasure-hunt-play.md`).
+  Only `#156` (real `react-native-maps` view) is forced late — it needs both `#154` and `#155`.
+  Parked here only because nothing on the canon line depends on them. No Linear DES id, so **no
+  generator-agent run** — drive against the issue body like the other `GH` issues.
 - **Arguably misplaced.** The identity block sits late but is only required to precede
   `GH #85`. `GH #140` is a security fix (shared master-admin credential); run it early.
 - **`DES-83` (HU-M3) before `DES-84` (HU-M2) reads backwards on purpose** — both depend only
