@@ -1,4 +1,18 @@
-# Evidence is the umbrella term with exactly two forms: QR and trivia answer
+# 0010 — Evidence is the umbrella term with exactly two forms: QR and trivia answer
+
+## Status
+
+Accepted — 2026-07-10. Ratifies the umbrella model this file already describes and that
+shipped code already assumes: HU-34 (`DES-46`) implements `TriviaAnswerSubmission` as one
+of the two concrete forms. Earlier references carrying the model as *en revisión* — the
+two 2026-07-09 handoff notes and [ADR-0015](0015-per-target-scoring-ownership.md) §Status
+— are stale as of this date. Supersedes the **"QR-only evidence"** framing that survives
+in this file's slug; read the title, not the filename. Does **not** alter ADR-0015, which
+defined the `TargetResolved` payload on its own footing while this ADR was unratified —
+the `EvidenceSubmissionRegistered` → `TargetResolved` ordering is fixed here, in
+§Decisions in scope. `DES-42` (HU-31) may now have its spec generated.
+
+## Context
 
 The canonical domain (`bd_umbral_entity_spec.md`, `ddd_solution_model.md`,
 `umbral_user_stories.md`, `session-operations-service/CONTEXT.md`) models

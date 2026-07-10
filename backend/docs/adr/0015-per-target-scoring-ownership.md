@@ -11,8 +11,10 @@ lands. Consistent with `DES-85` (see Decision §2 for why this is not a reversal
 [ADR-0012](0012-design-pattern-placement-convention.md), or
 [ADR-0014](0014-no-cross-layer-reflection.md). Touches the same treasure-hunt surface as
 [ADR-0010](0010-evidence-qr-only-first-delivery.md) (the `EvidenceSubmissionRegistered` →
-`TargetResolved` two-fact ordering), but that ADR is **still in revisión** and is not
-assumed here — this ADR defines the `TargetResolved` payload on its own footing.
+`TargetResolved` two-fact ordering). That ADR was **unratified** when this one was written,
+so its ordering was not assumed here — this ADR defines the `TargetResolved` payload on its
+own footing, and still does. *(Updated 2026-07-10: ADR-0010 is now Accepted. The two
+decisions remain independent; nothing below changes.)*
 
 ## Context
 
