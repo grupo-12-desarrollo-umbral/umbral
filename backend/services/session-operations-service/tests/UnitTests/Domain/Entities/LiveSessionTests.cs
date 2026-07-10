@@ -825,6 +825,181 @@ public sealed class LiveSessionTests
             name.Contains("Finalized", StringComparison.Ordinal));
     }
 
+    // ── HU-34: answer-registration Template Method skeleton ───────────────────────────────────────
+    // One workflow governs accept + reject. These tests lock every branch of the single write.
+
+    [Fact]
+    public void RegisterTriviaAnswer_WhenFirstInTimeCorrectAnswer_AcceptsOnceAndSnapshotsCorrectnessAndScore()
+    {
+        var session = ActivateTriviaSession();
+        var team = session.Teams.First();
+        var activatedAt = new DateTimeOffset(2026, 6, 3, 10, 1, 0, TimeSpan.Zero);
+        var submittedAt = activatedAt.AddSeconds(5);
+        var participantId = Guid.NewGuid();
+        session.ActivateQuestion(0, activatedAt);
+
+        var submission = session.RegisterTriviaAnswer(team.TeamId, selectedOptionSequenceOrder: 1, participantId, submittedAt);
+
+        session.TriviaAnswerSubmissions.Should().ContainSingle().Which.Should().Be(submission);
+        submission.TeamId.Should().Be(team.TeamId);
+        submission.LiveSessionId.Should().Be(session.LiveSessionId);
+        submission.ActiveSubstageId.Should().Be(session.ActiveSubstageId!.Value);
+        submission.QuestionSequenceOrder.Should().Be(1);
+        submission.SelectedOptionSequenceOrder.Should().Be(1);
+        submission.IsCorrect.Should().BeTrue();
+        submission.ScoreValue.Should().Be(100);
+        submission.SubmissionType.Should().Be(EvidenceSubmissionType.TriviaAnswer);
+        submission.ValidationState.Should().Be(EvidenceValidationState.Accepted);
+        submission.SubmittedByParticipantId.Should().Be(participantId);
+        submission.SubmittedAt.Should().Be(submittedAt);
+
+        var registered = session.DomainEvents.OfType<AnswerRegisteredEvent>().Single();
+        registered.LiveSessionId.Should().Be(session.LiveSessionId);
+        registered.TeamId.Should().Be(team.TeamId);
+        registered.EvidenceSubmissionId.Should().Be(submission.EvidenceSubmissionId);
+        registered.ActiveSubstageId.Should().Be(session.ActiveSubstageId!.Value);
+        registered.QuestionSequenceOrder.Should().Be(1);
+        registered.SelectedOptionSequenceOrder.Should().Be(1);
+        registered.IsCorrect.Should().BeTrue();
+        registered.ScoreValue.Should().Be(100);
+        registered.SubmittedAt.Should().Be(submittedAt);
+    }
+
+    [Fact]
+    public void RegisterTriviaAnswer_WhenWrongOptionSelected_AcceptsAsTeamAnswerWithZeroScore()
+    {
+        var session = ActivateTriviaSession();
+        var team = session.Teams.First();
+        var activatedAt = new DateTimeOffset(2026, 6, 3, 10, 1, 0, TimeSpan.Zero);
+        session.ActivateQuestion(0, activatedAt);
+
+        var submission = session.RegisterTriviaAnswer(team.TeamId, selectedOptionSequenceOrder: 2, submittedByParticipantId: null, activatedAt.AddSeconds(5));
+
+        submission.ValidationState.Should().Be(EvidenceValidationState.Accepted);
+        submission.IsCorrect.Should().BeFalse();
+        submission.ScoreValue.Should().Be(0);
+        session.DomainEvents.OfType<AnswerRegisteredEvent>().Single().IsCorrect.Should().BeFalse();
+    }
+
+    [Fact]
+    public void RegisterTriviaAnswer_WhenTeamAlreadyAnswered_RejectsDuplicateAndKeepsFirstWrite()
+    {
+        var session = ActivateTriviaSession();
+        var team = session.Teams.First();
+        var activatedAt = new DateTimeOffset(2026, 6, 3, 10, 1, 0, TimeSpan.Zero);
+        session.ActivateQuestion(0, activatedAt);
+        session.RegisterTriviaAnswer(team.TeamId, selectedOptionSequenceOrder: 1, null, activatedAt.AddSeconds(3));
+
+        var act = () => session.RegisterTriviaAnswer(team.TeamId, selectedOptionSequenceOrder: 2, null, activatedAt.AddSeconds(6));
+
+        act.Should().Throw<DuplicateTriviaAnswerException>();
+        session.TriviaAnswerSubmissions.Should().ContainSingle();
+        session.TriviaAnswerSubmissions.Single().SelectedOptionSequenceOrder.Should().Be(1); // first write wins
+        session.DomainEvents.OfType<AnswerRegisteredEvent>().Should().ContainSingle();
+    }
+
+    [Fact]
+    public void RegisterTriviaAnswer_WhenTimerWindowClosed_RejectsLateAndRaisesNoEvent()
+    {
+        var session = ActivateTriviaSession();
+        var team = session.Teams.First();
+        var activatedAt = new DateTimeOffset(2026, 6, 3, 10, 1, 0, TimeSpan.Zero);
+        session.ActivateQuestion(0, activatedAt);
+
+        var act = () => session.RegisterTriviaAnswer(team.TeamId, selectedOptionSequenceOrder: 1, null, activatedAt.AddSeconds(31));
+
+        act.Should().Throw<LateTriviaAnswerException>();
+        session.TriviaAnswerSubmissions.Should().BeEmpty();
+        session.DomainEvents.OfType<AnswerRegisteredEvent>().Should().BeEmpty();
+    }
+
+    [Fact]
+    public void RegisterTriviaAnswer_WhenNoQuestionActive_RejectsAndRaisesNoEvent()
+    {
+        var session = ActivateTriviaSession();
+        var team = session.Teams.First();
+
+        var act = () => session.RegisterTriviaAnswer(team.TeamId, selectedOptionSequenceOrder: 1, null, new DateTimeOffset(2026, 6, 3, 10, 1, 0, TimeSpan.Zero));
+
+        act.Should().Throw<TriviaAnswerRequiresActiveQuestionException>();
+        session.DomainEvents.OfType<AnswerRegisteredEvent>().Should().BeEmpty();
+    }
+
+    [Fact]
+    public void RegisterTriviaAnswer_WhenSelectedOptionIsNotInSnapshot_Rejects()
+    {
+        var session = ActivateTriviaSession();
+        var team = session.Teams.First();
+        var activatedAt = new DateTimeOffset(2026, 6, 3, 10, 1, 0, TimeSpan.Zero);
+        session.ActivateQuestion(0, activatedAt);
+
+        var act = () => session.RegisterTriviaAnswer(team.TeamId, selectedOptionSequenceOrder: 99, null, activatedAt.AddSeconds(5));
+
+        act.Should().Throw<InvalidTriviaAnswerOptionException>();
+        session.TriviaAnswerSubmissions.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void RegisterTriviaAnswer_WhenActiveSubstageIsTreasureHunt_RejectsWithSubstageModeReason()
+    {
+        var session = LiveSessionFactory.CreateScheduledTriviaThenTreasureHunt();
+        Activate(session);
+        var team = session.Teams.First();
+        var advancedAt = new DateTimeOffset(2026, 6, 3, 10, 2, 0, TimeSpan.Zero);
+        session.ActivateQuestion(0, advancedAt);
+        session.CloseActiveQuestion(advancedAt.AddSeconds(30));
+        session.CompleteActiveSubstageAndAdvance(advancedAt.AddSeconds(30), new SessionStateTransitionPolicy());
+
+        var act = () => session.RegisterTriviaAnswer(team.TeamId, selectedOptionSequenceOrder: 1, null, advancedAt.AddSeconds(31));
+
+        act.Should().Throw<TriviaAnswerRequiresTriviaSubstageException>();
+    }
+
+    [Fact]
+    public void RegisterTriviaAnswer_WhenSessionPaused_RejectsWithSessionStateReasonAndRaisesNoEvent()
+    {
+        var session = ActivateTriviaSession();
+        var team = session.Teams.First();
+        var activatedAt = new DateTimeOffset(2026, 6, 3, 10, 1, 0, TimeSpan.Zero);
+        session.ActivateQuestion(0, activatedAt);
+        session.MoveTo(SessionState.Paused, activatedAt.AddSeconds(5), new SessionStateTransitionPolicy());
+
+        var act = () => session.RegisterTriviaAnswer(team.TeamId, selectedOptionSequenceOrder: 1, null, activatedAt.AddSeconds(6));
+
+        act.Should().Throw<TriviaAnswerRequiresActiveSessionException>();
+        session.DomainEvents.OfType<AnswerRegisteredEvent>().Should().BeEmpty();
+    }
+
+    [Fact]
+    public void RegisterTriviaAnswer_WhenSessionCancelled_RejectsWithSessionStateReason()
+    {
+        var session = ActivateTriviaSession();
+        var team = session.Teams.First();
+        var activatedAt = new DateTimeOffset(2026, 6, 3, 10, 1, 0, TimeSpan.Zero);
+        session.ActivateQuestion(0, activatedAt);
+        session.MoveTo(SessionState.Cancelled, activatedAt.AddSeconds(5), new SessionStateTransitionPolicy());
+
+        var act = () => session.RegisterTriviaAnswer(team.TeamId, selectedOptionSequenceOrder: 1, null, activatedAt.AddSeconds(6));
+
+        act.Should().Throw<TriviaAnswerRequiresActiveSessionException>();
+    }
+
+    [Fact]
+    public void RegisterTriviaAnswer_WhenSessionFinished_RejectsWithSessionStateReason()
+    {
+        var session = ActivateTriviaSession();
+        var team = session.Teams.First();
+        var at = new DateTimeOffset(2026, 6, 3, 10, 2, 0, TimeSpan.Zero);
+        session.ActivateQuestion(0, at);
+        session.CloseActiveQuestion(at.AddSeconds(30));
+        session.CompleteActiveSubstageAndAdvance(at.AddSeconds(30), new SessionStateTransitionPolicy());
+
+        session.State.Should().Be(SessionState.Finished);
+        var act = () => session.RegisterTriviaAnswer(team.TeamId, selectedOptionSequenceOrder: 1, null, at.AddSeconds(31));
+
+        act.Should().Throw<TriviaAnswerRequiresActiveSessionException>();
+    }
+
     private static IReadOnlyList<SubstageSnapshot> OrderedSubstages(LiveSession session)
     {
         return session.MissionRuntimeSnapshot.StageSnapshots

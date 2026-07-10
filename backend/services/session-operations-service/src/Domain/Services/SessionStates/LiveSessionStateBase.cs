@@ -34,4 +34,9 @@ internal abstract class LiveSessionStateBase : ILiveSessionState
     {
         throw new SubstageAdvancementRequiresActiveSessionException(session.State);
     }
+
+    public virtual void EnsureCanRegisterTriviaAnswer(LiveSession session)
+    {
+        throw new TriviaAnswerRequiresActiveSessionException(session.State);
+    }
 }

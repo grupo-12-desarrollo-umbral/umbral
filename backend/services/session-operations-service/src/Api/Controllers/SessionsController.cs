@@ -6,6 +6,7 @@ using umbral_backend.Application.Sessions.Commands.AssignOperatorToSession;
 using umbral_backend.Application.Sessions.Commands.CreateSession;
 using umbral_backend.Application.Sessions.Commands.ReconnectAuthenticatedParticipant;
 using umbral_backend.Application.Sessions.Commands.SelectTeam;
+using umbral_backend.Application.Sessions.Commands.SubmitTriviaAnswer;
 using umbral_backend.Application.Sessions.Commands.TransitionSessionState;
 using umbral_backend.Application.Sessions.Common;
 using umbral_backend.Application.Sessions.Queries.GetOperatorSessionTimerSnapshot;
@@ -153,6 +154,31 @@ public sealed class SessionsController(ISender sender) : ControllerBase
         return Ok(result);
     }
 
+    // HU-34: participant submits the team's answer to the active trivia question. First-write-wins —
+    // only the first in-time answer succeeds (200 + acceptance metadata only); late/duplicate/no-active
+    // -question attempts surface as RFC 7807 ProblemDetails via the global handler. Correctness/points
+    // never leak here. The snapshotted question is keyed by (substage snapshot id + question order)
+    // and the option by its order, because the frozen snapshot carries no per-item Guids.
+    [HttpPost("{liveSessionId:guid}/participants/answers")]
+    [Authorize(Policy = AuthorizationPolicies.Participant)]
+    public async Task<ActionResult<SubmitTriviaAnswerResultDto>> SubmitTriviaAnswerAsync(
+        Guid liveSessionId,
+        SubmitTriviaAnswerRequest request,
+        CancellationToken cancellationToken)
+    {
+        var result = await sender.Send(
+            new SubmitTriviaAnswerCommand(
+                liveSessionId,
+                request.TeamId,
+                request.TriviaSubstageSnapshotId,
+                request.QuestionSequenceOrder,
+                request.SelectedOptionSequenceOrder,
+                request.Token),
+            cancellationToken);
+
+        return Ok(result);
+    }
+
     [HttpGet("{liveSessionId:guid}/participants/timer")]
     [Authorize(Policy = AuthorizationPolicies.Participant)]
     public async Task<ActionResult<SessionTimerSnapshotDto>> GetParticipantTimerSnapshotAsync(
@@ -216,6 +242,13 @@ public sealed class SessionsController(ISender sender) : ControllerBase
     public sealed record ReconnectParticipantRequest(
         Guid TeamId,
         string DisplayName,
+        string? Token);
+
+    public sealed record SubmitTriviaAnswerRequest(
+        Guid TeamId,
+        Guid TriviaSubstageSnapshotId,
+        int QuestionSequenceOrder,
+        int SelectedOptionSequenceOrder,
         string? Token);
 
     public sealed record AssignOperatorRequest(int OperatorUserId);

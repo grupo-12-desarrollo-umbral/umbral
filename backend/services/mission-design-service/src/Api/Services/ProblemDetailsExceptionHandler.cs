@@ -46,7 +46,12 @@ public sealed class ProblemDetailsExceptionHandler(ILogger<ProblemDetailsExcepti
         };
 
         httpContext.Response.StatusCode = problemDetails.Status ?? StatusCodes.Status500InternalServerError;
-        await httpContext.Response.WriteAsJsonAsync(problemDetails, cancellationToken);
+        // RFC 7807 mandates application/problem+json; WriteAsJsonAsync otherwise forces application/json.
+        await httpContext.Response.WriteAsJsonAsync(
+            problemDetails,
+            options: null,
+            contentType: "application/problem+json",
+            cancellationToken);
         return true;
     }
 

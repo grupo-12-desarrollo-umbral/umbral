@@ -83,6 +83,9 @@ public sealed class SessionsHub : Hub
         EnsureOperatorCaller();
         await _sessionAdministrationAccessResolver.GetAuthorizedSessionAsync(liveSessionId, cancellationToken);
         await Groups.AddToGroupAsync(Context.ConnectionId, BuildLiveSessionGroup(liveSessionId), cancellationToken);
+        // HU-34: only operators join the operator-only group that receives the "team answered" signal.
+        // The EnsureOperatorCaller gate above is what keeps participant connections out of this group.
+        await Groups.AddToGroupAsync(Context.ConnectionId, BuildOperatorGroup(liveSessionId), cancellationToken);
     }
 
     public async Task LeaveLiveSessionAsync(Guid liveSessionId)
@@ -93,6 +96,7 @@ public sealed class SessionsHub : Hub
         EnsureOperatorCaller();
         await _sessionAdministrationAccessResolver.GetAuthorizedSessionAsync(liveSessionId, cancellationToken);
         await Groups.RemoveFromGroupAsync(Context.ConnectionId, BuildLiveSessionGroup(liveSessionId), cancellationToken);
+        await Groups.RemoveFromGroupAsync(Context.ConnectionId, BuildOperatorGroup(liveSessionId), cancellationToken);
     }
 
     private void EnsureOperatorCaller()
@@ -104,6 +108,11 @@ public sealed class SessionsHub : Hub
     }
 
     private static string BuildLiveSessionGroup(Guid liveSessionId) => $"live-session:{liveSessionId:D}";
+
+    // Delegate to the broadcaster so hub membership and the "team answered" broadcast never drift on
+    // the operator-only group name (HU-34).
+    private static string BuildOperatorGroup(Guid liveSessionId) =>
+        SignalRTeamAnsweredBroadcaster.BuildOperatorGroup(liveSessionId);
 
     private static string BuildTeamGroup(Guid teamId) => $"team:{teamId:D}";
 

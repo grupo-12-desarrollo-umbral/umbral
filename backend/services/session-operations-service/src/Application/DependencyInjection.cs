@@ -9,6 +9,8 @@ using umbral_backend.Application.Sessions.Commands.DisconnectParticipant;
 using umbral_backend.Application.Sessions.Commands.ReconnectAuthenticatedParticipant;
 using umbral_backend.Application.Sessions.Commands.TransitionSessionState;
 using umbral_backend.Application.Sessions.Common;
+using umbral_backend.Application.Sessions.Common.TriviaAnswerValidation;
+using umbral_backend.Application.Sessions.Common.TriviaAnswerValidation.Validators;
 using umbral_backend.Application.Sessions.StateTransitions;
 using umbral_backend.Application.Sessions.StateTransitions.Validators;
 using umbral_backend.Domain.Services;
@@ -48,5 +50,14 @@ public static class DependencyInjection
         builder.Services.AddScoped<SessionTransitionValidator, OperatorAssignmentGate>();
         builder.Services.AddScoped<SessionTransitionValidator, ParticipantReadinessGate>();
         builder.Services.AddScoped<SessionTransitionChain>();
+
+        // Chain of Responsibility for trivia-answer acceptance (HU-34). Registration order IS the run
+        // order — runtime participation -> active question -> timer window -> duplicate team answer —
+        // and the chain short-circuits on the first rejecting link.
+        builder.Services.AddScoped<TriviaAnswerValidationLink, RuntimeParticipationLink>();
+        builder.Services.AddScoped<TriviaAnswerValidationLink, ActiveTriviaQuestionLink>();
+        builder.Services.AddScoped<TriviaAnswerValidationLink, TriviaAnswerWindowLink>();
+        builder.Services.AddScoped<TriviaAnswerValidationLink, DuplicateTriviaAnswerLink>();
+        builder.Services.AddScoped<TriviaAnswerValidationChain>();
     }
 }

@@ -12,6 +12,7 @@ public sealed class LiveSession : BaseAuditableEntity
     private readonly List<Team> _teams = new();
     private readonly List<SessionParticipant> _participants = new();
     private readonly List<JoinContext> _joinContexts = new();
+    private readonly List<TriviaAnswerSubmission> _triviaAnswerSubmissions = new();
     private TimeSpan _questionTimerTotalDuration;
     private TimeSpan _questionTimerRemainingDuration;
     private DateTimeOffset? _questionTimerAdvancingSince;
@@ -109,6 +110,10 @@ public sealed class LiveSession : BaseAuditableEntity
     public IReadOnlyCollection<SessionParticipant> Participants => _participants.AsReadOnly();
 
     public IReadOnlyCollection<JoinContext> JoinContexts => _joinContexts.AsReadOnly();
+
+    // Accepted trivia answers (base evidence + trivia specialization). Only first-write-wins accepted
+    // answers live here; rejected attempts throw and never enter this collection.
+    public IReadOnlyCollection<TriviaAnswerSubmission> TriviaAnswerSubmissions => _triviaAnswerSubmissions.AsReadOnly();
 
     public static LiveSession Create(
         SessionSource source,
@@ -344,6 +349,135 @@ public sealed class LiveSession : BaseAuditableEntity
             questionIndex,
             occurredAt,
             wasExpiredByTimer));
+    }
+
+    // ── Fixed answer-registration skeleton (Template Method, HU-34) ────────────────────────────────
+    // One stable ordered workflow governs BOTH outcomes: the first in-time answer is ACCEPTED and every
+    // late/duplicate/invalid attempt is REJECTED. Accept and reject are two branches of THIS single
+    // write — the guards below (window + first-write-wins) are the only divergence points; there is no
+    // separate reject entry point and no second entity/event for rejected attempts. The invariant steps
+    // stay in this one place so the later shared evidence pipeline (HU-29/HU-30A) can extract them.
+    public TriviaAnswerSubmission RegisterTriviaAnswer(
+        Guid teamId,
+        int selectedOptionSequenceOrder,
+        Guid? submittedByParticipantId,
+        DateTimeOffset submittedAt)
+    {
+        EnsureSessionAdmitsTriviaAnswer();                                     // 1. session/runtime state gate
+        var team = GetTeam(teamId);                                           // 2. resolve the answering team
+        var question = ResolveActiveTriviaQuestion();                         // 3. authoritative active question
+        EnsureAnswerWindowOpen(submittedAt);                                  // 4. timer window (late guard)
+        var selectedOption = ResolveSelectedOption(question, selectedOptionSequenceOrder); // 5. option valid
+        EnsureFirstAnswerWins(team.TeamId, question);                        // 6. first-write-wins guard
+        var submission = AcceptTriviaAnswer(team, question, selectedOption, submittedByParticipantId, submittedAt); // 7. persist base + specialization + snapshot
+        RaiseAnswerRegistered(submission);                                   // 8. raise fact on success only
+        return submission;
+    }
+
+    // Step 1 — session-state gate, delegated to the State type (Active is the only state that admits
+    // answers; Paused/Finished/Cancelled and pre-start states reject).
+    private void EnsureSessionAdmitsTriviaAnswer()
+    {
+        LiveSessionStateFactory.For(State).EnsureCanRegisterTriviaAnswer(this);
+    }
+
+    // Step 3 — the synchronized active trivia question shared by all teams (HU-33A seam). Rejects a
+    // non-trivia active substage, then the absence of an active question.
+    private TriviaQuestionSnapshot ResolveActiveTriviaQuestion()
+    {
+        var activeSubstage = ActiveSubstageId is null
+            ? null
+            : GetOrderedSubstages().SingleOrDefault(substage => substage.SubstageSnapshotId == ActiveSubstageId.Value);
+
+        if (activeSubstage is null || activeSubstage.PlayMode != SubstagePlayMode.Trivia)
+        {
+            throw new TriviaAnswerRequiresTriviaSubstageException();
+        }
+
+        if (ActiveQuestionIndex is null)
+        {
+            throw new TriviaAnswerRequiresActiveQuestionException();
+        }
+
+        return GetOrderedTriviaQuestions().ElementAt(ActiveQuestionIndex.Value);
+    }
+
+    // Step 4 — the answer is in time only while the active question's timer window is still open. Keys
+    // off the same expiry the question-close path uses, not a wall clock (HU-22).
+    private void EnsureAnswerWindowOpen(DateTimeOffset submittedAt)
+    {
+        var windowClosed = _questionTimerExpiredAt.HasValue ||
+            CalculateAdvancingQuestionTimerRemaining(submittedAt) <= TimeSpan.Zero;
+
+        if (windowClosed)
+        {
+            throw new LateTriviaAnswerException();
+        }
+    }
+
+    // Step 5 — the selected option must be one of the question snapshot's options (identified by
+    // sequence order; the frozen snapshot carries no per-option Guid).
+    private static TriviaOptionSnapshot ResolveSelectedOption(TriviaQuestionSnapshot question, int selectedOptionSequenceOrder)
+    {
+        return question.Options.SingleOrDefault(option => option.SequenceOrder == selectedOptionSequenceOrder)
+            ?? throw new InvalidTriviaAnswerOptionException(selectedOptionSequenceOrder);
+    }
+
+    // Step 6 — first-write-wins: exactly one accepted answer per team per snapshotted question. A repeat
+    // is rejected as a duplicate. This is the guard that makes accept/reject one write.
+    private void EnsureFirstAnswerWins(Guid teamId, TriviaQuestionSnapshot question)
+    {
+        var alreadyAnswered = _triviaAnswerSubmissions.Any(answer =>
+            answer.TeamId == teamId &&
+            answer.ActiveSubstageId == question.SubstageSnapshotId &&
+            answer.QuestionSequenceOrder == question.SequenceOrder);
+
+        if (alreadyAnswered)
+        {
+            throw new DuplicateTriviaAnswerException(teamId, question.SequenceOrder);
+        }
+    }
+
+    // Step 7 — create the base evidence + trivia specialization, snapshotting correctness and the
+    // awarded score from the question option (correct → question ScoreValue; wrong → zero).
+    private TriviaAnswerSubmission AcceptTriviaAnswer(
+        Team team,
+        TriviaQuestionSnapshot question,
+        TriviaOptionSnapshot selectedOption,
+        Guid? submittedByParticipantId,
+        DateTimeOffset submittedAt)
+    {
+        var isCorrect = selectedOption.IsCorrect;
+        var scoreValue = isCorrect ? question.ScoreValue : 0;
+
+        var submission = TriviaAnswerSubmission.Accept(
+            LiveSessionId,
+            team.TeamId,
+            question.SubstageSnapshotId,
+            question.SequenceOrder,
+            selectedOption.SequenceOrder,
+            submittedByParticipantId,
+            submittedAt,
+            isCorrect,
+            scoreValue);
+
+        _triviaAnswerSubmissions.Add(submission);
+        return submission;
+    }
+
+    // Step 8 — the accepted-answer fact, raised only on the success path.
+    private void RaiseAnswerRegistered(TriviaAnswerSubmission submission)
+    {
+        AddDomainEvent(new AnswerRegisteredEvent(
+            LiveSessionId,
+            submission.TeamId,
+            submission.EvidenceSubmissionId,
+            submission.ActiveSubstageId,
+            submission.QuestionSequenceOrder,
+            submission.SelectedOptionSequenceOrder,
+            submission.IsCorrect,
+            submission.ScoreValue,
+            submission.SubmittedAt));
     }
 
     // Timer-driven, generic substage advancement (ADR-0005): once the active substage's last

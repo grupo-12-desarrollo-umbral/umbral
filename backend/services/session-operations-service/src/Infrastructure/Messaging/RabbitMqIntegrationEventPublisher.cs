@@ -22,6 +22,7 @@ public sealed class RabbitMqIntegrationEventPublisher : IIntegrationEventPublish
 {
     public const string QuestionClosedRoutingKey = "session.question.closed";
     public const string SessionResultsFinalizedRoutingKey = "session.results.finalized";
+    public const string AnswerRegisteredRoutingKey = "session.answer.registered";
 
     private readonly RabbitMqOptions _options;
     private readonly ILogger<RabbitMqIntegrationEventPublisher> _logger;
@@ -82,6 +83,7 @@ public sealed class RabbitMqIntegrationEventPublisher : IIntegrationEventPublish
     {
         QuestionClosedIntegrationEvent => QuestionClosedRoutingKey,
         SessionResultsFinalizedIntegrationEvent => SessionResultsFinalizedRoutingKey,
+        AnswerRegisteredIntegrationEvent => AnswerRegisteredRoutingKey,
         _ => null,
     };
 

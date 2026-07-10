@@ -340,6 +340,71 @@ namespace umbral_backend.Infrastructure.Migrations
                             b1.Navigation("Members");
                         });
 
+                    b.OwnsMany("umbral_backend.Domain.Entities.TriviaAnswerSubmission", "TriviaAnswerSubmissions", b1 =>
+                        {
+                            b1.Property<Guid>("EvidenceSubmissionId")
+                                .HasColumnType("uuid")
+                                .HasColumnName("id");
+
+                            b1.Property<Guid>("ActiveSubstageId")
+                                .HasColumnType("uuid")
+                                .HasColumnName("active_substage_id");
+
+                            b1.Property<bool>("IsCorrect")
+                                .HasColumnType("boolean")
+                                .HasColumnName("is_correct");
+
+                            b1.Property<Guid>("LiveSessionId")
+                                .HasColumnType("uuid")
+                                .HasColumnName("live_session_id");
+
+                            b1.Property<int>("QuestionSequenceOrder")
+                                .HasColumnType("integer")
+                                .HasColumnName("question_sequence_order");
+
+                            b1.Property<int>("ScoreValue")
+                                .HasColumnType("integer")
+                                .HasColumnName("score_value");
+
+                            b1.Property<int>("SelectedOptionSequenceOrder")
+                                .HasColumnType("integer")
+                                .HasColumnName("selected_option_sequence_order");
+
+                            b1.Property<string>("SubmissionType")
+                                .IsRequired()
+                                .HasMaxLength(32)
+                                .HasColumnType("character varying(32)")
+                                .HasColumnName("submission_type");
+
+                            b1.Property<DateTimeOffset>("SubmittedAt")
+                                .HasColumnType("timestamp with time zone")
+                                .HasColumnName("submitted_at");
+
+                            b1.Property<Guid?>("SubmittedByParticipantId")
+                                .HasColumnType("uuid")
+                                .HasColumnName("submitted_by_participant_id");
+
+                            b1.Property<Guid>("TeamId")
+                                .HasColumnType("uuid")
+                                .HasColumnName("team_id");
+
+                            b1.Property<string>("ValidationState")
+                                .IsRequired()
+                                .HasMaxLength(32)
+                                .HasColumnType("character varying(32)")
+                                .HasColumnName("validation_state");
+
+                            b1.HasKey("EvidenceSubmissionId");
+
+                            b1.HasIndex("LiveSessionId", "TeamId", "ActiveSubstageId", "QuestionSequenceOrder")
+                                .IsUnique();
+
+                            b1.ToTable("live_session_trivia_answer_submissions", (string)null);
+
+                            b1.WithOwner()
+                                .HasForeignKey("LiveSessionId");
+                        });
+
                     b.OwnsOne("umbral_backend.Domain.ValueObjects.SessionSource", "Source", b1 =>
                         {
                             b1.Property<Guid>("LiveSessionId")
@@ -655,6 +720,8 @@ namespace umbral_backend.Infrastructure.Migrations
                         .IsRequired();
 
                     b.Navigation("Teams");
+
+                    b.Navigation("TriviaAnswerSubmissions");
                 });
 #pragma warning restore 612, 618
         }

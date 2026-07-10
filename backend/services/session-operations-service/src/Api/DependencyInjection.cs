@@ -29,6 +29,8 @@ public static class DependencyInjection
         builder.Services.AddScoped<ICurrentUser, CurrentUser>();
         builder.Services.AddScoped<ISessionStateBroadcaster, SessionStateBroadcaster>();
         builder.Services.AddSingleton<ISessionQuestionBroadcaster, SignalRSessionQuestionBroadcaster>();
+        builder.Services.AddSingleton<ISessionTimerBroadcaster, SignalRSessionTimerBroadcaster>();
+        builder.Services.AddSingleton<ITeamAnsweredBroadcaster, SignalRTeamAnsweredBroadcaster>();
         builder.Services.AddSingleton<IParticipantBlockNotifier, ParticipantBlockNotifier>();
         builder.Services
             .AddAuthentication(TrustedHeadersAuthenticationDefaults.Scheme)
