@@ -20,6 +20,7 @@ import type { ReconnectOutcome } from '@/lib/realtime/reconnect-policy';
 import { useReconnect } from '@/lib/realtime/use-reconnect';
 import { useActiveQuestion } from '@/lib/realtime/use-active-question';
 import { useSessionTimer } from '@/lib/realtime/use-session-timer';
+import { useSubmitAnswer } from '@/lib/realtime/use-submit-answer';
 import type { SessionsHubClient } from '@/lib/realtime/sessions-hub';
 import type { ReconnectContext } from '@/lib/realtime/sessions-hub-types';
 import { colors, radii, spacing } from '@/constants/theme';
@@ -260,6 +261,21 @@ export function LiveTeamSpace({
   });
   const score = 0;
   const teamMembers = [result.participantDisplayName];
+
+  const activeQuestionProps = view.kind === 'active'
+    ? {
+        triviaSubstageSnapshotId: view.question.triviaSubstageSnapshotId,
+        questionSequenceOrder: view.question.sequenceOrder,
+      }
+    : { triviaSubstageSnapshotId: '', questionSequenceOrder: 0 };
+
+  const submitHook = useSubmitAnswer({
+    liveSessionId: result.liveSessionId,
+    teamId: referenceTeamId,
+    triviaSubstageSnapshotId: activeQuestionProps.triviaSubstageSnapshotId,
+    questionSequenceOrder: activeQuestionProps.questionSequenceOrder,
+    token,
+  });
   const otherTeams = [
     { name: 'Ember Owls', members: ['Ari', 'Sol'] },
     { name: 'Parchment Moths', members: ['Mira', 'Jules'] },
@@ -274,6 +290,13 @@ export function LiveTeamSpace({
             sessionState={sessionState}
             score={score}
             timerDisplay={display}
+            selectedOptionSequenceOrder={submitHook.selectedOptionSequenceOrder}
+            isSubmitting={submitHook.isSubmitting}
+            isLocked={submitHook.isLocked}
+            rejection={submitHook.rejection}
+            onSelectOption={submitHook.selectOption}
+            onSubmit={submitHook.submit}
+            onDismissRejection={submitHook.clearRejection}
           />
         ) : (
           <View style={{ alignSelf: 'stretch', backgroundColor: colors.ivoryFog }}>

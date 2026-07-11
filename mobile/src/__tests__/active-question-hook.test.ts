@@ -87,6 +87,7 @@ const SNAPSHOT_QUESTION: ActiveQuestionSnapshotDto = {
   timeLimitSeconds: 60,
   remainingSeconds: 42,
   activatedAt: '2026-07-11T10:00:00Z',
+  triviaSubstageSnapshotId: 'substage-abc',
 };
 
 const ACTIVATED: QuestionActivatedNotificationDto = {
@@ -97,6 +98,7 @@ const ACTIVATED: QuestionActivatedNotificationDto = {
   options: ['North', 'South', 'East'],
   timeLimitSeconds: 45,
   activatedAt: '2026-07-11T10:01:00Z',
+  triviaSubstageSnapshotId: 'substage-abc',
 };
 
 const CLOSED: QuestionClosedNotificationDto = {
@@ -144,6 +146,7 @@ describe('useActiveQuestion', () => {
         prompt: 'Where is the key hidden?',
         options: ['Library', 'Garden'],
         timeLimitSeconds: 60,
+        triviaSubstageSnapshotId: 'substage-abc',
       },
     });
     expect(hook.get().sessionState).toBe('Active');

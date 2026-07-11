@@ -113,6 +113,7 @@ describe('LiveTeamSpace question stage wiring', () => {
           prompt: 'Which lantern is lit?',
           options: ['North', 'South'],
           timeLimitSeconds: 45,
+          triviaSubstageSnapshotId: 'substage-abc',
         },
       },
     });
@@ -147,6 +148,7 @@ describe('LiveTeamSpace question stage wiring', () => {
           prompt: 'Paused question stays visible',
           options: ['One', 'Two'],
           timeLimitSeconds: 30,
+          triviaSubstageSnapshotId: 'substage-def',
         },
       },
     });

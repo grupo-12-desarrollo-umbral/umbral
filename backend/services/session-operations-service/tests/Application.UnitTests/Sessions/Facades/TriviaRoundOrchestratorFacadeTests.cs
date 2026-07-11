@@ -43,7 +43,8 @@ public sealed class TriviaRoundOrchestratorFacadeTests
                     notification.Prompt == "What is the closest planet to the Sun?" &&
                     notification.Options.SequenceEqual(new[] { "Mercury", "Venus" }) &&
                     notification.TimeLimitSeconds == 30 &&
-                    notification.ActivatedAt == Now),
+                    notification.ActivatedAt == Now &&
+                    notification.TriviaSubstageSnapshotId == session.ActiveSubstageId),
                 It.IsAny<CancellationToken>()),
             Times.Once);
     }

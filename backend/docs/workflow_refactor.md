@@ -247,9 +247,11 @@ Phases 5–6 may run in parallel once DES-24 lands.
 | 18 | DES-56 → DES-57 ; DES-60 | HU-40A/40B / enabler | Session event history; score/ranking historical review; RabbitMQ domain-event publication | DES-56 needs DES-42, DES-36, DES-53, **DES-29**; DES-57 needs DES-56 + DES-51 + DES-54; DES-60 needs DES-42, DES-40, DES-56, DES-51. |
 | 19 | DES-13 → DES-59 ; DES-58 | HU-08 / enablers | Multi-device team sync + reconnect ; multi-device enabler ; React Native participant client | **DES-13 is ungated** — DES-11/DES-12 (HU-07A/07B) both Done. DES-59 needs DES-13 + DES-31. DES-58 needs DES-13 + DES-31 + DES-35 + DES-48, so it lands last. |
 | M | DES-81 → DES-82 → DES-83 / DES-84 | HU-M1–M3 / EN-M1 | Mobile trivia: contract spike → active-question display → question-closed state / answer submission | ⬜ **DES-81 is ungated and startable now.** Separate mobile track. **`DES-84`'s backend precondition (DES-46) landed 2026-07-10**, so the whole track is now unblocked end to end; consume the answer-submission contract recorded in `prompt_example_feature_hu34.md` §9. ⚠️ A self-service participant does not exist yet — see `GH #143`. |
+| MT | GH #164 → GH #165 → GH #166 | — (refactor) | Migrate `session-operations` event publishing from hand-rolled `RabbitMQ.Client` to **MassTransit** | ⬜ **UNGATED GitHub-only refactor sub-track, internal chain #164→#165→#166** (`#164` startable now). Replaces the ~250-line hand-rolled `RabbitMqIntegrationEventPublisher` with the canonical `AddMassTransit().UsingRabbitMq()` + `IPublishEndpoint.Publish(...)`, MassTransit-native topology with `[EntityName]` short exchange names (`session-question-closed`, etc.). **Land before the RabbitMQ consumers** (DES-51 ledger, DES-54 ranking, DES-60 enabler) so the greenfield `scoring-monitoring-service` consumers are built on MassTransit, not on a publisher slated for deletion. No Outbox / custom retry — the automatic `_error` queue only. **No Linear DES id → no generator-agent run**; drive against the issue body like the other `GH` issues. See the dedicated section below. |
 
 **Ungated pickups, runnable any time:** `DES-80` (row 2c), `DES-29` (session
-state-change audit — also unblocks DES-56), `DES-32`, `DES-53`, `DES-13`, `DES-81`.
+state-change audit — also unblocks DES-56), `DES-32`, `DES-53`, `DES-13`, `DES-81`,
+`GH #164` (head of the MassTransit refactor sub-track, row MT — best pulled ahead of DES-51/54/60).
 
 **Ungated GitHub-only pickups:** `GH #147` (api-gateway handler), `GH #139` + `GH #137`
 + `GH #138` (three ADRs — cheap, and they unblock six issues between them), `GH #140`
@@ -319,6 +321,7 @@ GH#149 (branch coverage) → GH#139 (try/catch ADR) → GH#147 (gateway handler)
 → DES-49 (HU-36A) → DES-31 (HU-23) → GH#145 (substage clues bug)
 → DES-87 (score nullability contract) → DES-42 (HU-31) → DES-39 (HU-29) → DES-40 (HU-30A) → DES-41 (HU-30B) → DES-43 (HU-32)
 → DES-36 (HU-26) → DES-38 (HU-28) → DES-37 (HU-27)
+→ [MassTransit refactor: GH #164 → GH #165 → GH #166 — ungated GitHub-only; land here, before the RabbitMQ consumers below]
 → DES-53 (HU-38) → DES-51 (HU-37) → DES-54 (HU-39) → DES-50 (HU-36B) → DES-48 (HU-35)
 → DES-32 (HU-24A) → DES-34 (HU-25A) → DES-35 (HU-25B) → DES-33 (HU-24B) → DES-61 (ENABLER CQRS)
 → DES-29 (HU-21) → DES-56 (HU-40A) → DES-57 (HU-40B) → DES-60 (ENABLER RabbitMQ)
@@ -342,6 +345,13 @@ GH#149 (branch coverage) → GH#139 (try/catch ADR) → GH#147 (gateway handler)
   before `DES-42` — both discharged when PR #136 landed.)
 - **Free.** `GH #146` and `DES-80` are fully independent — parked late only because nothing
   needs them. Pull either into any quiet window.
+- **Free, but with a soft ordering preference.** The **MassTransit refactor sub-track**
+  (`GH #164 → GH #165 → GH #166`, row MT — GitHub-only, no Linear ticket) has no `blockedBy` edge into
+  the canon line — only its own internal #164→#165→#166 chain — so it is pullable any time. It is
+  placed just ahead of `DES-51` because that is the first ticket to *consume* RabbitMQ
+  (`scoring-monitoring-service` is greenfield): build those consumers on MassTransit, not on the
+  hand-rolled publisher `GH #166` deletes. `DES-60` (RabbitMQ enabler, row 18) should likewise follow
+  it. Nothing breaks if it runs earlier.
 - **The `#153` geolocation track (`GH #154`/`#155`/`#156`)** is its own feature line, child issues
   of `GH #153`. `#154` (backend target coordinates — `mission-design` + `session-operations`) and
   `#155` (mobile play surface, Focus Tabs layout) are **both ungated** — pull them forward any time;
@@ -452,6 +462,47 @@ per-question removal slot (only `AddQuestion` / `UpdateQuestion`). Unlike DES-79
 Run it through the standard per-ticket loop (generate → drive X.1→X.4 → close-out).
 Rationale recorded in `hu14a-context.md` ("Deferred scope — RemoveTriviaQuestion") and the
 `DES-62` PRD note.
+
+## MassTransit migration — GH #164 → GH #165 → GH #166 (messaging refactor, ungated)
+
+Row **MT**. A three-slice refactor that replaces `session-operations-service`'s hand-rolled
+`RabbitMQ.Client` publishing with **MassTransit over RabbitMQ**. **GitHub-only issues — no Linear
+DES id**, so like the `GH #137`–`#149` track they **do not run the per-ticket loop**: `generator-agent`
+resolves its PRD from Linear by DES id, and these have none. Drive them directly against the issue
+body (each carries its own acceptance criteria) and keep Stop 2 (docker rebuild + smoke) + close-out.
+Confined to one service — no two-service worktree caveat.
+
+Current state: publish-only, three integration events (`QuestionClosed`,
+`SessionResultsFinalized`, `AnswerRegistered`) pushed through a single ~250-line
+`RabbitMqIntegrationEventPublisher` behind the `IIntegrationEventPublisher` seam, with a manual
+connection/channel/drain-loop and best-effort/drop semantics. No consumers exist yet.
+
+The slices (tracer-bullet vertical, internal chain — each blocks the next):
+
+1. **`GH #164`** — bootstrap MassTransit + RabbitMQ transport, real host config
+   (appsettings/env + docker-compose vars), and migrate the **first** event (`QuestionClosed`)
+   through `IPublishEndpoint.Publish(...)`, proven with a Testcontainers integration test.
+2. **`GH #165`** — migrate the remaining two events onto the same path; the routing-key `switch`
+   is no longer exercised.
+3. **`GH #166`** — delete `RabbitMqIntegrationEventPublisher`, the `IIntegrationEventPublisher`
+   seam, `RabbitMqOptions`, and the `RabbitMQ.Client` package; refresh the
+   `rabbitmq-events-dotnet` skill doc to describe the MassTransit conventions actually in use.
+
+Agreed conventions (kept deliberately vanilla for defensibility):
+- Canonical `AddMassTransit(x => x.UsingRabbitMq(...))` registration; publish via
+  `IPublishEndpoint` **directly** from the MediatR handlers — the `IIntegrationEventPublisher`
+  abstraction is dropped, not reimplemented.
+- **MassTransit-native topology**, with a short readable exchange name per contract via the
+  built-in `[EntityName("session-question-closed")]` attribute (roughly preserves the old
+  routing-key naming in the RabbitMQ management UI).
+- **No transactional Outbox, no custom retry policy** — the automatic `<queue>_error`
+  dead-letter queue MassTransit provides out of the box is the only reliability surface.
+
+**Why it sits before `DES-51`.** It is ungated (no `blockedBy` into the canon line), but
+`DES-51` (the `ScoreEntry` ledger) is the first RabbitMQ *consumer*, and
+`scoring-monitoring-service/src` is empty — greenfield. Building those consumers on MassTransit
+rather than on a publisher `GH #166` is about to delete avoids throwaway work. `DES-60` (the
+RabbitMQ enabler, row 18) should follow it for the same reason.
 
 ## ✅ Landed — DES-86 (per-target scoring, PR #136) — data model only; `TargetResolved` deferred
 

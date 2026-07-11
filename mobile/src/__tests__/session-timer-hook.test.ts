@@ -112,6 +112,7 @@ const SNAPSHOT_ACTIVE_QUESTION = {
   timeLimitSeconds: 30,
   remainingSeconds: 20,
   activatedAt: '2026-06-04T10:00:00Z',
+  triviaSubstageSnapshotId: 'substage-abc',
 };
 
 // --- Tests ---

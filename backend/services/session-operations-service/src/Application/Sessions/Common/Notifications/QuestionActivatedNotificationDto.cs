@@ -7,4 +7,5 @@ public sealed record QuestionActivatedNotificationDto(
     string Prompt,
     IReadOnlyList<string> Options,
     int TimeLimitSeconds,
-    DateTimeOffset ActivatedAt);
+    DateTimeOffset ActivatedAt,
+    Guid TriviaSubstageSnapshotId);

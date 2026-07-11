@@ -139,7 +139,8 @@ public sealed class TriviaRoundOrchestratorFacade : ITriviaRoundOrchestratorFaca
                 question.Prompt,
                 options,
                 question.TimeLimitSeconds,
-                now),
+                now,
+                session.ActiveSubstageId.Value),
             cancellationToken);
     }
 }
