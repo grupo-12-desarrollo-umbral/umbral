@@ -7,6 +7,7 @@ import {
 import {
   toTimerDisplay,
   UNAVAILABLE_TIMER_DISPLAY,
+  type SessionTimerSnapshotDto,
   type SessionTimerUpdatedNotificationDto,
   type TimerDisplay,
 } from './timer-types';
@@ -26,6 +27,8 @@ export type UseSessionTimerResult = {
   isLoading: boolean;
   error: TimerSnapshotError | null;
   display: TimerDisplay;
+  activeQuestion: SessionTimerSnapshotDto['activeQuestion'] | null;
+  sessionState: string | null;
 };
 
 export function useSessionTimer({
@@ -44,6 +47,8 @@ export function useSessionTimer({
   reconnectNonce: number;
 }): UseSessionTimerResult {
   const [timer, setTimer] = useState<TimerState | null>(null);
+  const [activeQuestion, setActiveQuestion] = useState<SessionTimerSnapshotDto['activeQuestion'] | null>(null);
+  const [sessionState, setSessionState] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<TimerSnapshotError | null>(null);
 
@@ -51,6 +56,8 @@ export function useSessionTimer({
     if (!isReconnected) return;
 
     let active = true;
+    // Existing timer snapshot fetch enters a loading state when reconnect recovery starts.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setIsLoading(true);
     setError(null);
 
@@ -65,6 +72,8 @@ export function useSessionTimer({
           sessionState: snapshot.sessionState,
           lastSyncedAt: snapshot.observedAt,
         });
+        setActiveQuestion(snapshot.activeQuestion ?? null);
+        setSessionState(snapshot.sessionState);
         setIsLoading(false);
       })
       .catch(err => {
@@ -76,8 +85,6 @@ export function useSessionTimer({
     return () => {
       active = false;
     };
-  // reconnectNonce intentionally triggers a re-fetch after hub transport reconnects
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isReconnected, reconnectNonce, liveSessionId, teamId, token]);
 
   useEffect(() => {
@@ -92,6 +99,7 @@ export function useSessionTimer({
         sessionState: notification.sessionState,
         lastSyncedAt: notification.emittedAt,
       });
+      setSessionState(notification.sessionState);
     });
   }, [client, liveSessionId]);
 
@@ -99,5 +107,5 @@ export function useSessionTimer({
     ? toTimerDisplay(timer.remainingSeconds, timer.totalSeconds, timer.isPaused, timer.isExpired)
     : UNAVAILABLE_TIMER_DISPLAY;
 
-  return { timer, isLoading, error, display };
+  return { timer, isLoading, error, display, activeQuestion, sessionState };
 }

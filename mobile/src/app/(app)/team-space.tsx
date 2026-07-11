@@ -1,14 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, View } from 'react-native';
+import { ActivityIndicator, Pressable, View } from 'react-native';
 import { useLocalSearchParams, useRouter, type Href } from 'expo-router';
 import * as Haptics from 'expo-haptics';
+import { ActiveQuestionStage, ActiveQuestionStageHeader } from '@/components/active-question-stage';
 import { BrandMark } from '@/components/ui/brand-mark';
 import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
 import { Panel } from '@/components/ui/panel';
+import { QuestionEmptyState } from '@/components/question-empty-state';
 import { Screen } from '@/components/ui/screen';
 import { Text } from '@/components/ui/text';
-import { SessionTimerBar } from '@/components/session-timer-bar';
 import { useAuth } from '@/lib/auth/use-auth';
 import {
   clearReconnectContext,
@@ -18,10 +18,11 @@ import {
 import { resolveReconnectContext } from '@/lib/realtime/reconnect-context-resolution';
 import type { ReconnectOutcome } from '@/lib/realtime/reconnect-policy';
 import { useReconnect } from '@/lib/realtime/use-reconnect';
+import { useActiveQuestion } from '@/lib/realtime/use-active-question';
 import { useSessionTimer } from '@/lib/realtime/use-session-timer';
 import type { SessionsHubClient } from '@/lib/realtime/sessions-hub';
 import type { ReconnectContext } from '@/lib/realtime/sessions-hub-types';
-import { colors, spacing } from '@/constants/theme';
+import { colors, radii, spacing } from '@/constants/theme';
 
 function asParam(value: string | string[] | undefined): string {
   return Array.isArray(value) ? (value[0] ?? '') : (value ?? '');
@@ -224,7 +225,7 @@ export default function TeamSpaceScreen() {
   );
 }
 
-function LiveTeamSpace({
+export function LiveTeamSpace({
   outcome,
   onLeave,
   client,
@@ -240,7 +241,8 @@ function LiveTeamSpace({
   token?: string | null;
 }) {
   const { result } = outcome;
-  const { display } = useSessionTimer({
+  const [teamsOpen, setTeamsOpen] = useState(false);
+  const { display, activeQuestion, sessionState: snapshotSessionState } = useSessionTimer({
     client,
     liveSessionId: result.liveSessionId,
     teamId: referenceTeamId,
@@ -248,52 +250,87 @@ function LiveTeamSpace({
     isReconnected: true,
     reconnectNonce,
   });
+  const { view, sessionState } = useActiveQuestion({
+    client,
+    liveSessionId: result.liveSessionId,
+    isReconnected: true,
+    reconnectNonce,
+    snapshotActiveQuestion: activeQuestion,
+    snapshotSessionState: snapshotSessionState ?? result.sessionState,
+  });
+  const score = 0;
+  const teamMembers = [result.participantDisplayName];
+  const otherTeams = [
+    { name: 'Ember Owls', members: ['Ari', 'Sol'] },
+    { name: 'Parchment Moths', members: ['Mira', 'Jules'] },
+  ];
 
   return (
     <>
-      <Panel>
-        <View style={{ gap: spacing.sm }}>
-          <View
-            style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.xs }}
-          >
-            <View
-              style={{
-                width: 10,
-                height: 10,
-                borderRadius: 5,
-                backgroundColor: colors.signalSuccess,
-              }}
-            />
-            <Text variant="headline">
-              {result.isReconnect ? 'Live session resumed' : 'Joined live session'}
-            </Text>
+      <View style={{ marginHorizontal: -spacing.lg }}>
+        {view.kind === 'active' ? (
+          <ActiveQuestionStage
+            question={view.question}
+            sessionState={sessionState}
+            score={score}
+            timerDisplay={display}
+          />
+        ) : (
+          <View style={{ alignSelf: 'stretch', backgroundColor: colors.ivoryFog }}>
+            <ActiveQuestionStageHeader sessionState={sessionState} score={score} />
+            <QuestionEmptyState kind={view.kind} sessionState={sessionState} />
           </View>
-          <Text variant="body" muted>
-            {result.isReconnect
-              ? 'We restored you into your team space.'
-              : 'You are in your team space.'}
-          </Text>
-        </View>
-      </Panel>
+        )}
+      </View>
 
-      <SessionTimerBar display={display} />
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`Open all teams for ${result.teamDisplayName}`}
+        onPress={() => setTeamsOpen(true)}
+        style={{
+          backgroundColor: colors.charcoalRoom,
+          borderRadius: radii.control,
+          borderCurve: 'continuous',
+          padding: spacing.md,
+          gap: spacing.xs,
+        }}
+      >
+        <Text
+          variant="label"
+          style={{ color: colors.textInkNight }}
+        >
+          {`YOUR TEAM · ${result.teamDisplayName}`}
+        </Text>
+        <Text muted style={{ color: colors.textMuted }}>
+          {teamMembers.join(', ')} · ALL TEAMS ›
+        </Text>
+      </Pressable>
 
-      <Card>
-        <View style={{ gap: spacing.sm }}>
-          <Text variant="label" muted>
-            TEAM
-          </Text>
-          <Text variant="title">{result.teamDisplayName}</Text>
-          <Text variant="label" muted>
-            PARTICIPANT
-          </Text>
-          <Text variant="body">{result.participantDisplayName}</Text>
-          <Text variant="label" muted>
-            SESSION STATE
-          </Text>
-          <Text variant="body">{result.sessionState}</Text>
-        </View>
-      </Card>
+      {teamsOpen ? (
+        <Panel style={{ gap: spacing.md }}>
+          <Text variant="headline">ALL TEAMS</Text>
+          <View
+            style={{
+              borderWidth: 1,
+              borderColor: colors.emberAccent,
+              borderRadius: radii.card,
+              borderCurve: 'continuous',
+              padding: spacing.md,
+              gap: spacing.xs,
+            }}
+          >
+            <Text variant="title">{result.teamDisplayName}</Text>
+            <Text muted>{teamMembers.join(', ')}</Text>
+          </View>
+          {otherTeams.map(team => (
+            <View key={team.name} style={{ gap: spacing.xs }}>
+              <Text variant="title">{team.name}</Text>
+              <Text muted>{team.members.join(', ')}</Text>
+            </View>
+          ))}
+          <Button label="CLOSE" variant="secondary" onPress={() => setTeamsOpen(false)} />
+        </Panel>
+      ) : null}
 
       <Button label="Leave team space" variant="secondary" onPress={onLeave} />
     </>
