@@ -345,8 +345,8 @@ for CODE in "${!SESSIONS[@]}"; do
       (id, title, sequence_order, live_session_id)
     VALUES ('$STAGE_ID', 'Stage 1', 1, '$SID');
     INSERT INTO live_session_mission_runtime_snapshot_substages
-      (id, title, sequence_order, play_mode, winner_score, stage_snapshot_id)
-    VALUES ('$SUB_ID', 'Trivia Substage', 1, 'Trivia', null, '$STAGE_ID');
+      (id, title, sequence_order, play_mode, stage_snapshot_id)
+    VALUES ('$SUB_ID', 'Trivia Substage', 1, 'Trivia', '$STAGE_ID');
     WITH q AS (
       INSERT INTO live_session_mission_runtime_snapshot_trivia_questions
         (substage_snapshot_id, prompt, sequence_order, score_value, time_limit_seconds, explanation, live_session_id)

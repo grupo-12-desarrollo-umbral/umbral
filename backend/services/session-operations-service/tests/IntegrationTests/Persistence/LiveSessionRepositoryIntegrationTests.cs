@@ -649,6 +649,69 @@ public sealed class LiveSessionRepositoryIntegrationTests
             "the unique index on team + snapshotted question must reject a second accepted answer");
     }
 
+    // HU-36A: the restricted answered/not-answered monitor is a pure read over HU-34's persisted answers.
+    // This proves the aggregate read path hydrates its Teams AND accepted TriviaAnswerSubmissions so that,
+    // after a real DbContext save -> reload round-trip, ProjectActiveQuestionAnsweredStatus() marks the
+    // teams that answered the active question as Answered (with AnsweredAt) and the rest as not-answered.
+    // No new persisted state, no migration — it rides the existing GetByIdAsync includes.
+    [Fact]
+    public async Task GetByIdAsync_HydratesTeamsAndAcceptedAnswers_SoAnsweredMonitorRoundTrips()
+    {
+        await using var resetContext = BuildContext();
+        await ResetDatabaseAsync(resetContext);
+
+        var activeAt = new DateTimeOffset(2026, 6, 4, 12, 0, 0, TimeSpan.Zero);
+        var liveSession = CreateActiveTriviaQuestionSessionWithTeams(
+            activeAt,
+            ("Alpha", "AAA-01"),
+            ("Bravo", "BBB-01"),
+            ("Charlie", "CCC-01"),
+            ("Delta", "DDD-01"));
+
+        var teamIdByCode = liveSession.Teams.ToDictionary(team => team.TeamCode.Value, team => team.TeamId);
+        var alphaAnsweredAt = activeAt.AddSeconds(5);
+        var charlieAnsweredAt = activeAt.AddSeconds(6);
+
+        // Two of the four teams answer the active question; Bravo and Delta never do.
+        liveSession.RegisterTriviaAnswer(teamIdByCode["AAA-01"], 1, Guid.NewGuid(), alphaAnsweredAt);
+        liveSession.RegisterTriviaAnswer(teamIdByCode["CCC-01"], 2, Guid.NewGuid(), charlieAnsweredAt);
+
+        await using (var seedContext = BuildContext())
+        {
+            seedContext.LiveSessions.Add(liveSession);
+            await seedContext.SaveChangesAsync(CancellationToken.None);
+        }
+
+        await using var assertContext = BuildContext();
+        var persistedSession = await new LiveSessionRepository(assertContext)
+            .GetByIdAsync(liveSession.LiveSessionId, CancellationToken.None);
+
+        persistedSession.Should().NotBeNull();
+        persistedSession!.Teams.Should().HaveCount(4);
+        persistedSession.TriviaAnswerSubmissions.Should().HaveCount(2);
+
+        // Project over the RELOADED aggregate — this only yields correct answered/not-answered cells if the
+        // read path deep-loaded both the teams and their accepted answers for the active question.
+        var snapshot = persistedSession.ProjectActiveQuestionAnsweredStatus();
+
+        // Active-question identity: question index 0 => sequence order 1 on the parked trivia substage.
+        snapshot.QuestionSequenceOrder.Should().Be(1);
+        snapshot.SubstageSnapshotId.Should().Be(persistedSession.ActiveSubstageId!.Value);
+        snapshot.TeamStatuses.Should().HaveCount(4);
+
+        var statusByCode = snapshot.TeamStatuses.ToDictionary(status => status.TeamCode);
+
+        statusByCode["AAA-01"].Answered.Should().BeTrue();
+        statusByCode["AAA-01"].AnsweredAt.Should().BeCloseTo(alphaAnsweredAt, TimeSpan.FromMicroseconds(1));
+        statusByCode["CCC-01"].Answered.Should().BeTrue();
+        statusByCode["CCC-01"].AnsweredAt.Should().BeCloseTo(charlieAnsweredAt, TimeSpan.FromMicroseconds(1));
+
+        statusByCode["BBB-01"].Answered.Should().BeFalse();
+        statusByCode["BBB-01"].AnsweredAt.Should().BeNull();
+        statusByCode["DDD-01"].Answered.Should().BeFalse();
+        statusByCode["DDD-01"].AnsweredAt.Should().BeNull();
+    }
+
     private ApplicationDbContext BuildContext()
     {
         return _contextFactory.Create();
@@ -712,6 +775,27 @@ public sealed class LiveSessionRepositoryIntegrationTests
     {
         var liveSession = CreateTriviaSession(activeAt.AddMinutes(-10));
         TransitionTriviaSessionToActive(liveSession, activeAt);
+        liveSession.ActivateQuestion(0, activeAt);
+        return liveSession;
+    }
+
+    // Like CreateActiveTriviaQuestionSession but associates several named teams while still Scheduled
+    // (the only state that admits team association) before activating the first question — so the
+    // answered/not-answered monitor has a multi-team roster to project.
+    private static LiveSession CreateActiveTriviaQuestionSessionWithTeams(
+        DateTimeOffset activeAt,
+        params (string DisplayName, string TeamCode)[] teams)
+    {
+        var liveSession = CreateTriviaSession(activeAt.AddMinutes(-10));
+
+        foreach (var team in teams)
+        {
+            liveSession.AssociateTeam(Guid.NewGuid(), team.DisplayName, team.TeamCode, 4);
+        }
+
+        var transitionPolicy = new SessionStateTransitionPolicy();
+        liveSession.MoveTo(SessionState.Preparing, activeAt.AddMinutes(-1), transitionPolicy);
+        liveSession.MoveTo(SessionState.Active, activeAt, transitionPolicy);
         liveSession.ActivateQuestion(0, activeAt);
         return liveSession;
     }

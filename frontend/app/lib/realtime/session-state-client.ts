@@ -12,6 +12,7 @@ import type {
   SessionStateChangedNotificationDto,
   SessionTimerUpdatedNotificationDto,
   SubstageAdvancedNotificationDto,
+  TeamAnsweredNotificationDto,
 } from '@/app/lib/definitions'
 
 export type SessionRealtimeStatus =
@@ -28,6 +29,7 @@ type SessionStateClientOptions = {
   onQuestionActivated?: (notification: QuestionActivatedNotificationDto) => void
   onQuestionClosed?: (notification: QuestionClosedNotificationDto) => void
   onSubstageAdvanced?: (notification: SubstageAdvancedNotificationDto) => void
+  onTeamAnswered?: (notification: TeamAnsweredNotificationDto) => void
   onReconnected?: () => void
 }
 
@@ -158,6 +160,23 @@ function normalizeSubstageAdvanced(raw: unknown): SubstageAdvancedNotificationDt
   }
 }
 
+function normalizeTeamAnswered(raw: unknown): TeamAnsweredNotificationDto {
+  const n = raw as TeamAnsweredNotificationDto & {
+    LiveSessionId?: string
+    TeamId?: string
+    TriviaSubstageSnapshotId?: string
+    QuestionSequenceOrder?: number
+    AnsweredAt?: string
+  }
+  return {
+    liveSessionId: n.liveSessionId ?? n.LiveSessionId ?? '',
+    teamId: n.teamId ?? n.TeamId ?? '',
+    triviaSubstageSnapshotId: n.triviaSubstageSnapshotId ?? n.TriviaSubstageSnapshotId ?? '',
+    questionSequenceOrder: n.questionSequenceOrder ?? n.QuestionSequenceOrder ?? 0,
+    answeredAt: n.answeredAt ?? n.AnsweredAt ?? '',
+  }
+}
+
 async function invokeIfConnected(
   connection: HubConnection,
   methodName: string,
@@ -175,6 +194,7 @@ export function createSessionStateRealtimeClient({
   onQuestionActivated,
   onQuestionClosed,
   onSubstageAdvanced,
+  onTeamAnswered,
   onReconnected,
 }: SessionStateClientOptions): SessionStateRealtimeClient {
   const connection = new HubConnectionBuilder()
@@ -210,6 +230,12 @@ export function createSessionStateRealtimeClient({
   if (onSubstageAdvanced) {
     connection.on('SubstageAdvanced', (raw: unknown) => {
       onSubstageAdvanced(normalizeSubstageAdvanced(raw))
+    })
+  }
+
+  if (onTeamAnswered) {
+    connection.on('TeamAnswered', (raw: unknown) => {
+      onTeamAnswered(normalizeTeamAnswered(raw))
     })
   }
 

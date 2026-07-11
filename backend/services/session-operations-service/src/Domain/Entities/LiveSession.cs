@@ -351,6 +351,36 @@ public sealed class LiveSession : BaseAuditableEntity
             wasExpiredByTimer));
     }
 
+    // HU-36A restricted pre-close monitor: for the active synchronized trivia question, enumerate the
+    // session's teams and mark each answered iff an accepted TriviaAnswerSubmission exists for
+    // (TeamId, ActiveSubstageId, QuestionSequenceOrder). Teams with none render not-answered — derived
+    // from absence, not a stored flag. Rejects (via ResolveActiveTriviaQuestion) when there is no active
+    // trivia question / the active substage is not Trivia. The returned snapshot/status types carry no
+    // option/correctness/score, so the chosen option cannot leak before the question closes.
+    public TriviaAnsweredMonitorSnapshot ProjectActiveQuestionAnsweredStatus()
+    {
+        var question = ResolveActiveTriviaQuestion();
+
+        var teamStatuses = _teams
+            .OrderBy(team => team.TeamCode.Value, StringComparer.Ordinal)
+            .Select(team => BuildTeamAnsweredStatus(team, question))
+            .ToList();
+
+        return TriviaAnsweredMonitorSnapshot.Create(question.SubstageSnapshotId, question.SequenceOrder, teamStatuses);
+    }
+
+    private TeamAnsweredStatus BuildTeamAnsweredStatus(Team team, TriviaQuestionSnapshot question)
+    {
+        var acceptedAnswer = _triviaAnswerSubmissions.SingleOrDefault(answer =>
+            answer.TeamId == team.TeamId &&
+            answer.ActiveSubstageId == question.SubstageSnapshotId &&
+            answer.QuestionSequenceOrder == question.SequenceOrder);
+
+        return acceptedAnswer is null
+            ? TeamAnsweredStatus.CreateNotAnswered(team.TeamId, team.TeamCode.Value, team.DisplayName)
+            : TeamAnsweredStatus.CreateAnswered(team.TeamId, team.TeamCode.Value, team.DisplayName, acceptedAnswer.SubmittedAt);
+    }
+
     // ── Fixed answer-registration skeleton (Template Method, HU-34) ────────────────────────────────
     // One stable ordered workflow governs BOTH outcomes: the first in-time answer is ACCEPTED and every
     // late/duplicate/invalid attempt is REJECTED. Accept and reject are two branches of THIS single

@@ -1,10 +1,10 @@
 'use client';
 
-import { useCallback, useEffect, useReducer, useState, useSyncExternalStore, useTransition } from 'react';
+import { useCallback, useEffect, useReducer, useRef, useState, useSyncExternalStore, useTransition } from 'react';
 import { logout } from '@/app/actions/auth';
 import { refreshSession } from '@/app/actions/session';
 import { getUsersPage, deactivateUser, assignUserRole } from '@/app/actions/users';
-import { listSessionsForOperator, transitionSessionState, getSessionTimerSnapshotAction } from '@/app/actions/sessions';
+import { listSessionsForOperator, transitionSessionState, getSessionTimerSnapshotAction, getTriviaAnsweredMonitorAction } from '@/app/actions/sessions';
 import { TeamsPanel } from './TeamsPanel'
 import { TriviasPanel } from './TriviasPanel'
 import { MissionsPanel } from './MissionsPanel'
@@ -12,6 +12,8 @@ import { SessionsPanel } from './SessionsPanel'
 import { SessionOperatorPanel } from './SessionOperatorPanel'
 import { OperatorSessionTimerPanel } from './OperatorSessionTimerPanel'
 import { TriviaRoundPanel } from './TriviaRoundPanel'
+import { AnsweredMonitorPanel, type AnsweredTeamRow } from './AnsweredMonitorPanel'
+import { isNonLiveQuestionSnapshot } from './timer-snapshot'
 import { createSessionStateRealtimeClient, type SessionRealtimeStatus } from '@/app/lib/realtime/session-state-client'
 import { lifecycleActions, toLifecycleState } from '@/app/lib/session-lifecycle'
 import { useTriviaRoundState } from '@/app/lib/realtime/use-trivia-round-state'
@@ -23,6 +25,7 @@ import type {
   SessionTimerSnapshotDto,
   SessionTimerUpdatedNotificationDto,
   TransitionSessionStateResultDto,
+  TriviaAnsweredMonitorDto,
   UserAccessCatalogItemDto,
 } from '@/app/lib/definitions';
 import styles from './dashboard.module.css';
@@ -240,6 +243,89 @@ function timerReducer(state: TimerState, action: TimerAction): TimerState {
   }
 }
 
+// HU-36A operator answered/not-answered board state. `roster` is identity-only; whether a team has
+// answered is tracked separately in `answeredAt` (key present ⇒ answered), so a question boundary
+// clears answers without discarding the roster. Nothing here carries option/correctness/points.
+type MonitorRosterTeam = { runtimeTeamId: string; displayName: string; teamCode: string }
+
+interface AnsweredMonitorState {
+  loading: boolean
+  unauthorized: boolean // genuine auth failure (403/401/non-operator) → not-authorized state
+  error: string | null // transient/unexpected read failure → error state (distinct from unauthorized)
+  activeQuestionOrder: number | null // null ⇒ no active trivia question → empty state
+  roster: MonitorRosterTeam[]
+  answeredAt: Record<string, string | null> // runtimeTeamId → answeredAt; presence ⇒ answered
+}
+
+const emptyAnsweredMonitor: AnsweredMonitorState = {
+  loading: false,
+  unauthorized: false,
+  error: null,
+  activeQuestionOrder: null,
+  roster: [],
+  answeredAt: {},
+}
+
+type AnsweredMonitorAction =
+  | { type: 'reset' }
+  | { type: 'load' }
+  | { type: 'loaded'; data: TriviaAnsweredMonitorDto }
+  | { type: 'noActiveQuestion' }
+  | { type: 'unauthorized' }
+  | { type: 'failed'; error: string } // transient/unexpected read failure — not an auth problem
+  // A live TeamAnswered carries the question order it belongs to, so a late event for a
+  // closed question can be dropped instead of marking the team answered on the next question.
+  | { type: 'teamAnswered'; teamId: string; answeredAt: string; order: number }
+  | { type: 'questionActivated'; order: number } // new question → same roster, answers cleared
+  | { type: 'questionClosed' } // question/substage boundary → no active question
+
+function answeredMonitorReducer(
+  state: AnsweredMonitorState,
+  action: AnsweredMonitorAction,
+): AnsweredMonitorState {
+  switch (action.type) {
+    case 'reset':
+      return emptyAnsweredMonitor
+    case 'load':
+      return { ...state, loading: true, unauthorized: false, error: null }
+    case 'loaded': {
+      const answeredAt: Record<string, string | null> = {}
+      for (const team of action.data.teams) {
+        if (team.answered) answeredAt[team.teamId] = team.answeredAt
+      }
+      return {
+        loading: false,
+        unauthorized: false,
+        error: null,
+        activeQuestionOrder: action.data.questionSequenceOrder,
+        roster: action.data.teams.map((team) => ({
+          runtimeTeamId: team.teamId,
+          displayName: team.displayName,
+          teamCode: team.teamCode,
+        })),
+        answeredAt,
+      }
+    }
+    case 'noActiveQuestion':
+      // No question active right now — keep the known roster so the next activation shows it,
+      // but drop the active-question identity + answers so the board renders its empty state.
+      return { ...state, loading: false, unauthorized: false, error: null, activeQuestionOrder: null, answeredAt: {} }
+    case 'unauthorized':
+      return { ...emptyAnsweredMonitor, unauthorized: true }
+    case 'failed':
+      return { ...state, loading: false, error: action.error }
+    case 'teamAnswered':
+      // Ignore a late answer for a question that is no longer the active one (event reordering
+      // vs. questionActivated/close) so it can't flip a team answered on the wrong question.
+      if (action.order !== state.activeQuestionOrder) return state
+      return { ...state, answeredAt: { ...state.answeredAt, [action.teamId]: action.answeredAt } }
+    case 'questionActivated':
+      return { ...state, activeQuestionOrder: action.order, answeredAt: {} }
+    case 'questionClosed':
+      return { ...state, activeQuestionOrder: null, answeredAt: {} }
+  }
+}
+
 export default function DashboardClient({
   role: initialRole,
   displayName,
@@ -283,6 +369,7 @@ export default function DashboardClient({
   const [cancelReason, setCancelReason] = useState('');
   const [liveUpdateNote, setLiveUpdateNote] = useState<string | null>(null);
   const [timerState, dispatchTimer] = useReducer(timerReducer, { snapshot: null, error: null, loading: false })
+  const [monitorState, dispatchMonitor] = useReducer(answeredMonitorReducer, emptyAnsweredMonitor)
   const triviaRound = useTriviaRoundState()
   const {
     reset: resetTriviaRound,
@@ -343,20 +430,61 @@ export default function DashboardClient({
   // was stopped during negotiation"). Keying on the id connects once per selected session.
   const selectedRealtimeSessionId = selectedOperatorSession?.liveSessionId ?? null
 
+  // Latest selected session, read by the async snapshot loaders below to drop a late response that
+  // belongs to a previously-selected session (rapid session switch) instead of painting stale data.
+  const selectedRealtimeSessionIdRef = useRef(selectedRealtimeSessionId)
+
+  // Answered/not-answered rows: roster enumeration marks each team answered iff it appears in the
+  // answered map (seeded by snapshot + filled by live TeamAnswered events) — never by broadcast absence.
+  const answeredMonitorTeams: AnsweredTeamRow[] = monitorState.roster.map((team) => ({
+    runtimeTeamId: team.runtimeTeamId,
+    displayName: team.displayName,
+    teamCode: team.teamCode,
+    answered: team.runtimeTeamId in monitorState.answeredAt,
+    answeredAt: monitorState.answeredAt[team.runtimeTeamId] ?? null,
+  }))
+
+  // Drive the client trivia countdown from an authoritative timer snapshot (a fetched snapshot or a
+  // lifecycle-transition response). Skip a non-live question snapshot (pre-game placeholder / just-expired):
+  // hydrating it would freeze the countdown at zero and clobber the live one SignalR's QuestionActivated
+  // starts. A paused question still carries remaining time, so it is hydrated frozen as intended.
+  const applyTimerSnapshotToTriviaRound = useCallback((timer: SessionTimerSnapshotDto) => {
+    if (timer.activeQuestion) {
+      // Freeze (don't tick) when the authoritative timer is frozen, e.g. a paused session.
+      if (!isNonLiveQuestionSnapshot(timer)) hydrateActiveQuestion(timer.activeQuestion, timer.isAdvancing)
+    } else if (timer.sessionState !== 'Active') {
+      resetTriviaRound()
+    }
+  }, [hydrateActiveQuestion, resetTriviaRound])
+
   const loadTimerSnapshot = useCallback(async (liveSessionId: string) => {
     dispatchTimer({ type: 'load' })
     const result = await getSessionTimerSnapshotAction(liveSessionId)
+    // Drop a late response for a session the operator has since switched away from.
+    if (selectedRealtimeSessionIdRef.current !== liveSessionId) return
     if ('error' in result) {
       dispatchTimer({ type: 'failed', error: result.error })
     } else {
       dispatchTimer({ type: 'loaded', data: result.data })
-      if (result.data.activeQuestion) {
-        hydrateActiveQuestion(result.data.activeQuestion)
-      } else if (result.data.sessionState !== 'Active') {
-        resetTriviaRound()
-      }
+      applyTimerSnapshotToTriviaRound(result.data)
     }
-  }, [hydrateActiveQuestion, resetTriviaRound])
+  }, [applyTimerSnapshotToTriviaRound])
+
+  const loadAnsweredMonitor = useCallback(async (liveSessionId: string) => {
+    dispatchMonitor({ type: 'load' })
+    const result = await getTriviaAnsweredMonitorAction(liveSessionId)
+    // Drop a late response for a session the operator has since switched away from.
+    if (selectedRealtimeSessionIdRef.current !== liveSessionId) return
+    if ('data' in result) {
+      dispatchMonitor({ type: 'loaded', data: result.data })
+    } else if ('noActiveQuestion' in result) {
+      dispatchMonitor({ type: 'noActiveQuestion' })
+    } else if ('unauthorized' in result) {
+      dispatchMonitor({ type: 'unauthorized' })
+    } else {
+      dispatchMonitor({ type: 'failed', error: result.error })
+    }
+  }, [])
 
   useEffect(() => {
     if (!selectedRealtimeSessionId) return
@@ -424,6 +552,11 @@ export default function DashboardClient({
       onQuestionActivated: (notification) => {
         if (notification.liveSessionId !== selectedRealtimeSessionId) return
         handleQuestionActivated(notification)
+        // New question → same roster, answers cleared (HU-36A: board resets in lockstep). This is an
+        // optimistic update; refetch the authoritative roster below so the board is populated even when
+        // the operator opened the session before a question was active (mount fetched an empty roster).
+        dispatchMonitor({ type: 'questionActivated', order: notification.sequenceOrder })
+        void loadAnsweredMonitor(selectedRealtimeSessionId)
         // Keep the timer snapshot's active-question window fresh so the panel shows the
         // countdown (not the no-question state) between snapshot reloads. Worker ticks refine it.
         dispatchTimer({
@@ -442,6 +575,8 @@ export default function DashboardClient({
       onQuestionClosed: (notification) => {
         if (notification.liveSessionId !== selectedRealtimeSessionId) return
         handleQuestionClosed(notification)
+        // Question closed → no active question; the board returns to its empty state.
+        dispatchMonitor({ type: 'questionClosed' })
         // Question closed → no active question window; panel returns to the no-countdown state.
         dispatchTimer({
           type: 'patched',
@@ -457,6 +592,8 @@ export default function DashboardClient({
       onSubstageAdvanced: (notification) => {
         if (notification.liveSessionId !== selectedRealtimeSessionId) return
         handleSubstageAdvanced(notification)
+        // Substage boundary retires the prior question; clear the board (mirror onQuestionClosed).
+        dispatchMonitor({ type: 'questionClosed' })
         // A substage boundary retires the prior question; drop the active-question window
         // (mirror onQuestionClosed) so the timer panel returns to no-active-question.
         dispatchTimer({
@@ -469,8 +606,22 @@ export default function DashboardClient({
           },
         })
       },
+      onTeamAnswered: (notification) => {
+        if (notification.liveSessionId !== selectedRealtimeSessionId) return
+        // Option-free by design: the event only tells us this team answered + when.
+        // `order` lets the reducer drop a late answer for an already-closed question.
+        dispatchMonitor({
+          type: 'teamAnswered',
+          teamId: notification.teamId,
+          answeredAt: notification.answeredAt,
+          order: notification.questionSequenceOrder,
+        })
+      },
       onReconnected: () => {
-        if (selectedRealtimeSessionId) void loadTimerSnapshot(selectedRealtimeSessionId)
+        if (selectedRealtimeSessionId) {
+          void loadTimerSnapshot(selectedRealtimeSessionId)
+          void loadAnsweredMonitor(selectedRealtimeSessionId)
+        }
       },
     })
 
@@ -482,20 +633,25 @@ export default function DashboardClient({
   }, [
     selectedRealtimeSessionId,
     loadTimerSnapshot,
+    loadAnsweredMonitor,
     resetTriviaRound,
     completeTriviaRound,
     handlePregameTimerTick,
     handleQuestionActivated,
-    hydrateActiveQuestion,
     handleQuestionClosed,
     handleSubstageAdvanced,
   ])
 
   useEffect(() => {
+    // Update the ref before dispatching loads so any still-in-flight load for the previous
+    // session sees the new selection and drops its late response.
+    selectedRealtimeSessionIdRef.current = selectedRealtimeSessionId
     dispatchTimer({ type: 'reset' })
+    dispatchMonitor({ type: 'reset' })
     if (!selectedRealtimeSessionId) return
     void loadTimerSnapshot(selectedRealtimeSessionId)
-  }, [selectedRealtimeSessionId, loadTimerSnapshot])
+    void loadAnsweredMonitor(selectedRealtimeSessionId)
+  }, [selectedRealtimeSessionId, loadTimerSnapshot, loadAnsweredMonitor])
 
   function announce(title: string, body: string) {
     setToast({ title, body });
@@ -574,12 +730,12 @@ export default function DashboardClient({
       setCancelReason('')
       announce(`${selectedOperatorSession.title} moved to ${result.currentState}`, 'The backend accepted the lifecycle transition.')
       if (result.timer) {
-        dispatchTimer({ type: 'loaded', data: result.timer })
-        if (result.timer.activeQuestion) {
-          hydrateActiveQuestion(result.timer.activeQuestion)
-        } else if (result.timer.sessionState !== 'Active') {
-          resetTriviaRound()
+        // The Start (→ Active) response carries a pre-game placeholder timer (expired, zero remaining);
+        // don't display it — SignalR's QuestionActivated/timer ticks deliver the real countdown.
+        if (!isNonLiveQuestionSnapshot(result.timer)) {
+          dispatchTimer({ type: 'loaded', data: result.timer })
         }
+        applyTimerSnapshotToTriviaRound(result.timer)
       } else {
         void loadTimerSnapshot(selectedOperatorSession.liveSessionId)
       }
@@ -934,6 +1090,14 @@ export default function DashboardClient({
                   questionSecondsLeft={triviaRound.questionSecondsLeft}
                   substageOrdinal={triviaRound.substageOrdinal}
                   finalizing={triviaRound.finalizing}
+                />
+
+                <AnsweredMonitorPanel
+                  activeQuestionOrder={monitorState.activeQuestionOrder}
+                  teams={answeredMonitorTeams}
+                  unauthorized={monitorState.unauthorized}
+                  error={monitorState.error}
+                  loading={monitorState.loading}
                 />
 
                 {liveUpdateNote && (

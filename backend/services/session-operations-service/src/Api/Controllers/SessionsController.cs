@@ -10,6 +10,7 @@ using umbral_backend.Application.Sessions.Commands.SubmitTriviaAnswer;
 using umbral_backend.Application.Sessions.Commands.TransitionSessionState;
 using umbral_backend.Application.Sessions.Common;
 using umbral_backend.Application.Sessions.Queries.GetOperatorSessionTimerSnapshot;
+using umbral_backend.Application.Sessions.Queries.GetOperatorTriviaAnsweredMonitor;
 using umbral_backend.Application.Sessions.Queries.GetParticipantSessionTimerSnapshot;
 using umbral_backend.Application.Sessions.Queries.GetAssociatedTeamsForSession;
 using umbral_backend.Application.Sessions.Queries.GetSessionTeamLobby;
@@ -226,6 +227,25 @@ public sealed class SessionsController(ISender sender) : ControllerBase
     {
         var result = await sender.Send(
             new GetOperatorSessionTimerSnapshotQuery(liveSessionId),
+            cancellationToken);
+
+        return Ok(result);
+    }
+
+    // HU-36A: pre-close restricted answered/not-answered monitor for the active synchronized trivia
+    // question. Operator-scoped by the coarse policy; per-session ownership stays delegated to the
+    // resolver Proxy in the handler, so ForbiddenAccessException maps to 403 for a non-owning operator.
+    // The payload carries only per-team answered/answeredAt + the active-question identity — never the
+    // chosen option/correctness/points. Live updates ride the reused HU-34 operator-only TeamAnswered
+    // event; this endpoint only serves the initial snapshot on connect/refresh.
+    [HttpGet("{liveSessionId:guid}/answered-monitor")]
+    [Authorize(Policy = AuthorizationPolicies.Operator)]
+    public async Task<ActionResult<TriviaAnsweredMonitorDto>> GetTriviaAnsweredMonitorAsync(
+        Guid liveSessionId,
+        CancellationToken cancellationToken)
+    {
+        var result = await sender.Send(
+            new GetOperatorTriviaAnsweredMonitorQuery(liveSessionId),
             cancellationToken);
 
         return Ok(result);
