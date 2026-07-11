@@ -1,7 +1,11 @@
 import { apiClient } from './client';
 
 export type SessionTeamDto = {
+  // Runtime Team.TeamId — the id the self-join route (`/teams/{id}/join`) targets.
   teamId: string;
+  // Reference/catalog id identity-access keys registered_teams by — the id the membership guard on
+  // validate/reconnect/answer-submit needs. Null only for teams with no reference association.
+  referenceTeamId: string | null;
   displayName: string;
   joinState: 'mine' | 'joinable' | 'locked';
 };

@@ -99,12 +99,15 @@ export default function TeamLobbyScreen() {
     prevBannerRef.current = banner;
   }, [banner]);
 
-  async function handleTeamSelect(teamId: string) {
+  // Two distinct ids per team: the runtime id targets the self-join route; the reference/catalog id
+  // is what identity-access's membership guard validates (registered_teams is keyed by it). Only join
+  // uses the runtime id — validate (and downstream reconnect/answer-submit) must carry the reference id.
+  async function handleTeamSelect(runtimeTeamId: string, referenceTeamId: string) {
     if (isJoining || !liveSessionId) return;
     resetJoin();
     resetAccess();
-    setJoiningTeamId(teamId);
-    const joinResult = await join(sessionCode, teamId);
+    setJoiningTeamId(runtimeTeamId);
+    const joinResult = await join(sessionCode, runtimeTeamId);
 
     if (joinResult.kind === 'unauthorized') {
       signOut();
@@ -116,7 +119,7 @@ export default function TeamLobbyScreen() {
       return;
     }
 
-    const accessOutcome = await validate({ liveSessionId, teamId });
+    const accessOutcome = await validate({ liveSessionId, teamId: referenceTeamId });
 
     if (accessOutcome.kind === 'allowed') {
       const reconnectContext = buildReconnectContext({
@@ -238,7 +241,7 @@ export default function TeamLobbyScreen() {
             return (
               <Pressable
                 key={team.teamId}
-                onPress={() => handleTeamSelect(team.teamId)}
+                onPress={() => handleTeamSelect(team.teamId, team.referenceTeamId ?? team.teamId)}
                 disabled={isJoining || isLocked}
                 style={({ pressed }) => ({
                   opacity: isLocked ? 0.45 : pressed && !isJoining ? 0.7 : 1,

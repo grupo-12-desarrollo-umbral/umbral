@@ -57,6 +57,7 @@ public sealed class GetSessionTeamLobbyByCodeQueryHandler
         var teams = session.Teams
             .Select(team => new SessionTeamDto(
                 team.TeamId,
+                team.ReferenceTeamId,
                 team.DisplayName,
                 ResolveJoinState(team, currentTeam, selectableIds)))
             .ToList();

@@ -99,6 +99,20 @@ public sealed class GetSessionTeamLobbyByCodeQueryHandlerTests
     }
 
     [Fact]
+    public async Task Handle_ProjectsReferenceTeamIdPerTeam()
+    {
+        // The membership guard on validate/reconnect/answer-submit keys off the reference id, so the
+        // lobby must surface it alongside the runtime TeamId (which the self-join route targets).
+        var session = CreateSession(out var red, out var blue);
+        var handler = CreateHandler(session, Guid.NewGuid(), Eligible());
+
+        var result = await Handle(handler, session.SessionCode);
+
+        result.Teams.Single(team => team.TeamId == red.TeamId).ReferenceTeamId.Should().Be(RedRef);
+        result.Teams.Single(team => team.TeamId == blue.TeamId).ReferenceTeamId.Should().Be(BlueRef);
+    }
+
+    [Fact]
     public async Task Handle_WhenSessionNotFound_ThrowsNotFound()
     {
         var handler = CreateHandler(
