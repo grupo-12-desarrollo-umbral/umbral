@@ -234,7 +234,7 @@ describe('ActiveQuestionStage', () => {
 
   test('accessibilityRole and accessibilityState are set correctly', () => {
     const renderer = render({
-      selectedOptionSequenceOrder: 0,
+      selectedOptionSequenceOrder: 1,
       onSelectOption: jest.fn(),
       onSubmit: jest.fn(),
       onDismissRejection: jest.fn(),

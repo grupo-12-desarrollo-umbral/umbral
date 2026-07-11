@@ -123,3 +123,9 @@ B: GH#140    C: DES-82    E: DES-80
 Lane A must finish DES-49 before starting DES-31 (same tree). Lane D is
 stalled — GH #148 needs GH #142, which hasn't landed yet (queued behind
 GH #140/#141 in Lane B).
+
+---
+
+> **Superseded status:** a newer live verification (Linear + GitHub) was done on
+> **2026-07-11** — see `parallel-work-lanes.md` for current lane state. This log is
+> frozen at 2026-07-10.
