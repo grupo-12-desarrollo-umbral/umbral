@@ -103,6 +103,17 @@ const BASE_EVENT: SessionTimerUpdatedNotificationDto = {
   sessionState: 'Active',
 };
 
+const SNAPSHOT_ACTIVE_QUESTION = {
+  liveSessionId: 'sess-1',
+  questionIndex: 0,
+  sequenceOrder: 1,
+  prompt: 'Which door opens first?',
+  options: ['Red', 'Blue'],
+  timeLimitSeconds: 30,
+  remainingSeconds: 20,
+  activatedAt: '2026-06-04T10:00:00Z',
+};
+
 // --- Tests ---
 
 describe('useSessionTimer', () => {
@@ -147,6 +158,32 @@ describe('useSessionTimer', () => {
     expect(hook.get().timer?.totalSeconds).toBe(300);
     expect(hook.get().display.tone).toBe('running');
     expect(hook.get().display.label).toBe('03:00');
+
+    hook.unmount();
+  });
+
+  test('surfaces active question and session state from the timer snapshot', async () => {
+    mockGetSnapshot.mockResolvedValueOnce({
+      ...BASE_SNAPSHOT,
+      activeQuestion: SNAPSHOT_ACTIVE_QUESTION,
+      sessionState: 'Paused',
+    });
+    const client = makeClient();
+
+    const hook = renderHook({
+      client,
+      liveSessionId: 'sess-1',
+      teamId: 'team-1',
+      isReconnected: true,
+      reconnectNonce: 0,
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(hook.get().activeQuestion).toEqual(SNAPSHOT_ACTIVE_QUESTION);
+    expect(hook.get().sessionState).toBe('Paused');
 
     hook.unmount();
   });
