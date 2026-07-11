@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, View } from 'react-native';
 import { useLocalSearchParams, useRouter, type Href } from 'expo-router';
 import * as Haptics from 'expo-haptics';
@@ -243,19 +243,30 @@ export function LiveTeamSpace({
 }) {
   const { result } = outcome;
   const [teamsOpen, setTeamsOpen] = useState(false);
-  const { display, activeQuestion, sessionState: snapshotSessionState } = useSessionTimer({
+  // A QuestionClosed for the displayed question bumps this to re-fetch the timer snapshot and reconcile.
+  const [resyncNonce, setResyncNonce] = useState(0);
+  const requestResync = useCallback(() => setResyncNonce(n => n + 1), []);
+  const {
+    display,
+    activeQuestion,
+    sessionState: snapshotSessionState,
+    snapshotVersion,
+  } = useSessionTimer({
     client,
     liveSessionId: result.liveSessionId,
     teamId: referenceTeamId,
     token,
     isReconnected: true,
     reconnectNonce,
+    resyncNonce,
   });
-  const { view, sessionState } = useActiveQuestion({
+  const { view, sessionState, isQuestionClosed } = useActiveQuestion({
     client,
     liveSessionId: result.liveSessionId,
     isReconnected: true,
     reconnectNonce,
+    snapshotVersion,
+    requestResync,
     snapshotActiveQuestion: activeQuestion,
     snapshotSessionState: snapshotSessionState ?? result.sessionState,
   });
@@ -293,6 +304,7 @@ export function LiveTeamSpace({
             selectedOptionSequenceOrder={submitHook.selectedOptionSequenceOrder}
             isSubmitting={submitHook.isSubmitting}
             isLocked={submitHook.isLocked}
+            isClosed={isQuestionClosed}
             rejection={submitHook.rejection}
             onSelectOption={submitHook.selectOption}
             onSubmit={submitHook.submit}

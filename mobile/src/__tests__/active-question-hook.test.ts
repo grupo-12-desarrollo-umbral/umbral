@@ -184,7 +184,9 @@ describe('useActiveQuestion', () => {
     act(() => {
       closedHandlers.forEach(cb => cb(CLOSED));
     });
-    expect(hook.get().view).toEqual({ kind: 'waiting' });
+    // Close now locks the displayed question rather than blanking it straight to waiting.
+    expect(hook.get().view.kind).toBe('active');
+    expect(hook.get().isQuestionClosed).toBe(true);
 
     hook.unmount();
   });
@@ -227,13 +229,16 @@ describe('useActiveQuestion', () => {
     const hook = renderHook({ ...defaultProps(), snapshotActiveQuestion: SNAPSHOT_QUESTION });
 
     act(() => {
-      closedHandlers.forEach(cb => cb(CLOSED));
+      // Matching close (SNAPSHOT_QUESTION is questionIndex 1) locks the question.
+      closedHandlers.forEach(cb => cb({ ...CLOSED, questionIndex: 1 }));
     });
-    expect(hook.get().view).toEqual({ kind: 'waiting' });
+    expect(hook.get().view.kind).toBe('active');
+    expect(hook.get().isQuestionClosed).toBe(true);
 
     hook.rerender({ reconnectNonce: 1, snapshotActiveQuestion: SNAPSHOT_QUESTION });
 
     expect(hook.get().view.kind).toBe('active');
+    expect(hook.get().isQuestionClosed).toBe(false);
     expect(hook.get().view).not.toHaveProperty('kind', 'reconnecting');
 
     hook.unmount();
@@ -282,6 +287,125 @@ describe('useActiveQuestion', () => {
     });
 
     expect(hook.get().view).toEqual({ kind: 'none' });
+
+    hook.unmount();
+  });
+
+  test('close matching the displayed question locks it, flags closed, and requests a resync', () => {
+    const requestResync = jest.fn();
+    const hook = renderHook({ ...defaultProps(), requestResync });
+
+    act(() => {
+      activatedHandlers.forEach(cb => cb(ACTIVATED));
+    });
+    expect(hook.get().view.kind).toBe('active');
+
+    act(() => {
+      closedHandlers.forEach(cb => cb(CLOSED));
+    });
+
+    expect(hook.get().view).toEqual({
+      kind: 'active',
+      question: expect.objectContaining({ sequenceOrder: 3 }),
+    });
+    expect(hook.get().isQuestionClosed).toBe(true);
+    expect(requestResync).toHaveBeenCalledTimes(1);
+
+    hook.unmount();
+  });
+
+  test('a stale close for a superseded question index is ignored', () => {
+    const requestResync = jest.fn();
+    const hook = renderHook({ ...defaultProps(), requestResync });
+
+    act(() => {
+      activatedHandlers.forEach(cb => cb(ACTIVATED));
+    });
+
+    act(() => {
+      // Close for question 1 arrives after question 2 is already displayed.
+      closedHandlers.forEach(cb => cb({ ...CLOSED, questionIndex: 1 }));
+    });
+
+    expect(hook.get().view).toEqual({
+      kind: 'active',
+      question: expect.objectContaining({ sequenceOrder: 3 }),
+    });
+    expect(hook.get().isQuestionClosed).toBe(false);
+    expect(requestResync).not.toHaveBeenCalled();
+
+    hook.unmount();
+  });
+
+  test('a resync snapshot with a new question index advances and clears the closed flag', () => {
+    const hook = renderHook({ ...defaultProps(), snapshotActiveQuestion: SNAPSHOT_QUESTION });
+
+    act(() => {
+      closedHandlers.forEach(cb => cb({ ...CLOSED, questionIndex: 1 }));
+    });
+    expect(hook.get().isQuestionClosed).toBe(true);
+
+    const NEXT_SNAPSHOT: ActiveQuestionSnapshotDto = {
+      ...SNAPSHOT_QUESTION,
+      questionIndex: 3,
+      sequenceOrder: 4,
+      prompt: 'The next question',
+    };
+    hook.rerender({ snapshotVersion: 1, snapshotActiveQuestion: NEXT_SNAPSHOT });
+
+    expect(hook.get().view).toEqual({
+      kind: 'active',
+      question: expect.objectContaining({ questionIndex: 3, prompt: 'The next question' }),
+    });
+    expect(hook.get().isQuestionClosed).toBe(false);
+
+    hook.unmount();
+  });
+
+  test('a resync with no active question on a live session resolves to waiting', () => {
+    const hook = renderHook({ ...defaultProps(), snapshotActiveQuestion: SNAPSHOT_QUESTION });
+
+    act(() => {
+      closedHandlers.forEach(cb => cb({ ...CLOSED, questionIndex: 1 }));
+    });
+
+    hook.rerender({ snapshotVersion: 1, snapshotActiveQuestion: null, snapshotSessionState: 'Active' });
+
+    expect(hook.get().view).toEqual({ kind: 'waiting' });
+    expect(hook.get().isQuestionClosed).toBe(false);
+
+    hook.unmount();
+  });
+
+  test('a resync into a terminal session state resolves to closed', () => {
+    const hook = renderHook({ ...defaultProps(), snapshotActiveQuestion: SNAPSHOT_QUESTION });
+
+    act(() => {
+      closedHandlers.forEach(cb => cb({ ...CLOSED, questionIndex: 1 }));
+    });
+
+    hook.rerender({ snapshotVersion: 1, snapshotActiveQuestion: null, snapshotSessionState: 'Finished' });
+
+    expect(hook.get().view).toEqual({ kind: 'closed' });
+    expect(hook.get().sessionState).toBe('Finished');
+    expect(hook.get().isQuestionClosed).toBe(false);
+
+    hook.unmount();
+  });
+
+  test('a resync echoing the just-closed question index does not re-open it', () => {
+    const hook = renderHook({ ...defaultProps(), snapshotActiveQuestion: SNAPSHOT_QUESTION });
+
+    act(() => {
+      closedHandlers.forEach(cb => cb({ ...CLOSED, questionIndex: 1 }));
+    });
+    expect(hook.get().isQuestionClosed).toBe(true);
+
+    // Backend race: the snapshot still reports the same (just-closed) question.
+    hook.rerender({ snapshotVersion: 1, snapshotActiveQuestion: SNAPSHOT_QUESTION });
+
+    expect(hook.get().view).toEqual({ kind: 'waiting' });
+    expect(hook.get().isQuestionClosed).toBe(false);
 
     hook.unmount();
   });

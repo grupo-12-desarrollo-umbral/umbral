@@ -152,6 +152,7 @@ export function ActiveQuestionStage({
   selectedOptionSequenceOrder,
   isSubmitting,
   isLocked,
+  isClosed,
   rejection,
   onSelectOption,
   onSubmit,
@@ -164,6 +165,9 @@ export function ActiveQuestionStage({
   selectedOptionSequenceOrder?: number | null;
   isSubmitting?: boolean;
   isLocked?: boolean;
+  // Display-only close lock (HU-M3): the question closed and controls settle until the next resolves.
+  // Independent of the submit hook's `isLocked` and takes precedence for display.
+  isClosed?: boolean;
   rejection?: TriviaAnswerRejectionDisplay | null;
   onSelectOption?: (sequenceOrder: number) => void;
   onSubmit?: () => void;
@@ -172,7 +176,10 @@ export function ActiveQuestionStage({
   const hasSubmitProps = onSelectOption !== undefined;
   const selected = selectedOptionSequenceOrder ?? null;
   const locked = isLocked ?? false;
+  const closed = isClosed ?? false;
   const submitting = isSubmitting ?? false;
+  // Rows are interactive only when submit is wired and neither lock is in effect.
+  const interactive = hasSubmitProps && !locked && !closed;
 
   return (
     <View style={{ alignSelf: 'stretch', backgroundColor: colors.ivoryFog }}>
@@ -201,26 +208,29 @@ export function ActiveQuestionStage({
           const pillFillBg = isSelected ? colors.emberAccent : 'transparent';
           const pillTextColor = isSelected ? colors.ivoryFog : colors.emberAccent;
 
-          const hint = locked
-            ? 'Answer already submitted.'
-            : hasSubmitProps
-              ? 'Select to submit as your team\'s answer.'
-              : 'Answering is not yet available.';
+          const hint = closed
+            ? 'This question is closed.'
+            : locked
+              ? 'Answer already submitted.'
+              : hasSubmitProps
+                ? 'Select to submit as your team\'s answer.'
+                : 'Answering is not yet available.';
 
-          const Row = hasSubmitProps && !locked ? Pressable : View;
+          const Row = interactive ? Pressable : View;
 
           return (
             <Row
               key={`${index}-${option}`}
-              {...(hasSubmitProps && !locked
+              {...(interactive
                 ? {
                     accessibilityRole: 'radio' as const,
-                    accessibilityState: { selected: isSelected, disabled: locked },
+                    accessibilityState: { selected: isSelected, disabled: false },
                     accessibilityHint: hint,
                     onPress: () => onSelectOption!(index),
                   }
                 : {
                     accessibilityRole: 'text' as const,
+                    accessibilityState: { disabled: locked || closed },
                     accessibilityHint: hint,
                   })}
               style={{
@@ -260,9 +270,33 @@ export function ActiveQuestionStage({
         })}
       </View>
 
-      {hasSubmitProps ? (
+      {hasSubmitProps || closed ? (
         <View style={{ padding: spacing.lg, gap: spacing.md }}>
-          {locked ? (
+          {closed ? (
+            // Close affordance — neutral/critical tone, distinct from the green "Answer submitted" chip.
+            <View
+              accessibilityRole="text"
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: spacing.xs,
+                paddingVertical: spacing.sm,
+              }}
+            >
+              <View
+                style={{
+                  width: 8,
+                  height: 8,
+                  borderRadius: radii.pill,
+                  backgroundColor: colors.signalCritical,
+                }}
+              />
+              <Text variant="label" style={{ color: colors.textMuted }}>
+                Question closed — waiting for the next
+              </Text>
+            </View>
+          ) : locked ? (
             <View
               style={{
                 flexDirection: 'row',
@@ -322,7 +356,7 @@ export function ActiveQuestionStage({
             </Pressable>
           )}
 
-          {rejection ? (
+          {rejection && !closed ? (
             <View
               accessibilityRole="alert"
               style={{

@@ -29,6 +29,9 @@ export type UseSessionTimerResult = {
   display: TimerDisplay;
   activeQuestion: SessionTimerSnapshotDto['activeQuestion'] | null;
   sessionState: string | null;
+  // Increments each time a snapshot fetch settles. A "landed" signal consumers can key a reconcile
+  // on, so they act on fresh data rather than the stale value present when the fetch was triggered.
+  snapshotVersion: number;
 };
 
 export function useSessionTimer({
@@ -38,6 +41,7 @@ export function useSessionTimer({
   token,
   isReconnected,
   reconnectNonce,
+  resyncNonce = 0,
 }: {
   client: SessionsHubClient;
   liveSessionId: string;
@@ -45,12 +49,15 @@ export function useSessionTimer({
   token?: string | null;
   isReconnected: boolean;
   reconnectNonce: number;
+  // Bumped on a QuestionClosed re-sync (HU-M3) to force a fresh snapshot fetch, mirroring reconnect.
+  resyncNonce?: number;
 }): UseSessionTimerResult {
   const [timer, setTimer] = useState<TimerState | null>(null);
   const [activeQuestion, setActiveQuestion] = useState<SessionTimerSnapshotDto['activeQuestion'] | null>(null);
   const [sessionState, setSessionState] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<TimerSnapshotError | null>(null);
+  const [snapshotVersion, setSnapshotVersion] = useState(0);
 
   useEffect(() => {
     if (!isReconnected) return;
@@ -75,17 +82,22 @@ export function useSessionTimer({
         setActiveQuestion(snapshot.activeQuestion ?? null);
         setSessionState(snapshot.sessionState);
         setIsLoading(false);
+        setSnapshotVersion(v => v + 1);
       })
       .catch(err => {
         if (!active) return;
         setError(interpretTimerSnapshotError(err));
         setIsLoading(false);
+        // A failed re-fetch must not strand a closed question on a stale interactive view; drop the
+        // snapshot question and bump the version so a pending reconcile falls to waiting.
+        setActiveQuestion(null);
+        setSnapshotVersion(v => v + 1);
       });
 
     return () => {
       active = false;
     };
-  }, [isReconnected, reconnectNonce, liveSessionId, teamId, token]);
+  }, [isReconnected, reconnectNonce, resyncNonce, liveSessionId, teamId, token]);
 
   useEffect(() => {
     return client.onTimerUpdated((notification: SessionTimerUpdatedNotificationDto) => {
@@ -107,5 +119,5 @@ export function useSessionTimer({
     ? toTimerDisplay(timer.remainingSeconds, timer.totalSeconds, timer.isPaused, timer.isExpired)
     : UNAVAILABLE_TIMER_DISPLAY;
 
-  return { timer, isLoading, error, display, activeQuestion, sessionState };
+  return { timer, isLoading, error, display, activeQuestion, sessionState, snapshotVersion };
 }

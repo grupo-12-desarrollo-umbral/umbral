@@ -93,6 +93,7 @@ function primeTimer() {
     display: { label: '00:42', pct: 70, tone: 'running' },
     activeQuestion: null,
     sessionState: 'Active',
+    snapshotVersion: 1,
   });
 }
 
@@ -105,6 +106,7 @@ describe('LiveTeamSpace question stage wiring', () => {
   test('renders active question stage instead of standalone timer and join panel', () => {
     mockUseActiveQuestion.mockReturnValue({
       sessionState: 'Active',
+      isQuestionClosed: false,
       view: {
         kind: 'active',
         question: {
@@ -128,7 +130,7 @@ describe('LiveTeamSpace question stage wiring', () => {
   });
 
   test('renders empty state beneath the stage header for non-active views', () => {
-    mockUseActiveQuestion.mockReturnValue({ sessionState: 'Active', view: { kind: 'waiting' } });
+    mockUseActiveQuestion.mockReturnValue({ sessionState: 'Active', isQuestionClosed: false, view: { kind: 'waiting' } });
 
     const texts = allText(renderSpace().toJSON());
 
@@ -140,6 +142,7 @@ describe('LiveTeamSpace question stage wiring', () => {
   test('renders retained question while Paused instead of an empty state', () => {
     mockUseActiveQuestion.mockReturnValue({
       sessionState: 'Paused',
+      isQuestionClosed: false,
       view: {
         kind: 'active',
         question: {
@@ -160,8 +163,32 @@ describe('LiveTeamSpace question stage wiring', () => {
     expect(texts.join(' ')).not.toContain('No active question yet');
   });
 
+  test('threads a closed flag into the stage as the close affordance', () => {
+    mockUseActiveQuestion.mockReturnValue({
+      sessionState: 'Active',
+      isQuestionClosed: true,
+      view: {
+        kind: 'active',
+        question: {
+          questionIndex: 0,
+          sequenceOrder: 1,
+          prompt: 'Which lantern is lit?',
+          options: ['North', 'South'],
+          timeLimitSeconds: 45,
+          triviaSubstageSnapshotId: 'substage-abc',
+        },
+      },
+    });
+
+    const texts = allText(renderSpace().toJSON());
+
+    expect(texts.join(' ')).toContain('Question closed — waiting for the next');
+    expect(texts).not.toContain('Submit answer');
+    expect(texts).not.toContain('Answer submitted');
+  });
+
   test('opens teams sheet from the persistent footer', () => {
-    mockUseActiveQuestion.mockReturnValue({ sessionState: 'Active', view: { kind: 'none' } });
+    mockUseActiveQuestion.mockReturnValue({ sessionState: 'Active', isQuestionClosed: false, view: { kind: 'none' } });
     const renderer = renderSpace();
 
     expect(allText(renderer.toJSON()).join(' ')).toContain('YOUR TEAM · Lantern Foxes');
