@@ -82,6 +82,24 @@ internal static class MissionRuntimeSnapshotFactory
             clueVisibilityPolicy: "VisibleAtStart");
     }
 
+    internal static MissionRuntimeSnapshot CreateTreasureHuntSnapshotWithMultipleTargets(int maximumTimeMinutes = 45)
+    {
+        var treasureSubstage = SubstageSnapshot.CreateTreasureHunt("Treasure Route", 1);
+        var stage = StageSnapshot.Create("Stage One", 1, [treasureSubstage]);
+
+        return MissionRuntimeSnapshot.Create(
+            Guid.NewGuid(),
+            "Multi-Target Hunt",
+            MaximumTime.Create(maximumTimeMinutes),
+            [stage],
+            [
+                CreateTarget(treasureSubstage.SubstageSnapshotId, "QR-001", 1, 100),
+                CreateTarget(treasureSubstage.SubstageSnapshotId, "QR-002", 2, 150),
+                CreateTarget(treasureSubstage.SubstageSnapshotId, "QR-003", 3, 200)
+            ],
+            []);
+    }
+
     internal static IReadOnlyCollection<TriviaQuestionSnapshot> CreateQuestions(Guid substageSnapshotId, int count)
     {
         return Enumerable.Range(1, count)

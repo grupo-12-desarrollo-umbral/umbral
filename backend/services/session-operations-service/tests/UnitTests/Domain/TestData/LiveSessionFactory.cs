@@ -69,4 +69,17 @@ internal static class LiveSessionFactory
             new DateTimeOffset(2026, 6, 3, 10, 0, 0, TimeSpan.Zero),
             missionRuntimeSnapshot);
     }
+
+    internal static LiveSession CreateScheduledMultiTargetTreasureHunt(int maximumTimeMinutes = 45)
+    {
+        var missionRuntimeSnapshot = MissionRuntimeSnapshotFactory.CreateTreasureHuntSnapshotWithMultipleTargets(maximumTimeMinutes);
+
+        return LiveSession.Create(
+            SessionSource.Create(missionRuntimeSnapshot.SourceMissionId),
+            "th-123",
+            "Multi-Target Hunt",
+            maximumTimeMinutes,
+            new DateTimeOffset(2026, 6, 3, 10, 0, 0, TimeSpan.Zero),
+            missionRuntimeSnapshot);
+    }
 }

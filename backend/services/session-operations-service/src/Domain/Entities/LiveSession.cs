@@ -510,6 +510,114 @@ public sealed class LiveSession : BaseAuditableEntity
             submission.SubmittedAt));
     }
 
+    // Team-scoped board projection (HU-23): for the given team, returns current score, the
+    // authoritative timer snapshot, active-substage target progress (treasure-hunt) or active-question
+    // context (trivia), and optional visible clues. Progress is target-resolution-based, never
+    // clue-based. Score is session-owned or zero; no score ledger/ranking computation.
+    public ParticipantTeamBoardSnapshot ProjectParticipantTeamBoard(Guid teamId, DateTimeOffset observedAt)
+    {
+        var team = GetTeam(teamId);
+        var timerSnapshot = GetAuthoritativeSessionTimerSnapshot(observedAt);
+        var activeSubstageContext = BuildActiveSubstageContext(team);
+        var visibleClues = CollectVisibleClues();
+
+        return ParticipantTeamBoardSnapshot.Create(
+            team.TeamId,
+            team.DisplayName,
+            team.TeamCode.Value,
+            team.CurrentScore ?? 0,
+            timerSnapshot,
+            activeSubstageContext,
+            visibleClues);
+    }
+
+    private ActiveSubstageContext? BuildActiveSubstageContext(Team team)
+    {
+        if (ActiveSubstageId is null)
+        {
+            return null;
+        }
+
+        var activeSubstage = GetOrderedSubstages()
+            .SingleOrDefault(substage => substage.SubstageSnapshotId == ActiveSubstageId.Value);
+
+        if (activeSubstage is null)
+        {
+            return null;
+        }
+
+        return activeSubstage.PlayMode == SubstagePlayMode.TreasureHunt
+            ? BuildTreasureHuntContext(activeSubstage)
+            : BuildTriviaContext(activeSubstage);
+    }
+
+    private ActiveSubstageContext BuildTreasureHuntContext(SubstageSnapshot substage)
+    {
+        var activeTargets = MissionRuntimeSnapshot.TargetSnapshots
+            .Where(target => target.SubstageSnapshotId == substage.SubstageSnapshotId && target.IsActive)
+            .ToArray();
+
+        var totalActiveTargets = activeTargets.Length;
+
+        // Target resolution persistence does not exist yet (HU-31 owns it). Report 0 resolved
+        // and expose total active targets. Do NOT infer from CurrentClueNodeId or ReleasedClueCount.
+        var resolvedTargets = 0;
+
+        return ActiveSubstageContext.CreateTreasureHunt(
+            substage.SubstageSnapshotId,
+            substage.Title,
+            totalActiveTargets,
+            resolvedTargets);
+    }
+
+    private ActiveSubstageContext BuildTriviaContext(SubstageSnapshot substage)
+    {
+        int? activeQuestionSequenceOrder = null;
+        int? activeQuestionTimeLimitSeconds = null;
+
+        if (ActiveQuestionIndex is not null)
+        {
+            var orderedQuestions = GetOrderedTriviaQuestions();
+            if (ActiveQuestionIndex.Value < orderedQuestions.Length)
+            {
+                var activeQuestion = orderedQuestions[ActiveQuestionIndex.Value];
+                activeQuestionSequenceOrder = activeQuestion.SequenceOrder;
+                activeQuestionTimeLimitSeconds = activeQuestion.TimeLimitSeconds;
+            }
+        }
+
+        return ActiveSubstageContext.CreateTrivia(
+            substage.SubstageSnapshotId,
+            substage.Title,
+            activeQuestionSequenceOrder,
+            activeQuestionTimeLimitSeconds);
+    }
+
+    private IReadOnlyList<VisibleClue> CollectVisibleClues()
+    {
+        if (ActiveSubstageId is null)
+        {
+            return [];
+        }
+
+        // Show clue guidance from targets that have clue text. The ClueVisibilityPolicy field on
+        // TargetSnapshot defines when a clue becomes visible; for now we include clues from targets
+        // with a non-null policy (meaning the mission author intended visibility). Actual per-team
+        // release state belongs to HU-26/HU-28; HU-23 only reads already-visible guidance.
+        return MissionRuntimeSnapshot.TargetSnapshots
+            .Where(target =>
+                target.SubstageSnapshotId == ActiveSubstageId.Value &&
+                target.IsActive &&
+                !string.IsNullOrWhiteSpace(target.ClueText) &&
+                !string.IsNullOrWhiteSpace(target.ClueVisibilityPolicy))
+            .OrderBy(target => target.SequenceOrder)
+            .Select(target => VisibleClue.Create(
+                target.TargetSnapshotId,
+                target.ClueText!,
+                target.Name))
+            .ToList();
+    }
+
     // Timer-driven, generic substage advancement (ADR-0005): once the active substage's last
     // question has closed, walk to the next substage in strict stage->substage order. A next
     // substage exists -> move the pointer and raise SubstageAdvancedEvent (the facade activates the
