@@ -49,7 +49,8 @@ public static class SessionTimerSnapshotDtoFactory
             options,
             question.TimeLimitSeconds,
             ToWholeSeconds(snapshot.RemainingDuration),
-            snapshot.AdvancingSince ?? snapshot.ObservedAt);
+            snapshot.AdvancingSince ?? snapshot.ObservedAt,
+            liveSession.ActiveSubstageId.Value);
     }
 
     private static string ResolveStatus(AuthoritativeSessionTimerSnapshot snapshot)

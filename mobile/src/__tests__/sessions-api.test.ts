@@ -2,15 +2,22 @@ import { ApiError } from '@/lib/api/client';
 import {
   getParticipantTimerSnapshot,
   interpretTimerSnapshotError,
+  submitTriviaAnswer,
+  SubmitTriviaAnswerRejection,
 } from '@/lib/api/sessions';
 
 const mockGet = jest.fn();
+const mockFetch = jest.fn();
 
 jest.mock('@/lib/api/client', () => {
   const actual =
     jest.requireActual<typeof import('@/lib/api/client')>('@/lib/api/client');
   return { ...actual, apiClient: { get: (...args: unknown[]) => mockGet(...args) } };
 });
+
+jest.mock('expo/fetch', () => ({ fetch: (...args: unknown[]) => mockFetch(...args) }));
+jest.mock('@/lib/auth/token-store', () => ({ getAccessToken: jest.fn().mockResolvedValue('test-token') }));
+jest.mock('@/lib/host', () => ({ apiBaseUrl: () => 'http://localhost:8000' }));
 
 describe('getParticipantTimerSnapshot', () => {
   beforeEach(() => jest.clearAllMocks());
@@ -117,5 +124,69 @@ describe('interpretTimerSnapshotError', () => {
     expect(interpretTimerSnapshotError(new Error('boom'))).toBe('error');
     expect(interpretTimerSnapshotError('string')).toBe('error');
     expect(interpretTimerSnapshotError(null)).toBe('error');
+  });
+});
+
+describe('submitTriviaAnswer', () => {
+  beforeEach(() => jest.clearAllMocks());
+
+  const REQUEST = {
+    teamId: 'team-1',
+    triviaSubstageSnapshotId: 'substage-abc',
+    questionSequenceOrder: 1,
+    selectedOptionSequenceOrder: 0,
+  };
+
+  test('resolves with result on 200', async () => {
+    const result = {
+      liveSessionId: 'sess-1',
+      teamId: 'team-1',
+      triviaSubstageSnapshotId: 'substage-abc',
+      questionSequenceOrder: 1,
+      answeredAt: '2026-07-11T10:00:00Z',
+    };
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: () => Promise.resolve(result),
+    });
+
+    const response = await submitTriviaAnswer('sess-1', REQUEST);
+    expect(response).toEqual(result);
+  });
+
+  test('throws SubmitTriviaAnswerRejection with reasonCode on 409 ProblemDetails', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status: 409,
+      json: () =>
+        Promise.resolve({
+          type: 'duplicate-trivia-answer',
+          detail: 'Already answered',
+        }),
+    });
+
+    try {
+      await submitTriviaAnswer('sess-1', REQUEST);
+      fail('Expected rejection');
+    } catch (e) {
+      expect(e).toBeInstanceOf(SubmitTriviaAnswerRejection);
+      const rejection = e as SubmitTriviaAnswerRejection;
+      expect(rejection.reasonCode).toBe('duplicate-trivia-answer');
+      expect(rejection.status).toBe(409);
+    }
+  });
+
+  test('throws with unknown reasonCode on network failure', async () => {
+    mockFetch.mockRejectedValueOnce(new TypeError('Network request failed'));
+
+    try {
+      await submitTriviaAnswer('sess-1', REQUEST);
+      fail('Expected rejection');
+    } catch (e) {
+      expect(e).toBeInstanceOf(SubmitTriviaAnswerRejection);
+      const rejection = e as SubmitTriviaAnswerRejection;
+      expect(rejection.reasonCode).toBe('unknown');
+      expect(rejection.status).toBe(0);
+    }
   });
 });

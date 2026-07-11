@@ -51,6 +51,15 @@ export default function ParticipantHome() {
         />
       ) : null}
 
+      {/* DEV-ONLY preview of the active-question (trivia) surface (stub data). */}
+      {__DEV__ ? (
+        <Button
+          label="▶ Preview · trivia question"
+          variant="secondary"
+          onPress={() => router.push('/(app)/active-question-prototype' as Href)}
+        />
+      ) : null}
+
       <Button label="Sign out" variant="secondary" onPress={signOut} />
     </Screen>
   );

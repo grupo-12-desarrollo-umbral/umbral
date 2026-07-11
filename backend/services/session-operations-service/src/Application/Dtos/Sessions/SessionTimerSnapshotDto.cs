@@ -22,4 +22,5 @@ public sealed record ActiveQuestionSnapshotDto(
     IReadOnlyList<string> Options,
     int TimeLimitSeconds,
     int RemainingSeconds,
-    DateTimeOffset ActivatedAt);
+    DateTimeOffset ActivatedAt,
+    Guid TriviaSubstageSnapshotId);

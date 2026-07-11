@@ -219,7 +219,8 @@ public sealed class SessionStateBroadcastHubTests : IAsyncLifetime
                     Prompt: "Capital of France?",
                     Options: ["Paris", "Lyon"],
                     TimeLimitSeconds: 30,
-                    ActivatedAt: activatedAt),
+                    ActivatedAt: activatedAt,
+                    TriviaSubstageSnapshotId: Guid.NewGuid()),
                 CancellationToken.None);
 
             await broadcaster.BroadcastQuestionClosedAsync(

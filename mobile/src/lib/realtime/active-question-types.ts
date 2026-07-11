@@ -6,6 +6,7 @@ export type ActiveQuestion = {
   prompt: string;
   options: readonly string[];
   timeLimitSeconds: number;
+  triviaSubstageSnapshotId: string;
 };
 
 export type ActiveQuestionView =
@@ -23,6 +24,7 @@ export function toActiveQuestion(
     prompt: dto.prompt,
     options: dto.options,
     timeLimitSeconds: dto.timeLimitSeconds,
+    triviaSubstageSnapshotId: dto.triviaSubstageSnapshotId,
   };
 }
 

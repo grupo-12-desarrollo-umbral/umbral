@@ -13,6 +13,7 @@ export type QuestionActivatedNotificationDto = {
   options: readonly string[];
   timeLimitSeconds: number;
   activatedAt: string;
+  triviaSubstageSnapshotId: string;
 };
 
 // SignalR `QuestionClosed` push to the participant group. `wasExpiredByTimer` distinguishes a
@@ -50,6 +51,7 @@ export type ActiveQuestionSnapshotDto = {
   timeLimitSeconds: number;
   remainingSeconds: number;
   activatedAt: string;
+  triviaSubstageSnapshotId: string;
 };
 
 // Request body for `POST /sessions/{liveSessionId}/participants/answers` (Participant policy). The

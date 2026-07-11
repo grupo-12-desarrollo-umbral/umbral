@@ -13,6 +13,7 @@ const ACTIVATED: QuestionActivatedNotificationDto = {
   options: ['North', 'South', 'East', 'West'],
   timeLimitSeconds: 45,
   activatedAt: '2026-07-11T10:00:00Z',
+  triviaSubstageSnapshotId: 'substage-abc',
 };
 
 const SNAPSHOT: ActiveQuestionSnapshotDto = {
@@ -26,6 +27,7 @@ const EXPECTED: ActiveQuestion = {
   prompt: 'Which lantern is lit?',
   options: ['North', 'South', 'East', 'West'],
   timeLimitSeconds: 45,
+  triviaSubstageSnapshotId: 'substage-abc',
 };
 
 describe('active question mapping', () => {

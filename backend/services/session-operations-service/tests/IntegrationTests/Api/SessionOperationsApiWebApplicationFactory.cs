@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using umbral_backend.Application.Common.Interfaces;
 using umbral_backend.Infrastructure.Persistence;
+using umbral_backend.Infrastructure.Realtime;
 
 namespace umbral_backend.Infrastructure.IntegrationTests.Api;
 
@@ -36,6 +37,18 @@ public sealed class SessionOperationsApiWebApplicationFactory : WebApplicationFa
 
         builder.ConfigureTestServices(services =>
         {
+            // Remove the real AuthoritativeSessionTimerWorker hosted service. It runs on a 1s
+            // PeriodicTimer using TimeProvider.System, so under the booted host it would race the
+            // tests that drive the worker deterministically via their own FixedTimeProvider instance
+            // (DES-91), mutating seeded session timer state concurrently. Tests that need a tick
+            // construct and await the worker themselves.
+            foreach (var timerWorkerDescriptor in services
+                .Where(descriptor => descriptor.ImplementationType == typeof(AuthoritativeSessionTimerWorker))
+                .ToList())
+            {
+                services.Remove(timerWorkerDescriptor);
+            }
+
             services.RemoveAll<IParticipantMembershipAccessClient>();
             services.AddScoped<IParticipantMembershipAccessClient>(_ => AccessClient);
             services.RemoveAll<IAssignableSessionOperatorAccessClient>();
