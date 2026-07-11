@@ -198,7 +198,7 @@ export function ActiveQuestionStage({
 
       <View>
         {question.options.map((option, index) => {
-          const isSelected = selected === index;
+          const isSelected = selected === index + 1;
           const rowBg = isSelected
             ? colors.emberAccentSoft
             : index % 2 === 0
@@ -226,7 +226,7 @@ export function ActiveQuestionStage({
                     accessibilityRole: 'radio' as const,
                     accessibilityState: { selected: isSelected, disabled: false },
                     accessibilityHint: hint,
-                    onPress: () => onSelectOption!(index),
+                    onPress: () => onSelectOption!(index + 1),
                   }
                 : {
                     accessibilityRole: 'text' as const,

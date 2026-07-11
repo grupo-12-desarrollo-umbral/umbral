@@ -248,7 +248,7 @@ Phases 5–6 may run in parallel once DES-24 lands.
 | 15 | DES-54 | HU-39 | Single session `Ranking` derived from the ledger, `ResolutionTime` tie-break, refresh + real-time view | Blocked by DES-51 (+ DES-45, Done). **Fold applied 2026-07-09**: absorbed DES-52 and DES-55. `HU-39A` → **`HU-39`**. Now the sole gate for DES-33/34/35/48/57/61. |
 | 16 | DES-50 ; DES-48 | HU-36B / 35 | Post-close operator review of answers + points ; trivia result reveal | **These are not row-9 work.** DES-50 is blocked by DES-51 (row 14); DES-48 by **DES-54** (row 15) after the fold re-pointed it off DES-55. Every prior version of this table ran them too early. |
 | 17 | DES-32 ; DES-34 ; DES-35 ; then DES-33 ; then DES-61 | HU-24A / 25A / 25B / 24B | Operator panels + admin/participant read queries + CQRS read split | **DES-32 is startable now** (zero live blockers) — it does not wait on DES-31. DES-34 needs DES-54; DES-35 needs DES-31 + DES-54; DES-33 needs DES-32 + DES-43 + DES-54; DES-61 needs DES-34 + DES-35 + DES-54. |
-| 18 | DES-56 → DES-57 ; DES-60 | HU-40A/40B / enabler | Session event history; score/ranking historical review; RabbitMQ domain-event publication | DES-56 needs DES-42, DES-36, DES-53, **DES-29**; DES-57 needs DES-56 + DES-51 + DES-54; DES-60 needs DES-42, DES-40, DES-56, DES-51. |
+| 18 | DES-92 → DES-56 → DES-57 ; DES-60 | enabler / HU-40A/40B / enabler | ClueReleased→RabbitMQ publication; session event history; score/ranking historical review; RabbitMQ domain-event publication | **DES-92** (created 2026-07-11) publishes `ClueReleased` MassTransit-native for both clue-release flows (DES-36 manual, DES-37 conditional); prereq **GH #164**, related to DES-36/37, **blocks DES-56** (its only consumer). DES-56 needs DES-42, DES-36, DES-53, **DES-29**, **and DES-92**; DES-57 needs DES-56 + DES-51 + DES-54; DES-60 needs DES-42, DES-40, DES-56, DES-51. |
 | 19 | DES-13 → DES-59 ; DES-58 | HU-08 / enablers | Multi-device team sync + reconnect ; multi-device enabler ; React Native participant client | **DES-13 is ungated** — DES-11/DES-12 (HU-07A/07B) both Done. DES-59 needs DES-13 + DES-31. DES-58 needs DES-13 + DES-31 + DES-35 + DES-48, so it lands last. |
 | M | DES-81 → DES-82 → DES-83 / DES-84 | HU-M1–M3 / EN-M1 | Mobile trivia: contract spike → active-question display → question-closed state / answer submission | ✅ **DES-81, DES-82, DES-83, DES-84 are all DONE.** A self-service participant does not exist yet — see `GH #143`. |
 | MT | GH #164 → GH #165 → GH #166 | — (refactor) | Migrate `session-operations` event publishing from hand-rolled `RabbitMQ.Client` to **MassTransit** | ⬜ **UNGATED GitHub-only refactor sub-track, internal chain #164→#165→#166** (`#164` startable now). Replaces the ~250-line hand-rolled `RabbitMqIntegrationEventPublisher` with the canonical `AddMassTransit().UsingRabbitMq()` + `IPublishEndpoint.Publish(...)`, MassTransit-native topology with `[EntityName]` short exchange names (`session-question-closed`, etc.). **Land before the RabbitMQ consumers** (DES-51 ledger, DES-54 ranking, DES-60 enabler) so the greenfield `scoring-monitoring-service` consumers are built on MassTransit, not on a publisher slated for deletion. No Outbox / custom retry — the automatic `_error` queue only. **No Linear DES id → no generator-agent run**; drive against the issue body like the other `GH` issues. See the dedicated section below. |
@@ -270,7 +270,10 @@ are **closed**.
 
 (Archived/superseded, ignore: DES-71/72/73/74 — old participant-lobby sub-issues,
 closed out by #108/#110/#115. DES-47 — merged into DES-46 on 2026-07-09; **Canceled, not
-archived** — archiving is a manual Linear-UI step still pending.)
+archived** — archiving is a manual Linear-UI step still pending. **DES-88/89/90** — the
+Linear versions of the MassTransit refactor, superseded by the GitHub-only chain
+**GH #164/#165/#166** and **Canceled**; that is why row MT carries "no Linear DES id."
+Canceled, not archived.)
 
 ## Unified order with the Users realignment (updated 2026-07-09)
 
@@ -328,7 +331,7 @@ because they are reference documents, not buildable slices.
 → [MassTransit refactor: GH #164 → GH #165 → GH #166 — ungated GitHub-only; land here, before the RabbitMQ consumers below]
 → DES-53 (HU-38) → DES-51 (HU-37) → DES-54 (HU-39) → DES-50 (HU-36B) → DES-48 (HU-35)
 → DES-32 (HU-24A) → DES-34 (HU-25A) → DES-35 (HU-25B) → DES-33 (HU-24B) → DES-61 (ENABLER CQRS)
-→ DES-29 (HU-21) → DES-56 (HU-40A) → DES-57 (HU-40B) → DES-60 (ENABLER RabbitMQ)
+→ DES-29 (HU-21) → DES-92 (ENABLER ClueReleased→RabbitMQ) → DES-56 (HU-40A) → DES-57 (HU-40B) → DES-60 (ENABLER RabbitMQ)
 → DES-13 (HU-08) → DES-59 (ENABLER multi-device)
 → GH#140 (Keycloak confidential client) → GH#141 (SMTP) → GH#142 (invitations) → GH#148 (invite UI)
 → GH#143 (participant self-registration) → GH#144 (forgot-password)
@@ -433,6 +436,7 @@ Still to run — grouped by what actually gates them:
   ✅ `DES-42`'s extra wait on `DES-86` (per-target scoring) is discharged — PR #136.
   ⚠️ `DES-36/37/38` (row 13) additionally wait on `GH #138` → `GH #145` (row 12b).
 - **Gated on the cycle *and* a design call:** `DES-41`'s blocker re-point (ADR-0010 is now `Accepted`, which unblocks the call without deciding it); `DES-36/37/38`'s clue-model decisions.
+- **Gated on the clue-release flows + MassTransit:** `DES-92` (ENABLER, created 2026-07-11) — publishes `ClueReleased` to RabbitMQ; prereq `GH #164` (MassTransit bus), publishes the events emitted by `DES-36`/`DES-37` (row 13), and **blocks `DES-56`** (its only consumer, row 18). Not startable until row 13 + `#164` land.
 - **Gated on the cycle *and* DES-85:** `DES-51/54`, then `DES-48/50/57`. The 52 + 55 fold into 54 is applied, and the PRD was amended to match (repo copy *and* Linear ticket) on 2026-07-09.
   ⚠️ **`DES-51` (HU-37, the `ScoreEntry` ledger) additionally needs the `TargetResolved` event that DES-86 did *not* deliver** — the ledger accumulates from resolution events, and neither the event nor any `ScoreEntry` class exists yet (`scoring-monitoring-service/src` has zero `.cs` files). `DES-42` (row 12) must define and emit `TargetResolved` first.
 - **GH #85** — repo-wide rename `identity-access-service` → `users-service`; dead last, quiet window. Has no Linear ticket.
@@ -481,7 +485,8 @@ Rationale recorded in `hu14a-context.md` ("Deferred scope — RemoveTriviaQuesti
 Row **MT**. A three-slice refactor that replaces `session-operations-service`'s hand-rolled
 `RabbitMQ.Client` publishing with **MassTransit over RabbitMQ**. **GitHub-only issues — no Linear
 DES id**, so like the `GH #137`–`#149` track they **do not run the per-ticket loop**: `generator-agent`
-resolves its PRD from Linear by DES id, and these have none. Drive them directly against the issue
+resolves its PRD from Linear by DES id, and these have none. (The Linear tickets **DES-88/89/90**
+that once mirrored this chain are **Canceled** — superseded by these GitHub issues.) Drive them directly against the issue
 body (each carries its own acceptance criteria) and keep Stop 2 (docker rebuild + smoke) + close-out.
 Confined to one service — no two-service worktree caveat.
 

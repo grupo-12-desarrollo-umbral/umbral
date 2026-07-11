@@ -4,30 +4,27 @@
 So each lane below is **one service / codebase**. Run **one ticket at a time inside a
 lane**, and run **different lanes in parallel**.
 
-> Verified against live Linear (`umbral-equipo-12`) on 2026-07-10 — `svc:` labels + `blockedBy` edges.
+> Verified against live Linear (`umbral-equipo-12`, 83 tickets) + GitHub on 2026-07-11 — `svc:` labels + `blockedBy` edges.
 > `GH #NNN` = GitHub issue (no Linear ticket). `DES-NN` = Linear HU.
 
 ---
 
-## ✅ Start these 4 RIGHT NOW (one per service, provably no overlap)
+## ✅ Start these RIGHT NOW (one per service, provably no overlap)
 
 | Lane | Service / tree | Run this | HU / what it is |
 |------|----------------|----------|-----------------|
-| **A** | `session-operations-service` | **DES-49** | HU-36A — operator sees answered / not-answered |
-| **B** | `identity-access-service` | **GH #137** | ADR: Keycloak account-creation flow |
-| **C** | `mobile/` | **DES-81** | EN-M1 — mobile trivia contract spike |
-| **D** | `frontend/` | **GH #146** | Quiz-question preview in the editor |
+| **A** | `session-operations-service` | *(occupied)* | DES-49 (HU-36A) is **In Progress** — finish it before starting DES-31 |
+| **B** | `identity-access-service` | **GH #140** | Shared-admin-credential security fix (∥ GH #141) |
+| **C** | `mobile/` | **GH #155** | Mobile play surface screen |
+| **E** | `mission-design-service` | **DES-80** | RemoveTriviaQuestion command — ungated, clean lane |
 
-Want more than 4 at once? Add these two — they're also free, separate trees:
+- Lane **D** (`frontend/`) is stalled: only GH #148 remains and it's blocked by GH #142 (Lane B).
+- Lane **F** (`api-gateway`) is **empty** — GH #147 shipped.
 
-| Lane | Service / tree | Run this | HU / what it is |
-|------|----------------|----------|-----------------|
-| **E** | `mission-design-service` | **DES-80** | RemoveTriviaQuestion command |
-| **F** | `api-gateway` | **GH #147** | Add missing gateway exception handler |
-
-### ⚠️ Do this ONE alone, first
-- **GH #149** (branch-coverage gate) — edits `cover-gate.sh` + ADRs + docs **repo-wide**, so it
-  collides with every lane. Land it before you fan out (or you'll retrofit tests later).
+### ✅ Already landed since the 07-10 plan (no longer startable)
+- **GH #149** (repo-wide branch-coverage gate) — done (PR #159), it no longer needs to run first.
+- **GH #137** (Keycloak ADR, PR #160), **GH #146** (quiz preview), **GH #147** (gateway handler, PR #161).
+- **Lane C mobile chain DES-81→82→83→84** — all four DONE (EN-M1 / HU-M1 / HU-M3 / HU-M2 shipped).
 
 ---
 
@@ -39,36 +36,41 @@ Run one at a time, in this order:
 ```
 DES-49  →  DES-31  →  DES-32  →  DES-53  →  DES-29
         →  DES-87  →  DES-42  →  DES-39  →  DES-40  →  DES-41  →  DES-43
-        →  DES-36  →  DES-38  →  DES-37
+        →  DES-36  →  DES-38  →  DES-37  →  DES-92
         →  DES-51  →  DES-54  →  DES-50  →  DES-48
         →  DES-34  →  DES-35  →  DES-33  →  DES-61
         →  DES-56  →  DES-57  →  DES-60  →  DES-13  →  DES-59
 ```
-- **Startable today:** DES-49, DES-31 (unlocks 8 downstream tickets), plus DES-32 / DES-53 / DES-29 (ungated).
+- **In progress now:** DES-49 (started, not merged). DES-31 (unlocks 8 downstream) + DES-32 / DES-53 / DES-29 are ungated and open up once DES-49 lands.
 - Everything after DES-29 is currently **blocked** — it opens up as the ones above land.
 - **GH #145** and **GH #154** also edit this service → run them *inside this lane*, not in parallel.
+- 🔗 **MassTransit sub-track (GitHub-only): GH #164 → GH #165 → GH #166** also lives in `session-operations-service`. It has **no Linear DES id** (its tickets DES-88/89/90 were canceled and replaced by this GH chain). It **collides with this lane** — serialize it *inside* Lane A, never parallel to it.
+- 🆕 **DES-92** ("ENABLER — Publicar ClueReleased a RabbitMQ (MassTransit)") is gated on **GH #164** (MassTransit bus) **plus** the clue-release flows DES-36/38/37; it publishes the `ClueReleased` events those emit and **blocks DES-56 (HU-40A), its only consumer** — hence its slot after DES-37 and before DES-56.
 - ⚠️ **DES-13** secretly also touches `identity-access-service` → **don't run it while Lane B is active.**
 
 ### Lane B — `identity-access-service` (Keycloak / login)
 ```
-GH #137  →  GH #140  →  GH #141  →  GH #142  →  GH #143
+GH #140  →  GH #141  →  GH #142  →  GH #143
 ```
-- **GH #140 ∥ GH #141** can actually go together (both only need #137 first).
+- ✅ **GH #137** (Keycloak account-flow ADR) is Done (PR #160) — the chain now opens on GH #140.
+- **GH #140 ∥ GH #141** can actually go together (both only needed #137 first, now landed).
 - **GH #140 is a security fix** (shared admin credential) — pull it early.
 - ❌ **Not in this lane:** GH #148 (that's frontend → Lane D), GH #144 (see "solo" below).
 
 ### Lane C — `mobile/`
 ```
-DES-81  →  DES-82  →  DES-83  →  DES-84  →  GH #155  →  GH #156
+GH #155  →  GH #156
 ```
-- **DES-84** needs **DES-82** first. It does **not** need GH #143 — the seeded `participant` account is enough.
-- **GH #155 / GH #156** are mobile screens (play surface + map) → they belong here, not in "frontend".
+- ✅ **DES-81 → DES-82 → DES-83 → DES-84 all Done** (EN-M1 / HU-M1 / HU-M3 / HU-M2 shipped) — the mobile trivia chain is finished.
+- Live queue is just **GH #155 → GH #156** (mobile play surface + map screens) → they belong here, not in "frontend".
+- **DES-58** (React Native enabler) is still **Backlog** — pull it into this lane when it's ready.
 
 ### Lane D — `frontend/` (web)
 ```
-GH #146  →  GH #148
+GH #148
 ```
-- **GH #148** (operator invite UI) needs the backend invitation endpoints from **GH #142** to land first.
+- ✅ **GH #146** (quiz preview) is Done — only **GH #148** remains.
+- **GH #148** (operator invite UI) is **still blocked** — it needs the backend invitation endpoints from **GH #142** (Lane B) to land first.
 
 ### Lane E — `mission-design-service`
 ```
@@ -78,9 +80,9 @@ DES-80
 
 ### Lane F — `api-gateway`
 ```
-GH #147
+(empty)
 ```
-- Ungated, own tree. Not affected by GH #149.
+- ✅ **GH #147** (missing gateway exception handler) is Done (PR #161) — this lane is currently empty.
 
 ---
 
@@ -88,7 +90,7 @@ GH #147
 
 | Ticket | Why it can't share |
 |--------|--------------------|
-| **GH #149** | Repo-wide (coverage gate + ADRs + docs) — collides with every lane. **Run first.** |
+| ~~**GH #149**~~ | ✅ Done (PR #159) — repo-wide coverage gate already landed; no longer blocks fan-out. |
 | **GH #144** | Spans identity **+** frontend **+** mobile — conflicts with B, C and D at once. |
 | **DES-13** | Touches session-ops **+** identity — fine in Lane A, but not while Lane B runs. |
 
@@ -96,7 +98,8 @@ GH #147
 
 ## Quick conflict cheatsheet
 
-- ✅ **Safe in parallel:** A + B + C + D + E + F (six different folders).
+- ✅ **Safe in parallel:** A + B + C + D + E (F is empty; five distinct folders).
 - ⚠️ **A + B together?** Fine — *unless* Lane A is on **DES-13** (it touches identity too).
-- ❌ **Never parallel:** GH #149 (alone, first) · GH #144 (alone).
+- ⚠️ **Inside Lane A:** the MassTransit chain GH #164→#165→#166 and DES-92 share `session-operations-service` with the DES-* queue — serialize, never parallel.
+- ❌ **Never parallel:** GH #144 (alone).
 - 📁 **The test for any pair:** do they edit the same folder under `backend/services/…`, `frontend/`, or `mobile/`? If no → safe. If yes → serialize.
