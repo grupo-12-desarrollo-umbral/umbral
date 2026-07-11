@@ -95,6 +95,10 @@ public static class DependencyInjection
 
         builder.Services.AddAuthorization();
 
+        // Mirrors the three domain services: an unhandled exception becomes RFC 7807 problem+json
+        // instead of a bare framework 500. UseExceptionHandler in Program.cs activates it.
+        builder.Services.AddExceptionHandler<ProblemDetailsExceptionHandler>();
+
         builder.Services
             .AddReverseProxy()
             .LoadFromConfig(builder.Configuration.GetSection("ReverseProxy"))
