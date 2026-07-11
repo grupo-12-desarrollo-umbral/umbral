@@ -268,6 +268,24 @@ VALUES ('${sub}', 'Operator One', 'op-1@umbral.local', 'Operator', true, NOW(), 
 `, `Operator identity seeded with Keycloak sub ${sub}.`)
 }
 
+// Seed participant-1's identity-access row keyed by its resolved Keycloak sub (UUID), then link it to the
+// Gilded Owls reference team via registered_team_memberships. Deletes any prior participant-1 row (literal
+// username or a stale sub) by email first — the FK cascade drops its old membership too — so a persistent DB
+// never accumulates duplicates. user_id is resolved by email in the same batch because the fresh users row
+// gets a new identity Id; the membership uses the Gilded Owls REFERENCE id, matching the reference id the
+// mobile client submits, so the HU-36A answer-flip's ParticipantMembershipAccessAuthorizationProxy authorizes
+// it. Must run after seedKeycloak() (for the sub) and after seedViaDocker() seeds registered_teams.
+function seedParticipantIdentity(sub: string): void {
+  runSql('identity_access', `
+DELETE FROM users WHERE "Email" = 'participant-1@umbral.local';
+INSERT INTO users ("ExternalIdentityId", "DisplayName", "Email", "Role", "IsActive", "Created", "LastModified")
+VALUES ('${sub}', 'Participant One', 'participant-1@umbral.local', 'Participant', true, NOW(), NOW());
+INSERT INTO registered_team_memberships (id, team_id, user_id)
+SELECT gen_random_uuid(), 'a0000000-0000-0000-0000-000000000001', "Id"
+FROM users WHERE "Email" = 'participant-1@umbral.local';
+`, `Participant identity seeded with Keycloak sub ${sub} and Gilded Owls membership.`)
+}
+
 async function requestJson<T>(
   url: string,
   init: RequestInit,
@@ -501,6 +519,10 @@ async function main() {
     const operatorSub = subsByUsername.get('op-1')
     if (operatorSub) {
       seedOperatorIdentity(operatorSub)
+    }
+    const participantSub = subsByUsername.get('participant-1')
+    if (participantSub) {
+      seedParticipantIdentity(participantSub)
     }
   } catch (err) {
     console.warn('[global-setup] Could not seed Keycloak users:', (err as Error).message?.slice(0, 200))

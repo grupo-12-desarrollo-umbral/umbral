@@ -6,6 +6,7 @@ function makeTeam(
 ): SessionTeamDto {
   return {
     teamId: overrides.teamId ?? 'team-1',
+    referenceTeamId: overrides.referenceTeamId ?? 'team-1-reference',
     displayName: overrides.displayName ?? 'Blue Owls',
     joinState: overrides.joinState ?? 'joinable',
   };
