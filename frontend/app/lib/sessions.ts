@@ -10,6 +10,7 @@ import {
   type SessionLifecycleState,
   type TransitionSessionStateResultDto,
   type SessionTimerSnapshotDto,
+  type TriviaAnsweredMonitorDto,
 } from './definitions'
 import { verifySession } from './dal'
 import { KeycloakAuthError } from './keycloak'
@@ -175,6 +176,31 @@ export async function getOperatorSessionTimerSnapshot(
   if (!response.ok) throw new IdentityError('unknown', `Timer read failed with status ${response.status}`)
 
   return response.json() as Promise<SessionTimerSnapshotDto>
+}
+
+// HU-36A operator answered/not-answered board snapshot. Mirrors getOperatorSessionTimerSnapshot's
+// gateway path + auth/status mapping. Distinct case: 409 = no trivia question is currently active
+// (the backend throws Conflict, so there is no body) — surfaced as a typed error the action turns
+// into the board's empty state rather than an error state.
+export async function getOperatorTriviaAnsweredMonitor(
+  liveSessionId: string,
+): Promise<TriviaAnsweredMonitorDto> {
+  await verifySession()
+  const response = await fetch(
+    `${API_GATEWAY_URL}/api/sessions/${liveSessionId}/answered-monitor`,
+    {
+      headers: await getGatewayHeaders(),
+      cache: 'no-store',
+    },
+  )
+
+  if (response.status === 401) throw new IdentityError('unauthorized', 'Answered monitor: auth expired')
+  if (response.status === 403) throw new IdentityError('unauthorized', 'Answered monitor: not assigned operator')
+  if (response.status === 404) throw new IdentityError('unknown', 'Session not found')
+  if (response.status === 409) throw new Error('no_active_question')
+  if (!response.ok) throw new IdentityError('unknown', `Answered monitor read failed with status ${response.status}`)
+
+  return response.json() as Promise<TriviaAnsweredMonitorDto>
 }
 
 export async function getSessionAssociatedTeams(

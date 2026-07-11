@@ -21,7 +21,8 @@ export type TriviaRoundState = {
 export type TriviaRoundHandlers = {
   handlePregameTimerTick: (remainingMs: number, totalMs: number) => void
   handleQuestionActivated: (n: QuestionActivatedNotificationDto) => void
-  hydrateActiveQuestion: (n: ActiveQuestionSnapshotDto) => void
+  // advancing=false hydrates a frozen (paused) question: the remainder is shown but does not tick.
+  hydrateActiveQuestion: (n: ActiveQuestionSnapshotDto, advancing?: boolean) => void
   handleQuestionClosed: (n: QuestionClosedNotificationDto) => void
   handleSubstageAdvanced: (n: SubstageAdvancedNotificationDto) => void
   complete: () => void
@@ -74,7 +75,7 @@ export function useTriviaRoundState(): TriviaRoundState & TriviaRoundHandlers {
   }, [clearCountdown])
 
   const startQuestionCountdown = useCallback(
-    (n: QuestionActivatedNotificationDto, initialSecondsLeft: number) => {
+    (n: QuestionActivatedNotificationDto, initialSecondsLeft: number, advancing: boolean) => {
       clearCountdown()
       setState((current) => ({
         phase: 'question-active',
@@ -84,6 +85,11 @@ export function useTriviaRoundState(): TriviaRoundState & TriviaRoundHandlers {
         substageOrdinal: current.substageOrdinal,
         finalizing: false, // a new question means we're mid-substage, not finalizing
       }))
+
+      // A frozen (paused/expired) question holds its remainder; only an advancing timer ticks
+      // down. Without this guard, re-hydrating a paused snapshot would restart a live countdown
+      // that diverges from the authoritative frozen timer.
+      if (!advancing) return
 
       intervalRef.current = setInterval(() => {
         setState((current) => {
@@ -104,14 +110,15 @@ export function useTriviaRoundState(): TriviaRoundState & TriviaRoundHandlers {
 
   const handleQuestionActivated = useCallback(
     (n: QuestionActivatedNotificationDto) => {
-      startQuestionCountdown(n, n.timeLimitSeconds)
+      // A freshly activated question is always advancing (the orchestration activates while Active).
+      startQuestionCountdown(n, n.timeLimitSeconds, true)
     },
     [startQuestionCountdown],
   )
 
   const hydrateActiveQuestion = useCallback(
-    (n: ActiveQuestionSnapshotDto) => {
-      startQuestionCountdown(n, n.remainingSeconds)
+    (n: ActiveQuestionSnapshotDto, advancing = true) => {
+      startQuestionCountdown(n, n.remainingSeconds, advancing)
     },
     [startQuestionCountdown],
   )

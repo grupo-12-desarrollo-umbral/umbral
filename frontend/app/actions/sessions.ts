@@ -11,6 +11,7 @@ import {
   assignSessionOperator as assignSessionOperatorLib,
   transitionSessionState as transitionSessionStateLib,
   getOperatorSessionTimerSnapshot as getOperatorSessionTimerSnapshotLib,
+  getOperatorTriviaAnsweredMonitor as getOperatorTriviaAnsweredMonitorLib,
 } from '@/app/lib/sessions'
 import { listAssignableOperators as listAssignableOperatorsLib } from '@/app/lib/users'
 import { revalidatePath } from 'next/cache'
@@ -26,6 +27,7 @@ import type {
   SessionLifecycleState,
   TransitionSessionStateResultDto,
   SessionTimerSnapshotDto,
+  TriviaAnsweredMonitorDto,
 } from '@/app/lib/definitions'
 import { IdentityError } from '@/app/lib/definitions'
 
@@ -99,6 +101,39 @@ export async function getSessionTimerSnapshotAction(
   } catch (error) {
     if (error instanceof IdentityError) return { error: error.message }
     return { error: 'Unexpected error fetching timer snapshot' }
+  }
+}
+
+// HU-36A operator answered/not-answered board. Four outcomes the panel renders distinctly:
+//   { data }              → the active question's per-team answered roster
+//   { noActiveQuestion }  → 409: no trivia question is active right now (board's empty state)
+//   { unauthorized }      → 403 non-owner / 401 auth expired / non-operator (board's not-authorized state)
+//   { error }             → 404 / unexpected / transient backend failure (board's error state); never throws
+// Genuine auth failures are kept separate from transient ones so a momentary 5xx/network blip does
+// not tell a legitimately-assigned operator they are "not authorized".
+export async function getTriviaAnsweredMonitorAction(
+  liveSessionId: string,
+): Promise<
+  | { data: TriviaAnsweredMonitorDto }
+  | { noActiveQuestion: true }
+  | { unauthorized: true }
+  | { error: string }
+> {
+  'use server'
+  const session = await verifySession()
+  if (session.role !== 'Operator') return { unauthorized: true }
+  try {
+    const data = await getOperatorTriviaAnsweredMonitorLib(liveSessionId)
+    return { data }
+  } catch (error) {
+    if (error instanceof Error && error.message === 'no_active_question') {
+      return { noActiveQuestion: true }
+    }
+    if (error instanceof IdentityError) {
+      if (error.code === 'unauthorized') return { unauthorized: true }
+      return { error: error.message }
+    }
+    return { error: 'Unexpected error fetching answered monitor' }
   }
 }
 

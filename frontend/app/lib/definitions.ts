@@ -406,6 +406,37 @@ export type SubstageAdvancedNotificationDto = {
   toSubstageId: string | null
 }
 
+// Response of GET /api/sessions/{id}/answered-monitor (Operator, HU-36A). The operator's pre-close
+// board over the ACTIVE synchronized trivia question: its identity (substageSnapshotId, questionSequenceOrder)
+// plus the per-team answered/not-answered roster. Structurally omits selected option / correctness /
+// points — nothing here can reveal the option a team chose before the question closes (HU-35 / HU-36B).
+// A 409 from this endpoint means no trivia question is currently active (see getTriviaAnsweredMonitorAction).
+export type TriviaTeamAnsweredStatusDto = {
+  teamId: string // runtime team id — matches TeamAnsweredNotificationDto.teamId
+  teamCode: string
+  displayName: string
+  answered: boolean
+  answeredAt: string | null // ISO 8601 when answered, null when not
+}
+
+export type TriviaAnsweredMonitorDto = {
+  liveSessionId: string
+  substageSnapshotId: string
+  questionSequenceOrder: number // one-based active-question order
+  teams: TriviaTeamAnsweredStatusDto[]
+}
+
+// SignalR "TeamAnswered" hub event payload — operator-only (live-session-operators:{id} group).
+// Broadcast when a team's trivia answer is accepted. Option-free BY DESIGN: carries no selected
+// option, no correctness, no points — only that the team answered, and on which active question.
+export type TeamAnsweredNotificationDto = {
+  liveSessionId: string
+  teamId: string // runtime team id
+  triviaSubstageSnapshotId: string // active-question identity, part 1
+  questionSequenceOrder: number // active-question identity, part 2 (one-based)
+  answeredAt: string // ISO 8601
+}
+
 // Phases of the automated trivia round, derived from SignalR pushes only.
 export type TriviaRoundPhase =
   | 'idle'

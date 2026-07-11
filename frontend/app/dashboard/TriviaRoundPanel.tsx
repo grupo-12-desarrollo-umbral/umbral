@@ -63,7 +63,7 @@ export function TriviaRoundPanel({
       <div className={styles.panel} data-testid="trivia-round-panel" data-phase="question-active">
         <div className={styles.questionHeader}>
           <span className={styles.eyebrow}>Substage {substageOrdinal} · Question {activeQuestion.sequenceOrder}</span>
-          <span className={styles.timeLeft} data-tone={tone}>
+          <span className={styles.timeLeft} data-tone={tone} data-testid="trivia-round-time-left">
             {left}s
           </span>
         </div>
