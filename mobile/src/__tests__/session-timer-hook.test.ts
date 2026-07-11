@@ -37,6 +37,9 @@ function makeClient() {
       return () => handlers.delete(cb);
     },
     onStateChanged: jest.fn(),
+    onQuestionActivated: jest.fn(),
+    onQuestionClosed: jest.fn(),
+    onSubstageAdvanced: jest.fn(),
   };
 }
 
