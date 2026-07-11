@@ -142,6 +142,56 @@ describe('ActiveQuestionStage', () => {
     expect(findAllByProp(tree, 'accessibilityRole', 'button')).toHaveLength(0);
   });
 
+  test('isClosed disables option rows, hides Submit, and shows the close affordance', () => {
+    const renderer = render({
+      selectedOptionSequenceOrder: 1,
+      isClosed: true,
+      onSelectOption: jest.fn(),
+      onSubmit: jest.fn(),
+      onDismissRejection: jest.fn(),
+    });
+    const tree = renderer.toJSON() as TreeNode;
+    const texts = allText(tree);
+
+    // Close affordance shows, distinct from the success chip and the interactive Submit button.
+    expect(texts.join(' ')).toContain('Question closed');
+    expect(texts).not.toContain('Answer submitted');
+    expect(texts).not.toContain('Submit answer');
+    expect(findAllByProp(tree, 'accessibilityRole', 'button')).toHaveLength(0);
+
+    // Option rows are rendered as non-pressable, disabled text.
+    expect(findAllByProp(tree, 'accessibilityRole', 'radio')).toHaveLength(0);
+    const rows = findAllByProp(tree, 'accessibilityRole', 'text');
+    const optionRows = rows.filter(r => {
+      const state = (r.props as Record<string, unknown>).accessibilityState as Record<string, unknown> | undefined;
+      return state?.disabled === true;
+    });
+    expect(optionRows.length).toBeGreaterThanOrEqual(QUESTION.options.length);
+    expect(findAllWithProp(tree, 'onPress')).toHaveLength(0);
+  });
+
+  test('isClosed takes precedence over the submit lock and suppresses rejection banners', () => {
+    const renderer = render({
+      selectedOptionSequenceOrder: 0,
+      isLocked: true,
+      isClosed: true,
+      rejection: {
+        reasonCode: 'trivia-answer-requires-active-question',
+        title: 'Question closed',
+        message: 'This question is no longer accepting answers.',
+      },
+      onSelectOption: jest.fn(),
+      onSubmit: jest.fn(),
+      onDismissRejection: jest.fn(),
+    });
+    const tree = renderer.toJSON() as TreeNode;
+    const texts = allText(tree);
+
+    expect(texts.join(' ')).toContain('Question closed — waiting for the next');
+    expect(texts).not.toContain('Answer submitted');
+    expect(findAllByProp(tree, 'accessibilityRole', 'alert')).toHaveLength(0);
+  });
+
   test('isSubmitting shows spinner on the button', () => {
     const renderer = render({
       selectedOptionSequenceOrder: 0,

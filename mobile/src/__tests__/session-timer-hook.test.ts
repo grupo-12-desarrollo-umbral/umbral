@@ -330,6 +330,79 @@ describe('useSessionTimer', () => {
     hook.unmount();
   });
 
+  test('changing resyncNonce triggers a re-fetch and applies the new snapshot', async () => {
+    mockGetSnapshot
+      .mockResolvedValueOnce({
+        ...BASE_SNAPSHOT,
+        activeQuestion: SNAPSHOT_ACTIVE_QUESTION,
+        sessionState: 'Active',
+      })
+      .mockResolvedValueOnce({
+        ...BASE_SNAPSHOT,
+        activeQuestion: null,
+        sessionState: 'Finished',
+        remainingSeconds: 0,
+      });
+
+    const client = makeClient();
+
+    const hook = renderHook({
+      client,
+      liveSessionId: 'sess-1',
+      teamId: 'team-1',
+      isReconnected: true,
+      reconnectNonce: 0,
+      resyncNonce: 0,
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(mockGetSnapshot).toHaveBeenCalledTimes(1);
+    expect(hook.get().activeQuestion).toEqual(SNAPSHOT_ACTIVE_QUESTION);
+    expect(hook.get().sessionState).toBe('Active');
+
+    await hook.rerender({ resyncNonce: 1 });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(mockGetSnapshot).toHaveBeenCalledTimes(2);
+    expect(hook.get().activeQuestion).toBeNull();
+    expect(hook.get().sessionState).toBe('Finished');
+
+    hook.unmount();
+  });
+
+  test('event-driven timer updates are unregressed by the resync input', async () => {
+    mockGetSnapshot.mockResolvedValueOnce(BASE_SNAPSHOT);
+    const client = makeClient();
+
+    const hook = renderHook({
+      client,
+      liveSessionId: 'sess-1',
+      teamId: 'team-1',
+      isReconnected: true,
+      reconnectNonce: 0,
+      resyncNonce: 0,
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    act(() => {
+      fireEvent({ ...BASE_EVENT, remainingMilliseconds: 30_000 });
+    });
+
+    expect(mockGetSnapshot).toHaveBeenCalledTimes(1);
+    expect(hook.get().timer?.remainingSeconds).toBe(30);
+
+    hook.unmount();
+  });
+
   test('snapshot error sets error token and display stays unavailable', async () => {
     mockGetSnapshot.mockRejectedValueOnce(new ApiError(404, 'not_found', 'not found'));
     const client = makeClient();
