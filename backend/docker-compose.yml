@@ -162,6 +162,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      rabbitmq:
+        condition: service_started
       api-gateway:
         condition: service_started
       seq:
@@ -170,6 +172,12 @@ services:
       ASPNETCORE_ENVIRONMENT: Development
       ASPNETCORE_URLS: http://+:8080
       ConnectionStrings__umbral_backendDb: Host=postgres;Port=5432;Database=session_operations;Username=postgres;Password=postgres
+      # RabbitMQ broker for the MassTransit bus (#164), pointing at the compose rabbitmq service.
+      RabbitMq__HostName: rabbitmq
+      RabbitMq__Port: "5672"
+      RabbitMq__VirtualHost: /
+      RabbitMq__UserName: guest
+      RabbitMq__Password: guest
       IdentityAccess__BaseAddress: http://identity-access-service:8080/
       PublishedTriviaQuizSource__BaseAddress: http://mission-design-service:8080/
       MissionReadinessSource__BaseAddress: http://mission-design-service:8080/
