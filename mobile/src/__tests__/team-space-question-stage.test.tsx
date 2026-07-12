@@ -295,4 +295,23 @@ describe('LiveTeamSpace play-mode branch', () => {
     expect(texts.join(' ')).toContain('Waiting for the next question');
     expect(texts).not.toContain('TREASURE HUNT');
   });
+
+  test('surfaces a failed board fetch instead of silently falling to trivia', () => {
+    mockUseTeamBoard.mockReturnValue({ board: null, isLoading: false, error: 'forbidden' });
+    mockUseActiveQuestion.mockReturnValue({ sessionState: 'Active', isQuestionClosed: false, view: { kind: 'waiting' } });
+
+    const texts = allText(renderSpace().toJSON());
+
+    expect(texts.join(' ')).toContain("You don't have access to this team's board.");
+  });
+
+  test('a retained board suppresses the error banner on a failed re-fetch', () => {
+    // A failed re-fetch leaves the last-good board intact — render it, no banner.
+    mockUseTeamBoard.mockReturnValue({ board: TREASURE_HUNT_BOARD, isLoading: false, error: 'network-error' });
+
+    const texts = allText(renderSpace().toJSON());
+
+    expect(texts).toContain('TREASURE HUNT');
+    expect(texts.join(' ')).not.toContain("Couldn't reach the live board");
+  });
 });
