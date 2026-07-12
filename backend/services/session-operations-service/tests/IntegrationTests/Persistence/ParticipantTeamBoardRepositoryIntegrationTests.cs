@@ -333,6 +333,8 @@ public sealed class ParticipantTeamBoardRepositoryIntegrationTests
                     1,
                     true,
                     100,
+                    4.711,
+                    -74.0721,
                     "Look under the stairs",
                     "AfterPreviousTarget"),
                 TargetSnapshot.Create(
@@ -342,6 +344,8 @@ public sealed class ParticipantTeamBoardRepositoryIntegrationTests
                     2,
                     true,
                     50,
+                    4.711,
+                    -74.0721,
                     "Check the garden",
                     "AfterPreviousTarget"),
             ],

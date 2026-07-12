@@ -55,7 +55,9 @@ public static class MissionDtoMapper
             target.SequenceOrder,
             target.IsActive,
             target.ClueId,
-            target.Score.Points);
+            target.Score.Points,
+            target.Coordinates.Latitude,
+            target.Coordinates.Longitude);
     }
 
     private static MissionClueDto MapClue(Clue clue)

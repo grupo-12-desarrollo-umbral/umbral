@@ -12,5 +12,7 @@ public sealed class AddTargetCommandValidator : AbstractValidator<AddTargetComma
         RuleFor(command => command.Name).NotEmpty().MaximumLength(200);
         RuleFor(command => command.QrCode).NotEmpty().MaximumLength(500);
         RuleFor(command => command.SequenceOrder).GreaterThan(0);
+        RuleFor(command => command.Latitude).InclusiveBetween(-90, 90);
+        RuleFor(command => command.Longitude).InclusiveBetween(-180, 180);
     }
 }

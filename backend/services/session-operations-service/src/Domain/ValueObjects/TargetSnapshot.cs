@@ -20,6 +20,8 @@ public sealed class TargetSnapshot : ValueObject
         int sequenceOrder,
         bool isActive,
         int score,
+        double latitude,
+        double longitude,
         string? clueText,
         string? clueVisibilityPolicy)
     {
@@ -45,6 +47,8 @@ public sealed class TargetSnapshot : ValueObject
         SequenceOrder = sequenceOrder;
         IsActive = isActive;
         Score = score;
+        Latitude = latitude;
+        Longitude = longitude;
         ClueText = string.IsNullOrWhiteSpace(clueText) ? null : clueText.Trim();
         ClueVisibilityPolicy = string.IsNullOrWhiteSpace(clueVisibilityPolicy) ? null : clueVisibilityPolicy.Trim();
     }
@@ -63,6 +67,12 @@ public sealed class TargetSnapshot : ValueObject
 
     public int Score { get; }
 
+    // Display/context metadata copied immutably from the mission target. QR validation, not
+    // these coordinates, remains the source of truth for target resolution.
+    public double Latitude { get; }
+
+    public double Longitude { get; }
+
     public string? ClueText { get; }
 
     public string? ClueVisibilityPolicy { get; }
@@ -74,6 +84,8 @@ public sealed class TargetSnapshot : ValueObject
         int sequenceOrder,
         bool isActive,
         int score,
+        double latitude,
+        double longitude,
         string? clueText,
         string? clueVisibilityPolicy)
     {
@@ -85,6 +97,8 @@ public sealed class TargetSnapshot : ValueObject
             sequenceOrder,
             isActive,
             score,
+            latitude,
+            longitude,
             clueText,
             clueVisibilityPolicy);
     }
@@ -98,6 +112,8 @@ public sealed class TargetSnapshot : ValueObject
         yield return SequenceOrder;
         yield return IsActive;
         yield return Score;
+        yield return Latitude;
+        yield return Longitude;
         yield return ClueText;
         yield return ClueVisibilityPolicy;
     }

@@ -73,7 +73,7 @@ public sealed class MissionStructureCommandHandlerTests
         var handler = new AddTargetCommandHandler(repository);
 
         var result = await handler.Handle(
-            new AddTargetCommand(mission.Id, stage.Id, substage.Id, "Target A", "QR-A", 1),
+            new AddTargetCommand(mission.Id, stage.Id, substage.Id, "Target A", "QR-A", 1, 4.711, -74.0721),
             CancellationToken.None);
 
         // Score is derived from the mission's difficulty (Advanced => 50 * 3).
@@ -88,7 +88,7 @@ public sealed class MissionStructureCommandHandlerTests
         var mission = CreateMissionWithTreasureSubstage(repository, out var stage, out var substage);
         var clue = mission.AddClue(stage.Id, substage.Id, Clue.Create("Clue", 1, "Look up"));
         clue.Id = 40;
-        var target = mission.AddTarget(stage.Id, substage.Id, "Target", "QR", 1);
+        var target = mission.AddTarget(stage.Id, substage.Id, "Target", "QR", 1, 4.711, -74.0721);
         target.Id = 50;
 
         var associateHandler = new AssociateClueWithTargetCommandHandler(repository);
@@ -148,7 +148,7 @@ public sealed class MissionStructureCommandHandlerTests
     {
         var repository = new InMemoryMissionRepository();
         var mission = CreateMissionWithTreasureSubstage(repository, out var stage, out var substage);
-        mission.AddTarget(stage.Id, substage.Id, "Target", "QR", 1);
+        mission.AddTarget(stage.Id, substage.Id, "Target", "QR", 1, 4.711, -74.0721);
 
         var handler = new ActivateMissionCommandHandler(repository, new InMemoryTriviaQuizRepository());
 

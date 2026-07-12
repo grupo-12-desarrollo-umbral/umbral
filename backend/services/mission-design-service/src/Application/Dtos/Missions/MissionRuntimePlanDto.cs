@@ -24,6 +24,8 @@ public sealed record MissionRuntimePlanTargetDto(
     int SequenceOrder,
     bool IsActive,
     int Score,
+    double Latitude,
+    double Longitude,
     MissionRuntimePlanClueDto? Clue);
 
 public sealed record MissionRuntimePlanClueDto(

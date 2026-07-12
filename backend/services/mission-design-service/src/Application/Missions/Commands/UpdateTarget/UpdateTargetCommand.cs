@@ -13,4 +13,6 @@ public sealed record UpdateTargetCommand(
     string Name,
     string QrCode,
     int SequenceOrder,
+    double Latitude,
+    double Longitude,
     bool IsActive) : IRequest<MissionDto>;

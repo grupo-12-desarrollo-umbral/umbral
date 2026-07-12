@@ -139,6 +139,8 @@ public sealed class MissionReadModelRepository : IMissionReadModelRepository
             target.SequenceOrder,
             target.IsActive,
             target.Score.Points,
+            target.Coordinates.Latitude,
+            target.Coordinates.Longitude,
             target.ClueId is int clueId && cluesById.TryGetValue(clueId, out var clue)
                 ? new MissionRuntimePlanClueDto(clue.Text, clue.Visibility.ToString())
                 : null);

@@ -22,6 +22,15 @@ public static class ParticipantTeamBoardDtoFactory
                 clue.TargetName))
             .ToList();
 
+        var activeTargets = snapshot.ActiveTargets
+            .Select(target => new ActiveTargetDto(
+                target.TargetSnapshotId,
+                target.Name,
+                target.SequenceOrder,
+                target.Latitude,
+                target.Longitude))
+            .ToList();
+
         return new ParticipantTeamBoardDto(
             liveSession.LiveSessionId,
             snapshot.TeamId,
@@ -30,7 +39,8 @@ public static class ParticipantTeamBoardDtoFactory
             snapshot.CurrentScore,
             timerDto,
             activeSubstage,
-            visibleClues);
+            visibleClues,
+            activeTargets);
     }
 
     private static ActiveSubstageContextDto MapActiveSubstage(ActiveSubstageContext context)

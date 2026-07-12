@@ -23,7 +23,7 @@ public sealed class DomainExceptionCoverageTests
         stage.Id = 10;
         var substage = mission.AddSubstage(stage.Id, Substage.CreateTreasureHunt("Substage", 1));
         substage.Id = 20;
-        mission.AddTarget(stage.Id, substage.Id, "Target", "QR", 1);
+        mission.AddTarget(stage.Id, substage.Id, "Target", "QR", 1, 4.711, -74.0721);
         mission.Activate();
 
         var act = () => mission.Activate();

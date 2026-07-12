@@ -42,12 +42,12 @@ public sealed class MissionCommandHandlerNotFoundTests
     [Fact]
     public Task AddTarget_MissionMissing_ThrowsNotFound() =>
         ShouldThrowNotFound(() => new AddTargetCommandHandler(new InMemoryMissionRepository())
-            .Handle(new AddTargetCommand(MissingMissionId, 1, 2, "T", "QR", 1), CancellationToken.None));
+            .Handle(new AddTargetCommand(MissingMissionId, 1, 2, "T", "QR", 1, 4.711, -74.0721), CancellationToken.None));
 
     [Fact]
     public Task UpdateTarget_MissionMissing_ThrowsNotFound() =>
         ShouldThrowNotFound(() => new UpdateTargetCommandHandler(new InMemoryMissionRepository())
-            .Handle(new UpdateTargetCommand(MissingMissionId, 1, 2, 3, "T", "QR", 1, true), CancellationToken.None));
+            .Handle(new UpdateTargetCommand(MissingMissionId, 1, 2, 3, "T", "QR", 1, 4.711, -74.0721, true), CancellationToken.None));
 
     [Fact]
     public Task RemoveTarget_MissionMissing_ThrowsNotFound() =>

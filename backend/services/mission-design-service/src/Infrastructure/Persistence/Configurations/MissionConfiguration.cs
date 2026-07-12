@@ -146,6 +146,19 @@ public sealed class MissionConfiguration : IEntityTypeConfiguration<Mission>
 
                     targetBuilder.Navigation(target => target.Score).IsRequired();
 
+                    targetBuilder.OwnsOne(target => target.Coordinates, coordinatesBuilder =>
+                    {
+                        coordinatesBuilder.Property(coordinates => coordinates.Latitude)
+                            .HasColumnName("Latitude")
+                            .IsRequired();
+
+                        coordinatesBuilder.Property(coordinates => coordinates.Longitude)
+                            .HasColumnName("Longitude")
+                            .IsRequired();
+                    });
+
+                    targetBuilder.Navigation(target => target.Coordinates).IsRequired();
+
                     targetBuilder.Ignore(target => target.DomainEvents);
 
                     targetBuilder.HasIndex("SubstageId", nameof(Target.SequenceOrder))

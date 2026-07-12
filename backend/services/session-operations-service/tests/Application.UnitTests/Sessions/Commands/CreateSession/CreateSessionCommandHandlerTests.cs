@@ -176,6 +176,28 @@ public sealed class CreateSessionCommandHandlerTests
         target.ClueVisibilityPolicy.Should().BeNull();
     }
 
+    [Fact]
+    public async Task Handle_CopiesTargetCoordinatesIntoImmutableSnapshot()
+    {
+        var command = CreateCommand();
+        LiveSession? persistedSession = null;
+        var repository = new Mock<ILiveSessionRepository>();
+        repository
+            .Setup(repo => repo.UpdateAsync(It.IsAny<LiveSession>(), It.IsAny<CancellationToken>()))
+            .Callback<LiveSession, CancellationToken>((session, _) => persistedSession = session)
+            .Returns(Task.CompletedTask);
+        var handler = CreateHandler(
+            repository,
+            EligibleMissionSource(command.MissionId),
+            RuntimeSource(command.MissionId, RuntimeWithClicklessTreasureTarget()));
+
+        await handler.Handle(command, CancellationToken.None);
+
+        var target = persistedSession!.MissionRuntimeSnapshot.TargetSnapshots.Single();
+        target.Latitude.Should().Be(4.711);
+        target.Longitude.Should().Be(-74.0721);
+    }
+
     private static MissionRuntimeDto RuntimeWithUnknownPlayMode()
     {
         return new MissionRuntimeDto(
@@ -206,7 +228,7 @@ public sealed class CreateSessionCommandHandlerTests
                             1,
                             SubstagePlayMode.TreasureHunt.ToString(),
                             [
-                                new MissionRuntimeTargetDto("Main Exhibit", "QR-001", 1, true, 100, null)
+                                new MissionRuntimeTargetDto("Main Exhibit", "QR-001", 1, true, 100, 4.711, -74.0721, null)
                             ],
                             [],
                             [])
@@ -279,6 +301,8 @@ public sealed class CreateSessionCommandHandlerTests
                                     1,
                                     true,
                                     100,
+                                    4.711,
+                                    -74.0721,
                                     new MissionRuntimeClueDto("Look near the entrance.", "VisibleAtStart"))
                             ],
                             [],

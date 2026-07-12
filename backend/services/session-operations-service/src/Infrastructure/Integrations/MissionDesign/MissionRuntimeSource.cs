@@ -114,6 +114,8 @@ public sealed class MissionRuntimeSource : IMissionRuntimeSource
         int SequenceOrder,
         bool IsActive,
         int Score,
+        double Latitude,
+        double Longitude,
         MissionRuntimeClueResponse? Clue)
     {
         public MissionRuntimeTargetDto ToMissionRuntimeTargetDto()
@@ -124,6 +126,8 @@ public sealed class MissionRuntimeSource : IMissionRuntimeSource
                 SequenceOrder,
                 IsActive,
                 Score,
+                Latitude,
+                Longitude,
                 Clue?.ToMissionRuntimeClueDto());
         }
     }

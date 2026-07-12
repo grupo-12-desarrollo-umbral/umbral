@@ -31,7 +31,9 @@ public sealed record MissionTargetDto(
     int SequenceOrder,
     bool IsActive,
     int? ClueId,
-    int Score);
+    int Score,
+    double Latitude,
+    double Longitude);
 
 public sealed record MissionClueDto(
     int Id,

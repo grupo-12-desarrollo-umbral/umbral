@@ -251,6 +251,8 @@ public sealed class LiveSessionRepositoryIntegrationTests
         var target = persistedSession.MissionRuntimeSnapshot.TargetSnapshots.Single();
         target.QrCode.Should().Be("QR-ALPHA");
         target.ClueText.Should().Be("Look under the stairs");
+        target.Latitude.Should().Be(4.711);
+        target.Longitude.Should().Be(-74.0721);
 
         var question = persistedSession.MissionRuntimeSnapshot.TriviaQuestionSnapshots.Single();
         question.Prompt.Should().Be("Capital of France?");
@@ -830,6 +832,8 @@ public sealed class LiveSessionRepositoryIntegrationTests
                     1,
                     true,
                     100,
+                    4.711,
+                    -74.0721,
                     "Look under the stairs",
                     "AfterPreviousTarget")
             ],
@@ -894,6 +898,8 @@ public sealed class LiveSessionRepositoryIntegrationTests
                     1,
                     true,
                     100,
+                    4.711,
+                    -74.0721,
                     "Look under the stairs",
                     "AfterPreviousTarget")
             ],

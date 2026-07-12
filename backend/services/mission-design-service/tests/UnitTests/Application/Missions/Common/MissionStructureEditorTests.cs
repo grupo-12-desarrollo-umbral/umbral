@@ -36,7 +36,7 @@ public sealed class MissionStructureEditorTests
     private static Target AddTarget(Substage substage)
     {
         // Advanced mission ⇒ Difficulty.ScoreFactor 3 ⇒ derived target score 50 × 3 = 150.
-        var target = substage.AddTarget("Target", "QR-1", 1, 150);
+        var target = substage.AddTarget("Target", "QR-1", 1, 150, 4.711, -74.0721);
         target.Id = TargetId;
         return target;
     }

@@ -188,6 +188,8 @@ public sealed class SignalRTeamBoardDeliveryTests : IAsyncLifetime
             1,
             isActive: true,
             100,
+            4.711,
+            -74.0721,
             "Look near the entrance.",
             "VisibleAtStart");
 
@@ -226,6 +228,7 @@ public sealed class SignalRTeamBoardDeliveryTests : IAsyncLifetime
             0,
             timer,
             new ActiveSubstageContextDto(Guid.NewGuid(), "TreasureHunt", "Treasure Hunt", 1, 0, null, null),
+            [],
             []);
     }
 

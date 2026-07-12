@@ -54,21 +54,21 @@ public sealed class Substage : MissionNode
         return new Substage(title, sequenceOrder, SubstagePlayMode.Trivia);
     }
 
-    public Target AddTarget(string name, string qrCode, int sequenceOrder, int score, bool isActive = true)
+    public Target AddTarget(string name, string qrCode, int sequenceOrder, int score, double latitude, double longitude, bool isActive = true)
     {
         EnsurePlayMode(SubstagePlayMode.TreasureHunt);
 
-        var target = Target.Create(name, qrCode, sequenceOrder, score, isActive);
+        var target = Target.Create(name, qrCode, sequenceOrder, score, latitude, longitude, isActive);
         _targets.Add(target);
         return target;
     }
 
-    public Target UpdateTarget(int targetId, string name, string qrCode, int sequenceOrder, bool isActive, int? score = null)
+    public Target UpdateTarget(int targetId, string name, string qrCode, int sequenceOrder, double latitude, double longitude, bool isActive, int? score = null)
     {
         EnsurePlayMode(SubstagePlayMode.TreasureHunt);
 
         var target = FindTarget(targetId);
-        target.UpdateDetails(name, qrCode, sequenceOrder, isActive, score);
+        target.UpdateDetails(name, qrCode, sequenceOrder, latitude, longitude, isActive, score);
         return target;
     }
 

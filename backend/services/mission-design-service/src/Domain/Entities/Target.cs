@@ -18,12 +18,13 @@ public sealed class Target : BaseEntity
         QrCode = string.Empty;
     }
 
-    private Target(string name, string qrCode, int sequenceOrder, ScoreValue score, bool isActive)
+    private Target(string name, string qrCode, int sequenceOrder, ScoreValue score, GeoCoordinates coordinates, bool isActive)
     {
         Name = name;
         QrCode = qrCode;
         SequenceOrder = sequenceOrder;
         Score = score;
+        Coordinates = coordinates;
         IsActive = isActive;
     }
 
@@ -35,25 +36,29 @@ public sealed class Target : BaseEntity
 
     public ScoreValue Score { get; private set; } = null!;
 
+    public GeoCoordinates Coordinates { get; private set; } = null!;
+
     public bool IsActive { get; private set; }
 
     public int? ClueId { get; private set; }
 
-    public static Target Create(string name, string qrCode, int sequenceOrder, int score, bool isActive = true)
+    public static Target Create(string name, string qrCode, int sequenceOrder, int score, double latitude, double longitude, bool isActive = true)
     {
         return new Target(
             ValidateName(name),
             ValidateQrCode(qrCode),
             ValidateSequenceOrder(sequenceOrder),
             ScoreValue.Create(score),
+            GeoCoordinates.Create(latitude, longitude),
             isActive);
     }
 
-    public void UpdateDetails(string name, string qrCode, int sequenceOrder, bool isActive, int? score = null)
+    public void UpdateDetails(string name, string qrCode, int sequenceOrder, double latitude, double longitude, bool isActive, int? score = null)
     {
         Name = ValidateName(name);
         QrCode = ValidateQrCode(qrCode);
         SequenceOrder = ValidateSequenceOrder(sequenceOrder);
+        Coordinates = GeoCoordinates.Create(latitude, longitude);
         IsActive = isActive;
 
         if (score is not null)

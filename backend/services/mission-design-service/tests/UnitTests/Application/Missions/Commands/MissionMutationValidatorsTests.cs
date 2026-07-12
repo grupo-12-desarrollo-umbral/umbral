@@ -98,7 +98,7 @@ public sealed class MissionMutationValidatorsTests
     public void UpdateTarget_ValidCommand_PassesValidation()
     {
         var result = new UpdateTargetCommandValidator()
-            .Validate(new UpdateTargetCommand(1, 2, 3, 4, "Name", "QR", 1, true));
+            .Validate(new UpdateTargetCommand(1, 2, 3, 4, "Name", "QR", 1, 4.711, -74.0721, true));
 
         result.IsValid.Should().BeTrue();
     }
@@ -107,7 +107,7 @@ public sealed class MissionMutationValidatorsTests
     public void UpdateTarget_EmptyNameAndQrCode_FailsValidation()
     {
         var result = new UpdateTargetCommandValidator()
-            .Validate(new UpdateTargetCommand(1, 2, 3, 4, "", "", 1, true));
+            .Validate(new UpdateTargetCommand(1, 2, 3, 4, "", "", 1, 4.711, -74.0721, true));
 
         result.Errors.Should().Contain(e => e.PropertyName == nameof(UpdateTargetCommand.Name));
         result.Errors.Should().Contain(e => e.PropertyName == nameof(UpdateTargetCommand.QrCode));
@@ -121,9 +121,39 @@ public sealed class MissionMutationValidatorsTests
     public void AddTarget_ValidCommand_PassesValidation()
     {
         var result = new AddTargetCommandValidator()
-            .Validate(new AddTargetCommand(1, 2, 3, "Name", "QR", 1));
+            .Validate(new AddTargetCommand(1, 2, 3, "Name", "QR", 1, 4.711, -74.0721));
 
         result.IsValid.Should().BeTrue();
+    }
+
+    [Theory]
+    [InlineData(-90.1, 0)]
+    [InlineData(90.1, 0)]
+    [InlineData(0, -180.1)]
+    [InlineData(0, 180.1)]
+    public void AddTarget_CoordinatesOutOfRange_FailsValidation(double latitude, double longitude)
+    {
+        var result = new AddTargetCommandValidator()
+            .Validate(new AddTargetCommand(1, 2, 3, "Name", "QR", 1, latitude, longitude));
+
+        result.IsValid.Should().BeFalse();
+        result.Errors.Should().Contain(e =>
+            e.PropertyName == nameof(AddTargetCommand.Latitude) ||
+            e.PropertyName == nameof(AddTargetCommand.Longitude));
+    }
+
+    [Theory]
+    [InlineData(-90.1, 0)]
+    [InlineData(0, 180.1)]
+    public void UpdateTarget_CoordinatesOutOfRange_FailsValidation(double latitude, double longitude)
+    {
+        var result = new UpdateTargetCommandValidator()
+            .Validate(new UpdateTargetCommand(1, 2, 3, 4, "Name", "QR", 1, latitude, longitude, true));
+
+        result.IsValid.Should().BeFalse();
+        result.Errors.Should().Contain(e =>
+            e.PropertyName == nameof(UpdateTargetCommand.Latitude) ||
+            e.PropertyName == nameof(UpdateTargetCommand.Longitude));
     }
 
     // ── UpdateTriviaQuizSelection ─────────────────────────────────────────────
