@@ -16,13 +16,10 @@ public static class DependencyInjection
         builder.Services.AddSingleton(TimeProvider.System);
         builder.Services.AddHostedService<AuthoritativeSessionTimerWorker>();
 
-        builder.Services.Configure<RabbitMqOptions>(
-            builder.Configuration.GetSection(RabbitMqOptions.SectionName));
+        builder.Services.Configure<MassTransitRabbitMqOptions>(
+            builder.Configuration.GetSection(MassTransitRabbitMqOptions.SectionName));
 
-        // All integration events publish through MassTransit (#164/#165). The hand-rolled publisher
-        // remains registered as dead code until the cleanup slice removes it in #166.
         builder.AddMassTransitMessaging();
-        builder.Services.AddSingleton<IIntegrationEventPublisher, RabbitMqIntegrationEventPublisher>();
 
         builder.Services.Configure<ParticipantMembershipAccessClientOptions>(
             builder.Configuration.GetSection(ParticipantMembershipAccessClientOptions.SectionName));

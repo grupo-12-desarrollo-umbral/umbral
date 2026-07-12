@@ -9,7 +9,8 @@ namespace umbral_backend.Infrastructure.Messaging;
 /// <summary>
 /// Registers the MassTransit bus over the RabbitMQ transport (#164). Vanilla topology and
 /// formatters — the only customisation is a domain-meaningful exchange name via
-/// <c>[EntityName]</c> on each contract. Broker host/credentials come from <see cref="RabbitMqOptions"/>
+/// <c>[EntityName]</c> on each contract. Broker host/credentials come from
+/// <see cref="MassTransitRabbitMqOptions"/>
 /// (config, not hardcoded); the Generic Host starts/stops the bus with the app.
 /// </summary>
 [ExcludeFromCodeCoverage] // Composition-root wiring — exercised end-to-end by the messaging integration test.
@@ -21,7 +22,7 @@ public static class MassTransitMessagingRegistration
         {
             bus.UsingRabbitMq((context, cfg) =>
             {
-                var options = context.GetRequiredService<IOptions<RabbitMqOptions>>().Value;
+                var options = context.GetRequiredService<IOptions<MassTransitRabbitMqOptions>>().Value;
 
                 cfg.Host(options.HostName, (ushort)options.Port, options.VirtualHost, host =>
                 {
