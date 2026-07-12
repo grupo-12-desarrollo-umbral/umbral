@@ -27,8 +27,8 @@ The play-mode classification of a `Substage`, either `TreasureHunt` or `Trivia`.
 _Avoid_: session mode, mixed mode
 
 **Clue**:
-Optional player-facing guidance under a `Substage`. A clue can guide trivia or treasure-hunt play; in treasure hunt, a `Target` may reference at most one `Clue`. A clue can be authored as visible when its `Substage` starts or held for operator release.
-_Avoid_: objective, treasure, checkpoint
+Optional player-facing guidance under a `Substage`. A clue is always substage-scoped: it applies to the substage as a whole and never targets an individual trivia question — in trivia, the whole quiz is selected by identity and there is no per-question clue. A clue can guide trivia or treasure-hunt play; in treasure hunt, a `Target` may reference at most one `Clue`. A clue can be authored as visible when its `Substage` starts or held for operator release, and it never advances or resolves anything. See ADR-0018.
+_Avoid_: objective, treasure, checkpoint, per-question clue
 
 **ClueVisibilityPolicy**:
 The authoring rule that decides whether a `Clue` becomes visible to all teams when its `Substage` starts or remains hidden until operator release.
