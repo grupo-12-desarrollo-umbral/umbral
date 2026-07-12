@@ -34,7 +34,7 @@ El "pipeline" de desarrollo local: recrea el stack con hot-reload y lo siembra e
 
 Fusión de los dos scripts anteriores en uno solo. Combina la siembra directa a PostgreSQL con el aprovisionamiento vía API:
 
-1. **Siembra vía `psql`** — 5 quizzes de trivia (3 Published, 1 Draft, 1 Archived) en `mission_design`; 7 sesiones (SMOKE1–SMOKE7) en cada estado del ciclo de vida, cada una con 2 equipos asociados, en `identity_access` y `session_operations`.
+1. **Siembra vía `psql`** — 7 quizzes de trivia (5 Published, 1 Draft, 1 Archived) en `mission_design`; 7 sesiones (SMOKE1–SMOKE7) en cada estado del ciclo de vida, cada una con 2 equipos asociados, en `identity_access` y `session_operations`.
 2. **Espera** a que el gateway conteste en `:8000`.
 3. **Siembra vía API** — 12 usuarios en Keycloak (admin, 3 operators, 8 participants), los bootstrapea en `identity_access` a través del gateway, registra 4 equipos app-level (Delta, Echo, Bismarck, Los Panas) y asigna 2 participantes por equipo.
 
@@ -49,6 +49,10 @@ Fusión de los dos scripts anteriores en uno solo. Combina la siembra directa a 
 | `SMOKE7` | `Cancelled` | "The session has moved on — late join isn't allowed." |
 
 Idempotente: `ON CONFLICT DO NOTHING` en las inserciones SQL y detección de `409` en las llamadas API.
+
+La reconstrucción del catálogo de trivia es destructiva: antes de recrear los quizzes con ids
+nuevos, elimina las misiones que seleccionan un quiz para impedir referencias
+`TriviaQuizId` colgantes. El global setup de Playwright vuelve a crear sus fixtures E2E.
 
 **Uso**
 
