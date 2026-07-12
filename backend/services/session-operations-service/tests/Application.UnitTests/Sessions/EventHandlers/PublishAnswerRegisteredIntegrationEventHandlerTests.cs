@@ -1,4 +1,6 @@
+using MassTransit;
 using Microsoft.Extensions.Logging.Abstractions;
+using Moq;
 using umbral_backend.Application.Sessions.Common;
 using umbral_backend.Application.Sessions.EventHandlers;
 using umbral_backend.Domain.Events;
@@ -24,32 +26,45 @@ public sealed class PublishAnswerRegisteredIntegrationEventHandlerTests
     [Fact]
     public async Task Handle_PublishesAnswerRegisteredIntegrationEventCarryingCorrectnessAndScore()
     {
-        var publisher = new FakeIntegrationEventPublisher();
-        var handler = new PublishAnswerRegisteredIntegrationEventHandler(publisher, NullLogger<PublishAnswerRegisteredIntegrationEventHandler>.Instance);
+        var publishEndpoint = new Mock<IPublishEndpoint>();
+        var handler = NewHandler(publishEndpoint.Object);
         var domainEvent = Event();
 
         await handler.Handle(domainEvent, CancellationToken.None);
 
-        var published = publisher.Published.OfType<AnswerRegisteredIntegrationEvent>().Single();
-        published.LiveSessionId.Should().Be(domainEvent.LiveSessionId);
-        published.TeamId.Should().Be(domainEvent.TeamId);
-        published.TriviaAnswerSubmissionId.Should().Be(domainEvent.EvidenceSubmissionId);
-        published.TriviaSubstageSnapshotId.Should().Be(domainEvent.ActiveSubstageId);
-        published.QuestionSequenceOrder.Should().Be(1);
-        published.SelectedOptionSequenceOrder.Should().Be(2);
-        published.IsCorrect.Should().BeTrue();
-        published.ScoreValue.Should().Be(100);
-        published.SubmittedAt.Should().Be(domainEvent.SubmittedAt);
+        publishEndpoint.Verify(
+            endpoint => endpoint.Publish(
+                new AnswerRegisteredIntegrationEvent(
+                    domainEvent.LiveSessionId,
+                    domainEvent.TeamId,
+                    domainEvent.EvidenceSubmissionId,
+                    domainEvent.ActiveSubstageId,
+                    1,
+                    2,
+                    true,
+                    100,
+                    domainEvent.SubmittedAt),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+        publishEndpoint.VerifyNoOtherCalls();
     }
 
     [Fact]
     public async Task Handle_WhenBrokerFails_SwallowsSoRuntimeNeverFaults()
     {
-        var publisher = new FakeIntegrationEventPublisher(throwOnPublish: true);
-        var handler = new PublishAnswerRegisteredIntegrationEventHandler(publisher, NullLogger<PublishAnswerRegisteredIntegrationEventHandler>.Instance);
+        var publishEndpoint = new Mock<IPublishEndpoint>();
+        publishEndpoint
+            .Setup(endpoint => endpoint.Publish(
+                It.IsAny<AnswerRegisteredIntegrationEvent>(),
+                It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("broker unreachable"));
+        var handler = NewHandler(publishEndpoint.Object);
 
         var act = async () => await handler.Handle(Event(), CancellationToken.None);
 
         await act.Should().NotThrowAsync();
     }
+
+    private static PublishAnswerRegisteredIntegrationEventHandler NewHandler(IPublishEndpoint publishEndpoint)
+        => new(publishEndpoint, NullLogger<PublishAnswerRegisteredIntegrationEventHandler>.Instance);
 }

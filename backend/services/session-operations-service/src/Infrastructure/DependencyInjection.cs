@@ -19,8 +19,8 @@ public static class DependencyInjection
         builder.Services.Configure<RabbitMqOptions>(
             builder.Configuration.GetSection(RabbitMqOptions.SectionName));
 
-        // QuestionClosed publishes via MassTransit (#164); the hand-rolled publisher still carries
-        // AnswerRegistered + SessionResultsFinalized until #165/#166 migrate them.
+        // All integration events publish through MassTransit (#164/#165). The hand-rolled publisher
+        // remains registered as dead code until the cleanup slice removes it in #166.
         builder.AddMassTransitMessaging();
         builder.Services.AddSingleton<IIntegrationEventPublisher, RabbitMqIntegrationEventPublisher>();
 
