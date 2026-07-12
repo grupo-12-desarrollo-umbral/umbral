@@ -22,16 +22,7 @@ public sealed class MassTransitQuestionClosedPublishTests
             .WithUsername("guest")
             .WithPassword("guest")
             .Build();
-        try
-        {
-            await rabbit.StartAsync();
-        }
-        catch (Exception)
-        {
-            // Docker/Testcontainers unavailable — nothing to assert without a broker.
-            await rabbit.DisposeAsync();
-            return;
-        }
+        await DockerAvailability.StartOrSkipAsync(() => rabbit.StartAsync(), rabbit.DisposeAsync);
 
         try
         {

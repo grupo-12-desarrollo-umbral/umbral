@@ -176,7 +176,12 @@ ask the driver** — do not silently drop it.
 - Interceptors: `AuditableEntityInterceptor` (sets Created/Modified), `DispatchDomainEventsInterceptor`
 - SignalR is an **Api** concern, not Infrastructure: the hub lives in `Api/Hubs/`, so the adapter that implements the Application port (`INotifier` / `I*Broadcaster`) and injects `IHubContext<THub>` also lives in `Api/Hubs/` (Phase X.4), never here — session-operations-service only
 - Infrastructure must NOT reach an Api type, and **never by reflection / type-name string** — `Type.GetType("...Api...")`, `AppDomain.CurrentDomain.GetAssemblies()`, `MakeGenericType(typeof(IHubContext<>))` — to dodge the missing project reference. That launders an Infrastructure→Api dependency past the compiler and is a Clean Architecture violation caught by `make layer-guard` (`scripts/layer-guard.sh`). The fix is to move the adapter into the layer that owns the type, not a cleverer lookup
-- RabbitMQ publisher implements outbound contract from `ddd_solution_model.md` section 10 — session-operations and scoring-monitoring only
+- For new or migrated integration events, Application publishes through MassTransit's
+  transport-neutral `IPublishEndpoint`; do not add a policy-free
+  `IIntegrationEventPublisher` forwarding wrapper. RabbitMQ packages, credentials,
+  connections, `UsingRabbitMq`, and endpoint/topology configuration stay in
+  `Infrastructure/Messaging` (ADR-0017). Legacy hand-rolled publisher code may remain
+  until its migration scope is taken — session-operations and scoring-monitoring only.
 - Keycloak wiring under `Infrastructure/Identity/Keycloak/` — identity-access-service only
 
 ### Api (Phase X.4)

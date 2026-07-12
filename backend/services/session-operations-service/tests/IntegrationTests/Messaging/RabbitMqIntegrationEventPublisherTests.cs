@@ -23,16 +23,7 @@ public sealed class RabbitMqIntegrationEventPublisherTests
             .WithUsername("guest")
             .WithPassword("guest")
             .Build();
-        try
-        {
-            await rabbit.StartAsync();
-        }
-        catch (Exception)
-        {
-            // Docker/Testcontainers unavailable — resilience is covered by the broker-down test.
-            await rabbit.DisposeAsync();
-            return;
-        }
+        await DockerAvailability.StartOrSkipAsync(() => rabbit.StartAsync(), rabbit.DisposeAsync);
 
         try
         {
@@ -99,16 +90,7 @@ public sealed class RabbitMqIntegrationEventPublisherTests
             .WithUsername("guest")
             .WithPassword("guest")
             .Build();
-        try
-        {
-            await rabbit.StartAsync();
-        }
-        catch (Exception)
-        {
-            // Docker/Testcontainers unavailable — resilience is covered by the broker-down test.
-            await rabbit.DisposeAsync();
-            return;
-        }
+        await DockerAvailability.StartOrSkipAsync(() => rabbit.StartAsync(), rabbit.DisposeAsync);
 
         try
         {

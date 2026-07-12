@@ -266,17 +266,24 @@ claim that "logic lives in Api/Infrastructure" is **false** — this is greenfie
 
 ## Messaging (RabbitMQ) contract — for session/scoring event flows
 
-RabbitMQ is **not yet in the code** (only a compose container). When the matrix-named flows are built
-(`HU-21B/33B/34A/37A/39B`), they must preserve:
+RabbitMQ event flows use MassTransit as they migrate from the legacy publisher. The matrix-named flows
+(`HU-21B/33B/34A/37A/39B`) must preserve:
 
 - **Publish-after-commit.** Emit the integration event only after the transaction succeeds (transactional
   outbox or post-commit dispatch). No publish inside an uncommitted unit of work.
-- **CQRS handlers never talk to RabbitMQ directly.** A handler raises a domain/application event or calls
-  an application abstraction (e.g. `IIntegrationEventPublisher`) implemented in `Infrastructure`. In
-  session-operations this is the mandated **Facade** responsibility ("session orchestration and event
-  publication" — `CONTEXT.md`).
-- **Durable event contracts** (versioned payload shapes), **at-least-once** delivery, **idempotent
-  consumers** (dedupe by event id), **manual ack**, and a **DLQ + retry** policy.
+- **Application uses transport-neutral MassTransit abstractions directly.** A post-commit event handler
+  may reference `MassTransit.Abstractions`, integration contracts, `[EntityName]`, and
+  `IPublishEndpoint`; do not add a policy-free `IIntegrationEventPublisher` forwarding wrapper.
+  RabbitMQ packages/APIs, `UsingRabbitMq`, credentials, connections, and endpoint/topology configuration
+  stay in `Infrastructure/Messaging`, registered through Infrastructure DI and invoked from the Api
+  composition root. Every post-commit publish retains the linked five-second timeout and logs/swallows
+  failures: this is bounded-blocking best effort, not structurally non-blocking delivery. See
+  [ADR-0017](../docs/adr/0017-masstransit-abstractions-in-application.md).
+- **Durable event contracts** use versioned payload shapes, and consumers are idempotent (dedupe by event
+  id). Transport delivery, retry, and topology use MassTransit's native behavior unless a later ADR adds
+  an explicit policy; this plan does not require a custom retry/topology layer or transactional outbox.
+- **Consumers stay thin:** map, validate, and deduplicate as required, then dispatch an Application
+  command/query; scoring and audit business rules stay out of consumer bodies.
 - **Integration tests** for publish-after-commit and idempotent re-delivery.
 - RabbitMQ stays **off the critical path** (per the patterns matrix): the main game flow does not depend
   on it. Canonical flow: `HU-34A` publishes `AnswerRegistered` → consumed by scoring (`HU-37A`) + audit.
