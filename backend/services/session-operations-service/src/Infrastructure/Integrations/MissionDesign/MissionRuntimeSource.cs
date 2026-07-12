@@ -87,7 +87,8 @@ public sealed class MissionRuntimeSource : IMissionRuntimeSource
         int SequenceOrder,
         string PlayMode,
         IReadOnlyList<MissionRuntimeTargetResponse> Targets,
-        IReadOnlyList<MissionRuntimeTriviaQuestionResponse> TriviaQuestions)
+        IReadOnlyList<MissionRuntimeTriviaQuestionResponse> TriviaQuestions,
+        IReadOnlyList<MissionRuntimeClueResponse>? Clues)
     {
         public MissionRuntimeSubstageDto ToMissionRuntimeSubstageDto()
         {
@@ -100,6 +101,9 @@ public sealed class MissionRuntimeSource : IMissionRuntimeSource
                     .ToArray(),
                 TriviaQuestions
                     .Select(question => question.ToMissionRuntimeTriviaQuestionDto())
+                    .ToArray(),
+                (Clues ?? [])
+                    .Select(clue => clue.ToMissionRuntimeClueDto())
                     .ToArray());
         }
     }

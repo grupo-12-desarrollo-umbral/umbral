@@ -622,13 +622,30 @@ public sealed class LiveSession : BaseAuditableEntity
             return [];
         }
 
+        var activeSubstage = GetOrderedSubstages()
+            .SingleOrDefault(substage => substage.SubstageSnapshotId == ActiveSubstageId.Value);
+
+        if (activeSubstage is null)
+        {
+            return [];
+        }
+
+        // Treasure-hunt clues resolve per-target (unchanged). A trivia substage has no targets, so
+        // its clues resolve from the substage-scoped clue snapshot instead (#145).
+        return activeSubstage.PlayMode == SubstagePlayMode.TreasureHunt
+            ? CollectTargetVisibleClues(activeSubstage.SubstageSnapshotId)
+            : CollectSubstageVisibleClues(activeSubstage.SubstageSnapshotId);
+    }
+
+    private IReadOnlyList<VisibleClue> CollectTargetVisibleClues(Guid substageSnapshotId)
+    {
         // Show clue guidance from targets that have clue text. The ClueVisibilityPolicy field on
         // TargetSnapshot defines when a clue becomes visible; for now we include clues from targets
         // with a non-null policy (meaning the mission author intended visibility). Actual per-team
         // release state belongs to HU-26/HU-28; HU-23 only reads already-visible guidance.
         return MissionRuntimeSnapshot.TargetSnapshots
             .Where(target =>
-                target.SubstageSnapshotId == ActiveSubstageId.Value &&
+                target.SubstageSnapshotId == substageSnapshotId &&
                 target.IsActive &&
                 !string.IsNullOrWhiteSpace(target.ClueText) &&
                 !string.IsNullOrWhiteSpace(target.ClueVisibilityPolicy))
@@ -637,6 +654,21 @@ public sealed class LiveSession : BaseAuditableEntity
                 target.TargetSnapshotId,
                 target.ClueText!,
                 target.Name))
+            .ToList();
+    }
+
+    private IReadOnlyList<VisibleClue> CollectSubstageVisibleClues(Guid substageSnapshotId)
+    {
+        // Honor ClueVisibilityPolicy for a target-less substage (#145): VisibleWhenSubstageStarts
+        // clues surface as soon as the substage is active; HiddenUntilOperatorRelease clues stay
+        // withheld until an operator release exists (HU-26/HU-28), so they are not projected here.
+        return MissionRuntimeSnapshot.ClueSnapshots
+            .Where(clue =>
+                clue.SubstageSnapshotId == substageSnapshotId &&
+                clue.IsVisibleWhenSubstageStarts &&
+                !string.IsNullOrWhiteSpace(clue.Text))
+            .OrderBy(clue => clue.SequenceOrder)
+            .Select(clue => VisibleClue.CreateForSubstage(clue.Text))
             .ToList();
     }
 

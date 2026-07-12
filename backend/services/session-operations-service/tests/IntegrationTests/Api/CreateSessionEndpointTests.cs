@@ -391,6 +391,7 @@ public sealed class CreateSessionEndpointTests : IAsyncLifetime
                             1,
                             "Trivia",
                             [],
+                            [],
                             [])
                     ])
             ]);
@@ -422,7 +423,8 @@ public sealed class CreateSessionEndpointTests : IAsyncLifetime
                                         new MissionRuntimeTriviaOptionDto("Paris", 1, true),
                                         new MissionRuntimeTriviaOptionDto("Lyon", 2, false)
                                     ])
-                            ])
+                            ],
+                            [])
                     ])
             ]);
     }
@@ -461,7 +463,8 @@ public sealed class CreateSessionEndpointTests : IAsyncLifetime
                                         new MissionRuntimeTriviaOptionDto("Q3-correct", 1, true),
                                         new MissionRuntimeTriviaOptionDto("Q3-wrong", 2, false)
                                     ])
-                            ])
+                            ],
+                            [])
                     ])
             ]);
     }

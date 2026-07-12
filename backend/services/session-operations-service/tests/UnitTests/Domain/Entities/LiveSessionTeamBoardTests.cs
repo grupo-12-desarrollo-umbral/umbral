@@ -119,6 +119,27 @@ public sealed class LiveSessionTeamBoardTests
         board.ActiveSubstageContext.ActiveQuestionTimeLimitSeconds.Should().Be(30);
     }
 
+    // Gate (#145): a trivia substage has no targets, so its clues resolve from the substage-scoped
+    // clue snapshot. VisibleWhenSubstageStarts surfaces once the substage is active;
+    // HiddenUntilOperatorRelease stays withheld. The visible clue has no owning target.
+    [Fact]
+    public void ProjectParticipantTeamBoard_Trivia_HonorsClueVisibilityPolicyForSubstageClues()
+    {
+        var session = LiveSessionFactory.CreateScheduledTriviaWithClues();
+        var team = session.AssociateTeam(Guid.NewGuid(), "Alpha", "A-01", 4);
+        var policy = new SessionStateTransitionPolicy();
+        session.MoveTo(SessionState.Preparing, ActiveAt.AddMinutes(-1), policy);
+        session.MoveTo(SessionState.Active, ActiveAt, policy);
+
+        var board = session.ProjectParticipantTeamBoard(team.TeamId, ActiveAt);
+
+        board.VisibleClues.Should().ContainSingle("only the VisibleWhenSubstageStarts clue is delivered");
+        var clue = board.VisibleClues.Single();
+        clue.ClueText.Should().Be("Shown at start.");
+        clue.TargetSnapshotId.Should().BeNull("a trivia clue has no owning target");
+        clue.TargetName.Should().BeNull("a trivia clue has no owning target");
+    }
+
     // Gate: trivia board with no active question has null question context.
     [Fact]
     public void ProjectParticipantTeamBoard_Trivia_WhenNoQuestionActive_HasNullQuestionContext()

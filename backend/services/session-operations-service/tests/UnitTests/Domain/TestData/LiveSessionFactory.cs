@@ -31,6 +31,19 @@ internal static class LiveSessionFactory
             missionRuntimeSnapshot);
     }
 
+    internal static LiveSession CreateScheduledTriviaWithClues(int maximumTimeMinutes = 10)
+    {
+        var missionRuntimeSnapshot = MissionRuntimeSnapshotFactory.CreateTriviaSnapshotWithClues(maximumTimeMinutes);
+
+        return LiveSession.Create(
+            SessionSource.Create(missionRuntimeSnapshot.SourceMissionId),
+            "tri-clue",
+            "Trivia Session",
+            maximumTimeMinutes,
+            new DateTimeOffset(2026, 6, 3, 10, 0, 0, TimeSpan.Zero),
+            missionRuntimeSnapshot);
+    }
+
     internal static LiveSession CreateScheduledTriviaWithThreeQuestions(int maximumTimeMinutes = 10)
     {
         var missionRuntimeSnapshot = MissionRuntimeSnapshotFactory.CreateTriviaSnapshotWithThreeQuestions(maximumTimeMinutes);

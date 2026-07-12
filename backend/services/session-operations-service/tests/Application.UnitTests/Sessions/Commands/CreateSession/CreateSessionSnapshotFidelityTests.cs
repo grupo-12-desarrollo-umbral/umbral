@@ -65,7 +65,11 @@ public sealed class CreateSessionSnapshotFidelityTests
                     1,
                     [
                         new MissionRuntimeSubstageDto(
-                            "Trivia Round", 1, SubstagePlayMode.Trivia.ToString(), [], sourceQuestions)
+                            "Trivia Round", 1, SubstagePlayMode.Trivia.ToString(), [], sourceQuestions,
+                            [
+                                new MissionRuntimeClueDto("Visible clue", "VisibleWhenSubstageStarts"),
+                                new MissionRuntimeClueDto("Hidden clue", "HiddenUntilOperatorRelease"),
+                            ])
                     ])
             ]);
 
@@ -74,7 +78,22 @@ public sealed class CreateSessionSnapshotFidelityTests
         await handler.Handle(command, CancellationToken.None);
 
         persisted.Should().NotBeNull();
-        var snapshots = persisted!.MissionRuntimeSnapshot.TriviaQuestionSnapshots;
+
+        // Substage-scoped clues (#145): a trivia substage has no targets, so both authored clues must
+        // still land in the snapshot, each carrying its authored visibility policy for the runtime.
+        var triviaSubstageId = persisted!.MissionRuntimeSnapshot.StageSnapshots
+            .Single().SubstageSnapshots.Single().SubstageSnapshotId;
+        var clueSnapshots = persisted.MissionRuntimeSnapshot.ClueSnapshots
+            .Where(clue => clue.SubstageSnapshotId == triviaSubstageId)
+            .OrderBy(clue => clue.SequenceOrder)
+            .ToArray();
+        clueSnapshots.Select(clue => clue.Text).Should().Equal("Visible clue", "Hidden clue");
+        clueSnapshots.Select(clue => clue.VisibilityPolicy)
+            .Should().Equal("VisibleWhenSubstageStarts", "HiddenUntilOperatorRelease");
+        clueSnapshots.Single(clue => clue.Text == "Visible clue").IsVisibleWhenSubstageStarts.Should().BeTrue();
+        clueSnapshots.Single(clue => clue.Text == "Hidden clue").IsVisibleWhenSubstageStarts.Should().BeFalse();
+
+        var snapshots = persisted.MissionRuntimeSnapshot.TriviaQuestionSnapshots;
 
         // No partial copy: exactly as many question snapshots as the source quiz.
         snapshots.Should().HaveCount(sourceQuestions.Length);

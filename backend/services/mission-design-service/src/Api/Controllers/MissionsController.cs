@@ -559,7 +559,8 @@ public sealed class MissionsController(ISender sender) : ControllerBase
         int SequenceOrder,
         string PlayMode,
         IReadOnlyList<MissionRuntimeTargetResponse> Targets,
-        IReadOnlyList<MissionRuntimeTriviaQuestionResponse> TriviaQuestions)
+        IReadOnlyList<MissionRuntimeTriviaQuestionResponse> TriviaQuestions,
+        IReadOnlyList<MissionRuntimeClueResponse> Clues)
     {
         public static MissionRuntimeSubstageResponse FromDto(MissionRuntimePlanSubstageDto dto)
         {
@@ -568,7 +569,8 @@ public sealed class MissionsController(ISender sender) : ControllerBase
                 dto.SequenceOrder,
                 dto.PlayMode,
                 dto.Targets.Select(MissionRuntimeTargetResponse.FromDto).ToList(),
-                dto.TriviaQuestions.Select(MissionRuntimeTriviaQuestionResponse.FromDto).ToList());
+                dto.TriviaQuestions.Select(MissionRuntimeTriviaQuestionResponse.FromDto).ToList(),
+                dto.Clues.Select(MissionRuntimeClueResponse.FromDto).ToList());
         }
     }
 

@@ -232,6 +232,9 @@ public sealed class MissionInfrastructureIntegrationTests : IClassFixture<Postgr
 
         var triviaSubstage = mission.AddSubstage(stage.Id, Domain.Entities.Substage.CreateTrivia("Trivia", 2));
         mission.SelectTriviaQuiz(stage.Id, triviaSubstage.Id, publishedQuiz.Id);
+        // A trivia substage has no targets, so a substage-scoped clue is its only runtime path (#145).
+        mission.AddClue(stage.Id, triviaSubstage.Id, Domain.Entities.Clue.Create(
+            "Trivia Clue", 1, "Think about capitals.", Domain.Enums.ClueVisibilityPolicy.VisibleWhenSubstageStarts));
 
         await missionRepository.UpdateAsync(mission, CancellationToken.None);
 
@@ -258,6 +261,24 @@ public sealed class MissionInfrastructureIntegrationTests : IClassFixture<Postgr
         detail.Stages[0].Substages[0].Clues!.Single().Text.Should().Be("Look under the bridge.");
         detail.Stages[0].Substages[1].TriviaQuizSelection!.TriviaQuizId.Should().Be(publishedQuiz.Id);
         MissionActivationPolicy.EvaluateReadiness(reloadedMission).Should().BeEmpty();
+
+        // Runtime plan carries substage-scoped clues (#145): the treasure substage exposes its clue in
+        // both the per-target field and the substage superset; the trivia substage's clue reaches the
+        // plan only through the substage list.
+        var runtimePlan = await new MissionReadModelRepository(assertContext)
+            .GetMissionRuntimePlanAsync(mission.Id, CancellationToken.None);
+
+        runtimePlan.Should().NotBeNull();
+        var treasurePlanSubstage = runtimePlan!.Stages.Single().Substages
+            .Single(substage => substage.PlayMode == "TreasureHunt");
+        treasurePlanSubstage.Targets.Single().Clue!.Text.Should().Be("Look under the bridge.");
+        treasurePlanSubstage.Clues.Single().Text.Should().Be("Look under the bridge.");
+
+        var triviaPlanSubstage = runtimePlan.Stages.Single().Substages
+            .Single(substage => substage.PlayMode == "Trivia");
+        triviaPlanSubstage.Targets.Should().BeEmpty();
+        triviaPlanSubstage.Clues.Single().Text.Should().Be("Think about capitals.");
+        triviaPlanSubstage.Clues.Single().VisibilityPolicy.Should().Be("VisibleWhenSubstageStarts");
     }
 
     [Fact]

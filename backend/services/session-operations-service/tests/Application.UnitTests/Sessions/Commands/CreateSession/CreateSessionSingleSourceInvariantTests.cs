@@ -140,7 +140,8 @@ public sealed class CreateSessionSingleSourceInvariantTests
                                         new MissionRuntimeTriviaOptionDto("Mercury", 1, true),
                                         new MissionRuntimeTriviaOptionDto("Venus", 2, false)
                                     ])
-                            ])
+                            ],
+                            [])
                     ])
             ]);
     }

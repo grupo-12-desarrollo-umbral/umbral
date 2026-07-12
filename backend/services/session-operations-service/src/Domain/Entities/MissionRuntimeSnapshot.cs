@@ -9,6 +9,7 @@ public sealed class MissionRuntimeSnapshot : BaseEntity
     private readonly List<StageSnapshot> _stageSnapshots = [];
     private readonly List<TargetSnapshot> _targetSnapshots = [];
     private readonly List<TriviaQuestionSnapshot> _triviaQuestionSnapshots = [];
+    private readonly List<ClueSnapshot> _clueSnapshots = [];
 
     private MissionRuntimeSnapshot()
     {
@@ -25,11 +26,13 @@ public sealed class MissionRuntimeSnapshot : BaseEntity
         MaximumTime maximumTime,
         IEnumerable<StageSnapshot> stageSnapshots,
         IEnumerable<TargetSnapshot> targetSnapshots,
-        IEnumerable<TriviaQuestionSnapshot> triviaQuestionSnapshots)
+        IEnumerable<TriviaQuestionSnapshot> triviaQuestionSnapshots,
+        IEnumerable<ClueSnapshot>? clueSnapshots)
     {
         var normalizedStages = stageSnapshots?.ToArray() ?? [];
         var normalizedTargets = targetSnapshots?.ToArray() ?? [];
         var normalizedQuestions = triviaQuestionSnapshots?.ToArray() ?? [];
+        var normalizedClues = clueSnapshots?.ToArray() ?? [];
 
         if (sourceMissionId == Guid.Empty)
         {
@@ -53,6 +56,7 @@ public sealed class MissionRuntimeSnapshot : BaseEntity
         _stageSnapshots.AddRange(normalizedStages);
         _targetSnapshots.AddRange(normalizedTargets);
         _triviaQuestionSnapshots.AddRange(normalizedQuestions);
+        _clueSnapshots.AddRange(normalizedClues);
     }
 
     public Guid MissionRuntimeSnapshotId { get; private set; }
@@ -69,13 +73,17 @@ public sealed class MissionRuntimeSnapshot : BaseEntity
 
     public IReadOnlyCollection<TriviaQuestionSnapshot> TriviaQuestionSnapshots => _triviaQuestionSnapshots.AsReadOnly();
 
+    public IReadOnlyCollection<ClueSnapshot> ClueSnapshots => _clueSnapshots.AsReadOnly();
+
     public static MissionRuntimeSnapshot Create(
         Guid sourceMissionId,
         string missionTitle,
         MaximumTime maximumTime,
         IEnumerable<StageSnapshot> stageSnapshots,
         IEnumerable<TargetSnapshot> targetSnapshots,
-        IEnumerable<TriviaQuestionSnapshot> triviaQuestionSnapshots)
+        IEnumerable<TriviaQuestionSnapshot> triviaQuestionSnapshots,
+        // Optional: substages need not author clues, and treasure-hunt clues also travel per-target (#145).
+        IEnumerable<ClueSnapshot>? clueSnapshots = null)
     {
         return new MissionRuntimeSnapshot(
             Guid.NewGuid(),
@@ -84,7 +92,8 @@ public sealed class MissionRuntimeSnapshot : BaseEntity
             maximumTime,
             stageSnapshots,
             targetSnapshots,
-            triviaQuestionSnapshots);
+            triviaQuestionSnapshots,
+            clueSnapshots);
     }
 
     private static void EnsureStrictStageOrder(IEnumerable<StageSnapshot> stageSnapshots)

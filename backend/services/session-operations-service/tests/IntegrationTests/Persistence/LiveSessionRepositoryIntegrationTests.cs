@@ -256,6 +256,17 @@ public sealed class LiveSessionRepositoryIntegrationTests
         question.Prompt.Should().Be("Capital of France?");
         question.Options.Should().HaveCount(2);
         question.Options.Should().ContainSingle(option => option.OptionText == "Paris" && option.IsCorrect);
+
+        // Substage-scoped clues survive the snapshot round-trip (#145), with text, policy, and order.
+        var clues = persistedSession.MissionRuntimeSnapshot.ClueSnapshots
+            .OrderBy(clue => clue.SequenceOrder)
+            .ToArray();
+        clues.Select(clue => clue.Text).Should().Equal("Shown at start.", "Released by operator.");
+        clues.Select(clue => clue.VisibilityPolicy)
+            .Should().Equal("VisibleWhenSubstageStarts", "HiddenUntilOperatorRelease");
+        var triviaSubstageId = stage.SubstageSnapshots
+            .Single(substage => substage.PlayMode == SubstagePlayMode.Trivia).SubstageSnapshotId;
+        clues.Should().OnlyContain(clue => clue.SubstageSnapshotId == triviaSubstageId);
     }
 
     [Fact]
@@ -898,6 +909,10 @@ public sealed class LiveSessionRepositoryIntegrationTests
                         TriviaOptionSnapshot.Create("Paris", 1, true),
                         TriviaOptionSnapshot.Create("Lyon", 2, false)
                     ])
+            ],
+            [
+                ClueSnapshot.Create(triviaSubstage.SubstageSnapshotId, "Shown at start.", "VisibleWhenSubstageStarts", 1),
+                ClueSnapshot.Create(triviaSubstage.SubstageSnapshotId, "Released by operator.", "HiddenUntilOperatorRelease", 2)
             ]);
     }
 }

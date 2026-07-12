@@ -343,6 +343,45 @@ public sealed class LiveSessionConfiguration : IEntityTypeConfiguration<LiveSess
                     .UsePropertyAccessMode(PropertyAccessMode.Field);
             });
 
+            snapshotBuilder.OwnsMany(snapshot => snapshot.ClueSnapshots, clueBuilder =>
+            {
+                clueBuilder.ToTable("live_session_mission_runtime_snapshot_clues");
+                clueBuilder.WithOwner().HasForeignKey("mission_runtime_snapshot_live_session_id");
+
+                clueBuilder.Property<Guid>("mission_runtime_snapshot_live_session_id")
+                    .HasColumnName("live_session_id");
+
+                clueBuilder.Property(clue => clue.ClueSnapshotId)
+                    .HasColumnName("id")
+                    .ValueGeneratedNever();
+
+                clueBuilder.HasKey(clue => clue.ClueSnapshotId);
+
+                clueBuilder.Property(clue => clue.SubstageSnapshotId)
+                    .HasColumnName("substage_snapshot_id")
+                    .IsRequired();
+
+                clueBuilder.Property(clue => clue.Text)
+                    .HasColumnName("text")
+                    .HasMaxLength(4000)
+                    .IsRequired();
+
+                clueBuilder.Property(clue => clue.VisibilityPolicy)
+                    .HasColumnName("visibility_policy")
+                    .HasMaxLength(128)
+                    .IsRequired();
+
+                clueBuilder.Property(clue => clue.SequenceOrder)
+                    .HasColumnName("sequence_order")
+                    .IsRequired();
+
+                clueBuilder.HasIndex(
+                        "mission_runtime_snapshot_live_session_id",
+                        nameof(Domain.ValueObjects.ClueSnapshot.SubstageSnapshotId),
+                        nameof(Domain.ValueObjects.ClueSnapshot.SequenceOrder))
+                    .IsUnique();
+            });
+
             snapshotBuilder.Navigation(snapshot => snapshot.StageSnapshots)
                 .UsePropertyAccessMode(PropertyAccessMode.Field);
 
@@ -350,6 +389,9 @@ public sealed class LiveSessionConfiguration : IEntityTypeConfiguration<LiveSess
                 .UsePropertyAccessMode(PropertyAccessMode.Field);
 
             snapshotBuilder.Navigation(snapshot => snapshot.TriviaQuestionSnapshots)
+                .UsePropertyAccessMode(PropertyAccessMode.Field);
+
+            snapshotBuilder.Navigation(snapshot => snapshot.ClueSnapshots)
                 .UsePropertyAccessMode(PropertyAccessMode.Field);
         });
 

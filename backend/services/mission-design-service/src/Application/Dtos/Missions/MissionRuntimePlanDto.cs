@@ -15,7 +15,8 @@ public sealed record MissionRuntimePlanSubstageDto(
     int SequenceOrder,
     string PlayMode,
     IReadOnlyList<MissionRuntimePlanTargetDto> Targets,
-    IReadOnlyList<MissionRuntimePlanTriviaQuestionDto> TriviaQuestions);
+    IReadOnlyList<MissionRuntimePlanTriviaQuestionDto> TriviaQuestions,
+    IReadOnlyList<MissionRuntimePlanClueDto> Clues);
 
 public sealed record MissionRuntimePlanTargetDto(
     string Name,
