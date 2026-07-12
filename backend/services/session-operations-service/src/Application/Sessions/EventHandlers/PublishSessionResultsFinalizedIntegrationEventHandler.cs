@@ -1,5 +1,5 @@
+using MassTransit;
 using Microsoft.Extensions.Logging;
-using umbral_backend.Application.Common.Interfaces;
 using umbral_backend.Application.Sessions.Common;
 using umbral_backend.Domain.Enums;
 using umbral_backend.Domain.Events;
@@ -8,20 +8,23 @@ namespace umbral_backend.Application.Sessions.EventHandlers;
 
 /// <summary>
 /// Bridges the final-results fact — <see cref="SessionStateChangedEvent"/> reaching
-/// <see cref="SessionState.Finished"/> — to the integration-event transport (HU-33B). Only a
-/// transition to Finished publishes (State-gated in the domain); any other target state is a no-op.
-/// Broker/publish failures are logged and swallowed so the runtime never faults (D-3, AC #6).
+/// <see cref="SessionState.Finished"/> — straight through MassTransit's
+/// <see cref="IPublishEndpoint"/>. Only a transition to Finished publishes (State-gated in the
+/// domain); any other target state is a no-op. Broker/publish failures are logged and swallowed so
+/// the runtime never faults (D-3, AC #6).
 /// </summary>
 public sealed class PublishSessionResultsFinalizedIntegrationEventHandler : INotificationHandler<SessionStateChangedEvent>
 {
-    private readonly IIntegrationEventPublisher _publisher;
+    private static readonly TimeSpan PublishTimeout = TimeSpan.FromSeconds(5);
+
+    private readonly IPublishEndpoint _publishEndpoint;
     private readonly ILogger<PublishSessionResultsFinalizedIntegrationEventHandler> _logger;
 
     public PublishSessionResultsFinalizedIntegrationEventHandler(
-        IIntegrationEventPublisher publisher,
+        IPublishEndpoint publishEndpoint,
         ILogger<PublishSessionResultsFinalizedIntegrationEventHandler> logger)
     {
-        _publisher = publisher;
+        _publishEndpoint = publishEndpoint;
         _logger = logger;
     }
 
@@ -34,11 +37,13 @@ public sealed class PublishSessionResultsFinalizedIntegrationEventHandler : INot
 
         try
         {
-            await _publisher.PublishAsync(
+            using var publishTimeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            publishTimeout.CancelAfter(PublishTimeout);
+            await _publishEndpoint.Publish(
                 new SessionResultsFinalizedIntegrationEvent(
                     notification.LiveSessionId,
                     notification.ChangedAt),
-                cancellationToken);
+                publishTimeout.Token);
         }
         catch (Exception exception)
         {
