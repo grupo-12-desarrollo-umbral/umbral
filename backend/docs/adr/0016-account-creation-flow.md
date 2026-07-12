@@ -13,6 +13,20 @@ or [ADR-0009](0009-resolve-operator-ownership-via-identity-actor-profile.md)
 (`/api/users/me` actor-profile contract). It only decides **how a Keycloak
 account and its local `User` record first come into existence**.
 
+*(Updated 2026-07-12 — implementation status. The decision stands; two pieces it
+described as forthcoming have since landed and the file-line references below are
+point-in-time. `GH #140` is done: the service now authenticates via the
+`umbral-backend` confidential client with `grant_type: client_credentials`
+(`KeycloakAdminService.GetAdminTokenAsync`), not the `admin-cli` password grant
+this ADR describes as "current". `GH #142` is done: `POST /api/users/invitations`
+(`UsersController`) and `KeycloakAdminService.CreateUserAsync` /
+`SendExecuteActionsEmailAsync` implement §2 as recorded — user created with no
+password, `emailVerified: false`, `execute-actions-email`
+`[UPDATE_PASSWORD, VERIFY_EMAIL]`. Still pending: §1's `POST /api/users/register`
+participant path (`GH #143`); note the current `CreateUserAsync(email)` creates
+**no** credential, so the register path adds a password-accepting create rather
+than reusing it as-is.)*
+
 ## Context
 
 There is no written decision covering how accounts come into existence. Today all
