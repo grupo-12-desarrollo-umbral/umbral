@@ -118,7 +118,7 @@ public class MissionTargetResponseTests
     [Fact]
     public void FromDto_MapsAllFields()
     {
-        var dto = new MissionTargetDto(10, "Target A", "QR-A", 1, true, 40, 25);
+        var dto = new MissionTargetDto(10, "Target A", "QR-A", 1, true, 40, 25, 4.711, -74.0721);
 
         var response = MissionTargetResponse.FromDto(dto);
 

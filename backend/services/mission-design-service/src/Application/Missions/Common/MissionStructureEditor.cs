@@ -167,6 +167,8 @@ internal static class MissionStructureEditor
             existing.QrCode,
             existing.SequenceOrder,
             existing.Score.Points,
+            existing.Coordinates.Latitude,
+            existing.Coordinates.Longitude,
             existing.IsActive);
         replacement.Id = existing.Id;
         RefreshReadiness(mission);

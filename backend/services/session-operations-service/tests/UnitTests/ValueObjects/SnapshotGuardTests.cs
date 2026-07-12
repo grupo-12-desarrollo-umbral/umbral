@@ -144,6 +144,8 @@ public sealed class SnapshotGuardTests
     {
         var target = TargetSnapshot.Create(
             Guid.NewGuid(), "Name", "QR", 1, isActive: true, score: 100,
+ latitude: 4.711,
+ longitude: -74.0721,
             clueText: null, clueVisibilityPolicy: null);
 
         target.ClueText.Should().BeNull();
@@ -173,6 +175,8 @@ public sealed class SnapshotGuardTests
             1,
             true,
             100,
+            4.711,
+            -74.0721,
             null,
             null);
 
@@ -184,6 +188,8 @@ public sealed class SnapshotGuardTests
     {
         var target = TargetSnapshot.Create(
             Guid.NewGuid(), "Name", "QR", 1, isActive: true, score: 100,
+ latitude: 4.711,
+ longitude: -74.0721,
             clueText: "  hint  ", clueVisibilityPolicy: "  VisibleAtStart  ");
 
         target.ClueText.Should().Be("hint");

@@ -171,7 +171,7 @@ public sealed class MissionMutationCommandHandlerTests
         stage.Id = 10;
         var substage = mission.AddSubstage(stage.Id, Substage.CreateTreasureHunt("Substage", 1));
         substage.Id = 20;
-        var target = mission.AddTarget(stage.Id, substage.Id, "Target", "QR-1", 1);
+        var target = mission.AddTarget(stage.Id, substage.Id, "Target", "QR-1", 1, 4.711, -74.0721);
         target.Id = 30;
 
         var handler = new RemoveTargetCommandHandler(repository);
@@ -296,13 +296,13 @@ public sealed class MissionMutationCommandHandlerTests
         stage.Id = 10;
         var substage = mission.AddSubstage(stage.Id, Substage.CreateTreasureHunt("Substage", 1));
         substage.Id = 20;
-        var target = mission.AddTarget(stage.Id, substage.Id, "Target", "QR-1", 1);
+        var target = mission.AddTarget(stage.Id, substage.Id, "Target", "QR-1", 1, 4.711, -74.0721);
         target.Id = 30;
 
         var handler = new UpdateTargetCommandHandler(repository);
 
         var result = await handler.Handle(
-            new UpdateTargetCommand(mission.Id, stage.Id, substage.Id, target.Id, "Updated Target", "QR-2", 2, false),
+            new UpdateTargetCommand(mission.Id, stage.Id, substage.Id, target.Id, "Updated Target", "QR-2", 2, 4.711, -74.0721, false),
             CancellationToken.None);
 
         var updatedTarget = result.Stages!.Single().Substages!.Single().Targets!.Single();

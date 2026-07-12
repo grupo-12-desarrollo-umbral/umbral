@@ -28,6 +28,8 @@ public sealed class UpdateTargetCommandHandler
             request.Name,
             request.QrCode,
             request.SequenceOrder,
+            request.Latitude,
+            request.Longitude,
             request.IsActive);
 
         await _missionRepository.UpdateAsync(mission, cancellationToken);

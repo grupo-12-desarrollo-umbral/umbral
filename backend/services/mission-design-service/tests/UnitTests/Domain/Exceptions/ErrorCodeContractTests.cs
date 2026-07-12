@@ -37,6 +37,8 @@ public sealed class ErrorCodeContractTests
             ["ScoreValueMustBePositiveException"] = "score-value-must-be-positive",
             ["SubstagePlayModeMismatchException"] = "substage-play-mode-mismatch",
             ["SubstageRequiresPlayModeException"] = "substage-requires-play-mode",
+            ["TargetLatitudeOutOfRangeException"] = "target-latitude-out-of-range",
+            ["TargetLongitudeOutOfRangeException"] = "target-longitude-out-of-range",
             ["TargetMayReferenceAtMostOneClueException"] = "target-may-reference-at-most-one-clue",
             ["TargetNameRequiredException"] = "target-name-required",
             ["TargetNotFoundException"] = "target-not-found",

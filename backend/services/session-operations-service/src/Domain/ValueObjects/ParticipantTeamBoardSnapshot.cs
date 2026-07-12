@@ -11,7 +11,8 @@ public sealed class ParticipantTeamBoardSnapshot : ValueObject
         int currentScore,
         AuthoritativeSessionTimerSnapshot timerSnapshot,
         ActiveSubstageContext? activeSubstageContext,
-        IReadOnlyList<VisibleClue> visibleClues)
+        IReadOnlyList<VisibleClue> visibleClues,
+        IReadOnlyList<VisibleTarget> activeTargets)
     {
         TeamId = teamId;
         TeamDisplayName = teamDisplayName;
@@ -20,6 +21,7 @@ public sealed class ParticipantTeamBoardSnapshot : ValueObject
         TimerSnapshot = timerSnapshot;
         ActiveSubstageContext = activeSubstageContext;
         VisibleClues = visibleClues;
+        ActiveTargets = activeTargets;
     }
 
     public Guid TeamId { get; }
@@ -36,6 +38,8 @@ public sealed class ParticipantTeamBoardSnapshot : ValueObject
 
     public IReadOnlyList<VisibleClue> VisibleClues { get; }
 
+    public IReadOnlyList<VisibleTarget> ActiveTargets { get; }
+
     public static ParticipantTeamBoardSnapshot Create(
         Guid teamId,
         string teamDisplayName,
@@ -43,7 +47,8 @@ public sealed class ParticipantTeamBoardSnapshot : ValueObject
         int currentScore,
         AuthoritativeSessionTimerSnapshot timerSnapshot,
         ActiveSubstageContext? activeSubstageContext,
-        IReadOnlyList<VisibleClue> visibleClues)
+        IReadOnlyList<VisibleClue> visibleClues,
+        IReadOnlyList<VisibleTarget> activeTargets)
     {
         return new ParticipantTeamBoardSnapshot(
             teamId,
@@ -52,7 +57,8 @@ public sealed class ParticipantTeamBoardSnapshot : ValueObject
             currentScore,
             timerSnapshot,
             activeSubstageContext,
-            visibleClues);
+            visibleClues,
+            activeTargets);
     }
 
     protected override IEnumerable<object?> GetEqualityComponents()
@@ -67,6 +73,11 @@ public sealed class ParticipantTeamBoardSnapshot : ValueObject
         foreach (var clue in VisibleClues)
         {
             yield return clue;
+        }
+
+        foreach (var target in ActiveTargets)
+        {
+            yield return target;
         }
     }
 }

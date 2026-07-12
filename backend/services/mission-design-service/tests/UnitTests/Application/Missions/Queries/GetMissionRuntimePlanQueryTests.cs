@@ -29,7 +29,7 @@ public sealed class GetMissionRuntimePlanQueryTests
                             "TreasureHunt",
                             new List<MissionRuntimePlanTargetDto>
                             {
-                                new("Target", "QR-1", 1, true, 150, new MissionRuntimePlanClueDto("Find it", "HiddenUntilOperatorRelease")),
+                                new("Target", "QR-1", 1, true, 150, 4.711, -74.0721, new MissionRuntimePlanClueDto("Find it", "HiddenUntilOperatorRelease")),
                             },
                             new List<MissionRuntimePlanTriviaQuestionDto>
                             {

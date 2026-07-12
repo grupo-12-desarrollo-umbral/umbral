@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using umbral_backend.Infrastructure.Persistence;
@@ -11,9 +12,11 @@ using umbral_backend.Infrastructure.Persistence;
 namespace umbral_backend.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260712182332_AddTargetCoordinates")]
+    partial class AddTargetCoordinates
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -393,12 +396,16 @@ namespace umbral_backend.Infrastructure.Persistence.Migrations
                             b1.Property<int?>("ScoreValue")
                                 .HasColumnType("integer");
 
+                            b1.Property<int>("SequenceOrder")
+                                .HasColumnType("integer");
+
                             b1.Property<int>("TriviaQuizId")
                                 .HasColumnType("integer");
 
                             b1.HasKey("Id");
 
-                            b1.HasIndex("TriviaQuizId");
+                            b1.HasIndex("TriviaQuizId", "SequenceOrder")
+                                .IsUnique();
 
                             b1.ToTable("TriviaQuestions", (string)null);
 

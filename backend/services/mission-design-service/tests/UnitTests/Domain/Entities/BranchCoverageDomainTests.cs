@@ -30,7 +30,7 @@ public sealed class BranchCoverageDomainTests
         mission.ClearDomainEvents();
 
         // Adding another target to a ready mission keeps the plan satisfied
-        mission.AddTarget(10, 20, "New Target", "QR-2", 2);
+        mission.AddTarget(10, 20, "New Target", "QR-2", 2, 4.711, -74.0721);
 
         mission.ActivationState.Should().Be(MissionActivation.Ready);
     }
@@ -154,7 +154,7 @@ public sealed class BranchCoverageDomainTests
         var stage = mission.AddStage("S", 1);
         stage.Id = 10;
 
-        var act = () => mission.UpdateTarget(10, 999, 1, "N", "QR", 1, true);
+        var act = () => mission.UpdateTarget(10, 999, 1, "N", "QR", 1, 4.711, -74.0721, true);
 
         act.Should().Throw<MissionNodeNotFoundException>();
     }
@@ -244,7 +244,7 @@ public sealed class BranchCoverageDomainTests
     {
         var substage = Substage.CreateTrivia("Trivia", 1);
 
-        var act = () => substage.AddTarget("T", "QR", 1, 20);
+        var act = () => substage.AddTarget("T", "QR", 1, 20, 4.711, -74.0721);
 
         act.Should().Throw<SubstagePlayModeMismatchException>();
     }
@@ -254,7 +254,7 @@ public sealed class BranchCoverageDomainTests
     {
         var substage = Substage.CreateTrivia("Trivia", 1);
 
-        var act = () => substage.UpdateTarget(1, "T", "QR", 1, true);
+        var act = () => substage.UpdateTarget(1, "T", "QR", 1, 4.711, -74.0721, true);
 
         act.Should().Throw<SubstagePlayModeMismatchException>();
     }
@@ -317,7 +317,7 @@ public sealed class BranchCoverageDomainTests
     {
         var substage = Substage.CreateTreasureHunt("Sub", 1);
 
-        var act = () => substage.UpdateTarget(999, "N", "QR", 1, true);
+        var act = () => substage.UpdateTarget(999, "N", "QR", 1, 4.711, -74.0721, true);
 
         act.Should().Throw<TargetNotFoundException>();
     }
@@ -350,9 +350,9 @@ public sealed class BranchCoverageDomainTests
     [Fact]
     public void AssociateClue_WhenAlreadyAssociatedWithSameClue_IsIdempotent()
     {
-        var target = Target.Create("T", "QR", 1, 20);
+        var target = Target.Create("T", "QR", 1, 20, 4.711, -74.0721);
         var substage = Substage.CreateTreasureHunt("Sub", 1);
-        substage.AddTarget("T", "QR", 1, 20);
+        substage.AddTarget("T", "QR", 1, 20, 4.711, -74.0721);
         var clue = Clue.Create("C", 1, "text");
         clue.Id = 5;
         substage.AddClue(clue);
@@ -367,9 +367,9 @@ public sealed class BranchCoverageDomainTests
     [Fact]
     public void ClearClue_SetsClueIdToNull()
     {
-        var target = Target.Create("T", "QR", 1, 20);
+        var target = Target.Create("T", "QR", 1, 20, 4.711, -74.0721);
         var substage = Substage.CreateTreasureHunt("Sub", 1);
-        substage.AddTarget("T", "QR", 1, 20);
+        substage.AddTarget("T", "QR", 1, 20, 4.711, -74.0721);
         var clue = Clue.Create("C", 1, "text");
         clue.Id = 5;
         substage.AddClue(clue);
@@ -385,7 +385,7 @@ public sealed class BranchCoverageDomainTests
     [Fact]
     public void Reprice_UpdatesScore()
     {
-        var target = Target.Create("T", "QR", 1, 50);
+        var target = Target.Create("T", "QR", 1, 50, 4.711, -74.0721);
         target.Score.Points.Should().Be(50);
 
         target.Reprice(100);
@@ -637,7 +637,7 @@ public sealed class BranchCoverageDomainTests
         stage.Id = 10;
         var substage = mission.AddSubstage(stage.Id, Substage.CreateTreasureHunt("T", 1));
         substage.Id = 20;
-        mission.AddTarget(stage.Id, substage.Id, "T", "QR", 1, isActive: false);
+        mission.AddTarget(stage.Id, substage.Id, "T", "QR", 1, 4.711, -74.0721, isActive: false);
 
         var act = () => mission.Activate();
 
@@ -681,7 +681,7 @@ public sealed class BranchCoverageDomainTests
         stage.Id = 10;
         var substage = mission.AddSubstage(stage.Id, Substage.CreateTreasureHunt("T", 1));
         substage.Id = 20;
-        mission.AddTarget(stage.Id, substage.Id, "Target", "QR", 1);
+        mission.AddTarget(stage.Id, substage.Id, "Target", "QR", 1, 4.711, -74.0721);
         return mission;
     }
 }

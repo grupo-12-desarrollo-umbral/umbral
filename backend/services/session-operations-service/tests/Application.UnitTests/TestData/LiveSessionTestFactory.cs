@@ -148,6 +148,8 @@ internal static class LiveSessionTestFactory
                     1,
                     isActive: true,
                     score: 100,
+                    latitude: 4.711,
+                    longitude: -74.0721,
                     clueText: "Look near the entrance.",
                     clueVisibilityPolicy: "VisibleAtStart")
             ],
@@ -206,6 +208,8 @@ internal static class LiveSessionTestFactory
                     1,
                     isActive: true,
                     score: 100,
+                    latitude: 4.711,
+                    longitude: -74.0721,
                     clueText: "Look near the entrance.",
                     clueVisibilityPolicy: "VisibleAtStart")
             ],

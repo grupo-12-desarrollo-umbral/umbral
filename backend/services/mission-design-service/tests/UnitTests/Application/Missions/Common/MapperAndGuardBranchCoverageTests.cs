@@ -51,7 +51,7 @@ public sealed class MapperAndGuardBranchCoverageTests
         stage.Id = 1;
         var substage = mission.AddSubstage(stage.Id, Substage.CreateTreasureHunt("Hunt", 1));
         substage.Id = 2;
-        var target = mission.AddTarget(1, 2, "Statue", "QR-1", 1, isActive: true);
+        var target = mission.AddTarget(1, 2, "Statue", "QR-1", 1, 4.711, -74.0721, isActive: true);
         target.Id = 10;
 
         var dto = MissionDtoMapper.Map(mission);

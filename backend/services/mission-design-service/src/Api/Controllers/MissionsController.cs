@@ -213,6 +213,8 @@ public sealed class MissionsController(ISender sender) : ControllerBase
                 request.Name,
                 request.QrCode,
                 request.SequenceOrder,
+                request.Latitude,
+                request.Longitude,
                 request.IsActive),
             cancellationToken);
 
@@ -237,6 +239,8 @@ public sealed class MissionsController(ISender sender) : ControllerBase
                 request.Name,
                 request.QrCode,
                 request.SequenceOrder,
+                request.Latitude,
+                request.Longitude,
                 request.IsActive),
             cancellationToken);
 
@@ -358,12 +362,16 @@ public sealed class MissionsController(ISender sender) : ControllerBase
         string Name,
         string QrCode,
         int SequenceOrder,
+        double Latitude,
+        double Longitude,
         bool IsActive = true);
 
     public sealed record UpdateTargetRequest(
         string Name,
         string QrCode,
         int SequenceOrder,
+        double Latitude,
+        double Longitude,
         bool IsActive);
 
     public sealed record AssociateClueWithTargetRequest(int ClueId);
@@ -472,7 +480,9 @@ public sealed class MissionsController(ISender sender) : ControllerBase
         int SequenceOrder,
         bool IsActive,
         int? ClueId,
-        int Score)
+        int Score,
+        double Latitude,
+        double Longitude)
     {
         public static MissionTargetResponse FromDto(MissionTargetDto dto)
         {
@@ -483,7 +493,9 @@ public sealed class MissionsController(ISender sender) : ControllerBase
                 dto.SequenceOrder,
                 dto.IsActive,
                 dto.ClueId,
-                dto.Score);
+                dto.Score,
+                dto.Latitude,
+                dto.Longitude);
         }
     }
 
@@ -580,6 +592,8 @@ public sealed class MissionsController(ISender sender) : ControllerBase
         int SequenceOrder,
         bool IsActive,
         int Score,
+        double Latitude,
+        double Longitude,
         MissionRuntimeClueResponse? Clue)
     {
         public static MissionRuntimeTargetResponse FromDto(MissionRuntimePlanTargetDto dto)
@@ -590,6 +604,8 @@ public sealed class MissionsController(ISender sender) : ControllerBase
                 dto.SequenceOrder,
                 dto.IsActive,
                 dto.Score,
+                dto.Latitude,
+                dto.Longitude,
                 dto.Clue is null ? null : MissionRuntimeClueResponse.FromDto(dto.Clue));
         }
     }

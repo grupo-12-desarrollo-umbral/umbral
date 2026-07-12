@@ -520,6 +520,7 @@ public sealed class LiveSession : BaseAuditableEntity
         var timerSnapshot = GetAuthoritativeSessionTimerSnapshot(observedAt);
         var activeSubstageContext = BuildActiveSubstageContext();
         var visibleClues = CollectVisibleClues();
+        var activeTargets = CollectActiveTargets();
 
         return ParticipantTeamBoardSnapshot.Create(
             team.TeamId,
@@ -528,7 +529,8 @@ public sealed class LiveSession : BaseAuditableEntity
             team.CurrentScore ?? 0,
             timerSnapshot,
             activeSubstageContext,
-            visibleClues);
+            visibleClues,
+            activeTargets);
     }
 
     public OperatorSessionPanelSnapshot ProjectOperatorSessionPanel(DateTimeOffset observedAt)
@@ -669,6 +671,30 @@ public sealed class LiveSession : BaseAuditableEntity
                 !string.IsNullOrWhiteSpace(clue.Text))
             .OrderBy(clue => clue.SequenceOrder)
             .Select(clue => VisibleClue.CreateForSubstage(clue.Text))
+            .ToList();
+    }
+
+    // Surfaces every active target in the active treasure-hunt substage with its display
+    // coordinates so the participant's mobile app can render the targets on a map. Coordinates are
+    // context metadata only; QR validation still owns target resolution.
+    private IReadOnlyList<VisibleTarget> CollectActiveTargets()
+    {
+        if (ActiveSubstageId is null)
+        {
+            return [];
+        }
+
+        return MissionRuntimeSnapshot.TargetSnapshots
+            .Where(target =>
+                target.SubstageSnapshotId == ActiveSubstageId.Value &&
+                target.IsActive)
+            .OrderBy(target => target.SequenceOrder)
+            .Select(target => VisibleTarget.Create(
+                target.TargetSnapshotId,
+                target.Name,
+                target.SequenceOrder,
+                target.Latitude,
+                target.Longitude))
             .ToList();
     }
 

@@ -102,6 +102,26 @@ public sealed class LiveSessionTeamBoardTests
         }
     }
 
+    // Gate: the participant/runtime contract exposes every active target's coordinates so the
+    // mobile app can render them on a map.
+    [Fact]
+    public void ProjectParticipantTeamBoard_TreasureHunt_ExposesActiveTargetCoordinates()
+    {
+        var session = ActivateMultiTargetTreasureHuntSession(out var team);
+        var board = session.ProjectParticipantTeamBoard(team.TeamId, ActiveAt);
+
+        board.ActiveTargets.Should().HaveCount(3);
+        board.ActiveTargets.Select(target => target.SequenceOrder).Should().BeInAscendingOrder();
+
+        foreach (var target in board.ActiveTargets)
+        {
+            target.Latitude.Should().Be(4.711);
+            target.Longitude.Should().Be(-74.0721);
+            target.Name.Should().NotBeNullOrWhiteSpace();
+            target.TargetSnapshotId.Should().NotBe(Guid.Empty);
+        }
+    }
+
     // Gate: trivia board includes active-question/timer context without target-progress invention.
     [Fact]
     public void ProjectParticipantTeamBoard_Trivia_IncludesActiveQuestionContextWithNoTargetProgress()

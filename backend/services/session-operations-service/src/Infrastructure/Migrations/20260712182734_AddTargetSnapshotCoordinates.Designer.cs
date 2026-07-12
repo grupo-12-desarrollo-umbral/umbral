@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using umbral_backend.Infrastructure.Persistence;
@@ -11,9 +12,11 @@ using umbral_backend.Infrastructure.Persistence;
 namespace umbral_backend.Infrastructure.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260712182734_AddTargetSnapshotCoordinates")]
+    partial class AddTargetSnapshotCoordinates
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -472,47 +475,6 @@ namespace umbral_backend.Infrastructure.Migrations
                                         .HasForeignKey("MissionRuntimeSnapshotlive_session_id");
                                 });
 
-                            b1.OwnsMany("umbral_backend.Domain.ValueObjects.ClueSnapshot", "ClueSnapshots", b2 =>
-                                {
-                                    b2.Property<Guid>("ClueSnapshotId")
-                                        .HasColumnType("uuid")
-                                        .HasColumnName("id");
-
-                                    b2.Property<int>("SequenceOrder")
-                                        .HasColumnType("integer")
-                                        .HasColumnName("sequence_order");
-
-                                    b2.Property<Guid>("SubstageSnapshotId")
-                                        .HasColumnType("uuid")
-                                        .HasColumnName("substage_snapshot_id");
-
-                                    b2.Property<string>("Text")
-                                        .IsRequired()
-                                        .HasMaxLength(4000)
-                                        .HasColumnType("character varying(4000)")
-                                        .HasColumnName("text");
-
-                                    b2.Property<string>("VisibilityPolicy")
-                                        .IsRequired()
-                                        .HasMaxLength(128)
-                                        .HasColumnType("character varying(128)")
-                                        .HasColumnName("visibility_policy");
-
-                                    b2.Property<Guid>("mission_runtime_snapshot_live_session_id")
-                                        .HasColumnType("uuid")
-                                        .HasColumnName("live_session_id");
-
-                                    b2.HasKey("ClueSnapshotId");
-
-                                    b2.HasIndex("mission_runtime_snapshot_live_session_id", "SubstageSnapshotId", "SequenceOrder")
-                                        .IsUnique();
-
-                                    b2.ToTable("live_session_mission_runtime_snapshot_clues", (string)null);
-
-                                    b2.WithOwner()
-                                        .HasForeignKey("mission_runtime_snapshot_live_session_id");
-                                });
-
                             b1.OwnsMany("umbral_backend.Domain.ValueObjects.StageSnapshot", "StageSnapshots", b2 =>
                                 {
                                     b2.Property<Guid>("StageSnapshotId")
@@ -744,8 +706,6 @@ namespace umbral_backend.Infrastructure.Migrations
 
                                     b2.Navigation("Options");
                                 });
-
-                            b1.Navigation("ClueSnapshots");
 
                             b1.Navigation("MaximumTime")
                                 .IsRequired();

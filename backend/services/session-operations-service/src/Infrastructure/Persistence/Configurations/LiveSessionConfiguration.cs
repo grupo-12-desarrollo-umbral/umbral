@@ -245,6 +245,14 @@ public sealed class LiveSessionConfiguration : IEntityTypeConfiguration<LiveSess
                     .HasColumnName("score")
                     .IsRequired();
 
+                targetBuilder.Property(target => target.Latitude)
+                    .HasColumnName("latitude")
+                    .IsRequired();
+
+                targetBuilder.Property(target => target.Longitude)
+                    .HasColumnName("longitude")
+                    .IsRequired();
+
                 targetBuilder.Property(target => target.ClueText)
                     .HasColumnName("clue_text")
                     .HasMaxLength(4000);

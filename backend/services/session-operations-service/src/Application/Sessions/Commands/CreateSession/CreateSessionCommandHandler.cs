@@ -117,6 +117,8 @@ public sealed class CreateSessionCommandHandler
                                 target.SequenceOrder,
                                 target.IsActive,
                                 target.Score,
+                                target.Latitude,
+                                target.Longitude,
                                 target.Clue?.Text,
                                 target.Clue?.VisibilityPolicy)));
 

@@ -60,6 +60,9 @@ public sealed class ParticipantTeamBoardEndpointTests : IAsyncLifetime
         payload.ActiveSubstage.TotalActiveTargets.Should().BeGreaterThan(0);
         payload.ActiveSubstage.ResolvedTargets.Should().Be(0);
         payload.VisibleClues.Should().NotBeNull();
+        payload.ActiveTargets.Should().NotBeEmpty();
+        payload.ActiveTargets.Should().OnlyContain(target =>
+            target.Latitude == 4.711 && target.Longitude == -74.0721);
     }
 
     [Fact]
@@ -146,6 +149,8 @@ public sealed class ParticipantTeamBoardEndpointTests : IAsyncLifetime
             1,
             isActive: true,
             100,
+            4.711,
+            -74.0721,
             "Look near the entrance.",
             "VisibleAtStart");
 

@@ -54,7 +54,7 @@ public class MissionActivationPolicyRuntimePlanTests
         var substage = Substage.CreateTreasureHunt("Sub", 1);
         substage.Id = 2;
         mission.AddSubstage(1, substage);
-        mission.AddTarget(1, 2, "Statue", "QR-1", 1, isActive: false);
+        mission.AddTarget(1, 2, "Statue", "QR-1", 1, 4.711, -74.0721, isActive: false);
 
         var failures = MissionActivationPolicy.EvaluateReadiness(mission);
 
@@ -85,7 +85,7 @@ public class MissionActivationPolicyRuntimePlanTests
         var substage = Substage.CreateTreasureHunt("Sub", 1);
         substage.Id = 2;
         mission.AddSubstage(1, substage);
-        mission.AddTarget(1, 2, "Statue", "QR-1", 1);
+        mission.AddTarget(1, 2, "Statue", "QR-1", 1, 4.711, -74.0721);
 
         MissionActivationPolicy.EvaluateReadiness(mission).Should().BeEmpty();
         MissionActivationPolicy.SatisfiesRuntimePlan(mission).Should().BeTrue();

@@ -329,6 +329,8 @@ public sealed class SessionTeamAssociationEndpointTests : IAsyncLifetime
                     1,
                     true,
                     100,
+                    4.711,
+                    -74.0721,
                     "Look under the stairs",
                     "AfterPreviousTarget")
             ],
