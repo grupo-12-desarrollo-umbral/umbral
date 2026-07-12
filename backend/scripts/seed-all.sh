@@ -78,11 +78,19 @@ psql -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d session_operations -c "
 " 2>/dev/null || true
 
 echo "  mission_design (trivia quizzes) …"
-# Delete the seeded mission first (cascades to its stages/substages). Quizzes are wiped
-# and recreated with fresh serial ids every run, so the mission's quiz selection must be
-# reauthored each run too — otherwise it dangles and the mission stops being runtime-ready.
+# The canonical quiz catalog is destructive: quizzes are wiped and recreated with fresh ids.
+# Delete every mission that selects a trivia quiz first (cascades to stages/substages), so no
+# persisted MissionSubstage can retain a dangling or, worse, silently remapped TriviaQuizId.
+# Playwright global setup recreates its E2E missions after seed-all; the live seed mission below
+# is reauthored later in this script.
 psql -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d mission_design -c "
-  DELETE FROM \"Missions\" WHERE \"Name\" = '$SEEDED_LIVE_TRIVIA_MISSION_NAME';
+  DELETE FROM \"Missions\"
+  WHERE \"Id\" IN (
+    SELECT DISTINCT stages.\"MissionId\"
+    FROM \"MissionStages\" AS stages
+    JOIN \"MissionSubstages\" AS substages ON substages.\"StageId\" = stages.\"Id\"
+    WHERE substages.\"TriviaQuizId\" IS NOT NULL
+  );
   DELETE FROM \"TriviaOptions\";
   DELETE FROM \"TriviaQuestions\";
   DELETE FROM \"TriviaQuizzes\";
@@ -95,18 +103,18 @@ WITH quiz AS (
   RETURNING \"Id\"
 ),
 q1 AS (
-  INSERT INTO \"TriviaQuestions\" (\"TriviaQuizId\", \"Prompt\", \"SequenceOrder\", \"ScoreValue\", \"TimeLimitSeconds\", \"Explanation\", \"IsActive\")
-  SELECT \"Id\", '¿Quién fue el maestro de Platón?', 1, 100, 30, 'Sócrates fue el maestro de Platón.', true FROM quiz
+  INSERT INTO \"TriviaQuestions\" (\"TriviaQuizId\", \"Prompt\", \"ScoreValue\", \"TimeLimitSeconds\", \"Explanation\", \"IsActive\")
+  SELECT \"Id\", '¿Quién fue el maestro de Platón?', 100, 30, 'Sócrates fue el maestro de Platón.', true FROM quiz
   RETURNING \"Id\"
 ),
 q2 AS (
-  INSERT INTO \"TriviaQuestions\" (\"TriviaQuizId\", \"Prompt\", \"SequenceOrder\", \"ScoreValue\", \"TimeLimitSeconds\", \"Explanation\", \"IsActive\")
-  SELECT \"Id\", '¿Qué filósofo fundó la Academia de Atenas?', 2, 100, 30, 'Platón fundó la Academia de Atenas.', true FROM quiz
+  INSERT INTO \"TriviaQuestions\" (\"TriviaQuizId\", \"Prompt\", \"ScoreValue\", \"TimeLimitSeconds\", \"Explanation\", \"IsActive\")
+  SELECT \"Id\", '¿Qué filósofo fundó la Academia de Atenas?', 100, 30, 'Platón fundó la Academia de Atenas.', true FROM quiz
   RETURNING \"Id\"
 ),
 q3 AS (
-  INSERT INTO \"TriviaQuestions\" (\"TriviaQuizId\", \"Prompt\", \"SequenceOrder\", \"ScoreValue\", \"TimeLimitSeconds\", \"Explanation\", \"IsActive\")
-  SELECT \"Id\", '¿Cuál de estos filósofos fue discípulo de Platón?', 3, 100, 30, 'Aristóteles fue discípulo de Platón.', true FROM quiz
+  INSERT INTO \"TriviaQuestions\" (\"TriviaQuizId\", \"Prompt\", \"ScoreValue\", \"TimeLimitSeconds\", \"Explanation\", \"IsActive\")
+  SELECT \"Id\", '¿Cuál de estos filósofos fue discípulo de Platón?', 100, 30, 'Aristóteles fue discípulo de Platón.', true FROM quiz
   RETURNING \"Id\"
 )
 INSERT INTO \"TriviaOptions\" (\"TriviaQuestionId\", \"OptionText\", \"SequenceOrder\", \"IsCorrect\")
@@ -131,18 +139,18 @@ WITH quiz AS (
   RETURNING \"Id\"
 ),
 q1 AS (
-  INSERT INTO \"TriviaQuestions\" (\"TriviaQuizId\", \"Prompt\", \"SequenceOrder\", \"ScoreValue\", \"TimeLimitSeconds\", \"Explanation\", \"IsActive\")
-  SELECT \"Id\", '¿Qué guitarrista es conocido como \"Slowhand\"?', 1, 100, 30, 'Eric Clapton es apodado Slowhand.', true FROM quiz
+  INSERT INTO \"TriviaQuestions\" (\"TriviaQuizId\", \"Prompt\", \"ScoreValue\", \"TimeLimitSeconds\", \"Explanation\", \"IsActive\")
+  SELECT \"Id\", '¿Qué guitarrista es conocido como \"Slowhand\"?', 100, 30, 'Eric Clapton es apodado Slowhand.', true FROM quiz
   RETURNING \"Id\"
 ),
 q2 AS (
-  INSERT INTO \"TriviaQuestions\" (\"TriviaQuizId\", \"Prompt\", \"SequenceOrder\", \"ScoreValue\", \"TimeLimitSeconds\", \"Explanation\", \"IsActive\")
-  SELECT \"Id\", '¿Cuál de estos guitarristas revolucionó el rock con su técnica en los años 60?', 2, 100, 30, 'Jimi Hendrix revolucionó la guitarra eléctrica.', true FROM quiz
+  INSERT INTO \"TriviaQuestions\" (\"TriviaQuizId\", \"Prompt\", \"ScoreValue\", \"TimeLimitSeconds\", \"Explanation\", \"IsActive\")
+  SELECT \"Id\", '¿Cuál de estos guitarristas revolucionó el rock con su técnica en los años 60?', 100, 30, 'Jimi Hendrix revolucionó la guitarra eléctrica.', true FROM quiz
   RETURNING \"Id\"
 ),
 q3 AS (
-  INSERT INTO \"TriviaQuestions\" (\"TriviaQuizId\", \"Prompt\", \"SequenceOrder\", \"ScoreValue\", \"TimeLimitSeconds\", \"Explanation\", \"IsActive\")
-  SELECT \"Id\", '¿Qué guitarrista popularizó la técnica del tapping en el rock?', 3, 100, 30, 'Eddie Van Halen popularizó el tapping.', true FROM quiz
+  INSERT INTO \"TriviaQuestions\" (\"TriviaQuizId\", \"Prompt\", \"ScoreValue\", \"TimeLimitSeconds\", \"Explanation\", \"IsActive\")
+  SELECT \"Id\", '¿Qué guitarrista popularizó la técnica del tapping en el rock?', 100, 30, 'Eddie Van Halen popularizó el tapping.', true FROM quiz
   RETURNING \"Id\"
 )
 INSERT INTO \"TriviaOptions\" (\"TriviaQuestionId\", \"OptionText\", \"SequenceOrder\", \"IsCorrect\")
@@ -159,6 +167,29 @@ UNION ALL SELECT \"Id\", 'Steve Vai', 2, false FROM q3
 UNION ALL SELECT \"Id\", 'Joe Satriani', 3, false FROM q3
 UNION ALL SELECT \"Id\", 'Yngwie Malmsteen', 4, false FROM q3;
 "
+# HU-171 Progreso de substages — Published, dedicated to the mixed-play-mode manual test.
+psql -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d mission_design -c "
+WITH quiz AS (
+  INSERT INTO \"TriviaQuizzes\" (\"Title\", \"Description\", \"Status\", \"Created\", \"LastModified\")
+  VALUES ('HU-171 Progreso de substages', 'Quiz estable para probar Trivia seguida de Treasure Hunt.', 'Published', NOW(), NOW())
+  RETURNING \"Id\"
+),
+q1 AS (
+  INSERT INTO \"TriviaQuestions\" (\"TriviaQuizId\", \"Prompt\", \"ScoreValue\", \"TimeLimitSeconds\", \"Explanation\", \"IsActive\")
+  SELECT \"Id\", '¿Cuál es el primer modo de juego de esta misión?', 100, 30, 'La misión comienza con Trivia.', true FROM quiz
+  RETURNING \"Id\"
+),
+q2 AS (
+  INSERT INTO \"TriviaQuestions\" (\"TriviaQuizId\", \"Prompt\", \"ScoreValue\", \"TimeLimitSeconds\", \"Explanation\", \"IsActive\")
+  SELECT \"Id\", '¿Qué modo de juego sigue después de Trivia?', 100, 30, 'Treasure Hunt es el segundo substage.', true FROM quiz
+  RETURNING \"Id\"
+)
+INSERT INTO \"TriviaOptions\" (\"TriviaQuestionId\", \"OptionText\", \"SequenceOrder\", \"IsCorrect\")
+SELECT \"Id\", 'Trivia', 1, true FROM q1
+UNION ALL SELECT \"Id\", 'Treasure Hunt', 2, false FROM q1
+UNION ALL SELECT \"Id\", 'Treasure Hunt', 1, true FROM q2
+UNION ALL SELECT \"Id\", 'Trivia', 2, false FROM q2;
+"
 # Peliculas mas vistas en los ultimos 5 anos — Published
 psql -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d mission_design -c "
 WITH quiz AS (
@@ -167,18 +198,18 @@ WITH quiz AS (
   RETURNING \"Id\"
 ),
 q1 AS (
-  INSERT INTO \"TriviaQuestions\" (\"TriviaQuizId\", \"Prompt\", \"SequenceOrder\", \"ScoreValue\", \"TimeLimitSeconds\", \"Explanation\", \"IsActive\")
-  SELECT \"Id\", '¿Cuál fue la película más taquillera de 2023?', 1, 100, 30, 'Barbie fue la película más taquillera de 2023.', true FROM quiz
+  INSERT INTO \"TriviaQuestions\" (\"TriviaQuizId\", \"Prompt\", \"ScoreValue\", \"TimeLimitSeconds\", \"Explanation\", \"IsActive\")
+  SELECT \"Id\", '¿Cuál fue la película más taquillera de 2023?', 100, 30, 'Barbie fue la película más taquillera de 2023.', true FROM quiz
   RETURNING \"Id\"
 ),
 q2 AS (
-  INSERT INTO \"TriviaQuestions\" (\"TriviaQuizId\", \"Prompt\", \"SequenceOrder\", \"ScoreValue\", \"TimeLimitSeconds\", \"Explanation\", \"IsActive\")
-  SELECT \"Id\", '¿Qué película de 2022 rompió récords como secuela de un clásico de los 80?', 2, 100, 30, 'Top Gun: Maverick fue un éxito masivo en 2022.', true FROM quiz
+  INSERT INTO \"TriviaQuestions\" (\"TriviaQuizId\", \"Prompt\", \"ScoreValue\", \"TimeLimitSeconds\", \"Explanation\", \"IsActive\")
+  SELECT \"Id\", '¿Qué película de 2022 rompió récords como secuela de un clásico de los 80?', 100, 30, 'Top Gun: Maverick fue un éxito masivo en 2022.', true FROM quiz
   RETURNING \"Id\"
 ),
 q3 AS (
-  INSERT INTO \"TriviaQuestions\" (\"TriviaQuizId\", \"Prompt\", \"SequenceOrder\", \"ScoreValue\", \"TimeLimitSeconds\", \"Explanation\", \"IsActive\")
-  SELECT \"Id\", '¿Cuál de estas películas ganó el Oscar a Mejor Película en 2024?', 3, 100, 30, 'Oppenheimer ganó el Oscar a Mejor Película en 2024.', true FROM quiz
+  INSERT INTO \"TriviaQuestions\" (\"TriviaQuizId\", \"Prompt\", \"ScoreValue\", \"TimeLimitSeconds\", \"Explanation\", \"IsActive\")
+  SELECT \"Id\", '¿Cuál de estas películas ganó el Oscar a Mejor Película en 2024?', 100, 30, 'Oppenheimer ganó el Oscar a Mejor Película en 2024.', true FROM quiz
   RETURNING \"Id\"
 )
 INSERT INTO \"TriviaOptions\" (\"TriviaQuestionId\", \"OptionText\", \"SequenceOrder\", \"IsCorrect\")
@@ -203,18 +234,18 @@ WITH quiz AS (
   RETURNING \"Id\"
 ),
 q1 AS (
-  INSERT INTO \"TriviaQuestions\" (\"TriviaQuizId\", \"Prompt\", \"SequenceOrder\", \"ScoreValue\", \"TimeLimitSeconds\", \"Explanation\", \"IsActive\")
-  SELECT \"Id\", '¿Qué género musical se originó en Nueva Orleans a principios del siglo XX?', 1, 100, 30, 'El jazz nació en Nueva Orleans.', true FROM quiz
+  INSERT INTO \"TriviaQuestions\" (\"TriviaQuizId\", \"Prompt\", \"ScoreValue\", \"TimeLimitSeconds\", \"Explanation\", \"IsActive\")
+  SELECT \"Id\", '¿Qué género musical se originó en Nueva Orleans a principios del siglo XX?', 100, 30, 'El jazz nació en Nueva Orleans.', true FROM quiz
   RETURNING \"Id\"
 ),
 q2 AS (
-  INSERT INTO \"TriviaQuestions\" (\"TriviaQuizId\", \"Prompt\", \"SequenceOrder\", \"ScoreValue\", \"TimeLimitSeconds\", \"Explanation\", \"IsActive\")
-  SELECT \"Id\", '¿Cuál de estos artistas es conocido como el \"Rey del Pop\"?', 2, 100, 30, 'Michael Jackson es el Rey del Pop.', true FROM quiz
+  INSERT INTO \"TriviaQuestions\" (\"TriviaQuizId\", \"Prompt\", \"ScoreValue\", \"TimeLimitSeconds\", \"Explanation\", \"IsActive\")
+  SELECT \"Id\", '¿Cuál de estos artistas es conocido como el \"Rey del Pop\"?', 100, 30, 'Michael Jackson es el Rey del Pop.', true FROM quiz
   RETURNING \"Id\"
 ),
 q3 AS (
-  INSERT INTO \"TriviaQuestions\" (\"TriviaQuizId\", \"Prompt\", \"SequenceOrder\", \"ScoreValue\", \"TimeLimitSeconds\", \"Explanation\", \"IsActive\")
-  SELECT \"Id\", '¿Qué banda británica lanzó el álbum \"The Dark Side of the Moon\"?', 3, 100, 30, 'Pink Floyd lanzó The Dark Side of the Moon.', true FROM quiz
+  INSERT INTO \"TriviaQuestions\" (\"TriviaQuizId\", \"Prompt\", \"ScoreValue\", \"TimeLimitSeconds\", \"Explanation\", \"IsActive\")
+  SELECT \"Id\", '¿Qué banda británica lanzó el álbum \"The Dark Side of the Moon\"?', 100, 30, 'Pink Floyd lanzó The Dark Side of the Moon.', true FROM quiz
   RETURNING \"Id\"
 )
 INSERT INTO \"TriviaOptions\" (\"TriviaQuestionId\", \"OptionText\", \"SequenceOrder\", \"IsCorrect\")
@@ -239,18 +270,18 @@ WITH quiz AS (
   RETURNING \"Id\"
 ),
 q1 AS (
-  INSERT INTO \"TriviaQuestions\" (\"TriviaQuizId\", \"Prompt\", \"SequenceOrder\", \"ScoreValue\", \"TimeLimitSeconds\", \"Explanation\", \"IsActive\")
-  SELECT \"Id\", '¿Cuál es la capital de Francia?', 1, 100, 30, 'París es la capital de Francia.', true FROM quiz
+  INSERT INTO \"TriviaQuestions\" (\"TriviaQuizId\", \"Prompt\", \"ScoreValue\", \"TimeLimitSeconds\", \"Explanation\", \"IsActive\")
+  SELECT \"Id\", '¿Cuál es la capital de Francia?', 100, 30, 'París es la capital de Francia.', true FROM quiz
   RETURNING \"Id\"
 ),
 q2 AS (
-  INSERT INTO \"TriviaQuestions\" (\"TriviaQuizId\", \"Prompt\", \"SequenceOrder\", \"ScoreValue\", \"TimeLimitSeconds\", \"Explanation\", \"IsActive\")
-  SELECT \"Id\", '¿Cuál es la capital de Japón?', 2, 100, 30, 'Tokio es la capital de Japón.', true FROM quiz
+  INSERT INTO \"TriviaQuestions\" (\"TriviaQuizId\", \"Prompt\", \"ScoreValue\", \"TimeLimitSeconds\", \"Explanation\", \"IsActive\")
+  SELECT \"Id\", '¿Cuál es la capital de Japón?', 100, 30, 'Tokio es la capital de Japón.', true FROM quiz
   RETURNING \"Id\"
 ),
 q3 AS (
-  INSERT INTO \"TriviaQuestions\" (\"TriviaQuizId\", \"Prompt\", \"SequenceOrder\", \"ScoreValue\", \"TimeLimitSeconds\", \"Explanation\", \"IsActive\")
-  SELECT \"Id\", '¿Cuál es la capital de Australia?', 3, 100, 30, 'Canberra es la capital de Australia.', true FROM quiz
+  INSERT INTO \"TriviaQuestions\" (\"TriviaQuizId\", \"Prompt\", \"ScoreValue\", \"TimeLimitSeconds\", \"Explanation\", \"IsActive\")
+  SELECT \"Id\", '¿Cuál es la capital de Australia?', 100, 30, 'Canberra es la capital de Australia.', true FROM quiz
   RETURNING \"Id\"
 )
 INSERT INTO \"TriviaOptions\" (\"TriviaQuestionId\", \"OptionText\", \"SequenceOrder\", \"IsCorrect\")
@@ -276,8 +307,8 @@ WITH quiz AS (
   RETURNING \"Id\"
 ),
 q1 AS (
-  INSERT INTO \"TriviaQuestions\" (\"TriviaQuizId\", \"Prompt\", \"SequenceOrder\", \"ScoreValue\", \"TimeLimitSeconds\", \"Explanation\", \"IsActive\")
-  SELECT \"Id\", '¿En que continente esta Egipto?', 1, 100, 30, 'Egipto esta en Africa.', true FROM quiz
+  INSERT INTO \"TriviaQuestions\" (\"TriviaQuizId\", \"Prompt\", \"ScoreValue\", \"TimeLimitSeconds\", \"Explanation\", \"IsActive\")
+  SELECT \"Id\", '¿En que continente esta Egipto?', 100, 30, 'Egipto esta en Africa.', true FROM quiz
   RETURNING \"Id\"
 )
 INSERT INTO \"TriviaOptions\" (\"TriviaQuestionId\", \"OptionText\", \"SequenceOrder\", \"IsCorrect\")
