@@ -562,4 +562,135 @@ public class TriviaQuizTests
 
         act.Should().NotThrow();
     }
+
+    [Fact]
+    public void RemoveQuestion_WhenQuizIsDraft_RemovesQuestionAndRaisesRemovedEvent()
+    {
+        var quiz = TriviaQuiz.Create("Intro Quiz", "Warm-up trivia");
+        var question = quiz.AddQuestion(
+            "Capital of France?",
+            1,
+            100,
+            45,
+            "Geography baseline",
+            [
+                TriviaOption.Create("Paris", 1, true),
+                TriviaOption.Create("Berlin", 2, false)
+            ]);
+
+        question.Id = 10;
+        quiz.ClearDomainEvents();
+
+        var removed = quiz.RemoveQuestion(10);
+
+        removed.Should().BeSameAs(question);
+        quiz.Questions.Should().BeEmpty();
+        quiz.DomainEvents.Should().ContainSingle(e => e is TriviaQuestionRemovedEvent);
+        var removedEvent = quiz.DomainEvents.OfType<TriviaQuestionRemovedEvent>().Single();
+        removedEvent.TriviaQuiz.Should().BeSameAs(quiz);
+        removedEvent.TriviaQuestion.Should().BeSameAs(removed);
+    }
+
+    [Fact]
+    public void RemoveQuestion_ReconcilesSequenceOrdersOfRemainingQuestions()
+    {
+        var quiz = TriviaQuiz.Create("Intro Quiz", "Warm-up trivia");
+        var question1 = quiz.AddQuestion(
+            "Capital of France?",
+            1,
+            100,
+            45,
+            null,
+            [
+                TriviaOption.Create("Paris", 1, true),
+                TriviaOption.Create("Berlin", 2, false)
+            ]);
+        var question2 = quiz.AddQuestion(
+            "Capital of Germany?",
+            2,
+            100,
+            45,
+            null,
+            [
+                TriviaOption.Create("Berlin", 1, true),
+                TriviaOption.Create("Munich", 2, false)
+            ]);
+        var question3 = quiz.AddQuestion(
+            "Capital of Spain?",
+            3,
+            100,
+            45,
+            null,
+            [
+                TriviaOption.Create("Madrid", 1, true),
+                TriviaOption.Create("Barcelona", 2, false)
+            ]);
+
+        question1.Id = 10;
+        question2.Id = 20;
+        question3.Id = 30;
+        quiz.ClearDomainEvents();
+
+        quiz.RemoveQuestion(20);
+
+        quiz.Questions.Should().HaveCount(2);
+        var remaining = quiz.Questions.OrderBy(q => q.SequenceOrder).ToList();
+        remaining[0].Should().BeSameAs(question1);
+        remaining[0].SequenceOrder.Should().Be(1);
+        remaining[1].Should().BeSameAs(question3);
+        remaining[1].SequenceOrder.Should().Be(2);
+    }
+
+    [Fact]
+    public void RemoveQuestion_WhenQuestionDoesNotExist_Throws()
+    {
+        var quiz = TriviaQuiz.Create("Intro Quiz", "Warm-up trivia");
+        quiz.AddQuestion(
+            "Capital of France?",
+            1,
+            100,
+            45,
+            null,
+            [
+                TriviaOption.Create("Paris", 1, true),
+                TriviaOption.Create("Berlin", 2, false)
+            ]);
+
+        var act = () => quiz.RemoveQuestion(999);
+
+        act.Should().Throw<TriviaQuestionNotFoundException>();
+    }
+
+    [Fact]
+    public void RemoveQuestion_WhenQuizIsPublished_ThrowsNotEditableException()
+    {
+        var quiz = TriviaQuiz.Create("Intro Quiz", "Warm-up trivia");
+        var question = quiz.AddQuestion(
+            "Capital of France?",
+            1,
+            100,
+            45,
+            null,
+            [
+                TriviaOption.Create("Paris", 1, true),
+                TriviaOption.Create("Berlin", 2, false)
+            ]);
+        question.Id = 10;
+        quiz.Publish(new DateTimeOffset(2026, 6, 1, 12, 0, 0, TimeSpan.Zero));
+
+        var act = () => quiz.RemoveQuestion(10);
+
+        act.Should().Throw<TriviaQuizNotEditableException>();
+    }
+
+    [Fact]
+    public void RemoveQuestion_WhenQuizIsArchived_ThrowsNotEditableException()
+    {
+        var quiz = TriviaQuiz.Create("Intro Quiz", "Warm-up trivia");
+        quiz.Archive(new DateTimeOffset(2026, 6, 1, 12, 0, 0, TimeSpan.Zero));
+
+        var act = () => quiz.RemoveQuestion(999);
+
+        act.Should().Throw<TriviaQuizNotEditableException>();
+    }
 }

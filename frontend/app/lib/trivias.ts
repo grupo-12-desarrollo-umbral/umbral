@@ -124,6 +124,26 @@ export async function updateTriviaQuestion(
   return response.json()
 }
 
+export async function removeTriviaQuestion(
+  triviaQuizId: number,
+  questionId: number,
+): Promise<TriviaQuizDto> {
+  const session = await verifySession()
+  const response = await fetch(
+    `${MISSION_DESIGN_SERVICE_URL}/api/trivias/${triviaQuizId}/questions/${questionId}`,
+    {
+      method: 'DELETE',
+      headers: getIdentityHeaders(session),
+    },
+  )
+  if (response.status === 401) throw new IdentityError('unauthorized', 'Authentication failed.')
+  if (response.status === 403) throw new IdentityError('unauthorized', 'Forbidden. Administrator role required.')
+  if (response.status === 404) throw new Error('trivia_not_found')
+  if (response.status === 409) throw new Error('trivia_not_editable')
+  if (!response.ok) throw new IdentityError('unknown', `removeTriviaQuestion failed with status ${response.status}`)
+  return response.json()
+}
+
 export async function publishTriviaQuiz(id: number): Promise<TriviaQuizDto> {
   const session = await verifySession()
   const response = await fetch(

@@ -8,6 +8,7 @@ import {
   updateTriviaQuiz,
   addTriviaQuestion,
   updateTriviaQuestion,
+  removeTriviaQuestion,
   publishTriviaQuiz,
   archiveTriviaQuiz,
   duplicateTriviaQuiz,
@@ -46,6 +47,7 @@ export function TriviasPanel({ role }: { role: DashboardRole }) {
   const [view, setView] = useState<TriviaPanelView>('list')
   const [selectedQuiz, setSelectedQuiz] = useState<TriviaQuizDto | null>(null)
   const [selectedQuestion, setSelectedQuestion] = useState<TriviaQuestionDto | null>(null)
+  const [confirmRemoveId, setConfirmRemoveId] = useState<number | null>(null)
   const [listData, setListData] = useState<TriviaQuizSummaryDto[] | null>(null)
   const [isPending, startTransition] = useTransition()
   const [listError, setListError] = useState<string | null>(null)
@@ -175,6 +177,29 @@ export function TriviasPanel({ role }: { role: DashboardRole }) {
     })
   }
 
+  async function handleRemoveQuestion(questionId: number) {
+    if (!selectedQuiz) return
+    startTransition(async () => {
+      setQuestionError(null)
+      try {
+        const updated = await removeTriviaQuestion(selectedQuiz.id, questionId)
+        setSelectedQuiz(updated)
+        setConfirmRemoveId(null)
+        setRefreshKey((k) => k + 1)
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : ''
+        if (msg === 'trivia_not_found') {
+          setQuestionError('That question no longer exists. Refresh the quiz and try again.')
+        } else if (msg === 'trivia_not_editable') {
+          setQuestionError('This quiz can no longer be edited (it is no longer in Draft status).')
+        } else {
+          setQuestionError('Failed to remove question. Try again.')
+        }
+        setConfirmRemoveId(null)
+      }
+    })
+  }
+
   async function handlePublish() {
     if (!selectedQuiz) return
     startTransition(async () => {
@@ -293,7 +318,7 @@ export function TriviasPanel({ role }: { role: DashboardRole }) {
               className={styles.primaryButton}
               data-testid="add-question-btn"
               disabled={isPending}
-              onClick={() => { setQuestionError(null); setSelectedQuestion(null); setView('add-question') }}
+              onClick={() => { setQuestionError(null); setConfirmRemoveId(null); setSelectedQuestion(null); setView('add-question') }}
               type="button"
             >
               Add question
@@ -301,25 +326,64 @@ export function TriviasPanel({ role }: { role: DashboardRole }) {
           )}
         </div>
 
+        {questionError && (
+          <p className={styles.formError} role="alert" data-testid="question-error">
+            {questionError}
+          </p>
+        )}
+
         <TriviaQuestionList
           questions={questions}
           renderRowActions={
             canEdit
-              ? (q) => (
-                  <button
-                    className={styles.inlineButton}
-                    data-testid={`edit-question-btn-${q.id}`}
-                    disabled={isPending}
-                    onClick={() => {
-                      setQuestionError(null)
-                      setSelectedQuestion(q)
-                      setView('edit-question')
-                    }}
-                    type="button"
-                  >
-                    Edit
-                  </button>
-                )
+              ? (q) =>
+                  confirmRemoveId === q.id ? (
+                    <span className={styles.confirmRow}>
+                      <button
+                        className={styles.smallButton}
+                        data-testid={`confirm-remove-question-btn-${q.id}`}
+                        disabled={isPending}
+                        onClick={() => handleRemoveQuestion(q.id)}
+                        type="button"
+                      >
+                        Confirm remove
+                      </button>
+                      <button
+                        className={styles.inlineButton}
+                        disabled={isPending}
+                        onClick={() => setConfirmRemoveId(null)}
+                        type="button"
+                      >
+                        Cancel
+                      </button>
+                    </span>
+                  ) : (
+                    <span className={styles.confirmRow}>
+                      <button
+                        className={styles.inlineButton}
+                        data-testid={`edit-question-btn-${q.id}`}
+                        disabled={isPending}
+                        onClick={() => {
+                          setQuestionError(null)
+                          setConfirmRemoveId(null)
+                          setSelectedQuestion(q)
+                          setView('edit-question')
+                        }}
+                        type="button"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        className={styles.inlineButton}
+                        data-testid={`remove-question-btn-${q.id}`}
+                        disabled={isPending}
+                        onClick={() => { setQuestionError(null); setConfirmRemoveId(q.id) }}
+                        type="button"
+                      >
+                        Remove
+                      </button>
+                    </span>
+                  )
               : undefined
           }
         />
@@ -380,7 +444,7 @@ export function TriviasPanel({ role }: { role: DashboardRole }) {
       <section className={styles.panel} data-testid="trivia-detail">
         <button
           className={styles.inlineButton}
-          onClick={() => { setView('list'); setConfirmPublish(false); setConfirmArchive(false); setConfirmDuplicate(false); setConfirmRetire(false); setLifecycleError(null) }}
+          onClick={() => { setView('list'); setConfirmPublish(false); setConfirmArchive(false); setConfirmDuplicate(false); setConfirmRetire(false); setLifecycleError(null); setConfirmRemoveId(null); setQuestionError(null) }}
           type="button"
         >
           ← Back to trivia quizzes

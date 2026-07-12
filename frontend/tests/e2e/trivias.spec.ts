@@ -921,3 +921,132 @@ test('HU-09 missions panel still reachable after HU-13 wiring', async ({ adminPa
   await page.click('[data-testid="nav-missions"]')
   await expect(page.locator('[data-testid="missions-panel"]')).toBeVisible()
 })
+
+// --- Question removal (HU-14A follow-up) ---
+
+// Helper: create a Draft quiz and add a question with the given prompt + sequence order.
+async function addQuestion(page: Page, prompt: string, order: string) {
+  await page.click('[data-testid="add-question-btn"]')
+  await page.fill('[data-testid="question-prompt-input"]', prompt)
+  await page.fill('[data-testid="question-sequence-order-input"]', order)
+  await page.fill('[data-testid="question-score-value-input"]', '50')
+  await page.fill('[data-testid="question-timer-input"]', '20')
+  await page.fill('[data-testid="question-option-text-0"]', 'A')
+  await page.fill('[data-testid="question-option-text-1"]', 'B')
+  await page.click('[data-testid="question-option-correct-0"]')
+  await page.click('[data-testid="question-submit-btn"]')
+  await expect(page.locator('[data-testid="trivia-detail"]')).toBeVisible()
+}
+
+test('admin can remove a question from a draft quiz', async ({ adminPage: page }) => {
+  await page.goto('/dashboard')
+  await page.click('[data-testid="nav-trivias"]')
+  await page.click('[data-testid="create-trivia-btn"]')
+  await page.fill('[data-testid="trivia-title-input"]', 'Remove Single Question')
+  await page.fill('[data-testid="trivia-description-input"]', 'One question, then removed.')
+  await page.click('[data-testid="trivia-submit-btn"]')
+
+  await addQuestion(page, 'Doomed question', '1')
+  await expect(page.locator('[data-testid="trivia-questions-section"]')).toContainText('Doomed question')
+
+  const removeBtn = page.locator('[data-testid^="remove-question-btn-"]').first()
+  await removeBtn.click()
+  await page.locator('[data-testid^="confirm-remove-question-btn-"]').first().click()
+
+  await expect(page.locator('[data-testid^="question-row-"]')).toHaveCount(0)
+  await expect(page.locator('[data-testid="trivia-questions-section"]')).toContainText('No questions added yet.')
+})
+
+test('removing a question reconciles the sequence order of the remaining questions', async ({ adminPage: page }) => {
+  await page.goto('/dashboard')
+  await page.click('[data-testid="nav-trivias"]')
+  await page.click('[data-testid="create-trivia-btn"]')
+  await page.fill('[data-testid="trivia-title-input"]', 'Reconcile Order')
+  await page.fill('[data-testid="trivia-description-input"]', 'Three questions; remove the first.')
+  await page.click('[data-testid="trivia-submit-btn"]')
+
+  await addQuestion(page, 'First question', '1')
+  await addQuestion(page, 'Second question', '2')
+  await addQuestion(page, 'Third question', '3')
+
+  await expect(page.locator('[data-testid^="question-row-"]')).toHaveCount(3)
+
+  // Remove the row whose Order cell is "1" (the first question).
+  const firstRow = page.locator('[data-testid^="question-row-"]').filter({ hasText: 'First question' })
+  await firstRow.locator('[data-testid^="remove-question-btn-"]').click()
+  await firstRow.locator('[data-testid^="confirm-remove-question-btn-"]').click()
+
+  await expect(page.locator('[data-testid^="question-row-"]')).toHaveCount(2)
+  await expect(page.locator('[data-testid="trivia-questions-section"]')).not.toContainText('First question')
+
+  // Remaining questions are renumbered 1..N with no gap. Read the Order cells top-to-bottom.
+  const orderCells = page.locator('[data-testid^="question-row-"] td[data-label="Order"]')
+  await expect(orderCells).toHaveText(['1', '2'])
+  // And the first row is now "Second question" at order 1.
+  const topRow = page.locator('[data-testid^="question-row-"]').first()
+  await expect(topRow).toContainText('Second question')
+  await expect(topRow.locator('td[data-label="Order"]')).toHaveText('1')
+})
+
+test('remove confirmation can be cancelled without deleting', async ({ adminPage: page }) => {
+  await page.goto('/dashboard')
+  await page.click('[data-testid="nav-trivias"]')
+  await page.click('[data-testid="create-trivia-btn"]')
+  await page.fill('[data-testid="trivia-title-input"]', 'Cancel Remove')
+  await page.fill('[data-testid="trivia-description-input"]', 'Removal is cancelled.')
+  await page.click('[data-testid="trivia-submit-btn"]')
+
+  await addQuestion(page, 'Keep me', '1')
+
+  await page.locator('[data-testid^="remove-question-btn-"]').first().click()
+  await expect(page.locator('[data-testid^="confirm-remove-question-btn-"]').first()).toBeVisible()
+  await page.getByRole('button', { name: 'Cancel' }).click()
+
+  await expect(page.locator('[data-testid^="question-row-"]')).toHaveCount(1)
+  await expect(page.locator('[data-testid="trivia-questions-section"]')).toContainText('Keep me')
+  await expect(page.locator('[data-testid^="remove-question-btn-"]').first()).toBeVisible()
+})
+
+test('published quiz shows no remove control', async ({ adminPage: page }) => {
+  await page.goto('/dashboard')
+  await page.click('[data-testid="nav-trivias"]')
+  await page.click('[data-testid="create-trivia-btn"]')
+  await page.fill('[data-testid="trivia-title-input"]', 'Publish Then Check Remove')
+  await page.fill('[data-testid="trivia-description-input"]', 'Publish, then remove is gone.')
+  await page.click('[data-testid="trivia-submit-btn"]')
+
+  // A publishable question (score + timer + valid options already set by the helper).
+  await addQuestion(page, 'Publishable question', '1')
+
+  await page.click('[data-testid="publish-trivia-btn"]')
+  await page.click('[data-testid="confirm-publish-btn"]')
+  await expect(page.locator('[data-testid="trivia-detail-status"]')).toContainText('Published')
+
+  // Question still listed, but no authoring controls.
+  await expect(page.locator('[data-testid^="question-row-"]')).toHaveCount(1)
+  await expect(page.locator('[data-testid^="remove-question-btn-"]')).toHaveCount(0)
+  await expect(page.locator('[data-testid^="edit-question-btn-"]')).toHaveCount(0)
+  await expect(page.locator('[data-testid="add-question-btn"]')).toHaveCount(0)
+})
+
+test('operator cannot reach any question removal UI', async ({ operatorPage: page }) => {
+  await page.goto('/dashboard')
+  await expect(page.locator('[data-testid="nav-trivias"]')).toHaveCount(0)
+})
+
+// --- Regression: HU-14A add/edit flow unaffected by the new Remove control ---
+
+test('HU-14A add-question flow still works alongside remove control', async ({ adminPage: page }) => {
+  await page.goto('/dashboard')
+  await page.click('[data-testid="nav-trivias"]')
+  await page.click('[data-testid="create-trivia-btn"]')
+  await page.fill('[data-testid="trivia-title-input"]', 'Add Still Works')
+  await page.fill('[data-testid="trivia-description-input"]', 'Add after removal wiring.')
+  await page.click('[data-testid="trivia-submit-btn"]')
+
+  await addQuestion(page, 'Still addable', '1')
+  await expect(page.locator('[data-testid="trivia-questions-section"]')).toContainText('Still addable')
+  // Both Edit and Remove present on the row.
+  await expect(page.locator('[data-testid^="edit-question-btn-"]').first()).toBeVisible()
+  await expect(page.locator('[data-testid^="remove-question-btn-"]').first()).toBeVisible()
+})
