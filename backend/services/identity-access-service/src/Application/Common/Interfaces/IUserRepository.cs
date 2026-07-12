@@ -7,6 +7,11 @@ public interface IUserRepository
 {
     Task<User?> GetByExternalIdentityIdAsync(string externalIdentityId, CancellationToken cancellationToken);
 
+    Task<User?> GetByEmailAsync(string email, CancellationToken cancellationToken)
+    {
+        throw new NotSupportedException();
+    }
+
     Task<User?> GetByIdAsync(int userId, CancellationToken cancellationToken)
     {
         throw new NotSupportedException();

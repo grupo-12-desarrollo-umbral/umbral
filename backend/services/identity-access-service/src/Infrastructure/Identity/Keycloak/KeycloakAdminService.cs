@@ -1,3 +1,4 @@
+using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json.Serialization;
 using Microsoft.Extensions.Logging;
@@ -22,6 +23,108 @@ public sealed class KeycloakAdminService : IIdentityProviderAdminService
         _httpClient = httpClient;
         _options = options.Value;
         _logger = logger;
+    }
+
+    // Create an invited user: enabled, email unverified, no credentials. Created enabled because
+    // Keycloak refuses to send a required-actions email to a disabled user; the invitation handler
+    // compensates with DeleteUserAsync if a later step fails, so a failed invitation leaves no orphan.
+    // A single attempt — a POST is not idempotent, so a blind retry after a created-but-lost-response
+    // would 409. Returns the new user's Keycloak id parsed from the Location header.
+    public async Task<string> CreateUserAsync(string email, CancellationToken cancellationToken)
+    {
+        var token = await GetAdminTokenAsync(cancellationToken);
+
+        var request = new HttpRequestMessage(
+            HttpMethod.Post,
+            $"{_options.AdminAuthority}/admin/realms/{_options.Realm}/users")
+        {
+            Content = JsonContent.Create(new
+            {
+                username = email,
+                email,
+                enabled = true,
+                emailVerified = false,
+            }),
+        };
+
+        request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+
+        var response = await _httpClient.SendAsync(request, cancellationToken);
+
+        if (response.StatusCode == HttpStatusCode.Conflict)
+        {
+            throw new InvitedEmailAlreadyRegisteredException(email);
+        }
+
+        await EnsureSuccessOrThrowAsync(response, "create user", cancellationToken);
+
+        var location = response.Headers.Location
+            ?? throw new InvalidOperationException("Keycloak did not return a Location header for the created user.");
+
+        _logger.LogInformation("Keycloak user created for invited email {Email}", email);
+
+        return location.Segments[^1].Trim('/');
+    }
+
+    // Ask Keycloak to email the invitee a required-actions link for UPDATE_PASSWORD and VERIFY_EMAIL.
+    // Relies on the realm's configured SMTP server; a delivery/config failure surfaces (with Keycloak's
+    // reason) so the invitation handler can compensate instead of leaving an orphaned account.
+    public async Task SendExecuteActionsEmailAsync(string externalIdentityId, CancellationToken cancellationToken)
+    {
+        var token = await GetAdminTokenAsync(cancellationToken);
+
+        var request = new HttpRequestMessage(
+            HttpMethod.Put,
+            $"{_options.AdminAuthority}/admin/realms/{_options.Realm}/users/{externalIdentityId}/execute-actions-email")
+        {
+            Content = JsonContent.Create(new[] { "UPDATE_PASSWORD", "VERIFY_EMAIL" }),
+        };
+
+        request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+
+        var response = await _httpClient.SendAsync(request, cancellationToken);
+        await EnsureSuccessOrThrowAsync(response, "send execute-actions email", cancellationToken);
+
+        _logger.LogInformation("Keycloak execute-actions email dispatched to user {UserId}", externalIdentityId);
+    }
+
+    // Compensating delete for a failed invitation. Idempotent: a 404 is treated as already-removed so
+    // the compensation never masks the original failure with a spurious one.
+    public async Task DeleteUserAsync(string externalIdentityId, CancellationToken cancellationToken)
+    {
+        var token = await GetAdminTokenAsync(cancellationToken);
+
+        var request = new HttpRequestMessage(
+            HttpMethod.Delete,
+            $"{_options.AdminAuthority}/admin/realms/{_options.Realm}/users/{externalIdentityId}");
+
+        request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+
+        var response = await _httpClient.SendAsync(request, cancellationToken);
+
+        if (response.StatusCode == HttpStatusCode.NotFound)
+        {
+            return;
+        }
+
+        await EnsureSuccessOrThrowAsync(response, "delete user", cancellationToken);
+
+        _logger.LogInformation("Keycloak user {UserId} deleted (invitation compensation)", externalIdentityId);
+    }
+
+    // EnsureSuccessStatusCode discards the response body; Keycloak returns an actionable reason there
+    // (e.g. "User is disabled"), so surface it in the exception message for diagnosis.
+    private static async Task EnsureSuccessOrThrowAsync(
+        HttpResponseMessage response, string operation, CancellationToken cancellationToken)
+    {
+        if (response.IsSuccessStatusCode)
+        {
+            return;
+        }
+
+        var body = await response.Content.ReadAsStringAsync(cancellationToken);
+        throw new HttpRequestException(
+            $"Keycloak {operation} failed with {(int)response.StatusCode} {response.StatusCode}: {body}");
     }
 
     // Keycloak-first role propagation, retried through the shared bounded-retry loop. On

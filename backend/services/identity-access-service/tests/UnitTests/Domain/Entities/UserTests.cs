@@ -20,6 +20,39 @@ public sealed class UserTests
         user.DomainEvents.Should().ContainSingle().Which.Should().BeOfType<UserProvisionedEvent>();
     }
 
+    [Theory]
+    [InlineData(Role.Operator)]
+    [InlineData(Role.Administrator)]
+    public void Invite_WithInvitableRole_CreatesActivePendingUserWithEmailPlaceholder(Role role)
+    {
+        var user = User.Invite(" kc-inv ", " invitee@example.com ", role);
+
+        user.ExternalIdentityId.Should().Be("kc-inv");
+        user.Email.Should().Be("invitee@example.com");
+        // No real name yet: the email stands in until Post-Login Provisioning overwrites it.
+        user.DisplayName.Should().Be("invitee@example.com");
+        user.Role.Should().Be(role);
+        user.IsActive.Should().BeTrue();
+        user.DomainEvents.Should().ContainSingle().Which.Should().BeOfType<UserProvisionedEvent>();
+    }
+
+    [Fact]
+    public void Invite_WithParticipantRole_ThrowsParticipantNotInvitable()
+    {
+        FluentActions.Invoking(() => User.Invite("kc-inv", "invitee@example.com", Role.Participant))
+            .Should().Throw<ParticipantNotInvitableException>();
+    }
+
+    [Fact]
+    public void EnsureInvitableRole_WithParticipant_Throws_AndAllowsOtherRoles()
+    {
+        FluentActions.Invoking(() => User.EnsureInvitableRole(Role.Participant))
+            .Should().Throw<ParticipantNotInvitableException>();
+
+        FluentActions.Invoking(() => User.EnsureInvitableRole(Role.Operator)).Should().NotThrow();
+        FluentActions.Invoking(() => User.EnsureInvitableRole(Role.Administrator)).Should().NotThrow();
+    }
+
     [Fact]
     public void SynchronizeProfileAndAssignRole_UpdateStateAndRecordRoleEvent()
     {
