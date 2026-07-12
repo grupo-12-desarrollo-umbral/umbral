@@ -437,6 +437,36 @@ export type TeamAnsweredNotificationDto = {
   answeredAt: string // ISO 8601
 }
 
+// --- HU-24A operator live session panel (all-teams progress rollup) ---
+// Response of GET /api/sessions/{id}/operator-panel (Operator) AND the SignalR
+// "OperatorSessionPanelUpdated" push on live-session-operators:{id} — same DTO for both.
+// Progress is target-based (resolvedTargets/totalActiveTargets), score is session-owned-or-zero.
+// No ranking / events / evidence / clue-as-progress (those are HU-24B).
+export type OperatorActiveSubstageContextDto = {
+  substageSnapshotId: string
+  playMode: 'TreasureHunt' | 'Trivia' | string
+  title: string
+  totalActiveTargets: number
+  resolvedTargets: number // 0 until HU-31 lands per-team target resolution
+  activeQuestionSequenceOrder: number | null // trivia only (1-based); null otherwise
+  activeQuestionTimeLimitSeconds: number | null
+}
+
+export type OperatorTeamProgressDto = {
+  teamId: string // runtime team id
+  teamCode: string
+  displayName: string
+  score: number // Team.CurrentScore ?? 0
+  activeSubstage: OperatorActiveSubstageContextDto | null
+}
+
+export type OperatorSessionPanelDto = {
+  liveSessionId: string
+  state: SessionLifecycleState | string // current lifecycle state
+  timer: SessionTimerSnapshotDto // session-scoped (teamId null); HU-22 semantics
+  teamProgress: OperatorTeamProgressDto[] // ordered by teamCode (backend Ordinal sort)
+}
+
 // Phases of the automated trivia round, derived from SignalR pushes only.
 export type TriviaRoundPhase =
   | 'idle'

@@ -100,3 +100,146 @@ describe('createSessionStateRealtimeClient — TeamAnswered', () => {
     expect(lastConnection.handlers.has('TeamAnswered')).toBe(false)
   })
 })
+
+// HU-24A: the operator realtime client subscribes to OperatorSessionPanelUpdated and normalizes the
+// full panel DTO (nested teamProgress / activeSubstage) from either wire casing.
+describe('createSessionStateRealtimeClient — OperatorSessionPanelUpdated', () => {
+  beforeEach(() => { lastConnection = undefined as never })
+
+  const expectedPanel = {
+    liveSessionId: 's1',
+    state: 'Active',
+    timer: { liveSessionId: 's1', teamId: null },
+    teamProgress: [
+      {
+        teamId: 't-1',
+        teamCode: 'AAA',
+        displayName: 'Alpha',
+        score: 0,
+        activeSubstage: {
+          substageSnapshotId: 'sub-1',
+          playMode: 'TreasureHunt',
+          title: 'Hunt',
+          totalActiveTargets: 3,
+          resolvedTargets: 0,
+          activeQuestionSequenceOrder: null,
+          activeQuestionTimeLimitSeconds: null,
+        },
+      },
+    ],
+  }
+
+  it('normalizes a camelCase OperatorSessionPanelUpdated payload', () => {
+    const received: unknown[] = []
+    createSessionStateRealtimeClient({ ...baseOptions, onOperatorPanel: (p) => received.push(p) })
+
+    lastConnection.handlers.get('OperatorSessionPanelUpdated')!({
+      liveSessionId: 's1',
+      state: 'Active',
+      timer: { liveSessionId: 's1', teamId: null },
+      teamProgress: [
+        {
+          teamId: 't-1',
+          teamCode: 'AAA',
+          displayName: 'Alpha',
+          score: 0,
+          activeSubstage: {
+            substageSnapshotId: 'sub-1',
+            playMode: 'TreasureHunt',
+            title: 'Hunt',
+            totalActiveTargets: 3,
+            resolvedTargets: 0,
+            activeQuestionSequenceOrder: null,
+            activeQuestionTimeLimitSeconds: null,
+          },
+        },
+      ],
+    })
+
+    expect(received).toEqual([expectedPanel])
+  })
+
+  it('normalizes a PascalCase (C# wire) OperatorSessionPanelUpdated payload identically', () => {
+    const received: unknown[] = []
+    createSessionStateRealtimeClient({ ...baseOptions, onOperatorPanel: (p) => received.push(p) })
+
+    lastConnection.handlers.get('OperatorSessionPanelUpdated')!({
+      LiveSessionId: 's1',
+      State: 'Active',
+      Timer: { liveSessionId: 's1', teamId: null },
+      TeamProgress: [
+        {
+          TeamId: 't-1',
+          TeamCode: 'AAA',
+          DisplayName: 'Alpha',
+          Score: 0,
+          ActiveSubstage: {
+            SubstageSnapshotId: 'sub-1',
+            PlayMode: 'TreasureHunt',
+            Title: 'Hunt',
+            TotalActiveTargets: 3,
+            ResolvedTargets: 0,
+            ActiveQuestionSequenceOrder: null,
+            ActiveQuestionTimeLimitSeconds: null,
+          },
+        },
+      ],
+    })
+
+    expect(received).toEqual([expectedPanel])
+  })
+
+  it('coalesces a missing teamProgress to an empty array', () => {
+    const received: Array<{ teamProgress: unknown[] }> = []
+    createSessionStateRealtimeClient({ ...baseOptions, onOperatorPanel: (p) => received.push(p) })
+
+    lastConnection.handlers.get('OperatorSessionPanelUpdated')!({
+      liveSessionId: 's1',
+      state: 'Preparing',
+      timer: null,
+    })
+
+    expect(received[0]!.teamProgress).toEqual([])
+  })
+
+  it('preserves a null activeSubstage and a trivia active-question order', () => {
+    const received: Array<{ teamProgress: Array<{ activeSubstage: unknown }> }> = []
+    createSessionStateRealtimeClient({ ...baseOptions, onOperatorPanel: (p) => received.push(p) })
+
+    lastConnection.handlers.get('OperatorSessionPanelUpdated')!({
+      liveSessionId: 's1',
+      state: 'Active',
+      timer: null,
+      teamProgress: [
+        { teamId: 't-1', teamCode: 'AAA', displayName: 'Alpha', score: 5, activeSubstage: null },
+        {
+          teamId: 't-2',
+          teamCode: 'BBB',
+          displayName: 'Bravo',
+          score: 0,
+          activeSubstage: {
+            substageSnapshotId: 'sub-2',
+            playMode: 'Trivia',
+            title: 'Quiz',
+            totalActiveTargets: 0,
+            resolvedTargets: 0,
+            activeQuestionSequenceOrder: 2,
+            activeQuestionTimeLimitSeconds: 30,
+          },
+        },
+      ],
+    })
+
+    expect(received[0]!.teamProgress[0]!.activeSubstage).toBeNull()
+    expect(received[0]!.teamProgress[1]!.activeSubstage).toMatchObject({
+      playMode: 'Trivia',
+      activeQuestionSequenceOrder: 2,
+      activeQuestionTimeLimitSeconds: 30,
+    })
+  })
+
+  it('registers no handler when onOperatorPanel is omitted (backward-compatible)', () => {
+    createSessionStateRealtimeClient({ ...baseOptions })
+    expect(lastConnection.handlers.has('OperatorSessionPanelUpdated')).toBe(false)
+  })
+})

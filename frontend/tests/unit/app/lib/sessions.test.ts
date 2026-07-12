@@ -211,6 +211,98 @@ describe('session gateway auth', () => {
     ).rejects.toThrowError('mission_not_found')
   })
 
+  it('parses the operator session panel DTO on a 200', async () => {
+    const { getOperatorSessionPanel } = await import('@/app/lib/sessions')
+    const payload = {
+      liveSessionId: 'session-1',
+      state: 'Active',
+      timer: { liveSessionId: 'session-1', teamId: null },
+      teamProgress: [
+        {
+          teamId: 'team-a',
+          teamCode: 'AAA',
+          displayName: 'Alpha',
+          score: 0,
+          activeSubstage: {
+            substageSnapshotId: 'sub-1',
+            playMode: 'TreasureHunt',
+            title: 'Hunt',
+            totalActiveTargets: 3,
+            resolvedTargets: 0,
+            activeQuestionSequenceOrder: null,
+            activeQuestionTimeLimitSeconds: null,
+          },
+        },
+      ],
+    }
+
+    getValidAccessTokenMock.mockResolvedValue('fresh-access-token')
+    vi.mocked(global.fetch).mockResolvedValue(
+      new Response(JSON.stringify(payload), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    )
+
+    await expect(getOperatorSessionPanel('session-1')).resolves.toEqual(payload)
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      'http://localhost:8000/api/sessions/session-1/operator-panel',
+      expect.objectContaining({ cache: 'no-store', headers: expect.any(Headers) }),
+    )
+  })
+
+  it('maps a 403 (non-owning operator) to an unauthorized identity error', async () => {
+    const { getOperatorSessionPanel } = await import('@/app/lib/sessions')
+
+    getValidAccessTokenMock.mockResolvedValue('token')
+    vi.mocked(global.fetch).mockResolvedValue(new Response('', { status: 403 }))
+
+    await expect(getOperatorSessionPanel('session-1')).rejects.toEqual(
+      expect.objectContaining<Partial<IdentityError>>({
+        name: 'IdentityError',
+        code: 'unauthorized',
+      }),
+    )
+  })
+
+  it('maps a 401 to an unauthorized identity error', async () => {
+    const { getOperatorSessionPanel } = await import('@/app/lib/sessions')
+
+    getValidAccessTokenMock.mockResolvedValue('token')
+    vi.mocked(global.fetch).mockResolvedValue(new Response('', { status: 401 }))
+
+    await expect(getOperatorSessionPanel('session-1')).rejects.toEqual(
+      expect.objectContaining<Partial<IdentityError>>({ name: 'IdentityError', code: 'unauthorized' }),
+    )
+  })
+
+  it('maps a 404 to an unknown identity error (Session not found)', async () => {
+    const { getOperatorSessionPanel } = await import('@/app/lib/sessions')
+
+    getValidAccessTokenMock.mockResolvedValue('token')
+    vi.mocked(global.fetch).mockResolvedValue(new Response('', { status: 404 }))
+
+    await expect(getOperatorSessionPanel('session-1')).rejects.toEqual(
+      expect.objectContaining<Partial<IdentityError>>({
+        name: 'IdentityError',
+        code: 'unknown',
+        message: 'Session not found',
+      }),
+    )
+  })
+
+  it('maps another non-ok status to an unknown identity error', async () => {
+    const { getOperatorSessionPanel } = await import('@/app/lib/sessions')
+
+    getValidAccessTokenMock.mockResolvedValue('token')
+    vi.mocked(global.fetch).mockResolvedValue(new Response('', { status: 503 }))
+
+    await expect(getOperatorSessionPanel('session-1')).rejects.toEqual(
+      expect.objectContaining<Partial<IdentityError>>({ name: 'IdentityError', code: 'unknown' }),
+    )
+  })
+
   it('maps a duplicate association conflict to a stable frontend error', async () => {
     const { associateTeamToSession } = await import('@/app/lib/sessions')
 

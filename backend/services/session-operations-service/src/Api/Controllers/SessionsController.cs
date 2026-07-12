@@ -10,6 +10,7 @@ using umbral_backend.Application.Sessions.Commands.SubmitTriviaAnswer;
 using umbral_backend.Application.Sessions.Commands.TransitionSessionState;
 using umbral_backend.Application.Sessions.Common;
 using umbral_backend.Application.Sessions.Queries.GetOperatorSessionTimerSnapshot;
+using umbral_backend.Application.Sessions.Queries.GetOperatorSessionPanel;
 using umbral_backend.Application.Sessions.Queries.GetOperatorTriviaAnsweredMonitor;
 using umbral_backend.Application.Sessions.Queries.GetParticipantSessionTimerSnapshot;
 using umbral_backend.Application.Sessions.Queries.GetParticipantTeamBoard;
@@ -243,6 +244,19 @@ public sealed class SessionsController(ISender sender) : ControllerBase
     {
         var result = await sender.Send(
             new GetOperatorSessionTimerSnapshotQuery(liveSessionId),
+            cancellationToken);
+
+        return Ok(result);
+    }
+
+    [HttpGet("{liveSessionId:guid}/operator-panel")]
+    [Authorize(Policy = AuthorizationPolicies.Operator)]
+    public async Task<ActionResult<OperatorSessionPanelDto>> GetOperatorSessionPanelAsync(
+        Guid liveSessionId,
+        CancellationToken cancellationToken)
+    {
+        var result = await sender.Send(
+            new GetOperatorSessionPanelQuery(liveSessionId),
             cancellationToken);
 
         return Ok(result);

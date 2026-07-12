@@ -518,7 +518,7 @@ public sealed class LiveSession : BaseAuditableEntity
     {
         var team = GetTeam(teamId);
         var timerSnapshot = GetAuthoritativeSessionTimerSnapshot(observedAt);
-        var activeSubstageContext = BuildActiveSubstageContext(team);
+        var activeSubstageContext = BuildActiveSubstageContext();
         var visibleClues = CollectVisibleClues();
 
         return ParticipantTeamBoardSnapshot.Create(
@@ -531,7 +531,29 @@ public sealed class LiveSession : BaseAuditableEntity
             visibleClues);
     }
 
-    private ActiveSubstageContext? BuildActiveSubstageContext(Team team)
+    public OperatorSessionPanelSnapshot ProjectOperatorSessionPanel(DateTimeOffset observedAt)
+    {
+        var timerSnapshot = GetAuthoritativeSessionTimerSnapshot(observedAt);
+        var activeSubstageContext = BuildActiveSubstageContext();
+
+        var teamProgress = _teams
+            .OrderBy(team => team.TeamCode.Value, StringComparer.Ordinal)
+            .Select(team => OperatorTeamProgress.Create(
+                team.TeamId,
+                team.TeamCode.Value,
+                team.DisplayName,
+                team.CurrentScore ?? 0,
+                activeSubstageContext))
+            .ToList();
+
+        return OperatorSessionPanelSnapshot.Create(
+            LiveSessionId,
+            State,
+            timerSnapshot,
+            teamProgress);
+    }
+
+    private ActiveSubstageContext? BuildActiveSubstageContext()
     {
         if (ActiveSubstageId is null)
         {

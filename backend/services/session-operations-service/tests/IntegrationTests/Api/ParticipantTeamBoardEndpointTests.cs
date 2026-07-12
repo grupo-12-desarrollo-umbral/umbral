@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Mvc;
 using umbral_backend.Application.Dtos.Sessions;
 using umbral_backend.Domain.Entities;
 using umbral_backend.Domain.Enums;
@@ -143,8 +144,10 @@ public sealed class ParticipantTeamBoardEndpointTests : IAsyncLifetime
             "Find the key",
             "KEY-001",
             1,
+            true,
             100,
-            "Look near the entrance.");
+            "Look near the entrance.",
+            null);
 
         return MissionRuntimeSnapshot.Create(
             sourceMissionId,
