@@ -15,6 +15,15 @@ public static class ParticipantTeamBoardDtoFactory
             ? MapActiveSubstage(snapshot.ActiveSubstageContext)
             : null;
 
+        var substages = snapshot.Substages
+            .Select(substage => new SubstageProgressDto(
+                substage.SubstageSnapshotId,
+                substage.Title,
+                substage.SequenceOrder,
+                substage.PlayMode.ToString(),
+                substage.Status.ToString()))
+            .ToList();
+
         var visibleClues = snapshot.VisibleClues
             .Select(clue => new VisibleClueDto(
                 clue.TargetSnapshotId,
@@ -39,6 +48,7 @@ public static class ParticipantTeamBoardDtoFactory
             snapshot.CurrentScore,
             timerDto,
             activeSubstage,
+            substages,
             visibleClues,
             activeTargets);
     }

@@ -519,6 +519,7 @@ public sealed class LiveSession : BaseAuditableEntity
         var team = GetTeam(teamId);
         var timerSnapshot = GetAuthoritativeSessionTimerSnapshot(observedAt);
         var activeSubstageContext = BuildActiveSubstageContext();
+        var substages = BuildSubstageProgress();
         var visibleClues = CollectVisibleClues();
         var activeTargets = CollectActiveTargets();
 
@@ -529,6 +530,7 @@ public sealed class LiveSession : BaseAuditableEntity
             team.CurrentScore ?? 0,
             timerSnapshot,
             activeSubstageContext,
+            substages,
             visibleClues,
             activeTargets);
     }
@@ -553,6 +555,53 @@ public sealed class LiveSession : BaseAuditableEntity
             State,
             timerSnapshot,
             teamProgress);
+    }
+
+    // Projects the whole ordered substage sequence with per-item progress status (#171). Status is
+    // derived from each substage's position vs. the live-substage pointer: before the session is
+    // Active nothing has started (all Upcoming); once Finished the pointer is gone and everything is
+    // behind us (all Completed); otherwise it splits Completed / Active / Upcoming around the pointer.
+    // SequenceOrder is the flattened session-wide position, so the whole cross-stage flow reads in one
+    // monotonic order regardless of per-stage numbering.
+    private IReadOnlyList<SubstageProgressItem> BuildSubstageProgress()
+    {
+        var orderedSubstages = GetOrderedSubstages();
+        var activeIndex = ActiveSubstageId is null
+            ? -1
+            : Array.FindIndex(orderedSubstages, substage => substage.SubstageSnapshotId == ActiveSubstageId.Value);
+
+        return orderedSubstages
+            .Select((substage, index) => new SubstageProgressItem(
+                substage.SubstageSnapshotId,
+                substage.Title,
+                index,
+                substage.PlayMode,
+                DeriveSubstageProgressStatus(index, activeIndex)))
+            .ToList();
+    }
+
+    private SubstageProgressStatus DeriveSubstageProgressStatus(int index, int activeIndex)
+    {
+        // Pre-Active states have no live substage yet — the whole flow is still ahead.
+        if (State is SessionState.Scheduled or SessionState.Preparing)
+        {
+            return SubstageProgressStatus.Upcoming;
+        }
+
+        // SessionCompletion finishes the session without rewinding the pointer (it parks on the last
+        // substage), so Finished is the authoritative "everything is behind us" signal — treat the
+        // whole sequence as Completed rather than leaving the final substage flagged Active.
+        if (State is SessionState.Finished || activeIndex < 0)
+        {
+            return SubstageProgressStatus.Completed;
+        }
+
+        if (index < activeIndex)
+        {
+            return SubstageProgressStatus.Completed;
+        }
+
+        return index == activeIndex ? SubstageProgressStatus.Active : SubstageProgressStatus.Upcoming;
     }
 
     private ActiveSubstageContext? BuildActiveSubstageContext()

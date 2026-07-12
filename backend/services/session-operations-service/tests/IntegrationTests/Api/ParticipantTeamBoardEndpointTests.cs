@@ -66,6 +66,44 @@ public sealed class ParticipantTeamBoardEndpointTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task GetTeamBoard_ForMixedPlayModeSession_ReturnsOrderedSubstagesWithActiveTriviaFlagged()
+    {
+        // First-join view: the session is Active on the first (Trivia) substage; the ordered
+        // substage list must carry both substages with play modes/order and the active one flagged.
+        var seeded = await SeedMixedSessionAsync(advancePastTrivia: false);
+        AddTrustedHeaders(_client, Guid.NewGuid().ToString(), "Participant", "participant@example.com");
+
+        var response = await _client.GetAsync(BuildTeamBoardUrl(seeded));
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var payload = await response.Content.ReadFromJsonAsync<ParticipantTeamBoardDto>();
+        payload.Should().NotBeNull();
+        payload!.Substages.Should().HaveCount(2);
+        payload.Substages.Select(substage => substage.SequenceOrder).Should().Equal(0, 1);
+        payload.Substages[0].PlayMode.Should().Be(nameof(SubstagePlayMode.Trivia));
+        payload.Substages[0].Status.Should().Be(nameof(SubstageProgressStatus.Active));
+        payload.Substages[1].PlayMode.Should().Be(nameof(SubstagePlayMode.TreasureHunt));
+        payload.Substages[1].Status.Should().Be(nameof(SubstageProgressStatus.Upcoming));
+    }
+
+    [Fact]
+    public async Task GetTeamBoard_AfterAdvancingPastTrivia_MarksTriviaCompletedAndTreasureHuntActive()
+    {
+        var seeded = await SeedMixedSessionAsync(advancePastTrivia: true);
+        AddTrustedHeaders(_client, Guid.NewGuid().ToString(), "Participant", "participant@example.com");
+
+        var response = await _client.GetAsync(BuildTeamBoardUrl(seeded));
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var payload = await response.Content.ReadFromJsonAsync<ParticipantTeamBoardDto>();
+        payload.Should().NotBeNull();
+        payload!.ActiveSubstage!.PlayMode.Should().Be(nameof(SubstagePlayMode.TreasureHunt));
+        payload.Substages.Should().HaveCount(2);
+        payload.Substages[0].Status.Should().Be(nameof(SubstageProgressStatus.Completed));
+        payload.Substages[1].Status.Should().Be(nameof(SubstageProgressStatus.Active));
+    }
+
+    [Fact]
     public async Task GetTeamBoard_WhenAccessFactDenied_ReturnsForbiddenProblemDetails()
     {
         var seeded = await SeedActiveTreasureHuntSessionAsync();
@@ -137,6 +175,79 @@ public sealed class ParticipantTeamBoardEndpointTests : IAsyncLifetime
         await dbContext.SaveChangesAsync();
 
         return new SeededSession(session.LiveSessionId, team.TeamId);
+    }
+
+    private async Task<SeededSession> SeedMixedSessionAsync(bool advancePastTrivia)
+    {
+        await using var scope = _factory.Services.CreateAsyncScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+        var now = DateTimeOffset.UtcNow;
+        var createdAt = now.AddMinutes(-20);
+        var sourceMissionId = Guid.NewGuid();
+        var session = LiveSession.Create(
+            SessionSource.Create(sourceMissionId),
+            $"MX-{Guid.NewGuid():N}"[..12],
+            "Mixed Board Test",
+            maximumTimeMinutes: 45,
+            createdAt,
+            CreateMixedSnapshot(sourceMissionId));
+        var team = session.AssociateTeam(Guid.NewGuid(), "Alpha", "A-01", 4);
+
+        var policy = new SessionStateTransitionPolicy();
+        session.MoveTo(SessionState.Preparing, createdAt.AddMinutes(1), policy);
+        session.MoveTo(SessionState.Active, now, policy);
+
+        if (advancePastTrivia)
+        {
+            // Drive the trivia substage to completion so the pointer parks on the treasure-hunt substage.
+            session.ActivateQuestion(0, now);
+            session.CloseActiveQuestion(now.AddSeconds(30));
+            session.CompleteActiveSubstageAndAdvance(now.AddSeconds(30), policy);
+        }
+
+        dbContext.LiveSessions.Add(session);
+        await dbContext.SaveChangesAsync();
+
+        return new SeededSession(session.LiveSessionId, team.TeamId);
+    }
+
+    private static MissionRuntimeSnapshot CreateMixedSnapshot(Guid sourceMissionId)
+    {
+        var triviaSubstage = SubstageSnapshot.CreateTrivia("Trivia Round", 1);
+        var treasureSubstage = SubstageSnapshot.CreateTreasureHunt("Treasure Route", 2);
+        var target = TargetSnapshot.Create(
+            treasureSubstage.SubstageSnapshotId,
+            "Find the key",
+            "KEY-001",
+            1,
+            isActive: true,
+            100,
+            4.711,
+            -74.0721,
+            "Look near the entrance.",
+            "VisibleAtStart");
+        var question = TriviaQuestionSnapshot.Create(
+            triviaSubstage.SubstageSnapshotId,
+            "What is the closest planet to the Sun?",
+            1,
+            100,
+            30,
+            "Mercury is the closest planet.",
+            [
+                TriviaOptionSnapshot.Create("Mercury", 1, true),
+                TriviaOptionSnapshot.Create("Venus", 2, false)
+            ]);
+
+        return MissionRuntimeSnapshot.Create(
+            sourceMissionId,
+            "Mixed Board Mission",
+            MaximumTime.Create(45),
+            [
+                StageSnapshot.Create("Stage One", 1, [triviaSubstage, treasureSubstage])
+            ],
+            [target],
+            [question]);
     }
 
     private static MissionRuntimeSnapshot CreateTreasureHuntSnapshot(Guid sourceMissionId)

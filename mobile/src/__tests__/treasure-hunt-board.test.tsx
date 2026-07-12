@@ -27,7 +27,6 @@ function renderBoard(overrides?: Partial<React.ComponentProps<typeof TreasureHun
       React.createElement(TreasureHuntBoard, {
         teamDisplayName: 'Lantern Foxes',
         currentScore: 240,
-        substageTitle: 'The Cartographer’s Vault',
         timerDisplay: { label: '12:47', pct: 63, tone: 'running' },
         resolvedTargets: 2,
         totalActiveTargets: 5,
@@ -53,11 +52,11 @@ function switchTab(renderer: ReturnType<typeof create>, tab: keyof typeof TAB_IN
 }
 
 describe('TreasureHuntBoard', () => {
-  test('renders score, substage title and the map-stub target progress from props', () => {
+  test('renders score and the map-stub target progress from props', () => {
     const texts = allText(renderBoard().toJSON());
 
     expect(texts).toContain('TREASURE HUNT');
-    expect(texts).toContain('The Cartographer’s Vault');
+    // The active substage name is owned by the shared SubstageProgress component (#171).
     expect(texts).toContain('SCORE');
     expect(texts).toContain('240');
     // Map tab is the default; target progress is a count, not coordinates.

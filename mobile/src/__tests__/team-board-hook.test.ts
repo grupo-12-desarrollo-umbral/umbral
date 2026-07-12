@@ -99,6 +99,10 @@ const BASE_BOARD: ParticipantTeamBoardDto = {
     activeQuestionSequenceOrder: null,
     activeQuestionTimeLimitSeconds: null,
   },
+  substages: [
+    { substageSnapshotId: 'sub-0', title: 'Opening Trivia', sequenceOrder: 0, playMode: 'Trivia', status: 'Completed' },
+    { substageSnapshotId: 'sub-1', title: 'The Vault', sequenceOrder: 1, playMode: 'TreasureHunt', status: 'Active' },
+  ],
   visibleClues: [],
 };
 
@@ -170,6 +174,42 @@ describe('useTeamBoard', () => {
     });
 
     expect(hook.get().board?.currentScore).toBe(320);
+
+    hook.unmount();
+  });
+
+  test('a push carrying an advanced substage sequence replaces the ordered substages', async () => {
+    // Advancement rebroadcasts the whole board (#171): the prior substage flips to Completed and the
+    // next becomes Active. The hook applies the push wholesale, so board.substages tracks it.
+    mockGetTeamBoard.mockResolvedValueOnce(BASE_BOARD);
+    const client = makeClient();
+
+    const hook = renderHook({
+      client,
+      liveSessionId: 'sess-1',
+      teamId: REFERENCE_TEAM_ID,
+      isReconnected: true,
+      reconnectNonce: 0,
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(hook.get().board?.substages.find(s => s.status === 'Active')?.substageSnapshotId).toBe('sub-1');
+
+    act(() => {
+      fireBoard({
+        ...BASE_BOARD,
+        activeSubstage: null,
+        substages: [
+          { substageSnapshotId: 'sub-0', title: 'Opening Trivia', sequenceOrder: 0, playMode: 'Trivia', status: 'Completed' },
+          { substageSnapshotId: 'sub-1', title: 'The Vault', sequenceOrder: 1, playMode: 'TreasureHunt', status: 'Completed' },
+        ],
+      });
+    });
+
+    expect(hook.get().board?.substages.every(s => s.status === 'Completed')).toBe(true);
 
     hook.unmount();
   });

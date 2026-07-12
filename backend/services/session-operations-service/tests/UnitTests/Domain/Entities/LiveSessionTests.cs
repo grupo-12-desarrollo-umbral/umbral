@@ -1143,6 +1143,78 @@ public sealed class LiveSessionTests
         act.Should().Throw<TriviaAnswerRequiresActiveSessionException>();
     }
 
+    // ── #171: ordered substage progress on the participant team board ─────────────────────────────
+    // The board exposes the whole ordered substage sequence with per-item status so a mixed-play-mode
+    // participant sees where they are, not just the active substage.
+
+    [Fact]
+    public void ProjectParticipantTeamBoard_BeforeSessionIsActive_MarksEverySubstageUpcoming()
+    {
+        var session = LiveSessionFactory.CreateScheduledTriviaThenTreasureHunt();
+        var team = session.AssociateTeam(Guid.NewGuid(), "Alpha", "A-01", 4);
+        var orderedSubstages = OrderedSubstages(session);
+
+        var board = session.ProjectParticipantTeamBoard(team.TeamId, DateTimeOffset.UtcNow);
+
+        board.Substages.Should().HaveCount(2);
+        board.Substages.Select(substage => substage.SubstageSnapshotId)
+            .Should().Equal(orderedSubstages.Select(substage => substage.SubstageSnapshotId));
+        board.Substages.Select(substage => substage.SequenceOrder).Should().Equal(0, 1);
+        board.Substages.Select(substage => substage.Status)
+            .Should().AllBeEquivalentTo(SubstageProgressStatus.Upcoming);
+    }
+
+    [Fact]
+    public void ProjectParticipantTeamBoard_WhenActive_FlagsTheActiveSubstageAndKeepsLaterOnesUpcoming()
+    {
+        var session = LiveSessionFactory.CreateScheduledTriviaThenTreasureHunt();
+        Activate(session);
+        var team = session.Teams.Single();
+        var orderedSubstages = OrderedSubstages(session);
+
+        var board = session.ProjectParticipantTeamBoard(team.TeamId, DateTimeOffset.UtcNow);
+
+        board.Substages.Select(substage => substage.PlayMode)
+            .Should().Equal(SubstagePlayMode.Trivia, SubstagePlayMode.TreasureHunt);
+        board.Substages[0].SubstageSnapshotId.Should().Be(orderedSubstages[0].SubstageSnapshotId);
+        board.Substages[0].Status.Should().Be(SubstageProgressStatus.Active);
+        board.Substages[1].Status.Should().Be(SubstageProgressStatus.Upcoming);
+    }
+
+    [Fact]
+    public void ProjectParticipantTeamBoard_AfterAdvancement_MarksPriorSubstageCompletedAndNewActive()
+    {
+        var session = LiveSessionFactory.CreateScheduledTriviaThenTreasureHunt();
+        Activate(session);
+        var team = session.Teams.Single();
+        var advancedAt = new DateTimeOffset(2026, 6, 3, 10, 2, 0, TimeSpan.Zero);
+        session.ActivateQuestion(0, advancedAt);
+        session.CloseActiveQuestion(advancedAt.AddSeconds(30));
+        session.CompleteActiveSubstageAndAdvance(advancedAt.AddSeconds(30), new SessionStateTransitionPolicy());
+
+        var board = session.ProjectParticipantTeamBoard(team.TeamId, DateTimeOffset.UtcNow);
+
+        board.Substages[0].Status.Should().Be(SubstageProgressStatus.Completed);
+        board.Substages[1].Status.Should().Be(SubstageProgressStatus.Active);
+    }
+
+    [Fact]
+    public void ProjectParticipantTeamBoard_WhenFinished_MarksEverySubstageCompleted()
+    {
+        var session = ActivateTriviaSession();
+        var team = session.Teams.Single();
+        var advancedAt = new DateTimeOffset(2026, 6, 3, 10, 2, 0, TimeSpan.Zero);
+        session.ActivateQuestion(0, advancedAt);
+        session.CloseActiveQuestion(advancedAt.AddSeconds(30));
+        session.CompleteActiveSubstageAndAdvance(advancedAt.AddSeconds(30), new SessionStateTransitionPolicy());
+
+        session.State.Should().Be(SessionState.Finished);
+        var board = session.ProjectParticipantTeamBoard(team.TeamId, DateTimeOffset.UtcNow);
+
+        board.Substages.Should().ContainSingle();
+        board.Substages[0].Status.Should().Be(SubstageProgressStatus.Completed);
+    }
+
     private static IReadOnlyList<SubstageSnapshot> OrderedSubstages(LiveSession session)
     {
         return session.MissionRuntimeSnapshot.StageSnapshots

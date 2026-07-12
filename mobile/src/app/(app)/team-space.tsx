@@ -24,6 +24,7 @@ import { useSessionTimer } from '@/lib/realtime/use-session-timer';
 import { useSubmitAnswer } from '@/lib/realtime/use-submit-answer';
 import { useTeamBoard } from '@/lib/realtime/use-team-board';
 import { TreasureHuntBoard } from '@/components/treasure-hunt-board';
+import { SubstageProgress } from '@/components/substage-progress';
 import { targetProgress } from '@/lib/realtime/team-board-types';
 import type { SessionsHubClient } from '@/lib/realtime/sessions-hub';
 import type { ReconnectContext } from '@/lib/realtime/sessions-hub-types';
@@ -341,11 +342,11 @@ export function LiveTeamSpace({
     const progress = targetProgress(board.activeSubstage);
     return (
       <>
+        <SubstageProgress board={board} />
         <View style={{ marginHorizontal: -spacing.lg, height: 640 }}>
           <TreasureHuntBoard
             teamDisplayName={board.teamDisplayName}
             currentScore={board.currentScore}
-            substageTitle={board.activeSubstage?.title ?? ''}
             timerDisplay={display}
             resolvedTargets={progress.resolved}
             totalActiveTargets={progress.total}
@@ -369,6 +370,8 @@ export function LiveTeamSpace({
           </Text>
         </Panel>
       ) : null}
+
+      {board ? <SubstageProgress board={board} /> : null}
 
       <View style={{ marginHorizontal: -spacing.lg }}>
         {view.kind === 'active' ? (

@@ -11,6 +11,7 @@ public sealed class ParticipantTeamBoardSnapshot : ValueObject
         int currentScore,
         AuthoritativeSessionTimerSnapshot timerSnapshot,
         ActiveSubstageContext? activeSubstageContext,
+        IReadOnlyList<SubstageProgressItem> substages,
         IReadOnlyList<VisibleClue> visibleClues,
         IReadOnlyList<VisibleTarget> activeTargets)
     {
@@ -20,6 +21,7 @@ public sealed class ParticipantTeamBoardSnapshot : ValueObject
         CurrentScore = currentScore;
         TimerSnapshot = timerSnapshot;
         ActiveSubstageContext = activeSubstageContext;
+        Substages = substages;
         VisibleClues = visibleClues;
         ActiveTargets = activeTargets;
     }
@@ -36,6 +38,10 @@ public sealed class ParticipantTeamBoardSnapshot : ValueObject
 
     public ActiveSubstageContext? ActiveSubstageContext { get; }
 
+    // The whole ordered substage sequence with per-item progress status (#171) — lets a
+    // mixed-play-mode participant see where they are in the flow, not just the active substage.
+    public IReadOnlyList<SubstageProgressItem> Substages { get; }
+
     public IReadOnlyList<VisibleClue> VisibleClues { get; }
 
     public IReadOnlyList<VisibleTarget> ActiveTargets { get; }
@@ -47,6 +53,7 @@ public sealed class ParticipantTeamBoardSnapshot : ValueObject
         int currentScore,
         AuthoritativeSessionTimerSnapshot timerSnapshot,
         ActiveSubstageContext? activeSubstageContext,
+        IReadOnlyList<SubstageProgressItem> substages,
         IReadOnlyList<VisibleClue> visibleClues,
         IReadOnlyList<VisibleTarget> activeTargets)
     {
@@ -57,6 +64,7 @@ public sealed class ParticipantTeamBoardSnapshot : ValueObject
             currentScore,
             timerSnapshot,
             activeSubstageContext,
+            substages,
             visibleClues,
             activeTargets);
     }
@@ -70,6 +78,11 @@ public sealed class ParticipantTeamBoardSnapshot : ValueObject
         yield return TimerSnapshot;
         yield return ActiveSubstageContext;
 
+        foreach (var substage in Substages)
+        {
+            yield return substage;
+        }
+
         foreach (var clue in VisibleClues)
         {
             yield return clue;
@@ -81,6 +94,15 @@ public sealed class ParticipantTeamBoardSnapshot : ValueObject
         }
     }
 }
+
+// One entry in the ordered substage progress list (#171): its identity, display title, a
+// session-wide display ordinal, its play mode, and where it sits relative to the active pointer.
+public sealed record SubstageProgressItem(
+    Guid SubstageSnapshotId,
+    string Title,
+    int SequenceOrder,
+    SubstagePlayMode PlayMode,
+    SubstageProgressStatus Status);
 
 public sealed class ActiveSubstageContext : ValueObject
 {

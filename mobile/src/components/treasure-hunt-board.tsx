@@ -117,7 +117,6 @@ function ClueCard({ clue }: { clue: VisibleClueDto }) {
 export type TreasureHuntBoardProps = {
   teamDisplayName: string;
   currentScore: number;
-  substageTitle: string;
   timerDisplay: TimerDisplay;
   resolvedTargets: number;
   totalActiveTargets: number;
@@ -127,7 +126,6 @@ export type TreasureHuntBoardProps = {
 export function TreasureHuntBoard({
   teamDisplayName,
   currentScore,
-  substageTitle,
   timerDisplay,
   resolvedTargets,
   totalActiveTargets,
@@ -153,8 +151,8 @@ export function TreasureHuntBoard({
       >
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
           <View style={{ flex: 1, paddingRight: spacing.sm }}>
+            {/* Active substage name is owned by the shared SubstageProgress component (#171). */}
             <Text variant="label" muted>TREASURE HUNT</Text>
-            <Text variant="title" numberOfLines={1}>{substageTitle}</Text>
           </View>
           <View style={{ alignItems: 'flex-end' }}>
             <Text variant="label" muted>SCORE</Text>
@@ -215,7 +213,6 @@ export function TreasureHuntBoard({
                 >
                   {resolvedTargets} / {totalActiveTargets} targets
                 </Text>
-                <Text variant="body" muted>{substageTitle}</Text>
               </View>
             </Card>
           </View>
