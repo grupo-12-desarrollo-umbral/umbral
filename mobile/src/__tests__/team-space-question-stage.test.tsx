@@ -3,6 +3,7 @@ import { act, create } from 'react-test-renderer';
 import { LiveTeamSpace } from '@/app/(app)/team-space';
 import { useActiveQuestion } from '@/lib/realtime/use-active-question';
 import { useSessionTimer } from '@/lib/realtime/use-session-timer';
+import { useTeamBoard } from '@/lib/realtime/use-team-board';
 
 jest.mock('expo-router', () => ({
   useLocalSearchParams: jest.fn(() => ({})),
@@ -26,8 +27,13 @@ jest.mock('@/lib/realtime/use-active-question', () => ({
   useActiveQuestion: jest.fn(),
 }));
 
+jest.mock('@/lib/realtime/use-team-board', () => ({
+  useTeamBoard: jest.fn(() => ({ board: null, isLoading: false, error: null })),
+}));
+
 const mockUseSessionTimer = useSessionTimer as jest.MockedFunction<typeof useSessionTimer>;
 const mockUseActiveQuestion = useActiveQuestion as jest.MockedFunction<typeof useActiveQuestion>;
+const mockUseTeamBoard = useTeamBoard as jest.MockedFunction<typeof useTeamBoard>;
 
 const OUTCOME = {
   kind: 'reconnected' as const,
@@ -54,6 +60,7 @@ const CLIENT = {
   onQuestionActivated: jest.fn(),
   onQuestionClosed: jest.fn(),
   onSubstageAdvanced: jest.fn(),
+  onTeamBoardUpdated: jest.fn(),
 };
 
 type TreeNode = {
@@ -61,9 +68,9 @@ type TreeNode = {
   children?: (TreeNode | string)[] | null;
 };
 
-function allText(node: unknown): string[] {
+function allText(node: unknown): (string | number)[] {
   if (node === null || node === undefined) return [];
-  if (typeof node === 'string') return [node];
+  if (typeof node === 'string' || typeof node === 'number') return [node];
   if (Array.isArray(node)) return node.flatMap(allText);
   const n = node as TreeNode;
   return allText(n.children ?? []);
@@ -101,6 +108,7 @@ describe('LiveTeamSpace question stage wiring', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     primeTimer();
+    mockUseTeamBoard.mockReturnValue({ board: null, isLoading: false, error: null });
   });
 
   test('renders active question stage instead of standalone timer and join panel', () => {
@@ -202,5 +210,89 @@ describe('LiveTeamSpace question stage wiring', () => {
     expect(texts).toContain('ALL TEAMS');
     expect(texts).toContain('Lantern Foxes');
     expect(texts).toContain('CLOSE');
+  });
+});
+
+const TREASURE_HUNT_BOARD = {
+  liveSessionId: 'sess-1',
+  teamId: 'team-1',
+  teamDisplayName: 'Lantern Foxes',
+  teamCode: 'LF-01',
+  currentScore: 240,
+  timer: {} as never,
+  activeSubstage: {
+    substageSnapshotId: 'sub-1',
+    playMode: 'TreasureHunt' as const,
+    title: 'The Cartographer’s Vault',
+    totalActiveTargets: 5,
+    resolvedTargets: 2,
+    activeQuestionSequenceOrder: null,
+    activeQuestionTimeLimitSeconds: null,
+  },
+  visibleClues: [
+    { targetSnapshotId: 't1', clueText: 'Follow the north colonnade.', targetName: 'Brass Astrolabe' },
+  ],
+};
+
+const TRIVIA_BOARD = {
+  ...TREASURE_HUNT_BOARD,
+  activeSubstage: {
+    ...TREASURE_HUNT_BOARD.activeSubstage,
+    playMode: 'Trivia' as const,
+    totalActiveTargets: 0,
+    resolvedTargets: 0,
+  },
+};
+
+describe('LiveTeamSpace play-mode branch', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    primeTimer();
+    mockUseActiveQuestion.mockReturnValue({ sessionState: 'Active', isQuestionClosed: false, view: { kind: 'none' } });
+  });
+
+  test('TreasureHunt board renders the board and not the trivia stage', () => {
+    mockUseTeamBoard.mockReturnValue({ board: TREASURE_HUNT_BOARD, isLoading: false, error: null });
+
+    const texts = allText(renderSpace().toJSON());
+
+    expect(texts).toContain('TREASURE HUNT');
+    expect(texts).toContain('The Cartographer’s Vault');
+    expect(texts).toContain('240');
+    // target progress (resolved / total), a count — not coordinates
+    expect(texts.join('')).toContain('2 / 5 targets');
+    // map stub + placeholder markers survive
+    expect(texts).toContain('MAP PREVIEW · STUB');
+    // trivia empty-state copy is NOT present
+    expect(texts.join(' ')).not.toContain('Waiting for the next question');
+  });
+
+  test('timer display from useSessionTimer reaches the board', () => {
+    mockUseTeamBoard.mockReturnValue({ board: TREASURE_HUNT_BOARD, isLoading: false, error: null });
+
+    const texts = allText(renderSpace().toJSON());
+
+    // primeTimer() sets label 00:42 — the board renders the shared SessionTimerBar with it.
+    expect(texts).toContain('00:42');
+  });
+
+  test('Trivia board renders the trivia stage and not the board', () => {
+    mockUseTeamBoard.mockReturnValue({ board: TRIVIA_BOARD, isLoading: false, error: null });
+    mockUseActiveQuestion.mockReturnValue({ sessionState: 'Active', isQuestionClosed: false, view: { kind: 'waiting' } });
+
+    const texts = allText(renderSpace().toJSON());
+
+    expect(texts.join(' ')).toContain('Waiting for the next question');
+    expect(texts).not.toContain('TREASURE HUNT');
+  });
+
+  test('null board keeps the trivia surface (pre-load window)', () => {
+    mockUseTeamBoard.mockReturnValue({ board: null, isLoading: false, error: null });
+    mockUseActiveQuestion.mockReturnValue({ sessionState: 'Active', isQuestionClosed: false, view: { kind: 'waiting' } });
+
+    const texts = allText(renderSpace().toJSON());
+
+    expect(texts.join(' ')).toContain('Waiting for the next question');
+    expect(texts).not.toContain('TREASURE HUNT');
   });
 });

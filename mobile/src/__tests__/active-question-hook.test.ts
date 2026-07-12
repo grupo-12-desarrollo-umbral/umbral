@@ -47,6 +47,7 @@ function makeClient() {
       stateHandlers.add(cb);
       return () => stateHandlers.delete(cb);
     },
+    onTeamBoardUpdated: jest.fn(),
   };
 }
 

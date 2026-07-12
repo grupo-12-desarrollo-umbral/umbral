@@ -21,6 +21,9 @@ import { useReconnect } from '@/lib/realtime/use-reconnect';
 import { useActiveQuestion } from '@/lib/realtime/use-active-question';
 import { useSessionTimer } from '@/lib/realtime/use-session-timer';
 import { useSubmitAnswer } from '@/lib/realtime/use-submit-answer';
+import { useTeamBoard } from '@/lib/realtime/use-team-board';
+import { TreasureHuntBoard } from '@/components/treasure-hunt-board';
+import { targetProgress } from '@/lib/realtime/team-board-types';
 import type { SessionsHubClient } from '@/lib/realtime/sessions-hub';
 import type { ReconnectContext } from '@/lib/realtime/sessions-hub-types';
 import { colors, radii, spacing } from '@/constants/theme';
@@ -270,6 +273,17 @@ export function LiveTeamSpace({
     snapshotActiveQuestion: activeQuestion,
     snapshotSessionState: snapshotSessionState ?? result.sessionState,
   });
+  // HU-23 team board. Its `activeSubstage.playMode` is the play-mode branch key; the
+  // treasure-hunt branch renders the live board, everything else keeps the trivia surface.
+  const { board } = useTeamBoard({
+    client,
+    liveSessionId: result.liveSessionId,
+    teamId: referenceTeamId,
+    token,
+    isReconnected: true,
+    reconnectNonce,
+  });
+  const playMode = board?.activeSubstage?.playMode;
   const score = 0;
   const teamMembers = [result.participantDisplayName];
 
@@ -291,6 +305,26 @@ export function LiveTeamSpace({
     { name: 'Ember Owls', members: ['Ari', 'Sol'] },
     { name: 'Parchment Moths', members: ['Mira', 'Jules'] },
   ];
+
+  if (playMode === 'TreasureHunt' && board) {
+    const progress = targetProgress(board.activeSubstage);
+    return (
+      <>
+        <View style={{ marginHorizontal: -spacing.lg, height: 640 }}>
+          <TreasureHuntBoard
+            teamDisplayName={board.teamDisplayName}
+            currentScore={board.currentScore}
+            substageTitle={board.activeSubstage?.title ?? ''}
+            timerDisplay={display}
+            resolvedTargets={progress.resolved}
+            totalActiveTargets={progress.total}
+            visibleClues={board.visibleClues}
+          />
+        </View>
+        <Button label="Leave team space" variant="secondary" onPress={onLeave} />
+      </>
+    );
+  }
 
   return (
     <>

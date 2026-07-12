@@ -3,6 +3,7 @@ import { getAccessToken } from '@/lib/auth/token-store';
 import { apiBaseUrl } from '@/lib/host';
 import { apiClient, ApiError } from './client';
 import type { SessionTimerSnapshotDto } from '@/lib/realtime/timer-types';
+import type { ParticipantTeamBoardDto } from '@/lib/realtime/team-board-types';
 import type {
   SubmitTriviaAnswerRequest,
   SubmitTriviaAnswerResultDto,
@@ -40,6 +41,30 @@ export function getParticipantTimerSnapshot(
   }
   return apiClient.get<SessionTimerSnapshotDto>(
     `/api/sessions/${encodeURIComponent(liveSessionId)}/participants/timer?${params.toString()}`,
+    {
+      cache: 'no-store',
+      headers: {
+        'Cache-Control': 'no-cache',
+        Pragma: 'no-cache',
+      },
+    },
+  );
+}
+
+// HU-23 participant team-board snapshot. Mirrors getParticipantTimerSnapshot exactly (same
+// { teamId } query + optional token, same no-store/no-cache), returning ParticipantTeamBoardDto.
+// A teamId/token mismatch for another team is a 403 (mapped via interpretTimerSnapshotError).
+export function getParticipantTeamBoard(
+  liveSessionId: string,
+  teamId: string,
+  token?: string | null,
+): Promise<ParticipantTeamBoardDto> {
+  const params = new URLSearchParams({ teamId });
+  if (token) {
+    params.set('token', token);
+  }
+  return apiClient.get<ParticipantTeamBoardDto>(
+    `/api/sessions/${encodeURIComponent(liveSessionId)}/participants/team-board?${params.toString()}`,
     {
       cache: 'no-store',
       headers: {

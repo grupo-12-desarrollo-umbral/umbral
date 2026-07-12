@@ -306,36 +306,41 @@ Smoke through the gateway:
 
 ---
 
-## 9. Frontend slice
+## 9. Mobile participant slice
+
+> **Surface correction:** the participant lives in the **Expo/React Native app at `@mobile/`**, not the Next.js web `@frontend/` (which is operator-primary). The trivia participant surface (`mobile/src/components/active-question-stage.tsx`) is **already live-wired** inside `mobile/src/app/(app)/team-space.tsx` via HU-M1/M2/M3 — do **not** re-implement it. The remaining work is **GitHub #155**: make the treasure-hunt board live and branch the live view by substage type.
 
 ```text
-Generate a multi phase plan in a markdown file — following the **frontend plan concreteness rule** (below), modelled on the exemplar closest to this slice's shape (`@frontend/plans/hu-03-frontend-role-permission-assignment.md` for a small 1–few-endpoint surface; `@frontend/plans/hu-10a-frontend-mission-hierarchy-authoring.md` for a large/multi-endpoint or partially-blocked surface) — save it in `@frontend/plans/` for the following:
-Use @frontend/AGENTS.md.
+Generate a multi phase plan in a markdown file — following the **mobile plan concreteness rule** (below), modelled on the closest existing mobile exemplars (`@mobile/plans/hu-22-participant-live-session-timer.md` for a small single-endpoint live surface; `@mobile/plans/hu-m1-active-question-display.md` for the team-space live-view integration shape) — save it at `@mobile/plans/hu-23-treasure-hunt-live-board.md` for the following:
+Use @mobile/AGENTS.md.
 
-Build the participant live team board for HU-23 against the verified backend contract:
+Fold the live treasure-hunt participant board into the existing `team-space.tsx` view for HU-23 (#155), against the verified backend contract:
 - HTTP snapshot: GET /api/sessions/{liveSessionId}/participants/team-board?teamId={teamId}&token={token}
-- SignalR: subscribe to team-scoped board updates for the participant's team
-- render accumulated/current team score, authoritative timer, active-substage target progress, and optional visible clues
+- SignalR: subscribe to the `TeamBoardUpdated` method on the participant's `team:{teamId}` group (the participant already joins it on reconnect — no new invoke/group)
+- branch `LiveTeamSpace` on `activeSubstage.playMode`: `TreasureHunt` → the live board, `Trivia`/null → the existing `ActiveQuestionStage` (unchanged)
+- render current/session-owned team score (0 when zero, not "Unavailable"), target progress (resolvedTargets/totalActiveTargets — NOT coordinates), and optional visible clues
+- drive the countdown from the existing `useSessionTimer` (HU-22), not the board DTO's nested timer copy
+- Teams tab stays, but other-team cards are STATIC PLACEHOLDER data clearly marked as placeholder; only the your-team card + score/timer/target/clues are live. No roster/ranking/ScoringMonitoring
+- map stays `MapStub` (a real map #156 and target coordinates #154 are out of scope)
+- delete the dev-only prototype route `mobile/src/app/(app)/treasure-hunt-play-prototype.tsx` and its home-screen button
 - do not show ranking/penalties/score ledger details or clue-as-progress language
-- handle zero/current score before ScoringMonitoring ledger exists
-- preserve participant/team scoping in route loaders, client calls, and UI states
 
-Frontend plan concreteness rule:
-1. **Proportion concreteness to certainty.** Write code-complete detail — exact DTO/request types,
-   real component skeletons, exact client-fn + server-action bodies, a `data-testid` contract — only
-   for the **fully-knowable near-term increments** (typically the foundation + first authoring
-   increment). Keep later, large, or blocked increments at **contract + gate altitude**: a contract
-   table, scope, and gate, with no invented bodies. Never write code for an increment blocked on an
-   open question.
+Mobile plan concreteness rule:
+1. **Proportion concreteness to certainty.** Write code-complete detail — exact DTO types,
+   real component skeletons, exact hook + API-client bodies, a testID/accessibility contract — only
+   for the **fully-knowable near-term increments** (the `use-team-board` hook + board component + the
+   substage branch). Keep later, large, or blocked increments at **contract + gate altitude**: a
+   contract table, scope, and gate, with no invented bodies. Never write code for an increment blocked
+   on an open question.
 2. **Verify every code anchor against the real source before writing it.** Open the files the plan
-   names — exported vs. private helpers, exact signatures, the const/env it reads, the line a refactor
-   targets — and write only what the source actually supports. A confident-but-wrong anchor (e.g.
-   "reuse `getIdentityHeaders`" when it is not exported) is worse than an altitude note. If a detail
-   is not verifiable, state the assumption under Open Questions rather than inventing it.
-3. **Required sections** (both exemplars carry these; a plan missing one is a defect): Context ·
-   Verified Backend Contract (endpoint/shape table) · Architecture Decisions · **Environment**
-   (env vars / config consts reused) · **data-testid contract** · phased Scope + Gate per increment ·
-   **Acceptance-criteria → test mapping** · Open Questions / Dependencies · Out of Scope.
+   names — `LiveTeamSpace`/`ActiveQuestionStage` in `team-space.tsx`, `useReconnect`/`useSessionTimer`,
+   `MapStub`, the host consts in `src/lib/api/host.ts` — and write only what the source actually
+   supports. A confident-but-wrong anchor is worse than an altitude note. If a detail is not
+   verifiable, state the assumption under Open Questions rather than inventing it.
+3. **Required sections** (a plan missing one is a defect): Context · Verified Backend Contract
+   (endpoint/DTO/SignalR-method table) · Architecture Decisions · **testID / accessibility contract** ·
+   phased Scope + Gate per increment · **Acceptance-criteria → test mapping** · Open Questions /
+   Dependencies · Out of Scope.
 4. **Final forms only, sequential by default.** Write only the final version of each anchor — no
    "wrong → revised" trails — and keep increments sequential unless the slice genuinely parallelizes.
 ```
@@ -343,7 +348,7 @@ Frontend plan concreteness rule:
 Commit:
 
 ```text
-feat(frontend): live team board — HU-23
+feat(mobile): live treasure-hunt team board (HU-23)
 
 Ref: HU-23
 Ref: DES-31
@@ -352,16 +357,16 @@ Ref: DES-70
 
 ---
 
-## 9b. Implement frontend plan
+## 9b. Implement mobile plan
 
 ```text
-Use @frontend/AGENTS.md.
-Use the HU-23 frontend plan saved under @frontend/plans/.
+Use @mobile/AGENTS.md.
+Use the HU-23 mobile plan saved at @mobile/plans/hu-23-treasure-hunt-live-board.md.
 
 Implement phase by phase in the plan's order, per the plan's own Scope / Gate / Commit Sequence.
 The plan is the source of truth and supersedes the Step 9 seed scope.
 
-Stop at any increment the plan marks blocked on an Open Question (name it). Do not re-generate the plan. Do not modify backend code. Do not restate per-phase scope or commit subjects from this prompt; the plan owns them.
+Do not re-implement the already-live trivia stage (`ActiveQuestionStage`). Keep the map a stub and other-team cards static placeholders. Delete the prototype route + its home-screen button. Stop at any increment the plan marks blocked on an Open Question (name it). Do not re-generate the plan. Do not modify backend code. Do not restate per-phase scope or commit subjects from this prompt; the plan owns them.
 ```
 
 ---
@@ -381,9 +386,9 @@ Acceptance criteria to verify before PR:
 ```bash
 gh pr create \
   --base develop \
-  --head feature/hu-23-live-team-board \
-  --title "feat(session-operations): live team board (HU-23)" \
-  --body "Adds DES-31/HU-23: a participant team-scoped live board over SessionOperations. The board shows current/session-owned score (or zero before ScoringMonitoring ledger), HU-22 authoritative timer, target-based active-substage progress, and optional visible clues. It updates without manual reload through SignalR and keeps participant access team-scoped through the runtime guard. It does not implement scoring ledger/ranking, QR target validation, clue release authoring, evidence intake, or ScoringMonitoring." \
+  --head feature/hu-23-mobile-live-board \
+  --title "feat(mobile): live treasure-hunt team board (HU-23)" \
+  --body "Makes the HU-23 treasure-hunt participant board live on mobile (#155): folds it into the existing team-space view, consuming the merged team-board snapshot + team-scoped SignalR. Shows current/session-owned score (or zero), the HU-22 authoritative timer, target-based active-substage progress, and optional visible clues; branches the live view by substage type so trivia keeps its existing stage. Other-team data is a static placeholder and the map stays stubbed. It does not implement scoring ledger/ranking, target coordinates, a real map, QR validation, clue release authoring, evidence intake, or ScoringMonitoring." \
   --draft
 ```
 

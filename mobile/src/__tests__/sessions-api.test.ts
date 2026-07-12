@@ -1,5 +1,6 @@
 import { ApiError } from '@/lib/api/client';
 import {
+  getParticipantTeamBoard,
   getParticipantTimerSnapshot,
   interpretTimerSnapshotError,
   submitTriviaAnswer,
@@ -76,6 +77,62 @@ describe('getParticipantTimerSnapshot', () => {
     mockGet.mockResolvedValueOnce({});
 
     await getParticipantTimerSnapshot('sess-1', 'team-1');
+
+    const [, init] = mockGet.mock.calls[0] as [string, RequestInit];
+    expect((init.headers as Record<string, string>)['Cache-Control']).toBe('no-cache');
+    expect((init.headers as Record<string, string>)['Pragma']).toBe('no-cache');
+  });
+});
+
+describe('getParticipantTeamBoard', () => {
+  beforeEach(() => jest.clearAllMocks());
+
+  test('builds team-board URL with teamId only when token is absent', async () => {
+    const dto = { liveSessionId: 'sess-1', teamId: 'team-1' };
+    mockGet.mockResolvedValueOnce(dto);
+
+    const result = await getParticipantTeamBoard('sess-1', 'team-1');
+
+    expect(mockGet).toHaveBeenCalledWith(
+      '/api/sessions/sess-1/participants/team-board?teamId=team-1',
+      expect.objectContaining({ cache: 'no-store' }),
+    );
+    expect(result).toEqual(dto);
+  });
+
+  test('appends token when provided', async () => {
+    mockGet.mockResolvedValueOnce({});
+
+    await getParticipantTeamBoard('sess-2', 'team-2', 'tok-abc');
+
+    const [url] = mockGet.mock.calls[0] as [string, ...unknown[]];
+    expect(url).toContain('/participants/team-board?');
+    expect(url).toContain('teamId=team-2');
+    expect(url).toContain('token=tok-abc');
+  });
+
+  test('omits token when null', async () => {
+    mockGet.mockResolvedValueOnce({});
+
+    await getParticipantTeamBoard('sess-3', 'team-3', null);
+
+    const [url] = mockGet.mock.calls[0] as [string, ...unknown[]];
+    expect(url).not.toContain('token');
+  });
+
+  test('URL-encodes liveSessionId in path', async () => {
+    mockGet.mockResolvedValueOnce({});
+
+    await getParticipantTeamBoard('sess/with/slash', 'team-1');
+
+    const [url] = mockGet.mock.calls[0] as [string, ...unknown[]];
+    expect(url).toContain('sess%2Fwith%2Fslash');
+  });
+
+  test('sends no-cache headers', async () => {
+    mockGet.mockResolvedValueOnce({});
+
+    await getParticipantTeamBoard('sess-1', 'team-1');
 
     const [, init] = mockGet.mock.calls[0] as [string, RequestInit];
     expect((init.headers as Record<string, string>)['Cache-Control']).toBe('no-cache');

@@ -40,6 +40,7 @@ function makeClient() {
     onQuestionActivated: jest.fn(),
     onQuestionClosed: jest.fn(),
     onSubstageAdvanced: jest.fn(),
+    onTeamBoardUpdated: jest.fn(),
   };
 }
 
