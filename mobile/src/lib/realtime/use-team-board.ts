@@ -17,10 +17,19 @@ export type UseTeamBoardResult = {
  * HU-23 participant team-board hook. Mirrors `useSessionTimer`: on reconnect it
  * fetches the REST `team-board` snapshot, then applies pushed `TeamBoardUpdated`
  * payloads and re-fetches on `reconnectNonce` change. Pushes are filtered by
- * `liveSessionId` AND `teamId` (the connection is in exactly one `team:{id}`
- * group, but the guard is cheap and defends against a stale group after a team
- * switch). It does NOT own the timer countdown — the ticking value stays
- * `useSessionTimer.display`; `board.timer` is only a seed.
+ * `liveSessionId` only, because the connection is joined to exactly one
+ * server-side `team:{perSessionId}` group that already scopes the push to this
+ * team. A client-side `teamId` check would in fact drop every push: the DTO
+ * carries the per-session team id (`Team.TeamId`), whereas the `teamId` prop —
+ * used for the REST fetch/guard — is the identity-access reference id, so the
+ * two never compare equal. It does NOT own the timer countdown — the ticking
+ * value stays `useSessionTimer.display`; `board.timer` is only a seed.
+ *
+ * It also re-fetches when `sessionState` changes. There is no `TeamBoardUpdated`
+ * push yet, so a participant who joins while the session is still `Preparing`
+ * would otherwise stay stuck on a stale `activeSubstage: null` snapshot when the
+ * operator presses Start — the `TimerUpdated` push flips `sessionState` to
+ * `Active`, and keying on that value pulls the fresh treasure-hunt board.
  */
 export function useTeamBoard({
   client,
@@ -29,6 +38,7 @@ export function useTeamBoard({
   token,
   isReconnected,
   reconnectNonce,
+  sessionState,
 }: {
   client: SessionsHubClient;
   liveSessionId: string;
@@ -36,6 +46,8 @@ export function useTeamBoard({
   token?: string | null;
   isReconnected: boolean;
   reconnectNonce: number;
+  // Live session state from `useSessionTimer`; a change (e.g. Preparing → Active) re-fetches the board.
+  sessionState?: string | null;
 }): UseTeamBoardResult {
   const [board, setBoard] = useState<ParticipantTeamBoardDto | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -65,15 +77,14 @@ export function useTeamBoard({
     return () => {
       active = false;
     };
-  }, [isReconnected, reconnectNonce, liveSessionId, teamId, token]);
+  }, [isReconnected, reconnectNonce, sessionState, liveSessionId, teamId, token]);
 
   useEffect(() => {
     return client.onTeamBoardUpdated((pushed: ParticipantTeamBoardDto) => {
       if (pushed.liveSessionId !== liveSessionId) return;
-      if (pushed.teamId !== teamId) return;
       setBoard(pushed);
     });
-  }, [client, liveSessionId, teamId]);
+  }, [client, liveSessionId]);
 
   return { board, isLoading, error };
 }

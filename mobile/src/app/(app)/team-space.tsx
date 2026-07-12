@@ -18,6 +18,7 @@ import {
 import { resolveReconnectContext } from '@/lib/realtime/reconnect-context-resolution';
 import type { ReconnectOutcome } from '@/lib/realtime/reconnect-policy';
 import { useReconnect } from '@/lib/realtime/use-reconnect';
+import type { TimerSnapshotError } from '@/lib/api/sessions';
 import { useActiveQuestion } from '@/lib/realtime/use-active-question';
 import { useSessionTimer } from '@/lib/realtime/use-session-timer';
 import { useSubmitAnswer } from '@/lib/realtime/use-submit-answer';
@@ -68,6 +69,29 @@ function deniedCopy(outcome: ReconnectOutcome): string | null {
       return 'Something went wrong restoring your team space.';
     default:
       return null;
+  }
+}
+
+/**
+ * Copy for a failed team-board fetch (HU-23). Without this the screen would fall
+ * back to the trivia surface on any board error — indistinguishable from "no
+ * active substage" — so a failing (e.g. 401/403/offline) board fetch is surfaced
+ * instead of silently masked.
+ */
+function boardErrorCopy(error: TimerSnapshotError): string {
+  switch (error) {
+    case 'network-error':
+      return "Couldn't reach the live board — check your connection.";
+    case 'unauthorized':
+      return 'Your session expired — the team board couldn’t load.';
+    case 'forbidden':
+      return "You don't have access to this team's board.";
+    case 'not-found':
+      return "This session's board isn't available.";
+    case 'timer-unavailable':
+      return "The board isn't ready yet — hang tight.";
+    default:
+      return "Couldn't load the team board.";
   }
 }
 
@@ -275,15 +299,22 @@ export function LiveTeamSpace({
   });
   // HU-23 team board. Its `activeSubstage.playMode` is the play-mode branch key; the
   // treasure-hunt branch renders the live board, everything else keeps the trivia surface.
-  const { board } = useTeamBoard({
+  const { board, error: boardError } = useTeamBoard({
     client,
     liveSessionId: result.liveSessionId,
     teamId: referenceTeamId,
     token,
     isReconnected: true,
     reconnectNonce,
+    // Re-fetch the board when the session state advances (e.g. Preparing → Active on Start).
+    sessionState: snapshotSessionState,
   });
   const playMode = board?.activeSubstage?.playMode;
+  // Only surface an error while it actually masks the board: a still-good board
+  // kept from an earlier fetch (a failed re-fetch leaves `board` intact) renders
+  // normally; a failed first fetch (`board` null) would otherwise fall silently
+  // to the trivia surface.
+  const maskedBoardError = board ? null : boardError;
   const score = 0;
   const teamMembers = [result.participantDisplayName];
 
@@ -328,6 +359,17 @@ export function LiveTeamSpace({
 
   return (
     <>
+      {maskedBoardError ? (
+        <Panel>
+          <Text
+            variant="body"
+            style={{ color: colors.signalCritical, textAlign: 'center' }}
+          >
+            {boardErrorCopy(maskedBoardError)}
+          </Text>
+        </Panel>
+      ) : null}
+
       <View style={{ marginHorizontal: -spacing.lg }}>
         {view.kind === 'active' ? (
           <ActiveQuestionStage
