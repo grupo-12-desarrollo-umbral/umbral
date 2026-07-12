@@ -275,3 +275,14 @@ context:
   boundary with `SessionOperations`, but ownership of scoring traceability,
   ranking derivation, and scoring-side audit projections remains in
   `ScoringMonitoring`.
+- **Canonical demo flow — concrete event name (pin, 2026-07-12).** The "runtime
+  facts" the first slice (`HU-37`, DES-51) consumes are named concretely to
+  de-risk it: the minimum publish→consume→effect workflow is
+  `AnswerRegisteredIntegrationEvent` (published by `session-operations-service`
+  on the first valid trivia answer) → consumed by `scoring-monitoring-service` →
+  writes a `ScoreEntry` ledger record. Build this concrete path first; the
+  abstract "runtime facts" phrasing elsewhere in this PRD resolves to this event
+  for the initial slice. All new publish/consume work is **MassTransit-native**
+  (`IPublishEndpoint.Publish(...)`, `IConsumer<...>`, `[EntityName]`) and gated
+  behind GH #164 — see
+  `backend/docs/rabbitmq-clue-release-audit-scope-handoff-2026-07-11.md`.
