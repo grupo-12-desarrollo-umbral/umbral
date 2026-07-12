@@ -548,6 +548,127 @@ public sealed class TriviaEndpointsTests : IClassFixture<PostgreSqlFixture>, IAs
     }
 
     [Fact]
+    public async Task RemoveTriviaQuestion_WhenExists_ReturnsUpdatedQuizWithReconciledOrder()
+    {
+        AddAdministratorHeaders();
+
+        var triviaId = await CreateTriviaQuizAsync("Question Removal");
+
+        var addResponse = await _client.PostAsJsonAsync(
+            $"/api/trivias/{triviaId}/questions",
+            new
+            {
+                prompt = "Second question?",
+                sequenceOrder = 2,
+                scoreValue = 50,
+                timeLimitSeconds = 20,
+                explanation = "Second explanation.",
+                isActive = true,
+                options = new[]
+                {
+                    new { optionText = "Yes", sequenceOrder = 1, isCorrect = true },
+                    new { optionText = "No", sequenceOrder = 2, isCorrect = false }
+                }
+            });
+        addResponse.EnsureSuccessStatusCode();
+
+        var detailBefore = await _client.GetAsync($"/api/trivias/{triviaId}");
+        detailBefore.EnsureSuccessStatusCode();
+        var beforePayload = await detailBefore.Content.ReadFromJsonAsync<TriviasController.TriviaQuizResponse>();
+        beforePayload!.Questions.Should().HaveCount(2);
+
+        var firstQuestionId = beforePayload.Questions.OrderBy(q => q.SequenceOrder).First().Id;
+
+        var response = await _client.DeleteAsync($"/api/trivias/{triviaId}/questions/{firstQuestionId}");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var payload = await response.Content.ReadFromJsonAsync<TriviasController.TriviaQuizResponse>();
+        payload.Should().NotBeNull();
+        payload!.Questions.Should().ContainSingle();
+        payload.Questions[0].Prompt.Should().Be("Second question?");
+        payload.Questions[0].SequenceOrder.Should().Be(1);
+
+        var detailAfter = await _client.GetAsync($"/api/trivias/{triviaId}");
+        detailAfter.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var afterDetail = await detailAfter.Content.ReadFromJsonAsync<TriviasController.TriviaQuizResponse>();
+        afterDetail.Should().NotBeNull();
+        afterDetail!.Questions.Should().ContainSingle();
+        afterDetail.Questions[0].SequenceOrder.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task RemoveTriviaQuestion_WithNonAdminCaller_Returns403()
+    {
+        AddAdministratorHeaders();
+
+        var triviaId = await CreateTriviaQuizAsync("Unauthorized Question Removal");
+        var questionId = await GetFirstQuestionIdAsync(triviaId);
+
+        AddOperatorHeaders();
+
+        var response = await _client.DeleteAsync($"/api/trivias/{triviaId}/questions/{questionId}");
+
+        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+
+        var problem = await response.Content.ReadFromJsonAsync<ProblemDetails>();
+        problem.Should().NotBeNull();
+        problem!.Status.Should().Be(StatusCodes.Status403Forbidden);
+        problem.Title.Should().Be("Forbidden.");
+    }
+
+    [Fact]
+    public async Task RemoveTriviaQuestion_WhenQuizNotFound_ReturnsNotFound()
+    {
+        AddAdministratorHeaders();
+
+        var response = await _client.DeleteAsync("/api/trivias/9999/questions/1");
+
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+
+        var problem = await response.Content.ReadFromJsonAsync<ProblemDetails>();
+        problem.Should().NotBeNull();
+        problem!.Status.Should().Be(StatusCodes.Status404NotFound);
+    }
+
+    [Fact]
+    public async Task RemoveTriviaQuestion_WhenQuestionNotFound_ReturnsNotFound()
+    {
+        AddAdministratorHeaders();
+
+        var triviaId = await CreateTriviaQuizAsync("Missing Question Removal");
+
+        var response = await _client.DeleteAsync($"/api/trivias/{triviaId}/questions/9999");
+
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+
+        var problem = await response.Content.ReadFromJsonAsync<ProblemDetails>();
+        problem.Should().NotBeNull();
+        problem!.Status.Should().Be(StatusCodes.Status404NotFound);
+    }
+
+    [Fact]
+    public async Task RemoveTriviaQuestion_WhenQuizIsPublished_ReturnsConflict()
+    {
+        AddAdministratorHeaders();
+
+        var triviaId = await CreateTriviaQuizAsync("Published Question Removal");
+        var questionId = await GetFirstQuestionIdAsync(triviaId);
+        await MarkTriviaQuizAsPublishedAsync(triviaId);
+
+        var response = await _client.DeleteAsync($"/api/trivias/{triviaId}/questions/{questionId}");
+
+        response.StatusCode.Should().Be(HttpStatusCode.Conflict);
+
+        var problem = await response.Content.ReadFromJsonAsync<ProblemDetails>();
+        problem.Should().NotBeNull();
+        problem!.Status.Should().Be(StatusCodes.Status409Conflict);
+        problem.Title.Should().Be("Conflict.");
+        problem.Detail.Should().Contain("cannot be edited");
+    }
+
+    [Fact]
     public async Task RetireTriviaQuiz_WhenUsed_ReturnsArchivedQuizAndPreservesHistoricalIdentity()
     {
         AddAdministratorHeaders();

@@ -5,6 +5,7 @@ using umbral_backend.Application.Trivias.Commands.CreateTriviaQuiz;
 using umbral_backend.Application.Trivias.Commands.DeleteTriviaQuiz;
 using umbral_backend.Application.Trivias.Commands.DuplicateTriviaQuiz;
 using umbral_backend.Application.Trivias.Commands.PublishTriviaQuiz;
+using umbral_backend.Application.Trivias.Commands.RemoveTriviaQuestion;
 using umbral_backend.Application.Trivias.Commands.RetireTriviaQuiz;
 using umbral_backend.Application.Trivias.Commands.UpdateTriviaQuestion;
 using umbral_backend.Application.Trivias.Commands.UpdateTriviaQuiz;
@@ -174,6 +175,19 @@ public sealed class TriviasController(ISender sender) : ControllerBase
                 request.Explanation,
                 request.IsActive,
                 request.Options.Select(MapTriviaOptionInput).ToArray()),
+            cancellationToken);
+
+        return Ok(TriviaQuizResponse.FromDto(triviaQuiz));
+    }
+
+    [HttpDelete("{triviaQuizId:int}/questions/{questionId:int}")]
+    public async Task<ActionResult<TriviaQuizResponse>> RemoveTriviaQuestion(
+        int triviaQuizId,
+        int questionId,
+        CancellationToken cancellationToken)
+    {
+        var triviaQuiz = await sender.Send(
+            new RemoveTriviaQuestionCommand(triviaQuizId, questionId),
             cancellationToken);
 
         return Ok(TriviaQuizResponse.FromDto(triviaQuiz));

@@ -13,6 +13,7 @@ public sealed class TriviaQuiz : BaseAuditableEntity
     private static readonly TriviaQuizAuthoringTemplate UpdateTemplate = new UpdateTriviaQuizAuthoringTemplate();
     private static readonly TriviaQuestionAuthoringTemplate AddQuestionTemplate = new AddTriviaQuestionAuthoringTemplate();
     private static readonly TriviaQuestionAuthoringTemplate UpdateQuestionTemplate = new UpdateTriviaQuestionAuthoringTemplate();
+    private static readonly TriviaQuestionRemovalTemplate RemoveQuestionTemplate = new RemoveTriviaQuestionAuthoringTemplate();
     private static readonly TriviaQuizLifecycleTemplate PublishTemplate = new PublishTriviaQuizLifecycleTemplate();
     private static readonly TriviaQuizLifecycleTemplate ArchiveTemplate = new ArchiveTriviaQuizLifecycleTemplate();
     private static readonly TriviaQuizReuseWorkflowTemplate<TriviaQuiz> DuplicateWorkflow = new DuplicateTriviaQuizWorkflowTemplate();
@@ -190,6 +191,15 @@ public sealed class TriviaQuiz : BaseAuditableEntity
         return question;
     }
 
+    public TriviaQuestion RemoveQuestion(int triviaQuestionId)
+    {
+        var removedQuestion = RemoveQuestionTemplate.Apply(this, triviaQuestionId);
+
+        AddDomainEvent(new TriviaQuestionRemovedEvent(this, removedQuestion));
+
+        return removedQuestion;
+    }
+
     private void ReplaceQuestions(IEnumerable<TriviaQuestion> questions)
     {
         _questions.Clear();
@@ -221,6 +231,17 @@ public sealed class TriviaQuiz : BaseAuditableEntity
         return sourceQuiz.Id > 0
             ? sourceQuiz.Id
             : sourceQuiz.SourceTriviaQuizId;
+    }
+
+    // Single source of truth for the authoring editability rule: quiz details,
+    // question add/update, and question removal are only allowed while the quiz is a
+    // Draft. Shared so those authoring paths cannot drift apart.
+    private static void EnsureQuizEditable(TriviaQuizStatus status)
+    {
+        if (status != TriviaQuizStatus.Draft)
+        {
+            throw new TriviaQuizNotEditableException(status);
+        }
     }
 
     private abstract class TriviaQuizLifecycleTemplate
@@ -331,10 +352,7 @@ public sealed class TriviaQuiz : BaseAuditableEntity
     {
         protected override void EnsureEditable(TriviaQuizStatus status)
         {
-            if (status != TriviaQuizStatus.Draft)
-            {
-                throw new TriviaQuizNotEditableException(status);
-            }
+            EnsureQuizEditable(status);
         }
     }
 
@@ -357,10 +375,7 @@ public sealed class TriviaQuiz : BaseAuditableEntity
 
         protected virtual void EnsureEditable(TriviaQuizStatus status)
         {
-            if (status != TriviaQuizStatus.Draft)
-            {
-                throw new TriviaQuizNotEditableException(status);
-            }
+            EnsureQuizEditable(status);
         }
 
         protected abstract TriviaQuestion? ResolveTargetQuestion(TriviaQuiz quiz, TriviaQuestionAuthoringDraft draft);
@@ -410,6 +425,48 @@ public sealed class TriviaQuiz : BaseAuditableEntity
                 throw new TriviaOptionSequenceOrderMustBeUniqueException();
             }
         }
+    }
+
+    private abstract class TriviaQuestionRemovalTemplate
+    {
+        public TriviaQuestion Apply(TriviaQuiz quiz, int triviaQuestionId)
+        {
+            EnsureQuizEditable(quiz.Status);
+            var question = FindQuestion(quiz, triviaQuestionId);
+            RemoveQuestion(quiz, question);
+            ReconcileSequenceOrders(quiz);
+            return question;
+        }
+
+        private static TriviaQuestion FindQuestion(TriviaQuiz quiz, int triviaQuestionId)
+        {
+            var question = quiz._questions.SingleOrDefault(q => q.Id == triviaQuestionId);
+
+            if (question is null)
+            {
+                throw new TriviaQuestionNotFoundException(triviaQuestionId);
+            }
+
+            return question;
+        }
+
+        private static void RemoveQuestion(TriviaQuiz quiz, TriviaQuestion question)
+        {
+            quiz._questions.Remove(question);
+        }
+
+        private static void ReconcileSequenceOrders(TriviaQuiz quiz)
+        {
+            var ordered = quiz._questions.OrderBy(q => q.SequenceOrder).ToList();
+            for (var i = 0; i < ordered.Count; i++)
+            {
+                ordered[i].SetSequenceOrder(i + 1);
+            }
+        }
+    }
+
+    private sealed class RemoveTriviaQuestionAuthoringTemplate : TriviaQuestionRemovalTemplate
+    {
     }
 
     private sealed class AddTriviaQuestionAuthoringTemplate : TriviaQuestionAuthoringTemplate

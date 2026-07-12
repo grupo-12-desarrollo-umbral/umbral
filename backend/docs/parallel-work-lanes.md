@@ -16,9 +16,9 @@ lane**, and run **different lanes in parallel**.
 | **A** | `session-operations-service` | *(occupied)* | DES-49 (HU-36A) is **In Progress** — finish it before starting DES-31 |
 | **B** | `identity-access-service` | **GH #140** | Shared-admin-credential security fix (∥ GH #141) |
 | **C** | `mobile/` | **GH #155** | Mobile play surface screen |
-| **E** | `mission-design-service` | **DES-80** | RemoveTriviaQuestion command — ungated, clean lane |
+| **E** | `mission-design-service` | **DES-80 → GH #173** | RemoveTriviaQuestion, then trivia-question authoring RBAC sweep (GH #173 also touches `frontend/`) |
 
-- Lane **D** (`frontend/`) is stalled: only GH #148 remains and it's blocked by GH #142 (Lane B).
+- Lane **D** (`frontend/`) has **GH #173** after `DES-80`; **GH #148** remains blocked by GH #142 (Lane B).
 - Lane **F** (`api-gateway`) is **empty** — GH #147 shipped.
 
 ### ✅ Already landed since the 07-10 plan (no longer startable)
@@ -67,16 +67,19 @@ GH #155  →  GH #156
 
 ### Lane D — `frontend/` (web)
 ```
-GH #148
+GH #173  →  GH #148
 ```
-- ✅ **GH #146** (quiz preview) is Done — only **GH #148** remains.
+- ✅ **GH #146** (quiz preview) is Done.
+- **GH #173** changes trivia question authoring RBAC in the web dashboard/nav and server actions.
+  It also touches `mission-design-service`, so run it after Lane E's `DES-80` and do not run it in parallel with Lane E.
 - **GH #148** (operator invite UI) is **still blocked** — it needs the backend invitation endpoints from **GH #142** (Lane B) to land first.
 
 ### Lane E — `mission-design-service`
 ```
-DES-80
+DES-80  →  GH #173
 ```
-- Ungated, own tree, zero blockers. A clean free lane any time.
+- **DES-80** is ungated, own tree, zero blockers. A clean free lane any time.
+- **GH #173** follows `DES-80` so add/update/remove trivia-question authoring can move from Administrator-only to Operator-only together. It also edits `frontend/`, so serialize it with Lane D.
 
 ### Lane F — `api-gateway`
 ```
@@ -92,14 +95,16 @@ DES-80
 |--------|--------------------|
 | ~~**GH #149**~~ | ✅ Done (PR #159) — repo-wide coverage gate already landed; no longer blocks fan-out. |
 | **GH #144** | Spans identity **+** frontend **+** mobile — conflicts with B, C and D at once. |
+| **GH #173** | Spans `mission-design-service` **+** `frontend/` — run after DES-80 and do not share with D or E. |
 | **DES-13** | Touches session-ops **+** identity — fine in Lane A, but not while Lane B runs. |
 
 ---
 
 ## Quick conflict cheatsheet
 
-- ✅ **Safe in parallel:** A + B + C + D + E (F is empty; five distinct folders).
+- ✅ **Safe in parallel:** A + B + C + D + E (F is empty; five distinct folders), except for cross-lane tickets called out below.
 - ⚠️ **A + B together?** Fine — *unless* Lane A is on **DES-13** (it touches identity too).
 - ⚠️ **Inside Lane A:** the MassTransit chain GH #164→#165→#166 and DES-92 share `session-operations-service` with the DES-* queue — serialize, never parallel.
+- ⚠️ **D + E together?** Fine unless either lane is on **GH #173**, which touches both `frontend/` and `mission-design-service`.
 - ❌ **Never parallel:** GH #144 (alone).
 - 📁 **The test for any pair:** do they edit the same folder under `backend/services/…`, `frontend/`, or `mobile/`? If no → safe. If yes → serialize.

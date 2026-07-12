@@ -10,4 +10,8 @@
     <PackageReference Include="MediatR.Contracts" />
   </ItemGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="umbral_backend.Application.UnitTests" />
+  </ItemGroup>
+
 </Project>

@@ -8,6 +8,7 @@ import {
   updateTriviaQuiz as updateTriviaQuizLib,
   addTriviaQuestion as addTriviaQuestionLib,
   updateTriviaQuestion as updateTriviaQuestionLib,
+  removeTriviaQuestion as removeTriviaQuestionLib,
   publishTriviaQuiz as publishTriviaQuizLib,
   archiveTriviaQuiz as archiveTriviaQuizLib,
   duplicateTriviaQuiz as duplicateTriviaQuizLib,
@@ -68,6 +69,17 @@ export async function updateTriviaQuestion(
   const session = await verifySession()
   if (session.role !== 'Administrator') throw new Error('Forbidden')
   const result = await updateTriviaQuestionLib(triviaQuizId, questionId, question)
+  revalidatePath('/dashboard')
+  return result
+}
+
+export async function removeTriviaQuestion(
+  triviaQuizId: number,
+  questionId: number,
+): Promise<TriviaQuizDto> {
+  const session = await verifySession()
+  if (session.role !== 'Administrator') throw new Error('Forbidden')
+  const result = await removeTriviaQuestionLib(triviaQuizId, questionId)
   revalidatePath('/dashboard')
   return result
 }

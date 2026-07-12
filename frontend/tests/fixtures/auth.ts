@@ -75,8 +75,13 @@ export const test = base.extend<{
 
   participantPage: async ({ browser }, runPageFixture) => {
     const ctx = await browser.newContext()
+    // externalIdentityId = the Keycloak sub (UUID), not 'participant-1': global-setup's
+    // seedParticipantIdentity re-inserts the identity-access row keyed by the resolved sub
+    // (for the HU-36A gateway→JWT membership path), so the literal username no longer matches.
+    // The dashboard's BFF-direct access check (X-User-Id) 404s on the literal and redirect-loops.
+    const { cookie: keycloakSession, sub } = await createKeycloakSession('participant-1', 'participant123')
     const payload: SessionPayload = {
-      externalIdentityId: 'participant-1',
+      externalIdentityId: sub,
       displayName: 'Participant One',
       email: 'participant-1@umbral.local',
       role: 'Participant',
@@ -84,7 +89,10 @@ export const test = base.extend<{
       expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
     }
     const session = await encryptForTest(payload)
-    await ctx.addCookies([{ name: 'session', value: session, url: 'http://localhost:3000' }])
+    await ctx.addCookies([
+      { name: 'session', value: session, url: 'http://localhost:3000' },
+      { name: 'kc_session', value: keycloakSession, url: 'http://localhost:3000' },
+    ])
     const page = await ctx.newPage()
     await runPageFixture(page)
     await ctx.close()

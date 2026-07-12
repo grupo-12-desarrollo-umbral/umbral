@@ -28,6 +28,7 @@ using umbral_backend.Application.Trivias.Commands.DeleteTriviaQuiz;
 using umbral_backend.Application.Trivias.Commands.DuplicateTriviaQuiz;
 using umbral_backend.Application.Trivias.Commands.PublishTriviaQuiz;
 using umbral_backend.Application.Trivias.Commands.RetireTriviaQuiz;
+using umbral_backend.Application.Trivias.Commands.RemoveTriviaQuestion;
 using umbral_backend.Application.Trivias.Commands.UpdateTriviaQuestion;
 using umbral_backend.Application.Trivias.Commands.UpdateTriviaQuiz;
 using umbral_backend.Application.Trivias.Queries.GetTriviaCatalog;
@@ -989,6 +990,88 @@ public sealed class MissionInfrastructureIntegrationTests : IClassFixture<Postgr
         storedQuiz.HasUsageHistory.Should().BeTrue();
         storedQuiz.PublishedAt.Should().Be(new DateTimeOffset(2026, 6, 3, 10, 0, 0, TimeSpan.Zero));
         storedQuiz.SourceTriviaQuizId.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task RemoveTriviaQuestion_PersistsDeletionAndReconcilesSequenceOrder()
+    {
+        await using var setupContext = BuildContext();
+        await ResetDatabaseAsync(setupContext);
+        var setupRepository = new TriviaQuizRepository(setupContext);
+
+        var triviaQuiz = Domain.Entities.TriviaQuiz.Create(
+            "Geography",
+            "Quiz with multiple questions",
+            [
+                Domain.Entities.TriviaQuestion.Create(
+                    "Capital of France?",
+                    1,
+                    100,
+                    20,
+                    "Paris is the capital.",
+                    [
+                        Domain.Entities.TriviaOption.Create("Paris", 1, true),
+                        Domain.Entities.TriviaOption.Create("Lyon", 2, false)
+                    ]),
+                Domain.Entities.TriviaQuestion.Create(
+                    "Capital of Germany?",
+                    2,
+                    100,
+                    25,
+                    "Berlin is the capital.",
+                    [
+                        Domain.Entities.TriviaOption.Create("Berlin", 1, true),
+                        Domain.Entities.TriviaOption.Create("Munich", 2, false)
+                    ]),
+                Domain.Entities.TriviaQuestion.Create(
+                    "Capital of Italy?",
+                    3,
+                    50,
+                    15,
+                    null,
+                    [
+                        Domain.Entities.TriviaOption.Create("Rome", 1, true),
+                        Domain.Entities.TriviaOption.Create("Milan", 2, false),
+                        Domain.Entities.TriviaOption.Create("Naples", 3, false)
+                    ])
+            ]);
+
+        await setupRepository.AddAsync(triviaQuiz, CancellationToken.None);
+        var questionToRemove = triviaQuiz.Questions.Single(question => question.Prompt == "Capital of Germany?");
+
+        var mediator = new CapturingMediator();
+        await using var actContext = BuildContext(mediator, new StubCurrentUser("admin-20"));
+        var handler = new RemoveTriviaQuestionCommandHandler(new TriviaQuizRepository(actContext));
+
+        var result = await handler.Handle(
+            new RemoveTriviaQuestionCommand(triviaQuiz.Id, questionToRemove.Id),
+            CancellationToken.None);
+
+        result.Questions.Should().HaveCount(2);
+        result.Questions.Select(question => question.SequenceOrder).Should().Equal(1, 2);
+        result.Questions.Select(question => question.Prompt)
+            .Should().Equal("Capital of France?", "Capital of Italy?");
+
+        mediator.PublishedNotifications
+            .Should().ContainSingle(notification => notification is TriviaQuestionRemovedEvent);
+
+        await using var assertContext = BuildContext();
+        var reloadedQuiz = await assertContext.TriviaQuizzes
+            .AsNoTracking()
+            .Include(storedQuiz => storedQuiz.Questions)
+            .ThenInclude(storedQuestion => storedQuestion.Options)
+            .SingleAsync(storedQuiz => storedQuiz.Id == triviaQuiz.Id);
+
+        reloadedQuiz.Questions.Should().HaveCount(2);
+        reloadedQuiz.Questions.Select(question => question.SequenceOrder).Should().Equal(1, 2);
+        reloadedQuiz.Questions.Select(question => question.Prompt)
+            .Should().Equal("Capital of France?", "Capital of Italy?");
+
+        var reconciledItaly = reloadedQuiz.Questions.Single(question => question.Prompt == "Capital of Italy?");
+        reconciledItaly.SequenceOrder.Should().Be(2);
+        reconciledItaly.Options.Should().HaveCount(3);
+        reconciledItaly.Options.Select(option => option.OptionText)
+            .Should().Equal("Rome", "Milan", "Naples");
     }
 
     [Fact]

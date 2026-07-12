@@ -80,6 +80,11 @@ public sealed class TriviaQuestion : BaseEntity
             options ?? []);
     }
 
+    internal void SetSequenceOrder(int sequenceOrder)
+    {
+        SequenceOrder = ValidateSequenceOrder(sequenceOrder);
+    }
+
     internal void ApplyAuthoring(
         string prompt,
         int sequenceOrder,

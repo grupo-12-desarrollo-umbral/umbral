@@ -214,6 +214,8 @@ Phases 5–6 may run in parallel once DES-24 lands.
 >
 > **Startable right now, with zero live blockers — six tickets:** `DES-31`
 > (releases the most downstream work), `DES-32`, `DES-53`, `DES-29`, `DES-13`, `DES-80`.
+> **GH #173** follows `DES-80`: it changes trivia question authoring RBAC from Administrator-only
+> to Operator-only across `mission-design-service` and `frontend/`.
 > Plus the remaining GitHub-only row 0 items and the ADRs — see below.
 >
 > ℹ️ **`ready-for-agent` on `Done` tickets is cosmetic — do not strip it.** A full sweep
@@ -231,6 +233,7 @@ Phases 5–6 may run in parallel once DES-24 lands.
 | 2 | DES-22 | HU-15 | Create `LiveSession` from active mission; immutable snapshot | ✅ **DONE** (PR #50, 2026-06-22). |
 | 2b | DES-79 | HU-15 f/u | Archive-time enforcement: block/cascade when archiving a quiz referenced by an active mission | ✅ **DONE** (PRs #51 + #53, 2026-06-22). |
 | 2c | DES-80 | HU-14A f/u | `RemoveTriviaQuestion` command + question-removal domain slot + `TriviaQuestionRemoved` event | ⬜ **OPEN** (Backlog, Low) — deferred follow-up to HU-14A, **ungated** (HU-14A/DES-20 is Done); not a rebuild, not on the critical path — schedule any time (see below). |
+| 2d | GH #173 | — (RBAC follow-up) | Trivia question authoring becomes Operator-only, not Administrator-only | ⬜ **OPEN** — GitHub-only, no Linear DES id. Run **after DES-80** so add/update/remove question authoring can be swept together. Touches `mission-design-service` + `frontend/`; do not run in parallel with Lane D or Lane E. |
 | 3 | DES-24 | HU-17 | Single mission source; drop "session from quiz" | ✅ **DONE** (PR #72) — rebuild; all 4 layers (X.1–X.4), 370/370 session-operations tests green. |
 | 4 | DES-75 | HU-16 | Trivia selection as a Substage, not a session | ✅ **DONE** (PR #73) — rebuild (supersedes DES-23, shipped pre-canon as PR #19). |
 | 5 | DES-76 | HU-21A | State machine `Scheduled→Preparing→Active→Paused→Finished→Cancelled` | ✅ **DONE** (PR #75) — rebuild (supersedes DES-28, shipped pre-canon as PR #21). |
@@ -256,6 +259,8 @@ Phases 5–6 may run in parallel once DES-24 lands.
 **Ungated pickups, runnable any time:** `DES-80` (row 2c), `DES-29` (session
 state-change audit — also unblocks DES-56), `DES-32`, `DES-53`, `DES-13`,
 `GH #164` (head of the MassTransit refactor sub-track, row MT — best pulled ahead of DES-51/54/60).
+`GH #173` is also ungated but should follow `DES-80`, because it sweeps add/update/remove trivia-question
+authoring RBAC together across backend and frontend.
 
 **Ungated GitHub-only pickups:** `GH #139` + `GH #137`
 + `GH #138` (three ADRs — cheap, and they unblock six issues between them), `GH #140`
@@ -338,7 +343,8 @@ because they are reference documents, not buildable slices.
 → ~~DES-81 (EN-M1)~~ ✅ → ~~DES-82 (HU-M1)~~ ✅ → ~~DES-83 (HU-M3)~~ ✅ → ~~DES-84 (HU-M2)~~ ✅
 → DES-58 (ENABLER React Native)
 → GH#154 (target coordinates) → GH#155 (treasure-hunt play surface, Focus Tabs) → GH#156 (map view)
-→ ~~GH#146 (quiz preview)~~ ✅ → DES-80 (HU-14A follow-up) → GH#85 (rename)
+→ ~~GH#146 (quiz preview)~~ ✅ → DES-80 (HU-14A follow-up) → GH#173 (trivia question authoring RBAC)
+→ GH#85 (rename)
 ```
 
 **One valid serialization, not the only one.** What is actually forced, and what is not:
@@ -351,7 +357,9 @@ because they are reference documents, not buildable slices.
   follows a live `blockedBy` edge. (`DES-86` used to force two more — `#145` after it, and it
   before `DES-42` — both discharged when PR #136 landed.)
 - **Free.** `DES-80` is fully independent — parked late only because nothing
-  needs it. Pull it into any quiet window. `GH #146` is **closed**.
+  needs it. Pull it into any quiet window. `GH #173` should follow it, because the RBAC sweep
+  covers add/update/remove trivia-question authoring and `RemoveTriviaQuestion` lands in `DES-80`.
+  `GH #146` is **closed**.
 - **Free, but with a soft ordering preference.** The **MassTransit refactor sub-track**
   (`GH #164 → GH #165 → GH #166`, row MT — GitHub-only, no Linear ticket) has no `blockedBy` edge into
   the canon line — only its own internal #164→#165→#166 chain — so it is pullable any time. It is
@@ -374,7 +382,7 @@ because they are reference documents, not buildable slices.
   section). Settle it before you reach it, not when the generator is already running.
 
 (`DES-80`, `DES-29`, `DES-32`, `DES-53`, `DES-13` are ungated and may be
-pulled forward any time.)
+pulled forward any time. `GH #173` is ungated too, but follows `DES-80`.)
 
 This is a **verified topological order over live `blockedBy` relations** as of
 2026-07-09, not the historical phase grouping. **Re-validated 2026-07-09** against a full
@@ -430,7 +438,7 @@ Done, and no longer ordering constraints on anything:
 
 Still to run — grouped by what actually gates them:
 
-- **Ungated today:** `DES-32`, `DES-53`, `DES-29`, `DES-13`, `DES-80`.
+- **Ungated today:** `DES-32`, `DES-53`, `DES-29`, `DES-13`, `DES-80`, then `GH #173`.
   Plus GitHub-only: `GH #139` (row 0, try/catch ADR), `GH #137`/`#138` (ADRs), `GH #140`, `GH #141`, `GH #145`.
 - **Gated on the cycle break alone:** `DES-31`, then `DES-39/40/42/41/43` and `DES-36/37/38`.
   ✅ `DES-42`'s extra wait on `DES-86` (per-target scoring) is discharged — PR #136.
