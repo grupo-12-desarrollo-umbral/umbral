@@ -32,7 +32,7 @@ export async function createTriviaQuiz(
   description: string,
 ): Promise<TriviaQuizDto> {
   const session = await verifySession()
-  if (session.role !== 'Administrator') throw new Error('Forbidden')
+  if (session.role !== 'Operator') throw new Error('Forbidden')
   const result = await createTriviaQuizLib(title, description)
   revalidatePath('/dashboard')
   return result
@@ -44,7 +44,7 @@ export async function updateTriviaQuiz(
   description: string,
 ): Promise<TriviaQuizDto> {
   const session = await verifySession()
-  if (session.role !== 'Administrator') throw new Error('Forbidden')
+  if (session.role !== 'Operator') throw new Error('Forbidden')
   const result = await updateTriviaQuizLib(id, title, description)
   revalidatePath('/dashboard')
   return result
@@ -55,7 +55,7 @@ export async function addTriviaQuestion(
   question: TriviaQuestionRequest,
 ): Promise<TriviaQuizDto> {
   const session = await verifySession()
-  if (session.role !== 'Administrator') throw new Error('Forbidden')
+  if (session.role !== 'Operator') throw new Error('Forbidden')
   const result = await addTriviaQuestionLib(triviaQuizId, question)
   revalidatePath('/dashboard')
   return result
@@ -67,7 +67,7 @@ export async function updateTriviaQuestion(
   question: TriviaQuestionRequest,
 ): Promise<TriviaQuizDto> {
   const session = await verifySession()
-  if (session.role !== 'Administrator') throw new Error('Forbidden')
+  if (session.role !== 'Operator') throw new Error('Forbidden')
   const result = await updateTriviaQuestionLib(triviaQuizId, questionId, question)
   revalidatePath('/dashboard')
   return result
@@ -78,7 +78,7 @@ export async function removeTriviaQuestion(
   questionId: number,
 ): Promise<TriviaQuizDto> {
   const session = await verifySession()
-  if (session.role !== 'Administrator') throw new Error('Forbidden')
+  if (session.role !== 'Operator') throw new Error('Forbidden')
   const result = await removeTriviaQuestionLib(triviaQuizId, questionId)
   revalidatePath('/dashboard')
   return result
@@ -86,7 +86,7 @@ export async function removeTriviaQuestion(
 
 export async function publishTriviaQuiz(id: number): Promise<TriviaQuizDto> {
   const session = await verifySession()
-  if (session.role !== 'Administrator') throw new Error('Forbidden')
+  if (session.role !== 'Operator') throw new Error('Forbidden')
   const result = await publishTriviaQuizLib(id)
   revalidatePath('/dashboard')
   return result
@@ -94,7 +94,7 @@ export async function publishTriviaQuiz(id: number): Promise<TriviaQuizDto> {
 
 export async function archiveTriviaQuiz(id: number): Promise<TriviaQuizDto> {
   const session = await verifySession()
-  if (session.role !== 'Administrator') throw new Error('Forbidden')
+  if (session.role !== 'Operator') throw new Error('Forbidden')
   const result = await archiveTriviaQuizLib(id)
   revalidatePath('/dashboard')
   return result
@@ -102,7 +102,7 @@ export async function archiveTriviaQuiz(id: number): Promise<TriviaQuizDto> {
 
 export async function duplicateTriviaQuiz(id: number): Promise<TriviaQuizDto> {
   const session = await verifySession()
-  if (session.role !== 'Administrator') throw new Error('Forbidden')
+  if (session.role !== 'Operator') throw new Error('Forbidden')
   const result = await duplicateTriviaQuizLib(id)
   revalidatePath('/dashboard')
   return result
@@ -110,7 +110,7 @@ export async function duplicateTriviaQuiz(id: number): Promise<TriviaQuizDto> {
 
 export async function retireTriviaQuiz(id: number): Promise<TriviaQuizDto> {
   const session = await verifySession()
-  if (session.role !== 'Administrator') throw new Error('Forbidden')
+  if (session.role !== 'Operator') throw new Error('Forbidden')
   const result = await retireTriviaQuizLib(id)
   revalidatePath('/dashboard')
   return result

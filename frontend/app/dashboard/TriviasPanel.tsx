@@ -307,7 +307,7 @@ export function TriviasPanel({ role }: { role: DashboardRole }) {
     quiz: TriviaQuizDto,
   ) {
     const isDraft = quiz.status === 'Draft'
-    const canEdit = role === 'admin' && isDraft
+    const canEdit = role === 'operator' && isDraft
 
     return (
       <div data-testid="trivia-questions-section">
@@ -535,8 +535,8 @@ export function TriviasPanel({ role }: { role: DashboardRole }) {
             Edit
           </button>
 
-          {/* Publish trigger — only Draft, admin, no confirmations open (unchanged) */}
-          {role === 'admin' && selectedQuiz.status === 'Draft' && allConfirmsClosed && (() => {
+          {/* Publish trigger — only Draft, operator, no confirmations open */}
+          {role === 'operator' && selectedQuiz.status === 'Draft' && allConfirmsClosed && (() => {
             const { isReady, reasons } = computeReadiness(selectedQuiz)
             return (
               <button
@@ -576,7 +576,7 @@ export function TriviasPanel({ role }: { role: DashboardRole }) {
           )}
 
           {/* Archive trigger — unused quizzes only; used quizzes get Retire instead */}
-          {role === 'admin' && selectedQuiz.status !== 'Archived' && !selectedQuiz.hasUsageHistory && allConfirmsClosed && (
+          {role === 'operator' && selectedQuiz.status !== 'Archived' && !selectedQuiz.hasUsageHistory && allConfirmsClosed && (
             <button
               className={styles.inlineButton}
               data-testid="archive-trivia-btn"
@@ -611,8 +611,8 @@ export function TriviasPanel({ role }: { role: DashboardRole }) {
             </span>
           )}
 
-          {/* Duplicate trigger — non-Archived, admin only, no confirmations open */}
-          {role === 'admin' && selectedQuiz.status !== 'Archived' && allConfirmsClosed && (
+          {/* Duplicate trigger — non-Archived, operator only, no confirmations open */}
+          {role === 'operator' && selectedQuiz.status !== 'Archived' && allConfirmsClosed && (
             <button
               className={styles.inlineButton}
               data-testid="duplicate-trivia-btn"
@@ -647,8 +647,8 @@ export function TriviasPanel({ role }: { role: DashboardRole }) {
             </span>
           )}
 
-          {/* Retire trigger — used quizzes only, non-Archived, admin only, no confirmations open */}
-          {role === 'admin' && selectedQuiz.status !== 'Archived' && selectedQuiz.hasUsageHistory && allConfirmsClosed && (
+          {/* Retire trigger — used quizzes only, non-Archived, operator only, no confirmations open */}
+          {role === 'operator' && selectedQuiz.status !== 'Archived' && selectedQuiz.hasUsageHistory && allConfirmsClosed && (
             <button
               className={styles.inlineButton}
               data-testid="retire-trivia-btn"
@@ -747,7 +747,7 @@ export function TriviasPanel({ role }: { role: DashboardRole }) {
         <div>
           <h2>Trivia quizzes</h2>
         </div>
-        {role === 'admin' && (
+        {role === 'operator' && (
           <button
             className={styles.primaryButton}
             data-testid="create-trivia-btn"

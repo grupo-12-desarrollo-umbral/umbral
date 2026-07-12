@@ -5,7 +5,7 @@ using umbral_backend.Domain.Constants;
 
 namespace umbral_backend.Application.Trivias.Commands.UpdateTriviaQuestion;
 
-[Authorize(Roles = Roles.Administrator)]
+[Authorize(Roles = Roles.Operator)]
 public sealed record UpdateTriviaQuestionCommand(
     int TriviaQuizId,
     int QuestionId,

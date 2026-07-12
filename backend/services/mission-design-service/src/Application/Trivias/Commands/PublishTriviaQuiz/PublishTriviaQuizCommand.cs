@@ -4,5 +4,5 @@ using umbral_backend.Domain.Constants;
 
 namespace umbral_backend.Application.Trivias.Commands.PublishTriviaQuiz;
 
-[Authorize(Roles = Roles.Administrator)]
+[Authorize(Roles = Roles.Operator)]
 public sealed record PublishTriviaQuizCommand(int Id) : IRequest<TriviaQuizDto>;
