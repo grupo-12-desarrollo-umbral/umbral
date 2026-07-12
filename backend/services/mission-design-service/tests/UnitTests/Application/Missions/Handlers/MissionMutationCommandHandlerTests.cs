@@ -379,7 +379,6 @@ public sealed class MissionMutationCommandHandlerTests
     {
         return TriviaQuestion.Create(
             "Question?",
-            1,
             10,
             30,
             null,

@@ -98,8 +98,8 @@ public sealed class MissionReadModelRepository : IMissionReadModelRepository
         return triviaQuizzes.ToDictionary(
             triviaQuiz => triviaQuiz.Id,
             triviaQuiz => (IReadOnlyList<MissionRuntimePlanTriviaQuestionDto>)triviaQuiz.Questions
-                .OrderBy(question => question.SequenceOrder)
-                .Select(MapTriviaQuestion)
+                .OrderBy(question => question.Id)
+                .Select((question, index) => MapTriviaQuestion(question, index + 1))
                 .ToList());
     }
 
@@ -144,7 +144,7 @@ public sealed class MissionReadModelRepository : IMissionReadModelRepository
                 : null);
     }
 
-    private static MissionRuntimePlanTriviaQuestionDto MapTriviaQuestion(TriviaQuestion question)
+    private static MissionRuntimePlanTriviaQuestionDto MapTriviaQuestion(TriviaQuestion question, int sequenceOrder)
     {
         var scoreValue = question.ScoreValue
             ?? throw new InvalidOperationException("Published trivia questions must define ScoreValue.");
@@ -153,7 +153,7 @@ public sealed class MissionReadModelRepository : IMissionReadModelRepository
 
         return new MissionRuntimePlanTriviaQuestionDto(
             question.Prompt,
-            question.SequenceOrder,
+            sequenceOrder,
             question.Options
                 .OrderBy(option => option.SequenceOrder)
                 .Select(option => new MissionRuntimePlanTriviaOptionDto(

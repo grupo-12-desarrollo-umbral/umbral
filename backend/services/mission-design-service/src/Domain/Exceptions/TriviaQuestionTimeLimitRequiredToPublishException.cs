@@ -2,8 +2,8 @@ namespace umbral_backend.Domain.Exceptions;
 
 public sealed class TriviaQuestionTimeLimitRequiredToPublishException : DomainException
 {
-    public TriviaQuestionTimeLimitRequiredToPublishException(int sequenceOrder)
-        : base($"Trivia question '{sequenceOrder}' must define a time limit before publication.")
+    public TriviaQuestionTimeLimitRequiredToPublishException(int questionId)
+        : base($"Trivia question '{questionId}' must define a time limit before publication.")
     {
     }
 

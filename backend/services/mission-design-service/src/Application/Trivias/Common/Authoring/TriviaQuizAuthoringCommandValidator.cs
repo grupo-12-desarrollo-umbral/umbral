@@ -21,20 +21,11 @@ public abstract class TriviaQuizAuthoringCommandValidator<TCommand> : AbstractVa
         RuleForEach(command => command.Questions)
             .SetValidator(new TriviaQuestionInputValidator());
 
-        RuleFor(command => command.Questions)
-            .Must(HaveDistinctQuestionSequenceOrders)
-            .WithMessage("Question sequence orders must be unique within the quiz.");
-
         AddOperationSpecificRules();
     }
 
     protected virtual void AddOperationSpecificRules()
     {
-    }
-
-    private static bool HaveDistinctQuestionSequenceOrders(IReadOnlyCollection<TriviaQuestionInput> questions)
-    {
-        return questions.Count == questions.Select(question => question.SequenceOrder).Distinct().Count();
     }
 
     private sealed class TriviaQuestionInputValidator : AbstractValidator<TriviaQuestionInput>
@@ -44,9 +35,6 @@ public abstract class TriviaQuizAuthoringCommandValidator<TCommand> : AbstractVa
             RuleFor(question => question.Prompt)
                 .NotEmpty()
                 .MaximumLength(MaximumPromptLength);
-
-            RuleFor(question => question.SequenceOrder)
-                .GreaterThan(0);
 
             RuleForEach(question => question.Options)
                 .SetValidator(new TriviaOptionInputValidator());

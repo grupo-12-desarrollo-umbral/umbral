@@ -195,7 +195,6 @@ export type TriviaOptionDto = {
 export type TriviaQuestionDto = {
   id: number
   prompt: string
-  sequenceOrder: number
   isActive: boolean
   options: TriviaOptionDto[]
   scoreValue: number | null
@@ -211,7 +210,6 @@ export type TriviaOptionRequest = {
 
 export type TriviaQuestionRequest = {
   prompt: string
-  sequenceOrder: number
   scoreValue: number
   timeLimitSeconds: number
   explanation: string | null

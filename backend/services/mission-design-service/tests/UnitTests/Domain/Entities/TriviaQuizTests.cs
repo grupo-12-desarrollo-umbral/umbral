@@ -15,7 +15,6 @@ public class TriviaQuizTests
         {
             TriviaQuestion.Create(
                 "Question 1",
-                1,
                 [
                     TriviaOption.Create("Option A", 1, true),
                     TriviaOption.Create("Option B", 2, false)
@@ -39,7 +38,7 @@ public class TriviaQuizTests
         var quiz = TriviaQuiz.Create("Intro Quiz", "Warm-up trivia");
         var replacementQuestions = new[]
         {
-            TriviaQuestion.Create("Question 2", 1)
+            TriviaQuestion.Create("Question 2")
         };
 
         quiz.ClearDomainEvents();
@@ -59,7 +58,6 @@ public class TriviaQuizTests
         var quiz = TriviaQuiz.Create("Intro Quiz", "Warm-up trivia");
         quiz.AddQuestion(
             "Capital of France?",
-            1,
             100,
             45,
             null,
@@ -114,7 +112,6 @@ public class TriviaQuizTests
 
         var question = quiz.AddQuestion(
             " Capital of France? ",
-            1,
             100,
             45,
             " Geography baseline ",
@@ -140,7 +137,6 @@ public class TriviaQuizTests
         var quiz = TriviaQuiz.Create("Intro Quiz", "Warm-up trivia");
         var question = quiz.AddQuestion(
             "Capital of France?",
-            1,
             100,
             45,
             null,
@@ -155,7 +151,6 @@ public class TriviaQuizTests
         var updated = quiz.UpdateQuestion(
             27,
             " Capital of Germany? ",
-            2,
             100,
             60,
             " Updated explanation ",
@@ -167,7 +162,6 @@ public class TriviaQuizTests
 
         updated.Should().BeSameAs(question);
         updated.Prompt.Should().Be("Capital of Germany?");
-        updated.SequenceOrder.Should().Be(2);
         updated.ScoreValue.Should().Be(100);
         updated.TimeLimit.Should().Be(QuestionTimer.Create(60));
         updated.Explanation.Should().Be("Updated explanation");
@@ -188,7 +182,7 @@ public class TriviaQuizTests
             .Select(index => TriviaOption.Create($"Option {index}", index, index == 1))
             .ToArray();
 
-        var act = () => quiz.AddQuestion("Prompt", 1, 10, 30, null, options);
+        var act = () => quiz.AddQuestion("Prompt", 10, 30, null, options);
 
         act.Should().Throw<TriviaQuestionMustHaveBetweenTwoAndFourOptionsException>();
     }
@@ -206,7 +200,7 @@ public class TriviaQuizTests
             TriviaOption.Create("Option B", 2, firstCorrectIndex == 2 || secondCorrectIndex == 2)
         };
 
-        var act = () => quiz.AddQuestion("Prompt", 1, 10, 30, null, options);
+        var act = () => quiz.AddQuestion("Prompt", 10, 30, null, options);
 
         act.Should().Throw<TriviaQuestionMustHaveExactlyOneCorrectOptionException>();
     }
@@ -219,7 +213,6 @@ public class TriviaQuizTests
         var act = () => quiz.UpdateQuestion(
             999,
             "Prompt",
-            1,
             10,
             30,
             null,
@@ -238,7 +231,6 @@ public class TriviaQuizTests
         var quiz = TriviaQuiz.Create("Intro Quiz", "Warm-up trivia");
         quiz.AddQuestion(
             "Capital of France?",
-            1,
             100,
             45,
             null,
@@ -275,7 +267,6 @@ public class TriviaQuizTests
             [
                 TriviaQuestion.Create(
                     "Question 1",
-                    1,
                     [
                         TriviaOption.Create("Option A", 1, true),
                         TriviaOption.Create("Option B", 2, false)
@@ -296,7 +287,6 @@ public class TriviaQuizTests
             [
                 TriviaQuestion.Create(
                     "Question 1",
-                    1,
                     100,
                     null,
                     null,
@@ -319,7 +309,6 @@ public class TriviaQuizTests
         var quiz = TriviaQuiz.Create("Intro Quiz", "Warm-up trivia");
         quiz.AddQuestion(
             "Capital of France?",
-            1,
             100,
             45,
             null,
@@ -365,7 +354,6 @@ public class TriviaQuizTests
         var quiz = TriviaQuiz.Create("Intro Quiz", "Warm-up trivia");
         quiz.AddQuestion(
             "Capital of France?",
-            1,
             100,
             45,
             null,
@@ -402,7 +390,6 @@ public class TriviaQuizTests
         sourceQuiz.Id = 41;
         sourceQuiz.AddQuestion(
             "Capital of France?",
-            1,
             100,
             45,
             "Geography baseline",
@@ -447,7 +434,6 @@ public class TriviaQuizTests
             [
                 TriviaQuestion.Create(
                     "Capital of France?",
-                    1,
                     100,
                     null,
                     null,
@@ -473,7 +459,6 @@ public class TriviaQuizTests
         var original = TriviaQuiz.Create("Intro Quiz", "Warm-up trivia");
         original.AddQuestion(
             "Capital of France?",
-            1,
             100,
             45,
             null,
@@ -501,7 +486,6 @@ public class TriviaQuizTests
         var quiz = TriviaQuiz.Create("Intro Quiz", "Warm-up trivia");
         quiz.AddQuestion(
             "Capital of France?",
-            1,
             100,
             45,
             null,
@@ -527,7 +511,6 @@ public class TriviaQuizTests
         var quiz = TriviaQuiz.Create("Intro Quiz", "Warm-up trivia");
         quiz.AddQuestion(
             "Capital of France?",
-            1,
             100,
             45,
             null,
@@ -569,7 +552,6 @@ public class TriviaQuizTests
         var quiz = TriviaQuiz.Create("Intro Quiz", "Warm-up trivia");
         var question = quiz.AddQuestion(
             "Capital of France?",
-            1,
             100,
             45,
             "Geography baseline",
@@ -597,7 +579,6 @@ public class TriviaQuizTests
         var quiz = TriviaQuiz.Create("Intro Quiz", "Warm-up trivia");
         var question1 = quiz.AddQuestion(
             "Capital of France?",
-            1,
             100,
             45,
             null,
@@ -607,7 +588,6 @@ public class TriviaQuizTests
             ]);
         var question2 = quiz.AddQuestion(
             "Capital of Germany?",
-            2,
             100,
             45,
             null,
@@ -617,7 +597,6 @@ public class TriviaQuizTests
             ]);
         var question3 = quiz.AddQuestion(
             "Capital of Spain?",
-            3,
             100,
             45,
             null,
@@ -634,11 +613,9 @@ public class TriviaQuizTests
         quiz.RemoveQuestion(20);
 
         quiz.Questions.Should().HaveCount(2);
-        var remaining = quiz.Questions.OrderBy(q => q.SequenceOrder).ToList();
+        var remaining = quiz.Questions.OrderBy(q => q.Id).ToList();
         remaining[0].Should().BeSameAs(question1);
-        remaining[0].SequenceOrder.Should().Be(1);
         remaining[1].Should().BeSameAs(question3);
-        remaining[1].SequenceOrder.Should().Be(2);
     }
 
     [Fact]
@@ -647,7 +624,6 @@ public class TriviaQuizTests
         var quiz = TriviaQuiz.Create("Intro Quiz", "Warm-up trivia");
         quiz.AddQuestion(
             "Capital of France?",
-            1,
             100,
             45,
             null,
@@ -667,7 +643,6 @@ public class TriviaQuizTests
         var quiz = TriviaQuiz.Create("Intro Quiz", "Warm-up trivia");
         var question = quiz.AddQuestion(
             "Capital of France?",
-            1,
             100,
             45,
             null,

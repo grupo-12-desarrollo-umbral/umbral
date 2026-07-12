@@ -2,8 +2,8 @@ namespace umbral_backend.Domain.Exceptions;
 
 public sealed class TriviaQuestionScoreValueRequiredToPublishException : DomainException
 {
-    public TriviaQuestionScoreValueRequiredToPublishException(int sequenceOrder)
-        : base($"Trivia question '{sequenceOrder}' must define a score value before publication.")
+    public TriviaQuestionScoreValueRequiredToPublishException(int questionId)
+        : base($"Trivia question '{questionId}' must define a score value before publication.")
     {
     }
 

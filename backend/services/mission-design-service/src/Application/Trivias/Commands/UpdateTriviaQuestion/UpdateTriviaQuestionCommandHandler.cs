@@ -29,7 +29,6 @@ public sealed class UpdateTriviaQuestionCommandHandler : IRequestHandler<UpdateT
         triviaQuiz.UpdateQuestion(
             request.QuestionId,
             request.Prompt,
-            request.SequenceOrder,
             request.ScoreValue,
             request.TimeLimitSeconds,
             request.Explanation,

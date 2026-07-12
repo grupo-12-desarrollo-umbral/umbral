@@ -55,9 +55,6 @@ public sealed class TriviaQuizConfiguration : IEntityTypeConfiguration<TriviaQui
                 .HasMaxLength(2000)
                 .IsRequired();
 
-            questionBuilder.Property(question => question.SequenceOrder)
-                .IsRequired();
-
             questionBuilder.Property(question => question.ScoreValue);
 
             questionBuilder.Property(question => question.Explanation);
@@ -70,9 +67,6 @@ public sealed class TriviaQuizConfiguration : IEntityTypeConfiguration<TriviaQui
                 timeLimitBuilder.Property(timeLimit => timeLimit.Seconds)
                     .HasColumnName("TimeLimitSeconds");
             });
-
-            questionBuilder.HasIndex("TriviaQuizId", nameof(TriviaQuestion.SequenceOrder))
-                .IsUnique();
 
             questionBuilder.OwnsMany(question => question.Options, optionBuilder =>
             {

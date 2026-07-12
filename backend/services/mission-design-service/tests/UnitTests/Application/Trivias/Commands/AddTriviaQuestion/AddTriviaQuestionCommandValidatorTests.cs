@@ -13,7 +13,6 @@ public sealed class AddTriviaQuestionCommandValidatorTests
         var result = _validator.Validate(new AddTriviaQuestionCommand(
             1,
             "Question?",
-            1,
             100,
             30,
             "Optional explanation",
@@ -32,7 +31,6 @@ public sealed class AddTriviaQuestionCommandValidatorTests
         var result = _validator.Validate(new AddTriviaQuestionCommand(
             0,
             "Question?",
-            1,
             100,
             30,
             null,
@@ -51,7 +49,6 @@ public sealed class AddTriviaQuestionCommandValidatorTests
         var result = _validator.Validate(new AddTriviaQuestionCommand(
             1,
             "Question?",
-            1,
             100,
             30,
             null,
@@ -69,7 +66,6 @@ public sealed class AddTriviaQuestionCommandValidatorTests
         var result = _validator.Validate(new AddTriviaQuestionCommand(
             1,
             "Question?",
-            1,
             100,
             30,
             null,
@@ -90,7 +86,6 @@ public sealed class AddTriviaQuestionCommandValidatorTests
         var result = _validator.Validate(new AddTriviaQuestionCommand(
             1,
             "Question?",
-            1,
             scoreValue,
             30,
             null,
@@ -111,7 +106,6 @@ public sealed class AddTriviaQuestionCommandValidatorTests
         var result = _validator.Validate(new AddTriviaQuestionCommand(
             1,
             "Question?",
-            1,
             100,
             timeLimitSeconds,
             null,

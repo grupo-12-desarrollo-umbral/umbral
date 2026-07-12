@@ -20,9 +20,6 @@ public abstract class TriviaQuestionAuthoringCommandValidator<TCommand> : Abstra
             .NotEmpty()
             .MaximumLength(MaximumPromptLength);
 
-        RuleFor(command => command.SequenceOrder)
-            .GreaterThan(0);
-
         RuleFor(command => command.ScoreValue)
             .InclusiveBetween(MinimumScoreValue, MaximumScoreValue);
 

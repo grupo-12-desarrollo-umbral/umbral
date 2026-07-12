@@ -44,7 +44,6 @@ public sealed class TriviaEndpointsTests : IClassFixture<PostgreSqlFixture>, IAs
                     new
                     {
                         prompt = "Capital of France?",
-                        sequenceOrder = 1,
                         scoreValue = 100,
                         timeLimitSeconds = 45,
                         explanation = "Paris is the French capital.",
@@ -122,7 +121,6 @@ public sealed class TriviaEndpointsTests : IClassFixture<PostgreSqlFixture>, IAs
                     new
                     {
                         prompt = "2 + 2?",
-                        sequenceOrder = 1,
                         scoreValue = 25,
                         timeLimitSeconds = 30,
                         explanation = "Arithmetic baseline.",
@@ -136,7 +134,6 @@ public sealed class TriviaEndpointsTests : IClassFixture<PostgreSqlFixture>, IAs
                     new
                     {
                         prompt = "3 + 3?",
-                        sequenceOrder = 2,
                         scoreValue = 30,
                         timeLimitSeconds = 35,
                         explanation = "Second arithmetic baseline.",
@@ -158,7 +155,6 @@ public sealed class TriviaEndpointsTests : IClassFixture<PostgreSqlFixture>, IAs
         payload.Title.Should().Be("Trivia After");
         payload.Description.Should().Be("Updated draft.");
         payload.IsSourceReady.Should().BeFalse();
-        payload.Questions.Select(question => question.SequenceOrder).Should().Equal(1, 2);
         payload.Questions[0].ScoreValue.Should().Be(25);
         payload.Questions[0].TimeLimitSeconds.Should().Be(30);
         payload.Questions[0].Explanation.Should().Be("Arithmetic baseline.");
@@ -176,7 +172,6 @@ public sealed class TriviaEndpointsTests : IClassFixture<PostgreSqlFixture>, IAs
             new
             {
                 prompt = "Largest ocean?",
-                sequenceOrder = 2,
                 scoreValue = 100,
                 timeLimitSeconds = 60,
                 explanation = "The Pacific Ocean is the largest.",
@@ -196,7 +191,7 @@ public sealed class TriviaEndpointsTests : IClassFixture<PostgreSqlFixture>, IAs
         payload!.Questions.Should().HaveCount(2);
         payload.IsSourceReady.Should().BeFalse();
 
-        var addedQuestion = payload.Questions.Single(question => question.SequenceOrder == 2);
+        var addedQuestion = payload.Questions.Single(question => question.Prompt == "Largest ocean?");
         addedQuestion.Prompt.Should().Be("Largest ocean?");
         addedQuestion.ScoreValue.Should().Be(100);
         addedQuestion.TimeLimitSeconds.Should().Be(60);
@@ -210,7 +205,7 @@ public sealed class TriviaEndpointsTests : IClassFixture<PostgreSqlFixture>, IAs
         var detail = await detailResponse.Content.ReadFromJsonAsync<TriviasController.TriviaQuizResponse>();
         detail.Should().NotBeNull();
         detail!.Questions.Should().ContainSingle(question =>
-            question.SequenceOrder == 2 &&
+            question.Prompt == "Largest ocean?" &&
             question.ScoreValue == 100 &&
             question.TimeLimitSeconds == 60 &&
             question.Explanation == "The Pacific Ocean is the largest.");
@@ -229,7 +224,6 @@ public sealed class TriviaEndpointsTests : IClassFixture<PostgreSqlFixture>, IAs
             new
             {
                 prompt = "Capital of Colombia?",
-                sequenceOrder = 1,
                 scoreValue = 100,
                 timeLimitSeconds = 50,
                 explanation = "Bogota is the capital city.",
@@ -284,7 +278,6 @@ public sealed class TriviaEndpointsTests : IClassFixture<PostgreSqlFixture>, IAs
             new
             {
                 prompt = "Capital of Spain?",
-                sequenceOrder = 2,
                 scoreValue = 75,
                 timeLimitSeconds = 25,
                 explanation = "Madrid is the capital.",
@@ -333,7 +326,6 @@ public sealed class TriviaEndpointsTests : IClassFixture<PostgreSqlFixture>, IAs
                     new
                     {
                         prompt = "Still editable?",
-                        sequenceOrder = 1,
                         isActive = true,
                         options = new[]
                         {
@@ -559,7 +551,6 @@ public sealed class TriviaEndpointsTests : IClassFixture<PostgreSqlFixture>, IAs
             new
             {
                 prompt = "Second question?",
-                sequenceOrder = 2,
                 scoreValue = 50,
                 timeLimitSeconds = 20,
                 explanation = "Second explanation.",
@@ -577,7 +568,7 @@ public sealed class TriviaEndpointsTests : IClassFixture<PostgreSqlFixture>, IAs
         var beforePayload = await detailBefore.Content.ReadFromJsonAsync<TriviasController.TriviaQuizResponse>();
         beforePayload!.Questions.Should().HaveCount(2);
 
-        var firstQuestionId = beforePayload.Questions.OrderBy(q => q.SequenceOrder).First().Id;
+        var firstQuestionId = beforePayload.Questions.OrderBy(q => q.Id).First().Id;
 
         var response = await _client.DeleteAsync($"/api/trivias/{triviaId}/questions/{firstQuestionId}");
 
@@ -587,7 +578,6 @@ public sealed class TriviaEndpointsTests : IClassFixture<PostgreSqlFixture>, IAs
         payload.Should().NotBeNull();
         payload!.Questions.Should().ContainSingle();
         payload.Questions[0].Prompt.Should().Be("Second question?");
-        payload.Questions[0].SequenceOrder.Should().Be(1);
 
         var detailAfter = await _client.GetAsync($"/api/trivias/{triviaId}");
         detailAfter.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -595,7 +585,6 @@ public sealed class TriviaEndpointsTests : IClassFixture<PostgreSqlFixture>, IAs
         var afterDetail = await detailAfter.Content.ReadFromJsonAsync<TriviasController.TriviaQuizResponse>();
         afterDetail.Should().NotBeNull();
         afterDetail!.Questions.Should().ContainSingle();
-        afterDetail.Questions[0].SequenceOrder.Should().Be(1);
     }
 
     [Fact]
@@ -779,7 +768,6 @@ public sealed class TriviaEndpointsTests : IClassFixture<PostgreSqlFixture>, IAs
                     new
                     {
                         prompt = "Capital of Venezuela?",
-                        sequenceOrder = 1,
                         scoreValue = 100,
                         timeLimitSeconds = 30,
                         explanation = "Caracas is the capital city.",

@@ -26,7 +26,6 @@ public sealed class UpdateTriviaQuestionCommandHandlerTests
         var triviaQuiz = TriviaQuiz.Create("Original Quiz", "Original Description");
         var question = triviaQuiz.AddQuestion(
             "Original question?",
-            1,
             50,
             20,
             "Original explanation",
@@ -42,7 +41,6 @@ public sealed class UpdateTriviaQuestionCommandHandlerTests
                 triviaQuiz.Id,
                 question.Id,
                 "Updated question?",
-                1,
                 100,
                 45,
                 "Updated explanation",
@@ -74,7 +72,6 @@ public sealed class UpdateTriviaQuestionCommandHandlerTests
                 99,
                 7,
                 "Question?",
-                1,
                 100,
                 30,
                 null,
@@ -102,7 +99,6 @@ public sealed class UpdateTriviaQuestionCommandHandlerTests
                 triviaQuiz.Id,
                 999,
                 "Question?",
-                1,
                 100,
                 30,
                 null,
@@ -124,7 +120,6 @@ public sealed class UpdateTriviaQuestionCommandHandlerTests
         var triviaQuiz = TriviaQuiz.Create("Original Quiz", "Original Description");
         var question = triviaQuiz.AddQuestion(
             "Original question?",
-            1,
             50,
             20,
             null,
@@ -141,7 +136,6 @@ public sealed class UpdateTriviaQuestionCommandHandlerTests
                 triviaQuiz.Id,
                 question.Id,
                 "Updated question?",
-                1,
                 100,
                 30,
                 null,

@@ -102,7 +102,7 @@ public sealed class MapperAndGuardBranchCoverageTests
     public void MapTriviaQuiz_WithQuestionsAndOptions_MapsAllFields()
     {
         var quiz = TriviaQuiz.Create("Quiz", "Description");
-        var question = quiz.AddQuestion("Prompt", 1, 50, 30, "Explanation", [
+        var question = quiz.AddQuestion("Prompt", 50, 30, "Explanation", [
             TriviaOption.Create("A", 1, true),
             TriviaOption.Create("B", 2, false)
         ]);
@@ -127,7 +127,7 @@ public sealed class MapperAndGuardBranchCoverageTests
     public void MapTriviaQuiz_WhenDuplicate_SetsIsDuplicateTrue()
     {
         var original = TriviaQuiz.Create("Q", "D");
-        original.AddQuestion("P", 1, 10, 30, null, [
+        original.AddQuestion("P", 10, 30, null, [
             TriviaOption.Create("A", 1, true),
             TriviaOption.Create("B", 2, false)
         ]);
@@ -144,21 +144,21 @@ public sealed class MapperAndGuardBranchCoverageTests
     }
 
     [Fact]
-    public void MapTriviaQuiz_QuestionsOrderedBySequenceOrder()
+    public void MapTriviaQuiz_QuestionsWithUnsavedIdentityPreserveInsertionOrder()
     {
         var quiz = TriviaQuiz.Create("Q", "D");
-        quiz.AddQuestion("Second", 2, 10, 30, null, [
+        quiz.AddQuestion("Second", 10, 30, null, [
             TriviaOption.Create("A", 1, true),
             TriviaOption.Create("B", 2, false)
         ]);
-        quiz.AddQuestion("First", 1, 10, 30, null, [
+        quiz.AddQuestion("First", 10, 30, null, [
             TriviaOption.Create("A", 1, true),
             TriviaOption.Create("B", 2, false)
         ]);
 
         var dto = TriviaQuizDtoMapper.Map(quiz);
 
-        dto.Questions.Select(q => q.Prompt).Should().ContainInOrder("First", "Second");
+        dto.Questions.Select(q => q.Prompt).Should().ContainInOrder("Second", "First");
     }
 
     // ── MissionTriviaPublicationChecker.Evaluate branches ─────────────────────

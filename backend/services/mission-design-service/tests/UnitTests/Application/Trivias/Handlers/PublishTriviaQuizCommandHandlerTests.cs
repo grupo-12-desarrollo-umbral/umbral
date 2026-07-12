@@ -70,7 +70,6 @@ public sealed class PublishTriviaQuizCommandHandlerTests
         var triviaQuiz = TriviaQuiz.Create("Capitals", "Country capitals quiz");
         triviaQuiz.AddQuestion(
             "What is the capital of France?",
-            1,
             100,
             30,
             "European capitals",

@@ -15,7 +15,6 @@ public sealed class TriviaQuestion : BaseEntity
 
     private TriviaQuestion(
         string prompt,
-        int sequenceOrder,
         int? scoreValue,
         QuestionTimer? timeLimit,
         string? explanation,
@@ -23,7 +22,6 @@ public sealed class TriviaQuestion : BaseEntity
         IEnumerable<TriviaOption> options)
     {
         Prompt = prompt;
-        SequenceOrder = sequenceOrder;
         ScoreValue = scoreValue;
         TimeLimit = timeLimit;
         Explanation = explanation;
@@ -32,8 +30,6 @@ public sealed class TriviaQuestion : BaseEntity
     }
 
     public string Prompt { get; private set; }
-
-    public int SequenceOrder { get; private set; }
 
     public int? ScoreValue { get; private set; }
 
@@ -47,13 +43,11 @@ public sealed class TriviaQuestion : BaseEntity
 
     public static TriviaQuestion Create(
         string prompt,
-        int sequenceOrder,
         IEnumerable<TriviaOption>? options = null,
         bool isActive = true)
     {
         return Create(
             prompt,
-            sequenceOrder,
             null,
             null,
             null,
@@ -63,7 +57,6 @@ public sealed class TriviaQuestion : BaseEntity
 
     public static TriviaQuestion Create(
         string prompt,
-        int sequenceOrder,
         int? scoreValue,
         int? timeLimitSeconds,
         string? explanation,
@@ -72,7 +65,6 @@ public sealed class TriviaQuestion : BaseEntity
     {
         return new TriviaQuestion(
             ValidatePrompt(prompt),
-            ValidateSequenceOrder(sequenceOrder),
             ValidateScoreValue(scoreValue),
             CreateTimeLimit(timeLimitSeconds),
             NormalizeExplanation(explanation),
@@ -80,14 +72,8 @@ public sealed class TriviaQuestion : BaseEntity
             options ?? []);
     }
 
-    internal void SetSequenceOrder(int sequenceOrder)
-    {
-        SequenceOrder = ValidateSequenceOrder(sequenceOrder);
-    }
-
     internal void ApplyAuthoring(
         string prompt,
-        int sequenceOrder,
         int scoreValue,
         int timeLimitSeconds,
         string? explanation,
@@ -95,7 +81,6 @@ public sealed class TriviaQuestion : BaseEntity
         bool isActive)
     {
         Prompt = ValidatePrompt(prompt);
-        SequenceOrder = ValidateSequenceOrder(sequenceOrder);
         ScoreValue = ValidateScoreValue(scoreValue);
         TimeLimit = CreateTimeLimit(timeLimitSeconds);
         Explanation = NormalizeExplanation(explanation);
@@ -113,16 +98,6 @@ public sealed class TriviaQuestion : BaseEntity
         }
 
         return prompt.Trim();
-    }
-
-    private static int ValidateSequenceOrder(int sequenceOrder)
-    {
-        if (sequenceOrder <= 0)
-        {
-            throw new TriviaQuestionSequenceOrderMustBePositiveException();
-        }
-
-        return sequenceOrder;
     }
 
     private static int? ValidateScoreValue(int? scoreValue)

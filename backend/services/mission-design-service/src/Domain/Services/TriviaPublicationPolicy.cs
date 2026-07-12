@@ -16,12 +16,12 @@ public static class TriviaPublicationPolicy
         {
             if (question.ScoreValue is null)
             {
-                throw new TriviaQuestionScoreValueRequiredToPublishException(question.SequenceOrder);
+                throw new TriviaQuestionScoreValueRequiredToPublishException(question.Id);
             }
 
             if (question.TimeLimit is null)
             {
-                throw new TriviaQuestionTimeLimitRequiredToPublishException(question.SequenceOrder);
+                throw new TriviaQuestionTimeLimitRequiredToPublishException(question.Id);
             }
 
             if (question.Options.Count is < 2 or > 4)

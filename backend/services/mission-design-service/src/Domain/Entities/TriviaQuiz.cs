@@ -139,7 +139,6 @@ public sealed class TriviaQuiz : BaseAuditableEntity
 
     public TriviaQuestion AddQuestion(
         string prompt,
-        int sequenceOrder,
         int scoreValue,
         int timeLimitSeconds,
         string? explanation,
@@ -151,7 +150,6 @@ public sealed class TriviaQuiz : BaseAuditableEntity
             new TriviaQuestionAuthoringDraft(
                 null,
                 prompt,
-                sequenceOrder,
                 scoreValue,
                 timeLimitSeconds,
                 explanation,
@@ -167,7 +165,6 @@ public sealed class TriviaQuiz : BaseAuditableEntity
     public TriviaQuestion UpdateQuestion(
         int questionId,
         string prompt,
-        int sequenceOrder,
         int scoreValue,
         int timeLimitSeconds,
         string? explanation,
@@ -179,7 +176,6 @@ public sealed class TriviaQuiz : BaseAuditableEntity
             new TriviaQuestionAuthoringDraft(
                 questionId,
                 prompt,
-                sequenceOrder,
                 scoreValue,
                 timeLimitSeconds,
                 explanation,
@@ -210,7 +206,6 @@ public sealed class TriviaQuiz : BaseAuditableEntity
     {
         return TriviaQuestion.Create(
             sourceQuestion.Prompt,
-            sourceQuestion.SequenceOrder,
             sourceQuestion.ScoreValue,
             sourceQuestion.TimeLimit?.Seconds,
             sourceQuestion.Explanation,
@@ -294,7 +289,6 @@ public sealed class TriviaQuiz : BaseAuditableEntity
     private sealed record TriviaQuestionAuthoringDraft(
         int? QuestionId,
         string Prompt,
-        int SequenceOrder,
         int ScoreValue,
         int TimeLimitSeconds,
         string? Explanation,
@@ -365,7 +359,6 @@ public sealed class TriviaQuiz : BaseAuditableEntity
             var targetQuestion = ResolveTargetQuestion(quiz, draft);
             var normalizedOptions = NormalizeOptions(draft.Options);
 
-            EnsureQuestionSequenceIsUnique(quiz, draft.SequenceOrder, targetQuestion?.Id);
             EnsureOptionCount(normalizedOptions.Count);
             EnsureExactlyOneCorrectOption(normalizedOptions);
             EnsureDistinctOptionSequenceOrders(normalizedOptions);
@@ -388,16 +381,6 @@ public sealed class TriviaQuiz : BaseAuditableEntity
         private static IReadOnlyCollection<TriviaOption> NormalizeOptions(IEnumerable<TriviaOption> options)
         {
             return options.ToArray();
-        }
-
-        private static void EnsureQuestionSequenceIsUnique(TriviaQuiz quiz, int sequenceOrder, int? currentQuestionId)
-        {
-            if (quiz._questions.Any(question =>
-                    question.SequenceOrder == sequenceOrder &&
-                    question.Id != currentQuestionId))
-            {
-                throw new TriviaQuestionSequenceOrderMustBeUniqueException(sequenceOrder);
-            }
         }
 
         private static void EnsureOptionCount(int count)
@@ -434,7 +417,6 @@ public sealed class TriviaQuiz : BaseAuditableEntity
             EnsureQuizEditable(quiz.Status);
             var question = FindQuestion(quiz, triviaQuestionId);
             RemoveQuestion(quiz, question);
-            ReconcileSequenceOrders(quiz);
             return question;
         }
 
@@ -455,14 +437,6 @@ public sealed class TriviaQuiz : BaseAuditableEntity
             quiz._questions.Remove(question);
         }
 
-        private static void ReconcileSequenceOrders(TriviaQuiz quiz)
-        {
-            var ordered = quiz._questions.OrderBy(q => q.SequenceOrder).ToList();
-            for (var i = 0; i < ordered.Count; i++)
-            {
-                ordered[i].SetSequenceOrder(i + 1);
-            }
-        }
     }
 
     private sealed class RemoveTriviaQuestionAuthoringTemplate : TriviaQuestionRemovalTemplate
@@ -483,7 +457,6 @@ public sealed class TriviaQuiz : BaseAuditableEntity
         {
             return TriviaQuestion.Create(
                 draft.Prompt,
-                draft.SequenceOrder,
                 draft.ScoreValue,
                 draft.TimeLimitSeconds,
                 draft.Explanation,
@@ -513,7 +486,6 @@ public sealed class TriviaQuiz : BaseAuditableEntity
         {
             targetQuestion!.ApplyAuthoring(
                 draft.Prompt,
-                draft.SequenceOrder,
                 draft.ScoreValue,
                 draft.TimeLimitSeconds,
                 draft.Explanation,

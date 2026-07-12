@@ -18,7 +18,6 @@ public class TriviaQuizResponseTests
                 new TriviaQuestionDto(
                     21,
                     "Capital of France?",
-                    1,
                     true,
                     [
                         new TriviaOptionDto(31, "Paris", 1, true),

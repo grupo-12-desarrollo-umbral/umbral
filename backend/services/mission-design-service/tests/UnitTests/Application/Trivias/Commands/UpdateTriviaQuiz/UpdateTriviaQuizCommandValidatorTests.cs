@@ -17,7 +17,6 @@ public sealed class UpdateTriviaQuizCommandValidatorTests
             [
                 new TriviaQuestionInput(
                     "Question?",
-                    1,
                     true,
                     [
                         new TriviaOptionInput("Correct", 1, true),
@@ -44,7 +43,7 @@ public sealed class UpdateTriviaQuizCommandValidatorTests
             "Quiz",
             "Warm-up trivia",
             [
-                new TriviaQuestionInput("", 1, true, [])
+                new TriviaQuestionInput("", true, [])
             ]));
 
         result.Errors.Should().ContainSingle(error => error.PropertyName == "Questions[0].Prompt");

@@ -32,7 +32,6 @@ public sealed class TriviasController(ISender sender) : ControllerBase
                 request.Questions.Select(question =>
                     MapTriviaQuestionInput(
                         question.Prompt,
-                        question.SequenceOrder,
                         question.IsActive,
                         question.Options,
                         question.ScoreValue,
@@ -79,7 +78,6 @@ public sealed class TriviasController(ISender sender) : ControllerBase
                 request.Questions.Select(question =>
                     MapTriviaQuestionInput(
                         question.Prompt,
-                        question.SequenceOrder,
                         question.IsActive,
                         question.Options,
                         question.ScoreValue,
@@ -146,7 +144,6 @@ public sealed class TriviasController(ISender sender) : ControllerBase
             new AddTriviaQuestionCommand(
                 triviaQuizId,
                 request.Prompt,
-                request.SequenceOrder,
                 request.ScoreValue,
                 request.TimeLimitSeconds,
                 request.Explanation,
@@ -169,7 +166,6 @@ public sealed class TriviasController(ISender sender) : ControllerBase
                 triviaQuizId,
                 questionId,
                 request.Prompt,
-                request.SequenceOrder,
                 request.ScoreValue,
                 request.TimeLimitSeconds,
                 request.Explanation,
@@ -195,7 +191,6 @@ public sealed class TriviasController(ISender sender) : ControllerBase
 
     private static TriviaQuestionInput MapTriviaQuestionInput(
         string prompt,
-        int sequenceOrder,
         bool isActive,
         IReadOnlyList<TriviaOptionRequest> options,
         int? scoreValue,
@@ -204,7 +199,6 @@ public sealed class TriviasController(ISender sender) : ControllerBase
     {
         return new TriviaQuestionInput(
             prompt,
-            sequenceOrder,
             isActive,
             options.Select(MapTriviaOptionInput).ToArray(),
             scoreValue,
@@ -232,7 +226,6 @@ public sealed class TriviasController(ISender sender) : ControllerBase
 
     public sealed record AddTriviaQuestionRequest(
         string Prompt,
-        int SequenceOrder,
         int ScoreValue,
         int TimeLimitSeconds,
         string? Explanation,
@@ -241,7 +234,6 @@ public sealed class TriviasController(ISender sender) : ControllerBase
 
     public sealed record UpdateTriviaQuestionRequest(
         string Prompt,
-        int SequenceOrder,
         int ScoreValue,
         int TimeLimitSeconds,
         string? Explanation,
@@ -250,7 +242,6 @@ public sealed class TriviasController(ISender sender) : ControllerBase
 
     public sealed record TriviaQuestionRequest(
         string Prompt,
-        int SequenceOrder,
         bool IsActive,
         IReadOnlyList<TriviaOptionRequest> Options,
         int? ScoreValue = null,
@@ -291,7 +282,6 @@ public sealed class TriviasController(ISender sender) : ControllerBase
     public sealed record TriviaQuestionResponse(
         int Id,
         string Prompt,
-        int SequenceOrder,
         bool IsActive,
         IReadOnlyList<TriviaOptionResponse> Options,
         int? ScoreValue,
@@ -303,7 +293,6 @@ public sealed class TriviasController(ISender sender) : ControllerBase
             return new TriviaQuestionResponse(
                 triviaQuestionDto.Id,
                 triviaQuestionDto.Prompt,
-                triviaQuestionDto.SequenceOrder,
                 triviaQuestionDto.IsActive,
                 triviaQuestionDto.Options.Select(TriviaOptionResponse.FromDto).ToList(),
                 triviaQuestionDto.ScoreValue,

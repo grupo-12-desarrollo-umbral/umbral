@@ -29,7 +29,6 @@ export function TriviaQuestionList({
     <table className={`${styles.table} ${styles.triviaQuestionTable}`}>
       <thead>
         <tr>
-          <th>Order</th>
           <th>Prompt</th>
           <th>Score</th>
           <th>Timer (s)</th>
@@ -40,39 +39,36 @@ export function TriviaQuestionList({
         </tr>
       </thead>
       <tbody>
-        {[...questions]
-          .sort((a, b) => a.sequenceOrder - b.sequenceOrder)
-          .map((q) => (
-            <tr key={q.id} data-testid={`question-row-${q.id}`}>
-              <td data-label="Order">{q.sequenceOrder}</td>
-              <td data-label="Prompt">{q.prompt}</td>
-              <td data-label="Score">{q.scoreValue ?? '—'}</td>
-              <td data-label="Timer (s)">{q.timeLimitSeconds ?? '—'}</td>
-              <td data-label="Explanation">{q.explanation ?? '—'}</td>
-              <td data-label="Status">
-                <span className={styles.chip} data-tone={q.isActive ? 'success' : 'muted'}>
-                  {q.isActive ? 'Active' : 'Inactive'}
-                </span>
-              </td>
-              <td data-label="Options">
-                <ul className={styles.triviaOptionList}>
-                  {[...q.options]
-                    .sort((a, b) => a.sequenceOrder - b.sequenceOrder)
-                    .map((opt) => (
-                      <li key={opt.id}>
-                        {opt.optionText}
-                        {opt.isCorrect && (
-                          <span className={styles.triviaOptionCorrect} aria-label="Correct answer">
-                            ✓
-                          </span>
-                        )}
-                      </li>
-                    ))}
-                </ul>
-              </td>
-              {showActions && <td data-label={actionsHeader}>{renderRowActions(q)}</td>}
-            </tr>
-          ))}
+        {questions.map((q) => (
+          <tr key={q.id} data-testid={`question-row-${q.id}`}>
+            <td data-label="Prompt">{q.prompt}</td>
+            <td data-label="Score">{q.scoreValue ?? '—'}</td>
+            <td data-label="Timer (s)">{q.timeLimitSeconds ?? '—'}</td>
+            <td data-label="Explanation">{q.explanation ?? '—'}</td>
+            <td data-label="Status">
+              <span className={styles.chip} data-tone={q.isActive ? 'success' : 'muted'}>
+                {q.isActive ? 'Active' : 'Inactive'}
+              </span>
+            </td>
+            <td data-label="Options">
+              <ul className={styles.triviaOptionList}>
+                {[...q.options]
+                  .sort((a, b) => a.sequenceOrder - b.sequenceOrder)
+                  .map((opt) => (
+                    <li key={opt.id}>
+                      {opt.optionText}
+                      {opt.isCorrect && (
+                        <span className={styles.triviaOptionCorrect} aria-label="Correct answer">
+                          ✓
+                        </span>
+                      )}
+                    </li>
+                  ))}
+              </ul>
+            </td>
+            {showActions && <td data-label={actionsHeader}>{renderRowActions(q)}</td>}
+          </tr>
+        ))}
       </tbody>
     </table>
   )

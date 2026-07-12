@@ -52,8 +52,6 @@ public sealed class ErrorCodeContractTests
             ["TriviaQuestionScoreValueExceedsMaximumException"] = "trivia-question-score-value-exceeds-maximum",
             ["TriviaQuestionScoreValueMustBePositiveException"] = "trivia-question-score-value-must-be-positive",
             ["TriviaQuestionScoreValueRequiredToPublishException"] = "trivia-question-score-value-required-to-publish",
-            ["TriviaQuestionSequenceOrderMustBePositiveException"] = "trivia-question-sequence-order-must-be-positive",
-            ["TriviaQuestionSequenceOrderMustBeUniqueException"] = "trivia-question-sequence-order-must-be-unique",
             ["TriviaQuestionTimeLimitRequiredToPublishException"] = "trivia-question-time-limit-required-to-publish",
             ["TriviaQuizCannotBeArchivedInCurrentStateException"] = "trivia-quiz-cannot-be-archived-in-current-state",
             ["TriviaQuizCannotBeDestructivelyRemovedAfterUsageException"] = "trivia-quiz-cannot-be-destructively-removed-after-usage",

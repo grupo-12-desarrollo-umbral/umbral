@@ -70,7 +70,6 @@ public sealed class DuplicateTriviaQuizCommandHandlerTests
         var triviaQuiz = TriviaQuiz.Create("Source Quiz", "Reusable source");
         triviaQuiz.AddQuestion(
             "Question?",
-            1,
             100,
             30,
             "Baseline explanation",

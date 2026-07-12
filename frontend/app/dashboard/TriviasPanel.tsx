@@ -26,18 +26,19 @@ function computeReadiness(quiz: TriviaQuizDto): { isReady: boolean; reasons: str
   if (quiz.questions.length === 0) {
     reasons.push('At least one question is required.')
   }
-  for (const q of quiz.questions) {
+  for (const [index, q] of quiz.questions.entries()) {
+    const questionLabel = `Question ${index + 1}`
     if (q.scoreValue === null) {
-      reasons.push(`Question ${q.sequenceOrder}: score value is required.`)
+      reasons.push(`${questionLabel}: score value is required.`)
     }
     if (q.timeLimitSeconds === null) {
-      reasons.push(`Question ${q.sequenceOrder}: time limit is required.`)
+      reasons.push(`${questionLabel}: time limit is required.`)
     }
     if (q.options.length < 2 || q.options.length > 4) {
-      reasons.push(`Question ${q.sequenceOrder}: must have 2–4 options.`)
+      reasons.push(`${questionLabel}: must have 2–4 options.`)
     }
     if (q.options.filter((o) => o.isCorrect).length !== 1) {
-      reasons.push(`Question ${q.sequenceOrder}: exactly one correct option required.`)
+      reasons.push(`${questionLabel}: exactly one correct option required.`)
     }
   }
   return { isReady: reasons.length === 0, reasons }
@@ -144,8 +145,6 @@ export function TriviasPanel({ role }: { role: DashboardRole }) {
           setQuestionError('Invalid question. Check all fields and ensure exactly one correct option.')
         } else if (msg === 'trivia_not_found') {
           setQuestionError('Trivia quiz no longer exists.')
-        } else if (msg === 'question_sequence_conflict') {
-          setQuestionError('A question with that sequence order already exists. Choose a different order.')
         } else {
           setQuestionError('Failed to add question. Try again.')
         }
@@ -168,8 +167,6 @@ export function TriviasPanel({ role }: { role: DashboardRole }) {
           setQuestionError('Invalid question. Check all fields and ensure exactly one correct option.')
         } else if (msg === 'trivia_not_found') {
           setQuestionError('Trivia quiz no longer exists.')
-        } else if (msg === 'question_sequence_conflict') {
-          setQuestionError('A question with that sequence order already exists. Choose a different order.')
         } else {
           setQuestionError('Failed to update question. Try again.')
         }
@@ -936,7 +933,6 @@ function TriviaQuestionForm({
   onCancel: () => void
 }) {
   const [prompt, setPrompt] = useState(initial?.prompt ?? '')
-  const [sequenceOrder, setSequenceOrder] = useState(initial?.sequenceOrder ?? 1)
   const [scoreValue, setScoreValue] = useState(initial?.scoreValue ?? 100)
   const [timeLimitSeconds, setTimeLimitSeconds] = useState(initial?.timeLimitSeconds ?? 30)
   const [explanation, setExplanation] = useState(initial?.explanation ?? '')
@@ -996,7 +992,6 @@ function TriviaQuestionForm({
 
     onSubmit({
       prompt: prompt.trim(),
-      sequenceOrder,
       scoreValue,
       timeLimitSeconds,
       explanation: explanation.trim() !== '' ? explanation.trim() : null,
@@ -1029,21 +1024,6 @@ function TriviaQuestionForm({
           required
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
-        />
-      </div>
-
-      {/* Sequence order */}
-      <div className={styles.missionFormNameCard}>
-        <span className={styles.missionDetailDescLabel}>Sequence order</span>
-        <input
-          className={styles.missionFormNameInput}
-          data-testid="question-sequence-order-input"
-          disabled={isPending}
-          min={1}
-          required
-          type="number"
-          value={sequenceOrder}
-          onChange={(e) => setSequenceOrder(Number(e.target.value))}
         />
       </div>
 
