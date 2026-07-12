@@ -131,7 +131,37 @@ configuración se inyecta por **variables de entorno** (las claves anidadas usan
 | session-operations-service | `5003`           | `5003:8080`                                              |
 | PostgreSQL                 | `5432`           | usuario/clave `postgres` / `postgres`                    |
 | Keycloak                   | `8080` / `9000`  | HTTP / puerto de management (health)                     |
+| Mailpit                    | `8025` / `1025`  | UI web para inspeccionar correo / SMTP (mail catcher)    |
 | RabbitMQ                   | `5672` / `15672` | AMQP / consola de management                             |
+
+### Correo saliente de Keycloak (SMTP)
+
+Keycloak envía correo de **verificación de email** (`verifyEmail: true` en el
+realm), **restablecimiento de contraseña** e invitaciones. En desarrollo el
+realm apunta por defecto a **Mailpit** (`mailpit:1025`, sin auth), que captura
+todo el correo sin enviarlo a Internet — inspecciónalo en
+[http://localhost:8025](http://localhost:8025).
+
+El bloque `smtpServer` del realm (`deploy/keycloak/import/umbral-realm.json`)
+está parametrizado por variables de entorno del **contenedor de Keycloak**. Con
+los valores por defecto el stack de desarrollo funciona sin configuración; **para
+cualquier entorno que no sea desarrollo hay que apuntar a un relay SMTP real**
+definiendo:
+
+| Variable                   | Por defecto (dev)     | Descripción                                            |
+| -------------------------- | --------------------- | ------------------------------------------------------ |
+| `KC_SMTP_HOST`             | `mailpit`             | Host del servidor SMTP                                  |
+| `KC_SMTP_PORT`             | `1025`                | Puerto SMTP                                             |
+| `KC_SMTP_FROM`             | `no-reply@umbral.local` | Dirección remitente                                  |
+| `KC_SMTP_FROM_DISPLAY_NAME`| `Umbral`              | Nombre visible del remitente                            |
+| `KC_SMTP_SSL`              | `false`               | SSL/TLS implícito (normalmente puerto 465)             |
+| `KC_SMTP_STARTTLS`         | `false`               | STARTTLS (normalmente puerto 587)                      |
+| `KC_SMTP_AUTH`             | `false`               | Requiere autenticación en el relay                     |
+| `KC_SMTP_USER`             | _(vacío)_             | Usuario SMTP (si `KC_SMTP_AUTH=true`)                  |
+| `KC_SMTP_PASSWORD`         | _(vacío)_             | Contraseña SMTP (si `KC_SMTP_AUTH=true`)               |
+
+Los usuarios sembrados de desarrollo llevan `emailVerified: true`, así que el
+login local sigue funcionando sin pasar por el mail catcher.
 
 ---
 

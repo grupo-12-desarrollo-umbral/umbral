@@ -22,6 +22,9 @@ services:
     command:
       - start-dev
       - --import-realm
+    depends_on:
+      mailpit:
+        condition: service_started
     environment:
       KEYCLOAK_ADMIN: admin
       KEYCLOAK_ADMIN_PASSWORD: admin
@@ -43,6 +46,19 @@ services:
       - "9000:9000"
     volumes:
       - ./deploy/keycloak/import:/opt/keycloak/data/import:ro
+
+  # Local mail catcher. Keycloak points its SMTP server here (see the realm's
+  # smtpServer block), so verification and password-reset mail never leaves the
+  # machine — it lands in Mailpit's web UI on :8025 for inspection. SMTP listens
+  # on :1025 and accepts any/no auth, matching the dev defaults in the realm.
+  mailpit:
+    image: axllent/mailpit:v1.20
+    environment:
+      MP_SMTP_AUTH_ACCEPT_ANY: "true"
+      MP_SMTP_AUTH_ALLOW_INSECURE: "true"
+    ports:
+      - "8025:8025" # web UI
+      - "1025:1025" # SMTP
 
   rabbitmq:
     image: rabbitmq:3-management
