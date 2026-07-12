@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>umbral_backend.Application</RootNamespace>
+    <AssemblyName>umbral_backend.Application</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <PackageReference Include="MassTransit.Abstractions" />
+    <PackageReference Include="MediatR" />
+  </ItemGroup>
+</Project>
