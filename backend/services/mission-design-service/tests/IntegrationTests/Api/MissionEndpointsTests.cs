@@ -509,7 +509,6 @@ public sealed class MissionEndpointsTests : IClassFixture<PostgreSqlFixture>, IA
                     new
                     {
                         prompt = "Second question",
-                        sequenceOrder = 2,
                         scoreValue = 35,
                         timeLimitSeconds = 20,
                         explanation = "Second explanation.",
@@ -523,7 +522,6 @@ public sealed class MissionEndpointsTests : IClassFixture<PostgreSqlFixture>, IA
                     new
                     {
                         prompt = "First question",
-                        sequenceOrder = 1,
                         scoreValue = 50,
                         timeLimitSeconds = 30,
                         explanation = "First explanation.",
@@ -972,7 +970,6 @@ public sealed class MissionEndpointsTests : IClassFixture<PostgreSqlFixture>, IA
                     new
                     {
                         prompt = $"{title} question?",
-                        sequenceOrder = 1,
                         scoreValue = 100,
                         timeLimitSeconds = 45,
                         explanation = "Published quiz setup.",

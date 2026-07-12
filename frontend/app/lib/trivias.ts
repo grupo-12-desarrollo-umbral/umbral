@@ -96,7 +96,6 @@ export async function addTriviaQuestion(
   if (response.status === 401) throw new IdentityError('unauthorized', 'Authentication failed.')
   if (response.status === 403) throw new IdentityError('unauthorized', 'Forbidden. Operator role required.')
   if (response.status === 404) throw new Error('trivia_not_found')
-  if (response.status === 409) throw new Error('question_sequence_conflict')
   if (!response.ok) throw new IdentityError('unknown', `addTriviaQuestion failed with status ${response.status}`)
   return response.json()
 }
@@ -119,7 +118,6 @@ export async function updateTriviaQuestion(
   if (response.status === 401) throw new IdentityError('unauthorized', 'Authentication failed.')
   if (response.status === 403) throw new IdentityError('unauthorized', 'Forbidden. Operator role required.')
   if (response.status === 404) throw new Error('trivia_not_found')
-  if (response.status === 409) throw new Error('question_sequence_conflict')
   if (!response.ok) throw new IdentityError('unknown', `updateTriviaQuestion failed with status ${response.status}`)
   return response.json()
 }

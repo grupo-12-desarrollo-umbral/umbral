@@ -12,7 +12,6 @@ public class TriviaPublicationPolicyTests
         var quiz = TriviaQuiz.Create("Intro Quiz", "Warm-up trivia");
         quiz.AddQuestion(
             "Capital of France?",
-            1,
             100,
             45,
             null,
@@ -35,7 +34,6 @@ public class TriviaPublicationPolicyTests
             [
                 TriviaQuestion.Create(
                     "Question 1",
-                    1,
                     null,
                     45,
                     null,
@@ -59,7 +57,6 @@ public class TriviaPublicationPolicyTests
             [
                 TriviaQuestion.Create(
                     "Question 1",
-                    1,
                     100,
                     45,
                     null,
@@ -80,7 +77,6 @@ public class TriviaPublicationPolicyTests
             [
                 TriviaQuestion.Create(
                     "Question 1",
-                    1,
                     100,
                     45,
                     null,
@@ -107,7 +103,6 @@ public class TriviaPublicationPolicyTests
             [
                 TriviaQuestion.Create(
                     "Question 1",
-                    1,
                     100,
                     45,
                     null,
@@ -141,7 +136,6 @@ public class TriviaPublicationPolicyTests
             [
                 TriviaQuestion.Create(
                     "Question 1",
-                    1,
                     100,
                     null,
                     null,

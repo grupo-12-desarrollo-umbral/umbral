@@ -200,7 +200,6 @@ test('operator can add a question with 2 options and see it in detail', async ({
 
   await page.click('[data-testid="add-question-btn"]')
   await page.fill('[data-testid="question-prompt-input"]', 'What is 1+1?')
-  await page.fill('[data-testid="question-sequence-order-input"]', '1')
   await page.fill('[data-testid="question-score-value-input"]', '50')
   await page.fill('[data-testid="question-timer-input"]', '20')
   await page.fill('[data-testid="question-option-text-0"]', '2')
@@ -224,7 +223,6 @@ test('operator can add a question with 4 options', async ({ operatorPage: page }
 
   await page.click('[data-testid="add-question-btn"]')
   await page.fill('[data-testid="question-prompt-input"]', 'Best planet?')
-  await page.fill('[data-testid="question-sequence-order-input"]', '1')
   await page.fill('[data-testid="question-score-value-input"]', '100')
   await page.fill('[data-testid="question-timer-input"]', '30')
 
@@ -274,7 +272,6 @@ test('operator can edit an existing question', async ({ operatorPage: page }) =>
   // Add a question first
   await page.click('[data-testid="add-question-btn"]')
   await page.fill('[data-testid="question-prompt-input"]', 'Original prompt')
-  await page.fill('[data-testid="question-sequence-order-input"]', '1')
   await page.fill('[data-testid="question-score-value-input"]', '50')
   await page.fill('[data-testid="question-timer-input"]', '20')
   await page.fill('[data-testid="question-option-text-0"]', 'A')
@@ -308,7 +305,6 @@ test('edit-question form is pre-filled with current values', async ({ operatorPa
 
   await page.click('[data-testid="add-question-btn"]')
   await page.fill('[data-testid="question-prompt-input"]', 'Capital of France?')
-  await page.fill('[data-testid="question-sequence-order-input"]', '1')
   await page.fill('[data-testid="question-score-value-input"]', '100')
   await page.fill('[data-testid="question-timer-input"]', '45')
   await page.fill('[data-testid="question-explanation-input"]', 'Paris is the capital.')
@@ -376,7 +372,6 @@ async function createReadyDraftQuiz(page: Page, title: string): Promise<void> {
   // Add one question to satisfy the readiness check
   await page.click('[data-testid="add-question-btn"]')
   await page.fill('[data-testid="question-prompt-input"]', 'What is 2+2?')
-  await page.fill('[data-testid="question-sequence-order-input"]', '1')
   await page.fill('[data-testid="question-score-value-input"]', '100')
   await page.fill('[data-testid="question-timer-input"]', '30')
   await page.fill('[data-testid="question-option-text-0"]', '4')
@@ -937,11 +932,10 @@ test('HU-09 missions panel still reachable after HU-13 wiring', async ({ adminPa
 
 // --- Question removal (HU-14A follow-up) ---
 
-// Helper: create a Draft quiz and add a question with the given prompt + sequence order.
-async function addQuestion(page: Page, prompt: string, order: string) {
+// Helper: create a Draft quiz and add a question with the given prompt.
+async function addQuestion(page: Page, prompt: string) {
   await page.click('[data-testid="add-question-btn"]')
   await page.fill('[data-testid="question-prompt-input"]', prompt)
-  await page.fill('[data-testid="question-sequence-order-input"]', order)
   await page.fill('[data-testid="question-score-value-input"]', '50')
   await page.fill('[data-testid="question-timer-input"]', '20')
   await page.fill('[data-testid="question-option-text-0"]', 'A')
@@ -959,7 +953,7 @@ test('operator can remove a question from a draft quiz', async ({ operatorPage: 
   await page.fill('[data-testid="trivia-description-input"]', 'One question, then removed.')
   await page.click('[data-testid="trivia-submit-btn"]')
 
-  await addQuestion(page, 'Doomed question', '1')
+  await addQuestion(page, 'Doomed question')
   await expect(page.locator('[data-testid="trivia-questions-section"]')).toContainText('Doomed question')
 
   const removeBtn = page.locator('[data-testid^="remove-question-btn-"]').first()
@@ -970,7 +964,7 @@ test('operator can remove a question from a draft quiz', async ({ operatorPage: 
   await expect(page.locator('[data-testid="trivia-questions-section"]')).toContainText('No questions added yet.')
 })
 
-test('removing a question reconciles the sequence order of the remaining questions', async ({ operatorPage: page }) => {
+test('removing a question preserves the API question order', async ({ operatorPage: page }) => {
   await page.goto('/dashboard')
   await page.click('[data-testid="nav-trivias"]')
   await page.click('[data-testid="create-trivia-btn"]')
@@ -978,13 +972,12 @@ test('removing a question reconciles the sequence order of the remaining questio
   await page.fill('[data-testid="trivia-description-input"]', 'Three questions; remove the first.')
   await page.click('[data-testid="trivia-submit-btn"]')
 
-  await addQuestion(page, 'First question', '1')
-  await addQuestion(page, 'Second question', '2')
-  await addQuestion(page, 'Third question', '3')
+  await addQuestion(page, 'First question')
+  await addQuestion(page, 'Second question')
+  await addQuestion(page, 'Third question')
 
   await expect(page.locator('[data-testid^="question-row-"]')).toHaveCount(3)
 
-  // Remove the row whose Order cell is "1" (the first question).
   const firstRow = page.locator('[data-testid^="question-row-"]').filter({ hasText: 'First question' })
   await firstRow.locator('[data-testid^="remove-question-btn-"]').click()
   await firstRow.locator('[data-testid^="confirm-remove-question-btn-"]').click()
@@ -992,13 +985,9 @@ test('removing a question reconciles the sequence order of the remaining questio
   await expect(page.locator('[data-testid^="question-row-"]')).toHaveCount(2)
   await expect(page.locator('[data-testid="trivia-questions-section"]')).not.toContainText('First question')
 
-  // Remaining questions are renumbered 1..N with no gap. Read the Order cells top-to-bottom.
-  const orderCells = page.locator('[data-testid^="question-row-"] td[data-label="Order"]')
-  await expect(orderCells).toHaveText(['1', '2'])
-  // And the first row is now "Second question" at order 1.
-  const topRow = page.locator('[data-testid^="question-row-"]').first()
-  await expect(topRow).toContainText('Second question')
-  await expect(topRow.locator('td[data-label="Order"]')).toHaveText('1')
+  const remainingRows = page.locator('[data-testid^="question-row-"]')
+  await expect(remainingRows.nth(0)).toContainText('Second question')
+  await expect(remainingRows.nth(1)).toContainText('Third question')
 })
 
 test('remove confirmation can be cancelled without deleting', async ({ operatorPage: page }) => {
@@ -1009,7 +998,7 @@ test('remove confirmation can be cancelled without deleting', async ({ operatorP
   await page.fill('[data-testid="trivia-description-input"]', 'Removal is cancelled.')
   await page.click('[data-testid="trivia-submit-btn"]')
 
-  await addQuestion(page, 'Keep me', '1')
+  await addQuestion(page, 'Keep me')
 
   await page.locator('[data-testid^="remove-question-btn-"]').first().click()
   await expect(page.locator('[data-testid^="confirm-remove-question-btn-"]').first()).toBeVisible()
@@ -1029,7 +1018,7 @@ test('published quiz shows no remove control', async ({ operatorPage: page }) =>
   await page.click('[data-testid="trivia-submit-btn"]')
 
   // A publishable question (score + timer + valid options already set by the helper).
-  await addQuestion(page, 'Publishable question', '1')
+  await addQuestion(page, 'Publishable question')
 
   await page.click('[data-testid="publish-trivia-btn"]')
   await page.click('[data-testid="confirm-publish-btn"]')
@@ -1064,7 +1053,7 @@ test('HU-14A add-question flow still works alongside remove control', async ({ o
   await page.fill('[data-testid="trivia-description-input"]', 'Add after removal wiring.')
   await page.click('[data-testid="trivia-submit-btn"]')
 
-  await addQuestion(page, 'Still addable', '1')
+  await addQuestion(page, 'Still addable')
   await expect(page.locator('[data-testid="trivia-questions-section"]')).toContainText('Still addable')
   // Both Edit and Remove present on the row.
   await expect(page.locator('[data-testid^="edit-question-btn-"]').first()).toBeVisible()

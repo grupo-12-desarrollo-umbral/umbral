@@ -29,7 +29,6 @@ public sealed class GetTriviaDetailQueryHandlerTests
                 new TriviaQuestionDto(
                     3,
                     "Question?",
-                    1,
                     true,
                     [
                         new TriviaOptionDto(8, "Correct", 1, true),

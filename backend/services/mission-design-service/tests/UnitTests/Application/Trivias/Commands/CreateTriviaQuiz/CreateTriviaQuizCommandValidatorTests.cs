@@ -16,7 +16,6 @@ public sealed class CreateTriviaQuizCommandValidatorTests
             [
                 new TriviaQuestionInput(
                     "Question?",
-                    1,
                     true,
                     [
                         new TriviaOptionInput("Correct", 1, true),
@@ -44,17 +43,17 @@ public sealed class CreateTriviaQuizCommandValidatorTests
     }
 
     [Fact]
-    public void Validate_WhenQuestionSequenceOrderIsDuplicated_ReturnsError()
+    public void Validate_WhenQuestionsShareLegacySequenceOrder_DoesNotReturnQuestionCollectionError()
     {
         var result = _validator.Validate(new CreateTriviaQuizCommand(
             "Quiz",
             "Warm-up trivia",
             [
-                new TriviaQuestionInput("Question 1?", 1, true, []),
-                new TriviaQuestionInput("Question 2?", 1, true, [])
+                new TriviaQuestionInput("Question 1?", true, []),
+                new TriviaQuestionInput("Question 2?", true, [])
             ]));
 
-        result.Errors.Should().ContainSingle(error => error.PropertyName == nameof(CreateTriviaQuizCommand.Questions));
+        result.Errors.Should().NotContain(error => error.PropertyName == nameof(CreateTriviaQuizCommand.Questions));
     }
 
     [Fact]
@@ -66,7 +65,6 @@ public sealed class CreateTriviaQuizCommandValidatorTests
             [
                 new TriviaQuestionInput(
                     "Question?",
-                    1,
                     true,
                     [
                         new TriviaOptionInput("A", 1, true),
@@ -86,7 +84,6 @@ public sealed class CreateTriviaQuizCommandValidatorTests
             [
                 new TriviaQuestionInput(
                     "Question?",
-                    1,
                     true,
                     [
                         new TriviaOptionInput("A", 1, true),

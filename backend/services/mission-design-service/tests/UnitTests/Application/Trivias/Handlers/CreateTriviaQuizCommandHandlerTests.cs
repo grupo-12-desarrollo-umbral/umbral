@@ -27,7 +27,6 @@ public sealed class CreateTriviaQuizCommandHandlerTests
             [
                 new TriviaQuestionInput(
                     "First question?",
-                    1,
                     true,
                     [
                         new TriviaOptionInput("A", 1, true),

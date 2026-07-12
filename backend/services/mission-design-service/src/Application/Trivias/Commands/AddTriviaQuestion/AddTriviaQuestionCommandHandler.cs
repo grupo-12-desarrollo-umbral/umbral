@@ -23,7 +23,6 @@ public sealed class AddTriviaQuestionCommandHandler : IRequestHandler<AddTriviaQ
 
         triviaQuiz.AddQuestion(
             request.Prompt,
-            request.SequenceOrder,
             request.ScoreValue,
             request.TimeLimitSeconds,
             request.Explanation,

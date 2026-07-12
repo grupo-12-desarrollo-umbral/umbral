@@ -27,7 +27,6 @@ public sealed class RemoveTriviaQuestionCommandHandlerTests
         var triviaQuiz = TriviaQuiz.Create("Quiz", "Description");
         var question = triviaQuiz.AddQuestion(
             "Question to remove?",
-            1,
             50,
             20,
             null,
@@ -54,7 +53,6 @@ public sealed class RemoveTriviaQuestionCommandHandlerTests
         var triviaQuiz = TriviaQuiz.Create("Quiz", "Description");
         var firstQuestion = triviaQuiz.AddQuestion(
             "First?",
-            1,
             50,
             20,
             null,
@@ -64,7 +62,6 @@ public sealed class RemoveTriviaQuestionCommandHandlerTests
             ]);
         var secondQuestion = triviaQuiz.AddQuestion(
             "Second?",
-            2,
             50,
             20,
             null,
@@ -74,7 +71,6 @@ public sealed class RemoveTriviaQuestionCommandHandlerTests
             ]);
         var thirdQuestion = triviaQuiz.AddQuestion(
             "Third?",
-            3,
             50,
             20,
             null,
@@ -94,9 +90,7 @@ public sealed class RemoveTriviaQuestionCommandHandlerTests
 
         result.Questions.Should().HaveCount(2);
         result.Questions[0].Id.Should().Be(firstQuestion.Id);
-        result.Questions[0].SequenceOrder.Should().Be(1);
         result.Questions[1].Id.Should().Be(thirdQuestion.Id);
-        result.Questions[1].SequenceOrder.Should().Be(2);
     }
 
     [Fact]
@@ -120,7 +114,6 @@ public sealed class RemoveTriviaQuestionCommandHandlerTests
         var triviaQuiz = TriviaQuiz.Create("Quiz", "Description");
         var existingQuestion = triviaQuiz.AddQuestion(
             "Existing question?",
-            1,
             50,
             20,
             null,
@@ -146,7 +139,6 @@ public sealed class RemoveTriviaQuestionCommandHandlerTests
         var triviaQuiz = TriviaQuiz.Create("Quiz", "Description");
         var question = triviaQuiz.AddQuestion(
             "Question?",
-            1,
             50,
             20,
             null,

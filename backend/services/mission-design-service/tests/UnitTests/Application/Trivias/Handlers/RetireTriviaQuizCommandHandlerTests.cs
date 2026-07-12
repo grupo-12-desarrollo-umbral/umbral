@@ -91,7 +91,6 @@ public sealed class RetireTriviaQuizCommandHandlerTests
         var triviaQuiz = TriviaQuiz.Create("Used Quiz", "Ready to retire");
         triviaQuiz.AddQuestion(
             "Question?",
-            1,
             100,
             30,
             "Baseline explanation",

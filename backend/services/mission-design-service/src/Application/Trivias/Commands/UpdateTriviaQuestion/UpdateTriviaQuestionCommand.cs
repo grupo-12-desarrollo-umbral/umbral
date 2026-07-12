@@ -10,7 +10,6 @@ public sealed record UpdateTriviaQuestionCommand(
     int TriviaQuizId,
     int QuestionId,
     string Prompt,
-    int SequenceOrder,
     int ScoreValue,
     int TimeLimitSeconds,
     string? Explanation,

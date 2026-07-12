@@ -202,7 +202,6 @@ public sealed class MissionInfrastructureIntegrationTests : IClassFixture<Postgr
             [
                 Domain.Entities.TriviaQuestion.Create(
                     "Question",
-                    1,
                     100,
                     20,
                     null,
@@ -298,7 +297,6 @@ public sealed class MissionInfrastructureIntegrationTests : IClassFixture<Postgr
                 [
                     new TriviaQuestionInput(
                         " Capital of France? ",
-                        2,
                         true,
                         [
                             new TriviaOptionInput(" Berlin ", 2, false),
@@ -306,7 +304,6 @@ public sealed class MissionInfrastructureIntegrationTests : IClassFixture<Postgr
                         ]),
                     new TriviaQuestionInput(
                         " 2 + 2 = ? ",
-                        1,
                         true,
                         [
                             new TriviaOptionInput(" 4 ", 1, true),
@@ -316,7 +313,6 @@ public sealed class MissionInfrastructureIntegrationTests : IClassFixture<Postgr
             CancellationToken.None);
 
         result.Status.Should().Be("Draft");
-        result.Questions.Select(question => question.SequenceOrder).Should().Equal(1, 2);
         result.Questions[0].Options.Select(option => option.SequenceOrder).Should().Equal(1, 2);
 
         mediator.PublishedNotifications
@@ -337,8 +333,9 @@ public sealed class MissionInfrastructureIntegrationTests : IClassFixture<Postgr
         triviaQuiz.Created.Should().NotBe(default);
         triviaQuiz.LastModified.Should().NotBe(default);
         triviaQuiz.Questions.Select(question => question.Prompt)
-            .Should().Equal("2 + 2 = ?", "Capital of France?");
-        triviaQuiz.Questions.First().Options.Select(option => option.OptionText)
+            .Should().Equal("Capital of France?", "2 + 2 = ?");
+        triviaQuiz.Questions.Single(question => question.Prompt == "2 + 2 = ?")
+            .Options.Select(option => option.OptionText)
             .Should().Equal("4", "5");
     }
 
@@ -355,7 +352,6 @@ public sealed class MissionInfrastructureIntegrationTests : IClassFixture<Postgr
             [
                 Domain.Entities.TriviaQuestion.Create(
                     "Original question",
-                    1,
                     [
                         Domain.Entities.TriviaOption.Create("Option A", 1, true),
                         Domain.Entities.TriviaOption.Create("Option B", 2, false)
@@ -376,7 +372,6 @@ public sealed class MissionInfrastructureIntegrationTests : IClassFixture<Postgr
                 [
                     new TriviaQuestionInput(
                         "Updated first question",
-                        1,
                         true,
                         [
                             new TriviaOptionInput("Correct", 1, true),
@@ -384,7 +379,6 @@ public sealed class MissionInfrastructureIntegrationTests : IClassFixture<Postgr
                         ]),
                     new TriviaQuestionInput(
                         "Updated second question",
-                        2,
                         false,
                         [
                             new TriviaOptionInput("Yes", 1, true),
@@ -410,7 +404,6 @@ public sealed class MissionInfrastructureIntegrationTests : IClassFixture<Postgr
         reloadedQuiz.Description.Should().Be("Updated quiz description");
         reloadedQuiz.Status.Should().Be(Domain.Enums.TriviaQuizStatus.Draft);
         reloadedQuiz.Questions.Should().HaveCount(2);
-        reloadedQuiz.Questions.Select(question => question.SequenceOrder).Should().Equal(1, 2);
         reloadedQuiz.Questions.Last().IsActive.Should().BeFalse();
     }
 
@@ -432,7 +425,6 @@ public sealed class MissionInfrastructureIntegrationTests : IClassFixture<Postgr
             new AddTriviaQuestionCommand(
                 triviaQuiz.Id,
                 " Highest mountain? ",
-                1,
                 100,
                 45,
                 " Because Everest is the tallest above sea level. ",
@@ -484,7 +476,6 @@ public sealed class MissionInfrastructureIntegrationTests : IClassFixture<Postgr
             [
                 Domain.Entities.TriviaQuestion.Create(
                     "Original question",
-                    1,
                     100,
                     30,
                     "Original explanation",
@@ -506,7 +497,6 @@ public sealed class MissionInfrastructureIntegrationTests : IClassFixture<Postgr
                 triviaQuiz.Id,
                 existingQuestionId,
                 " Updated question ",
-                2,
                 100,
                 60,
                 " Updated explanation ",
@@ -522,7 +512,6 @@ public sealed class MissionInfrastructureIntegrationTests : IClassFixture<Postgr
             .Should().ContainSingle(notification => notification is TriviaQuestionUpdatedEvent);
 
         result.Questions.Should().ContainSingle();
-        result.Questions[0].SequenceOrder.Should().Be(2);
         result.Questions[0].ScoreValue.Should().Be(100);
         result.Questions[0].TimeLimitSeconds.Should().Be(60);
         result.Questions[0].Explanation.Should().Be("Updated explanation");
@@ -536,7 +525,6 @@ public sealed class MissionInfrastructureIntegrationTests : IClassFixture<Postgr
 
         var question = reloadedQuiz.Questions.Single();
         question.Prompt.Should().Be("Updated question");
-        question.SequenceOrder.Should().Be(2);
         question.ScoreValue.Should().Be(100);
         question.TimeLimit!.Seconds.Should().Be(60);
         question.Explanation.Should().Be("Updated explanation");
@@ -559,7 +547,6 @@ public sealed class MissionInfrastructureIntegrationTests : IClassFixture<Postgr
             [
                 Domain.Entities.TriviaQuestion.Create(
                     "When was the city founded?",
-                    1,
                     100,
                     20,
                     "The first charter date is the accepted answer.",
@@ -575,7 +562,6 @@ public sealed class MissionInfrastructureIntegrationTests : IClassFixture<Postgr
             [
                 Domain.Entities.TriviaQuestion.Create(
                     "How many players start?",
-                    1,
                     100,
                     15,
                     null,
@@ -594,7 +580,6 @@ public sealed class MissionInfrastructureIntegrationTests : IClassFixture<Postgr
             [
                 Domain.Entities.TriviaQuestion.Create(
                     "When was the city founded?",
-                    1,
                     100,
                     20,
                     "The first charter date is the accepted answer.",
@@ -604,7 +589,6 @@ public sealed class MissionInfrastructureIntegrationTests : IClassFixture<Postgr
                     ]),
                 Domain.Entities.TriviaQuestion.Create(
                     "Who signed the act?",
-                    2,
                     100,
                     40,
                     "The signer appears in the independence record.",
@@ -630,7 +614,6 @@ public sealed class MissionInfrastructureIntegrationTests : IClassFixture<Postgr
         detail.Title.Should().Be("History");
         detail.Description.Should().Be("Historic facts updated");
         detail.Status.Should().Be("Draft");
-        detail.Questions.Select(question => question.SequenceOrder).Should().Equal(1, 2);
         detail.Questions[0].ScoreValue.Should().Be(100);
         detail.Questions[0].TimeLimitSeconds.Should().Be(20);
         detail.Questions[0].Explanation.Should().Be("The first charter date is the accepted answer.");
@@ -655,7 +638,6 @@ public sealed class MissionInfrastructureIntegrationTests : IClassFixture<Postgr
             [
                 Domain.Entities.TriviaQuestion.Create(
                     "What is H2O?",
-                    1,
                     100,
                     30,
                     "Water.",
@@ -700,7 +682,6 @@ public sealed class MissionInfrastructureIntegrationTests : IClassFixture<Postgr
             [
                 Domain.Entities.TriviaQuestion.Create(
                     "Incomplete question",
-                    1,
                     [
                         Domain.Entities.TriviaOption.Create("Correct", 1, true),
                         Domain.Entities.TriviaOption.Create("Incorrect", 2, false)
@@ -738,7 +719,6 @@ public sealed class MissionInfrastructureIntegrationTests : IClassFixture<Postgr
             [
                 Domain.Entities.TriviaQuestion.Create(
                     "Who discovered America?",
-                    1,
                     100,
                     30,
                     "Expected baseline answer.",
@@ -787,7 +767,6 @@ public sealed class MissionInfrastructureIntegrationTests : IClassFixture<Postgr
             [
                 Domain.Entities.TriviaQuestion.Create(
                     "Draft question",
-                    1,
                     100,
                     20,
                     "Draft explanation",
@@ -803,7 +782,6 @@ public sealed class MissionInfrastructureIntegrationTests : IClassFixture<Postgr
             [
                 Domain.Entities.TriviaQuestion.Create(
                     "Published question",
-                    1,
                     100,
                     20,
                     "Published explanation",
@@ -820,7 +798,6 @@ public sealed class MissionInfrastructureIntegrationTests : IClassFixture<Postgr
             [
                 Domain.Entities.TriviaQuestion.Create(
                     "Archived question",
-                    1,
                     100,
                     20,
                     "Archived explanation",
@@ -874,7 +851,6 @@ public sealed class MissionInfrastructureIntegrationTests : IClassFixture<Postgr
             [
                 Domain.Entities.TriviaQuestion.Create(
                     "When was the campus founded?",
-                    1,
                     100,
                     30,
                     "Use the first official founding record.",
@@ -884,7 +860,6 @@ public sealed class MissionInfrastructureIntegrationTests : IClassFixture<Postgr
                     ]),
                 Domain.Entities.TriviaQuestion.Create(
                     "Which building came first?",
-                    2,
                     100,
                     45,
                     "The main hall predates the library.",
@@ -977,7 +952,6 @@ public sealed class MissionInfrastructureIntegrationTests : IClassFixture<Postgr
             [
                 Domain.Entities.TriviaQuestion.Create(
                     "Who keeps the record?",
-                    1,
                     100,
                     30,
                     "The archive keeps the original identity.",
@@ -1026,7 +1000,6 @@ public sealed class MissionInfrastructureIntegrationTests : IClassFixture<Postgr
             [
                 Domain.Entities.TriviaQuestion.Create(
                     "Capital of France?",
-                    1,
                     100,
                     20,
                     "Paris is the capital.",
@@ -1036,7 +1009,6 @@ public sealed class MissionInfrastructureIntegrationTests : IClassFixture<Postgr
                     ]),
                 Domain.Entities.TriviaQuestion.Create(
                     "Capital of Germany?",
-                    2,
                     100,
                     25,
                     "Berlin is the capital.",
@@ -1046,7 +1018,6 @@ public sealed class MissionInfrastructureIntegrationTests : IClassFixture<Postgr
                     ]),
                 Domain.Entities.TriviaQuestion.Create(
                     "Capital of Italy?",
-                    3,
                     50,
                     15,
                     null,
@@ -1069,7 +1040,6 @@ public sealed class MissionInfrastructureIntegrationTests : IClassFixture<Postgr
             CancellationToken.None);
 
         result.Questions.Should().HaveCount(2);
-        result.Questions.Select(question => question.SequenceOrder).Should().Equal(1, 2);
         result.Questions.Select(question => question.Prompt)
             .Should().Equal("Capital of France?", "Capital of Italy?");
 
@@ -1084,12 +1054,10 @@ public sealed class MissionInfrastructureIntegrationTests : IClassFixture<Postgr
             .SingleAsync(storedQuiz => storedQuiz.Id == triviaQuiz.Id);
 
         reloadedQuiz.Questions.Should().HaveCount(2);
-        reloadedQuiz.Questions.Select(question => question.SequenceOrder).Should().Equal(1, 2);
         reloadedQuiz.Questions.Select(question => question.Prompt)
             .Should().Equal("Capital of France?", "Capital of Italy?");
 
         var reconciledItaly = reloadedQuiz.Questions.Single(question => question.Prompt == "Capital of Italy?");
-        reconciledItaly.SequenceOrder.Should().Be(2);
         reconciledItaly.Options.Should().HaveCount(3);
         reconciledItaly.Options.Select(option => option.OptionText)
             .Should().Equal("Rome", "Milan", "Naples");
@@ -1108,7 +1076,6 @@ public sealed class MissionInfrastructureIntegrationTests : IClassFixture<Postgr
             [
                 Domain.Entities.TriviaQuestion.Create(
                     "Question one",
-                    1,
                     100,
                     20,
                     "First explanation",

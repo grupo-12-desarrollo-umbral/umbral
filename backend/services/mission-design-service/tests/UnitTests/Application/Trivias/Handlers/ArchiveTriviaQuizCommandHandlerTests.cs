@@ -106,7 +106,6 @@ public sealed class ArchiveTriviaQuizCommandHandlerTests
         var triviaQuiz = TriviaQuiz.Create("Published Quiz", "Ready to archive");
         triviaQuiz.AddQuestion(
             "Which planet is known as the red planet?",
-            1,
             100,
             30,
             "Solar system baseline",

@@ -31,7 +31,6 @@ public sealed class AddTriviaQuestionCommandHandlerTests
             new AddTriviaQuestionCommand(
                 triviaQuiz.Id,
                 "What is the capital of France?",
-                1,
                 100,
                 30,
                 "Paris is the capital city.",
@@ -61,7 +60,6 @@ public sealed class AddTriviaQuestionCommandHandlerTests
             new AddTriviaQuestionCommand(
                 99,
                 "Question?",
-                1,
                 100,
                 30,
                 null,
@@ -81,7 +79,7 @@ public sealed class AddTriviaQuestionCommandHandlerTests
     {
         var repository = new InMemoryTriviaQuizRepository();
         var triviaQuiz = TriviaQuiz.Create("Original Quiz", "Original Description");
-        triviaQuiz.AddQuestion("Question?", 1, 100, 30, null, [TriviaOption.Create("A", 1, true), TriviaOption.Create("B", 2, false)]);
+        triviaQuiz.AddQuestion("Question?", 100, 30, null, [TriviaOption.Create("A", 1, true), TriviaOption.Create("B", 2, false)]);
         triviaQuiz.MarkAsPublished();
         repository.Seed(triviaQuiz);
         var handler = new AddTriviaQuestionCommandHandler(repository);
@@ -90,7 +88,6 @@ public sealed class AddTriviaQuestionCommandHandlerTests
             new AddTriviaQuestionCommand(
                 triviaQuiz.Id,
                 "Question?",
-                1,
                 100,
                 30,
                 null,

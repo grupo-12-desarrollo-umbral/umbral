@@ -200,7 +200,7 @@ public sealed class BranchCoverageDomainTests
     [Fact]
     public void Create_TriviaQuestion_WithNullExplanation_NormalizesToNull()
     {
-        var question = TriviaQuestion.Create("Prompt", 1, 10, 30, "  ", null);
+        var question = TriviaQuestion.Create("Prompt", 10, 30, "  ", null);
 
         question.Explanation.Should().BeNull();
     }
@@ -208,7 +208,7 @@ public sealed class BranchCoverageDomainTests
     [Fact]
     public void Create_TriviaQuestion_WithEmptyExplanation_NormalizesToNull()
     {
-        var question = TriviaQuestion.Create("Prompt", 1, 10, 30, "", null);
+        var question = TriviaQuestion.Create("Prompt", 10, 30, "", null);
 
         question.Explanation.Should().BeNull();
     }
@@ -216,7 +216,7 @@ public sealed class BranchCoverageDomainTests
     [Fact]
     public void Create_TriviaQuestion_WithNegativeScoreValue_ThrowsPositiveException()
     {
-        var act = () => TriviaQuestion.Create("Prompt", 1, -5, 30, null);
+        var act = () => TriviaQuestion.Create("Prompt", -5, 30, null);
 
         act.Should().Throw<TriviaQuestionScoreValueMustBePositiveException>();
     }
@@ -224,7 +224,7 @@ public sealed class BranchCoverageDomainTests
     [Fact]
     public void Create_TriviaQuestion_WithNullScoreValue_SetsNull()
     {
-        var question = TriviaQuestion.Create("Prompt", 1, null, 30, null);
+        var question = TriviaQuestion.Create("Prompt", null, 30, null);
 
         question.ScoreValue.Should().BeNull();
     }
@@ -232,7 +232,7 @@ public sealed class BranchCoverageDomainTests
     [Fact]
     public void Create_TriviaQuestion_WithNullTimeLimit_SetsNull()
     {
-        var question = TriviaQuestion.Create("Prompt", 1, 10, null, null);
+        var question = TriviaQuestion.Create("Prompt", 10, null, null);
 
         question.TimeLimit.Should().BeNull();
     }
@@ -445,7 +445,7 @@ public sealed class BranchCoverageDomainTests
     public void Duplicate_WhenSourceHasNoId_FallsBackToSourceTriviaQuizId()
     {
         var original = TriviaQuiz.Create("Q", "D");
-        original.AddQuestion("P", 1, 10, 30, null, [
+        original.AddQuestion("P", 10, 30, null, [
             TriviaOption.Create("A", 1, true),
             TriviaOption.Create("B", 2, false)
         ]);
@@ -464,7 +464,7 @@ public sealed class BranchCoverageDomainTests
     public void MarkAsPublished_SetsPublishedStatus()
     {
         var quiz = TriviaQuiz.Create("Q", "D");
-        quiz.AddQuestion("P", 1, 10, 30, null, [
+        quiz.AddQuestion("P", 10, 30, null, [
             TriviaOption.Create("A", 1, true),
             TriviaOption.Create("B", 2, false)
         ]);
@@ -506,7 +506,7 @@ public sealed class BranchCoverageDomainTests
     public void UpdateDetails_WithNullQuestions_UsesExistingQuestions()
     {
         var quiz = TriviaQuiz.Create("Q", "D");
-        quiz.AddQuestion("P", 1, 10, 30, null, [
+        quiz.AddQuestion("P", 10, 30, null, [
             TriviaOption.Create("A", 1, true),
             TriviaOption.Create("B", 2, false)
         ]);
@@ -557,18 +557,17 @@ public sealed class BranchCoverageDomainTests
     [Fact]
     public void ApplyAuthoring_OnTriviaQuestion_UpdatesAllFields()
     {
-        var question = TriviaQuestion.Create("Old", 1, 10, 30, null, [
+        var question = TriviaQuestion.Create("Old", 10, 30, null, [
             TriviaOption.Create("A", 1, true),
             TriviaOption.Create("B", 2, false)
         ]);
 
-        question.ApplyAuthoring(" New ", 2, 50, 60, "Explained", [
+        question.ApplyAuthoring(" New ", 50, 60, "Explained", [
             TriviaOption.Create("C", 1, true),
             TriviaOption.Create("D", 2, false)
         ], false);
 
         question.Prompt.Should().Be("New");
-        question.SequenceOrder.Should().Be(2);
         question.ScoreValue.Should().Be(50);
         question.TimeLimit!.Seconds.Should().Be(60);
         question.Explanation.Should().Be("Explained");
@@ -657,28 +656,6 @@ public sealed class BranchCoverageDomainTests
         var act = () => mission.Activate();
 
         act.Should().Throw<MissionNotReadyForActivationException>();
-    }
-
-    // ── TriviaQuestion.SetSequenceOrder branch ───────────────────────────────
-
-    [Fact]
-    public void SetSequenceOrder_OnTriviaQuestion_UpdatesSequenceOrder()
-    {
-        var question = TriviaQuestion.Create("P", 1);
-
-        question.SetSequenceOrder(5);
-
-        question.SequenceOrder.Should().Be(5);
-    }
-
-    [Fact]
-    public void SetSequenceOrder_WithInvalidSequence_Throws()
-    {
-        var question = TriviaQuestion.Create("P", 1);
-
-        var act = () => question.SetSequenceOrder(0);
-
-        act.Should().Throw<TriviaQuestionSequenceOrderMustBePositiveException>();
     }
 
     // ── Mission.AddStage then RemoveStage ─────────────────────────────────────

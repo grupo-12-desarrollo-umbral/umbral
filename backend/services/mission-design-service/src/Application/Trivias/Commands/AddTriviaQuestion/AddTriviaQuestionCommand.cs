@@ -9,7 +9,6 @@ namespace umbral_backend.Application.Trivias.Commands.AddTriviaQuestion;
 public sealed record AddTriviaQuestionCommand(
     int TriviaQuizId,
     string Prompt,
-    int SequenceOrder,
     int ScoreValue,
     int TimeLimitSeconds,
     string? Explanation,

@@ -304,7 +304,6 @@ public sealed class MissionStructureCommandHandlerTests
     {
         return TriviaQuestion.Create(
             "Question?",
-            1,
             10,
             30,
             null,

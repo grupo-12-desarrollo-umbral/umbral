@@ -50,11 +50,10 @@ public sealed class TriviaQuizReadModelRepository : ITriviaQuizReadModelReposito
             triviaQuiz.Description,
             triviaQuiz.Status.ToString(),
             triviaQuiz.Questions
-                .OrderBy(question => question.SequenceOrder)
+                .OrderBy(question => question.Id)
                 .Select(question => new TriviaQuestionDto(
                     question.Id,
                     question.Prompt,
-                    question.SequenceOrder,
                     question.IsActive,
                     question.Options
                         .OrderBy(option => option.SequenceOrder)

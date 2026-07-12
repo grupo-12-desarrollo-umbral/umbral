@@ -35,7 +35,6 @@ public sealed class UpdateTriviaQuizCommandHandlerTests
                 [
                     new TriviaQuestionInput(
                         "Updated question?",
-                        1,
                         true,
                         [
                             new TriviaOptionInput("Correct", 1, true),
@@ -78,7 +77,7 @@ public sealed class UpdateTriviaQuizCommandHandlerTests
     {
         var repository = new InMemoryTriviaQuizRepository();
         var triviaQuiz = TriviaQuiz.Create("Original Quiz", "Original Description");
-        triviaQuiz.AddQuestion("Question?", 1, 100, 30, null, [TriviaOption.Create("A", 1, true), TriviaOption.Create("B", 2, false)]);
+        triviaQuiz.AddQuestion("Question?", 100, 30, null, [TriviaOption.Create("A", 1, true), TriviaOption.Create("B", 2, false)]);
         triviaQuiz.MarkAsPublished();
         repository.Seed(triviaQuiz);
         var handler = new UpdateTriviaQuizCommandHandler(repository);

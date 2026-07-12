@@ -246,19 +246,6 @@ public class ProblemDetailsExceptionHandlerTests
     }
 
     [Fact]
-    public async Task TryHandleAsync_TriviaQuestionSequenceOrderMustBeUniqueException_Returns409()
-    {
-        var httpContext = CreateHttpContext();
-        var problem = await InvokeHandlerAndReadProblemDetails(
-            httpContext,
-            new TriviaQuestionSequenceOrderMustBeUniqueException(2));
-
-        problem.Status.Should().Be(409);
-        problem.Title.Should().Be("Conflict.");
-        httpContext.Response.StatusCode.Should().Be(409);
-    }
-
-    [Fact]
     public async Task TryHandleAsync_TriviaQuestionNotFoundException_Returns404()
     {
         var httpContext = CreateHttpContext();

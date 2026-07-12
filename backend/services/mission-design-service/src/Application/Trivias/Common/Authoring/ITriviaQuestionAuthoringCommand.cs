@@ -8,8 +8,6 @@ public interface ITriviaQuestionAuthoringCommand : IRequest<TriviaQuizDto>
 
     string Prompt { get; }
 
-    int SequenceOrder { get; }
-
     int ScoreValue { get; }
 
     int TimeLimitSeconds { get; }

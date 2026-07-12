@@ -50,7 +50,6 @@ public sealed class DomainExceptionCoverageTests
 
         var act = () => quiz.AddQuestion(
             "Question?",
-            1,
             10,
             30,
             null,
@@ -60,24 +59,4 @@ public sealed class DomainExceptionCoverageTests
             .WithMessage("*unique*");
     }
 
-    [Fact]
-    public void TriviaQuestionSequenceOrderMustBeUnique_ThrownForDuplicateQuestionOrders()
-    {
-        var question1 = TriviaQuestion.Create(
-            "First?", 1, 10, 30, null,
-            [TriviaOption.Create("A", 1, true), TriviaOption.Create("B", 2, false)]);
-
-        var quiz = TriviaQuiz.Create("Quiz", "Description", [question1]);
-
-        var act = () => quiz.AddQuestion(
-            "Duplicate order?",
-            1,
-            10,
-            30,
-            null,
-            [TriviaOption.Create("A", 1, true), TriviaOption.Create("B", 2, false)]);
-
-        act.Should().Throw<TriviaQuestionSequenceOrderMustBeUniqueException>()
-            .WithMessage("*1*");
-    }
 }
