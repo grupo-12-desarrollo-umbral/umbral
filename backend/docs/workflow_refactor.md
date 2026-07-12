@@ -130,7 +130,7 @@ validations, and four commit approvals are the bulk of it.
 Dependencies come from each ticket's *Blocked by* + the realignment links.
 Phases 5–6 may run in parallel once DES-24 lands.
 
-> **Status as of 2026-07-11 (verified against live Linear + GitHub).**
+> **Status as of 2026-07-12 (re-verified against live Linear + GitHub).**
 > Rows 1–7 are **all done**, and so is row 9 (`DES-46`). The 4→5→6 realign chain is complete — DES-75 / HU-16
 > (PR #73), DES-76 / HU-21A (PR #75), DES-77 / HU-22 (PR #79) all merged.
 > **DES-78 / HU-33A DONE** (2026-07-06); **DES-45 / HU-33B DONE** (PR #119, `b849bf8`).
@@ -144,7 +144,11 @@ Phases 5–6 may run in parallel once DES-24 lands.
 > (gateway exception handler) are **closed**. GH #139 (try/catch ADR) remains open.
 >
 > **Mobile track (DES-81/82/83/84) is DONE.**
-> **DES-49** (HU-36A) is **In Progress**.
+> **DES-49** (HU-36A) is **DONE** (2026-07-11).
+> **DES-31** (HU-23) is **DONE** (2026-07-12, PR #178).
+> **DES-80** (HU-14A follow-up) is **DONE** (2026-07-12).
+> **GH #140** (confidential Keycloak client) and **GH #155** (mobile play surface) are **closed**.
+> **GH #141** (SMTP + email verification) and **GH #173** (trivia question authoring RBAC) are **closed**.
 >
 > ### ✅ The cycle is broken (applied 2026-07-09)
 >
@@ -158,7 +162,7 @@ Phases 5–6 may run in parallel once DES-24 lands.
 >
 > That loop stranded 20 of the 27 open backend HUs. **`DES-31 → DES-51` was dropped**
 > on the reasoning that a live team board can show a score of zero before the ledger
-> exists. `DES-31` now has only `DES-77` (Done) and is startable, which released the
+> exists. `DES-31` then had only `DES-77` (Done) and became startable, which released the
 > evidence line (`DES-39`, `DES-42`) and the clue line (`DES-36/37/38`).
 > **The order below is a verified topological order — no cycle remains.**
 >
@@ -208,14 +212,16 @@ Phases 5–6 may run in parallel once DES-24 lands.
 >
 > The former critical-path head shipped. **It is no longer startable work — it is a
 > predecessor.** Two tickets it gated: **`DES-49`** (operator answered/
-> not-answered monitor, now **In Progress**) and **`DES-84`** (mobile answer submission, **Done**). `backend/docs/
+> not-answered monitor, now **Done**) and **`DES-84`** (mobile answer submission, **Done**). `backend/docs/
 > prompt_example_feature_hu34.md` is now a historical record of a landed slice, not a
 > live prompt sequence.
 >
-> **Startable right now, with zero live blockers — six tickets:** `DES-31`
-> (releases the most downstream work), `DES-32`, `DES-53`, `DES-29`, `DES-13`, `DES-80`.
-> **GH #173** follows `DES-80`: it changes trivia question authoring RBAC from Administrator-only
-> to Operator-only across `mission-design-service` and `frontend/`.
+> **Startable right now, with zero live blockers in Linear:** `DES-32`, `DES-29`,
+> `DES-13`, `DES-87`, `DES-93`; and the former `DES-31` gate is now discharged for
+> `DES-42`, `DES-39`, `DES-36`, and `DES-38`.
+> **GH #177** (ungated, GitHub-only) follows landed `DES-80` and `GH #173`: it removes the
+> per-question `SequenceOrder` field end-to-end (mission-design + frontend), the same trivia-authoring
+> surface `#173` swept. Runs cross-lane D+E.
 > Plus the remaining GitHub-only row 0 items and the ADRs — see below.
 >
 > ℹ️ **`ready-for-agent` on `Done` tickets is cosmetic — do not strip it.** A full sweep
@@ -232,8 +238,8 @@ Phases 5–6 may run in parallel once DES-24 lands.
 | 1 | DES-14 / DES-15 | HU-09 / 10A | Mission wrapper + composite + Target + optional Clue | ✅ **DONE** (PRs #31/#33 HU-09, #48/#49 HU-10A incl. X.4 coverage). |
 | 2 | DES-22 | HU-15 | Create `LiveSession` from active mission; immutable snapshot | ✅ **DONE** (PR #50, 2026-06-22). |
 | 2b | DES-79 | HU-15 f/u | Archive-time enforcement: block/cascade when archiving a quiz referenced by an active mission | ✅ **DONE** (PRs #51 + #53, 2026-06-22). |
-| 2c | DES-80 | HU-14A f/u | `RemoveTriviaQuestion` command + question-removal domain slot + `TriviaQuestionRemoved` event | ⬜ **OPEN** (Backlog, Low) — deferred follow-up to HU-14A, **ungated** (HU-14A/DES-20 is Done); not a rebuild, not on the critical path — schedule any time (see below). |
-| 2d | GH #173 | — (RBAC follow-up) | Trivia question authoring becomes Operator-only, not Administrator-only | ⬜ **OPEN** — GitHub-only, no Linear DES id. Run **after DES-80** so add/update/remove question authoring can be swept together. Touches `mission-design-service` + `frontend/`; do not run in parallel with Lane D or Lane E. |
+| 2c | DES-80 | HU-14A f/u | `RemoveTriviaQuestion` command + question-removal domain slot + `TriviaQuestionRemoved` event | ✅ **DONE** (2026-07-12). Formerly the ungated HU-14A follow-up; `GH #173` (now closed) was the trivia-authoring RBAC sweep, followed by `GH #177`. |
+| 2d | ~~GH #173~~ | — (RBAC follow-up) | Trivia question authoring becomes Operator-only, not Administrator-only | ✅ **DONE** — GitHub-only, no Linear DES id. Ran after `DES-80` and swept add/update/remove question authoring together. Touched `mission-design-service` + `frontend/`. Successor: `GH #177` (remove per-question `SequenceOrder`). |
 | 3 | DES-24 | HU-17 | Single mission source; drop "session from quiz" | ✅ **DONE** (PR #72) — rebuild; all 4 layers (X.1–X.4), 370/370 session-operations tests green. |
 | 4 | DES-75 | HU-16 | Trivia selection as a Substage, not a session | ✅ **DONE** (PR #73) — rebuild (supersedes DES-23, shipped pre-canon as PR #19). |
 | 5 | DES-76 | HU-21A | State machine `Scheduled→Preparing→Active→Paused→Finished→Cancelled` | ✅ **DONE** (PR #75) — rebuild (supersedes DES-28, shipped pre-canon as PR #21). |
@@ -241,32 +247,33 @@ Phases 5–6 may run in parallel once DES-24 lands.
 | 7 | DES-25 | HU-18 | Attach teams during `Scheduled` | ✅ **DONE** (PR #23) — Linear now `Done`; the AC reword landed, nothing remains. |
 | 8 | DES-78 + DES-45 | HU-33A/33B | Synchronized trivia substage + auto-close + final results | ✅ **DONE** — DES-78 rebuild (supersedes DES-44), pointer/advancement contract in `backend/adr/0005-substage-advancement-pointer-and-timer-driven-orchestration.md`; DES-45 by PR #119 (`b849bf8`). |
 | 9 | DES-46 | HU-34 | Register first valid team answer + reject late/repeated (one first-write-wins guard) | ✅ **DONE** (PR #133, `1fc6269`, completed 2026-07-10). The intake was **inlined**, not deferred to HU-29/HU-30A. Merged ticket: absorbed DES-47 (HU-34B) on 2026-07-09; **DES-47 is Canceled (not archived) — do not cite it.** |
-| 10 | **DES-49** | HU-36A | Operator sees only answered/not-answered during the open question | 🔵 **IN PROGRESS.** Its only blocker (DES-46) landed 2026-07-10. Owns the respondido/no-respondido **visibility-state gate** (assigned here rather than merging DES-49/50). Builds on the operator-only `TeamAnswered` SignalR privacy boundary HU-34 introduced. |
-| 11 | **DES-31** | HU-23 | Live team board (score, timer, available clues) | ⬜ **STARTABLE** — cycle broken 2026-07-09, only blocker `DES-77` is Done. Gates rows 12–13 and much of 17–18; running it early releases the most work. |
+| 10 | **DES-49** | HU-36A | Operator sees only answered/not-answered during the open question | ✅ **DONE** (2026-07-11). The respondido/no-respondido visibility-state gate shipped on top of HU-34's operator-only `TeamAnswered` SignalR privacy boundary. |
+| 11 | **DES-31** | HU-23 | Live team board (score, timer, available clues) | ✅ **DONE** (2026-07-12, PR #178). The cycle-break payoff is now realized: rows 12–13 and much of 17–18 no longer wait on this ticket. |
 | 11b | DES-86 | — (refactor) | Per-target `Target.Score` replaces `Substage.WinnerScore` (winner-takes-all → cumulative per-objective scoring) | ✅ **LANDED** (PR #136) — data model + **ADR-0015**; `TargetResolved` deferred to **DES-42**. Two-service refactor (`mission-design` + `session-operations`) shipped expand → migrate → contract; ADR-0015 ratifies the ownership split. F2 (the `TargetResolved` event) was **not** delivered. Also removed `exception.Message` echo from classified error payloads across all three services. Linear ticket is `Done` (2026-07-10). Left a nullability residue — see `DES-87`. |
-| 12 | DES-42 → DES-41 ; DES-39 → DES-40 ; then DES-43 | HU-31 / 30B / 29 / 30A / 32 | QR `Target` resolution → explained rejection ; evidence umbrella intake → context validation ; then traceability | ⬜ Opens with DES-31; **DES-86 landed**, so the per-target data model matches the code underneath. **DES-42 now inherits DES-86's undelivered F2:** it must **define and emit `TargetResolved`** carrying the resolved target's `ScoreValue`, per **ADR-0015** (DES-86 shipped the model but not the event). **Two independent chains, not one.** DES-42→DES-41 and DES-39→DES-40 are parallel; DES-43 needs **all three** of DES-42/41/40. The old `39/40/41/42/43` reading was backwards — DES-41 is blocked by DES-42. ✅ **ADR-0010 is `Accepted` (2026-07-10, PR #150)**, so the `TargetResolved` emission is no longer gated on it — the two-fact ordering is fixed and DES-42's spec may be generated. **One open design decision remains on this row:** re-pointing DES-41 → DES-40. ADR-0010 *unblocks* that call but does not decide it. ⚠️ **Run `DES-87` before `DES-42`** — it contracts `TargetSnapshot.Score` from `int?` to `int`; otherwise DES-42 propagates a null that no producer can emit into the `TargetResolved` payload, and DES-51's ledger inherits it. |
+| 11c | **DES-93** | — (HU-23 f/u) | Treasure-hunt substage timer: own `MaximumTime` field → an authoritative countdown that actually ticks | ⬜ **STARTABLE, ungated** (Backlog, Medium). Surfaced by HU-23 device verification (2026-07-12): the board timer shows `00:00 / Expired` in a `TreasureHunt` substage because only the **`Trivia`** branch of the authoritative timer was ever built — **DES-77 (HU-22) AC#1's `TreasureHunt` branch was never implemented.** Design **locked** (own per-substage `MaximumTime`, counts from substage activation, freezes on pause). ⚠️ **Two services** — `mission-design` (Phase 1: field + migration + authoring) then `session-operations` (Phase 2: `SubstageSnapshot` relay + `LiveSession` timer); same worktree caveat as DES-86. Own `des-93` branch off `develop`, **not** folded into the HU-23 board PR (#178, merged). See the dedicated section below. |
+| 12 | DES-42 → DES-41 ; DES-39 → DES-40 ; then DES-43 | HU-31 / 30B / 29 / 30A / 32 | QR `Target` resolution → explained rejection ; evidence umbrella intake → context validation ; then traceability | ⬜ The former `DES-31` gate is **discharged**. **DES-86 landed**, so the per-target data model matches the code underneath. **DES-42 now inherits DES-86's undelivered F2:** it must **define and emit `TargetResolved`** carrying the resolved target's `ScoreValue`, per **ADR-0015** (DES-86 shipped the model but not the event). **Two independent chains, not one.** DES-42→DES-41 and DES-39→DES-40 are parallel; DES-43 needs **all three** of DES-42/41/40. The old `39/40/41/42/43` reading was backwards — DES-41 is blocked by DES-42. ✅ **ADR-0010 is `Accepted` (2026-07-10, PR #150)**, so the `TargetResolved` emission is no longer gated on it — the two-fact ordering is fixed and DES-42's spec may be generated. **One open design decision remains on this row:** re-pointing DES-41 → DES-40. ADR-0010 *unblocks* that call but does not decide it. ⚠️ **Run `DES-87` before `DES-42`** — it contracts `TargetSnapshot.Score` from `int?` to `int`; otherwise DES-42 propagates a null that no producer can emit into the `TargetResolved` payload, and DES-51's ledger inherits it. |
 | 12b | **GH #138 → GH #145** | — (ADR + bug) | Clue semantics in trivia substages ; substage-level clues reach the runtime plan + snapshot | ⬜ **GATES ROW 13. Runnable now** — its only sequencing constraint (`DES-86`'s concurrent `SubstageSnapshot` rewrite) is discharged. `#138` answers DES-38's open decision (clues are *released*, pre-snapshotted, substage-scoped — not operator-authored at runtime). `#145` is what makes trivia clues exist in the snapshot at all: `MissionRuntimePlanSubstageDto` has no `Clues`, so today they are authored, shown in the UI, and dropped. ⚠️ **Two services.** |
-| 13 | DES-36 → DES-37 / DES-38 | HU-26–28 | Operator clue release | ⬜ Opens with DES-31 **and row 12b**. DES-38's decision is settled by `GH #138`; DES-37's is not (see below). DES-37 is blocked by DES-36; DES-38 is blocked by DES-31 only, so it can run beside DES-36. |
-| 14 | DES-53 → DES-51 | HU-38 / 37 | Justified penalties → `ScoreEntry` ledger | DES-53 is **startable now** (zero live blockers) and gates DES-51. DES-51 also needs DES-42 (row 12); its other blocker DES-46 is **Done**. ⚠️ **DES-51 depends on the `TargetResolved` event DES-86 did *not* deliver** — the `ScoreEntry` ledger accumulates from resolution events, and neither the event nor any `ScoreEntry` class exists yet (`scoring-monitoring-service/src` is empty). DES-42 must emit `TargetResolved` first. `HU-37A` → **`HU-37`**; DES-52 (HU-37B) folded into DES-54 and Canceled. |
+| 13 | DES-36 → DES-37 / DES-38 | HU-26–28 | Operator clue release | ⬜ The former `DES-31` gate is **discharged**; the remaining policy gate is row 12b. DES-38's decision is settled by `GH #138`; DES-37's is not (see below). DES-37 is blocked by DES-36; DES-38 can run beside DES-36 once row 12b is settled. |
+| 14 | DES-51 → DES-53 | HU-37 / 38 | Justified penalties → `ScoreEntry` ledger | DES-51 lands first and **gates DES-53**; DES-53 is **blocked by DES-51** (consumes/extends the `ScoreEntry` ledger). DES-51 also needs DES-42 (row 12); its other blocker DES-46 is **Done**. ⚠️ **DES-51 depends on the `TargetResolved` event DES-86 did *not* deliver** — the `ScoreEntry` ledger accumulates from resolution events, and neither the event nor any `ScoreEntry` class exists yet (`scoring-monitoring-service/src` is empty). DES-42 must emit `TargetResolved` first. `HU-37A` → **`HU-37`**; DES-52 (HU-37B) folded into DES-54 and Canceled. |
 | 15 | DES-54 | HU-39 | Single session `Ranking` derived from the ledger, `ResolutionTime` tie-break, refresh + real-time view | Blocked by DES-51 (+ DES-45, Done). **Fold applied 2026-07-09**: absorbed DES-52 and DES-55. `HU-39A` → **`HU-39`**. Now the sole gate for DES-33/34/35/48/57/61. |
 | 16 | DES-50 ; DES-48 | HU-36B / 35 | Post-close operator review of answers + points ; trivia result reveal | **These are not row-9 work.** DES-50 is blocked by DES-51 (row 14); DES-48 by **DES-54** (row 15) after the fold re-pointed it off DES-55. Every prior version of this table ran them too early. |
-| 17 | DES-32 ; DES-34 ; DES-35 ; then DES-33 ; then DES-61 | HU-24A / 25A / 25B / 24B | Operator panels + admin/participant read queries + CQRS read split | **DES-32 is startable now** (zero live blockers) — it does not wait on DES-31. DES-34 needs DES-54; DES-35 needs DES-31 + DES-54; DES-33 needs DES-32 + DES-43 + DES-54; DES-61 needs DES-34 + DES-35 + DES-54. |
+| 17 | DES-32 ; DES-34 ; DES-35 ; then DES-33 ; then DES-61 | HU-24A / 25A / 25B / 24B | Operator panels + admin/participant read queries + CQRS read split | **DES-32 is startable now** (zero live blockers). DES-34 needs DES-54; DES-35 now only needs DES-54; DES-33 needs DES-32 + DES-43 + DES-54; DES-61 needs DES-34 + DES-35 + DES-54. |
 | 18 | DES-92 → DES-56 → DES-57 ; DES-60 | enabler / HU-40A/40B / enabler | ClueReleased→RabbitMQ publication; session event history; score/ranking historical review; RabbitMQ domain-event publication | **DES-92** (created 2026-07-11) publishes `ClueReleased` MassTransit-native for both clue-release flows (DES-36 manual, DES-37 conditional); prereq **GH #164**, related to DES-36/37, **blocks DES-56** (its only consumer). DES-56 needs DES-42, DES-36, DES-53, **DES-29**, **and DES-92**; DES-57 needs DES-56 + DES-51 + DES-54; DES-60 needs DES-42, DES-40, DES-56, DES-51. |
-| 19 | DES-13 → DES-59 ; DES-58 | HU-08 / enablers | Multi-device team sync + reconnect ; multi-device enabler ; React Native participant client | **DES-13 is ungated** — DES-11/DES-12 (HU-07A/07B) both Done. DES-59 needs DES-13 + DES-31. DES-58 needs DES-13 + DES-31 + DES-35 + DES-48, so it lands last. |
+| 19 | DES-13 → DES-59 ; DES-58 | HU-08 / enablers | Multi-device team sync + reconnect ; multi-device enabler ; React Native participant client | **DES-13 is ungated** — DES-11/DES-12 (HU-07A/07B) both Done. DES-59 now needs `DES-13` only. DES-58 needs DES-13 + DES-35 + DES-48, so it lands last. |
 | M | DES-81 → DES-82 → DES-83 / DES-84 | HU-M1–M3 / EN-M1 | Mobile trivia: contract spike → active-question display → question-closed state / answer submission | ✅ **DES-81, DES-82, DES-83, DES-84 are all DONE.** A self-service participant does not exist yet — see `GH #143`. |
 | MT | GH #164 → GH #165 → GH #166 | — (refactor) | Migrate `session-operations` event publishing from hand-rolled `RabbitMQ.Client` to **MassTransit** | ⬜ **UNGATED GitHub-only refactor sub-track, internal chain #164→#165→#166** (`#164` startable now). Replaces the ~250-line hand-rolled `RabbitMqIntegrationEventPublisher` with the canonical `AddMassTransit().UsingRabbitMq()` + `IPublishEndpoint.Publish(...)`, MassTransit-native topology with `[EntityName]` short exchange names (`session-question-closed`, etc.). **Land before the RabbitMQ consumers** (DES-51 ledger, DES-54 ranking, DES-60 enabler) so the greenfield `scoring-monitoring-service` consumers are built on MassTransit, not on a publisher slated for deletion. No Outbox / custom retry — the automatic `_error` queue only. **No Linear DES id → no generator-agent run**; drive against the issue body like the other `GH` issues. See the dedicated section below. |
 
-**Ungated pickups, runnable any time:** `DES-80` (row 2c), `DES-29` (session
-state-change audit — also unblocks DES-56), `DES-32`, `DES-53`, `DES-13`,
+**Ungated pickups, runnable any time:** `DES-29` (session
+state-change audit — also unblocks DES-56), `DES-32`, `DES-13`, `DES-87`,
+`DES-93` (row 11c — HU-23 timer follow-up, two-service),
 `GH #164` (head of the MassTransit refactor sub-track, row MT — best pulled ahead of DES-51/54/60).
-`GH #173` is also ungated but should follow `DES-80`, because it sweeps add/update/remove trivia-question
-authoring RBAC together across backend and frontend.
+`GH #177` is also ungated and now follows landed `DES-80` + `GH #173`, because it removes the
+per-question `SequenceOrder` field end-to-end across backend and frontend.
 
 **Ungated GitHub-only pickups:** `GH #139` + `GH #137`
-+ `GH #138` (three ADRs — cheap, and they unblock six issues between them), `GH #140`
-(Keycloak confidential client), `GH #141` (SMTP).
-`GH #149` (branch coverage) and `GH #147` (gateway handler) and `GH #146` (quiz preview)
-are **closed**.
++ `GH #138` (three ADRs — cheap, and they unblock six issues between them), `GH #145` (substage clues bug), `GH #171` (mobile mixed-play substage progress — mobile-only).
+`GH #141` (SMTP), `GH #149` (branch coverage), `GH #147` (gateway handler), `GH #146` (quiz preview),
+and `GH #173` (trivia RBAC) are **closed**.
 
 > ✅ **Done 2026-07-09.** `DES-29` was renamed from the orphaned `HU-21B` to plain `HU-21`
 > (there is no `HU-21A` any more — DES-28 was canceled and rebuilt as DES-76), and its
@@ -291,7 +298,7 @@ line with the rename pinned to the end:
 
 **~~GH #149~~ ✅ / GH #139 / ~~GH #147~~ ✅ → DES-49 [IN PROGRESS] → DES-31 → GH #138 → GH #145
 → DES-42 → DES-39 → DES-40 → DES-41 → DES-43
-→ DES-36 → DES-37 / DES-38 → DES-53 → DES-51 → DES-54 → DES-50 → DES-48
+→ DES-36 → DES-37 / DES-38 → DES-51 → DES-53 → DES-54 → DES-50 → DES-48
 → DES-32 → DES-34 → DES-35 → DES-33 → DES-29 → DES-56 → DES-57 → DES-60
 → DES-61 → DES-13 → DES-59 → DES-58 → GH #85**
 
@@ -305,12 +312,15 @@ immediately and can be pulled anywhere ahead of row 13.
 
 `GH #139` leads the remaining row-0 work. `#149` and `#147` are **closed** — their
 deliverables landed 2026-07-10. `#139` (try/catch ADR) is the last open engineering ticket
-before the canon line resumes with `DES-49`.
+before the canon line resumes with the remaining session-ops backlog (`DES-32`, `DES-53`, `DES-29`, ...).
 
 Identity track, independent of the canon line and **entirely ahead of `GH #85`** (the rename
 touches every file these issues edit):
 
-**GH #137 → (GH #140 ∥ GH #141) → GH #142 → GH #148 ; GH #141 → GH #143 ; GH #141 → GH #144**
+**GH #137 → ~~GH #141~~ ✅ → GH #142 → GH #148 ; GH #142 → GH #143 ; GH #142 → GH #144**
+
+`GH #140` landed on 2026-07-12 and `GH #141` (SMTP + email verification) is now closed too,
+so the live identity chain opens on `GH #142` (admin-initiated invitations).
 
 Mobile track — **DES-81, DES-82, DES-83, DES-84 are all Done.**
 ⚠️ `GH #143` (participant self-registration) belongs to this track in practice — today a
@@ -318,32 +328,34 @@ participant can only exist by being seeded into `umbral-realm.json`, so `DES-84`
 submission) has no real self-service participant to submit as.
 
 Frontend, own lane (Step 9): **GH #146** (quiz question preview in the trivia substage
-editor) — no API change, no backend dependency. **CLOSED.**
+editor) — no API change, no backend dependency. **CLOSED.** **GH #173** (trivia RBAC) is also
+**CLOSED.** The next frontend-bearing GitHub issue is **GH #177** (remove trivia-question
+sequence-order), but it touches `mission-design-service` too → serialize with Lane E, not a pure frontend pickup.
 
-### The whole line, serialized (2026-07-11)
+### The whole line, serialized (2026-07-12)
 
-Every live ticket in one order, lanes folded in. `DES-46` (PR #133), `DES-86` (PR #136),
-`DES-81`, `DES-82`, `DES-84`, `GH #149`, `GH #147`, and `GH #146` are absent because
-they are **done**; the 7 PRD tickets (`DES-62/66/67/68/69/70/85`) are absent
-because they are reference documents, not buildable slices.
+Every live ticket in one order, lanes folded in. Most landed work is omitted (`DES-46`,
+`DES-49`, `DES-31`, `DES-80`, `DES-86`, `GH #140`, `GH #155`); a few already-closed items remain
+struck inline because they still explain the shape of the serialized line. The 7 PRD tickets
+(`DES-62/66/67/68/69/70/85`) are absent because they are reference documents, not buildable slices.
 
 ```
 ~~GH#149 (branch coverage)~~ ✅ → GH#139 (try/catch ADR) → ~~GH#147 (gateway handler)~~ ✅
-→ GH#137 (account-flow ADR) → GH#138 (clue-semantics ADR)
-→ DES-49 (HU-36A) [IN PROGRESS] → DES-31 (HU-23) → GH#145 (substage clues bug)
-→ DES-87 (score nullability contract) → DES-42 (HU-31) → DES-39 (HU-29) → DES-40 (HU-30A) → DES-41 (HU-30B) → DES-43 (HU-32)
+→ GH#137 (account-flow ADR; PR #160 merged, issue still open) → GH#138 (clue-semantics ADR)
+→ DES-32 (HU-24A) → DES-93 (HU-23 timer f/u — ungated, two-service)
+→ GH#145 (substage clues bug) → DES-87 (score nullability contract) → DES-42 (HU-31) → DES-39 (HU-29) → DES-40 (HU-30A) → DES-41 (HU-30B) → DES-43 (HU-32)
 → DES-36 (HU-26) → DES-38 (HU-28) → DES-37 (HU-27)
 → [MassTransit refactor: GH #164 → GH #165 → GH #166 — ungated GitHub-only; land here, before the RabbitMQ consumers below]
-→ DES-53 (HU-38) → DES-51 (HU-37) → DES-54 (HU-39) → DES-50 (HU-36B) → DES-48 (HU-35)
-→ DES-32 (HU-24A) → DES-34 (HU-25A) → DES-35 (HU-25B) → DES-33 (HU-24B) → DES-61 (ENABLER CQRS)
-→ DES-29 (HU-21) → DES-92 (ENABLER ClueReleased→RabbitMQ) → DES-56 (HU-40A) → DES-57 (HU-40B) → DES-60 (ENABLER RabbitMQ)
+→ DES-29 (HU-21) → DES-51 (HU-37) → DES-53 (HU-38) → DES-54 (HU-39) → DES-50 (HU-36B) → DES-48 (HU-35)
+→ DES-34 (HU-25A) → DES-35 (HU-25B) → DES-33 (HU-24B) → DES-61 (ENABLER CQRS)
+→ DES-92 (ENABLER ClueReleased→RabbitMQ) → DES-56 (HU-40A) → DES-57 (HU-40B) → DES-60 (ENABLER RabbitMQ)
 → DES-13 (HU-08) → DES-59 (ENABLER multi-device)
-→ GH#140 (Keycloak confidential client) → GH#141 (SMTP) → GH#142 (invitations) → GH#148 (invite UI)
+→ ~~GH#141 (SMTP)~~ ✅ → GH#142 (invitations) → GH#148 (invite UI)
 → GH#143 (participant self-registration) → GH#144 (forgot-password)
 → ~~DES-81 (EN-M1)~~ ✅ → ~~DES-82 (HU-M1)~~ ✅ → ~~DES-83 (HU-M3)~~ ✅ → ~~DES-84 (HU-M2)~~ ✅
 → DES-58 (ENABLER React Native)
-→ GH#154 (target coordinates) → GH#155 (treasure-hunt play surface, Focus Tabs) → GH#156 (map view)
-→ ~~GH#146 (quiz preview)~~ ✅ → DES-80 (HU-14A follow-up) → GH#173 (trivia question authoring RBAC)
+→ GH#154 (target coordinates) → GH#156 (map view) ; GH#171 (mobile mixed-play substage progress — ungated, mobile-only)
+→ ~~GH#146 (quiz preview)~~ ✅ → ~~GH#173 (trivia question authoring RBAC)~~ ✅ → GH#177 (remove trivia-question sequence-order)
 → GH#85 (rename)
 ```
 
@@ -356,9 +368,10 @@ because they are reference documents, not buildable slices.
   null no producer can emit, which `DES-51`'s ledger then inherits. Everything else in the line
   follows a live `blockedBy` edge. (`DES-86` used to force two more — `#145` after it, and it
   before `DES-42` — both discharged when PR #136 landed.)
-- **Free.** `DES-80` is fully independent — parked late only because nothing
-  needs it. Pull it into any quiet window. `GH #173` should follow it, because the RBAC sweep
-  covers add/update/remove trivia-question authoring and `RemoveTriviaQuestion` lands in `DES-80`.
+- **Free.** `GH #173` (trivia RBAC) is **closed**; it followed landed `DES-80` and swept
+  add/update/remove trivia-question authoring. Its successor on the same surface is **`GH #177`**
+  (remove the per-question `SequenceOrder` field end-to-end) — also free of the canon line, but
+  cross-lane D+E.
   `GH #146` is **closed**.
 - **Free, but with a soft ordering preference.** The **MassTransit refactor sub-track**
   (`GH #164 → GH #165 → GH #166`, row MT — GitHub-only, no Linear ticket) has no `blockedBy` edge into
@@ -368,21 +381,21 @@ because they are reference documents, not buildable slices.
   hand-rolled publisher `GH #166` deletes. `DES-60` (RabbitMQ enabler, row 18) should likewise follow
   it. Nothing breaks if it runs earlier.
 - **The `#153` geolocation track (`GH #154`/`#155`/`#156`)** is its own feature line, child issues
-  of `GH #153`. `#154` (backend target coordinates — `mission-design` + `session-operations`) and
-  `#155` (mobile play surface, Focus Tabs layout) are **both ungated** — pull them forward any time;
-  the Focus Tabs layout is settled by a prototype (`mobile/docs/prototype-treasure-hunt-play.md`).
-  Only `#156` (real `react-native-maps` view) is forced late — it needs both `#154` and `#155`.
+  of `GH #153`. `#154` (backend target coordinates — `mission-design` + `session-operations`) is
+  still open; `#155` (mobile play surface, Focus Tabs layout) is **closed**. Only `#156` (real
+  `react-native-maps` view) remains forced late — it now waits on `#154` plus landed `#155`.
   Parked here only because nothing on the canon line depends on them. No Linear DES id, so **no
   generator-agent run** — drive against the issue body like the other `GH` issues.
 - **Arguably misplaced.** The identity block sits late but is only required to precede
-  `GH #85`. `GH #140` is a security fix (shared master-admin credential); run it early.
+  `GH #85`. `GH #140` and `GH #141` have already landed, so that block now effectively opens on `GH #142`.
 - **`DES-83` (HU-M3) before `DES-84` (HU-M2) reads backwards on purpose** — both depend only
   on `DES-82` and are parallel siblings. HU numbering implies no order here. Swap freely.
 - ⚠️ **`DES-37` (HU-27) will stall.** Its design decision is unresolved (see the clue-model
   section). Settle it before you reach it, not when the generator is already running.
 
-(`DES-80`, `DES-29`, `DES-32`, `DES-53`, `DES-13` are ungated and may be
-pulled forward any time. `GH #173` is ungated too, but follows `DES-80`.)
+(`DES-29`, `DES-32`, `DES-13`, `DES-87`, `DES-93` are ungated and may be
+pulled forward any time. `GH #173` is **closed**; its successor `GH #177` is ungated too, and
+follows landed `DES-80`.)
 
 This is a **verified topological order over live `blockedBy` relations** as of
 2026-07-09, not the historical phase grouping. **Re-validated 2026-07-09** against a full
@@ -423,6 +436,9 @@ Done, and no longer ordering constraints on anything:
 - ~~**DES-45**~~ (HU-33B) — closed by PR #119.
 - ~~**DES-46**~~ (HU-34) — closed by PR #133 (`1fc6269`), 2026-07-10. Released `DES-49` and `DES-84`.
   Its remaining downstream edge is `DES-51` (row 14), which still waits on `DES-42`.
+- ~~**DES-49**~~ (HU-36A) — closed 2026-07-11.
+- ~~**DES-31**~~ (HU-23) — closed by PR #178, 2026-07-12.
+- ~~**DES-80**~~ (HU-14A follow-up) — closed 2026-07-12.
 - ~~**DES-86**~~ (per-target scoring) — **data model + ADR-0015** closed by PR #136; released
   `DES-42` and `GH #145`. **Not fully done:** its F2 `TargetResolved` event was **deferred** and
   now falls to `DES-42`. Linear ticket is `Done` (2026-07-10).
@@ -433,15 +449,20 @@ Done, and no longer ordering constraints on anything:
 - ~~**DES-84**~~ (HU-M2, mobile answer submission) — `Done`.
 - ~~**DES-91**~~ (flaky integration test) — `Done`.
 - ~~**GH #149**~~ (branch-coverage gate) — closed 2026-07-10.
+- ~~**GH #140**~~ (Keycloak confidential client) — closed 2026-07-12.
+- ~~**GH #141**~~ (Keycloak SMTP + email verification) — closed.
 - ~~**GH #147**~~ (api-gateway exception handler) — closed 2026-07-10.
 - ~~**GH #146**~~ (frontend quiz preview) — closed.
+- ~~**GH #155**~~ (mobile treasure-hunt play surface) — closed 2026-07-12.
+- ~~**GH #173**~~ (trivia question authoring RBAC) — closed.
 
 Still to run — grouped by what actually gates them:
 
-- **Ungated today:** `DES-32`, `DES-53`, `DES-29`, `DES-13`, `DES-80`, then `GH #173`.
-  Plus GitHub-only: `GH #139` (row 0, try/catch ADR), `GH #137`/`#138` (ADRs), `GH #140`, `GH #141`, `GH #145`.
-- **Gated on the cycle break alone:** `DES-31`, then `DES-39/40/42/41/43` and `DES-36/37/38`.
-  ✅ `DES-42`'s extra wait on `DES-86` (per-target scoring) is discharged — PR #136.
+- **Ungated today:** `DES-32`, `DES-29`, `DES-13`, `DES-87`, then `GH #177`;
+  plus `DES-93` (HU-23 timer follow-up — two-service: `mission-design` Phase 1 then `session-operations` Phase 2).
+  Plus GitHub-only: `GH #139` (row 0, try/catch ADR), `GH #137`/`#138` (ADRs), `GH #145`, `GH #171` (mobile, ungated).
+- **Formerly gated on the cycle break:** `DES-31` is now done, so `DES-39/40/42/41/43` and `DES-36/37/38`
+  no longer wait on it. ✅ `DES-42`'s extra wait on `DES-86` (per-target scoring) is discharged — PR #136.
   ⚠️ `DES-36/37/38` (row 13) additionally wait on `GH #138` → `GH #145` (row 12b).
 - **Gated on the cycle *and* a design call:** `DES-41`'s blocker re-point (ADR-0010 is now `Accepted`, which unblocks the call without deciding it); `DES-36/37/38`'s clue-model decisions.
 - **Gated on the clue-release flows + MassTransit:** `DES-92` (ENABLER, created 2026-07-11) — publishes `ClueReleased` to RabbitMQ; prereq `GH #164` (MassTransit bus), publishes the events emitted by `DES-36`/`DES-37` (row 13), and **blocks `DES-56`** (its only consumer, row 18). Not startable until row 13 + `#164` land.
@@ -487,6 +508,43 @@ per-question removal slot (only `AddQuestion` / `UpdateQuestion`). Unlike DES-79
 Run it through the standard per-ticket loop (generate → drive X.1→X.4 → close-out).
 Rationale recorded in `hu14a-context.md` ("Deferred scope — RemoveTriviaQuestion") and the
 `DES-62` PRD note.
+
+## Deferred follow-up — DES-93 (treasure-hunt substage timer)
+
+Row **11c**. Surfaced by HU-23 (`DES-31`) on-device verification (2026-07-12): the mobile board's
+timer widget shows `00:00 / Expired` in a `TreasureHunt` substage, and the operator shows
+`--:-- / NO QUESTION`. It is **not** a seed artifact — the authoritative timer was only ever wired
+to the active trivia question's window, so a treasure-hunt substage (no active question) yields
+`TimeSpan.Zero → IsExpired`. This is **DES-77 (HU-22) AC#1 debt**: that spec keyed the timer off the
+active `SubstagePlayMode` with a `TreasureHunt` branch — *"tiempo aplicable de la subetapa de
+búsqueda activa"* — but only the `Trivia` branch shipped.
+
+**Ungated** — its inputs (`DES-77`, `DES-31`) are both `Done`; nothing live blocks it. Parked as a
+follow-up because it is not on the critical path: HU-23 shipped with it as a known limitation (like
+`currentScore`/`resolvedTargets` at 0 until HU-31). Pull it into any quiet window.
+
+**Design is locked** (recorded on the Linear ticket, 2026-07-12): treasure-hunt substages carry their
+**own explicit `MaximumTime`** field — parallel to how a trivia substage's time is the sum of its
+questions' countdowns. Trivia stays question-derived; treasure-hunt gets the new field. Countdown
+anchors at **substage activation** and **freezes on pause** (parity with the trivia rule).
+
+⚠️ **Two services, migration-bearing** — same single-service-per-worktree caveat as `DES-86`:
+
+- **Phase 1 — `mission-design-service`** (the field's home): add `MaximumTime` to `Substage` for
+  `TreasureHunt` (validated required/positive; trivia unchanged); EF Core config + PostgreSQL
+  migration (new column); authoring command/API + validators.
+- **Phase 2 — `session-operations-service`** (consume): add `MaximumTime` to `SubstageSnapshot` and
+  carry it in the runtime-snapshot projection at `POST /api/sessions`; add a treasure-hunt substage
+  timer in `LiveSession` seeded from the active substage's `MaximumTime`, mirroring the existing
+  question-timer machinery (`ResumeQuestionTimer` / `FreezeQuestionTimer` /
+  `CalculateAdvancingQuestionTimerRemaining`, `LiveSession.cs` ~764–799); branch
+  `GetAuthoritativeSessionTimerSnapshot` by active-substage `PlayMode`; `AuthoritativeSessionTimerWorker`
+  decides expiry (report-only vs auto-advance).
+
+**Mobile needs no change** — the board already renders the timer; it starts counting once the snapshot
+carries a nonzero value. Run on its own `des-93` branch off `develop` — **not** folded into the HU-23
+board PR (#178, already merged). Linear labels: `svc:mission-design-service` +
+`svc:session-operations-service`.
 
 ## MassTransit migration — GH #164 → GH #165 → GH #166 (messaging refactor, ungated)
 
@@ -644,10 +702,10 @@ backend driver.
 
 ```
 GH #137 (ADR: account flow)
-   ├─→ GH #140 (confidential client + service account)  ─┐
-   ├─→ GH #141 (SMTP + verifyEmail)  ───────────────────┬─┴─→ GH #142 (invitations) → GH #148 (invite UI)
-   │                                                     ├─→ GH #143 (participant self-registration)
-   │                                                     └─→ GH #144 (forgot-password)
+   ├─→ ~~GH #140 (confidential client + service account)~~ ✅  ─┐
+   ├─→ ~~GH #141 (SMTP + verifyEmail)~~ ✅  ──────────────────┬─┴─→ GH #142 (invitations) → GH #148 (invite UI)
+   │                                                          ├─→ GH #143 (participant self-registration)
+   │                                                          └─→ GH #144 (forgot-password)
 ```
 
 - **`GH #140` is a security fix, not a feature.** `KeycloakAdminService.GetAdminTokenAsync`
