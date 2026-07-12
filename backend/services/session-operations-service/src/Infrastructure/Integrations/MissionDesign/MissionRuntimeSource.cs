@@ -109,7 +109,7 @@ public sealed class MissionRuntimeSource : IMissionRuntimeSource
         string QrCode,
         int SequenceOrder,
         bool IsActive,
-        int? Score,
+        int Score,
         MissionRuntimeClueResponse? Clue)
     {
         public MissionRuntimeTargetDto ToMissionRuntimeTargetDto()

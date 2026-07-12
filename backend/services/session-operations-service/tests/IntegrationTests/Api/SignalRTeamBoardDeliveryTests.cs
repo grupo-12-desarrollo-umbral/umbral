@@ -38,7 +38,7 @@ public sealed class SignalRTeamBoardDeliveryTests : IAsyncLifetime
     public async Task BroadcastTeamBoardUpdated_ReachesOwnTeamGroup()
     {
         var seeded = await SeedActiveTreasureHuntSessionAsync();
-        var connection = await ConnectParticipantAsync(seeded.TeamId);
+        var connection = await ConnectParticipantAsync(seeded.LiveSessionId, seeded.TeamId, seeded.ParticipantExternalIdentityId);
 
         try
         {
@@ -67,8 +67,7 @@ public sealed class SignalRTeamBoardDeliveryTests : IAsyncLifetime
     public async Task BroadcastTeamBoardUpdated_DoesNotReachOtherTeamGroup()
     {
         var seeded = await SeedActiveTreasureHuntSessionAsync();
-        var otherTeamId = Guid.NewGuid();
-        var otherConnection = await ConnectParticipantAsync(otherTeamId);
+        var otherConnection = await ConnectParticipantAsync(seeded.LiveSessionId, seeded.OtherTeamId, seeded.OtherParticipantExternalIdentityId);
 
         try
         {
@@ -91,10 +90,10 @@ public sealed class SignalRTeamBoardDeliveryTests : IAsyncLifetime
         }
     }
 
-    private async Task<HubConnection> ConnectParticipantAsync(Guid teamId)
+    private async Task<HubConnection> ConnectParticipantAsync(Guid sessionId, Guid teamId, Guid externalIdentityId)
     {
         var client = _factory.CreateClient();
-        AddTrustedHeaders(client, Guid.NewGuid().ToString(), "Participant", "participant@example.com");
+        AddTrustedHeaders(client, externalIdentityId.ToString(), "Participant", "participant@example.com");
 
         var hubUrl = _factory.Server.BaseAddress + "hubs/sessions";
         var connection = new HubConnectionBuilder()
@@ -109,7 +108,6 @@ public sealed class SignalRTeamBoardDeliveryTests : IAsyncLifetime
 
         await connection.StartAsync();
 
-        var sessionId = Guid.NewGuid();
         await connection.InvokeAsync(
             nameof(SessionsHub.ReconnectAsync),
             sessionId,
@@ -126,6 +124,9 @@ public sealed class SignalRTeamBoardDeliveryTests : IAsyncLifetime
         var now = DateTimeOffset.UtcNow;
         var createdAt = now.AddMinutes(-20);
         var sourceMissionId = Guid.NewGuid();
+        var participantExternalIdentityId = Guid.NewGuid();
+        var otherParticipantExternalIdentityId = Guid.NewGuid();
+
         var session = LiveSession.Create(
             SessionSource.Create(sourceMissionId),
             $"SR-{Guid.NewGuid():N}"[..12],
@@ -134,6 +135,20 @@ public sealed class SignalRTeamBoardDeliveryTests : IAsyncLifetime
             createdAt,
             CreateTreasureHuntSnapshot(sourceMissionId));
         var team = session.AssociateTeam(Guid.NewGuid(), "Alpha", "A-01", 4);
+        var otherTeam = session.AssociateTeam(Guid.NewGuid(), "Bravo", "B-01", 4);
+
+        session.AdmitParticipant(
+            participantExternalIdentityId,
+            "TestUser",
+            team.TeamId,
+            createdAt.AddMinutes(1),
+            new JoinPolicy());
+        session.AdmitParticipant(
+            otherParticipantExternalIdentityId,
+            "OtherUser",
+            otherTeam.TeamId,
+            createdAt.AddMinutes(1),
+            new JoinPolicy());
 
         var policy = new SessionStateTransitionPolicy();
         session.MoveTo(SessionState.Preparing, createdAt.AddMinutes(1), policy);
@@ -142,7 +157,12 @@ public sealed class SignalRTeamBoardDeliveryTests : IAsyncLifetime
         dbContext.LiveSessions.Add(session);
         await dbContext.SaveChangesAsync();
 
-        return new SeededSession(session.LiveSessionId, team.TeamId);
+        return new SeededSession(
+            session.LiveSessionId,
+            team.TeamId,
+            participantExternalIdentityId,
+            otherTeam.TeamId,
+            otherParticipantExternalIdentityId);
     }
 
     private static MissionRuntimeSnapshot CreateTreasureHuntSnapshot(Guid sourceMissionId)
@@ -153,8 +173,10 @@ public sealed class SignalRTeamBoardDeliveryTests : IAsyncLifetime
             "Find the key",
             "KEY-001",
             1,
+            isActive: true,
             100,
-            "Look near the entrance.");
+            "Look near the entrance.",
+            "VisibleAtStart");
 
         return MissionRuntimeSnapshot.Create(
             sourceMissionId,
@@ -204,5 +226,10 @@ public sealed class SignalRTeamBoardDeliveryTests : IAsyncLifetime
         client.DefaultRequestHeaders.Add("X-User-Email", email);
     }
 
-    private sealed record SeededSession(Guid LiveSessionId, Guid TeamId);
+    private sealed record SeededSession(
+        Guid LiveSessionId,
+        Guid TeamId,
+        Guid ParticipantExternalIdentityId,
+        Guid OtherTeamId,
+        Guid OtherParticipantExternalIdentityId);
 }
