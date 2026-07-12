@@ -242,7 +242,8 @@ public sealed class LiveSessionConfiguration : IEntityTypeConfiguration<LiveSess
                     .IsRequired();
 
                 targetBuilder.Property(target => target.Score)
-                    .HasColumnName("score");
+                    .HasColumnName("score")
+                    .IsRequired();
 
                 targetBuilder.Property(target => target.ClueText)
                     .HasColumnName("clue_text")

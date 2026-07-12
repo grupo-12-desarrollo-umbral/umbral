@@ -22,7 +22,7 @@ public sealed record MissionRuntimeTargetDto(
     string QrCode,
     int SequenceOrder,
     bool IsActive,
-    int? Score,
+    int Score,
     MissionRuntimeClueDto? Clue);
 
 public sealed record MissionRuntimeClueDto(

@@ -19,7 +19,7 @@ public sealed class TargetSnapshot : ValueObject
         string qrCode,
         int sequenceOrder,
         bool isActive,
-        int? score,
+        int score,
         string? clueText,
         string? clueVisibilityPolicy)
     {
@@ -31,6 +31,11 @@ public sealed class TargetSnapshot : ValueObject
         if (substageSnapshotId == Guid.Empty)
         {
             throw new TargetSnapshotSubstageRequiredException();
+        }
+
+        if (score <= 0)
+        {
+            throw new TargetSnapshotScoreMustBePositiveException();
         }
 
         TargetSnapshotId = targetSnapshotId;
@@ -56,7 +61,7 @@ public sealed class TargetSnapshot : ValueObject
 
     public bool IsActive { get; }
 
-    public int? Score { get; }
+    public int Score { get; }
 
     public string? ClueText { get; }
 
@@ -68,7 +73,7 @@ public sealed class TargetSnapshot : ValueObject
         string qrCode,
         int sequenceOrder,
         bool isActive,
-        int? score,
+        int score,
         string? clueText,
         string? clueVisibilityPolicy)
     {

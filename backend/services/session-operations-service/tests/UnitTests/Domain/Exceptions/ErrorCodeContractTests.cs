@@ -70,7 +70,7 @@ public sealed class ErrorCodeContractTests
             ["TeamNotFoundException"] = "team-not-found",
             ["TeamNotInAuthorizedSetException"] = "team-not-in-authorized-set",
             ["TreasureHuntSubstageSnapshotMustContainTargetsException"] = "treasure-hunt-substage-snapshot-must-contain-targets",
-            ["TreasureHuntTargetSnapshotScoreRequiredException"] = "treasure-hunt-target-snapshot-score-required",
+            ["TargetSnapshotScoreMustBePositiveException"] = "target-snapshot-score-must-be-positive",
             ["TriviaAnswerRequiresActiveQuestionException"] = "trivia-answer-requires-active-question",
             ["TriviaAnswerRequiresActiveSessionException"] = "trivia-answer-requires-active-session",
             ["TriviaAnswerRequiresTriviaSubstageException"] = "trivia-answer-requires-trivia-substage",
