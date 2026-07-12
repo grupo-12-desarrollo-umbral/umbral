@@ -123,9 +123,32 @@
         "offline_access",
         "microprofile-jwt"
       ]
+    },
+    {
+      "clientId": "umbral-backend",
+      "name": "umbral-backend",
+      "description": "Confidential service-account client backend services use to call the Keycloak Admin API on the umbral realm.",
+      "enabled": true,
+      "publicClient": false,
+      "serviceAccountsEnabled": true,
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "protocol": "openid-connect",
+      "secret": "umbral-backend-dev-secret"
     }
   ],
   "users": [
+    {
+      "username": "service-account-umbral-backend",
+      "enabled": true,
+      "serviceAccountClientId": "umbral-backend",
+      "clientRoles": {
+        "realm-management": [
+          "manage-users",
+          "view-realm"
+        ]
+      }
+    },
     {
       "username": "admin",
       "enabled": true,

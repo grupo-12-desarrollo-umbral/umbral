@@ -14,8 +14,8 @@ public sealed class KeycloakOptionsValidatorBlankFieldTests
         {
             AdminAuthority = "   ",                                  // blank → "must be configured"
             Realm = "umbral-prod",
-            AdminUsername = "svc-admin",
-            AdminPassword = "s3cr3t-not-admin",
+            ClientId = "umbral-backend-prod",
+            ClientSecret = "s3cr3t-not-the-dev-default",
         };
 
         var result = validator.Validate(name: null, options);
@@ -23,5 +23,25 @@ public sealed class KeycloakOptionsValidatorBlankFieldTests
         result.Failed.Should().BeTrue();
         result.Failures.Should().ContainSingle()
             .Which.Should().Contain("must be configured");
+    }
+
+    [Fact]
+    public void Validate_NonDevelopmentWithPlaceholderClientSecret_RejectsIt()
+    {
+        // The dev-default secret is a placeholder that must never authenticate outside Development.
+        var validator = new KeycloakOptionsValidator(isDevelopment: false);
+        var options = new KeycloakOptions
+        {
+            AdminAuthority = "https://keycloak.prod.example.com",
+            Realm = "umbral-prod",
+            ClientId = "umbral-backend-prod",
+            ClientSecret = KeycloakOptions.DevClientSecret,         // still the placeholder → rejected
+        };
+
+        var result = validator.Validate(name: null, options);
+
+        result.Failed.Should().BeTrue();
+        result.Failures.Should().ContainSingle()
+            .Which.Should().Contain("development default");
     }
 }

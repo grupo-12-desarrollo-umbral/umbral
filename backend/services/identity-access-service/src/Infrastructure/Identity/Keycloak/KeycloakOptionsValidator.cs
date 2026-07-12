@@ -20,8 +20,8 @@ public sealed class KeycloakOptionsValidator : IValidateOptions<KeycloakOptions>
         var errors = new List<string>();
         Check(errors, nameof(options.AdminAuthority), options.AdminAuthority, KeycloakOptions.DevAdminAuthority);
         Check(errors, nameof(options.Realm), options.Realm, KeycloakOptions.DevRealm);
-        Check(errors, nameof(options.AdminUsername), options.AdminUsername, KeycloakOptions.DevAdminUsername);
-        Check(errors, nameof(options.AdminPassword), options.AdminPassword, KeycloakOptions.DevAdminPassword);
+        Check(errors, nameof(options.ClientId), options.ClientId, KeycloakOptions.DevClientId);
+        Check(errors, nameof(options.ClientSecret), options.ClientSecret, KeycloakOptions.DevClientSecret);
 
         return errors.Count > 0
             ? ValidateOptionsResult.Fail(errors)

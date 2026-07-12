@@ -14,8 +14,8 @@ public sealed class KeycloakOptionsValidatorTests
     {
         AdminAuthority = "https://keycloak.prod.example.com",
         Realm = "umbral-prod",
-        AdminUsername = "svc-admin",
-        AdminPassword = "s3cr3t-not-admin",
+        ClientId = "umbral-backend-prod",
+        ClientSecret = "s3cr3t-not-the-dev-default",
     };
 
     [Fact]
