@@ -16,13 +16,15 @@ using umbral_backend.Infrastructure.Persistence;
 namespace umbral_backend.Infrastructure.IntegrationTests.Api;
 
 /// <summary>
-/// HU-33B X.4 end-to-end gate: a real facade-driven trivia round close both (a) publishes the two
-/// integration events on the durable topic exchange — QuestionClosedIntegrationEvent on
-/// session.question.closed and, when the close finishes the session via SessionCompletion,
-/// SessionResultsFinalizedIntegrationEvent on session.results.finalized — AND (b) still fires the
-/// HU-33A/21A SignalR broadcasts (QuestionClosed + SessionStateChanged→Finished) to
-/// live-session:{id}. Proves the new RabbitMQ producer rides alongside the runtime without
-/// regressing the real-time transport. Skipped cleanly when Docker/Testcontainers is unavailable.
+/// HU-33B X.4 end-to-end gate: a real facade-driven trivia round close both (a) publishes the
+/// SessionResultsFinalizedIntegrationEvent on the durable topic exchange (session.results.finalized)
+/// via the hand-rolled RabbitMQ producer when the close finishes the session via SessionCompletion,
+/// AND (b) still fires the HU-33A/21A SignalR broadcasts (QuestionClosed + SessionStateChanged→Finished)
+/// to live-session:{id}. QuestionClosed now publishes through MassTransit (#164); its integration-event
+/// delivery is covered end-to-end by MassTransitQuestionClosedPublishTests, so this test asserts the
+/// QuestionClosed *SignalR* broadcast only, not its RabbitMQ delivery. Proves the RabbitMQ producer
+/// rides alongside the runtime without regressing the real-time transport. Skipped cleanly when
+/// Docker/Testcontainers is unavailable.
 /// </summary>
 [Collection(PostgreSqlCollection.Name)]
 public sealed class RoundClosePublicationEndToEndTests : IAsyncLifetime
@@ -97,7 +99,7 @@ public sealed class RoundClosePublicationEndToEndTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task ClosingLastQuestionToFinished_PublishesBothIntegrationEventsAndSignalRBroadcasts()
+    public async Task ClosingLastQuestionToFinished_PublishesSessionResultsFinalizedAndSignalRBroadcasts()
     {
         if (!_brokerAvailable)
         {
@@ -107,13 +109,13 @@ public sealed class RoundClosePublicationEndToEndTests : IAsyncLifetime
         var externalIdentityId = Guid.NewGuid();
         var seeded = await SeedActiveSingleQuestionTriviaSessionAsync(externalIdentityId);
 
-        // Bind a queue per routing key BEFORE the close — a topic exchange drops unroutable messages.
+        // Bind the finalized queue BEFORE the close — a topic exchange drops unroutable messages.
+        // QuestionClosed now rides MassTransit (#164), not this exchange, so only the still-hand-rolled
+        // SessionResultsFinalized event is asserted over RabbitMQ here.
         await using var consumerConnection = await CreateBrokerConnectionAsync();
         await using var consumerChannel = await consumerConnection.CreateChannelAsync();
         await consumerChannel.ExchangeDeclareAsync(
             "umbral.session-operations", ExchangeType.Topic, durable: true, autoDelete: false);
-        var closedQueue = await BindQueueAsync(
-            consumerChannel, RabbitMqIntegrationEventPublisher.QuestionClosedRoutingKey);
         var finalizedQueue = await BindQueueAsync(
             consumerChannel, RabbitMqIntegrationEventPublisher.SessionResultsFinalizedRoutingKey);
 
@@ -145,9 +147,10 @@ public sealed class RoundClosePublicationEndToEndTests : IAsyncLifetime
 
         // Drive the authoritative round exactly as the timer worker does on last-question expiry:
         // the facade closes the only question, advances past the only substage, and — no substage
-        // remaining — completes the session via SessionCompletion → Finished. Both the SaveChanges
-        // dispatches (QuestionClosedEvent, then SessionStateChangedEvent→Finished) run the publish
-        // handlers against the real RabbitMQ producer.
+        // remaining — completes the session via SessionCompletion → Finished. The SaveChanges
+        // dispatches run the publish handlers: QuestionClosedEvent via MassTransit (stubbed in the
+        // factory), then SessionStateChangedEvent→Finished via the hand-rolled RabbitMQ producer
+        // asserted below.
         await using (var scope = _factory.Services.CreateAsyncScope())
         {
             var repository = scope.ServiceProvider.GetRequiredService<ILiveSessionRepository>();
@@ -165,11 +168,9 @@ public sealed class RoundClosePublicationEndToEndTests : IAsyncLifetime
         stateNotification.LiveSessionId.Should().Be(seeded.LiveSessionId);
         stateNotification.CurrentState.Should().Be(nameof(SessionState.Finished));
 
-        // (b) RabbitMQ: exactly one integration event on each routing key, carrying the correlation fields.
-        var closed = await DrainSingleAsync<QuestionClosedIntegrationEvent>(consumerChannel, closedQueue);
-        closed.LiveSessionId.Should().Be(seeded.LiveSessionId);
-        closed.QuestionIndex.Should().Be(0);
-
+        // (b) RabbitMQ: exactly one SessionResultsFinalized integration event on its routing key,
+        // carrying the correlation fields (QuestionClosed now rides MassTransit — see
+        // MassTransitQuestionClosedPublishTests).
         var finalized = await DrainSingleAsync<SessionResultsFinalizedIntegrationEvent>(
             consumerChannel, finalizedQueue);
         finalized.LiveSessionId.Should().Be(seeded.LiveSessionId);

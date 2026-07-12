@@ -1,3 +1,4 @@
+using MassTransit;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -61,7 +62,70 @@ public sealed class SessionOperationsApiWebApplicationFactory : WebApplicationFa
             services.AddScoped<IMissionReadinessSource>(_ => MissionReadinessSource);
             services.RemoveAll<IMissionRuntimeSource>();
             services.AddScoped<IMissionRuntimeSource>(_ => MissionRuntimeSource);
+
+            // Cut the real MassTransit publish path. appsettings points the broker at the compose
+            // hostname "rabbitmq:5672", which doesn't resolve under the test host; MassTransit's
+            // Publish then blocks awaiting a connection under its retry policy (it doesn't fail fast),
+            // hanging every test that closes a question. A no-op endpoint keeps the handler's dispatch
+            // synchronous and broker-free.
+            services.RemoveAll<IPublishEndpoint>();
+            services.AddSingleton<IPublishEndpoint, NoOpPublishEndpoint>();
+
+            // Drop the MassTransit bus hosted service too, so it doesn't spam background connection
+            // retries against the unreachable broker for the lifetime of the booted host.
+            foreach (var busHostedServiceDescriptor in services
+                .Where(descriptor =>
+                    descriptor.ServiceType == typeof(IHostedService)
+                    && descriptor.ImplementationType?.Namespace?.StartsWith("MassTransit", StringComparison.Ordinal) == true)
+                .ToList())
+            {
+                services.Remove(busHostedServiceDescriptor);
+            }
         });
+    }
+
+    // No-op IPublishEndpoint: every publish/observer member is a no-op so factory-booted tests never
+    // touch a broker (the real endpoint blocks on an unreachable RabbitMQ).
+    private sealed class NoOpPublishEndpoint : IPublishEndpoint
+    {
+        public ConnectHandle ConnectPublishObserver(IPublishObserver observer) => new NoOpConnectHandle();
+
+        public Task Publish<T>(T message, CancellationToken cancellationToken = default)
+            where T : class => Task.CompletedTask;
+
+        public Task Publish<T>(T message, IPipe<PublishContext<T>> publishPipe, CancellationToken cancellationToken = default)
+            where T : class => Task.CompletedTask;
+
+        public Task Publish<T>(T message, IPipe<PublishContext> publishPipe, CancellationToken cancellationToken = default)
+            where T : class => Task.CompletedTask;
+
+        public Task Publish(object message, CancellationToken cancellationToken = default) => Task.CompletedTask;
+
+        public Task Publish(object message, IPipe<PublishContext> publishPipe, CancellationToken cancellationToken = default) => Task.CompletedTask;
+
+        public Task Publish(object message, Type messageType, CancellationToken cancellationToken = default) => Task.CompletedTask;
+
+        public Task Publish(object message, Type messageType, IPipe<PublishContext> publishPipe, CancellationToken cancellationToken = default) => Task.CompletedTask;
+
+        public Task Publish<T>(object values, CancellationToken cancellationToken = default)
+            where T : class => Task.CompletedTask;
+
+        public Task Publish<T>(object values, IPipe<PublishContext<T>> publishPipe, CancellationToken cancellationToken = default)
+            where T : class => Task.CompletedTask;
+
+        public Task Publish<T>(object values, IPipe<PublishContext> publishPipe, CancellationToken cancellationToken = default)
+            where T : class => Task.CompletedTask;
+
+        private sealed class NoOpConnectHandle : ConnectHandle
+        {
+            public void Disconnect()
+            {
+            }
+
+            public void Dispose()
+            {
+            }
+        }
     }
 
     public async Task ResetDatabaseAsync()
