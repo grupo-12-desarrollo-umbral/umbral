@@ -993,6 +993,99 @@ public sealed class IdentityAccessApiEndpointsTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task InviteUser_WithAdministratorHeaders_ReturnsCreatedAndPersistsPendingRecord()
+    {
+        await SeedUserAsync("kc-admin-01", "Admin User", "admin@example.com", Role.Administrator);
+
+        AddTrustedHeaders(
+            _client,
+            userId: "kc-admin-01",
+            role: "Administrator",
+            email: "admin@example.com");
+
+        var response = await _client.PostAsJsonAsync(
+            "/api/users/invitations",
+            new { email = "invitee@example.com", role = "Operator" });
+
+        response.StatusCode.Should().Be(HttpStatusCode.Created);
+
+        var payload = await response.Content.ReadFromJsonAsync<InviteUserResponse>();
+        payload.Should().NotBeNull();
+        payload!.UserId.Should().BeGreaterThan(0);
+        payload.Email.Should().Be("invitee@example.com");
+        payload.Role.Should().Be("Operator");
+
+        await using var scope = _factory.Services.CreateAsyncScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var invited = await dbContext.Users.SingleAsync(user => user.Email == "invitee@example.com");
+        invited.Role.Should().Be(Role.Operator);
+        invited.IsActive.Should().BeTrue();
+        // Pending: no real name yet, so the email stands in until first sign-in completes provisioning.
+        invited.DisplayName.Should().Be("invitee@example.com");
+        invited.ExternalIdentityId.Should().NotBeNullOrWhiteSpace();
+    }
+
+    [Fact]
+    public async Task InviteUser_WithParticipantRole_ReturnsUnprocessableEntity()
+    {
+        await SeedUserAsync("kc-admin-01", "Admin User", "admin@example.com", Role.Administrator);
+
+        AddTrustedHeaders(
+            _client,
+            userId: "kc-admin-01",
+            role: "Administrator",
+            email: "admin@example.com");
+
+        var response = await _client.PostAsJsonAsync(
+            "/api/users/invitations",
+            new { email = "invitee@example.com", role = "Participant" });
+
+        response.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
+
+        var problem = await response.Content.ReadFromJsonAsync<ProblemDetails>();
+        problem.Should().NotBeNull();
+        problem!.Status.Should().Be(StatusCodes.Status422UnprocessableEntity);
+        problem.Detail.Should().Contain("self-register");
+    }
+
+    [Fact]
+    public async Task InviteUser_WithNonAdministratorHeaders_ReturnsForbidden()
+    {
+        await SeedUserAsync("kc-operator-01", "Operator User", "operator@example.com", Role.Operator);
+
+        AddTrustedHeaders(
+            _client,
+            userId: "kc-operator-01",
+            role: "Operator",
+            email: "operator@example.com");
+
+        var response = await _client.PostAsJsonAsync(
+            "/api/users/invitations",
+            new { email = "invitee@example.com", role = "Operator" });
+
+        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+    }
+
+    [Fact]
+    public async Task InviteUser_WithExistingEmail_ReturnsConflict()
+    {
+        await SeedUserAsync("kc-admin-01", "Admin User", "admin@example.com", Role.Administrator);
+        await SeedUserAsync("kc-existing-01", "Existing User", "existing@example.com", Role.Operator);
+
+        AddTrustedHeaders(
+            _client,
+            userId: "kc-admin-01",
+            role: "Administrator",
+            email: "admin@example.com");
+
+        var response = await _client.PostAsJsonAsync(
+            "/api/users/invitations",
+            new { email = "existing@example.com", role = "Operator" });
+
+        response.StatusCode.Should().Be(HttpStatusCode.Conflict);
+    }
+
+    [Fact]
     public async Task DeactivateUserAccess_WithAdministratorHeaders_ReturnsNoContentAndPersistsInactiveState()
     {
         await SeedUserAsync("kc-admin-01", "Admin User", "admin@example.com", Role.Administrator);
@@ -1193,6 +1286,8 @@ public sealed class IdentityAccessApiEndpointsTests : IAsyncLifetime
         string Email,
         string Role,
         bool IsActive);
+
+    private sealed record InviteUserResponse(int UserId, string Email, string Role);
 
     private sealed record RegisterTeamResponse(Guid TeamId);
 

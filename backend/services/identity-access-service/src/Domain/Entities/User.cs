@@ -41,6 +41,37 @@ public sealed class User : BaseAuditableEntity
         return user;
     }
 
+    /// <summary>
+    /// Creates the local record for a user invited by an administrator. The invitee has not yet
+    /// signed in, so no real display name exists — the email stands in as a placeholder until the
+    /// invitee completes <c>Post-Login Provisioning</c>, which overwrites it via
+    /// <see cref="SynchronizeProfile"/>. Only <see cref="Role.Operator"/> and
+    /// <see cref="Role.Administrator"/> may be invited (see <see cref="EnsureInvitableRole"/>).
+    /// </summary>
+    public static User Invite(string externalIdentityId, string email, Role role)
+    {
+        EnsureInvitableRole(role);
+
+        var trimmedEmail = RequireEmail(email);
+        var user = new User(externalIdentityId, trimmedEmail, trimmedEmail, role);
+        user.AddDomainEvent(new UserProvisionedEvent(user));
+
+        return user;
+    }
+
+    /// <summary>
+    /// Guards the invitation invariant: participants self-register and cannot be invited. Exposed so
+    /// a caller can reject an ineligible role before provisioning any identity-provider account,
+    /// while <see cref="Invite"/> re-applies it as the authoritative construction-time check.
+    /// </summary>
+    public static void EnsureInvitableRole(Role role)
+    {
+        if (role == Role.Participant)
+        {
+            throw new ParticipantNotInvitableException();
+        }
+    }
+
     public void SynchronizeProfile(string displayName, string email)
     {
         DisplayName = RequireDisplayName(displayName);

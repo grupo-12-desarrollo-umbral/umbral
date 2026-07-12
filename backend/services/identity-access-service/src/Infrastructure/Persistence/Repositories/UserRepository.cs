@@ -21,6 +21,16 @@ public sealed class UserRepository : IUserRepository
                 cancellationToken);
     }
 
+    public Task<User?> GetByEmailAsync(string email, CancellationToken cancellationToken)
+    {
+        var normalizedEmail = email.Trim();
+
+        return _context.Users
+            .SingleOrDefaultAsync(
+                user => user.Email.ToLower() == normalizedEmail.ToLower(),
+                cancellationToken);
+    }
+
     public Task<User?> GetByIdAsync(int userId, CancellationToken cancellationToken)
     {
         return _context.Users

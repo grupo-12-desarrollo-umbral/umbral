@@ -34,6 +34,15 @@ public sealed class IdentityAccessApiWebApplicationFactory : WebApplicationFacto
 
     private sealed class NoOpIdentityProviderAdminService : IIdentityProviderAdminService
     {
+        public Task<string> CreateUserAsync(string email, CancellationToken cancellationToken)
+            => Task.FromResult($"kc-{Guid.NewGuid():N}");
+
+        public Task SendExecuteActionsEmailAsync(string externalIdentityId, CancellationToken cancellationToken)
+            => Task.CompletedTask;
+
+        public Task DeleteUserAsync(string externalIdentityId, CancellationToken cancellationToken)
+            => Task.CompletedTask;
+
         public Task SyncUserRoleAsync(string externalIdentityId, Role newRole, CancellationToken cancellationToken)
             => Task.CompletedTask;
 

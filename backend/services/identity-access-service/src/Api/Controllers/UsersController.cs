@@ -4,6 +4,7 @@ using umbral_backend.Application.Common.Models;
 using umbral_backend.Application.Users.Commands.AssignUserRole;
 using umbral_backend.Application.Users.Queries.GetUsers;
 using umbral_backend.Application.Users.Commands.AuthenticateUser;
+using umbral_backend.Application.Users.Commands.InviteUser;
 using umbral_backend.Application.Users.Commands.DeactivateUser;
 using umbral_backend.Application.Users.Commands.ReactivateUser;
 using umbral_backend.Application.Users.Queries.GetAuthenticatedActorProfile;
@@ -22,6 +23,16 @@ public sealed class UsersController(ISender sender) : ControllerBase
         var result = await sender.Send(new AuthenticateUserCommand(request.DisplayName), cancellationToken);
 
         return Ok(result);
+    }
+
+    [HttpPost("invitations")]
+    public async Task<ActionResult<InviteUserResultDto>> InviteUserAsync(
+        InviteUserRequest request,
+        CancellationToken cancellationToken)
+    {
+        var result = await sender.Send(new InviteUserCommand(request.Email, request.Role), cancellationToken);
+
+        return StatusCode(StatusCodes.Status201Created, result);
     }
 
     [HttpGet("me")]
@@ -73,6 +84,8 @@ public sealed class UsersController(ISender sender) : ControllerBase
     }
 
     public sealed record BootstrapAuthenticatedUserRequest(string DisplayName);
+
+    public sealed record InviteUserRequest(string Email, string Role);
 
     public sealed record GetUsersRequest(int Page = 1, int PageSize = 20);
 

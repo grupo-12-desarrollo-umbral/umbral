@@ -161,6 +161,109 @@ public sealed class KeycloakAdminServiceTests
     }
 
     [Fact]
+    public async Task CreateUserAsync_CreatesEnabledUnverifiedUser_AndReturnsIdFromLocationHeader()
+    {
+        var handler = new StubHandler(req =>
+        {
+            if (req.Method == HttpMethod.Post && req.RequestUri!.AbsolutePath.EndsWith("/users"))
+            {
+                var created = new HttpResponseMessage(HttpStatusCode.Created);
+                created.Headers.Location = new Uri("http://keycloak/admin/realms/umbral/users/new-kc-id");
+                return created;
+            }
+
+            return Ok(req);
+        });
+        var service = CreateService(handler);
+
+        var id = await service.CreateUserAsync("invitee@example.com", CancellationToken.None);
+
+        id.Should().Be("new-kc-id");
+
+        var post = handler.Requests.Single(r =>
+            r.Method == HttpMethod.Post && r.RequestUri!.AbsolutePath.EndsWith("/users"));
+        var body = await post.Content!.ReadAsStringAsync();
+        // Enabled: Keycloak refuses to email a disabled user; the handler compensates on failure.
+        body.Should().Contain("\"enabled\":true");
+        body.Should().Contain("\"emailVerified\":false");
+        body.Should().Contain("invitee@example.com");
+        // No credentials are ever sent to Keycloak.
+        body.Should().NotContain("credential");
+        body.Should().NotContain("password");
+    }
+
+    [Fact]
+    public async Task DeleteUserAsync_SendsDelete_AndTreatsMissingUserAsAlreadyRemoved()
+    {
+        var handler = new StubHandler(req =>
+            req.Method == HttpMethod.Delete
+                ? new HttpResponseMessage(HttpStatusCode.NotFound)
+                : Ok(req));
+        var service = CreateService(handler);
+
+        var act = async () => await service.DeleteUserAsync("kc-user", CancellationToken.None);
+
+        await act.Should().NotThrowAsync();
+        handler.Requests.Should().Contain(r =>
+            r.Method == HttpMethod.Delete && r.RequestUri!.AbsolutePath.EndsWith("/users/kc-user"));
+    }
+
+    [Fact]
+    public async Task CreateUserAsync_WhenKeycloakReturnsConflict_ThrowsEmailAlreadyRegistered()
+    {
+        var handler = new StubHandler(req =>
+        {
+            if (req.Method == HttpMethod.Post && req.RequestUri!.AbsolutePath.EndsWith("/users"))
+            {
+                return new HttpResponseMessage(HttpStatusCode.Conflict);
+            }
+
+            return Ok(req);
+        });
+        var service = CreateService(handler);
+
+        var act = async () => await service.CreateUserAsync("invitee@example.com", CancellationToken.None);
+
+        await act.Should().ThrowAsync<InvitedEmailAlreadyRegisteredException>();
+    }
+
+    [Fact]
+    public async Task CreateUserAsync_WhenKeycloakRejects_ThrowsWithResponseBody()
+    {
+        var handler = new StubHandler(req =>
+            req.Method == HttpMethod.Post && req.RequestUri!.AbsolutePath.EndsWith("/users")
+                ? new HttpResponseMessage(HttpStatusCode.BadRequest)
+                {
+                    Content = new StringContent("{\"errorMessage\":\"User is disabled\"}"),
+                }
+                : Ok(req));
+        var service = CreateService(handler);
+
+        var act = async () => await service.CreateUserAsync("invitee@example.com", CancellationToken.None);
+
+        // EnsureSuccessStatusCode discards the body; the enriched failure keeps Keycloak's reason.
+        (await act.Should().ThrowAsync<HttpRequestException>())
+            .Which.Message.Should().Contain("User is disabled");
+    }
+
+    [Fact]
+    public async Task SendExecuteActionsEmailAsync_PutsUpdatePasswordAndVerifyEmailActions()
+    {
+        var handler = new StubHandler(req => Ok(req));
+        var service = CreateService(handler);
+
+        await service.SendExecuteActionsEmailAsync("kc-user", CancellationToken.None);
+
+        var put = handler.Requests.SingleOrDefault(r =>
+            r.Method == HttpMethod.Put && r.RequestUri!.AbsolutePath.EndsWith("/users/kc-user/execute-actions-email"));
+        put.Should().NotBeNull();
+
+        var body = await put!.Content!.ReadAsStringAsync();
+        body.Should().Contain("UPDATE_PASSWORD");
+        body.Should().Contain("VERIFY_EMAIL");
+    }
+
+    [Fact]
     public async Task GetAdminToken_UsesClientCredentialsGrantWithClientCredentials()
     {
         // The security contract of #140: the admin token is minted via client_credentials with the
