@@ -13,6 +13,7 @@ import type {
   SessionStateChangedNotificationDto,
 } from './sessions-hub-types';
 import type { SessionTimerUpdatedNotificationDto } from './timer-types';
+import type { ParticipantTeamBoardDto } from './team-board-types';
 import type {
   QuestionActivatedNotificationDto,
   QuestionClosedNotificationDto,
@@ -44,6 +45,9 @@ export type SessionsHubClient = {
   ) => () => void;
   onSubstageAdvanced: (
     cb: (notification: SubstageAdvancedNotificationDto) => void,
+  ) => () => void;
+  onTeamBoardUpdated: (
+    cb: (board: ParticipantTeamBoardDto) => void,
   ) => () => void;
 };
 
@@ -98,6 +102,10 @@ export function createSessionsHubConnection(): SessionsHubClient {
     onSubstageAdvanced(cb) {
       connection.on('SubstageAdvanced', cb);
       return () => connection.off('SubstageAdvanced', cb);
+    },
+    onTeamBoardUpdated(cb) {
+      connection.on('TeamBoardUpdated', cb);
+      return () => connection.off('TeamBoardUpdated', cb);
     },
   };
 }

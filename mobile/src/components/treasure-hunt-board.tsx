@@ -1,16 +1,13 @@
 /**
- * Treasure-hunt participant PLAY surface — chosen design ("Focus Tabs").
+ * Treasure-hunt participant live board (HU-23).
  *
- * This is the winner of the GitHub #153 / slice-3 UI prototype: a compact sticky
- * header (substage title + score + timer) over a segmented Map / Clues / Teams
- * body, with a persistent "your team" strip so team identity survives tab
- * switches. The other two explored layouts and the variant switcher have been
- * removed now that this one is picked.
- *
- * Still a dev-only preview on stub data. Before it replaces the live team-space
- * surface it needs: #153 slice 1 (backend target coordinates + runtime/roster
- * contracts) and a real map library — the map here is a labelled stub. Reach it
- * from the participant home (dev-only button).
+ * Lifts the "Focus Tabs" layout from the (now-deleted) dev prototype — a compact
+ * sticky header (substage title + score + timer) over a segmented Map / Clues /
+ * Teams body, with a persistent "your team" strip — but is fed entirely by props
+ * from the live HU-23 snapshot/push. It is TEAM-ONLY: score, target progress and
+ * clues are for the participant's own team. Other-team cards are static,
+ * clearly-marked placeholders (real standings/ranking is HU-39); the map stays a
+ * labelled stub (real map is #156, target coordinates are #154).
  */
 import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
@@ -20,49 +17,17 @@ import { Text } from '@/components/ui/text';
 import { SessionTimerBar } from '@/components/session-timer-bar';
 import { colors, radii, shadows, spacing, typography } from '@/constants/theme';
 import type { TimerDisplay } from '@/lib/realtime/timer-types';
+import type { VisibleClueDto } from '@/lib/realtime/team-board-types';
 
-// --- Stub play-state (in-memory only; the surface is wired to real data later) ---
+// Other-team cards are static placeholders until HU-39 (real standings/ranking).
+// Each is tagged in the UI so it is unmistakable to sighted users and to
+// assistive tech (PLACEHOLDER badge + "sample standings" hint).
+const PLACEHOLDER_OTHER_TEAMS: readonly { name: string }[] = [
+  { name: 'Compass Rose' },
+  { name: 'Ember Foxes' },
+];
 
-type Clue = { id: number; title: string; scope: 'team' | 'global'; body: string };
-type Team = { name: string; participants: string[] };
-
-type PlayState = {
-  substageTitle: string;
-  missionName: string;
-  score: number;
-  target: { name: string; latitude: number; longitude: number; context: string };
-  yourTeam: Team;
-  otherTeams: Team[];
-  clues: Clue[];
-  timer: TimerDisplay;
-};
-
-const PLAY: PlayState = {
-  substageTitle: 'The Cartographer’s Vault',
-  missionName: 'Nightfall in the Old Quarter',
-  score: 240,
-  target: {
-    name: 'Brass Astrolabe',
-    latitude: -34.6037,
-    longitude: -58.3816,
-    context: 'Somewhere along the north colonnade of the Plaza Mayor.',
-  },
-  yourTeam: { name: 'Lantern Bearers', participants: ['You', 'Mara', 'Diego', 'Priya'] },
-  otherTeams: [
-    { name: 'Compass Rose', participants: ['Ivan', 'Lucía', 'Sam'] },
-    { name: 'Ember Foxes', participants: ['Noor', 'Theo', 'Aiko', 'Ben'] },
-  ],
-  clues: [
-    { id: 1, title: 'Clue I', scope: 'global', body: 'Where brass hands once told the tide, the vault keeps its second face.' },
-    { id: 2, title: 'Clue II', scope: 'team', body: 'Count the arches from the fountain — your key is the third shadow at dusk.' },
-  ],
-  timer: { label: '12:47', pct: 63, tone: 'running' },
-};
-
-const coord = (lat: number, lng: number) =>
-  `${Math.abs(lat).toFixed(4)}°${lat < 0 ? 'S' : 'N'}  ${Math.abs(lng).toFixed(4)}°${lng < 0 ? 'W' : 'E'}`;
-
-// --- Presentational pieces ---
+// --- Presentational pieces (ported from the prototype) ---
 
 function GridLines() {
   const at = ['20%', '40%', '60%', '80%'] as const;
@@ -84,9 +49,12 @@ function GridLines() {
   );
 }
 
+// Coordinate chip dropped: the HU-23 contract carries no target coordinates.
 function MapStub({ style }: { style?: object }) {
   return (
     <View
+      accessibilityRole="image"
+      accessibilityLabel="Map preview stub"
       style={[
         {
           backgroundColor: colors.warmMist,
@@ -127,67 +95,51 @@ function MapStub({ style }: { style?: object }) {
           <Text variant="label" muted>MAP PREVIEW · STUB</Text>
         </View>
       </View>
-      <View
-        style={{
-          position: 'absolute',
-          bottom: spacing.sm,
-          left: spacing.sm,
-          backgroundColor: colors.paperSurface,
-          borderRadius: radii.control,
-          borderCurve: 'continuous',
-          borderWidth: 1,
-          borderColor: colors.borderSoft,
-          paddingHorizontal: spacing.sm,
-          paddingVertical: spacing.one,
-        }}
-      >
-        <Text variant="mono" style={{ fontSize: 12 }}>
-          {coord(PLAY.target.latitude, PLAY.target.longitude)}
-        </Text>
-      </View>
     </View>
   );
 }
 
-function ScopeChip({ scope }: { scope: Clue['scope'] }) {
-  return (
-    <View
-      style={{
-        backgroundColor: scope === 'global' ? colors.emberAccentSoft : colors.raisedSurface,
-        borderRadius: radii.pill,
-        borderWidth: 1,
-        borderColor: colors.borderSoft,
-        paddingHorizontal: spacing.xs,
-        paddingVertical: 2,
-      }}
-    >
-      <Text variant="label" style={{ fontSize: 11, color: colors.textInk }}>
-        {scope.toUpperCase()}
-      </Text>
-    </View>
-  );
-}
-
-function ClueCard({ clue }: { clue: Clue }) {
+// No scope chip: the live HU-23 VisibleClueDto has no team/global scope field.
+// Heading is the target name; body is the clue text.
+function ClueCard({ clue }: { clue: VisibleClueDto }) {
   return (
     <Card parchment>
-      <View style={{ gap: spacing.xs }}>
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Text variant="label" muted>{clue.title}</Text>
-          <ScopeChip scope={clue.scope} />
-        </View>
-        <Text variant="mono">{clue.body}</Text>
+      <View accessibilityRole="text" style={{ gap: spacing.xs }}>
+        <Text variant="label" muted>{clue.targetName}</Text>
+        <Text variant="mono">{clue.clueText}</Text>
       </View>
     </Card>
   );
 }
 
-// --- Focus Tabs: compact header + one section at a time ---
+// --- Board ---
 
-export default function TreasureHuntPlayScreen() {
+export type TreasureHuntBoardProps = {
+  teamDisplayName: string;
+  currentScore: number;
+  substageTitle: string;
+  timerDisplay: TimerDisplay;
+  resolvedTargets: number;
+  totalActiveTargets: number;
+  visibleClues: readonly VisibleClueDto[];
+};
+
+export function TreasureHuntBoard({
+  teamDisplayName,
+  currentScore,
+  substageTitle,
+  timerDisplay,
+  resolvedTargets,
+  totalActiveTargets,
+  visibleClues,
+}: TreasureHuntBoardProps) {
   const [tab, setTab] = useState<'map' | 'clues' | 'teams'>('map');
+
   return (
-    <View style={{ flex: 1, backgroundColor: colors.ivoryFog }}>
+    <View
+      accessibilityLabel={`Treasure hunt board for ${teamDisplayName}`}
+      style={{ flex: 1, backgroundColor: colors.ivoryFog }}
+    >
       <View
         style={{
           paddingTop: 52,
@@ -202,17 +154,17 @@ export default function TreasureHuntPlayScreen() {
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
           <View style={{ flex: 1, paddingRight: spacing.sm }}>
             <Text variant="label" muted>TREASURE HUNT</Text>
-            <Text variant="title" numberOfLines={1}>{PLAY.substageTitle}</Text>
+            <Text variant="title" numberOfLines={1}>{substageTitle}</Text>
           </View>
           <View style={{ alignItems: 'flex-end' }}>
             <Text variant="label" muted>SCORE</Text>
             <Text style={{ ...typography.headline, fontSize: 22, color: colors.emberAccentStrong, fontVariant: ['tabular-nums'] }}>
-              {PLAY.score}
+              {currentScore}
             </Text>
           </View>
         </View>
 
-        <SessionTimerBar display={PLAY.timer} />
+        <SessionTimerBar display={timerDisplay} />
 
         <View
           style={{
@@ -228,6 +180,7 @@ export default function TreasureHuntPlayScreen() {
           {(['map', 'clues', 'teams'] as const).map((k) => (
             <Pressable
               key={k}
+              accessibilityRole="button"
               onPress={() => setTab(k)}
               style={{
                 flex: 1,
@@ -254,35 +207,62 @@ export default function TreasureHuntPlayScreen() {
             <Card>
               <View style={{ gap: 2 }}>
                 <Text variant="label" muted>TARGET</Text>
-                <Text variant="title">{PLAY.target.name}</Text>
-                <Text variant="body" muted>{PLAY.target.context}</Text>
+                <Text
+                  variant="title"
+                  accessibilityRole="text"
+                  accessibilityLabel={`Targets resolved ${resolvedTargets} of ${totalActiveTargets}`}
+                  style={{ fontVariant: ['tabular-nums'] }}
+                >
+                  {resolvedTargets} / {totalActiveTargets} targets
+                </Text>
+                <Text variant="body" muted>{substageTitle}</Text>
               </View>
             </Card>
           </View>
         ) : tab === 'clues' ? (
           <Screen contentContainerStyle={{ gap: spacing.sm, paddingBottom: 100 }}>
-            {PLAY.clues.map((c) => (
-              <ClueCard key={c.id} clue={c} />
-            ))}
+            {visibleClues.length > 0 ? (
+              visibleClues.map((c) => <ClueCard key={c.targetSnapshotId} clue={c} />)
+            ) : (
+              <Card>
+                <Text variant="body" muted>No clues yet.</Text>
+              </Card>
+            )}
           </Screen>
         ) : (
           <Screen contentContainerStyle={{ gap: spacing.sm, paddingBottom: 100 }}>
             <Card style={{ borderColor: colors.emberAccent, borderWidth: 1.5 }}>
               <View style={{ gap: spacing.xs }}>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <Text variant="title" accent>{PLAY.yourTeam.name}</Text>
+                  <Text variant="title" accent>{teamDisplayName}</Text>
                   <Text variant="label" muted>YOUR TEAM</Text>
                 </View>
-                {PLAY.yourTeam.participants.map((p) => (
-                  <Text key={p} variant="body">{p}</Text>
-                ))}
+                <Text
+                  style={{ ...typography.headline, fontSize: 22, color: colors.emberAccentStrong, fontVariant: ['tabular-nums'] }}
+                >
+                  {currentScore}
+                </Text>
               </View>
             </Card>
-            {PLAY.otherTeams.map((t) => (
-              <Card key={t.name}>
+            {PLACEHOLDER_OTHER_TEAMS.map((t) => (
+              <Card key={t.name} accessibilityHint="Sample standings — not live yet">
                 <View style={{ gap: spacing.xs }}>
-                  <Text variant="title">{t.name}</Text>
-                  <Text variant="body" muted>{t.participants.join('  ·  ')}</Text>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Text variant="title">{t.name}</Text>
+                    <View
+                      style={{
+                        backgroundColor: colors.raisedSurface,
+                        borderRadius: radii.pill,
+                        borderWidth: 1,
+                        borderColor: colors.borderSoft,
+                        paddingHorizontal: spacing.sm,
+                        paddingVertical: spacing.one,
+                      }}
+                    >
+                      <Text variant="label" muted>PLACEHOLDER</Text>
+                    </View>
+                  </View>
+                  <Text variant="body" muted>Sample standings — not live yet</Text>
                 </View>
               </Card>
             ))}
@@ -304,10 +284,14 @@ export default function TreasureHuntPlayScreen() {
         }}
       >
         <Text variant="label" style={{ color: colors.emberAccentSoft }}>
-          YOUR TEAM · {PLAY.yourTeam.name}
+          YOUR TEAM · {teamDisplayName}
         </Text>
-        <Text variant="body" style={{ color: colors.ivoryFog }} numberOfLines={1}>
-          {PLAY.yourTeam.participants.join('  ·  ')}
+        <Text
+          variant="body"
+          style={{ color: colors.ivoryFog, fontVariant: ['tabular-nums'] }}
+          numberOfLines={1}
+        >
+          SCORE {currentScore}
         </Text>
       </View>
     </View>

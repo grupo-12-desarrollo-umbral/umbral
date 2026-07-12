@@ -41,16 +41,6 @@ export default function ParticipantHome() {
         onPress={() => router.push('/(app)/join' as Href)}
       />
 
-      {/* DEV-ONLY preview of the chosen treasure-hunt play surface (stub data).
-          Remove once it replaces the live team-space surface (needs #153 slice 1). */}
-      {__DEV__ ? (
-        <Button
-          label="▶ Preview · treasure-hunt play"
-          variant="secondary"
-          onPress={() => router.push('/(app)/treasure-hunt-play-prototype' as Href)}
-        />
-      ) : null}
-
       {/* DEV-ONLY preview of the active-question (trivia) surface (stub data). */}
       {__DEV__ ? (
         <Button

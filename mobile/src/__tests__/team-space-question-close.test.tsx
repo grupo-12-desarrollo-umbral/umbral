@@ -13,6 +13,8 @@ jest.mock('@/lib/api/sessions', () => {
     ...actual,
     getParticipantTimerSnapshot: (...args: unknown[]) => mockGetSnapshot(...args),
     submitTriviaAnswer: (...args: unknown[]) => mockSubmit(...args),
+    // Keep the team board null (never-resolving) so this trivia close-flow drive is unaffected.
+    getParticipantTeamBoard: () => new Promise(() => {}),
   };
 });
 
@@ -57,6 +59,7 @@ function makeClient() {
       return () => closedHandlers.delete(cb);
     },
     onSubstageAdvanced: jest.fn(() => () => {}),
+    onTeamBoardUpdated: jest.fn(() => () => {}),
   };
 }
 
