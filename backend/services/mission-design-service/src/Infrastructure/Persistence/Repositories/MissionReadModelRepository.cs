@@ -120,7 +120,13 @@ public sealed class MissionReadModelRepository : IMissionReadModelRepository
             substage.Targets
                 .Select(target => MapTarget(target, cluesById))
                 .ToList(),
-            triviaQuestions);
+            triviaQuestions,
+            // Substage-scoped clue superset (#145): every clue authored under the substage,
+            // ordered. Target-associated clues also resolve per-target above; here they appear
+            // alongside trivia-substage clues, which have no target path to reach the runtime.
+            substage.Clues
+                .Select(clue => new MissionRuntimePlanClueDto(clue.Text, clue.Visibility.ToString()))
+                .ToList());
     }
 
     private static MissionRuntimePlanTargetDto MapTarget(

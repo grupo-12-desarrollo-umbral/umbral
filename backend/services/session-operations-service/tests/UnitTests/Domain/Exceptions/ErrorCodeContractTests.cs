@@ -18,6 +18,8 @@ public sealed class ErrorCodeContractTests
         new Dictionary<string, string>(StringComparer.Ordinal)
         {
             ["AnswerSubmitterIsNotSessionParticipantException"] = "answer-submitter-is-not-session-participant",
+            ["ClueSnapshotIdRequiredException"] = "clue-snapshot-id-required",
+            ["ClueSnapshotSubstageRequiredException"] = "clue-snapshot-substage-required",
             ["DuplicateTeamAssociationInSessionException"] = "duplicate-team-association-in-session",
             ["DuplicateTeamCodeInSessionException"] = "duplicate-team-code-in-session",
             ["DuplicateTriviaAnswerException"] = "duplicate-trivia-answer",

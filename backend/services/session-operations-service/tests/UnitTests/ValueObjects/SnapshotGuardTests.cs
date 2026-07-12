@@ -190,6 +190,60 @@ public sealed class SnapshotGuardTests
         target.ClueVisibilityPolicy.Should().Be("VisibleAtStart");
     }
 
+    // ── ClueSnapshot ─────────────────────────────────────────────────────────
+    [Fact]
+    public void Clue_EmptySubstageId_Throws()
+    {
+        var act = () => ClueSnapshot.Create(Guid.Empty, "Hint", "VisibleWhenSubstageStarts", 1);
+        act.Should().Throw<ClueSnapshotSubstageRequiredException>();
+    }
+
+    [Fact]
+    public void Clue_EfConstructorGuard_WhenIdIsEmpty_ThrowsRequiredException()
+    {
+        var act = () => InvokePrivateConstructor<ClueSnapshot>(
+            Guid.Empty,
+            Guid.NewGuid(),
+            "Hint",
+            "VisibleWhenSubstageStarts",
+            1);
+
+        act.Should().Throw<ClueSnapshotIdRequiredException>();
+    }
+
+    [Fact]
+    public void Clue_TrimsTextAndPolicy_AndHonorsVisiblePolicy()
+    {
+        var visible = ClueSnapshot.Create(Guid.NewGuid(), "  Hint  ", "  VisibleWhenSubstageStarts  ", 1);
+        visible.Text.Should().Be("Hint");
+        visible.VisibilityPolicy.Should().Be("VisibleWhenSubstageStarts");
+        visible.IsVisibleWhenSubstageStarts.Should().BeTrue();
+
+        var hidden = ClueSnapshot.Create(Guid.NewGuid(), "Hint", "HiddenUntilOperatorRelease", 2);
+        hidden.IsVisibleWhenSubstageStarts.Should().BeFalse();
+    }
+
+    [Fact]
+    public void Clue_NullTextAndPolicy_NormalizeToEmpty()
+    {
+        var clue = ClueSnapshot.Create(Guid.NewGuid(), null!, null!, 1);
+        clue.Text.Should().BeEmpty();
+        clue.VisibilityPolicy.Should().BeEmpty();
+        clue.IsVisibleWhenSubstageStarts.Should().BeFalse();
+    }
+
+    [Fact]
+    public void Clue_Valid_EqualByValue()
+    {
+        var substageId = Guid.NewGuid();
+        var id = Guid.NewGuid();
+        var a = (ClueSnapshot)InvokePrivateConstructor<ClueSnapshot>(id, substageId, "Hint", "VisibleWhenSubstageStarts", 1);
+        var b = (ClueSnapshot)InvokePrivateConstructor<ClueSnapshot>(id, substageId, "Hint", "VisibleWhenSubstageStarts", 1);
+
+        a.Should().Be(b);
+        a.GetHashCode().Should().Be(b.GetHashCode());
+    }
+
     // ── MissionRuntimeSnapshot ───────────────────────────────────────────────
     [Fact]
     public void Mission_EmptySourceId_Throws()

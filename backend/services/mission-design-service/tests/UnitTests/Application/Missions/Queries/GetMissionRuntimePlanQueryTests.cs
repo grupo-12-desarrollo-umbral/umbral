@@ -39,6 +39,10 @@ public sealed class GetMissionRuntimePlanQueryTests
                                     new List<MissionRuntimePlanTriviaOptionDto> { new("A", 1, true), new("B", 2, false) },
                                     10,
                                     30),
+                            },
+                            new List<MissionRuntimePlanClueDto>
+                            {
+                                new("Find it", "HiddenUntilOperatorRelease"),
                             }),
                     }),
             });
@@ -58,6 +62,7 @@ public sealed class GetMissionRuntimePlanQueryTests
         result.Should().BeSameAs(plan);
         result.Stages.Single().Substages.Single().Targets.Single().Clue!.Text.Should().Be("Find it");
         result.Stages.Single().Substages.Single().TriviaQuestions.Single().Options.Should().HaveCount(2);
+        result.Stages.Single().Substages.Single().Clues.Single().Text.Should().Be("Find it");
     }
 
     [Fact]

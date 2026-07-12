@@ -20,6 +20,6 @@ public sealed record ActiveSubstageContextDto(
     int? ActiveQuestionTimeLimitSeconds);
 
 public sealed record VisibleClueDto(
-    Guid TargetSnapshotId,
+    Guid? TargetSnapshotId,
     string ClueText,
-    string TargetName);
+    string? TargetName);

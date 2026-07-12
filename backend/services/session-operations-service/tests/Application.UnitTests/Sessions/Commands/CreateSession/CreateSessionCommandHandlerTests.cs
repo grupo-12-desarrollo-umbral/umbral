@@ -186,7 +186,7 @@ public sealed class CreateSessionCommandHandlerTests
                     "Stage One",
                     1,
                     [
-                        new MissionRuntimeSubstageDto("Mystery Round", 1, "NotAPlayMode", [], [])
+                        new MissionRuntimeSubstageDto("Mystery Round", 1, "NotAPlayMode", [], [], [])
                     ])
             ]);
     }
@@ -208,6 +208,7 @@ public sealed class CreateSessionCommandHandlerTests
                             [
                                 new MissionRuntimeTargetDto("Main Exhibit", "QR-001", 1, true, 100, null)
                             ],
+                            [],
                             [])
                     ])
             ]);
@@ -280,6 +281,7 @@ public sealed class CreateSessionCommandHandlerTests
                                     100,
                                     new MissionRuntimeClueDto("Look near the entrance.", "VisibleAtStart"))
                             ],
+                            [],
                             []),
                         new MissionRuntimeSubstageDto(
                             "Trivia Round",
@@ -297,7 +299,8 @@ public sealed class CreateSessionCommandHandlerTests
                                         new MissionRuntimeTriviaOptionDto("Mercury", 1, true),
                                         new MissionRuntimeTriviaOptionDto("Venus", 2, false)
                                     ])
-                            ])
+                            ],
+                            [])
                     ])
             ]);
     }
@@ -318,6 +321,7 @@ public sealed class CreateSessionCommandHandlerTests
                             "Trivia Round",
                             1,
                             SubstagePlayMode.Trivia.ToString(),
+                            [],
                             [],
                             [])
                     ])

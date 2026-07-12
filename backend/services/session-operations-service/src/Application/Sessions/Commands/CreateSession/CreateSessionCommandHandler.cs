@@ -72,6 +72,7 @@ public sealed class CreateSessionCommandHandler
         var stageSnapshots = new List<StageSnapshot>();
         var targetSnapshots = new List<TargetSnapshot>();
         var triviaQuestionSnapshots = new List<TriviaQuestionSnapshot>();
+        var clueSnapshots = new List<ClueSnapshot>();
 
         foreach (var stage in missionRuntime.Stages.OrderBy(stage => stage.SequenceOrder))
         {
@@ -92,6 +93,17 @@ public sealed class CreateSessionCommandHandler
                 };
 
                 substageSnapshots.Add(substageSnapshot);
+
+                // Substage-scoped clue superset (#145): capture every authored clue against the
+                // substage. A trivia substage has no target path, so this is the clue's only route
+                // to the live session; treasure-hunt clues also carry per-target below.
+                clueSnapshots.AddRange(
+                    substage.Clues
+                        .Select((clue, index) => ClueSnapshot.Create(
+                            substageSnapshot.SubstageSnapshotId,
+                            clue.Text,
+                            clue.VisibilityPolicy,
+                            index + 1)));
 
                 if (playMode == SubstagePlayMode.TreasureHunt)
                 {
@@ -139,7 +151,8 @@ public sealed class CreateSessionCommandHandler
             MaximumTime.Create(missionRuntime.MaximumTime),
             stageSnapshots,
             targetSnapshots,
-            triviaQuestionSnapshots);
+            triviaQuestionSnapshots,
+            clueSnapshots);
     }
 
     private static SubstagePlayMode ParsePlayMode(string playMode)

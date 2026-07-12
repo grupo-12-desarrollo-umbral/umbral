@@ -141,4 +141,25 @@ internal static class MissionRuntimeSnapshotFactory
             [],
             CreateQuestions(triviaSubstage.SubstageSnapshotId, triviaQuestionCount));
     }
+
+    // A target-less trivia substage carrying one clue of each visibility policy (#145). The
+    // VisibleWhenSubstageStarts clue must surface on the board once the substage is active; the
+    // HiddenUntilOperatorRelease clue must stay withheld until an operator release exists.
+    internal static MissionRuntimeSnapshot CreateTriviaSnapshotWithClues(int maximumTimeMinutes = 10)
+    {
+        var triviaSubstage = SubstageSnapshot.CreateTrivia("Trivia Round", 1);
+        var stage = StageSnapshot.Create("Stage One", 1, [triviaSubstage]);
+
+        return MissionRuntimeSnapshot.Create(
+            Guid.NewGuid(),
+            "Foundations of Science",
+            MaximumTime.Create(maximumTimeMinutes),
+            [stage],
+            [],
+            CreateQuestions(triviaSubstage.SubstageSnapshotId, 1),
+            [
+                ClueSnapshot.Create(triviaSubstage.SubstageSnapshotId, "Shown at start.", ClueSnapshot.VisibleWhenSubstageStartsPolicy, 1),
+                ClueSnapshot.Create(triviaSubstage.SubstageSnapshotId, "Released by operator.", "HiddenUntilOperatorRelease", 2)
+            ]);
+    }
 }

@@ -557,6 +557,36 @@ public sealed class MissionEndpointsTests : IClassFixture<PostgreSqlFixture>, IA
             });
         setTriviaSelectionResponse.EnsureSuccessStatusCode();
 
+        // Trivia substages have no targets, so a substage-scoped clue is their only path to the
+        // runtime plan (#145). Author one clue of each visibility policy.
+        var addVisibleTriviaClueResponse = await _client.PostAsJsonAsync(
+            $"/api/missions/{missionId}/nodes",
+            new
+            {
+                nodeType = "Clue",
+                title = "Trivia Visible Clue",
+                sequenceOrder = 1,
+                stageId = triviaStageId,
+                substageId = triviaSubstageId,
+                clueText = "Shown when the trivia round starts.",
+                clueVisibilityPolicy = "VisibleWhenSubstageStarts"
+            });
+        addVisibleTriviaClueResponse.EnsureSuccessStatusCode();
+
+        var addHiddenTriviaClueResponse = await _client.PostAsJsonAsync(
+            $"/api/missions/{missionId}/nodes",
+            new
+            {
+                nodeType = "Clue",
+                title = "Trivia Hidden Clue",
+                sequenceOrder = 2,
+                stageId = triviaStageId,
+                substageId = triviaSubstageId,
+                clueText = "Released by the operator.",
+                clueVisibilityPolicy = "HiddenUntilOperatorRelease"
+            });
+        addHiddenTriviaClueResponse.EnsureSuccessStatusCode();
+
         var treasureStageId = await AddStageAsync(missionId, "Stage 1", 1);
         var treasureSubstageId = await AddSubstageAsync(missionId, treasureStageId, "Treasure Hunt", "TreasureHunt", 1);
 
@@ -640,12 +670,21 @@ public sealed class MissionEndpointsTests : IClassFixture<PostgreSqlFixture>, IA
         treasureSubstage.Targets[0].Clue.Should().NotBeNull();
         treasureSubstage.Targets[0].Clue!.Text.Should().Be("Look beneath the arch.");
         treasureSubstage.Targets[0].Clue!.VisibilityPolicy.Should().Be("VisibleWhenSubstageStarts");
+        // The target-associated clue also appears in the substage clue superset (#145).
+        treasureSubstage.Clues.Should().ContainSingle();
+        treasureSubstage.Clues[0].Text.Should().Be("Look beneath the arch.");
 
         var triviaSubstage = runtimePlan.Stages[1].Substages.Should().ContainSingle().Which;
         triviaSubstage.Title.Should().Be("Trivia Round");
         triviaSubstage.SequenceOrder.Should().Be(1);
         triviaSubstage.PlayMode.Should().Be("Trivia");
         triviaSubstage.Targets.Should().BeEmpty();
+        // Substage-scoped clues reach the runtime plan for a target-less trivia substage (#145),
+        // ordered by sequence, each carrying its authored visibility policy.
+        triviaSubstage.Clues.Select(clue => clue.Text)
+            .Should().Equal("Shown when the trivia round starts.", "Released by the operator.");
+        triviaSubstage.Clues.Select(clue => clue.VisibilityPolicy)
+            .Should().Equal("VisibleWhenSubstageStarts", "HiddenUntilOperatorRelease");
         triviaSubstage.TriviaQuestions.Select(question => question.Prompt).Should().Equal("First question", "Second question");
         triviaSubstage.TriviaQuestions.Select(question => question.SequenceOrder).Should().Equal(1, 2);
         triviaSubstage.TriviaQuestions.Select(question => question.ScoreValue).Should().Equal(50, 35);
