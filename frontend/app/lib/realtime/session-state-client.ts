@@ -13,6 +13,7 @@ import type {
   SessionTimerUpdatedNotificationDto,
   SubstageAdvancedNotificationDto,
   TeamAnsweredNotificationDto,
+  OperatorSessionPanelDto,
 } from '@/app/lib/definitions'
 
 export type SessionRealtimeStatus =
@@ -30,6 +31,7 @@ type SessionStateClientOptions = {
   onQuestionClosed?: (notification: QuestionClosedNotificationDto) => void
   onSubstageAdvanced?: (notification: SubstageAdvancedNotificationDto) => void
   onTeamAnswered?: (notification: TeamAnsweredNotificationDto) => void
+  onOperatorPanel?: (panel: OperatorSessionPanelDto) => void
   onReconnected?: () => void
 }
 
@@ -177,6 +179,45 @@ function normalizeTeamAnswered(raw: unknown): TeamAnsweredNotificationDto {
   }
 }
 
+// Same defensive camel ?? Pascal ?? default idiom as the sibling normalizers, extended to the nested
+// teamProgress / activeSubstage. The wire is camelCase (no AddJsonProtocol override) but the Pascal
+// fallbacks keep a future protocol change from breaking this.
+function normalizeOperatorPanel(raw: unknown): OperatorSessionPanelDto {
+  const p = (raw ?? {}) as Record<string, unknown>
+  const rawTeams = (p.teamProgress ?? p.TeamProgress ?? []) as unknown[]
+  return {
+    liveSessionId: (p.liveSessionId ?? p.LiveSessionId ?? '') as string,
+    state: (p.state ?? p.State ?? '') as string,
+    // The panel's countdown is driven by the dedicated SessionTimerUpdated path (HU-22); this timer
+    // field is passed through typed but not re-rendered as a second clock (Architecture Decision 4).
+    timer: (p.timer ?? p.Timer) as OperatorSessionPanelDto['timer'],
+    teamProgress: rawTeams.map((rawTeam) => {
+      const t = (rawTeam ?? {}) as Record<string, unknown>
+      const sub = (t.activeSubstage ?? t.ActiveSubstage ?? null) as Record<string, unknown> | null
+      return {
+        teamId: (t.teamId ?? t.TeamId ?? '') as string,
+        teamCode: (t.teamCode ?? t.TeamCode ?? '') as string,
+        displayName: (t.displayName ?? t.DisplayName ?? '') as string,
+        score: (t.score ?? t.Score ?? 0) as number,
+        activeSubstage:
+          sub === null
+            ? null
+            : {
+                substageSnapshotId: (sub.substageSnapshotId ?? sub.SubstageSnapshotId ?? '') as string,
+                playMode: (sub.playMode ?? sub.PlayMode ?? '') as string,
+                title: (sub.title ?? sub.Title ?? '') as string,
+                totalActiveTargets: (sub.totalActiveTargets ?? sub.TotalActiveTargets ?? 0) as number,
+                resolvedTargets: (sub.resolvedTargets ?? sub.ResolvedTargets ?? 0) as number,
+                activeQuestionSequenceOrder:
+                  (sub.activeQuestionSequenceOrder ?? sub.ActiveQuestionSequenceOrder ?? null) as number | null,
+                activeQuestionTimeLimitSeconds:
+                  (sub.activeQuestionTimeLimitSeconds ?? sub.ActiveQuestionTimeLimitSeconds ?? null) as number | null,
+              },
+      }
+    }),
+  }
+}
+
 async function invokeIfConnected(
   connection: HubConnection,
   methodName: string,
@@ -195,6 +236,7 @@ export function createSessionStateRealtimeClient({
   onQuestionClosed,
   onSubstageAdvanced,
   onTeamAnswered,
+  onOperatorPanel,
   onReconnected,
 }: SessionStateClientOptions): SessionStateRealtimeClient {
   const connection = new HubConnectionBuilder()
@@ -236,6 +278,12 @@ export function createSessionStateRealtimeClient({
   if (onTeamAnswered) {
     connection.on('TeamAnswered', (raw: unknown) => {
       onTeamAnswered(normalizeTeamAnswered(raw))
+    })
+  }
+
+  if (onOperatorPanel) {
+    connection.on('OperatorSessionPanelUpdated', (raw: unknown) => {
+      onOperatorPanel(normalizeOperatorPanel(raw))
     })
   }
 

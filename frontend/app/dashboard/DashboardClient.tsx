@@ -4,7 +4,7 @@ import { useCallback, useEffect, useReducer, useRef, useState, useSyncExternalSt
 import { logout } from '@/app/actions/auth';
 import { refreshSession } from '@/app/actions/session';
 import { getUsersPage, deactivateUser, assignUserRole } from '@/app/actions/users';
-import { listSessionsForOperator, transitionSessionState, getSessionTimerSnapshotAction, getTriviaAnsweredMonitorAction } from '@/app/actions/sessions';
+import { listSessionsForOperator, transitionSessionState, getSessionTimerSnapshotAction, getTriviaAnsweredMonitorAction, getOperatorSessionPanelAction } from '@/app/actions/sessions';
 import { TeamsPanel } from './TeamsPanel'
 import { TriviasPanel } from './TriviasPanel'
 import { MissionsPanel } from './MissionsPanel'
@@ -13,6 +13,7 @@ import { SessionOperatorPanel } from './SessionOperatorPanel'
 import { OperatorSessionTimerPanel } from './OperatorSessionTimerPanel'
 import { TriviaRoundPanel } from './TriviaRoundPanel'
 import { AnsweredMonitorPanel, type AnsweredTeamRow } from './AnsweredMonitorPanel'
+import { OperatorTeamProgressPanel } from './OperatorTeamProgressPanel'
 import { isNonLiveQuestionSnapshot } from './timer-snapshot'
 import { createSessionStateRealtimeClient, type SessionRealtimeStatus } from '@/app/lib/realtime/session-state-client'
 import { lifecycleActions, toLifecycleState } from '@/app/lib/session-lifecycle'
@@ -26,6 +27,7 @@ import type {
   SessionTimerUpdatedNotificationDto,
   TransitionSessionStateResultDto,
   TriviaAnsweredMonitorDto,
+  OperatorSessionPanelDto,
   UserAccessCatalogItemDto,
 } from '@/app/lib/definitions';
 import styles from './dashboard.module.css';
@@ -326,6 +328,40 @@ function answeredMonitorReducer(
   }
 }
 
+// HU-24A operator live session panel state. The snapshot fetch and the OperatorSessionPanelUpdated
+// push both deliver the full DTO (a wholesale re-projection, not a delta), so `loaded` replaces it
+// outright. `unauthorized` (403/401/non-operator) is kept distinct from a transient `error`.
+interface OperatorPanelState {
+  loading: boolean
+  unauthorized: boolean
+  error: string | null
+  panel: OperatorSessionPanelDto | null
+}
+
+const emptyOperatorPanel: OperatorPanelState = { loading: false, unauthorized: false, error: null, panel: null }
+
+type OperatorPanelAction =
+  | { type: 'reset' }
+  | { type: 'load' }
+  | { type: 'loaded'; data: OperatorSessionPanelDto } // from snapshot fetch OR SignalR push (full re-projection)
+  | { type: 'unauthorized' }
+  | { type: 'failed'; error: string }
+
+function operatorPanelReducer(state: OperatorPanelState, action: OperatorPanelAction): OperatorPanelState {
+  switch (action.type) {
+    case 'reset':
+      return emptyOperatorPanel
+    case 'load':
+      return { ...state, loading: true, unauthorized: false, error: null }
+    case 'loaded':
+      return { loading: false, unauthorized: false, error: null, panel: action.data }
+    case 'unauthorized':
+      return { ...emptyOperatorPanel, unauthorized: true }
+    case 'failed':
+      return { ...state, loading: false, error: action.error }
+  }
+}
+
 export default function DashboardClient({
   role: initialRole,
   displayName,
@@ -370,6 +406,7 @@ export default function DashboardClient({
   const [liveUpdateNote, setLiveUpdateNote] = useState<string | null>(null);
   const [timerState, dispatchTimer] = useReducer(timerReducer, { snapshot: null, error: null, loading: false })
   const [monitorState, dispatchMonitor] = useReducer(answeredMonitorReducer, emptyAnsweredMonitor)
+  const [operatorPanelState, dispatchOperatorPanel] = useReducer(operatorPanelReducer, emptyOperatorPanel)
   const triviaRound = useTriviaRoundState()
   const {
     reset: resetTriviaRound,
@@ -484,6 +521,16 @@ export default function DashboardClient({
     } else {
       dispatchMonitor({ type: 'failed', error: result.error })
     }
+  }, [])
+
+  const loadOperatorPanel = useCallback(async (liveSessionId: string) => {
+    dispatchOperatorPanel({ type: 'load' })
+    const result = await getOperatorSessionPanelAction(liveSessionId)
+    // Drop a late response for a session the operator has since switched away from.
+    if (selectedRealtimeSessionIdRef.current !== liveSessionId) return
+    if ('data' in result) dispatchOperatorPanel({ type: 'loaded', data: result.data })
+    else if ('unauthorized' in result) dispatchOperatorPanel({ type: 'unauthorized' })
+    else dispatchOperatorPanel({ type: 'failed', error: result.error })
   }, [])
 
   useEffect(() => {
@@ -617,10 +664,16 @@ export default function DashboardClient({
           order: notification.questionSequenceOrder,
         })
       },
+      onOperatorPanel: (panel) => {
+        if (panel.liveSessionId !== selectedRealtimeSessionId) return
+        // Full re-projection (SessionStateChanged / SubstageAdvanced) — replace panel state wholesale.
+        dispatchOperatorPanel({ type: 'loaded', data: panel })
+      },
       onReconnected: () => {
         if (selectedRealtimeSessionId) {
           void loadTimerSnapshot(selectedRealtimeSessionId)
           void loadAnsweredMonitor(selectedRealtimeSessionId)
+          void loadOperatorPanel(selectedRealtimeSessionId)
         }
       },
     })
@@ -634,6 +687,7 @@ export default function DashboardClient({
     selectedRealtimeSessionId,
     loadTimerSnapshot,
     loadAnsweredMonitor,
+    loadOperatorPanel,
     resetTriviaRound,
     completeTriviaRound,
     handlePregameTimerTick,
@@ -648,10 +702,12 @@ export default function DashboardClient({
     selectedRealtimeSessionIdRef.current = selectedRealtimeSessionId
     dispatchTimer({ type: 'reset' })
     dispatchMonitor({ type: 'reset' })
+    dispatchOperatorPanel({ type: 'reset' })
     if (!selectedRealtimeSessionId) return
     void loadTimerSnapshot(selectedRealtimeSessionId)
     void loadAnsweredMonitor(selectedRealtimeSessionId)
-  }, [selectedRealtimeSessionId, loadTimerSnapshot, loadAnsweredMonitor])
+    void loadOperatorPanel(selectedRealtimeSessionId)
+  }, [selectedRealtimeSessionId, loadTimerSnapshot, loadAnsweredMonitor, loadOperatorPanel])
 
   function announce(title: string, body: string) {
     setToast({ title, body });
@@ -1082,6 +1138,13 @@ export default function DashboardClient({
                   timer={timerState.snapshot}
                   isLoading={timerState.loading}
                   error={timerState.error}
+                />
+
+                <OperatorTeamProgressPanel
+                  panel={operatorPanelState.panel}
+                  unauthorized={operatorPanelState.unauthorized}
+                  error={operatorPanelState.error}
+                  loading={operatorPanelState.loading}
                 />
 
                 <TriviaRoundPanel

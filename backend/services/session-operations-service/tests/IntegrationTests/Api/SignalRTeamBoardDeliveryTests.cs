@@ -38,7 +38,10 @@ public sealed class SignalRTeamBoardDeliveryTests : IAsyncLifetime
     public async Task BroadcastTeamBoardUpdated_ReachesOwnTeamGroup()
     {
         var seeded = await SeedActiveTreasureHuntSessionAsync();
-        var connection = await ConnectParticipantAsync(seeded.LiveSessionId, seeded.TeamId, seeded.ParticipantExternalIdentityId);
+        var connection = await ConnectParticipantAsync(
+            seeded.LiveSessionId,
+            seeded.PrimaryParticipantExternalIdentityId,
+            seeded.PrimaryTeamId);
 
         try
         {
@@ -48,13 +51,13 @@ public sealed class SignalRTeamBoardDeliveryTests : IAsyncLifetime
                 payload => received = payload);
 
             var broadcaster = _factory.Services.GetRequiredService<Application.Common.Interfaces.ITeamBoardBroadcaster>();
-            var board = CreateBoardDto(seeded.LiveSessionId, seeded.TeamId);
+            var board = CreateBoardDto(seeded.LiveSessionId, seeded.PrimaryTeamId);
 
             await broadcaster.BroadcastTeamBoardUpdatedAsync(board, CancellationToken.None);
 
             await Task.Delay(500);
             received.Should().NotBeNull();
-            received!.TeamId.Should().Be(seeded.TeamId);
+            received!.TeamId.Should().Be(seeded.PrimaryTeamId);
             received.LiveSessionId.Should().Be(seeded.LiveSessionId);
         }
         finally
@@ -67,7 +70,10 @@ public sealed class SignalRTeamBoardDeliveryTests : IAsyncLifetime
     public async Task BroadcastTeamBoardUpdated_DoesNotReachOtherTeamGroup()
     {
         var seeded = await SeedActiveTreasureHuntSessionAsync();
-        var otherConnection = await ConnectParticipantAsync(seeded.LiveSessionId, seeded.OtherTeamId, seeded.OtherParticipantExternalIdentityId);
+        var otherConnection = await ConnectParticipantAsync(
+            seeded.LiveSessionId,
+            seeded.SecondaryParticipantExternalIdentityId,
+            seeded.SecondaryTeamId);
 
         try
         {
@@ -77,7 +83,7 @@ public sealed class SignalRTeamBoardDeliveryTests : IAsyncLifetime
                 payload => received = payload);
 
             var broadcaster = _factory.Services.GetRequiredService<Application.Common.Interfaces.ITeamBoardBroadcaster>();
-            var board = CreateBoardDto(seeded.LiveSessionId, seeded.TeamId);
+            var board = CreateBoardDto(seeded.LiveSessionId, seeded.PrimaryTeamId);
 
             await broadcaster.BroadcastTeamBoardUpdatedAsync(board, CancellationToken.None);
 
@@ -90,7 +96,10 @@ public sealed class SignalRTeamBoardDeliveryTests : IAsyncLifetime
         }
     }
 
-    private async Task<HubConnection> ConnectParticipantAsync(Guid sessionId, Guid teamId, Guid externalIdentityId)
+    private async Task<HubConnection> ConnectParticipantAsync(
+        Guid liveSessionId,
+        Guid externalIdentityId,
+        Guid teamId)
     {
         var client = _factory.CreateClient();
         AddTrustedHeaders(client, externalIdentityId.ToString(), "Participant", "participant@example.com");
@@ -110,7 +119,7 @@ public sealed class SignalRTeamBoardDeliveryTests : IAsyncLifetime
 
         await connection.InvokeAsync(
             nameof(SessionsHub.ReconnectAsync),
-            sessionId,
+            liveSessionId,
             new SessionsHub.ReconnectParticipantHubRequest(teamId, "TestUser", null));
 
         return connection;
@@ -134,21 +143,25 @@ public sealed class SignalRTeamBoardDeliveryTests : IAsyncLifetime
             maximumTimeMinutes: 45,
             createdAt,
             CreateTreasureHuntSnapshot(sourceMissionId));
-        var team = session.AssociateTeam(Guid.NewGuid(), "Alpha", "A-01", 4);
-        var otherTeam = session.AssociateTeam(Guid.NewGuid(), "Bravo", "B-01", 4);
+        var primaryTeam = session.AssociateTeam(Guid.NewGuid(), "Alpha", "A-01", 4);
+        var secondaryTeam = session.AssociateTeam(Guid.NewGuid(), "Bravo", "B-01", 4);
 
-        session.AdmitParticipant(
-            participantExternalIdentityId,
-            "TestUser",
-            team.TeamId,
+        var primaryParticipantExternalIdentityId = Guid.NewGuid();
+        var secondaryParticipantExternalIdentityId = Guid.NewGuid();
+        var primaryParticipant = session.AdmitParticipant(
+            primaryParticipantExternalIdentityId,
+            "AlphaUser",
+            primaryTeam.TeamId,
             createdAt.AddMinutes(1),
-            new JoinPolicy());
-        session.AdmitParticipant(
-            otherParticipantExternalIdentityId,
-            "OtherUser",
-            otherTeam.TeamId,
+            new JoinPolicy()).Participant;
+        var secondaryParticipant = session.AdmitParticipant(
+            secondaryParticipantExternalIdentityId,
+            "BravoUser",
+            secondaryTeam.TeamId,
             createdAt.AddMinutes(1),
-            new JoinPolicy());
+            new JoinPolicy()).Participant;
+        session.DisconnectParticipant(primaryParticipant.SessionParticipantId, createdAt.AddMinutes(2));
+        session.DisconnectParticipant(secondaryParticipant.SessionParticipantId, createdAt.AddMinutes(2));
 
         var policy = new SessionStateTransitionPolicy();
         session.MoveTo(SessionState.Preparing, createdAt.AddMinutes(1), policy);
@@ -159,10 +172,10 @@ public sealed class SignalRTeamBoardDeliveryTests : IAsyncLifetime
 
         return new SeededSession(
             session.LiveSessionId,
-            team.TeamId,
-            participantExternalIdentityId,
-            otherTeam.TeamId,
-            otherParticipantExternalIdentityId);
+            primaryTeam.TeamId,
+            secondaryTeam.TeamId,
+            primaryParticipantExternalIdentityId,
+            secondaryParticipantExternalIdentityId);
     }
 
     private static MissionRuntimeSnapshot CreateTreasureHuntSnapshot(Guid sourceMissionId)
@@ -228,8 +241,8 @@ public sealed class SignalRTeamBoardDeliveryTests : IAsyncLifetime
 
     private sealed record SeededSession(
         Guid LiveSessionId,
-        Guid TeamId,
-        Guid ParticipantExternalIdentityId,
-        Guid OtherTeamId,
-        Guid OtherParticipantExternalIdentityId);
+        Guid PrimaryTeamId,
+        Guid SecondaryTeamId,
+        Guid PrimaryParticipantExternalIdentityId,
+        Guid SecondaryParticipantExternalIdentityId);
 }

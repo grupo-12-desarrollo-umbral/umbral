@@ -122,6 +122,82 @@ public sealed class ParticipantTeamBoardRepositoryIntegrationTests
     }
 
     [Fact]
+    public async Task GetByIdAsync_OperatorPanelRead_HydratesSessionStateAllTeamsAndTreasureHuntTargetSnapshots()
+    {
+        await using var resetContext = BuildContext();
+        await ResetDatabaseAsync(resetContext);
+
+        var activeAt = new DateTimeOffset(2026, 7, 11, 12, 0, 0, TimeSpan.Zero);
+        var liveSession = CreateActiveTreasureHuntSession(activeAt,
+            ("Bravo", "BBB-01"),
+            ("Alpha", "AAA-01"));
+
+        await using (var seedContext = BuildContext())
+        {
+            seedContext.LiveSessions.Add(liveSession);
+            await seedContext.SaveChangesAsync(CancellationToken.None);
+        }
+
+        await using var assertContext = BuildContext();
+        var repository = new LiveSessionRepository(assertContext);
+        var persistedSession = await repository.GetByIdAsync(liveSession.LiveSessionId, CancellationToken.None);
+
+        persistedSession.Should().NotBeNull();
+
+        var panel = persistedSession!.ProjectOperatorSessionPanel(activeAt.AddSeconds(5));
+
+        panel.State.Should().Be(SessionState.Active);
+        panel.TeamProgress.Select(team => team.TeamCode)
+            .Should().Equal("AAA-01", "BBB-01");
+        panel.TeamProgress.Should().OnlyContain(team => team.CurrentScore == 0);
+        panel.TeamProgress.Should().OnlyContain(team => team.ActiveSubstageContext != null);
+        panel.TeamProgress.Select(team => team.ActiveSubstageContext!)
+            .Should().OnlyContain(context =>
+                context.PlayMode == SubstagePlayMode.TreasureHunt &&
+                context.TotalActiveTargets == 2 &&
+                context.ResolvedTargets == 0);
+    }
+
+    [Fact]
+    public async Task GetByIdAsync_OperatorPanelRead_HydratesTriviaQuestionSnapshotsForEveryTeam()
+    {
+        await using var resetContext = BuildContext();
+        await ResetDatabaseAsync(resetContext);
+
+        var activeAt = new DateTimeOffset(2026, 7, 11, 12, 0, 0, TimeSpan.Zero);
+        var liveSession = CreateActiveTriviaQuestionSessionWithTeams(activeAt,
+            ("Alpha", "AAA-01"),
+            ("Bravo", "BBB-01"));
+
+        await using (var seedContext = BuildContext())
+        {
+            seedContext.LiveSessions.Add(liveSession);
+            await seedContext.SaveChangesAsync(CancellationToken.None);
+        }
+
+        await using var assertContext = BuildContext();
+        var repository = new LiveSessionRepository(assertContext);
+        var persistedSession = await repository.GetByIdAsync(liveSession.LiveSessionId, CancellationToken.None);
+
+        persistedSession.Should().NotBeNull();
+
+        var panel = persistedSession!.ProjectOperatorSessionPanel(activeAt.AddSeconds(10));
+
+        panel.State.Should().Be(SessionState.Active);
+        panel.TimerSnapshot.Should().NotBeNull();
+        panel.TimerSnapshot.TotalDuration.Should().Be(TimeSpan.FromSeconds(30));
+        panel.TeamProgress.Select(team => (team.TeamCode, team.CurrentScore))
+            .Should().Equal(("AAA-01", 0), ("BBB-01", 0));
+        panel.TeamProgress.Select(team => team.ActiveSubstageContext!)
+            .Should().OnlyContain(context =>
+                context.PlayMode == SubstagePlayMode.Trivia &&
+                context.ActiveQuestionSequenceOrder == 1 &&
+                context.ActiveQuestionTimeLimitSeconds == 30 &&
+                context.TotalActiveTargets == 0 &&
+                context.ResolvedTargets == 0);
+    }
+
+    [Fact]
     public async Task GetByIdAsync_BoardRead_PersistsTeamScoreAcrossReload()
     {
         await using var resetContext = BuildContext();

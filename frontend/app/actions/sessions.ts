@@ -12,6 +12,7 @@ import {
   transitionSessionState as transitionSessionStateLib,
   getOperatorSessionTimerSnapshot as getOperatorSessionTimerSnapshotLib,
   getOperatorTriviaAnsweredMonitor as getOperatorTriviaAnsweredMonitorLib,
+  getOperatorSessionPanel as getOperatorSessionPanelLib,
 } from '@/app/lib/sessions'
 import { listAssignableOperators as listAssignableOperatorsLib } from '@/app/lib/users'
 import { revalidatePath } from 'next/cache'
@@ -28,6 +29,7 @@ import type {
   TransitionSessionStateResultDto,
   SessionTimerSnapshotDto,
   TriviaAnsweredMonitorDto,
+  OperatorSessionPanelDto,
 } from '@/app/lib/definitions'
 import { IdentityError } from '@/app/lib/definitions'
 
@@ -134,6 +136,34 @@ export async function getTriviaAnsweredMonitorAction(
       return { error: error.message }
     }
     return { error: 'Unexpected error fetching answered monitor' }
+  }
+}
+
+// HU-24A operator live session panel. Three outcomes the panel renders distinctly:
+//   { data }          → session state + ordered per-team progress rollup
+//   { unauthorized }  → 403 non-owner / 401 auth expired / non-operator → not-authorized state
+//   { error }         → 404 / unexpected / transient backend failure → error state; never throws
+// Genuine auth failures are kept separate from transient ones so a momentary 5xx/network blip does
+// not tell a legitimately-assigned operator they are "not authorized".
+export async function getOperatorSessionPanelAction(
+  liveSessionId: string,
+): Promise<
+  | { data: OperatorSessionPanelDto }
+  | { unauthorized: true }
+  | { error: string }
+> {
+  'use server'
+  const session = await verifySession()
+  if (session.role !== 'Operator') return { unauthorized: true }
+  try {
+    const data = await getOperatorSessionPanelLib(liveSessionId)
+    return { data }
+  } catch (error) {
+    if (error instanceof IdentityError) {
+      if (error.code === 'unauthorized') return { unauthorized: true }
+      return { error: error.message }
+    }
+    return { error: 'Unexpected error fetching operator panel' }
   }
 }
 

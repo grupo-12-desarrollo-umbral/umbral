@@ -11,6 +11,7 @@ import {
   type TransitionSessionStateResultDto,
   type SessionTimerSnapshotDto,
   type TriviaAnsweredMonitorDto,
+  type OperatorSessionPanelDto,
 } from './definitions'
 import { verifySession } from './dal'
 import { KeycloakAuthError } from './keycloak'
@@ -201,6 +202,28 @@ export async function getOperatorTriviaAnsweredMonitor(
   if (!response.ok) throw new IdentityError('unknown', `Answered monitor read failed with status ${response.status}`)
 
   return response.json() as Promise<TriviaAnsweredMonitorDto>
+}
+
+// HU-24A operator live session panel snapshot. Mirrors getOperatorSessionTimerSnapshot's gateway
+// path + auth/status mapping. 403 = a non-owning operator: the ownership Proxy denies the read.
+export async function getOperatorSessionPanel(
+  liveSessionId: string,
+): Promise<OperatorSessionPanelDto> {
+  await verifySession()
+  const response = await fetch(
+    `${API_GATEWAY_URL}/api/sessions/${liveSessionId}/operator-panel`,
+    {
+      headers: await getGatewayHeaders(),
+      cache: 'no-store',
+    },
+  )
+
+  if (response.status === 401) throw new IdentityError('unauthorized', 'Operator panel: auth expired')
+  if (response.status === 403) throw new IdentityError('unauthorized', 'Operator panel: not assigned operator')
+  if (response.status === 404) throw new IdentityError('unknown', 'Session not found')
+  if (!response.ok) throw new IdentityError('unknown', `Operator panel read failed with status ${response.status}`)
+
+  return response.json() as Promise<OperatorSessionPanelDto>
 }
 
 export async function getSessionAssociatedTeams(
