@@ -4,6 +4,18 @@
   "displayName": "Umbral",
   "registrationAllowed": false,
   "resetPasswordAllowed": true,
+  "verifyEmail": true,
+  "smtpServer": {
+    "host": "${KC_SMTP_HOST:mailpit}",
+    "port": "${KC_SMTP_PORT:1025}",
+    "from": "${KC_SMTP_FROM:no-reply@umbral.local}",
+    "fromDisplayName": "${KC_SMTP_FROM_DISPLAY_NAME:Umbral}",
+    "ssl": "${KC_SMTP_SSL:false}",
+    "starttls": "${KC_SMTP_STARTTLS:false}",
+    "auth": "${KC_SMTP_AUTH:false}",
+    "user": "${KC_SMTP_USER:}",
+    "password": "${KC_SMTP_PASSWORD:}"
+  },
   "roles": {
     "realm": [
       {
