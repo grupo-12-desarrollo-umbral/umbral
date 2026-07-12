@@ -2,6 +2,14 @@
 _Driver reads only this file. The full prompt + context are for the subagent
 and human review; the driver never loads them._
 
+> **Historical brief — not active messaging guidance.** This records the original
+> HU-33B hand-rolled RabbitMQ implementation and its decisions at delivery time.
+> ADR-0017 supersedes its publisher-boundary and latency wording for new or migrated
+> events: Application uses MassTransit's `IPublishEndpoint`, RabbitMQ mechanics stay
+> in Infrastructure, and post-commit publishing is bounded-blocking best effort with
+> the linked five-second timeout and logged/swallowed failures. Do not restore
+> `IIntegrationEventPublisher` or `RabbitMqIntegrationEventPublisher` from this brief.
+
 > **Nature of this HU:** feature build — the **async-publication sibling** of the Done HU-33A
 > (DES-78). HU-33A already landed the trivia runtime (question close, substage advancement,
 > `SessionCompletion → Finished`) and the SignalR broadcasts. HU-33B adds the one thing HU-33A

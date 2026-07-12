@@ -6,6 +6,11 @@
 > DES-46 is the merged ticket for the old HU-34A/HU-34B split: acceptance of the first valid
 > answer and rejection of late/repeated attempts are one invariant, one command, one endpoint,
 > and one test surface. `DES-47` is **Canceled** and must not be cited as live scope.
+>
+> **Messaging guidance updated 2026-07-12:** ADR-0017 supersedes this context's
+> pre-MassTransit `IIntegrationEventPublisher` instructions. New or migrated events use
+> `IPublishEndpoint`; RabbitMQ mechanics remain in Infrastructure. References below to
+> the HU-33B publisher describe the historical predecessor implementation only.
 
 ## State
 
@@ -31,8 +36,8 @@
 
 Transport note: HU-34 carries **SignalR + RabbitMQ** (`required_patterns_matrix.md:57-58,132`).
 The accepted answer broadcasts an **operator-only answered indicator** in real time and publishes
-`AnswerRegistered` after transactional success. RabbitMQ infrastructure already exists from HU-33B;
-HU-34 reuses that publisher and adds the answer contract only.
+`AnswerRegistered` after transactional success. MassTransit/RabbitMQ infrastructure already exists
+from the HU-33B migration; HU-34 reuses `IPublishEndpoint` and adds the answer contract only.
 
 Applies-where note (no new `Proxy` gate): the participant write endpoint is `[Authorize(Policy = Participant)]`
 and the runtime admission check reuses the existing `RuntimeParticipationGuard`; HU-34 is not in the
@@ -46,10 +51,12 @@ matrix's applies-where `Proxy` set.
   per active trivia substage, advances by timer, and broadcasts `QuestionActivated` /
   `QuestionClosed` / `SubstageAdvanced`. HU-34 attaches answer intake to that seam: the active
   question is authoritative and shared for all teams; there is no participant-paced question flow.
-- **DES-45 (HU-33B) — Done.** RabbitMQ producer infrastructure already exists:
-  `IIntegrationEventPublisher`, `RabbitMqIntegrationEventPublisher`, durable service-owned
-  exchange wiring, and the "domain fact → app bridge → RabbitMQ contract" pattern. HU-34 must
-  reuse that seam instead of inventing a second publisher stack.
+- **DES-45 (HU-33B) — Done.** The original RabbitMQ producer used
+  `IIntegrationEventPublisher` and `RabbitMqIntegrationEventPublisher`; those names are
+  historical implementation detail superseded for new/migrated events by ADR-0017.
+  The active seam is the "domain fact → Application bridge → MassTransit contract"
+  pattern through `IPublishEndpoint`. HU-34 must reuse it instead of inventing a
+  second publisher stack.
 - **DES-77 (HU-22) — Done.** The timer is authoritative for the active trivia question only; a
   substage with no active question has no countdown. HU-34's "late answer" rule keys off that
   question window, not wall-clock heuristics or client-side timers.
@@ -80,7 +87,7 @@ verify the real service percentage at X.4 against the repo coverage gate.
 | Ordered validator chain | Reuse one ordered chain for runtime participation, active question presence, timer window, and duplicate-answer checks; the handler orchestrates, the links decide. |
 | Accepted-answer domain fact | Raise `AnswerRegistered` only after the accepted answer is persisted. No event on rejected attempts. |
 | Operator-only answered signal | Broadcast "team answered" without option/correctness leakage to an operator-only SignalR group; do not send it to the participant-visible live-session group. |
-| RabbitMQ answer contract | Publish the accepted-answer fact after transactional success through the existing RabbitMQ publisher seam so `ScoringMonitoring` can consume it. |
+| RabbitMQ answer contract | Publish the accepted-answer fact after transactional success through `IPublishEndpoint` so `ScoringMonitoring` can consume it; keep RabbitMQ mechanics in Infrastructure. |
 | Frontend slice | Add the participant answer-submission surface on top of the existing trivia round/timer runtime and wire the new backend contract into the frontend plan. |
 
 ## Touched surfaces
@@ -112,9 +119,9 @@ verify the real service percentage at X.4 against the repo coverage gate.
 - **Do not reveal correctness or points in the participant response or operator signal.** Fairness
   says those belong after close (HU-35) or downstream scoring (HU-37). The accepted-answer write
   returns acceptance metadata only; correctness/points stay internal / RabbitMQ-only.
-- **Reuse the existing RabbitMQ infrastructure.** HU-33B already introduced the service-owned
-  exchange and `IIntegrationEventPublisher`. HU-34 adds the answer contract; it does not bootstrap
-  a second AMQP stack.
+- **Reuse the existing MassTransit/RabbitMQ infrastructure.** HU-34 adds the answer
+  contract and publishes it through `IPublishEndpoint`; it does not restore the
+  historical `IIntegrationEventPublisher` or bootstrap a second AMQP stack.
 - **Transport naming follows the current backend seam, not the older sprint note.** The historical
   sprint handoff froze `domain.events` / `trivia.answer.registered`, but the as-built publisher in
   this service now owns a service-scoped exchange and `session.*` routing keys. Keep HU-34 aligned
@@ -176,8 +183,8 @@ Method verified — one invariant workflow, not split accept/reject implementati
   and duplicate-team-answer. These links must be independently testable and reusable by the same
   command's success and rejection paths.
 - Add the accepted-answer transport bridges:
-  - `AnswerRegisteredIntegrationEvent` mapped from `AnswerRegisteredEvent` and published via the
-    existing `IIntegrationEventPublisher`
+  - `AnswerRegisteredIntegrationEvent` mapped from `AnswerRegisteredEvent` and published via
+    MassTransit's `IPublishEndpoint`
   - `TeamAnsweredNotificationDto` mapped from `AnswerRegisteredEvent` and broadcast to operators
     only, with no option/correctness payload
 - The command result DTO belongs in `Application/Dtos/Sessions/` and returns acceptance metadata
@@ -191,7 +198,8 @@ Method verified — one invariant workflow, not split accept/reject implementati
 - create `src/Application/Sessions/Common/Notifications/TeamAnsweredNotificationDto.cs` — mirror `QuestionClosedNotificationDto.cs`
 - create `src/Application/Sessions/EventHandlers/{PublishAnswerRegisteredIntegrationEventHandler.cs,TeamAnsweredNotificationHandler.cs}` — mirror the existing question-close / session-state bridges
 - edit `src/Application/Common/Interfaces/ISessionQuestionBroadcaster.cs` or add a new operator-only broadcaster seam if the answered notification must target a distinct group
-- reuse `src/Application/Common/Interfaces/IIntegrationEventPublisher.cs` and `src/Application/Sessions/Common/RuntimeParticipationGuard.cs`
+- reuse `IPublishEndpoint` and `src/Application/Sessions/Common/RuntimeParticipationGuard.cs`;
+  do not create or restore a policy-free publisher wrapper
 - add application unit tests under `tests/Application.UnitTests/Sessions/...`
 
 **Pattern this phase owns:** `Chain of Responsibility` (mandated) + the application side of the
@@ -203,13 +211,13 @@ and `TeamAnsweredNotificationDto` publish off the accepted-answer fact only. **C
 Responsibility verified — ordered links, no monolithic handler branch chain.**
 
 ### Phase X.3 — Infrastructure
-**Derive** (`bd_umbral_entity_spec.md:401-447,600-638`; existing `LiveSessionConfiguration`, `RabbitMqIntegrationEventPublisher`, and integration-test style):
+**Derive** (`bd_umbral_entity_spec.md:401-447,600-638`; existing `LiveSessionConfiguration`, MassTransit registration, and integration-test style):
 - Persist the new `EvidenceSubmission` / `TriviaAnswerSubmission` child entities under `LiveSession`
   with the uniqueness guarantee required by canon: one accepted trivia answer per team per
   snapshotted question in the same session.
-- Reuse the existing RabbitMQ publisher infrastructure from HU-33B: add the answer contract and
-  routing-key mapping to the current service-owned exchange, rather than introducing a second
-  publisher or exchange abstraction.
+- Reuse the existing MassTransit/RabbitMQ infrastructure: add the answer contract and
+  publish through `IPublishEndpoint`, rather than introducing a second publisher or
+  exchange abstraction. RabbitMQ registration and topology remain in Infrastructure.
 - No new repository abstraction is needed if the aggregate round-trips through the existing
   `LiveSessionRepository`; extend configuration/mapping and add integration tests around the new
   child collections / uniqueness rule.
@@ -219,8 +227,8 @@ Responsibility verified — ordered links, no monolithic handler branch chain.**
   existing owned-child mapping style already used for runtime snapshot / team state
 - create `src/Infrastructure/Persistence/Migrations/<timestamp>_AddTriviaAnswerEvidence.cs` — add
   the umbrella + specialization persistence
-- edit `src/Infrastructure/Messaging/RabbitMqIntegrationEventPublisher.cs` — add the answer
-  routing-key mapping; mirror the existing `QuestionClosedIntegrationEvent` / `SessionResultsFinalizedIntegrationEvent` handling
+- edit `src/Infrastructure/Messaging/` registration only if the new contract requires
+  transport configuration; do not add a hand-rolled publisher or routing-key switch
 - add integration tests in `tests/IntegrationTests/Persistence/` and `tests/IntegrationTests/Messaging/`
 
 **Pattern this phase owns:** none.

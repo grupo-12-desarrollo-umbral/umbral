@@ -8,6 +8,11 @@ intentionally separated" note). Does **not** alter
 [ADR-0004](0004-required-domain-patterns.md): the mandated design patterns remain
 mandatory.
 
+> **Messaging boundary superseded:** [ADR-0017](0017-masstransit-abstractions-in-application.md)
+> replaces §5's outbound-messaging rule. Application handlers may use MassTransit's
+> transport-neutral abstractions directly; RabbitMQ transport configuration remains
+> in Infrastructure. All vertical-slice decisions in this ADR remain active.
+
 ## Context
 
 - The stack (`structure.md`) is Clean Architecture + CQRS with MediatR. The
@@ -78,8 +83,10 @@ mandatory.
    handlers stay in `Application/<Area>/Events|EventHandlers` only when a use case
    needs post-completion fan-out. RabbitMQ integration events follow the messaging
    contract in `plans/application-layer-cqrs-refactor.md` (publish-after-commit,
-   durable contracts, idempotent consumers) — handlers never talk to the broker
-   directly.
+   durable contracts, idempotent consumers). **This messaging boundary is superseded
+   by [ADR-0017](0017-masstransit-abstractions-in-application.md):** Application may
+   use MassTransit's transport-neutral abstractions directly, while RabbitMQ APIs and
+   configuration remain in Infrastructure.
 
 ## Consequences
 

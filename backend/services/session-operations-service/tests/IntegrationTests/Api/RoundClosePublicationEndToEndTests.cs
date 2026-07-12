@@ -52,19 +52,8 @@ public sealed class RoundClosePublicationEndToEndTests : IAsyncLifetime
             .WithPassword("guest")
             .Build();
 
-        try
-        {
-            await _rabbit.StartAsync();
-            _brokerAvailable = true;
-        }
-        catch (Exception)
-        {
-            // Docker/Testcontainers unavailable — the X.3 resilience test covers broker-down; this
-            // e2e is skipped rather than failed so the suite stays green off CI.
-            await _rabbit.DisposeAsync();
-            _rabbit = null;
-            return;
-        }
+        await DockerAvailability.StartOrSkipAsync(() => _rabbit.StartAsync(), _rabbit.DisposeAsync);
+        _brokerAvailable = true;
 
         // The composed singleton publisher binds RabbitMqOptions from configuration; env vars point
         // it at the Testcontainers broker (WebApplication.CreateBuilder reads env vars by default).
@@ -101,11 +90,6 @@ public sealed class RoundClosePublicationEndToEndTests : IAsyncLifetime
     [Fact]
     public async Task ClosingLastQuestionToFinished_PublishesSessionResultsFinalizedAndSignalRBroadcasts()
     {
-        if (!_brokerAvailable)
-        {
-            return; // Docker unavailable — skip (resilience covered by the X.3 broker-down test).
-        }
-
         var externalIdentityId = Guid.NewGuid();
         var seeded = await SeedActiveSingleQuestionTriviaSessionAsync(externalIdentityId);
 
