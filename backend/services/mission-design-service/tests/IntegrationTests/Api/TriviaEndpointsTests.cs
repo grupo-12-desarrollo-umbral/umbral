@@ -31,7 +31,7 @@ public sealed class TriviaEndpointsTests : IClassFixture<PostgreSqlFixture>, IAs
     [Fact]
     public async Task CreateTriviaQuiz_ReturnsCreatedQuizWithAssociatedQuestionShape()
     {
-        AddAdministratorHeaders();
+        AddOperatorHeaders();
 
         var response = await _client.PostAsJsonAsync(
             "/api/trivias/",
@@ -78,7 +78,7 @@ public sealed class TriviaEndpointsTests : IClassFixture<PostgreSqlFixture>, IAs
     [Fact]
     public async Task GetTriviaCatalogAndDetail_ReturnPersistedDraftChanges()
     {
-        AddAdministratorHeaders();
+        AddOperatorHeaders();
 
         var triviaId = await CreateTriviaQuizAsync("Historic Capitals");
 
@@ -107,7 +107,7 @@ public sealed class TriviaEndpointsTests : IClassFixture<PostgreSqlFixture>, IAs
     [Fact]
     public async Task UpdateTriviaQuiz_ReturnsUpdatedQuiz()
     {
-        AddAdministratorHeaders();
+        AddOperatorHeaders();
 
         var triviaId = await CreateTriviaQuizAsync("Trivia Before");
 
@@ -167,7 +167,7 @@ public sealed class TriviaEndpointsTests : IClassFixture<PostgreSqlFixture>, IAs
     [Fact]
     public async Task AddTriviaQuestion_ReturnsUpdatedQuizAndPersistsQuestionDetail()
     {
-        AddAdministratorHeaders();
+        AddOperatorHeaders();
 
         var triviaId = await CreateTriviaQuizAsync("Question Authoring");
 
@@ -219,7 +219,7 @@ public sealed class TriviaEndpointsTests : IClassFixture<PostgreSqlFixture>, IAs
     [Fact]
     public async Task UpdateTriviaQuestion_ReturnsUpdatedQuizAndDetail()
     {
-        AddAdministratorHeaders();
+        AddOperatorHeaders();
 
         var triviaId = await CreateTriviaQuizAsync("Question Update");
         var questionId = await GetFirstQuestionIdAsync(triviaId);
@@ -271,13 +271,13 @@ public sealed class TriviaEndpointsTests : IClassFixture<PostgreSqlFixture>, IAs
     }
 
     [Fact]
-    public async Task AddTriviaQuestion_WithNonAdminCaller_Returns403()
+    public async Task AddTriviaQuestion_WithNonOperatorCaller_Returns403()
     {
-        AddAdministratorHeaders();
+        AddOperatorHeaders();
 
         var triviaId = await CreateTriviaQuizAsync("Unauthorized Question Mutation");
 
-        AddOperatorHeaders();
+        AddAdministratorHeaders();
 
         var response = await _client.PostAsJsonAsync(
             $"/api/trivias/{triviaId}/questions",
@@ -317,7 +317,7 @@ public sealed class TriviaEndpointsTests : IClassFixture<PostgreSqlFixture>, IAs
     [Fact]
     public async Task UpdateTriviaQuiz_WhenQuizIsPublished_ReturnsConflict()
     {
-        AddAdministratorHeaders();
+        AddOperatorHeaders();
 
         var triviaId = await CreateTriviaQuizAsync("Published Trivia");
         await MarkTriviaQuizAsPublishedAsync(triviaId);
@@ -356,7 +356,7 @@ public sealed class TriviaEndpointsTests : IClassFixture<PostgreSqlFixture>, IAs
     [Fact]
     public async Task PublishTriviaQuiz_ReturnsPublishedQuizAndSourceReadyProjection()
     {
-        AddAdministratorHeaders();
+        AddOperatorHeaders();
 
         var triviaId = await CreateTriviaQuizAsync("Publication Candidate");
 
@@ -390,7 +390,7 @@ public sealed class TriviaEndpointsTests : IClassFixture<PostgreSqlFixture>, IAs
     [Fact]
     public async Task PublishTriviaQuiz_WhenQuizFailsReadinessRules_ReturnsConflict()
     {
-        AddAdministratorHeaders();
+        AddOperatorHeaders();
 
         var triviaId = await CreateEmptyTriviaQuizAsync("Incomplete Quiz");
 
@@ -416,7 +416,7 @@ public sealed class TriviaEndpointsTests : IClassFixture<PostgreSqlFixture>, IAs
     [Fact]
     public async Task ArchiveTriviaQuiz_ReturnsArchivedQuizAndRemovesSourceReadiness()
     {
-        AddAdministratorHeaders();
+        AddOperatorHeaders();
 
         var triviaId = await CreateTriviaQuizAsync("Archivable Quiz");
         await PublishTriviaQuizAsync(triviaId);
@@ -450,7 +450,7 @@ public sealed class TriviaEndpointsTests : IClassFixture<PostgreSqlFixture>, IAs
     [Fact]
     public async Task DuplicateTriviaQuiz_ReturnsCreatedAuthoringCopyWithLineageProjection()
     {
-        AddAdministratorHeaders();
+        AddOperatorHeaders();
 
         var sourceTriviaId = await CreateTriviaQuizAsync("Source Trivia");
         await PublishTriviaQuizAsync(sourceTriviaId);
@@ -509,7 +509,7 @@ public sealed class TriviaEndpointsTests : IClassFixture<PostgreSqlFixture>, IAs
     [Fact]
     public async Task DeleteTriviaQuiz_WhenUnused_ReturnsNoContentAndRemovesQuiz()
     {
-        AddAdministratorHeaders();
+        AddOperatorHeaders();
 
         var triviaId = await CreateTriviaQuizAsync("Disposable Trivia");
 
@@ -524,7 +524,7 @@ public sealed class TriviaEndpointsTests : IClassFixture<PostgreSqlFixture>, IAs
     [Fact]
     public async Task DeleteTriviaQuiz_WhenUsed_ReturnsConflictAndKeepsHistoricalRecord()
     {
-        AddAdministratorHeaders();
+        AddOperatorHeaders();
 
         var triviaId = await CreateTriviaQuizAsync("Used Trivia");
         await MarkTriviaQuizAsUsedAsync(triviaId);
@@ -550,7 +550,7 @@ public sealed class TriviaEndpointsTests : IClassFixture<PostgreSqlFixture>, IAs
     [Fact]
     public async Task RemoveTriviaQuestion_WhenExists_ReturnsUpdatedQuizWithReconciledOrder()
     {
-        AddAdministratorHeaders();
+        AddOperatorHeaders();
 
         var triviaId = await CreateTriviaQuizAsync("Question Removal");
 
@@ -599,14 +599,14 @@ public sealed class TriviaEndpointsTests : IClassFixture<PostgreSqlFixture>, IAs
     }
 
     [Fact]
-    public async Task RemoveTriviaQuestion_WithNonAdminCaller_Returns403()
+    public async Task RemoveTriviaQuestion_WithNonOperatorCaller_Returns403()
     {
-        AddAdministratorHeaders();
+        AddOperatorHeaders();
 
         var triviaId = await CreateTriviaQuizAsync("Unauthorized Question Removal");
         var questionId = await GetFirstQuestionIdAsync(triviaId);
 
-        AddOperatorHeaders();
+        AddAdministratorHeaders();
 
         var response = await _client.DeleteAsync($"/api/trivias/{triviaId}/questions/{questionId}");
 
@@ -621,7 +621,7 @@ public sealed class TriviaEndpointsTests : IClassFixture<PostgreSqlFixture>, IAs
     [Fact]
     public async Task RemoveTriviaQuestion_WhenQuizNotFound_ReturnsNotFound()
     {
-        AddAdministratorHeaders();
+        AddOperatorHeaders();
 
         var response = await _client.DeleteAsync("/api/trivias/9999/questions/1");
 
@@ -635,7 +635,7 @@ public sealed class TriviaEndpointsTests : IClassFixture<PostgreSqlFixture>, IAs
     [Fact]
     public async Task RemoveTriviaQuestion_WhenQuestionNotFound_ReturnsNotFound()
     {
-        AddAdministratorHeaders();
+        AddOperatorHeaders();
 
         var triviaId = await CreateTriviaQuizAsync("Missing Question Removal");
 
@@ -651,7 +651,7 @@ public sealed class TriviaEndpointsTests : IClassFixture<PostgreSqlFixture>, IAs
     [Fact]
     public async Task RemoveTriviaQuestion_WhenQuizIsPublished_ReturnsConflict()
     {
-        AddAdministratorHeaders();
+        AddOperatorHeaders();
 
         var triviaId = await CreateTriviaQuizAsync("Published Question Removal");
         var questionId = await GetFirstQuestionIdAsync(triviaId);
@@ -671,7 +671,7 @@ public sealed class TriviaEndpointsTests : IClassFixture<PostgreSqlFixture>, IAs
     [Fact]
     public async Task RetireTriviaQuiz_WhenUsed_ReturnsArchivedQuizAndPreservesHistoricalIdentity()
     {
-        AddAdministratorHeaders();
+        AddOperatorHeaders();
 
         var triviaId = await CreateTriviaQuizAsync("Retirable Trivia");
         await PublishTriviaQuizAsync(triviaId);
@@ -712,13 +712,13 @@ public sealed class TriviaEndpointsTests : IClassFixture<PostgreSqlFixture>, IAs
     }
 
     [Fact]
-    public async Task PublishTriviaQuiz_WithNonAdminCaller_Returns403()
+    public async Task PublishTriviaQuiz_WithNonOperatorCaller_Returns403()
     {
-        AddAdministratorHeaders();
+        AddOperatorHeaders();
 
         var triviaId = await CreateTriviaQuizAsync("Unauthorized Publish");
 
-        AddOperatorHeaders();
+        AddAdministratorHeaders();
 
         var response = await _client.PostAsync($"/api/trivias/{triviaId}/publish", content: null);
 
@@ -731,14 +731,14 @@ public sealed class TriviaEndpointsTests : IClassFixture<PostgreSqlFixture>, IAs
     }
 
     [Fact]
-    public async Task ArchiveTriviaQuiz_WithNonAdminCaller_Returns403()
+    public async Task ArchiveTriviaQuiz_WithNonOperatorCaller_Returns403()
     {
-        AddAdministratorHeaders();
+        AddOperatorHeaders();
 
         var triviaId = await CreateTriviaQuizAsync("Unauthorized Archive");
         await PublishTriviaQuizAsync(triviaId);
 
-        AddOperatorHeaders();
+        AddAdministratorHeaders();
 
         var response = await _client.PostAsync($"/api/trivias/{triviaId}/archive", content: null);
 

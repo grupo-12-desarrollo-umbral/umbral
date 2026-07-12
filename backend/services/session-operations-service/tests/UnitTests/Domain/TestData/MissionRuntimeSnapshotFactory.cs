@@ -69,7 +69,7 @@ internal static class MissionRuntimeSnapshotFactory
             CreateQuestions(triviaSubstage.SubstageSnapshotId, 1));
     }
 
-    internal static TargetSnapshot CreateTarget(Guid substageSnapshotId, string qrCode = "QR-001", int sequenceOrder = 1, int? score = 100)
+    internal static TargetSnapshot CreateTarget(Guid substageSnapshotId, string qrCode = "QR-001", int sequenceOrder = 1, int score = 100)
     {
         return TargetSnapshot.Create(
             substageSnapshotId,

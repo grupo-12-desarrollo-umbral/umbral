@@ -133,6 +133,9 @@ public sealed class SignalRTeamBoardDeliveryTests : IAsyncLifetime
         var now = DateTimeOffset.UtcNow;
         var createdAt = now.AddMinutes(-20);
         var sourceMissionId = Guid.NewGuid();
+        var participantExternalIdentityId = Guid.NewGuid();
+        var otherParticipantExternalIdentityId = Guid.NewGuid();
+
         var session = LiveSession.Create(
             SessionSource.Create(sourceMissionId),
             $"SR-{Guid.NewGuid():N}"[..12],
@@ -183,10 +186,10 @@ public sealed class SignalRTeamBoardDeliveryTests : IAsyncLifetime
             "Find the key",
             "KEY-001",
             1,
-            true,
+            isActive: true,
             100,
             "Look near the entrance.",
-            null);
+            "VisibleAtStart");
 
         return MissionRuntimeSnapshot.Create(
             sourceMissionId,

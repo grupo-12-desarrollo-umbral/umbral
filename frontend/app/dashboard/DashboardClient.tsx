@@ -818,8 +818,9 @@ export default function DashboardClient({
     if (role === 'participant') return item.key === 'overview'
     // HU-19: admins get the sessions nav for operator assignment; operator stub is dead
     if (role === 'admin') return item.key !== 'operator'
-    // HU-09 (DES-14): mission authoring is admin-only; operators never see the missions nav
-    if (role === 'operator') return item.key !== 'trivias' && item.key !== 'operator' && item.key !== 'missions'
+    // HU-09 (DES-14): mission authoring is admin-only; operators never see the missions nav.
+    // Issue #173: trivia authoring is now Operator-owned, so operators keep the trivias nav.
+    if (role === 'operator') return item.key !== 'operator' && item.key !== 'missions'
     return true
   })
 

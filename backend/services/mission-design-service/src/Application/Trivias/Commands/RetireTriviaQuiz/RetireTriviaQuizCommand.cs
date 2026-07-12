@@ -4,5 +4,5 @@ using umbral_backend.Domain.Constants;
 
 namespace umbral_backend.Application.Trivias.Commands.RetireTriviaQuiz;
 
-[Authorize(Roles = Roles.Administrator)]
+[Authorize(Roles = Roles.Operator)]
 public sealed record RetireTriviaQuizCommand(int Id) : IRequest<TriviaQuizDto>;

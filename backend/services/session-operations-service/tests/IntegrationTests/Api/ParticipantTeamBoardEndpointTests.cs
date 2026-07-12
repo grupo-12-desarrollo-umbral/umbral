@@ -144,10 +144,10 @@ public sealed class ParticipantTeamBoardEndpointTests : IAsyncLifetime
             "Find the key",
             "KEY-001",
             1,
-            true,
+            isActive: true,
             100,
             "Look near the entrance.",
-            null);
+            "VisibleAtStart");
 
         return MissionRuntimeSnapshot.Create(
             sourceMissionId,

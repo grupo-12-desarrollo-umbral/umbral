@@ -7,14 +7,14 @@ test('admin sees trivias nav item', async ({ adminPage: page }) => {
   await expect(page.locator('[data-testid="nav-trivias"]')).toBeVisible()
 })
 
-test('operator does not see trivias nav item', async ({ operatorPage: page }) => {
+test('operator sees trivias nav item', async ({ operatorPage: page }) => {
   await page.goto('/dashboard')
-  await expect(page.locator('[data-testid="nav-trivias"]')).toHaveCount(0)
+  await expect(page.locator('[data-testid="nav-trivias"]')).toBeVisible()
 })
 
 // --- Catalog view ---
 
-test('admin trivias panel loads with create button', async ({ adminPage: page }) => {
+test('operator trivias panel loads with create button', async ({ operatorPage: page }) => {
   await page.goto('/dashboard')
   await page.click('[data-testid="nav-trivias"]')
   await expect(page.locator('[data-testid="trivias-panel"]')).toBeVisible()
@@ -23,7 +23,7 @@ test('admin trivias panel loads with create button', async ({ adminPage: page })
 
 // --- Create flow ---
 
-test('admin can create a trivia quiz and land on its detail view', async ({ adminPage: page }) => {
+test('operator can create a trivia quiz and land on its detail view', async ({ operatorPage: page }) => {
   await page.goto('/dashboard')
   await page.click('[data-testid="nav-trivias"]')
   await page.click('[data-testid="create-trivia-btn"]')
@@ -38,7 +38,7 @@ test('admin can create a trivia quiz and land on its detail view', async ({ admi
   await expect(page.locator('[data-testid="trivia-detail-status"]')).toContainText('Draft')
 })
 
-test('create form cancel returns to list', async ({ adminPage: page }) => {
+test('create form cancel returns to list', async ({ operatorPage: page }) => {
   await page.goto('/dashboard')
   await page.click('[data-testid="nav-trivias"]')
   await page.click('[data-testid="create-trivia-btn"]')
@@ -50,7 +50,7 @@ test('create form cancel returns to list', async ({ adminPage: page }) => {
 
 // --- Detail view ---
 
-test('admin can open trivia detail from catalog row', async ({ adminPage: page }) => {
+test('operator can open trivia detail from catalog row', async ({ operatorPage: page }) => {
   await page.goto('/dashboard')
   await page.click('[data-testid="nav-trivias"]')
 
@@ -66,7 +66,7 @@ test('admin can open trivia detail from catalog row', async ({ adminPage: page }
 
 // --- Draft changes are queryable (integration gate) ---
 
-test('created draft quiz appears in catalog list', async ({ adminPage: page }) => {
+test('created draft quiz appears in catalog list', async ({ operatorPage: page }) => {
   const quizTitle = `Draft Visibility ${Date.now()}`
   await page.goto('/dashboard')
   await page.click('[data-testid="nav-trivias"]')
@@ -87,7 +87,7 @@ test('created draft quiz appears in catalog list', async ({ adminPage: page }) =
 
 // --- Edit flow ---
 
-test('admin can edit a draft trivia quiz', async ({ adminPage: page }) => {
+test('operator can edit a draft trivia quiz', async ({ operatorPage: page }) => {
   await page.goto('/dashboard')
   await page.click('[data-testid="nav-trivias"]')
 
@@ -106,7 +106,7 @@ test('admin can edit a draft trivia quiz', async ({ adminPage: page }) => {
   await expect(page.locator('[data-testid="trivia-detail-title"]')).toContainText('Updated Quiz Title')
 })
 
-test('edit form cancel returns to detail without saving', async ({ adminPage: page }) => {
+test('edit form cancel returns to detail without saving', async ({ operatorPage: page }) => {
   await page.goto('/dashboard')
   await page.click('[data-testid="nav-trivias"]')
 
@@ -127,7 +127,7 @@ test('edit form cancel returns to detail without saving', async ({ adminPage: pa
 
 // --- Edit gate for non-Draft quizzes ---
 
-test('edit button is disabled for non-Draft quizzes', async ({ adminPage: page }) => {
+test('edit button is disabled for non-Draft quizzes', async ({ operatorPage: page }) => {
   await page.goto('/dashboard')
   await page.click('[data-testid="nav-trivias"]')
 
@@ -174,7 +174,7 @@ test('HU-09 admin mission create still works after trivias wiring', async ({ adm
 
 // --- Question authoring: add ---
 
-test('admin can open add-question form from draft quiz detail', async ({ adminPage: page }) => {
+test('operator can open add-question form from draft quiz detail', async ({ operatorPage: page }) => {
   await page.goto('/dashboard')
   await page.click('[data-testid="nav-trivias"]')
   await page.click('[data-testid="create-trivia-btn"]')
@@ -190,7 +190,7 @@ test('admin can open add-question form from draft quiz detail', async ({ adminPa
   await expect(page.locator('[data-testid="question-option-2"]')).toHaveCount(0) // starts with 2
 })
 
-test('admin can add a question with 2 options and see it in detail', async ({ adminPage: page }) => {
+test('operator can add a question with 2 options and see it in detail', async ({ operatorPage: page }) => {
   await page.goto('/dashboard')
   await page.click('[data-testid="nav-trivias"]')
   await page.click('[data-testid="create-trivia-btn"]')
@@ -214,7 +214,7 @@ test('admin can add a question with 2 options and see it in detail', async ({ ad
   await expect(page.locator('[data-testid="trivia-questions-section"]')).toContainText('What is 1+1?')
 })
 
-test('admin can add a question with 4 options', async ({ adminPage: page }) => {
+test('operator can add a question with 4 options', async ({ operatorPage: page }) => {
   await page.goto('/dashboard')
   await page.click('[data-testid="nav-trivias"]')
   await page.click('[data-testid="create-trivia-btn"]')
@@ -245,7 +245,7 @@ test('admin can add a question with 4 options', async ({ adminPage: page }) => {
   await expect(page.locator('[data-testid="trivia-detail"]')).toBeVisible()
 })
 
-test('add-question cancel returns to detail without network call', async ({ adminPage: page }) => {
+test('add-question cancel returns to detail without network call', async ({ operatorPage: page }) => {
   await page.goto('/dashboard')
   await page.click('[data-testid="nav-trivias"]')
   await page.click('[data-testid="create-trivia-btn"]')
@@ -263,7 +263,7 @@ test('add-question cancel returns to detail without network call', async ({ admi
 
 // --- Question authoring: edit ---
 
-test('admin can edit an existing question', async ({ adminPage: page }) => {
+test('operator can edit an existing question', async ({ operatorPage: page }) => {
   await page.goto('/dashboard')
   await page.click('[data-testid="nav-trivias"]')
   await page.click('[data-testid="create-trivia-btn"]')
@@ -298,7 +298,7 @@ test('admin can edit an existing question', async ({ adminPage: page }) => {
   await expect(page.locator('[data-testid="trivia-questions-section"]')).toContainText('Updated prompt')
 })
 
-test('edit-question form is pre-filled with current values', async ({ adminPage: page }) => {
+test('edit-question form is pre-filled with current values', async ({ operatorPage: page }) => {
   await page.goto('/dashboard')
   await page.click('[data-testid="nav-trivias"]')
   await page.click('[data-testid="create-trivia-btn"]')
@@ -327,15 +327,17 @@ test('edit-question form is pre-filled with current values', async ({ adminPage:
 
 // --- Authorization ---
 
-test('operator sees no add-question or edit-question buttons', async ({ operatorPage: page }) => {
+test('admin sees no trivia authoring controls', async ({ adminPage: page }) => {
   await page.goto('/dashboard')
-  // Operators do not see trivias nav so they cannot reach the panel.
-  await expect(page.locator('[data-testid="nav-trivias"]')).toHaveCount(0)
+  await page.click('[data-testid="nav-trivias"]')
+  // Issue #173: admins keep read access to the trivias panel, but authoring is Operator-only.
+  await expect(page.locator('[data-testid="trivias-panel"]')).toBeVisible()
+  await expect(page.locator('[data-testid="create-trivia-btn"]')).toHaveCount(0)
 })
 
 // --- Regression: HU-11 quiz flows unaffected ---
 
-test('HU-11 trivia create flow still works after question authoring wiring', async ({ adminPage: page }) => {
+test('HU-11 trivia create flow still works after question authoring wiring', async ({ operatorPage: page }) => {
   await page.goto('/dashboard')
   await page.click('[data-testid="nav-trivias"]')
   await page.click('[data-testid="create-trivia-btn"]')
@@ -347,7 +349,7 @@ test('HU-11 trivia create flow still works after question authoring wiring', asy
   await expect(page.locator('[data-testid="trivia-questions-section"]')).toBeVisible()
 })
 
-test('HU-11 trivia edit flow still works after question authoring wiring', async ({ adminPage: page }) => {
+test('HU-11 trivia edit flow still works after question authoring wiring', async ({ operatorPage: page }) => {
   await page.goto('/dashboard')
   await page.click('[data-testid="nav-trivias"]')
   await page.click('[data-testid="create-trivia-btn"]')
@@ -386,7 +388,7 @@ async function createReadyDraftQuiz(page: Page, title: string): Promise<void> {
 
 // ---- isSourceReady display ----
 
-test('draft quiz shows source ready as No in list view', async ({ adminPage: page }) => {
+test('draft quiz shows source ready as No in list view', async ({ operatorPage: page }) => {
   // Unique title: these e2e tests persist real rows, so a static title collides across reruns.
   const quizTitle = `Source Ready Test ${Date.now()}`
   await page.goto('/dashboard')
@@ -408,7 +410,7 @@ test('draft quiz shows source ready as No in list view', async ({ adminPage: pag
   await expect(chip).toContainText('No')
 })
 
-test('draft quiz detail shows source ready badge as No', async ({ adminPage: page }) => {
+test('draft quiz detail shows source ready badge as No', async ({ operatorPage: page }) => {
   await page.goto('/dashboard')
   await page.click('[data-testid="nav-trivias"]')
   await page.click('[data-testid="create-trivia-btn"]')
@@ -421,7 +423,7 @@ test('draft quiz detail shows source ready badge as No', async ({ adminPage: pag
 
 // ---- Publish button readiness gate ----
 
-test('publish button is disabled for empty draft quiz', async ({ adminPage: page }) => {
+test('publish button is disabled for empty draft quiz', async ({ operatorPage: page }) => {
   await page.goto('/dashboard')
   await page.click('[data-testid="nav-trivias"]')
   await page.click('[data-testid="create-trivia-btn"]')
@@ -433,7 +435,7 @@ test('publish button is disabled for empty draft quiz', async ({ adminPage: page
   await expect(page.locator('[data-testid="trivia-readiness-indicator"]')).toBeVisible()
 })
 
-test('publish button is enabled when all readiness conditions are met', async ({ adminPage: page }) => {
+test('publish button is enabled when all readiness conditions are met', async ({ operatorPage: page }) => {
   await page.goto('/dashboard')
   await createReadyDraftQuiz(page, 'Ready To Publish Quiz')
 
@@ -443,7 +445,7 @@ test('publish button is enabled when all readiness conditions are met', async ({
 
 // ---- Publish flow ----
 
-test('admin can publish a ready draft quiz', async ({ adminPage: page }) => {
+test('operator can publish a ready draft quiz', async ({ operatorPage: page }) => {
   await page.goto('/dashboard')
   await createReadyDraftQuiz(page, 'Publishable Quiz')
 
@@ -457,7 +459,7 @@ test('admin can publish a ready draft quiz', async ({ adminPage: page }) => {
   await expect(page.locator('[data-testid="archive-trivia-btn"]')).toBeVisible()
 })
 
-test('published quiz shows source ready as Yes in list view', async ({ adminPage: page }) => {
+test('published quiz shows source ready as Yes in list view', async ({ operatorPage: page }) => {
   // Unique title: these e2e tests persist real rows, so a static title collides across reruns
   // (many 'Published List Check' rows → strict-mode violation on the source-ready chip).
   const quizTitle = `Published List Check ${Date.now()}`
@@ -473,7 +475,7 @@ test('published quiz shows source ready as Yes in list view', async ({ adminPage
   await expect(row.locator('[data-testid^="trivia-source-ready-"]')).toContainText('Yes')
 })
 
-test('admin can cancel publish confirmation without network call', async ({ adminPage: page }) => {
+test('operator can cancel publish confirmation without network call', async ({ operatorPage: page }) => {
   await page.goto('/dashboard')
   await createReadyDraftQuiz(page, 'Cancel Publish Quiz')
 
@@ -488,7 +490,7 @@ test('admin can cancel publish confirmation without network call', async ({ admi
 
 // ---- Archive flow ----
 
-test('admin can archive a published quiz', async ({ adminPage: page }) => {
+test('operator can archive a published quiz', async ({ operatorPage: page }) => {
   await page.goto('/dashboard')
   await createReadyDraftQuiz(page, 'Archive From Published')
 
@@ -508,7 +510,7 @@ test('admin can archive a published quiz', async ({ adminPage: page }) => {
   await expect(page.locator('[data-testid="publish-trivia-btn"]')).toHaveCount(0)
 })
 
-test('admin can archive a draft quiz directly', async ({ adminPage: page }) => {
+test('operator can archive a draft quiz directly', async ({ operatorPage: page }) => {
   await page.goto('/dashboard')
   await page.click('[data-testid="nav-trivias"]')
   await page.click('[data-testid="create-trivia-btn"]')
@@ -524,7 +526,7 @@ test('admin can archive a draft quiz directly', async ({ adminPage: page }) => {
   await expect(page.locator('[data-testid="archive-trivia-btn"]')).toHaveCount(0)
 })
 
-test('admin can cancel archive confirmation without network call', async ({ adminPage: page }) => {
+test('operator can cancel archive confirmation without network call', async ({ operatorPage: page }) => {
   await page.goto('/dashboard')
   await createReadyDraftQuiz(page, 'Cancel Archive Quiz')
 
@@ -541,7 +543,7 @@ test('admin can cancel archive confirmation without network call', async ({ admi
 
 // ---- Edit gate after lifecycle transitions ----
 
-test('edit button is disabled for published quiz', async ({ adminPage: page }) => {
+test('edit button is disabled for published quiz', async ({ operatorPage: page }) => {
   await page.goto('/dashboard')
   await createReadyDraftQuiz(page, 'Published No Edit')
 
@@ -551,7 +553,7 @@ test('edit button is disabled for published quiz', async ({ adminPage: page }) =
   await expect(page.locator('[data-testid="edit-trivia-btn"]')).toBeDisabled()
 })
 
-test('edit button is disabled for archived quiz', async ({ adminPage: page }) => {
+test('edit button is disabled for archived quiz', async ({ operatorPage: page }) => {
   await page.goto('/dashboard')
   await page.click('[data-testid="nav-trivias"]')
   await page.click('[data-testid="create-trivia-btn"]')
@@ -567,7 +569,7 @@ test('edit button is disabled for archived quiz', async ({ adminPage: page }) =>
 
 // ---- Confirm-state mutual exclusion ----
 
-test('opening publish confirmation hides archive trigger', async ({ adminPage: page }) => {
+test('opening publish confirmation hides archive trigger', async ({ operatorPage: page }) => {
   await page.goto('/dashboard')
   await createReadyDraftQuiz(page, 'Mutual Exclusion Quiz')
 
@@ -580,15 +582,20 @@ test('opening publish confirmation hides archive trigger', async ({ adminPage: p
 
 // ---- Authorization ----
 
-test('operator cannot reach publish or archive controls', async ({ operatorPage: page }) => {
+test('admin cannot reach publish or archive controls', async ({ adminPage: page }) => {
   await page.goto('/dashboard')
-  // Operators do not see trivias nav — panel is unreachable
-  await expect(page.locator('[data-testid="nav-trivias"]')).toHaveCount(0)
+  await page.click('[data-testid="nav-trivias"]')
+  // Open a seeded Published quiz: an operator would see Archive/Duplicate here; an admin sees neither.
+  const publishedRow = page.locator('[data-testid^="trivia-row-"]').filter({ hasText: 'Filosofos de Atenas' })
+  await publishedRow.locator('[data-testid^="view-trivia-btn-"]').click()
+  await expect(page.locator('[data-testid="trivia-detail"]')).toBeVisible()
+  await expect(page.locator('[data-testid="archive-trivia-btn"]')).toHaveCount(0)
+  await expect(page.locator('[data-testid="duplicate-trivia-btn"]')).toHaveCount(0)
 })
 
 // ---- Regression: HU-14A question authoring unaffected ----
 
-test('HU-14A add-question flow still works after lifecycle wiring', async ({ adminPage: page }) => {
+test('HU-14A add-question flow still works after lifecycle wiring', async ({ operatorPage: page }) => {
   await page.goto('/dashboard')
   await page.click('[data-testid="nav-trivias"]')
   await page.click('[data-testid="create-trivia-btn"]')
@@ -602,7 +609,7 @@ test('HU-14A add-question flow still works after lifecycle wiring', async ({ adm
   await expect(page.locator('[data-testid="trivia-detail"]')).toBeVisible()
 })
 
-test('HU-14A edit-question flow still works after lifecycle wiring', async ({ adminPage: page }) => {
+test('HU-14A edit-question flow still works after lifecycle wiring', async ({ operatorPage: page }) => {
   await page.goto('/dashboard')
   await createReadyDraftQuiz(page, 'Regression: Edit Question')
 
@@ -616,7 +623,7 @@ test('HU-14A edit-question flow still works after lifecycle wiring', async ({ ad
 
 // ---- Regression: HU-11 quiz create/edit flows unaffected ----
 
-test('HU-11 trivia create flow still works after publish/archive wiring', async ({ adminPage: page }) => {
+test('HU-11 trivia create flow still works after publish/archive wiring', async ({ operatorPage: page }) => {
   await page.goto('/dashboard')
   await page.click('[data-testid="nav-trivias"]')
   await page.click('[data-testid="create-trivia-btn"]')
@@ -627,7 +634,7 @@ test('HU-11 trivia create flow still works after publish/archive wiring', async 
   await expect(page.locator('[data-testid="trivia-detail-status"]')).toContainText('Draft')
 })
 
-test('HU-11 trivia edit flow still works after publish/archive wiring', async ({ adminPage: page }) => {
+test('HU-11 trivia edit flow still works after publish/archive wiring', async ({ operatorPage: page }) => {
   await page.goto('/dashboard')
   await page.click('[data-testid="nav-trivias"]')
   await page.click('[data-testid="create-trivia-btn"]')
@@ -669,7 +676,7 @@ async function _createReadyPublishedQuiz(page: Page, title: string): Promise<num
 
 // ---- Duplicate flow ----
 
-test('admin can duplicate a published quiz and lands on new copy detail', async ({ adminPage: page }) => {
+test('operator can duplicate a published quiz and lands on new copy detail', async ({ operatorPage: page }) => {
   await page.goto('/dashboard')
   await createReadyDraftQuiz(page, 'Original For Duplication')
 
@@ -688,7 +695,7 @@ test('admin can duplicate a published quiz and lands on new copy detail', async 
   await expect(page.locator('[data-testid="trivia-has-usage-history"]')).toHaveCount(0)
 })
 
-test('duplicate copy title matches source title', async ({ adminPage: page }) => {
+test('duplicate copy title matches source title', async ({ operatorPage: page }) => {
   await page.goto('/dashboard')
   await createReadyDraftQuiz(page, 'Source Title Check')
 
@@ -698,7 +705,7 @@ test('duplicate copy title matches source title', async ({ adminPage: page }) =>
   await expect(page.locator('[data-testid="trivia-detail-title"]')).toContainText('Source Title Check')
 })
 
-test('admin can cancel duplicate confirmation without network call', async ({ adminPage: page }) => {
+test('operator can cancel duplicate confirmation without network call', async ({ operatorPage: page }) => {
   await page.goto('/dashboard')
   await createReadyDraftQuiz(page, 'Cancel Duplicate Quiz')
 
@@ -710,7 +717,7 @@ test('admin can cancel duplicate confirmation without network call', async ({ ad
   await expect(page.locator('[data-testid="trivia-detail-status"]')).toContainText('Draft')
 })
 
-test('duplicate confirmation hides other trigger buttons', async ({ adminPage: page }) => {
+test('duplicate confirmation hides other trigger buttons', async ({ operatorPage: page }) => {
   await page.goto('/dashboard')
   await createReadyDraftQuiz(page, 'Mutual Exclusion Duplicate')
 
@@ -721,7 +728,7 @@ test('duplicate confirmation hides other trigger buttons', async ({ adminPage: p
   await expect(page.locator('[data-testid="publish-trivia-btn"]')).toHaveCount(0)
 })
 
-test('archived quiz has no duplicate button', async ({ adminPage: page }) => {
+test('archived quiz has no duplicate button', async ({ operatorPage: page }) => {
   await page.goto('/dashboard')
   await page.click('[data-testid="nav-trivias"]')
   await page.click('[data-testid="create-trivia-btn"]')
@@ -737,7 +744,7 @@ test('archived quiz has no duplicate button', async ({ adminPage: page }) => {
 
 // ---- Lineage cues in list view ----
 
-test('copy shows Copy chip in list provenance column', async ({ adminPage: page }) => {
+test('copy shows Copy chip in list provenance column', async ({ operatorPage: page }) => {
   // Unique title so the assertion scopes to this run's copy — a global copy-chip count collides
   // with copies left by reruns and by other duplicate tests running in parallel on the shared DB.
   const sourceTitle = `Lineage List Source ${Date.now()}`
@@ -757,7 +764,7 @@ test('copy shows Copy chip in list provenance column', async ({ adminPage: page 
   await expect(copyRow).toHaveCount(1)
 })
 
-test('original quiz shows no Copy chip in list', async ({ adminPage: page }) => {
+test('original quiz shows no Copy chip in list', async ({ operatorPage: page }) => {
   await page.goto('/dashboard')
   await page.click('[data-testid="nav-trivias"]')
   await page.click('[data-testid="create-trivia-btn"]')
@@ -774,7 +781,7 @@ test('original quiz shows no Copy chip in list', async ({ adminPage: page }) => 
 
 // ---- Lineage cue in detail view ----
 
-test('copy detail shows source quiz id badge', async ({ adminPage: page }) => {
+test('copy detail shows source quiz id badge', async ({ operatorPage: page }) => {
   await page.goto('/dashboard')
   await createReadyDraftQuiz(page, 'Lineage Detail Source')
 
@@ -786,7 +793,7 @@ test('copy detail shows source quiz id badge', async ({ adminPage: page }) => {
   expect(badgeText).toMatch(/Quiz #\d+/i) // .chip CSS uppercases the label ("QUIZ #273")
 })
 
-test('original quiz detail shows no source quiz id badge', async ({ adminPage: page }) => {
+test('original quiz detail shows no source quiz id badge', async ({ operatorPage: page }) => {
   await page.goto('/dashboard')
   await page.click('[data-testid="nav-trivias"]')
   await page.click('[data-testid="create-trivia-btn"]')
@@ -804,7 +811,7 @@ test('original quiz detail shows no source quiz id badge', async ({ adminPage: p
 
 const USED_QUIZ_TITLE = 'Trivia con historial de uso'
 
-test('retire button is visible for a quiz with usage history', async ({ adminPage: page }) => {
+test('retire button is visible for a quiz with usage history', async ({ operatorPage: page }) => {
   await page.goto('/dashboard')
   await page.click('[data-testid="nav-trivias"]')
 
@@ -817,7 +824,7 @@ test('retire button is visible for a quiz with usage history', async ({ adminPag
   await expect(page.locator('[data-testid="trivia-has-usage-history"]')).toBeVisible()
 })
 
-test('Used chip appears in list for a quiz with usage history', async ({ adminPage: page }) => {
+test('Used chip appears in list for a quiz with usage history', async ({ operatorPage: page }) => {
   await page.goto('/dashboard')
   await page.click('[data-testid="nav-trivias"]')
 
@@ -827,7 +834,7 @@ test('Used chip appears in list for a quiz with usage history', async ({ adminPa
   await expect(usedRow.locator('[data-testid^="trivia-copy-chip-"]')).toHaveCount(0)
 })
 
-test('retire button is not visible for a quiz without usage history', async ({ adminPage: page }) => {
+test('retire button is not visible for a quiz without usage history', async ({ operatorPage: page }) => {
   await page.goto('/dashboard')
   await page.click('[data-testid="nav-trivias"]')
   await page.click('[data-testid="create-trivia-btn"]')
@@ -841,7 +848,7 @@ test('retire button is not visible for a quiz without usage history', async ({ a
 
 // ---- Archive regression: unused quizzes still use Archive ----
 
-test('HU-12 archive flow still works for unused quizzes after retire wiring', async ({ adminPage: page }) => {
+test('HU-12 archive flow still works for unused quizzes after retire wiring', async ({ operatorPage: page }) => {
   await page.goto('/dashboard')
   await createReadyDraftQuiz(page, 'Archive Regression After HU-13')
 
@@ -863,14 +870,20 @@ test('HU-12 archive flow still works for unused quizzes after retire wiring', as
 
 // ---- Authorization ----
 
-test('operator cannot reach duplicate or retire controls', async ({ operatorPage: page }) => {
+test('admin cannot reach duplicate or retire controls', async ({ adminPage: page }) => {
   await page.goto('/dashboard')
-  await expect(page.locator('[data-testid="nav-trivias"]')).toHaveCount(0)
+  await page.click('[data-testid="nav-trivias"]')
+  // Seeded quiz with usage history: an operator would see Retire/Duplicate; an admin sees neither.
+  const usedRow = page.locator('[data-testid^="trivia-row-"]').filter({ hasText: USED_QUIZ_TITLE })
+  await usedRow.locator('[data-testid^="view-trivia-btn-"]').click()
+  await expect(page.locator('[data-testid="trivia-detail"]')).toBeVisible()
+  await expect(page.locator('[data-testid="retire-trivia-btn"]')).toHaveCount(0)
+  await expect(page.locator('[data-testid="duplicate-trivia-btn"]')).toHaveCount(0)
 })
 
 // ---- Regression: HU-12 publish flow unaffected ----
 
-test('HU-12 publish flow unaffected after HU-13 wiring', async ({ adminPage: page }) => {
+test('HU-12 publish flow unaffected after HU-13 wiring', async ({ operatorPage: page }) => {
   await page.goto('/dashboard')
   await createReadyDraftQuiz(page, 'HU-12 Publish Regression')
 
@@ -884,7 +897,7 @@ test('HU-12 publish flow unaffected after HU-13 wiring', async ({ adminPage: pag
 
 // ---- Regression: HU-14A question authoring unaffected ----
 
-test('HU-14A add-question flow still works after HU-13 wiring', async ({ adminPage: page }) => {
+test('HU-14A add-question flow still works after HU-13 wiring', async ({ operatorPage: page }) => {
   await page.goto('/dashboard')
   await page.click('[data-testid="nav-trivias"]')
   await page.click('[data-testid="create-trivia-btn"]')
@@ -900,7 +913,7 @@ test('HU-14A add-question flow still works after HU-13 wiring', async ({ adminPa
 
 // ---- Regression: HU-11 quiz create/edit flows unaffected ----
 
-test('HU-11 trivia create flow still works after HU-13 wiring', async ({ adminPage: page }) => {
+test('HU-11 trivia create flow still works after HU-13 wiring', async ({ operatorPage: page }) => {
   await page.goto('/dashboard')
   await page.click('[data-testid="nav-trivias"]')
   await page.click('[data-testid="create-trivia-btn"]')
@@ -938,7 +951,7 @@ async function addQuestion(page: Page, prompt: string, order: string) {
   await expect(page.locator('[data-testid="trivia-detail"]')).toBeVisible()
 }
 
-test('admin can remove a question from a draft quiz', async ({ adminPage: page }) => {
+test('operator can remove a question from a draft quiz', async ({ operatorPage: page }) => {
   await page.goto('/dashboard')
   await page.click('[data-testid="nav-trivias"]')
   await page.click('[data-testid="create-trivia-btn"]')
@@ -957,7 +970,7 @@ test('admin can remove a question from a draft quiz', async ({ adminPage: page }
   await expect(page.locator('[data-testid="trivia-questions-section"]')).toContainText('No questions added yet.')
 })
 
-test('removing a question reconciles the sequence order of the remaining questions', async ({ adminPage: page }) => {
+test('removing a question reconciles the sequence order of the remaining questions', async ({ operatorPage: page }) => {
   await page.goto('/dashboard')
   await page.click('[data-testid="nav-trivias"]')
   await page.click('[data-testid="create-trivia-btn"]')
@@ -988,7 +1001,7 @@ test('removing a question reconciles the sequence order of the remaining questio
   await expect(topRow.locator('td[data-label="Order"]')).toHaveText('1')
 })
 
-test('remove confirmation can be cancelled without deleting', async ({ adminPage: page }) => {
+test('remove confirmation can be cancelled without deleting', async ({ operatorPage: page }) => {
   await page.goto('/dashboard')
   await page.click('[data-testid="nav-trivias"]')
   await page.click('[data-testid="create-trivia-btn"]')
@@ -1007,7 +1020,7 @@ test('remove confirmation can be cancelled without deleting', async ({ adminPage
   await expect(page.locator('[data-testid^="remove-question-btn-"]').first()).toBeVisible()
 })
 
-test('published quiz shows no remove control', async ({ adminPage: page }) => {
+test('published quiz shows no remove control', async ({ operatorPage: page }) => {
   await page.goto('/dashboard')
   await page.click('[data-testid="nav-trivias"]')
   await page.click('[data-testid="create-trivia-btn"]')
@@ -1029,14 +1042,21 @@ test('published quiz shows no remove control', async ({ adminPage: page }) => {
   await expect(page.locator('[data-testid="add-question-btn"]')).toHaveCount(0)
 })
 
-test('operator cannot reach any question removal UI', async ({ operatorPage: page }) => {
+test('admin cannot reach any question authoring UI', async ({ adminPage: page }) => {
   await page.goto('/dashboard')
-  await expect(page.locator('[data-testid="nav-trivias"]')).toHaveCount(0)
+  await page.click('[data-testid="nav-trivias"]')
+  // Admin cannot create a quiz, so there is no draft to add or remove questions on.
+  await expect(page.locator('[data-testid="create-trivia-btn"]')).toHaveCount(0)
+  // And on a seeded quiz detail, no add-question control is exposed to the admin.
+  const row = page.locator('[data-testid^="trivia-row-"]').filter({ hasText: 'Filosofos de Atenas' })
+  await row.locator('[data-testid^="view-trivia-btn-"]').click()
+  await expect(page.locator('[data-testid="trivia-detail"]')).toBeVisible()
+  await expect(page.locator('[data-testid="add-question-btn"]')).toHaveCount(0)
 })
 
 // --- Regression: HU-14A add/edit flow unaffected by the new Remove control ---
 
-test('HU-14A add-question flow still works alongside remove control', async ({ adminPage: page }) => {
+test('HU-14A add-question flow still works alongside remove control', async ({ operatorPage: page }) => {
   await page.goto('/dashboard')
   await page.click('[data-testid="nav-trivias"]')
   await page.click('[data-testid="create-trivia-btn"]')

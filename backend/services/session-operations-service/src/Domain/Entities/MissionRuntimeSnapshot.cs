@@ -136,9 +136,9 @@ public sealed class MissionRuntimeSnapshot : BaseEntity
                         throw new TreasureHuntSubstageSnapshotMustContainTargetsException();
                     }
 
-                    if (substageTargets.Any(target => target.Score is null || target.Score.Value <= 0))
+                    if (substageTargets.Any(target => target.Score <= 0))
                     {
-                        throw new TreasureHuntTargetSnapshotScoreRequiredException();
+                        throw new TargetSnapshotScoreMustBePositiveException();
                     }
 
                     continue;

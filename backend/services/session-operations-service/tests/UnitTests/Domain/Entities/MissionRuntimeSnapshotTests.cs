@@ -59,7 +59,7 @@ public sealed class MissionRuntimeSnapshotTests
     }
 
     [Fact]
-    public void Create_TreasureHuntTargetWithoutScore_ThrowsException()
+    public void Create_TreasureHuntTargetWithNonPositiveScore_ThrowsException()
     {
         var treasureSubstage = SubstageSnapshot.CreateTreasureHunt("Treasure Route", 1);
         var stage = StageSnapshot.Create("Stage One", 1, [treasureSubstage]);
@@ -69,10 +69,10 @@ public sealed class MissionRuntimeSnapshotTests
             "Runtime Plan",
             MaximumTime.Create(30),
             [stage],
-            [MissionRuntimeSnapshotFactory.CreateTarget(treasureSubstage.SubstageSnapshotId, score: null)],
+            [MissionRuntimeSnapshotFactory.CreateTarget(treasureSubstage.SubstageSnapshotId, score: 0)],
             []);
 
-        act.Should().Throw<TreasureHuntTargetSnapshotScoreRequiredException>();
+        act.Should().Throw<TargetSnapshotScoreMustBePositiveException>();
     }
 
     [Fact]
