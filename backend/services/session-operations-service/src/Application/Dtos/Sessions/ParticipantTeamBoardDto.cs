@@ -8,8 +8,16 @@ public sealed record ParticipantTeamBoardDto(
     int CurrentScore,
     SessionTimerSnapshotDto Timer,
     ActiveSubstageContextDto? ActiveSubstage,
+    IReadOnlyList<SubstageProgressDto> Substages,
     IReadOnlyList<VisibleClueDto> VisibleClues,
     IReadOnlyList<ActiveTargetDto> ActiveTargets);
+
+public sealed record SubstageProgressDto(
+    Guid SubstageSnapshotId,
+    string Title,
+    int SequenceOrder,
+    string PlayMode,
+    string Status);
 
 public sealed record ActiveSubstageContextDto(
     Guid SubstageSnapshotId,

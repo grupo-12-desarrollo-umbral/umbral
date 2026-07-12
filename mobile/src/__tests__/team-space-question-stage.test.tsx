@@ -213,6 +213,8 @@ describe('LiveTeamSpace question stage wiring', () => {
   });
 });
 
+// Mixed-play-mode session: an opening Trivia substage (completed) followed by the active
+// Treasure Hunt substage — the ordered substage progress the participant should now see (#171).
 const TREASURE_HUNT_BOARD = {
   liveSessionId: 'sess-1',
   teamId: 'team-1',
@@ -221,7 +223,7 @@ const TREASURE_HUNT_BOARD = {
   currentScore: 240,
   timer: {} as never,
   activeSubstage: {
-    substageSnapshotId: 'sub-1',
+    substageSnapshotId: 'sub-2',
     playMode: 'TreasureHunt' as const,
     title: 'The Cartographer’s Vault',
     totalActiveTargets: 5,
@@ -229,19 +231,48 @@ const TREASURE_HUNT_BOARD = {
     activeQuestionSequenceOrder: null,
     activeQuestionTimeLimitSeconds: null,
   },
+  substages: [
+    {
+      substageSnapshotId: 'sub-1',
+      title: 'Opening Trivia',
+      sequenceOrder: 0,
+      playMode: 'Trivia' as const,
+      status: 'Completed' as const,
+    },
+    {
+      substageSnapshotId: 'sub-2',
+      title: 'The Cartographer’s Vault',
+      sequenceOrder: 1,
+      playMode: 'TreasureHunt' as const,
+      status: 'Active' as const,
+    },
+  ],
   visibleClues: [
     { targetSnapshotId: 't1', clueText: 'Follow the north colonnade.', targetName: 'Brass Astrolabe' },
   ],
 };
 
+// Single-substage trivia session: only the active name, no ordered chips.
 const TRIVIA_BOARD = {
   ...TREASURE_HUNT_BOARD,
   activeSubstage: {
-    ...TREASURE_HUNT_BOARD.activeSubstage,
+    substageSnapshotId: 'sub-1',
     playMode: 'Trivia' as const,
+    title: 'Opening Trivia',
     totalActiveTargets: 0,
     resolvedTargets: 0,
+    activeQuestionSequenceOrder: null,
+    activeQuestionTimeLimitSeconds: null,
   },
+  substages: [
+    {
+      substageSnapshotId: 'sub-1',
+      title: 'Opening Trivia',
+      sequenceOrder: 0,
+      playMode: 'Trivia' as const,
+      status: 'Active' as const,
+    },
+  ],
 };
 
 describe('LiveTeamSpace play-mode branch', () => {
@@ -313,5 +344,112 @@ describe('LiveTeamSpace play-mode branch', () => {
 
     expect(texts).toContain('TREASURE HUNT');
     expect(texts.join(' ')).not.toContain("Couldn't reach the live board");
+  });
+});
+
+function substageChips(renderer: ReturnType<typeof create>) {
+  // Host nodes only (string type), matched by the chip's `Substage N:` label so the
+  // container's "Substage progress" label and RN composite wrappers don't double-count.
+  return renderer.root.findAll(
+    (n) =>
+      typeof n.type === 'string' &&
+      typeof n.props?.accessibilityLabel === 'string' &&
+      /^Substage \d+:/.test(n.props.accessibilityLabel as string),
+  );
+}
+
+describe('LiveTeamSpace substage progress (#171)', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    primeTimer();
+    mockUseActiveQuestion.mockReturnValue({ sessionState: 'Active', isQuestionClosed: false, view: { kind: 'none' } });
+  });
+
+  test('renders the active substage name and an ordered chip per substage with play-mode labels', () => {
+    mockUseTeamBoard.mockReturnValue({ board: TREASURE_HUNT_BOARD, isLoading: false, error: null });
+    const renderer = renderSpace();
+    const texts = allText(renderer.toJSON());
+
+    // Active substage name at the top of the play UI.
+    expect(texts).toContain('The Cartographer’s Vault');
+    // Both substages render with their play-mode labels.
+    expect(texts).toContain('Trivia');
+    expect(texts).toContain('Treasure Hunt');
+    // A chip per substage in order.
+    expect(substageChips(renderer)).toHaveLength(2);
+  });
+
+  test('visually distinguishes the active substage from completed ones', () => {
+    mockUseTeamBoard.mockReturnValue({ board: TREASURE_HUNT_BOARD, isLoading: false, error: null });
+    const renderer = renderSpace();
+
+    const selected = substageChips(renderer).filter(
+      (n) => (n.props.accessibilityState as { selected?: boolean })?.selected === true,
+    );
+    expect(selected).toHaveLength(1);
+    expect(selected[0].props.accessibilityLabel as string).toContain('active');
+    expect(selected[0].props.accessibilityLabel as string).toContain('Treasure Hunt');
+  });
+
+  test('single-substage session renders the name but no chips', () => {
+    mockUseTeamBoard.mockReturnValue({ board: TRIVIA_BOARD, isLoading: false, error: null });
+    mockUseActiveQuestion.mockReturnValue({ sessionState: 'Active', isQuestionClosed: false, view: { kind: 'waiting' } });
+    const renderer = renderSpace();
+    const texts = allText(renderer.toJSON());
+
+    expect(texts).toContain('Opening Trivia');
+    expect(substageChips(renderer)).toHaveLength(0);
+  });
+
+  test('an advancement push whose active substage changed updates the top name and progress', () => {
+    // Before: active on the opening Trivia substage. Mirrors an onTeamBoardUpdated push by swapping
+    // the hook's returned board (which the live view re-reads on the next render).
+    const BEFORE = {
+      ...TREASURE_HUNT_BOARD,
+      activeSubstage: { ...TRIVIA_BOARD.activeSubstage },
+      substages: [
+        { ...TREASURE_HUNT_BOARD.substages[0], status: 'Active' as const },
+        { ...TREASURE_HUNT_BOARD.substages[1], status: 'Upcoming' as const },
+      ],
+    };
+    mockUseTeamBoard.mockReturnValue({ board: BEFORE, isLoading: false, error: null });
+    mockUseActiveQuestion.mockReturnValue({ sessionState: 'Active', isQuestionClosed: false, view: { kind: 'waiting' } });
+
+    let renderer: ReturnType<typeof create> | null = null;
+    act(() => {
+      renderer = create(
+        React.createElement(LiveTeamSpace, {
+          outcome: OUTCOME,
+          onLeave: jest.fn(),
+          client: CLIENT,
+          reconnectNonce: 0,
+          referenceTeamId: 'team-1',
+        }),
+      );
+    });
+
+    expect(allText(renderer!.toJSON())).toContain('Opening Trivia');
+
+    // After advancement: the push moves the pointer to the Treasure Hunt substage.
+    mockUseTeamBoard.mockReturnValue({ board: TREASURE_HUNT_BOARD, isLoading: false, error: null });
+    act(() => {
+      renderer!.update(
+        React.createElement(LiveTeamSpace, {
+          outcome: OUTCOME,
+          onLeave: jest.fn(),
+          client: CLIENT,
+          reconnectNonce: 0,
+          referenceTeamId: 'team-1',
+        }),
+      );
+    });
+
+    const after = allText(renderer!.toJSON());
+    expect(after).toContain('The Cartographer’s Vault');
+    // The now-completed opening substage chip reflects the advancement.
+    const completed = substageChips(renderer!).filter(
+      (n) => (n.props.accessibilityLabel as string).includes('completed'),
+    );
+    expect(completed).toHaveLength(1);
   });
 });

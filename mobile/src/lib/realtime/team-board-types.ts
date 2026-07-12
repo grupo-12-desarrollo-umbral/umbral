@@ -26,6 +26,20 @@ export type ActiveSubstageContextDto = {
   activeQuestionTimeLimitSeconds: number | null;
 };
 
+// Ordered-sequence position of a substage relative to the live-substage pointer (#171).
+// Backend sends `SubstageProgressStatus.ToString()`.
+export type SubstageProgressStatus = 'Completed' | 'Active' | 'Upcoming';
+
+// One entry in the ordered substage progress list (#171). `sequenceOrder` is a session-wide
+// display ordinal (flattened across stages); `playMode` reuses the branch key above.
+export type SubstageProgressDto = {
+  substageSnapshotId: string;
+  title: string;
+  sequenceOrder: number;
+  playMode: SubstagePlayMode;
+  status: SubstageProgressStatus;
+};
+
 export type ParticipantTeamBoardDto = {
   liveSessionId: string;
   teamId: string;
@@ -38,6 +52,9 @@ export type ParticipantTeamBoardDto = {
   // usable seed only.
   timer: SessionTimerSnapshotDto;
   activeSubstage: ActiveSubstageContextDto | null;
+  // The whole ordered substage sequence with per-item progress status (#171), so a
+  // mixed-play-mode participant sees where they are, not just the active substage.
+  substages: readonly SubstageProgressDto[];
   // Already-released, visible clues only; guidance, NOT progress.
   visibleClues: readonly VisibleClueDto[];
 };
