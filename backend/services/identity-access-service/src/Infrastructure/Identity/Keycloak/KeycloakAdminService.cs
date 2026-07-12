@@ -157,14 +157,15 @@ public sealed class KeycloakAdminService : IIdentityProviderAdminService
 
     private async Task<string> GetAdminTokenAsync(CancellationToken cancellationToken)
     {
+        // Client-credentials against the umbral realm: the umbral-backend service account carries
+        // only manage-users + view-realm, so nothing here holds master-realm authority.
         var response = await _httpClient.PostAsync(
-            $"{_options.AdminAuthority}/realms/master/protocol/openid-connect/token",
+            $"{_options.AdminAuthority}/realms/{_options.Realm}/protocol/openid-connect/token",
             new FormUrlEncodedContent(new Dictionary<string, string>
             {
-                ["client_id"] = "admin-cli",
-                ["username"] = _options.AdminUsername,
-                ["password"] = _options.AdminPassword,
-                ["grant_type"] = "password",
+                ["client_id"] = _options.ClientId,
+                ["client_secret"] = _options.ClientSecret,
+                ["grant_type"] = "client_credentials",
             }),
             cancellationToken);
 

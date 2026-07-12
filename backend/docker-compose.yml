@@ -127,6 +127,11 @@ services:
       ASPNETCORE_ENVIRONMENT: Development
       ASPNETCORE_URLS: http://+:8080
       ConnectionStrings__umbral_backendDb: Host=postgres;Port=5432;Database=identity_access;Username=postgres;Password=postgres
+      # Confidential client-credentials against the umbral realm (see deploy/keycloak/import).
+      # The secret is read from the environment, not committed here; the :- fallback is the dev
+      # value seeded by the realm import so `docker compose up` works out of the box.
+      Keycloak__ClientId: umbral-backend
+      Keycloak__ClientSecret: ${KEYCLOAK_BACKEND_CLIENT_SECRET:-umbral-backend-dev-secret}
       OTEL_EXPORTER_OTLP_ENDPOINT: http://seq:5341/ingest/otlp
       OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
       OTEL_SERVICE_NAME: identity-access-service

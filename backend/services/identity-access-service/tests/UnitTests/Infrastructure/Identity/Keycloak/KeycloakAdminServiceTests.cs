@@ -160,6 +160,26 @@ public sealed class KeycloakAdminServiceTests
         putCalls.Should().Be(3);
     }
 
+    [Fact]
+    public async Task GetAdminToken_UsesClientCredentialsGrantWithClientCredentials()
+    {
+        // The security contract of #140: the admin token is minted via client_credentials with the
+        // confidential client's id/secret — never a master-realm password grant.
+        var handler = new StubHandler(req => Ok(req));
+        var service = CreateService(handler);
+
+        await service.SyncUserActiveStateAsync("kc-user", isActive: false, CancellationToken.None);
+
+        var tokenRequest = handler.Requests.SingleOrDefault(r =>
+            r.Method == HttpMethod.Post && r.RequestUri!.AbsolutePath.EndsWith(TokenPath));
+        tokenRequest.Should().NotBeNull();
+
+        var body = await tokenRequest!.Content!.ReadAsStringAsync();
+        body.Should().Contain("grant_type=client_credentials");
+        body.Should().Contain("client_id=umbral-backend");
+        body.Should().Contain("client_secret=umbral-backend-dev-secret");
+    }
+
     private static KeycloakAdminService CreateService(StubHandler handler, int maxAttempts = 3)
     {
         var options = Options.Create(new KeycloakOptions

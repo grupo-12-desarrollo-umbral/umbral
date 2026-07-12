@@ -6,13 +6,14 @@ public sealed class KeycloakOptions
 {
     public const string SectionName = "Keycloak";
 
-    // Dev defaults mirror the docker-compose Keycloak so Development runs with no config.
-    // KeycloakOptionsValidator rejects these outside Development, so a missing/partial config
-    // section can't silently authenticate against Keycloak with dev credentials.
+    // Dev defaults mirror the docker-compose Keycloak (the umbral-backend client seeded by the
+    // realm import) so Development runs with no config. KeycloakOptionsValidator rejects these
+    // outside Development, so a missing/partial config section can't silently authenticate against
+    // Keycloak with the dev service-account secret.
     internal const string DevAdminAuthority = "http://keycloak:8080";
     internal const string DevRealm = "umbral";
-    internal const string DevAdminUsername = "admin";
-    internal const string DevAdminPassword = "admin";
+    internal const string DevClientId = "umbral-backend";
+    internal const string DevClientSecret = "umbral-backend-dev-secret";
 
     [Required]
     public string AdminAuthority { get; set; } = DevAdminAuthority;
@@ -20,11 +21,13 @@ public sealed class KeycloakOptions
     [Required]
     public string Realm { get; set; } = DevRealm;
 
+    // Confidential client authenticated via client-credentials against the umbral realm; its
+    // service account holds only the realm-management roles the Admin API calls need.
     [Required]
-    public string AdminUsername { get; set; } = DevAdminUsername;
+    public string ClientId { get; set; } = DevClientId;
 
     [Required]
-    public string AdminPassword { get; set; } = DevAdminPassword;
+    public string ClientSecret { get; set; } = DevClientSecret;
 
     // Bounded in-process retry for the Keycloak-first role sync. Absorbs transient blips
     // (token endpoint hiccup, brief partition) before surfacing a 503 to the admin caller.
