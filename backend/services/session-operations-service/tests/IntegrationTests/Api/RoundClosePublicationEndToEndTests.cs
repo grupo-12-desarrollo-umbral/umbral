@@ -56,7 +56,7 @@ public sealed class RoundClosePublicationEndToEndTests : IAsyncLifetime
         await DockerAvailability.StartOrSkipAsync(() => _rabbit.StartAsync(), _rabbit.DisposeAsync);
         _brokerAvailable = true;
 
-        // MassTransit binds RabbitMqOptions from configuration; env vars point the booted app at the
+        // MassTransit binds its RabbitMQ host options from configuration; env vars point the booted app at the
         // Testcontainers broker (WebApplication.CreateBuilder reads env vars by default).
         Environment.SetEnvironmentVariable("RabbitMq__HostName", _rabbit.Hostname);
         Environment.SetEnvironmentVariable(
