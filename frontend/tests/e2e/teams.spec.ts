@@ -209,13 +209,6 @@ test('HU-02 users panel still renders for admin', async ({ adminPage: page }) =>
   await expect(page.locator('[data-testid^="deactivate-btn-"]').first()).toBeVisible()
 })
 
-test('HU-02 users panel still renders read-only for operator', async ({ operatorPage: page }) => {
-  await page.goto('/dashboard')
-  await page.click('[data-testid="nav-users"]')
-  await expect(page.locator('[data-testid="users-panel"]')).toBeVisible()
-  await expect(page.locator('[data-testid^="deactivate-btn-"]')).toHaveCount(0)
-})
-
 // --- HU-03 regression ---
 
 test('HU-03 admin role change is not regressed', async ({ adminPage: page }) => {

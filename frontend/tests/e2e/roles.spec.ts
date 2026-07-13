@@ -40,12 +40,6 @@ test('admin can cancel role change without network call', async ({ adminPage: pa
   await expect(page.locator('[data-testid^="role-select-"]')).toHaveCount(0)
 })
 
-test('operator sees no change-role button', async ({ operatorPage: page }) => {
-  await page.goto('/dashboard')
-  await page.click('[data-testid="nav-users"]')
-  await expect(page.locator('[data-testid^="change-role-btn-"]')).toHaveCount(0)
-})
-
 // --- Role-based visibility ---
 
 test('participant sees participant panel not admin or operator panel', async ({ participantPage: page }) => {
@@ -94,11 +88,4 @@ test('HU-02 users panel still renders for admin', async ({ adminPage: page }) =>
   await page.click('[data-testid="nav-users"]')
   await expect(page.locator('[data-testid="users-panel"]')).toBeVisible()
   await expect(page.locator('[data-testid^="deactivate-btn-"]').first()).toBeVisible()
-})
-
-test('HU-02 users panel still renders read-only for operator', async ({ operatorPage: page }) => {
-  await page.goto('/dashboard')
-  await page.click('[data-testid="nav-users"]')
-  await expect(page.locator('[data-testid="users-panel"]')).toBeVisible()
-  await expect(page.locator('[data-testid^="deactivate-btn-"]')).toHaveCount(0)
 })

@@ -10,8 +10,9 @@ export async function getUsersPage(
   pageSize = 20,
 ): Promise<PagedResult<UserAccessCatalogItemDto>> {
   const session = await verifySession()
-  // Both Administrator and Operator may list users
-  if (session.role !== 'Administrator' && session.role !== 'Operator') {
+  // Issue #148: the Users view is Administrator-only; re-check the role here rather
+  // than trusting the client-side nav gate.
+  if (session.role !== 'Administrator') {
     throw new Error('Forbidden')
   }
   return listDedupedUsers(page, pageSize)
