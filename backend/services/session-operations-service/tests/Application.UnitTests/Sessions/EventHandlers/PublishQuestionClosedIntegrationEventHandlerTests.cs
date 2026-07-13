@@ -8,8 +8,9 @@ using umbral_backend.Domain.Events;
 namespace umbral_backend.Application.UnitTests.Sessions.EventHandlers;
 
 // Locks the QuestionClosedEvent -> QuestionClosedIntegrationEvent bridge (#164): exactly one event
-// published through MassTransit's IPublishEndpoint, correlation-only fields (no score, D-1), and a
-// throwing publish never propagates into the dispatch (D-3).
+// published through MassTransit's IPublishEndpoint, correlation-only fields (no score, D-1). Under the
+// transactional outbox the publish is a local insert on the business SaveChanges, so a failure is a DB
+// fault and must propagate (rolling the transaction back) rather than be swallowed.
 public sealed class PublishQuestionClosedIntegrationEventHandlerTests
 {
     private static readonly DateTimeOffset ClosedAt = new(2026, 7, 8, 12, 0, 0, TimeSpan.Zero);
@@ -36,12 +37,12 @@ public sealed class PublishQuestionClosedIntegrationEventHandlerTests
     }
 
     [Fact]
-    public async Task Handle_WhenPublishThrows_DoesNotPropagate()
+    public async Task Handle_WhenOutboxInsertFails_PropagatesToRollBackTheTransaction()
     {
         var publishEndpoint = new Mock<IPublishEndpoint>();
         publishEndpoint
             .Setup(endpoint => endpoint.Publish(It.IsAny<QuestionClosedIntegrationEvent>(), It.IsAny<CancellationToken>()))
-            .ThrowsAsync(new InvalidOperationException("broker unreachable"));
+            .ThrowsAsync(new InvalidOperationException("outbox insert failed"));
         var handler = new PublishQuestionClosedIntegrationEventHandler(
             publishEndpoint.Object,
             NullLogger<PublishQuestionClosedIntegrationEventHandler>.Instance);
@@ -50,6 +51,6 @@ public sealed class PublishQuestionClosedIntegrationEventHandlerTests
             new QuestionClosedEvent(Guid.NewGuid(), questionIndex: 0, ClosedAt, wasExpiredByTimer: false),
             CancellationToken.None);
 
-        await act.Should().NotThrowAsync();
+        await act.Should().ThrowAsync<InvalidOperationException>();
     }
 }

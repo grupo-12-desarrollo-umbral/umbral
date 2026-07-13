@@ -12,6 +12,9 @@
          the Application layer; RabbitMQ pulls in the transport for the Infrastructure bus registration. -->
     <PackageVersion Include="MassTransit" Version="8.4.1" />
     <PackageVersion Include="MassTransit.Abstractions" Version="8.4.1" />
+    <!-- EF Core transactional bus outbox: the scoped IPublishEndpoint becomes a DB insert inside the
+         business transaction, and a hosted delivery service drains it to RabbitMQ asynchronously. -->
+    <PackageVersion Include="MassTransit.EntityFrameworkCore" Version="8.4.1" />
     <PackageVersion Include="MassTransit.RabbitMQ" Version="8.4.1" />
     <PackageVersion Include="MediatR" Version="12.4.1" />
     <PackageVersion Include="MediatR.Contracts" Version="2.0.1" />

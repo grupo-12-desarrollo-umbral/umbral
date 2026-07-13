@@ -10,13 +10,14 @@ namespace umbral_backend.Application.Sessions.EventHandlers;
 /// Bridges the final-results fact — <see cref="SessionStateChangedEvent"/> reaching
 /// <see cref="SessionState.Finished"/> — straight through MassTransit's
 /// <see cref="IPublishEndpoint"/>. Only a transition to Finished publishes (State-gated in the
-/// domain); any other target state is a no-op. Broker/publish failures are logged and swallowed so
-/// the runtime never faults (D-3, AC #6).
+/// domain); any other target state is a no-op. Dispatched by <c>OutboxDomainEventDispatcher</c> from
+/// the interceptor's pre-commit phase: under the bus outbox this <c>Publish</c> is a local
+/// OutboxMessage insert that commits atomically with the Finished transition and drains to the broker
+/// asynchronously. A publish failure is a DbContext fault, so it is logged and rethrown to roll the
+/// transaction back rather than swallowed.
 /// </summary>
-public sealed class PublishSessionResultsFinalizedIntegrationEventHandler : INotificationHandler<SessionStateChangedEvent>
+public sealed class PublishSessionResultsFinalizedIntegrationEventHandler
 {
-    private static readonly TimeSpan PublishTimeout = TimeSpan.FromSeconds(5);
-
     private readonly IPublishEndpoint _publishEndpoint;
     private readonly ILogger<PublishSessionResultsFinalizedIntegrationEventHandler> _logger;
 
@@ -37,20 +38,19 @@ public sealed class PublishSessionResultsFinalizedIntegrationEventHandler : INot
 
         try
         {
-            using var publishTimeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            publishTimeout.CancelAfter(PublishTimeout);
             await _publishEndpoint.Publish(
                 new SessionResultsFinalizedIntegrationEvent(
                     notification.LiveSessionId,
                     notification.ChangedAt),
-                publishTimeout.Token);
+                cancellationToken);
         }
         catch (Exception exception)
         {
             _logger.LogError(
                 exception,
-                "Failed to publish SessionResultsFinalizedIntegrationEvent for session {LiveSessionId}.",
+                "Failed to enqueue SessionResultsFinalizedIntegrationEvent for session {LiveSessionId}.",
                 notification.LiveSessionId);
+            throw;
         }
     }
 }

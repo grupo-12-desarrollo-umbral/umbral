@@ -1,4 +1,5 @@
 using MassTransit;
+using MassTransit.EntityFrameworkCoreIntegration;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -140,6 +141,14 @@ public sealed class SessionOperationsApiWebApplicationFactory : WebApplicationFa
         // Deleting the aggregate root cascades to teams, participants, join contexts,
         // and team members (all FKs are ON DELETE CASCADE).
         await dbContext.LiveSessions.ExecuteDeleteAsync();
+
+        // Reset messaging state too: the transactional outbox tables are shared across the test
+        // collection, so undelivered rows leaked by earlier tests would otherwise be drained by this
+        // booted app's delivery service and stall real delivery. OutboxMessage first (it references
+        // OutboxState).
+        await dbContext.Set<OutboxMessage>().ExecuteDeleteAsync();
+        await dbContext.Set<OutboxState>().ExecuteDeleteAsync();
+        await dbContext.Set<InboxState>().ExecuteDeleteAsync();
     }
 
     protected override void Dispose(bool disposing)
