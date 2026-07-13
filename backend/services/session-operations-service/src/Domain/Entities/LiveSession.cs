@@ -13,6 +13,7 @@ public sealed class LiveSession : BaseAuditableEntity
     private readonly List<SessionParticipant> _participants = new();
     private readonly List<JoinContext> _joinContexts = new();
     private readonly List<TriviaAnswerSubmission> _triviaAnswerSubmissions = new();
+    private readonly List<ClueReleaseRecord> _clueReleaseRecords = new();
     private TimeSpan _questionTimerTotalDuration;
     private TimeSpan _questionTimerRemainingDuration;
     private DateTimeOffset? _questionTimerAdvancingSince;
@@ -351,6 +352,38 @@ public sealed class LiveSession : BaseAuditableEntity
             wasExpiredByTimer));
     }
 
+    public void ReleaseClue(Guid targetId, Guid teamId, int operatorUserId, DateTimeOffset now)
+    {
+        EnsureSessionActiveForClueRelease();
+        EnsureOperatorUserIdIsValid(operatorUserId);
+        var target = ResolveReleasableTarget(targetId);
+        var team = GetTeam(teamId);
+        EnsureClueNotAlreadyReleased(team.TeamId, target.TargetSnapshotId);
+        AppendManualClueRelease(target, team, operatorUserId, now);
+    }
+
+    public void ReleaseClueToAllTeams(Guid targetId, int operatorUserId, DateTimeOffset now)
+    {
+        EnsureSessionActiveForClueRelease();
+        EnsureOperatorUserIdIsValid(operatorUserId);
+        var target = ResolveReleasableTarget(targetId);
+
+        foreach (var team in _teams)
+        {
+            EnsureClueNotAlreadyReleased(team.TeamId, target.TargetSnapshotId);
+        }
+
+        foreach (var team in _teams)
+        {
+            AppendManualClueRelease(target, team, operatorUserId, now);
+        }
+    }
+
+    public IReadOnlyCollection<ClueReleaseRecord> GetClueReleaseRecords()
+    {
+        return _clueReleaseRecords.AsReadOnly();
+    }
+
     // HU-36A restricted pre-close monitor: for the active synchronized trivia question, enumerate the
     // session's teams and mark each answered iff an accepted TriviaAnswerSubmission exists for
     // (TeamId, ActiveSubstageId, QuestionSequenceOrder). Teams with none render not-answered — derived
@@ -520,7 +553,7 @@ public sealed class LiveSession : BaseAuditableEntity
         var timerSnapshot = GetAuthoritativeSessionTimerSnapshot(observedAt);
         var activeSubstageContext = BuildActiveSubstageContext();
         var substages = BuildSubstageProgress();
-        var visibleClues = CollectVisibleClues();
+        var visibleClues = CollectVisibleClues(team.TeamId);
         var activeTargets = CollectActiveTargets();
 
         return ParticipantTeamBoardSnapshot.Create(
@@ -666,7 +699,7 @@ public sealed class LiveSession : BaseAuditableEntity
             activeQuestionTimeLimitSeconds);
     }
 
-    private IReadOnlyList<VisibleClue> CollectVisibleClues()
+    private IReadOnlyList<VisibleClue> CollectVisibleClues(Guid teamId)
     {
         if (ActiveSubstageId is null)
         {
@@ -684,28 +717,125 @@ public sealed class LiveSession : BaseAuditableEntity
         // Treasure-hunt clues resolve per-target (unchanged). A trivia substage has no targets, so
         // its clues resolve from the substage-scoped clue snapshot instead (#145).
         return activeSubstage.PlayMode == SubstagePlayMode.TreasureHunt
-            ? CollectTargetVisibleClues(activeSubstage.SubstageSnapshotId)
+            ? CollectTargetVisibleClues(activeSubstage.SubstageSnapshotId, teamId)
             : CollectSubstageVisibleClues(activeSubstage.SubstageSnapshotId);
     }
 
-    private IReadOnlyList<VisibleClue> CollectTargetVisibleClues(Guid substageSnapshotId)
+    private IReadOnlyList<VisibleClue> CollectTargetVisibleClues(Guid substageSnapshotId, Guid teamId)
     {
-        // Show clue guidance from targets that have clue text. The ClueVisibilityPolicy field on
-        // TargetSnapshot defines when a clue becomes visible; for now we include clues from targets
-        // with a non-null policy (meaning the mission author intended visibility). Actual per-team
-        // release state belongs to HU-26/HU-28; HU-23 only reads already-visible guidance.
+        const string hiddenUntilOperatorRelease = "HiddenUntilOperatorRelease";
+
+        // Two-group order: always-visible clues (policy != HiddenUntilOperatorRelease) are pinned at the
+        // top by SequenceOrder ascending, then operator-released hidden clues render below them
+        // newest-released-first. SequenceOrder breaks ties within the released group (an all-teams release
+        // stamps every team's record with the same instant), keeping same-instant releases stably ordered.
         return MissionRuntimeSnapshot.TargetSnapshots
             .Where(target =>
                 target.SubstageSnapshotId == substageSnapshotId &&
                 target.IsActive &&
                 !string.IsNullOrWhiteSpace(target.ClueText) &&
                 !string.IsNullOrWhiteSpace(target.ClueVisibilityPolicy))
-            .OrderBy(target => target.SequenceOrder)
-            .Select(target => VisibleClue.Create(
-                target.TargetSnapshotId,
-                target.ClueText!,
-                target.Name))
+            .Select(target => new
+            {
+                target,
+                release = _clueReleaseRecords.SingleOrDefault(record =>
+                    record.TeamId == teamId &&
+                    record.TargetId == target.TargetSnapshotId),
+                alwaysVisible = !string.Equals(
+                    target.ClueVisibilityPolicy,
+                    hiddenUntilOperatorRelease,
+                    StringComparison.OrdinalIgnoreCase),
+            })
+            .Where(entry => entry.alwaysVisible || entry.release is not null)
+            .OrderBy(entry => entry.alwaysVisible ? 0 : 1)
+            .ThenByDescending(entry =>
+                entry.alwaysVisible ? DateTimeOffset.MinValue : entry.release!.ReleasedAt)
+            .ThenBy(entry => entry.target.SequenceOrder)
+            .Select(entry => VisibleClue.Create(
+                entry.target.TargetSnapshotId,
+                entry.target.ClueText!,
+                entry.target.Name))
             .ToList();
+    }
+
+    private void EnsureSessionActiveForClueRelease()
+    {
+        if (State is not SessionState.Active)
+        {
+            throw new SessionNotActiveForClueReleaseException(State);
+        }
+    }
+
+    private static void EnsureOperatorUserIdIsValid(int operatorUserId)
+    {
+        if (operatorUserId <= 0)
+        {
+            throw new OperatorUserIdMustBePositiveException();
+        }
+    }
+
+    private TargetSnapshot ResolveReleasableTarget(Guid targetId)
+    {
+        const string hiddenUntilOperatorRelease = "HiddenUntilOperatorRelease";
+
+        if (ActiveSubstageId is null)
+        {
+            throw new ClueNotReleasableException(targetId);
+        }
+
+        var activeSubstage = GetOrderedSubstages()
+            .SingleOrDefault(substage => substage.SubstageSnapshotId == ActiveSubstageId.Value);
+
+        if (activeSubstage is null || activeSubstage.PlayMode != SubstagePlayMode.TreasureHunt)
+        {
+            throw new ClueNotReleasableException(targetId);
+        }
+
+        return MissionRuntimeSnapshot.TargetSnapshots.SingleOrDefault(target =>
+                target.TargetSnapshotId == targetId &&
+                target.SubstageSnapshotId == activeSubstage.SubstageSnapshotId &&
+                target.IsActive &&
+                !string.IsNullOrWhiteSpace(target.ClueText) &&
+                string.Equals(
+                    target.ClueVisibilityPolicy,
+                    hiddenUntilOperatorRelease,
+                    StringComparison.OrdinalIgnoreCase))
+            ?? throw new ClueNotReleasableException(targetId);
+    }
+
+    private void EnsureClueNotAlreadyReleased(Guid teamId, Guid targetId)
+    {
+        if (_clueReleaseRecords.Any(record => record.TeamId == teamId && record.TargetId == targetId))
+        {
+            throw new ClueAlreadyReleasedToTeamException(teamId, targetId);
+        }
+    }
+
+    private void AppendManualClueRelease(
+        TargetSnapshot target,
+        Team team,
+        int operatorUserId,
+        DateTimeOffset releasedAt)
+    {
+        // TargetSnapshot embeds its clue fields and carries no distinct clue-node identity.
+        var release = ClueReleaseRecord.CreateManual(
+            LiveSessionId,
+            team.TeamId,
+            target.TargetSnapshotId,
+            clueId: null,
+            operatorUserId: operatorUserId,
+            releasedAt: releasedAt);
+
+        _clueReleaseRecords.Add(release);
+        team.IncrementReleasedClueCount();
+        AddDomainEvent(new ClueReleasedEvent(
+            LiveSessionId,
+            team.TeamId,
+            target.TargetSnapshotId,
+            release.ClueId,
+            release.ReleaseMode,
+            release.ReleasedByUserId,
+            release.ReleasedAt));
     }
 
     private IReadOnlyList<VisibleClue> CollectSubstageVisibleClues(Guid substageSnapshotId)

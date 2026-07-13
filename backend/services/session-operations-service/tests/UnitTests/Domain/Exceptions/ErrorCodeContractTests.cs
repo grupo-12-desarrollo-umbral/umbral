@@ -18,6 +18,8 @@ public sealed class ErrorCodeContractTests
         new Dictionary<string, string>(StringComparer.Ordinal)
         {
             ["AnswerSubmitterIsNotSessionParticipantException"] = "answer-submitter-is-not-session-participant",
+            ["ClueAlreadyReleasedToTeamException"] = "clue-already-released-to-team",
+            ["ClueNotReleasableException"] = "clue-not-releasable",
             ["ClueSnapshotIdRequiredException"] = "clue-snapshot-id-required",
             ["ClueSnapshotSubstageRequiredException"] = "clue-snapshot-substage-required",
             ["DuplicateTeamAssociationInSessionException"] = "duplicate-team-association-in-session",
@@ -56,6 +58,7 @@ public sealed class ErrorCodeContractTests
             ["QuestionIndexOutOfRangeException"] = "question-index-out-of-range",
             ["ReferenceTeamIdRequiredException"] = "reference-team-id-required",
             ["SessionSourceEntityRequiredException"] = "session-source-entity-required",
+            ["SessionNotActiveForClueReleaseException"] = "session-not-active-for-clue-release",
             ["StageSnapshotIdRequiredException"] = "stage-snapshot-id-required",
             ["StageSnapshotMustContainSubstagesException"] = "stage-snapshot-must-contain-substages",
             ["SubstageAdvancementRequiresActiveSessionException"] = "substage-advancement-requires-active-session",

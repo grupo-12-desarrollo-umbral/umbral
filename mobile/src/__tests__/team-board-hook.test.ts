@@ -239,6 +239,74 @@ describe('useTeamBoard', () => {
     hook.unmount();
   });
 
+  test('a push carrying a newly-released clue grows visibleClues', async () => {
+    // HU-26 reveal: the operator releases a clue on the web side; the backend re-projects the board
+    // and pushes it. The hook applies it wholesale, so the new VisibleClueDto lands in visibleClues.
+    mockGetTeamBoard.mockResolvedValueOnce(BASE_BOARD);
+    const client = makeClient();
+
+    const hook = renderHook({
+      client,
+      liveSessionId: 'sess-1',
+      teamId: REFERENCE_TEAM_ID,
+      isReconnected: true,
+      reconnectNonce: 0,
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(hook.get().board?.visibleClues).toHaveLength(0);
+
+    act(() => {
+      fireBoard({
+        ...BASE_BOARD,
+        visibleClues: [
+          { targetSnapshotId: 'clue-1', targetName: 'Brass Astrolabe', clueText: 'Follow the north colonnade.' },
+        ],
+      });
+    });
+
+    expect(hook.get().board?.visibleClues).toHaveLength(1);
+    expect(hook.get().board?.visibleClues[0].targetName).toBe('Brass Astrolabe');
+    expect(hook.get().board?.visibleClues[0].clueText).toBe('Follow the north colonnade.');
+
+    hook.unmount();
+  });
+
+  test('does not add a released clue from a push for a different liveSessionId', async () => {
+    // Cross-session isolation: a clue released in another session must never surface on this board.
+    mockGetTeamBoard.mockResolvedValueOnce(BASE_BOARD);
+    const client = makeClient();
+
+    const hook = renderHook({
+      client,
+      liveSessionId: 'sess-1',
+      teamId: REFERENCE_TEAM_ID,
+      isReconnected: true,
+      reconnectNonce: 0,
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    act(() => {
+      fireBoard({
+        ...BASE_BOARD,
+        liveSessionId: 'other-sess',
+        visibleClues: [
+          { targetSnapshotId: 'clue-x', targetName: 'Other Team Target', clueText: 'Not for this team.' },
+        ],
+      });
+    });
+
+    expect(hook.get().board?.visibleClues).toHaveLength(0);
+
+    hook.unmount();
+  });
+
   test('applies a push whose teamId is the per-session id (differs from the reference id prop)', async () => {
     // Regression guard: the DTO carries the per-session team id, never the reference id the hook
     // is keyed on. A client-side teamId equality check would drop every push — it must not.
