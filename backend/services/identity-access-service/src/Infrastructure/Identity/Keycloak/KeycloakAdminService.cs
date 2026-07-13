@@ -66,7 +66,7 @@ public sealed class KeycloakAdminService : IIdentityProviderAdminService
         return location.Segments[^1].Trim('/');
     }
 
-    // Ask Keycloak to email the invitee a required-actions link for UPDATE_PASSWORD and VERIFY_EMAIL.
+    // Ask Keycloak to email the invitee a required-actions link for UPDATE_PASSWORD, UPDATE_PROFILE and VERIFY_EMAIL.
     // Relies on the realm's configured SMTP server; a delivery/config failure surfaces (with Keycloak's
     // reason) so the invitation handler can compensate instead of leaving an orphaned account.
     public async Task SendExecuteActionsEmailAsync(string externalIdentityId, CancellationToken cancellationToken)
@@ -77,7 +77,7 @@ public sealed class KeycloakAdminService : IIdentityProviderAdminService
             HttpMethod.Put,
             $"{_options.AdminAuthority}/admin/realms/{_options.Realm}/users/{externalIdentityId}/execute-actions-email")
         {
-            Content = JsonContent.Create(new[] { "UPDATE_PASSWORD", "VERIFY_EMAIL" }),
+            Content = JsonContent.Create(new[] { "UPDATE_PASSWORD", "UPDATE_PROFILE", "VERIFY_EMAIL" }),
         };
 
         request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);

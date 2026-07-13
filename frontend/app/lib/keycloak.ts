@@ -112,13 +112,25 @@ export async function exchangeCode(
   const tokenSet = parseTokenSet(data, 'exchange_code')
   const idToken = requireString(data.id_token, 'id_token', 'exchange_code')
 
-  // Parse id_token claims to extract display name
+  // Parse id_token claims to extract display name. Prefer a human name over
+  // preferred_username: for invited users the Keycloak username IS their email,
+  // so preferring preferred_username would keep displayName == email forever.
   const idTokenPayload = parseJwt(idToken)
+  // Treat empty/whitespace-only claims as absent (?? only guards null/undefined).
+  const pickClaim = (value: unknown): string | undefined => {
+    const text = typeof value === 'string' ? value.trim() : ''
+    return text.length > 0 ? text : undefined
+  }
+  const givenName = pickClaim(idTokenPayload.given_name)
+  const familyName = pickClaim(idTokenPayload.family_name)
+  const fullFromParts = givenName
+    ? [givenName, familyName].filter(Boolean).join(' ')
+    : undefined
   const displayName =
-    (idTokenPayload.preferred_username as string) ??
-    (idTokenPayload.name as string) ??
-    (idTokenPayload.given_name as string) ??
-    (idTokenPayload.email as string) ??
+    pickClaim(idTokenPayload.name) ??
+    fullFromParts ??
+    pickClaim(idTokenPayload.preferred_username) ??
+    pickClaim(idTokenPayload.email) ??
     'User'
 
   const email = (idTokenPayload.email as string) ?? ''
