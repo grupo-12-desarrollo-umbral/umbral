@@ -23,6 +23,7 @@ public sealed class LiveSessionRepository : ILiveSessionRepository
             .Include(session => session.Participants)
             .Include(session => session.JoinContexts)
             .Include(session => session.TriviaAnswerSubmissions)
+            .Include(session => session.SessionEvents)
             .Include("_clueReleaseRecords")
             .Include(session => session.MissionRuntimeSnapshot)
                 .ThenInclude(snapshot => snapshot.StageSnapshots)

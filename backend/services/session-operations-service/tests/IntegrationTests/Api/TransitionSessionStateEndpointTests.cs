@@ -75,6 +75,34 @@ public sealed class TransitionSessionStateEndpointTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Transition_WithAssignedOperator_PersistsSessionEventWithActorAndReason()
+    {
+        var liveSession = await SeedSessionAsync();
+        AddTrustedHeaders(_client, OperatorExternalIdentityId, "Operator", "operator@example.com");
+
+        var reason = "Doors open";
+        var response = await _client.PatchAsJsonAsync(
+            $"/api/sessions/{liveSession.LiveSessionId:D}/state",
+            new { targetState = "Preparing", reason });
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        await using var scope = _factory.Services.CreateAsyncScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var reloaded = await dbContext.LiveSessions
+            .Include(s => s.SessionEvents)
+            .AsNoTracking()
+            .SingleAsync(s => s.LiveSessionId == liveSession.LiveSessionId);
+
+        reloaded.SessionEvents.Should().ContainSingle();
+        var sessionEvent = reloaded.SessionEvents.Single();
+        sessionEvent.EventType.Should().Be("SessionStateChanged");
+        sessionEvent.ActorType.Should().Be(SessionEventActorType.Operator);
+        sessionEvent.ActorId.Should().Be(OperatorUserId);
+        sessionEvent.PayloadSummary.Should().Be($"Scheduled→Preparing: {reason}");
+    }
+
+    [Fact]
     public async Task Transition_WithStructurallyInvalidTarget_ReturnsConflict()
     {
         var liveSession = await SeedSessionAsync();

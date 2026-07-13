@@ -162,7 +162,12 @@ public sealed class LiveSessionTests
         var session = LiveSessionFactory.CreateScheduledTreasureHunt();
         var occurredAt = new DateTimeOffset(2026, 6, 3, 10, 0, 0, TimeSpan.Zero);
 
-        session.MoveTo(SessionState.Preparing, occurredAt, new SessionStateTransitionPolicy(), "ready");
+        session.MoveTo(
+            SessionState.Preparing,
+            occurredAt,
+            new SessionStateTransitionPolicy(),
+            "ready",
+            responsibleUserId: 27);
 
         session.State.Should().Be(SessionState.Preparing);
 
@@ -171,6 +176,16 @@ public sealed class LiveSessionTests
         stateEvent.PreviousState.Should().Be(SessionState.Scheduled);
         stateEvent.CurrentState.Should().Be(SessionState.Preparing);
         stateEvent.ChangedAt.Should().Be(occurredAt);
+        stateEvent.ResponsibleUserId.Should().Be(27);
+        stateEvent.Reason.Should().Be("ready");
+        stateEvent.ActorType.Should().Be(SessionEventActorType.Operator);
+
+        var auditRecord = session.SessionEvents.Should().ContainSingle().Subject;
+        auditRecord.LiveSessionId.Should().Be(session.LiveSessionId);
+        auditRecord.OccurredAt.Should().Be(occurredAt);
+        auditRecord.ActorType.Should().Be(SessionEventActorType.Operator);
+        auditRecord.ActorId.Should().Be(27);
+        auditRecord.PayloadSummary.Should().Be("Scheduled→Preparing: ready");
     }
 
     [Fact]
@@ -183,6 +198,7 @@ public sealed class LiveSessionTests
         act.Should().Throw<InvalidSessionStateTransitionException>();
         session.State.Should().Be(SessionState.Scheduled);
         session.DomainEvents.OfType<SessionStateChangedEvent>().Should().BeEmpty();
+        session.SessionEvents.Should().BeEmpty();
     }
 
     [Fact]
@@ -883,6 +899,15 @@ public sealed class LiveSessionTests
         finishedEvent.LiveSessionId.Should().Be(session.LiveSessionId);
         finishedEvent.PreviousState.Should().Be(SessionState.Active);
         finishedEvent.ChangedAt.Should().Be(advancedAt.AddSeconds(30));
+        finishedEvent.ResponsibleUserId.Should().BeNull();
+        finishedEvent.Reason.Should().BeNull();
+        finishedEvent.ActorType.Should().Be(SessionEventActorType.System);
+
+        var auditRecord = session.SessionEvents
+            .Single(sessionEvent => sessionEvent.PayloadSummary == "Active→Finished");
+        auditRecord.OccurredAt.Should().Be(advancedAt.AddSeconds(30));
+        auditRecord.ActorType.Should().Be(SessionEventActorType.System);
+        auditRecord.ActorId.Should().BeNull();
     }
 
     [Fact]

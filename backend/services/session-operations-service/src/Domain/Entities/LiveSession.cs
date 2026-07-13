@@ -13,6 +13,7 @@ public sealed class LiveSession : BaseAuditableEntity
     private readonly List<SessionParticipant> _participants = new();
     private readonly List<JoinContext> _joinContexts = new();
     private readonly List<TriviaAnswerSubmission> _triviaAnswerSubmissions = new();
+    private readonly List<SessionEvent> _sessionEvents = new();
     private readonly List<ClueReleaseRecord> _clueReleaseRecords = new();
     private TimeSpan _questionTimerTotalDuration;
     private TimeSpan _questionTimerRemainingDuration;
@@ -121,6 +122,8 @@ public sealed class LiveSession : BaseAuditableEntity
     public IReadOnlyCollection<SessionParticipant> Participants => _participants.AsReadOnly();
 
     public IReadOnlyCollection<JoinContext> JoinContexts => _joinContexts.AsReadOnly();
+
+    public IReadOnlyCollection<SessionEvent> SessionEvents => _sessionEvents.AsReadOnly();
 
     // Accepted trivia answers (base evidence + trivia specialization). Only first-write-wins accepted
     // answers live here; rejected attempts throw and never enter this collection.
@@ -289,7 +292,12 @@ public sealed class LiveSession : BaseAuditableEntity
         return joinContext;
     }
 
-    public void MoveTo(SessionState nextState, DateTimeOffset occurredAt, SessionStateTransitionPolicy transitionPolicy, string? reason = null)
+    public void MoveTo(
+        SessionState nextState,
+        DateTimeOffset occurredAt,
+        SessionStateTransitionPolicy transitionPolicy,
+        string? reason = null,
+        int? responsibleUserId = null)
     {
         ArgumentNullException.ThrowIfNull(transitionPolicy);
 
@@ -300,9 +308,29 @@ public sealed class LiveSession : BaseAuditableEntity
         LastStateChangedAt = occurredAt;
         StateReason = string.IsNullOrWhiteSpace(reason) ? null : reason.Trim();
 
+        var actorType = responsibleUserId.HasValue
+            ? SessionEventActorType.Operator
+            : SessionEventActorType.System;
+
         LiveSessionStateFactory.For(nextState).Enter(this, occurredAt);
 
-        AddDomainEvent(new SessionStateChangedEvent(LiveSessionId, previousState, nextState, occurredAt));
+        _sessionEvents.Add(SessionEvent.ForStateChange(
+            LiveSessionId,
+            previousState,
+            nextState,
+            occurredAt,
+            actorType,
+            responsibleUserId,
+            StateReason));
+
+        AddDomainEvent(new SessionStateChangedEvent(
+            LiveSessionId,
+            previousState,
+            nextState,
+            occurredAt,
+            responsibleUserId,
+            StateReason,
+            actorType));
     }
 
     // Authoritative displayed remaining time is selected by the active substage's play mode:

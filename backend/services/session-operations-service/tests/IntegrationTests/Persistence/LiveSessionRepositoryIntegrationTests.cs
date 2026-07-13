@@ -930,6 +930,108 @@ public sealed class LiveSessionRepositoryIntegrationTests
             "the unique index on team + target must reject a second release for the same clue");
     }
 
+    // HU-21: every valid transition appends an append-only SessionEvent capturing the date, the
+    // responsible actor, and the reason. This proves the OwnsMany live_session_events child round-trips
+    // through the aggregate repository: an Operator-driven cancellation persists an Operator SessionEvent
+    // with the responsible user id and the "previous→current: reason" payload summary.
+    [Fact]
+    public async Task UpdateAsync_RoundTripsOperatorTransitionSessionEventThroughAggregate()
+    {
+        await using var resetContext = BuildContext();
+        await ResetDatabaseAsync(resetContext);
+
+        var createdAt = DateTimeOffset.UtcNow.AddMinutes(-30);
+        var liveSession = CreateSession(createdAt);
+
+        await using (var seedContext = BuildContext())
+        {
+            seedContext.LiveSessions.Add(liveSession);
+            await seedContext.SaveChangesAsync(CancellationToken.None);
+        }
+
+        var cancelledAt = createdAt.AddMinutes(10);
+        const string reason = "Venue closed unexpectedly";
+        const int responsibleUserId = 42;
+
+        await using (var actContext = BuildContext())
+        {
+            var repository = new LiveSessionRepository(actContext);
+            var persistedSession = await repository.GetByIdAsync(liveSession.LiveSessionId, CancellationToken.None);
+
+            persistedSession.Should().NotBeNull();
+            persistedSession!.MoveTo(
+                SessionState.Cancelled,
+                cancelledAt,
+                new SessionStateTransitionPolicy(),
+                reason,
+                responsibleUserId);
+
+            await repository.UpdateAsync(persistedSession, CancellationToken.None);
+        }
+
+        await using var assertContext = BuildContext();
+        var reloadedSession = await new LiveSessionRepository(assertContext)
+            .GetByIdAsync(liveSession.LiveSessionId, CancellationToken.None);
+
+        reloadedSession.Should().NotBeNull();
+        reloadedSession!.SessionEvents.Should().ContainSingle();
+
+        var sessionEvent = reloadedSession.SessionEvents.Single();
+        sessionEvent.SessionEventId.Should().NotBe(Guid.Empty);
+        sessionEvent.LiveSessionId.Should().Be(liveSession.LiveSessionId);
+        sessionEvent.OccurredAt.Should().BeCloseTo(cancelledAt, TimeSpan.FromMicroseconds(1));
+        sessionEvent.ActorType.Should().Be(SessionEventActorType.Operator);
+        sessionEvent.ActorId.Should().Be(responsibleUserId);
+        sessionEvent.EventType.Should().Be("SessionStateChanged");
+        sessionEvent.PayloadSummary.Should().Be($"{SessionState.Scheduled}→{SessionState.Cancelled}: {reason}");
+        sessionEvent.CorrelationId.Should().NotBe(Guid.Empty);
+    }
+
+    // A system-driven transition (no responsible operator) records a System SessionEvent with a null
+    // actor id and a reasonless payload summary — proving the actor_type enum→string conversion and the
+    // nullable actor_id column round-trip for the System path.
+    [Fact]
+    public async Task UpdateAsync_RoundTripsSystemTransitionSessionEventWithNullActor()
+    {
+        await using var resetContext = BuildContext();
+        await ResetDatabaseAsync(resetContext);
+
+        var createdAt = DateTimeOffset.UtcNow.AddMinutes(-30);
+        var liveSession = CreateSession(createdAt);
+
+        await using (var seedContext = BuildContext())
+        {
+            seedContext.LiveSessions.Add(liveSession);
+            await seedContext.SaveChangesAsync(CancellationToken.None);
+        }
+
+        var preparingAt = createdAt.AddMinutes(5);
+
+        await using (var actContext = BuildContext())
+        {
+            var repository = new LiveSessionRepository(actContext);
+            var persistedSession = await repository.GetByIdAsync(liveSession.LiveSessionId, CancellationToken.None);
+
+            persistedSession.Should().NotBeNull();
+            // No responsibleUserId → System actor.
+            persistedSession!.MoveTo(SessionState.Preparing, preparingAt, new SessionStateTransitionPolicy());
+
+            await repository.UpdateAsync(persistedSession, CancellationToken.None);
+        }
+
+        await using var assertContext = BuildContext();
+        var reloadedSession = await new LiveSessionRepository(assertContext)
+            .GetByIdAsync(liveSession.LiveSessionId, CancellationToken.None);
+
+        reloadedSession.Should().NotBeNull();
+        reloadedSession!.SessionEvents.Should().ContainSingle();
+
+        var sessionEvent = reloadedSession.SessionEvents.Single();
+        sessionEvent.ActorType.Should().Be(SessionEventActorType.System);
+        sessionEvent.ActorId.Should().BeNull();
+        sessionEvent.PayloadSummary.Should().Be($"{SessionState.Scheduled}→{SessionState.Preparing}");
+    }
+
     private static LiveSession CreateActiveTreasureHuntSession(DateTimeOffset activeAt)
     {
         var sourceMissionId = Guid.NewGuid();

@@ -33,6 +33,9 @@ public sealed class TransitionSessionStateCommandHandlerTests
         session.State.Should().Be(SessionState.Preparing);
         session.DomainEvents.OfType<SessionStateChangedEvent>()
             .Last().CurrentState.Should().Be(SessionState.Preparing);
+        session.DomainEvents.OfType<SessionStateChangedEvent>()
+            .Last().ResponsibleUserId.Should().Be(42);
+        session.SessionEvents.Last().ActorId.Should().Be(42);
         repository.Verify(repo => repo.UpdateAsync(session, It.IsAny<CancellationToken>()), Times.Once);
     }
 

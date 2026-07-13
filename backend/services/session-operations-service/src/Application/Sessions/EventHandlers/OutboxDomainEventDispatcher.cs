@@ -15,22 +15,35 @@ public sealed class OutboxDomainEventDispatcher : IOutboxDomainEventDispatcher
     private readonly PublishAnswerRegisteredIntegrationEventHandler _answerRegistered;
     private readonly PublishQuestionClosedIntegrationEventHandler _questionClosed;
     private readonly PublishSessionResultsFinalizedIntegrationEventHandler _sessionResultsFinalized;
+    private readonly PublishSessionStateChangedIntegrationEventHandler _sessionStateChanged;
 
     public OutboxDomainEventDispatcher(
         PublishAnswerRegisteredIntegrationEventHandler answerRegistered,
         PublishQuestionClosedIntegrationEventHandler questionClosed,
-        PublishSessionResultsFinalizedIntegrationEventHandler sessionResultsFinalized)
+        PublishSessionResultsFinalizedIntegrationEventHandler sessionResultsFinalized,
+        PublishSessionStateChangedIntegrationEventHandler sessionStateChanged)
     {
         _answerRegistered = answerRegistered;
         _questionClosed = questionClosed;
         _sessionResultsFinalized = sessionResultsFinalized;
+        _sessionStateChanged = sessionStateChanged;
     }
 
     public Task DispatchAsync(BaseEvent domainEvent, CancellationToken cancellationToken) => domainEvent switch
     {
         AnswerRegisteredEvent answerRegistered => _answerRegistered.Handle(answerRegistered, cancellationToken),
         QuestionClosedEvent questionClosed => _questionClosed.Handle(questionClosed, cancellationToken),
-        SessionStateChangedEvent sessionStateChanged => _sessionResultsFinalized.Handle(sessionStateChanged, cancellationToken),
+        SessionStateChangedEvent sessionStateChanged => DispatchSessionStateChangedAsync(
+            sessionStateChanged,
+            cancellationToken),
         _ => Task.CompletedTask,
     };
+
+    private async Task DispatchSessionStateChangedAsync(
+        SessionStateChangedEvent domainEvent,
+        CancellationToken cancellationToken)
+    {
+        await _sessionResultsFinalized.Handle(domainEvent, cancellationToken);
+        await _sessionStateChanged.Handle(domainEvent, cancellationToken);
+    }
 }
