@@ -14,6 +14,7 @@ import { OperatorSessionTimerPanel } from './OperatorSessionTimerPanel'
 import { TriviaRoundPanel } from './TriviaRoundPanel'
 import { AnsweredMonitorPanel, type AnsweredTeamRow } from './AnsweredMonitorPanel'
 import { OperatorTeamProgressPanel } from './OperatorTeamProgressPanel'
+import { OperatorClueReleasePanel } from './OperatorClueReleasePanel'
 import { isNonLiveQuestionSnapshot } from './timer-snapshot'
 import { createSessionStateRealtimeClient, type SessionRealtimeStatus } from '@/app/lib/realtime/session-state-client'
 import { lifecycleActions, toLifecycleState } from '@/app/lib/session-lifecycle'
@@ -1145,6 +1146,18 @@ export default function DashboardClient({
                   unauthorized={operatorPanelState.unauthorized}
                   error={operatorPanelState.error}
                   loading={operatorPanelState.loading}
+                />
+
+                <OperatorClueReleasePanel
+                  liveSessionId={selectedOperatorSession.liveSessionId}
+                  state={selectedOperatorState}
+                  teams={(operatorPanelState.panel?.teamProgress ?? []).map((t) => ({
+                    teamId: t.teamId,
+                    displayName: t.displayName,
+                  }))}
+                  onReleased={(target, count) =>
+                    announce('Clue released', `Target ${target} revealed to ${count} team${count === 1 ? '' : 's'}.`)
+                  }
                 />
 
                 <TriviaRoundPanel

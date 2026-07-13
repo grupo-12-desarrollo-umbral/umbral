@@ -465,6 +465,20 @@ export type OperatorSessionPanelDto = {
   teamProgress: OperatorTeamProgressDto[] // ordered by teamCode (backend Ordinal sort)
 }
 
+// --- HU-26 operator clue release ---
+// Request of POST /api/sessions/{liveSessionId}/clues/release (Operator + ownership Proxy).
+// Omit teamId to release the target's hidden clue to ALL teams.
+export type ReleaseClueRequest = {
+  targetId: string // Guid — the treasure-hunt target whose hidden clue becomes visible
+  teamId?: string // Guid — omit ⇒ release to all teams
+}
+
+// 200 response: the released target + the team ids the clue is now visible to.
+export type ReleaseClueResultDto = {
+  targetId: string
+  releasedTeamIds: string[] // one id for a single-team release; every team for all-teams
+}
+
 // Phases of the automated trivia round, derived from SignalR pushes only.
 export type TriviaRoundPhase =
   | 'idle'

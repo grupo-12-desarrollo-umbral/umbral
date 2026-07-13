@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { cookieJar, cookieStore, refreshAccessTokenMock } = vi.hoisted(() => {
   const cookieJar = new Map<string, string>()
@@ -42,8 +42,13 @@ import {
 } from '@/app/lib/keycloak-tokens'
 
 describe('keycloak token cookie lifecycle', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs()
+  })
+
   beforeEach(() => {
-    process.env.NODE_ENV = 'test'
+    // NODE_ENV is a read-only typed property; stub it via vitest instead of assigning directly.
+    vi.stubEnv('NODE_ENV', 'test')
     process.env.SESSION_SECRET = 'test-session-secret'
     delete process.env.KC_TOKEN_SECRET
     cookieJar.clear()

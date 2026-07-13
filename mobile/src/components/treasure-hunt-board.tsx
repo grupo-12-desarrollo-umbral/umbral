@@ -9,7 +9,7 @@
  * clearly-marked placeholders (real standings/ranking is HU-39); the map stays a
  * labelled stub (real map is #156, target coordinates are #154).
  */
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { Card } from '@/components/ui/card';
 import { Screen } from '@/components/ui/screen';
@@ -133,6 +133,21 @@ export function TreasureHuntBoard({
 }: TreasureHuntBoardProps) {
   const [tab, setTab] = useState<'map' | 'clues' | 'teams'>('map');
 
+  // Reveal indicator: track which clue ids have been seen. Mount baseline = the seed snapshot's
+  // clues (already-seen) so a reconnect never false-flashes; only clues arriving in a LATER render
+  // are "new". Prop-diff bookkeeping only — never owns board state.
+  const seenClueIds = useRef<Set<string>>(new Set(visibleClues.map((c) => c.targetSnapshotId)));
+
+  // Acknowledge (mark current clues seen) whenever the participant is on the CLUES tab.
+  useEffect(() => {
+    if (tab === 'clues') {
+      for (const c of visibleClues) seenClueIds.current.add(c.targetSnapshotId);
+    }
+  }, [tab, visibleClues]);
+
+  const hasNewClues =
+    tab !== 'clues' && visibleClues.some((c) => !seenClueIds.current.has(c.targetSnapshotId));
+
   return (
     <View
       accessibilityLabel={`Treasure hunt board for ${teamDisplayName}`}
@@ -175,26 +190,40 @@ export function TreasureHuntBoard({
             padding: 3,
           }}
         >
-          {(['map', 'clues', 'teams'] as const).map((k) => (
-            <Pressable
-              key={k}
-              accessibilityRole="button"
-              onPress={() => setTab(k)}
-              style={{
-                flex: 1,
-                alignItems: 'center',
-                paddingVertical: spacing.xs,
-                borderRadius: radii.control - 3,
-                borderCurve: 'continuous',
-                backgroundColor: tab === k ? colors.paperSurface : 'transparent',
-                boxShadow: tab === k ? shadows.insetSheen : undefined,
-              }}
-            >
-              <Text variant="label" style={{ color: tab === k ? colors.textInk : colors.textMuted }}>
-                {k.toUpperCase()}
-              </Text>
-            </Pressable>
-          ))}
+          {(['map', 'clues', 'teams'] as const).map((k) => {
+            const showDot = k === 'clues' && hasNewClues;
+            return (
+              <Pressable
+                key={k}
+                accessibilityRole="button"
+                accessibilityLabel={showDot ? 'New clue available' : undefined}
+                onPress={() => setTab(k)}
+                style={{
+                  flex: 1,
+                  flexDirection: 'row',
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  gap: 6,
+                  paddingVertical: spacing.xs,
+                  borderRadius: radii.control - 3,
+                  borderCurve: 'continuous',
+                  backgroundColor: tab === k ? colors.paperSurface : 'transparent',
+                  boxShadow: tab === k ? shadows.insetSheen : undefined,
+                }}
+              >
+                <Text variant="label" style={{ color: tab === k ? colors.textInk : colors.textMuted }}>
+                  {k.toUpperCase()}
+                </Text>
+                {showDot ? (
+                  // Ember dot: tiny new-clue accent (DESIGN Ember Rule); ClueCard artifact untouched.
+                  <View
+                    testID="treasure-hunt-clue-indicator"
+                    style={{ width: 8, height: 8, borderRadius: 4, borderCurve: 'continuous', backgroundColor: colors.emberAccentStrong }}
+                  />
+                ) : null}
+              </Pressable>
+            );
+          })}
         </View>
       </View>
 

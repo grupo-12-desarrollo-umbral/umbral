@@ -41,6 +41,7 @@ public static class DependencyInjection
 
         builder.Services.AddScoped<IRuntimeParticipationGuard, RuntimeParticipationGuard>();
         builder.Services.AddScoped<ISessionAdministrationAccessResolver, SessionAdministrationAuthorizationProxy>();
+        builder.Services.AddScoped<IClueReleaseFacade, ClueReleaseFacade>();
         builder.Services.AddScoped<ISessionTeamAssociationFacade, SessionTeamAssociationFacade>();
         builder.Services.AddScoped<ITriviaRoundOrchestratorFacade, TriviaRoundOrchestratorFacade>();
         builder.Services.AddScoped<IQuestionActivationStrategy, SequentialQuestionActivationStrategy>();

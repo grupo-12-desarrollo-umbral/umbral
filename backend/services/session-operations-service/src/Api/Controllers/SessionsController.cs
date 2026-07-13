@@ -5,6 +5,7 @@ using umbral_backend.Application.Sessions.Commands.AssociateTeamToSession;
 using umbral_backend.Application.Sessions.Commands.AssignOperatorToSession;
 using umbral_backend.Application.Sessions.Commands.CreateSession;
 using umbral_backend.Application.Sessions.Commands.ReconnectAuthenticatedParticipant;
+using umbral_backend.Application.Sessions.Commands.ReleaseClue;
 using umbral_backend.Application.Sessions.Commands.SelectTeam;
 using umbral_backend.Application.Sessions.Commands.SubmitTriviaAnswer;
 using umbral_backend.Application.Sessions.Commands.TransitionSessionState;
@@ -281,6 +282,20 @@ public sealed class SessionsController(ISender sender) : ControllerBase
         return Ok(result);
     }
 
+    [HttpPost("{liveSessionId:guid}/clues/release")]
+    [Authorize(Policy = AuthorizationPolicies.Operator)]
+    public async Task<ActionResult<ReleaseClueResultDto>> ReleaseClueAsync(
+        Guid liveSessionId,
+        ReleaseClueRequest request,
+        CancellationToken cancellationToken)
+    {
+        var result = await sender.Send(
+            new ReleaseClueCommand(liveSessionId, request.TargetId, request.TeamId),
+            cancellationToken);
+
+        return Ok(result);
+    }
+
     public sealed record CreateSessionRequest(
         int MissionId,
         string Title,
@@ -304,4 +319,6 @@ public sealed class SessionsController(ISender sender) : ControllerBase
     public sealed record AssignOperatorRequest(int OperatorUserId);
 
     public sealed record TransitionSessionStateRequest(string TargetState, string? Reason);
+
+    public sealed record ReleaseClueRequest(Guid TargetId, Guid? TeamId);
 }
