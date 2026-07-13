@@ -8,8 +8,8 @@ using umbral_backend.Domain.Services;
 
 namespace umbral_backend.Application.UnitTests.Sessions.Queries.GetOperatorSessionTimerSnapshot;
 
-// Operator timer query returns the active-substage (trivia-question) window (HU-22): remaining
-// tracks the active question, and is 0 with no ActiveQuestion when no question is active.
+// Operator timer query returns the authoritative active-substage window: trivia exposes the active
+// question while treasure hunt exposes the session-level countdown without an ActiveQuestion.
 public sealed class GetOperatorSessionTimerSnapshotQueryHandlerTests
 {
     private static readonly DateTimeOffset StartsAt = new(2026, 6, 4, 10, 0, 0, TimeSpan.Zero);
@@ -45,7 +45,7 @@ public sealed class GetOperatorSessionTimerSnapshotQueryHandlerTests
     }
 
     [Fact]
-    public async Task Handle_WhenNoQuestionIsActive_ReturnsNoCountdownAndNoActiveQuestion()
+    public async Task Handle_WhenTreasureHuntSubstageIsActive_ReturnsAdvancingCountdownWithoutActiveQuestion()
     {
         var session = CreateActiveTreasureHunt(activeAt: StartsAt.AddMinutes(1));
         var handler = CreateHandler(session, observedAt: StartsAt.AddMinutes(4));
@@ -55,9 +55,12 @@ public sealed class GetOperatorSessionTimerSnapshotQueryHandlerTests
             CancellationToken.None);
 
         result.SessionState.Should().Be(nameof(SessionState.Active));
-        result.TotalSeconds.Should().Be(0);
-        result.RemainingSeconds.Should().Be(0);
-        result.IsAdvancing.Should().BeFalse();
+        result.TotalSeconds.Should().Be(45 * 60);
+        result.RemainingSeconds.Should().Be(42 * 60);
+        result.TimerStatus.Should().Be("Advancing");
+        result.IsAdvancing.Should().BeTrue();
+        result.IsExpired.Should().BeFalse();
+        result.AdvancingSince.Should().Be(StartsAt.AddMinutes(1));
         result.ActiveQuestion.Should().BeNull();
     }
 

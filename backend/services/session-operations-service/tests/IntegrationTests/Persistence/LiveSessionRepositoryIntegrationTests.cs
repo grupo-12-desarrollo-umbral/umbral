@@ -423,6 +423,104 @@ public sealed class LiveSessionRepositoryIntegrationTests
         sessions.Should().ContainSingle(session => session.LiveSessionId == liveSession.LiveSessionId);
     }
 
+    // DES-93: an Active session whose first substage is TreasureHunt seeds an advancing substage timer on
+    // activation; the worker must tick it, so ListActiveTimersAsync selects it via the substage branch.
+    [Fact]
+    public async Task ListActiveTimersAsync_ReturnsSessionWithAdvancingTreasureHuntSubstageTimer()
+    {
+        await using var resetContext = BuildContext();
+        await ResetDatabaseAsync(resetContext);
+
+        var activeAt = new DateTimeOffset(2026, 6, 4, 12, 0, 0, TimeSpan.Zero);
+        var liveSession = CreateActiveTreasureHuntSession(activeAt);
+
+        await using (var seedContext = BuildContext())
+        {
+            seedContext.LiveSessions.Add(liveSession);
+            await seedContext.SaveChangesAsync(CancellationToken.None);
+        }
+
+        await using var assertContext = BuildContext();
+        var sessions = await new LiveSessionRepository(assertContext)
+            .ListActiveTimersAsync(CancellationToken.None);
+
+        sessions.Should().ContainSingle(session => session.LiveSessionId == liveSession.LiveSessionId);
+    }
+
+    // DES-93 stale-field guard: SeedSubstageTimerIfTreasureHunt early-returns without clearing the
+    // _substageTimer* fields when a TreasureHunt substage advances to a non-treasure-hunt one, so the
+    // advancing/expired predicate alone would keep matching. The predicate is scoped to the active
+    // substage actually being TreasureHunt, so an advanced-to-Trivia session (with no active question)
+    // must NOT be returned — otherwise the report-only worker would tick it redundantly.
+    [Fact]
+    public async Task ListActiveTimersAsync_ExcludesSessionAdvancedFromTreasureHuntToTriviaSubstage()
+    {
+        await using var resetContext = BuildContext();
+        await ResetDatabaseAsync(resetContext);
+
+        var activeAt = new DateTimeOffset(2026, 6, 4, 12, 0, 0, TimeSpan.Zero);
+        var sourceMissionId = Guid.NewGuid();
+        var liveSession = LiveSession.Create(
+            SessionSource.Create(sourceMissionId),
+            $"SES-{Guid.NewGuid():N}"[..12],
+            "Mixed Route",
+            20,
+            activeAt.AddMinutes(-10),
+            CreateMixedRuntimeSnapshot(sourceMissionId, 20));
+        var transitionPolicy = new SessionStateTransitionPolicy();
+        liveSession.AssociateTeam(Guid.NewGuid(), "Aurora", "AUR-01", 3);
+        liveSession.MoveTo(SessionState.Preparing, activeAt.AddMinutes(-1), transitionPolicy);
+        liveSession.MoveTo(SessionState.Active, activeAt, transitionPolicy);
+        // Active substage is now the leading TreasureHunt substage (timer seeded + advancing). Advance to
+        // the trailing Trivia substage without activating a question: the substage timer fields stay stale.
+        liveSession.CompleteActiveSubstageAndAdvance(activeAt.AddSeconds(30), transitionPolicy);
+        liveSession.ActiveQuestionIndex.Should().BeNull();
+
+        await using (var seedContext = BuildContext())
+        {
+            seedContext.LiveSessions.Add(liveSession);
+            await seedContext.SaveChangesAsync(CancellationToken.None);
+        }
+
+        await using var assertContext = BuildContext();
+        var sessions = await new LiveSessionRepository(assertContext)
+            .ListActiveTimersAsync(CancellationToken.None);
+
+        sessions.Should().NotContain(session => session.LiveSessionId == liveSession.LiveSessionId);
+    }
+
+    // DES-93: round-trips a seeded, advancing TreasureHunt substage timer through Postgres and proves the
+    // authoritative snapshot is the substage window seeded from the session-level MaximumTime (45 min),
+    // not the zero/expired question window that shipped before this slice.
+    [Fact]
+    public async Task GetByIdAsync_RestoresAdvancingTreasureHuntSubstageTimer()
+    {
+        await using var resetContext = BuildContext();
+        await ResetDatabaseAsync(resetContext);
+
+        var activeAt = new DateTimeOffset(2026, 6, 4, 12, 0, 0, TimeSpan.Zero);
+        var liveSession = CreateActiveTreasureHuntSession(activeAt);
+
+        await using (var seedContext = BuildContext())
+        {
+            seedContext.LiveSessions.Add(liveSession);
+            await seedContext.SaveChangesAsync(CancellationToken.None);
+        }
+
+        await using var assertContext = BuildContext();
+        var persistedSession = await new LiveSessionRepository(assertContext)
+            .GetByIdAsync(liveSession.LiveSessionId, CancellationToken.None);
+
+        persistedSession.Should().NotBeNull();
+        var snapshot = persistedSession!.GetAuthoritativeSessionTimerSnapshot(activeAt.AddMinutes(1));
+
+        snapshot.TotalDuration.Should().Be(TimeSpan.FromMinutes(45));
+        snapshot.RemainingDuration.Should().BeCloseTo(TimeSpan.FromMinutes(44), TimeSpan.FromMilliseconds(1));
+        snapshot.IsAdvancing.Should().BeTrue();
+        snapshot.IsExpired.Should().BeFalse();
+        snapshot.AdvancingSince.Should().Be(activeAt);
+    }
+
     // HU-22 (OD-3): the authoritative snapshot is the active trivia-question window, not a whole-session
     // countdown. Question 0 carries a 30s limit; these round-trip its advance/freeze/resume through Postgres.
     [Fact]
@@ -810,6 +908,16 @@ public sealed class LiveSessionRepositoryIntegrationTests
         liveSession.MoveTo(SessionState.Preparing, activeAt.AddMinutes(-1), transitionPolicy);
         liveSession.MoveTo(SessionState.Active, activeAt, transitionPolicy);
         liveSession.ActivateQuestion(0, activeAt);
+        return liveSession;
+    }
+
+    private static LiveSession CreateActiveTreasureHuntSession(DateTimeOffset activeAt)
+    {
+        var liveSession = CreateSession(activeAt.AddMinutes(-10));
+        var transitionPolicy = new SessionStateTransitionPolicy();
+        liveSession.AssociateTeam(Guid.NewGuid(), "Aurora", "AUR-01", 3);
+        liveSession.MoveTo(SessionState.Preparing, activeAt.AddMinutes(-1), transitionPolicy);
+        liveSession.MoveTo(SessionState.Active, activeAt, transitionPolicy);
         return liveSession;
     }
 

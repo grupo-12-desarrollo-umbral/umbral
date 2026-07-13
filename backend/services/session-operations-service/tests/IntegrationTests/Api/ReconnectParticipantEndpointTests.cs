@@ -62,9 +62,9 @@ public sealed class ReconnectParticipantEndpointTests : IAsyncLifetime
         payload.Timer!.LiveSessionId.Should().Be(seeded.LiveSessionId);
         payload.Timer.TeamId.Should().Be(seeded.TeamId);
         payload.Timer.SessionState.Should().Be(nameof(SessionState.Active));
-        payload.Timer.IsAdvancing.Should().BeFalse();
-        payload.Timer.TotalSeconds.Should().Be(0);
-        payload.Timer.RemainingSeconds.Should().Be(0);
+        payload.Timer.IsAdvancing.Should().BeTrue();
+        payload.Timer.TotalSeconds.Should().BeInRange(1, 2700);
+        payload.Timer.RemainingSeconds.Should().BeInRange(0, 2700);
 
         await using var scope = _factory.Services.CreateAsyncScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();

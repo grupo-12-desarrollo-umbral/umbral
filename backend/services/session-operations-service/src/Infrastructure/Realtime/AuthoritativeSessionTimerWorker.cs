@@ -59,8 +59,17 @@ public sealed class AuthoritativeSessionTimerWorker : BackgroundService
         var liveSessions = await repository.ListActiveTimersAsync(cancellationToken);
         foreach (var liveSession in liveSessions)
         {
-            var wasAdvancing = liveSession.IsQuestionTimerAdvancing;
-            var snapshot = liveSession.MarkQuestionTimerExpiredIfElapsed(now);
+            // A trivia substage ticks the active-question window; a treasure-hunt substage ticks the
+            // substage window. ActiveQuestionIndex distinguishes them (only trivia carries one), which
+            // matches the ListActiveTimersAsync predicate branches.
+            var isTriviaQuestion = liveSession.ActiveQuestionIndex is not null;
+            var wasAdvancing = isTriviaQuestion
+                ? liveSession.IsQuestionTimerAdvancing
+                : liveSession.IsSubstageTimerAdvancing;
+
+            var snapshot = isTriviaQuestion
+                ? liveSession.MarkQuestionTimerExpiredIfElapsed(now)
+                : liveSession.MarkSubstageTimerExpiredIfElapsed(now);
 
             await broadcaster.BroadcastTimerUpdatedAsync(
                 CreateNotification(liveSession, snapshot, now),
@@ -71,7 +80,16 @@ public sealed class AuthoritativeSessionTimerWorker : BackgroundService
                 continue;
             }
 
+            // Persist the freshly-expired window so an exhausted timer stops re-ticking every second.
             await repository.UpdateAsync(liveSession, cancellationToken);
+
+            // Report-only on expiry for treasure-hunt: those substages advance by target resolution
+            // (HU-29..32), not by the timer, so we broadcast Expired and stop. Only a trivia active
+            // question auto-closes and advances.
+            if (!isTriviaQuestion)
+            {
+                continue;
+            }
 
             await triviaRoundOrchestratorFacade.CloseAndAdvanceAsync(
                 liveSession,

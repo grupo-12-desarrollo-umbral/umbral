@@ -17,6 +17,10 @@ public sealed class LiveSession : BaseAuditableEntity
     private TimeSpan _questionTimerRemainingDuration;
     private DateTimeOffset? _questionTimerAdvancingSince;
     private DateTimeOffset? _questionTimerExpiredAt;
+    private TimeSpan _substageTimerTotalDuration;
+    private TimeSpan _substageTimerRemainingDuration;
+    private DateTimeOffset? _substageTimerAdvancingSince;
+    private DateTimeOffset? _substageTimerExpiredAt;
 
     private LiveSession()
     {
@@ -28,6 +32,8 @@ public sealed class LiveSession : BaseAuditableEntity
         MissionRuntimeSnapshot = null!;
         _questionTimerTotalDuration = TimeSpan.Zero;
         _questionTimerRemainingDuration = TimeSpan.Zero;
+        _substageTimerTotalDuration = TimeSpan.Zero;
+        _substageTimerRemainingDuration = TimeSpan.Zero;
     }
 
     private LiveSession(
@@ -64,6 +70,8 @@ public sealed class LiveSession : BaseAuditableEntity
         AssignedOperatorUserId = assignedOperatorUserId;
         _questionTimerTotalDuration = TimeSpan.Zero;
         _questionTimerRemainingDuration = TimeSpan.Zero;
+        _substageTimerTotalDuration = TimeSpan.Zero;
+        _substageTimerRemainingDuration = TimeSpan.Zero;
     }
 
     public Guid LiveSessionId { get; private set; }
@@ -93,6 +101,8 @@ public sealed class LiveSession : BaseAuditableEntity
     public MaximumTime MaximumTime { get; private set; }
 
     public bool IsQuestionTimerAdvancing => LiveSessionStateFactory.For(State).IsQuestionTimerAdvancing(this);
+
+    public bool IsSubstageTimerAdvancing => LiveSessionStateFactory.For(State).IsSubstageTimerAdvancing(this);
 
     public int? AssignedOperatorUserId { get; private set; }
 
@@ -294,11 +304,21 @@ public sealed class LiveSession : BaseAuditableEntity
         AddDomainEvent(new SessionStateChangedEvent(LiveSessionId, previousState, nextState, occurredAt));
     }
 
-    // Authoritative displayed remaining time = the active trivia-question window (OD-1/OD-2/OD-3):
-    // a trivia question active -> the TriviaQuestionTimer window; otherwise no advancing countdown.
+    // Authoritative displayed remaining time is selected by the active substage's play mode:
+    // TreasureHunt owns a substage window; Trivia keeps the active-question window.
     public AuthoritativeSessionTimerSnapshot GetAuthoritativeSessionTimerSnapshot(DateTimeOffset observedAt)
     {
-        return GetActiveQuestionTimerSnapshot(observedAt);
+        if (ActiveSubstageId is null)
+        {
+            return GetActiveQuestionTimerSnapshot(observedAt);
+        }
+
+        var activeSubstage = GetOrderedSubstages()
+            .SingleOrDefault(substage => substage.SubstageSnapshotId == ActiveSubstageId.Value);
+
+        return activeSubstage?.PlayMode == SubstagePlayMode.TreasureHunt
+            ? LiveSessionStateFactory.For(State).GetSubstageTimerSnapshot(this, observedAt)
+            : GetActiveQuestionTimerSnapshot(observedAt);
     }
 
     public void ActivateQuestion(int questionIndex, DateTimeOffset occurredAt)
@@ -328,6 +348,11 @@ public sealed class LiveSession : BaseAuditableEntity
     public AuthoritativeSessionTimerSnapshot MarkQuestionTimerExpiredIfElapsed(DateTimeOffset occurredAt)
     {
         return LiveSessionStateFactory.For(State).MarkQuestionTimerExpiredIfElapsed(this, occurredAt);
+    }
+
+    public AuthoritativeSessionTimerSnapshot MarkSubstageTimerExpiredIfElapsed(DateTimeOffset occurredAt)
+    {
+        return LiveSessionStateFactory.For(State).MarkSubstageTimerExpiredIfElapsed(this, occurredAt);
     }
 
     public void CloseActiveQuestion(DateTimeOffset occurredAt)
@@ -780,6 +805,7 @@ public sealed class LiveSession : BaseAuditableEntity
         }
 
         ActiveSubstageId = nextSubstage.SubstageSnapshotId;
+        SeedSubstageTimerIfTreasureHunt(nextSubstage, occurredAt);
         AddDomainEvent(new SubstageAdvancedEvent(
             LiveSessionId,
             fromSubstage.SubstageSnapshotId,
@@ -813,6 +839,14 @@ public sealed class LiveSession : BaseAuditableEntity
             _questionTimerRemainingDuration > TimeSpan.Zero;
     }
 
+    internal bool HasAdvancingSubstageTimer()
+    {
+        return ActiveSubstageId.HasValue &&
+            _substageTimerAdvancingSince.HasValue &&
+            _substageTimerExpiredAt is null &&
+            _substageTimerRemainingDuration > TimeSpan.Zero;
+    }
+
     internal void EnterActiveSessionState(DateTimeOffset occurredAt)
     {
         StartedAt ??= occurredAt;
@@ -820,12 +854,22 @@ public sealed class LiveSession : BaseAuditableEntity
 
         // Entering Active starts the first substage in strict order (CONTEXT.md:48). `??=` guards
         // pause->resume so resuming never rewinds the pointer to the first substage.
-        ActiveSubstageId ??= GetOrderedSubstages()[0].SubstageSnapshotId;
+        if (ActiveSubstageId is null)
+        {
+            var firstSubstage = GetOrderedSubstages()[0];
+            ActiveSubstageId = firstSubstage.SubstageSnapshotId;
+            SeedSubstageTimerIfTreasureHunt(firstSubstage, occurredAt);
+        }
     }
 
     internal void EnterActiveQuestionTimerState(DateTimeOffset occurredAt)
     {
         ResumeQuestionTimer(occurredAt);
+    }
+
+    internal void EnterActiveSubstageTimerState(DateTimeOffset occurredAt)
+    {
+        ResumeSubstageTimer(occurredAt);
     }
 
     internal void EnterPausedSessionState(DateTimeOffset occurredAt)
@@ -838,15 +882,22 @@ public sealed class LiveSession : BaseAuditableEntity
         FreezeQuestionTimer(occurredAt);
     }
 
+    internal void EnterPausedSubstageTimerState(DateTimeOffset occurredAt)
+    {
+        FreezeSubstageTimer(occurredAt);
+    }
+
     internal void EnterFinishedSessionState(DateTimeOffset occurredAt)
     {
         FreezeQuestionTimer(occurredAt);
+        FreezeSubstageTimer(occurredAt);
         EndedAt = occurredAt;
     }
 
     internal void EnterCancelledSessionState(DateTimeOffset occurredAt)
     {
         FreezeQuestionTimer(occurredAt);
+        FreezeSubstageTimer(occurredAt);
         CancelledAt = occurredAt;
     }
 
@@ -888,6 +939,46 @@ public sealed class LiveSession : BaseAuditableEntity
         _questionTimerExpiredAt ??= occurredAt;
 
         return GetFrozenQuestionTimerSnapshot(occurredAt);
+    }
+
+    internal AuthoritativeSessionTimerSnapshot GetAdvancingSubstageTimerSnapshot(DateTimeOffset observedAt)
+    {
+        var remaining = CalculateAdvancingSubstageTimerRemaining(observedAt);
+        var expired = _substageTimerExpiredAt.HasValue || remaining <= TimeSpan.Zero;
+
+        return AuthoritativeSessionTimerSnapshot.Create(
+            _substageTimerTotalDuration,
+            remaining,
+            isAdvancing: !expired && HasAdvancingSubstageTimer(),
+            observedAt,
+            _substageTimerAdvancingSince,
+            _substageTimerExpiredAt);
+    }
+
+    internal AuthoritativeSessionTimerSnapshot GetFrozenSubstageTimerSnapshot(DateTimeOffset observedAt)
+    {
+        return AuthoritativeSessionTimerSnapshot.Create(
+            _substageTimerTotalDuration,
+            _substageTimerExpiredAt.HasValue ? TimeSpan.Zero : _substageTimerRemainingDuration,
+            isAdvancing: false,
+            observedAt,
+            advancingSince: null,
+            _substageTimerExpiredAt);
+    }
+
+    internal AuthoritativeSessionTimerSnapshot MarkAdvancingSubstageTimerExpiredIfElapsed(DateTimeOffset occurredAt)
+    {
+        var remaining = CalculateAdvancingSubstageTimerRemaining(occurredAt);
+        if (remaining > TimeSpan.Zero)
+        {
+            return GetAdvancingSubstageTimerSnapshot(occurredAt);
+        }
+
+        _substageTimerRemainingDuration = TimeSpan.Zero;
+        _substageTimerAdvancingSince = null;
+        _substageTimerExpiredAt ??= occurredAt;
+
+        return GetFrozenSubstageTimerSnapshot(occurredAt);
     }
 
     private void ResumeQuestionTimer(DateTimeOffset occurredAt)
@@ -944,6 +1035,76 @@ public sealed class LiveSession : BaseAuditableEntity
         }
 
         var remaining = _questionTimerRemainingDuration - elapsed;
+        return remaining > TimeSpan.Zero ? remaining : TimeSpan.Zero;
+    }
+
+    private void SeedSubstageTimerIfTreasureHunt(SubstageSnapshot substage, DateTimeOffset occurredAt)
+    {
+        if (substage.PlayMode != SubstagePlayMode.TreasureHunt)
+        {
+            return;
+        }
+
+        _substageTimerTotalDuration = TimeSpan.FromMinutes(MaximumTime.Minutes);
+        _substageTimerRemainingDuration = _substageTimerTotalDuration;
+        _substageTimerAdvancingSince = occurredAt;
+        _substageTimerExpiredAt = null;
+    }
+
+    private void ResumeSubstageTimer(DateTimeOffset occurredAt)
+    {
+        if (ActiveSubstageId is null || _substageTimerTotalDuration <= TimeSpan.Zero)
+        {
+            return;
+        }
+
+        if (_substageTimerExpiredAt is not null || _substageTimerRemainingDuration <= TimeSpan.Zero)
+        {
+            _substageTimerRemainingDuration = TimeSpan.Zero;
+            _substageTimerAdvancingSince = null;
+            _substageTimerExpiredAt ??= occurredAt;
+            return;
+        }
+
+        _substageTimerAdvancingSince = occurredAt;
+    }
+
+    private void FreezeSubstageTimer(DateTimeOffset occurredAt)
+    {
+        if (_substageTimerAdvancingSince is null)
+        {
+            return;
+        }
+
+        _substageTimerRemainingDuration = CalculateAdvancingSubstageTimerRemaining(occurredAt);
+        _substageTimerAdvancingSince = null;
+
+        if (_substageTimerRemainingDuration <= TimeSpan.Zero)
+        {
+            _substageTimerRemainingDuration = TimeSpan.Zero;
+            _substageTimerExpiredAt ??= occurredAt;
+        }
+    }
+
+    private TimeSpan CalculateAdvancingSubstageTimerRemaining(DateTimeOffset observedAt)
+    {
+        if (_substageTimerExpiredAt.HasValue)
+        {
+            return TimeSpan.Zero;
+        }
+
+        if (_substageTimerAdvancingSince is null)
+        {
+            return _substageTimerRemainingDuration;
+        }
+
+        var elapsed = observedAt - _substageTimerAdvancingSince.Value;
+        if (elapsed <= TimeSpan.Zero)
+        {
+            return _substageTimerRemainingDuration;
+        }
+
+        var remaining = _substageTimerRemainingDuration - elapsed;
         return remaining > TimeSpan.Zero ? remaining : TimeSpan.Zero;
     }
 

@@ -79,6 +79,20 @@ public sealed class LiveSessionConfiguration : IEntityTypeConfiguration<LiveSess
         builder.Property<DateTimeOffset?>("_questionTimerExpiredAt")
             .HasColumnName("question_timer_expired_at");
 
+        builder.Property<TimeSpan>("_substageTimerTotalDuration")
+            .HasColumnName("substage_timer_total_duration")
+            .IsRequired();
+
+        builder.Property<TimeSpan>("_substageTimerRemainingDuration")
+            .HasColumnName("substage_timer_remaining_duration")
+            .IsRequired();
+
+        builder.Property<DateTimeOffset?>("_substageTimerAdvancingSince")
+            .HasColumnName("substage_timer_advancing_since");
+
+        builder.Property<DateTimeOffset?>("_substageTimerExpiredAt")
+            .HasColumnName("substage_timer_expired_at");
+
         builder.Property(session => session.AssignedOperatorUserId)
             .HasColumnName("assigned_operator_user_id");
 
