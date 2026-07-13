@@ -77,6 +77,69 @@ public sealed class AuthoritativeSessionTimerWorkerBranchTests
             Times.Never);
     }
 
+    [Fact]
+    public async Task TickAsync_WhenTreasureHuntSubstageTimerRunning_BroadcastsAdvancingRemaining()
+    {
+        var session = CreateActiveTreasureHuntSession();
+        var repository = new Mock<ILiveSessionRepository>();
+        repository
+            .Setup(repo => repo.ListActiveTimersAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync([session]);
+        var broadcaster = new Mock<ISessionTimerBroadcaster>();
+        broadcaster
+            .Setup(current => current.BroadcastTimerUpdatedAsync(
+                It.IsAny<SessionTimerUpdatedNotificationDto>(),
+                It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        var facade = new Mock<ITriviaRoundOrchestratorFacade>();
+        // Ticked one minute into a 45-minute substage window: still advancing, not expired.
+        var worker = CreateWorker(repository, broadcaster, facade, Now.AddMinutes(1));
+
+        await worker.TickAsync(CancellationToken.None);
+
+        broadcaster.Verify(
+            current => current.BroadcastTimerUpdatedAsync(
+                It.Is<SessionTimerUpdatedNotificationDto>(notification =>
+                    !notification.IsExpired && notification.RemainingMilliseconds > 0),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+        repository.Verify(repo => repo.UpdateAsync(It.IsAny<LiveSession>(), It.IsAny<CancellationToken>()), Times.Never);
+        facade.Verify(
+            current => current.CloseAndAdvanceAsync(It.IsAny<LiveSession>(), It.IsAny<DateTimeOffset>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Fact]
+    public async Task TickAsync_WhenTreasureHuntSubstageTimerExpires_BroadcastsExpiredButDoesNotAdvance()
+    {
+        var session = CreateActiveTreasureHuntSession();
+        var repository = new Mock<ILiveSessionRepository>();
+        repository
+            .Setup(repo => repo.ListActiveTimersAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync([session]);
+        var broadcaster = new Mock<ISessionTimerBroadcaster>();
+        broadcaster
+            .Setup(current => current.BroadcastTimerUpdatedAsync(
+                It.IsAny<SessionTimerUpdatedNotificationDto>(),
+                It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        var facade = new Mock<ITriviaRoundOrchestratorFacade>();
+        // Ticked past the 45-minute window: the substage timer is expired, but a treasure-hunt substage
+        // advances by target resolution, not the timer — report-only, so CloseAndAdvanceAsync is never called.
+        var worker = CreateWorker(repository, broadcaster, facade, Now.AddMinutes(46));
+
+        await worker.TickAsync(CancellationToken.None);
+
+        broadcaster.Verify(
+            current => current.BroadcastTimerUpdatedAsync(
+                It.Is<SessionTimerUpdatedNotificationDto>(notification => notification.IsExpired),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+        facade.Verify(
+            current => current.CloseAndAdvanceAsync(It.IsAny<LiveSession>(), It.IsAny<DateTimeOffset>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
     private static AuthoritativeSessionTimerWorker CreateWorker(
         Mock<ILiveSessionRepository> repository,
         Mock<ISessionTimerBroadcaster> broadcaster,
@@ -110,6 +173,49 @@ public sealed class AuthoritativeSessionTimerWorkerBranchTests
         session.MoveTo(SessionState.Preparing, Now.AddMinutes(-2), policy);
         session.MoveTo(SessionState.Active, Now.AddMinutes(-1), policy);
         return session;
+    }
+
+    private static LiveSession CreateActiveTreasureHuntSession()
+    {
+        var sourceMissionId = Guid.NewGuid();
+        var session = LiveSession.Create(
+            SessionSource.Create(sourceMissionId),
+            $"SES-{Guid.NewGuid():N}"[..12],
+            "Worker Treasure Hunt",
+            45,
+            Now.AddMinutes(-10),
+            CreateTreasureHuntSnapshot(sourceMissionId));
+        session.AssociateTeam(Guid.NewGuid(), "Alpha", "A-01", 4);
+        var policy = new SessionStateTransitionPolicy();
+        session.MoveTo(SessionState.Preparing, Now.AddMinutes(-2), policy);
+        // Entering Active seeds the leading TreasureHunt substage timer from the session MaximumTime (45 min).
+        session.MoveTo(SessionState.Active, Now, policy);
+        return session;
+    }
+
+    private static MissionRuntimeSnapshot CreateTreasureHuntSnapshot(Guid sourceMissionId)
+    {
+        var treasureHuntSubstage = SubstageSnapshot.CreateTreasureHunt("Treasure Route", 1);
+
+        return MissionRuntimeSnapshot.Create(
+            sourceMissionId,
+            "Worker Treasure Hunt Mission",
+            MaximumTime.Create(45),
+            [StageSnapshot.Create("Stage One", 1, [treasureHuntSubstage])],
+            [
+                TargetSnapshot.Create(
+                    treasureHuntSubstage.SubstageSnapshotId,
+                    "Target Alpha",
+                    "QR-ALPHA",
+                    1,
+                    true,
+                    100,
+                    4.711,
+                    -74.0721,
+                    "Look under the stairs",
+                    "AfterPreviousTarget")
+            ],
+            []);
     }
 
     private static MissionRuntimeSnapshot CreateTriviaSnapshot(Guid sourceMissionId)

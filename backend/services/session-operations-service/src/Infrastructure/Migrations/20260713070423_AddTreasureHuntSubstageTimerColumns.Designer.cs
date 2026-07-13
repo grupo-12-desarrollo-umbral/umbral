@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using umbral_backend.Infrastructure.Persistence;
@@ -11,9 +12,11 @@ using umbral_backend.Infrastructure.Persistence;
 namespace umbral_backend.Infrastructure.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260713070423_AddTreasureHuntSubstageTimerColumns")]
+    partial class AddTreasureHuntSubstageTimerColumns
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -317,53 +320,6 @@ namespace umbral_backend.Infrastructure.Migrations
 
             modelBuilder.Entity("umbral_backend.Domain.Entities.LiveSession", b =>
                 {
-                    b.OwnsMany("umbral_backend.Domain.Entities.ClueReleaseRecord", "_clueReleaseRecords", b1 =>
-                        {
-                            b1.Property<Guid>("ClueReleaseRecordId")
-                                .HasColumnType("uuid")
-                                .HasColumnName("id");
-
-                            b1.Property<Guid?>("ClueId")
-                                .HasColumnType("uuid")
-                                .HasColumnName("clue_id");
-
-                            b1.Property<Guid>("LiveSessionId")
-                                .HasColumnType("uuid")
-                                .HasColumnName("live_session_id");
-
-                            b1.Property<string>("ReleaseMode")
-                                .IsRequired()
-                                .HasMaxLength(32)
-                                .HasColumnType("character varying(32)")
-                                .HasColumnName("release_mode");
-
-                            b1.Property<DateTimeOffset>("ReleasedAt")
-                                .HasColumnType("timestamp with time zone")
-                                .HasColumnName("released_at");
-
-                            b1.Property<int?>("ReleasedByUserId")
-                                .HasColumnType("integer")
-                                .HasColumnName("released_by_user_id");
-
-                            b1.Property<Guid>("TargetId")
-                                .HasColumnType("uuid")
-                                .HasColumnName("target_id");
-
-                            b1.Property<Guid>("TeamId")
-                                .HasColumnType("uuid")
-                                .HasColumnName("team_id");
-
-                            b1.HasKey("ClueReleaseRecordId");
-
-                            b1.HasIndex("LiveSessionId", "TeamId", "TargetId")
-                                .IsUnique();
-
-                            b1.ToTable("live_session_clue_releases", (string)null);
-
-                            b1.WithOwner()
-                                .HasForeignKey("LiveSessionId");
-                        });
-
                     b.OwnsMany("umbral_backend.Domain.Entities.JoinContext", "JoinContexts", b1 =>
                         {
                             b1.Property<Guid>("JoinContextId")
@@ -1016,8 +972,6 @@ namespace umbral_backend.Infrastructure.Migrations
                     b.Navigation("Teams");
 
                     b.Navigation("TriviaAnswerSubmissions");
-
-                    b.Navigation("_clueReleaseRecords");
                 });
 #pragma warning restore 612, 618
         }
