@@ -8,17 +8,14 @@ namespace umbral_backend.Application.Sessions.EventHandlers;
 /// <summary>
 /// Bridges the <see cref="QuestionClosedEvent"/> domain fact to RabbitMQ, publishing the
 /// integration event straight through MassTransit's <see cref="IPublishEndpoint"/> (#164 — the
-/// idiomatic path, no hand-rolled publisher seam). Dispatched inside SaveChanges = after
-/// transactional success; broker/publish failures are logged and swallowed so the runtime never
-/// faults on a publish problem (D-3, AC #6). The publish is bounded by <see cref="PublishTimeout"/>
-/// so a down/unreachable broker fails fast (MassTransit's Publish blocks under its retry policy
-/// instead of throwing) — a broker outage bounds the post-commit stall to that timeout rather than
-/// blocking indefinitely; the resulting cancellation is caught and swallowed like any other failure.
+/// idiomatic path, no hand-rolled publisher seam). Dispatched by <c>OutboxDomainEventDispatcher</c>
+/// from the interceptor's pre-commit phase: under the bus outbox this <c>Publish</c> is a local
+/// OutboxMessage insert that commits atomically with the close and drains to the broker
+/// asynchronously — a down broker no longer stalls the close/advance transition. A publish failure is
+/// a DbContext fault, so it is logged and rethrown to roll the transaction back rather than swallowed.
 /// </summary>
-public sealed class PublishQuestionClosedIntegrationEventHandler : INotificationHandler<QuestionClosedEvent>
+public sealed class PublishQuestionClosedIntegrationEventHandler
 {
-    private static readonly TimeSpan PublishTimeout = TimeSpan.FromSeconds(5);
-
     private readonly IPublishEndpoint _publishEndpoint;
     private readonly ILogger<PublishQuestionClosedIntegrationEventHandler> _logger;
 
@@ -34,22 +31,21 @@ public sealed class PublishQuestionClosedIntegrationEventHandler : INotification
     {
         try
         {
-            using var publishTimeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            publishTimeout.CancelAfter(PublishTimeout);
             await _publishEndpoint.Publish(
                 new QuestionClosedIntegrationEvent(
                     notification.LiveSessionId,
                     notification.QuestionIndex,
                     notification.ClosedAt),
-                publishTimeout.Token);
+                cancellationToken);
         }
         catch (Exception exception)
         {
             _logger.LogError(
                 exception,
-                "Failed to publish QuestionClosedIntegrationEvent for session {LiveSessionId} question {QuestionIndex}.",
+                "Failed to enqueue QuestionClosedIntegrationEvent for session {LiveSessionId} question {QuestionIndex}.",
                 notification.LiveSessionId,
                 notification.QuestionIndex);
+            throw;
         }
     }
 }

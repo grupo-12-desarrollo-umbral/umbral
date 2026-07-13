@@ -9,7 +9,9 @@ namespace umbral_backend.Application.UnitTests.Sessions.EventHandlers;
 
 // The RabbitMQ bridge for the accepted-answer fact. It only ever runs off AnswerRegisteredEvent,
 // which the domain raises exclusively on the accept path (so publish is success-only by construction).
-// Correctness/score DO ride this contract for downstream scoring; broker failures are swallowed.
+// Correctness/score DO ride this contract for downstream scoring. Under the transactional outbox the
+// publish is a local insert on the business SaveChanges, so a failure is a DB fault and must propagate
+// (rolling the transaction back), not be swallowed.
 public sealed class PublishAnswerRegisteredIntegrationEventHandlerTests
 {
     private static AnswerRegisteredEvent Event() => new(
@@ -50,19 +52,19 @@ public sealed class PublishAnswerRegisteredIntegrationEventHandlerTests
     }
 
     [Fact]
-    public async Task Handle_WhenBrokerFails_SwallowsSoRuntimeNeverFaults()
+    public async Task Handle_WhenOutboxInsertFails_PropagatesToRollBackTheTransaction()
     {
         var publishEndpoint = new Mock<IPublishEndpoint>();
         publishEndpoint
             .Setup(endpoint => endpoint.Publish(
                 It.IsAny<AnswerRegisteredIntegrationEvent>(),
                 It.IsAny<CancellationToken>()))
-            .ThrowsAsync(new InvalidOperationException("broker unreachable"));
+            .ThrowsAsync(new InvalidOperationException("outbox insert failed"));
         var handler = NewHandler(publishEndpoint.Object);
 
         var act = async () => await handler.Handle(Event(), CancellationToken.None);
 
-        await act.Should().NotThrowAsync();
+        await act.Should().ThrowAsync<InvalidOperationException>();
     }
 
     private static PublishAnswerRegisteredIntegrationEventHandler NewHandler(IPublishEndpoint publishEndpoint)

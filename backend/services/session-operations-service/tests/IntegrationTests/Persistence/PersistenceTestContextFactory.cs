@@ -14,7 +14,10 @@ internal sealed class PersistenceTestContextFactory
         _connectionString = connectionString;
     }
 
-    public ApplicationDbContext Create(IMediator? mediator = null, ICurrentUser? currentUser = null)
+    public ApplicationDbContext Create(
+        IMediator? mediator = null,
+        IOutboxDomainEventDispatcher? outboxDispatcher = null,
+        ICurrentUser? currentUser = null)
     {
         var optionsBuilder = new DbContextOptionsBuilder<ApplicationDbContext>()
             .UseNpgsql(_connectionString);
@@ -23,8 +26,22 @@ internal sealed class PersistenceTestContextFactory
 
         optionsBuilder.AddInterceptors(
             new AuditableEntityInterceptor(effectiveCurrentUser, TimeProvider.System),
-            new DispatchDomainEventsInterceptor(mediator ?? new NoOpMediator()));
+            new DispatchDomainEventsInterceptor(
+                mediator ?? new NoOpMediator(),
+                new SingleDispatcherServiceProvider(outboxDispatcher ?? new NoOpOutboxDomainEventDispatcher())));
 
         return new ApplicationDbContext(optionsBuilder.Options);
+    }
+
+    // Minimal IServiceProvider so the interceptor's lazy GetRequiredService<IOutboxDomainEventDispatcher>()
+    // resolves in these container-less factory tests (which drive plain repository saves, not the outbox).
+    private sealed class SingleDispatcherServiceProvider : IServiceProvider
+    {
+        private readonly IOutboxDomainEventDispatcher _dispatcher;
+
+        public SingleDispatcherServiceProvider(IOutboxDomainEventDispatcher dispatcher) => _dispatcher = dispatcher;
+
+        public object? GetService(Type serviceType) =>
+            serviceType == typeof(IOutboxDomainEventDispatcher) ? _dispatcher : null;
     }
 }

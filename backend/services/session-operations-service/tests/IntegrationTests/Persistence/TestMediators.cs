@@ -1,6 +1,15 @@
 using MediatR;
+using umbral_backend.Application.Common.Interfaces;
+using umbral_backend.Domain.Common;
 
 namespace umbral_backend.Infrastructure.IntegrationTests.Persistence;
+
+// No-op outbox dispatch for context-factory saves that do not exercise the transactional outbox
+// (repository integration tests), mirroring NoOpMediator for the post-commit notification path.
+internal sealed class NoOpOutboxDomainEventDispatcher : IOutboxDomainEventDispatcher
+{
+    public Task DispatchAsync(BaseEvent domainEvent, CancellationToken cancellationToken) => Task.CompletedTask;
+}
 
 internal sealed class NoOpMediator : IMediator
 {

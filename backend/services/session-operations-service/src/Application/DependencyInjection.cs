@@ -9,6 +9,7 @@ using umbral_backend.Application.Sessions.Commands.DisconnectParticipant;
 using umbral_backend.Application.Sessions.Commands.ReconnectAuthenticatedParticipant;
 using umbral_backend.Application.Sessions.Commands.TransitionSessionState;
 using umbral_backend.Application.Sessions.Common;
+using umbral_backend.Application.Sessions.EventHandlers;
 using umbral_backend.Application.Sessions.Common.TriviaAnswerValidation;
 using umbral_backend.Application.Sessions.Common.TriviaAnswerValidation.Validators;
 using umbral_backend.Application.Sessions.StateTransitions;
@@ -43,6 +44,13 @@ public static class DependencyInjection
         builder.Services.AddScoped<ISessionTeamAssociationFacade, SessionTeamAssociationFacade>();
         builder.Services.AddScoped<ITriviaRoundOrchestratorFacade, TriviaRoundOrchestratorFacade>();
         builder.Services.AddScoped<IQuestionActivationStrategy, SequentialQuestionActivationStrategy>();
+
+        // Transactional-outbox integration publishers dispatched pre-commit by the interceptor (not via
+        // MediatR notifications, so their OutboxMessage insert rides the business SaveChanges).
+        builder.Services.AddScoped<PublishAnswerRegisteredIntegrationEventHandler>();
+        builder.Services.AddScoped<PublishQuestionClosedIntegrationEventHandler>();
+        builder.Services.AddScoped<PublishSessionResultsFinalizedIntegrationEventHandler>();
+        builder.Services.AddScoped<IOutboxDomainEventDispatcher, OutboxDomainEventDispatcher>();
 
         // Chain of Responsibility for session-state transitions. Registration order is the run
         // order; downstream HUs append a validator here without modifying SessionTransitionChain.

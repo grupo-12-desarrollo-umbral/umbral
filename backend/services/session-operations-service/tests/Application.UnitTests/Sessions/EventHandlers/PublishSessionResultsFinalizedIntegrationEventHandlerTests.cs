@@ -10,7 +10,9 @@ namespace umbral_backend.Application.UnitTests.Sessions.EventHandlers;
 
 // Locks the SessionStateChangedEvent(->Finished) -> SessionResultsFinalizedIntegrationEvent bridge
 // (HU-33B X.2): exactly one mapped event on Finished, nothing on any non-Finished target state,
-// correlation-only fields (no score, D-1), and a throwing publisher never propagates (D-3).
+// correlation-only fields (no score, D-1). Under the transactional outbox the publish is a local insert
+// on the business SaveChanges, so a failure is a DB fault and must propagate (rolling the transaction
+// back) rather than be swallowed.
 public sealed class PublishSessionResultsFinalizedIntegrationEventHandlerTests
 {
     private static readonly DateTimeOffset ChangedAt = new(2026, 7, 8, 13, 0, 0, TimeSpan.Zero);
@@ -52,21 +54,21 @@ public sealed class PublishSessionResultsFinalizedIntegrationEventHandlerTests
     }
 
     [Fact]
-    public async Task Handle_WhenPublisherThrows_DoesNotPropagate()
+    public async Task Handle_WhenOutboxInsertFails_PropagatesToRollBackTheTransaction()
     {
         var publishEndpoint = new Mock<IPublishEndpoint>();
         publishEndpoint
             .Setup(endpoint => endpoint.Publish(
                 It.IsAny<SessionResultsFinalizedIntegrationEvent>(),
                 It.IsAny<CancellationToken>()))
-            .ThrowsAsync(new InvalidOperationException("broker unreachable"));
+            .ThrowsAsync(new InvalidOperationException("outbox insert failed"));
         var handler = NewHandler(publishEndpoint.Object);
 
         var act = () => handler.Handle(
             new SessionStateChangedEvent(Guid.NewGuid(), SessionState.Active, SessionState.Finished, ChangedAt),
             CancellationToken.None);
 
-        await act.Should().NotThrowAsync();
+        await act.Should().ThrowAsync<InvalidOperationException>();
     }
 
     private static PublishSessionResultsFinalizedIntegrationEventHandler NewHandler(IPublishEndpoint publishEndpoint)
