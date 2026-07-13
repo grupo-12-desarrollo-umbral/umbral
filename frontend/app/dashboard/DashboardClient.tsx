@@ -823,7 +823,8 @@ export default function DashboardClient({
     if (role === 'admin') return item.key !== 'operator'
     // HU-09 (DES-14): mission authoring is admin-only; operators never see the missions nav.
     // Issue #173: trivia authoring is now Operator-owned, so operators keep the trivias nav.
-    if (role === 'operator') return item.key !== 'operator' && item.key !== 'missions'
+    // Issue #148: the Users view is Administrator-only; operators never see the users nav.
+    if (role === 'operator') return item.key !== 'operator' && item.key !== 'missions' && item.key !== 'users'
     return true
   })
 
@@ -1006,7 +1007,7 @@ export default function DashboardClient({
                 </p>
               </div>
             </section>
-          ) : activeNav === 'users' ? (
+          ) : activeNav === 'users' && role === 'admin' ? (
             <UsersPanel role={role} />
           ) : activeNav === 'teams' ? (
             <TeamsPanel role={role} />
