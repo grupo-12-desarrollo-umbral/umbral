@@ -13,6 +13,11 @@ the mobile app on a phone/emulator pointed at the same backend (gateway
 
 ## 1. Bring up the stack (once)
 
+**⚠ seed-all.sh is destructive.** It deletes every mission containing a trivia
+substage before rebuilding its quiz catalog with fresh IDs. If you re-run it
+mid-test any manually staged session will be destroyed — re-run the Playwright
+seed (step below) after.
+
 ```bash
 # backend + gateway + canonical seed data (including the dedicated HU-171 quiz)
 cd backend && ./scripts/seed-all.sh
@@ -130,6 +135,12 @@ status styling — is HU-171 working. ✅
 
 ## Troubleshooting
 
+- **seed-all.sh fails with a missing/non-null `SequenceOrder` column.** The
+  latest MissionDesign migrations are not applied. Start `docker compose up`
+  (applies pending migrations) then re-run seed-all.sh.
+- **Playwright seed fails with "No Published HU-171 Progreso de substages
+  quiz found".** Run `seed-all.sh` first — the dedicated quiz lives in that
+  seeder, not in the Playwright setup.
 - **No chip row appears (only the name label).** The session has only one
   substage. The seed creates two substages — re-seed with the spec above.
 - **Stuck on "Restoring your team space…".** The operator hasn't pressed Start
@@ -143,6 +154,10 @@ status styling — is HU-171 working. ✅
 ---
 
 ## Appendix — the seed spec
+
+> **Keep this appendix in sync with the source spec.** If you change
+> `frontend/tests/e2e/session-substage-progress-manual-seed.spec.ts`, update
+> this block to match.
 
 The seed run in step 2 lives at
 `frontend/tests/e2e/session-substage-progress-manual-seed.spec.ts`. Its full
