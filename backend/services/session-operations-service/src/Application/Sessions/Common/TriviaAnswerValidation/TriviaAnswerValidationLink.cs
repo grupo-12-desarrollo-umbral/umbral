@@ -3,9 +3,9 @@ namespace umbral_backend.Application.Sessions.Common.TriviaAnswerValidation;
 /// <summary>
 /// Chain of Responsibility link guarding a single trivia-answer acceptance concern. Each link runs
 /// its own <see cref="CheckAsync"/> and, only on success, delegates to the next link. The first
-/// failing link throws its typed rejection and short-circuits the rest of the chain, so a later link
-/// never runs once an earlier one has rejected. Ordered: runtime participation -> active question ->
-/// timer window -> duplicate team answer.
+/// failing link throws its typed rejection and short-circuits the rest of the chain. These links are
+/// the trivia-specific extension after the shared evidence-admission chain: active question -> timer
+/// window -> duplicate team answer.
 /// </summary>
 public abstract class TriviaAnswerValidationLink
 {

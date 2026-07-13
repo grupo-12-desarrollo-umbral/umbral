@@ -13,15 +13,18 @@ namespace umbral_backend.Application.Sessions.EventHandlers;
 public sealed class OutboxDomainEventDispatcher : IOutboxDomainEventDispatcher
 {
     private readonly PublishAnswerRegisteredIntegrationEventHandler _answerRegistered;
+    private readonly PublishEvidenceSubmissionRegisteredIntegrationEventHandler _evidenceSubmissionRegistered;
     private readonly PublishQuestionClosedIntegrationEventHandler _questionClosed;
     private readonly PublishSessionResultsFinalizedIntegrationEventHandler _sessionResultsFinalized;
 
     public OutboxDomainEventDispatcher(
         PublishAnswerRegisteredIntegrationEventHandler answerRegistered,
+        PublishEvidenceSubmissionRegisteredIntegrationEventHandler evidenceSubmissionRegistered,
         PublishQuestionClosedIntegrationEventHandler questionClosed,
         PublishSessionResultsFinalizedIntegrationEventHandler sessionResultsFinalized)
     {
         _answerRegistered = answerRegistered;
+        _evidenceSubmissionRegistered = evidenceSubmissionRegistered;
         _questionClosed = questionClosed;
         _sessionResultsFinalized = sessionResultsFinalized;
     }
@@ -29,6 +32,8 @@ public sealed class OutboxDomainEventDispatcher : IOutboxDomainEventDispatcher
     public Task DispatchAsync(BaseEvent domainEvent, CancellationToken cancellationToken) => domainEvent switch
     {
         AnswerRegisteredEvent answerRegistered => _answerRegistered.Handle(answerRegistered, cancellationToken),
+        EvidenceSubmissionRegisteredEvent evidenceSubmissionRegistered =>
+            _evidenceSubmissionRegistered.Handle(evidenceSubmissionRegistered, cancellationToken),
         QuestionClosedEvent questionClosed => _questionClosed.Handle(questionClosed, cancellationToken),
         SessionStateChangedEvent sessionStateChanged => _sessionResultsFinalized.Handle(sessionStateChanged, cancellationToken),
         _ => Task.CompletedTask,

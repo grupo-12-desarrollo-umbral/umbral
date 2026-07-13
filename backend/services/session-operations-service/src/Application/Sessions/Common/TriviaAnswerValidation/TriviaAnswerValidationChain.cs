@@ -1,17 +1,22 @@
+using umbral_backend.Application.Sessions.Common.EvidenceIntakeValidation;
+
 namespace umbral_backend.Application.Sessions.Common.TriviaAnswerValidation;
 
 /// <summary>
-/// Builds the ordered Chain of Responsibility from the registered links and runs it. Order follows
-/// DI registration order (runtime participation -> active question -> timer window -> duplicate team
-/// answer), so a new link is added by registering it in <c>DependencyInjection</c> without touching
-/// this pipeline. Running the chain short-circuits at the first rejecting link.
+/// Composes the shared evidence-admission chain with trivia-specific links. The full order is runtime
+/// participation -> session admits reception -> active substage present -> active question -> timer
+/// window -> duplicate team answer, and the first rejecting link short-circuits everything after it.
 /// </summary>
 public sealed class TriviaAnswerValidationChain
 {
+    private readonly EvidenceIntakeValidationChain _evidenceIntakeValidationChain;
     private readonly TriviaAnswerValidationLink? _head;
 
-    public TriviaAnswerValidationChain(IEnumerable<TriviaAnswerValidationLink> links)
+    public TriviaAnswerValidationChain(
+        EvidenceIntakeValidationChain evidenceIntakeValidationChain,
+        IEnumerable<TriviaAnswerValidationLink> links)
     {
+        _evidenceIntakeValidationChain = evidenceIntakeValidationChain;
         TriviaAnswerValidationLink? head = null;
         TriviaAnswerValidationLink? previous = null;
 
@@ -32,7 +37,25 @@ public sealed class TriviaAnswerValidationChain
         _head = head;
     }
 
-    public Task ValidateAsync(TriviaAnswerValidationContext context, CancellationToken cancellationToken)
+    public async Task ValidateAsync(
+        TriviaAnswerValidationContext context,
+        CancellationToken cancellationToken)
+    {
+        await _evidenceIntakeValidationChain.ValidateAsync(
+            new EvidenceIntakeValidationContext(
+                context.Session,
+                context.TeamId,
+                context.TriviaSubstageSnapshotId,
+                context.Token,
+                context.SubmittedAt),
+            cancellationToken);
+
+        await ValidateConcreteFormAsync(context, cancellationToken);
+    }
+
+    public Task ValidateConcreteFormAsync(
+        TriviaAnswerValidationContext context,
+        CancellationToken cancellationToken)
     {
         return _head?.ValidateAsync(context, cancellationToken) ?? Task.CompletedTask;
     }

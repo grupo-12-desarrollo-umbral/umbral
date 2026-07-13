@@ -1,4 +1,5 @@
 using umbral_backend.Domain.Entities;
+using umbral_backend.Domain.Enums;
 using umbral_backend.Domain.Exceptions;
 
 namespace umbral_backend.SessionOperations.UnitTests.Domain.Entities;
@@ -7,6 +8,20 @@ namespace umbral_backend.SessionOperations.UnitTests.Domain.Entities;
 // the base reference invariant (session + team + active substage) is enforced for every form.
 public sealed class EvidenceSubmissionTests
 {
+    [Fact]
+    public void CreatePending_WithValidUmbrellaContext_StartsPending()
+    {
+        var submission = new PendingEvidenceSubmission(
+            Guid.NewGuid(),
+            Guid.NewGuid(),
+            Guid.NewGuid(),
+            Guid.NewGuid(),
+            Guid.NewGuid(),
+            DateTimeOffset.UtcNow);
+
+        submission.ValidationState.Should().Be(EvidenceValidationState.Pending);
+    }
+
     [Theory]
     [InlineData(true, false, false)]
     [InlineData(false, true, false)]
@@ -29,5 +44,26 @@ public sealed class EvidenceSubmissionTests
             scoreValue: 100);
 
         act.Should().Throw<EvidenceSubmissionContextRequiredException>();
+    }
+
+    private sealed class PendingEvidenceSubmission : EvidenceSubmission
+    {
+        public PendingEvidenceSubmission(
+            Guid evidenceSubmissionId,
+            Guid liveSessionId,
+            Guid teamId,
+            Guid activeSubstageId,
+            Guid submittedByParticipantId,
+            DateTimeOffset submittedAt)
+            : base(
+                evidenceSubmissionId,
+                liveSessionId,
+                teamId,
+                activeSubstageId,
+                EvidenceSubmissionType.TriviaAnswer,
+                submittedByParticipantId,
+                submittedAt)
+        {
+        }
     }
 }

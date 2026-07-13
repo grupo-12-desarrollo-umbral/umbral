@@ -42,6 +42,26 @@ public abstract class EvidenceSubmission : BaseEntity
         ValidationState = validationState;
     }
 
+    protected EvidenceSubmission(
+        Guid evidenceSubmissionId,
+        Guid liveSessionId,
+        Guid teamId,
+        Guid activeSubstageId,
+        EvidenceSubmissionType submissionType,
+        Guid? submittedByParticipantId,
+        DateTimeOffset submittedAt)
+        : this(
+            evidenceSubmissionId,
+            liveSessionId,
+            teamId,
+            activeSubstageId,
+            submissionType,
+            submittedByParticipantId,
+            submittedAt,
+            EvidenceValidationState.Pending)
+    {
+    }
+
     public Guid EvidenceSubmissionId { get; private set; }
 
     public Guid LiveSessionId { get; private set; }
@@ -57,4 +77,9 @@ public abstract class EvidenceSubmission : BaseEntity
     public DateTimeOffset SubmittedAt { get; private set; }
 
     public EvidenceValidationState ValidationState { get; private set; }
+
+    protected void MarkAcceptedByConcreteForm()
+    {
+        ValidationState = EvidenceValidationState.Accepted;
+    }
 }

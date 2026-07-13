@@ -5,7 +5,7 @@ using umbral_backend.Domain.ValueObjects;
 namespace umbral_backend.Application.Sessions.Common.TriviaAnswerValidation.Validators;
 
 /// <summary>
-/// Link 2 of 4: an answer is only meaningful against the one synchronized active trivia question
+/// First trivia-specific link: an answer is only meaningful against the one synchronized active trivia question
 /// shared by all teams (HU-33A seam). Rejects, in the same order the domain skeleton does, a
 /// non-trivia active substage, then the absence of an active question, then a declared question key
 /// that is not the currently active one (answering a stale/advanced question). Read-only inspection

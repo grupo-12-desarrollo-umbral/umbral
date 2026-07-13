@@ -223,6 +223,7 @@ public sealed class BrokerUnavailableGameplayStallTests
         services.AddScoped<ILiveSessionRepository, LiveSessionRepository>();
 
         services.AddScoped<PublishAnswerRegisteredIntegrationEventHandler>();
+        services.AddScoped<PublishEvidenceSubmissionRegisteredIntegrationEventHandler>();
         services.AddScoped<PublishQuestionClosedIntegrationEventHandler>();
         services.AddScoped<PublishSessionResultsFinalizedIntegrationEventHandler>();
         services.AddScoped<IOutboxDomainEventDispatcher, OutboxDomainEventDispatcher>();

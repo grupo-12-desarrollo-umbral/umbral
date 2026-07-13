@@ -1,3 +1,4 @@
+using umbral_backend.Application.Sessions.Common.EvidenceIntakeValidation;
 using umbral_backend.Application.Sessions.Common.TriviaAnswerValidation;
 using umbral_backend.Domain.Enums;
 using umbral_backend.Domain.Services;
@@ -48,7 +49,9 @@ public sealed class QuestionActivationAndChainBranchTests
     [Fact]
     public async Task Chain_WithNoLinks_CompletesWithoutInspectingContext()
     {
-        var chain = new TriviaAnswerValidationChain(Array.Empty<TriviaAnswerValidationLink>());
+        var chain = new TriviaAnswerValidationChain(
+            new EvidenceIntakeValidationChain([]),
+            Array.Empty<TriviaAnswerValidationLink>());
         var context = new TriviaAnswerValidationContext(
             LiveSessionTestFactory.CreateScheduledTrivia(), Guid.NewGuid(), Guid.NewGuid(), 1, token: null,
             LiveSessionTestFactory.TriviaQuestionActivatedAt);

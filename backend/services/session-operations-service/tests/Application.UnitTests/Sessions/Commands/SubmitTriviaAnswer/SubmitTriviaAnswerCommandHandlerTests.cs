@@ -1,6 +1,9 @@
 using umbral_backend.Application.Common.Exceptions;
 using umbral_backend.Application.Common.Interfaces;
 using umbral_backend.Application.Sessions.Commands.SubmitTriviaAnswer;
+using umbral_backend.Application.Sessions.Common;
+using umbral_backend.Application.Sessions.Common.EvidenceIntakeValidation;
+using umbral_backend.Application.Sessions.Common.EvidenceIntakeValidation.Validators;
 using umbral_backend.Application.Sessions.Common.TriviaAnswerValidation;
 using umbral_backend.Application.Sessions.Common.TriviaAnswerValidation.Validators;
 using umbral_backend.Domain.Entities;
@@ -40,6 +43,7 @@ public sealed class SubmitTriviaAnswerCommandHandlerTests
             .Single(participant => participant.ExternalIdentityId == participantExternalIdentityId)
             .SessionParticipantId;
         session.TriviaAnswerSubmissions.Single().SubmittedByParticipantId.Should().Be(expectedParticipantId);
+        session.DomainEvents.OfType<EvidenceSubmissionRegisteredEvent>().Should().ContainSingle();
         session.DomainEvents.OfType<AnswerRegisteredEvent>().Should().ContainSingle();
         repository.Verify(repo => repo.UpdateAsync(session, It.IsAny<CancellationToken>()), Times.Once);
     }
@@ -86,6 +90,7 @@ public sealed class SubmitTriviaAnswerCommandHandlerTests
             CancellationToken.None);
 
         await act.Should().ThrowAsync<LateTriviaAnswerException>();
+        session.DomainEvents.OfType<EvidenceSubmissionRegisteredEvent>().Should().BeEmpty();
         session.DomainEvents.OfType<AnswerRegisteredEvent>().Should().BeEmpty();
         repository.Verify(repo => repo.UpdateAsync(It.IsAny<LiveSession>(), It.IsAny<CancellationToken>()), Times.Never);
     }
@@ -119,6 +124,7 @@ public sealed class SubmitTriviaAnswerCommandHandlerTests
 
         await act.Should().ThrowAsync<ForbiddenAccessException>();
         session.TriviaAnswerSubmissions.Should().BeEmpty();
+        session.DomainEvents.OfType<EvidenceSubmissionRegisteredEvent>().Should().BeEmpty();
         repository.Verify(repo => repo.UpdateAsync(It.IsAny<LiveSession>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
@@ -203,13 +209,19 @@ public sealed class SubmitTriviaAnswerCommandHandlerTests
             setup.ThrowsAsync(new ForbiddenAccessException());
         }
 
-        var chain = new TriviaAnswerValidationChain(new TriviaAnswerValidationLink[]
+        var evidenceChain = new EvidenceIntakeValidationChain(new EvidenceIntakeValidationLink[]
         {
             new RuntimeParticipationLink(guard.Object),
+            new SessionAdmitsReceptionLink(),
+            new ActiveSubstagePresentLink()
+        });
+        var chain = new TriviaAnswerValidationChain(evidenceChain, new TriviaAnswerValidationLink[]
+        {
             new ActiveTriviaQuestionLink(),
             new TriviaAnswerWindowLink(),
             new DuplicateTriviaAnswerLink()
         });
+        var evidenceIntakeFacade = new EvidenceIntakeFacade(evidenceChain, repository.Object);
 
         var currentUser = new Mock<ICurrentUser>();
         currentUser.SetupGet(user => user.Id)
@@ -218,7 +230,12 @@ public sealed class SubmitTriviaAnswerCommandHandlerTests
         var timeProvider = new FixedTimeProvider(
             LiveSessionTestFactory.TriviaQuestionActivatedAt.AddSeconds(atSecondsAfterActivation));
 
-        return new SubmitTriviaAnswerCommandHandler(repository.Object, chain, currentUser.Object, timeProvider);
+        return new SubmitTriviaAnswerCommandHandler(
+            repository.Object,
+            chain,
+            evidenceIntakeFacade,
+            currentUser.Object,
+            timeProvider);
     }
 
     private static Mock<ILiveSessionRepository> CreateRepository(LiveSession session)

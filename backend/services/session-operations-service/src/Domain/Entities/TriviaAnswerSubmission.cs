@@ -30,8 +30,7 @@ public sealed class TriviaAnswerSubmission : EvidenceSubmission
             activeSubstageId,
             EvidenceSubmissionType.TriviaAnswer,
             submittedByParticipantId,
-            submittedAt,
-            EvidenceValidationState.Accepted)
+            submittedAt)
     {
         QuestionSequenceOrder = questionSequenceOrder;
         SelectedOptionSequenceOrder = selectedOptionSequenceOrder;
@@ -62,6 +61,32 @@ public sealed class TriviaAnswerSubmission : EvidenceSubmission
         bool isCorrect,
         int scoreValue)
     {
+        var submission = Begin(
+            liveSessionId,
+            teamId,
+            activeSubstageId,
+            questionSequenceOrder,
+            selectedOptionSequenceOrder,
+            submittedByParticipantId,
+            submittedAt,
+            isCorrect,
+            scoreValue);
+
+        submission.AcceptRegisteredAnswer();
+        return submission;
+    }
+
+    internal static TriviaAnswerSubmission Begin(
+        Guid liveSessionId,
+        Guid teamId,
+        Guid activeSubstageId,
+        int questionSequenceOrder,
+        int selectedOptionSequenceOrder,
+        Guid submittedByParticipantId,
+        DateTimeOffset submittedAt,
+        bool isCorrect,
+        int scoreValue)
+    {
         return new TriviaAnswerSubmission(
             liveSessionId,
             teamId,
@@ -72,5 +97,10 @@ public sealed class TriviaAnswerSubmission : EvidenceSubmission
             submittedAt,
             isCorrect,
             scoreValue);
+    }
+
+    internal void AcceptRegisteredAnswer()
+    {
+        MarkAcceptedByConcreteForm();
     }
 }
