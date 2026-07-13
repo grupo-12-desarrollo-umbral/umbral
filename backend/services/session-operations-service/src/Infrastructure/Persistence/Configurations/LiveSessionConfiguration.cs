@@ -672,6 +672,56 @@ public sealed class LiveSessionConfiguration : IEntityTypeConfiguration<LiveSess
                 .IsUnique();
         });
 
+        // Append-only per-transition audit trail (bd_umbral_entity_spec.md:453-480): one SessionEvent
+        // per valid state change, capturing actor + reason. SessionEvent derives from BaseEntity (NOT
+        // BaseAuditableEntity), so it carries no created_by/updated_by/created_at/updated_at columns —
+        // the only base-class ceremony to strip is BaseEntity.Id, ignored exactly as the other children
+        // do. Never updated after insert; mirrors the TriviaAnswerSubmissions OwnsMany block.
+        builder.OwnsMany(session => session.SessionEvents, eventBuilder =>
+        {
+            eventBuilder.ToTable("live_session_events");
+            eventBuilder.WithOwner().HasForeignKey(sessionEvent => sessionEvent.LiveSessionId);
+
+            eventBuilder.Ignore(sessionEvent => sessionEvent.Id);
+            eventBuilder.HasKey(sessionEvent => sessionEvent.SessionEventId);
+
+            eventBuilder.Property(sessionEvent => sessionEvent.SessionEventId)
+                .HasColumnName("id")
+                .ValueGeneratedNever();
+
+            eventBuilder.Property(sessionEvent => sessionEvent.LiveSessionId)
+                .HasColumnName("live_session_id")
+                .IsRequired();
+
+            eventBuilder.Property(sessionEvent => sessionEvent.OccurredAt)
+                .HasColumnName("occurred_at")
+                .IsRequired();
+
+            eventBuilder.Property(sessionEvent => sessionEvent.ActorType)
+                .HasColumnName("actor_type")
+                .HasConversion<string>()
+                .HasMaxLength(32)
+                .IsRequired();
+
+            eventBuilder.Property(sessionEvent => sessionEvent.ActorId)
+                .HasColumnName("actor_id");
+
+            eventBuilder.Property(sessionEvent => sessionEvent.EventType)
+                .HasColumnName("event_type")
+                .HasMaxLength(64)
+                .IsRequired();
+
+            // Wide enough to hold "{previous}→{current}: {reason}"; reason mirrors StateReason (500).
+            eventBuilder.Property(sessionEvent => sessionEvent.PayloadSummary)
+                .HasColumnName("payload_summary")
+                .HasMaxLength(600)
+                .IsRequired();
+
+            eventBuilder.Property(sessionEvent => sessionEvent.CorrelationId)
+                .HasColumnName("correlation_id")
+                .IsRequired();
+        });
+
         builder.Navigation(session => session.Teams)
             .UsePropertyAccessMode(PropertyAccessMode.Field);
 
@@ -682,6 +732,9 @@ public sealed class LiveSessionConfiguration : IEntityTypeConfiguration<LiveSess
             .UsePropertyAccessMode(PropertyAccessMode.Field);
 
         builder.Navigation(session => session.TriviaAnswerSubmissions)
+            .UsePropertyAccessMode(PropertyAccessMode.Field);
+
+        builder.Navigation(session => session.SessionEvents)
             .UsePropertyAccessMode(PropertyAccessMode.Field);
 
         builder.Navigation(session => session.MissionRuntimeSnapshot)

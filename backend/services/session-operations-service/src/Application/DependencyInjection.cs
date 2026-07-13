@@ -50,6 +50,7 @@ public static class DependencyInjection
         builder.Services.AddScoped<PublishAnswerRegisteredIntegrationEventHandler>();
         builder.Services.AddScoped<PublishQuestionClosedIntegrationEventHandler>();
         builder.Services.AddScoped<PublishSessionResultsFinalizedIntegrationEventHandler>();
+        builder.Services.AddScoped<PublishSessionStateChangedIntegrationEventHandler>();
         builder.Services.AddScoped<IOutboxDomainEventDispatcher, OutboxDomainEventDispatcher>();
 
         // Chain of Responsibility for session-state transitions. Registration order is the run

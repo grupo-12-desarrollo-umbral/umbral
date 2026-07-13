@@ -23,11 +23,26 @@ public sealed class SessionAdministrationAuthorizationProxy : ISessionAdministra
         _authenticatedActorProfileAccessClient = authenticatedActorProfileAccessClient;
     }
 
-    public Task<LiveSession> GetAuthorizedSessionAsync(Guid liveSessionId, CancellationToken cancellationToken)
+    public async Task<LiveSession> GetAuthorizedSessionAsync(
+        Guid liveSessionId,
+        CancellationToken cancellationToken)
+        => (await GetAuthorizedSessionInternalAsync(
+            liveSessionId,
+            cancellationToken,
+            LoadSessionAsync)).Session;
+
+    public Task<(LiveSession Session, int? ResponsibleUserId)> GetAuthorizedSessionWithActorAsync(
+        Guid liveSessionId,
+        CancellationToken cancellationToken)
         => GetAuthorizedSessionInternalAsync(liveSessionId, cancellationToken, LoadSessionAsync);
 
-    public Task<LiveSession> GetAuthorizedTimerSessionAsync(Guid liveSessionId, CancellationToken cancellationToken)
-        => GetAuthorizedSessionInternalAsync(liveSessionId, cancellationToken, LoadTimerSessionAsync);
+    public async Task<LiveSession> GetAuthorizedTimerSessionAsync(
+        Guid liveSessionId,
+        CancellationToken cancellationToken)
+        => (await GetAuthorizedSessionInternalAsync(
+            liveSessionId,
+            cancellationToken,
+            LoadTimerSessionAsync)).Session;
 
     private async Task<LiveSession> LoadSessionAsync(Guid liveSessionId, CancellationToken cancellationToken)
         => await _liveSessionRepository.GetByIdAsync(liveSessionId, cancellationToken)
@@ -37,7 +52,7 @@ public sealed class SessionAdministrationAuthorizationProxy : ISessionAdministra
         => await _liveSessionRepository.GetTimerSessionByIdAsync(liveSessionId, cancellationToken)
             ?? throw new NotFoundException(nameof(LiveSession), liveSessionId);
 
-    private async Task<LiveSession> GetAuthorizedSessionInternalAsync(
+    private async Task<(LiveSession Session, int? ResponsibleUserId)> GetAuthorizedSessionInternalAsync(
         Guid liveSessionId,
         CancellationToken cancellationToken,
         Func<Guid, CancellationToken, Task<LiveSession>> loadSessionAsync)
@@ -51,7 +66,7 @@ public sealed class SessionAdministrationAuthorizationProxy : ISessionAdministra
 
         if (string.Equals(_currentUser.Role, AdministratorRole, StringComparison.OrdinalIgnoreCase))
         {
-            return liveSession;
+            return (liveSession, null);
         }
 
         if (!string.Equals(_currentUser.Role, OperatorRole, StringComparison.OrdinalIgnoreCase))
@@ -66,6 +81,6 @@ public sealed class SessionAdministrationAuthorizationProxy : ISessionAdministra
             throw new ForbiddenAccessException();
         }
 
-        return liveSession;
+        return (liveSession, actor.UserId);
     }
 }
