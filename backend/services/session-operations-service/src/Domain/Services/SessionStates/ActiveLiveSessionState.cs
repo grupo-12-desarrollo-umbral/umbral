@@ -55,8 +55,8 @@ internal sealed class ActiveLiveSessionState : LiveSessionStateBase
         // Active is the only state that advances substages (timer-driven).
     }
 
-    public override void EnsureCanRegisterTriviaAnswer(LiveSession session)
+    public override void EnsureCanRegisterEvidence(LiveSession session)
     {
-        // Active is the only state that admits trivia answers.
+        // Active is the only state that admits evidence.
     }
 }

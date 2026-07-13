@@ -13,17 +13,20 @@ namespace umbral_backend.Application.Sessions.EventHandlers;
 public sealed class OutboxDomainEventDispatcher : IOutboxDomainEventDispatcher
 {
     private readonly PublishAnswerRegisteredIntegrationEventHandler _answerRegistered;
+    private readonly PublishEvidenceSubmissionRegisteredIntegrationEventHandler _evidenceSubmissionRegistered;
     private readonly PublishQuestionClosedIntegrationEventHandler _questionClosed;
     private readonly PublishSessionResultsFinalizedIntegrationEventHandler _sessionResultsFinalized;
     private readonly PublishSessionStateChangedIntegrationEventHandler _sessionStateChanged;
 
     public OutboxDomainEventDispatcher(
         PublishAnswerRegisteredIntegrationEventHandler answerRegistered,
+        PublishEvidenceSubmissionRegisteredIntegrationEventHandler evidenceSubmissionRegistered,
         PublishQuestionClosedIntegrationEventHandler questionClosed,
         PublishSessionResultsFinalizedIntegrationEventHandler sessionResultsFinalized,
         PublishSessionStateChangedIntegrationEventHandler sessionStateChanged)
     {
         _answerRegistered = answerRegistered;
+        _evidenceSubmissionRegistered = evidenceSubmissionRegistered;
         _questionClosed = questionClosed;
         _sessionResultsFinalized = sessionResultsFinalized;
         _sessionStateChanged = sessionStateChanged;
@@ -32,6 +35,8 @@ public sealed class OutboxDomainEventDispatcher : IOutboxDomainEventDispatcher
     public Task DispatchAsync(BaseEvent domainEvent, CancellationToken cancellationToken) => domainEvent switch
     {
         AnswerRegisteredEvent answerRegistered => _answerRegistered.Handle(answerRegistered, cancellationToken),
+        EvidenceSubmissionRegisteredEvent evidenceSubmissionRegistered =>
+            _evidenceSubmissionRegistered.Handle(evidenceSubmissionRegistered, cancellationToken),
         QuestionClosedEvent questionClosed => _questionClosed.Handle(questionClosed, cancellationToken),
         SessionStateChangedEvent sessionStateChanged => DispatchSessionStateChangedAsync(
             sessionStateChanged,

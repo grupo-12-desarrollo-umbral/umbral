@@ -1042,6 +1042,15 @@ public sealed class LiveSessionTests
         registered.IsCorrect.Should().BeTrue();
         registered.ScoreValue.Should().Be(100);
         registered.SubmittedAt.Should().Be(submittedAt);
+
+        var evidenceRegistered = session.DomainEvents.OfType<EvidenceSubmissionRegisteredEvent>().Single();
+        evidenceRegistered.LiveSessionId.Should().Be(session.LiveSessionId);
+        evidenceRegistered.TeamId.Should().Be(team.TeamId);
+        evidenceRegistered.EvidenceSubmissionId.Should().Be(submission.EvidenceSubmissionId);
+        evidenceRegistered.ActiveSubstageId.Should().Be(session.ActiveSubstageId.Value);
+        evidenceRegistered.SubmissionType.Should().Be(EvidenceSubmissionType.TriviaAnswer);
+        evidenceRegistered.SubmittedAt.Should().Be(submittedAt);
+        evidenceRegistered.ValidationState.Should().Be(EvidenceValidationState.Pending);
     }
 
     [Fact]
@@ -1116,6 +1125,7 @@ public sealed class LiveSessionTests
         session.TriviaAnswerSubmissions.Should().ContainSingle();
         session.TriviaAnswerSubmissions.Single().SelectedOptionSequenceOrder.Should().Be(1); // first write wins
         session.DomainEvents.OfType<AnswerRegisteredEvent>().Should().ContainSingle();
+        session.DomainEvents.OfType<EvidenceSubmissionRegisteredEvent>().Should().ContainSingle();
     }
 
     [Fact]
@@ -1131,6 +1141,7 @@ public sealed class LiveSessionTests
         act.Should().Throw<LateTriviaAnswerException>();
         session.TriviaAnswerSubmissions.Should().BeEmpty();
         session.DomainEvents.OfType<AnswerRegisteredEvent>().Should().BeEmpty();
+        session.DomainEvents.OfType<EvidenceSubmissionRegisteredEvent>().Should().BeEmpty();
     }
 
     [Fact]
@@ -1143,6 +1154,25 @@ public sealed class LiveSessionTests
 
         act.Should().Throw<TriviaAnswerRequiresActiveQuestionException>();
         session.DomainEvents.OfType<AnswerRegisteredEvent>().Should().BeEmpty();
+        session.DomainEvents.OfType<EvidenceSubmissionRegisteredEvent>().Should().BeEmpty();
+    }
+
+    [Fact]
+    public void RegisterTriviaAnswer_WhenTeamIsUnknown_RejectsWithoutSubmissionOrRegistrationEvent()
+    {
+        var session = ActivateTriviaSession();
+        var activatedAt = new DateTimeOffset(2026, 6, 3, 10, 1, 0, TimeSpan.Zero);
+        session.ActivateQuestion(0, activatedAt);
+
+        var act = () => session.RegisterTriviaAnswer(
+            Guid.NewGuid(),
+            selectedOptionSequenceOrder: 1,
+            Guid.NewGuid(),
+            activatedAt.AddSeconds(5));
+
+        act.Should().Throw<TeamNotFoundException>();
+        session.TriviaAnswerSubmissions.Should().BeEmpty();
+        session.DomainEvents.OfType<EvidenceSubmissionRegisteredEvent>().Should().BeEmpty();
     }
 
     [Fact]
@@ -1157,6 +1187,7 @@ public sealed class LiveSessionTests
 
         act.Should().Throw<InvalidTriviaAnswerOptionException>();
         session.TriviaAnswerSubmissions.Should().BeEmpty();
+        session.DomainEvents.OfType<EvidenceSubmissionRegisteredEvent>().Should().BeEmpty();
     }
 
     [Fact]
@@ -1173,6 +1204,8 @@ public sealed class LiveSessionTests
         var act = () => session.RegisterTriviaAnswer(team.TeamId, selectedOptionSequenceOrder: 1, Guid.NewGuid(), advancedAt.AddSeconds(31));
 
         act.Should().Throw<TriviaAnswerRequiresTriviaSubstageException>();
+        session.TriviaAnswerSubmissions.Should().BeEmpty();
+        session.DomainEvents.OfType<EvidenceSubmissionRegisteredEvent>().Should().BeEmpty();
     }
 
     [Fact]
@@ -1189,6 +1222,8 @@ public sealed class LiveSessionTests
             new DateTimeOffset(2026, 6, 3, 10, 1, 0, TimeSpan.Zero));
 
         act.Should().Throw<TriviaAnswerRequiresTriviaSubstageException>();
+        session.TriviaAnswerSubmissions.Should().BeEmpty();
+        session.DomainEvents.OfType<EvidenceSubmissionRegisteredEvent>().Should().BeEmpty();
     }
 
     [Fact]
@@ -1204,6 +1239,7 @@ public sealed class LiveSessionTests
 
         act.Should().Throw<TriviaAnswerRequiresActiveSessionException>();
         session.DomainEvents.OfType<AnswerRegisteredEvent>().Should().BeEmpty();
+        session.DomainEvents.OfType<EvidenceSubmissionRegisteredEvent>().Should().BeEmpty();
     }
 
     [Fact]

@@ -467,34 +467,92 @@ public sealed class LiveSession : BaseAuditableEntity
             : TeamAnsweredStatus.CreateAnswered(team.TeamId, team.TeamCode.Value, team.DisplayName, acceptedAnswer.SubmittedAt);
     }
 
-    // ── Fixed answer-registration skeleton (Template Method, HU-34) ────────────────────────────────
+    // Shared evidence registration with the existing trivia specialization.
     // One stable ordered workflow governs BOTH outcomes: the first in-time answer is ACCEPTED and every
     // late/duplicate/invalid attempt is REJECTED. Accept and reject are two branches of THIS single
     // write — the guards below (window + first-write-wins) are the only divergence points; there is no
     // separate reject entry point and no second entity/event for rejected attempts. The invariant steps
-    // stay in this one place so the later shared evidence pipeline (HU-29/HU-30A) can extract them.
+    // stay in this one place while the generic prefix is shared by every concrete evidence form.
     public TriviaAnswerSubmission RegisterTriviaAnswer(
         Guid teamId,
         int selectedOptionSequenceOrder,
         Guid submittedByParticipantId,
         DateTimeOffset submittedAt)
     {
-        EnsureSessionAdmitsTriviaAnswer();                                     // 1. session/runtime state gate
-        var team = GetTeam(teamId);                                           // 2. resolve the answering team
-        var question = ResolveActiveTriviaQuestion();                         // 3. authoritative active question
-        EnsureAnswerWindowOpen(submittedAt);                                  // 4. timer window (late guard)
-        var selectedOption = ResolveSelectedOption(question, selectedOptionSequenceOrder); // 5. option valid
-        EnsureFirstAnswerWins(team.TeamId, question);                        // 6. first-write-wins guard
-        var submission = AcceptTriviaAnswer(team, question, selectedOption, submittedByParticipantId, submittedAt); // 7. persist base + specialization + snapshot
-        RaiseAnswerRegistered(submission);                                   // 8. raise fact on success only
-        return submission;
+        try
+        {
+            var submission = RegisterEvidenceCore(
+                teamId,
+                EvidenceSubmissionType.TriviaAnswer,
+                submittedByParticipantId,
+                submittedAt,
+                (team, _, participantId, registeredAt) =>
+                {
+                    var question = ResolveActiveTriviaQuestion();
+                    EnsureAnswerWindowOpen(registeredAt);
+                    var selectedOption = ResolveSelectedOption(question, selectedOptionSequenceOrder);
+                    EnsureFirstAnswerWins(team.TeamId, question);
+
+                    return BeginTriviaAnswer(
+                        team,
+                        question,
+                        selectedOption,
+                        participantId!.Value,
+                        registeredAt);
+                });
+
+            submission.AcceptRegisteredAnswer();
+            _triviaAnswerSubmissions.Add(submission);
+            RaiseAnswerRegistered(submission);
+            return submission;
+        }
+        catch (EvidenceSubmissionContextRequiredException) when (ActiveSubstageId is null)
+        {
+            throw new TriviaAnswerRequiresTriviaSubstageException();
+        }
     }
 
     // Step 1 — session-state gate, delegated to the State type (Active is the only state that admits
     // answers; Paused/Finished/Cancelled and pre-start states reject).
-    private void EnsureSessionAdmitsTriviaAnswer()
+    internal TSubmission RegisterEvidenceCore<TSubmission>(
+        Guid teamId,
+        EvidenceSubmissionType submissionType,
+        Guid? submittedByParticipantId,
+        DateTimeOffset submittedAt,
+        Func<Team, Guid, Guid?, DateTimeOffset, TSubmission> registerConcreteForm)
+        where TSubmission : EvidenceSubmission
     {
-        LiveSessionStateFactory.For(State).EnsureCanRegisterTriviaAnswer(this);
+        EnsureSessionAdmitsEvidence();
+        var team = GetTeam(teamId);
+        var activeSubstageId = ResolveActiveSubstageForEvidence();
+        var submission = registerConcreteForm(team, activeSubstageId, submittedByParticipantId, submittedAt);
+
+        AddDomainEvent(new EvidenceSubmissionRegisteredEvent(
+            LiveSessionId,
+            team.TeamId,
+            submission.EvidenceSubmissionId,
+            activeSubstageId,
+            submissionType,
+            submittedAt,
+            EvidenceValidationState.Pending));
+
+        return submission;
+    }
+
+    private void EnsureSessionAdmitsEvidence()
+    {
+        LiveSessionStateFactory.For(State).EnsureCanRegisterEvidence(this);
+    }
+
+    private Guid ResolveActiveSubstageForEvidence()
+    {
+        if (ActiveSubstageId is null ||
+            GetOrderedSubstages().All(substage => substage.SubstageSnapshotId != ActiveSubstageId.Value))
+        {
+            throw new EvidenceSubmissionContextRequiredException();
+        }
+
+        return ActiveSubstageId.Value;
     }
 
     // Step 3 — the synchronized active trivia question shared by all teams (HU-33A seam). Rejects a
@@ -556,7 +614,7 @@ public sealed class LiveSession : BaseAuditableEntity
 
     // Step 7 — create the base evidence + trivia specialization, snapshotting correctness and the
     // awarded score from the question option (correct → question ScoreValue; wrong → zero).
-    private TriviaAnswerSubmission AcceptTriviaAnswer(
+    private TriviaAnswerSubmission BeginTriviaAnswer(
         Team team,
         TriviaQuestionSnapshot question,
         TriviaOptionSnapshot selectedOption,
@@ -566,7 +624,7 @@ public sealed class LiveSession : BaseAuditableEntity
         var isCorrect = selectedOption.IsCorrect;
         var scoreValue = isCorrect ? question.ScoreValue : 0;
 
-        var submission = TriviaAnswerSubmission.Accept(
+        return TriviaAnswerSubmission.Begin(
             LiveSessionId,
             team.TeamId,
             question.SubstageSnapshotId,
@@ -576,9 +634,6 @@ public sealed class LiveSession : BaseAuditableEntity
             submittedAt,
             isCorrect,
             scoreValue);
-
-        _triviaAnswerSubmissions.Add(submission);
-        return submission;
     }
 
     // Step 8 — the accepted-answer fact, raised only on the success path.

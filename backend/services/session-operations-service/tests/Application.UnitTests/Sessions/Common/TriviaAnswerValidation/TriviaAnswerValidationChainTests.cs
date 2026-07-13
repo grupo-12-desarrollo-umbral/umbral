@@ -1,5 +1,7 @@
 using umbral_backend.Application.Common.Exceptions;
 using umbral_backend.Application.Common.Interfaces;
+using umbral_backend.Application.Sessions.Common.EvidenceIntakeValidation;
+using umbral_backend.Application.Sessions.Common.EvidenceIntakeValidation.Validators;
 using umbral_backend.Application.Sessions.Common.TriviaAnswerValidation;
 using umbral_backend.Application.Sessions.Common.TriviaAnswerValidation.Validators;
 using umbral_backend.Domain.Entities;
@@ -20,7 +22,7 @@ public sealed class TriviaAnswerValidationChainTests
         var first = new RecordingLink("first", log, throwOnCheck: true);
         var second = new RecordingLink("second", log);
         var third = new RecordingLink("third", log);
-        var chain = new TriviaAnswerValidationChain(new[] { first, second, third });
+        var chain = new TriviaAnswerValidationChain(EmptyEvidenceChain(), new[] { first, second, third });
 
         var context = CreateContext(LiveSessionTestFactory.CreateScheduledTrivia());
 
@@ -35,7 +37,7 @@ public sealed class TriviaAnswerValidationChainTests
     public async Task ValidateAsync_WhenAllPass_RunsEveryLinkInOrder()
     {
         var log = new List<string>();
-        var chain = new TriviaAnswerValidationChain(new[]
+        var chain = new TriviaAnswerValidationChain(EmptyEvidenceChain(), new[]
         {
             new RecordingLink("first", log),
             new RecordingLink("second", log),
@@ -131,14 +133,24 @@ public sealed class TriviaAnswerValidationChainTests
                 .ThrowsAsync(new ForbiddenAccessException());
         }
 
-        return new TriviaAnswerValidationChain(new TriviaAnswerValidationLink[]
+        var evidenceChain = new EvidenceIntakeValidationChain(new EvidenceIntakeValidationLink[]
         {
             new RuntimeParticipationLink(guard.Object),
-            new ActiveTriviaQuestionLink(),
-            new TriviaAnswerWindowLink(),
-            new DuplicateTriviaAnswerLink()
+            new SessionAdmitsReceptionLink(),
+            new ActiveSubstagePresentLink()
         });
+
+        return new TriviaAnswerValidationChain(
+            evidenceChain,
+            new TriviaAnswerValidationLink[]
+            {
+                new ActiveTriviaQuestionLink(),
+                new TriviaAnswerWindowLink(),
+                new DuplicateTriviaAnswerLink()
+            });
     }
+
+    private static EvidenceIntakeValidationChain EmptyEvidenceChain() => new([]);
 
     private static TriviaAnswerValidationContext CreateContext(
         LiveSession session,

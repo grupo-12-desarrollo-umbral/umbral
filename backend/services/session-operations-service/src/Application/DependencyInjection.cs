@@ -10,6 +10,8 @@ using umbral_backend.Application.Sessions.Commands.ReconnectAuthenticatedPartici
 using umbral_backend.Application.Sessions.Commands.TransitionSessionState;
 using umbral_backend.Application.Sessions.Common;
 using umbral_backend.Application.Sessions.EventHandlers;
+using umbral_backend.Application.Sessions.Common.EvidenceIntakeValidation;
+using umbral_backend.Application.Sessions.Common.EvidenceIntakeValidation.Validators;
 using umbral_backend.Application.Sessions.Common.TriviaAnswerValidation;
 using umbral_backend.Application.Sessions.Common.TriviaAnswerValidation.Validators;
 using umbral_backend.Application.Sessions.StateTransitions;
@@ -44,11 +46,13 @@ public static class DependencyInjection
         builder.Services.AddScoped<IClueReleaseFacade, ClueReleaseFacade>();
         builder.Services.AddScoped<ISessionTeamAssociationFacade, SessionTeamAssociationFacade>();
         builder.Services.AddScoped<ITriviaRoundOrchestratorFacade, TriviaRoundOrchestratorFacade>();
+        builder.Services.AddScoped<IEvidenceIntakeFacade, EvidenceIntakeFacade>();
         builder.Services.AddScoped<IQuestionActivationStrategy, SequentialQuestionActivationStrategy>();
 
         // Transactional-outbox integration publishers dispatched pre-commit by the interceptor (not via
         // MediatR notifications, so their OutboxMessage insert rides the business SaveChanges).
         builder.Services.AddScoped<PublishAnswerRegisteredIntegrationEventHandler>();
+        builder.Services.AddScoped<PublishEvidenceSubmissionRegisteredIntegrationEventHandler>();
         builder.Services.AddScoped<PublishQuestionClosedIntegrationEventHandler>();
         builder.Services.AddScoped<PublishSessionResultsFinalizedIntegrationEventHandler>();
         builder.Services.AddScoped<PublishSessionStateChangedIntegrationEventHandler>();
@@ -61,10 +65,14 @@ public static class DependencyInjection
         builder.Services.AddScoped<SessionTransitionValidator, ParticipantReadinessGate>();
         builder.Services.AddScoped<SessionTransitionChain>();
 
-        // Chain of Responsibility for trivia-answer acceptance (HU-34). Registration order IS the run
-        // order — runtime participation -> active question -> timer window -> duplicate team answer —
-        // and the chain short-circuits on the first rejecting link.
-        builder.Services.AddScoped<TriviaAnswerValidationLink, RuntimeParticipationLink>();
+        // Shared evidence-intake Chain of Responsibility. Registration order IS the run order and
+        // each rejecting link short-circuits the rest.
+        builder.Services.AddScoped<EvidenceIntakeValidationLink, RuntimeParticipationLink>();
+        builder.Services.AddScoped<EvidenceIntakeValidationLink, SessionAdmitsReceptionLink>();
+        builder.Services.AddScoped<EvidenceIntakeValidationLink, ActiveSubstagePresentLink>();
+        builder.Services.AddScoped<EvidenceIntakeValidationChain>();
+
+        // Trivia composes the shared admission chain above with these form-specific extension links.
         builder.Services.AddScoped<TriviaAnswerValidationLink, ActiveTriviaQuestionLink>();
         builder.Services.AddScoped<TriviaAnswerValidationLink, TriviaAnswerWindowLink>();
         builder.Services.AddScoped<TriviaAnswerValidationLink, DuplicateTriviaAnswerLink>();

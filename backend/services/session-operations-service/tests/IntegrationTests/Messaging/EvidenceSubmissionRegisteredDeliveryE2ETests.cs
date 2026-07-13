@@ -19,38 +19,31 @@ using umbral_backend.Infrastructure.Persistence.Repositories;
 
 namespace umbral_backend.Infrastructure.IntegrationTests.Messaging;
 
-// Closes the loop the design (§6, step 7) asked for: a real accumulate-during-outage → drain-on-recovery
-// assertion that actually drives BusOutboxDeliveryService against a reachable broker. Nothing else in
-// the suite covers the outbox drain path — MassTransitQuestionClosedPublishTests and
-// MassTransitRemainingIntegrationEventPublishTests publish through a raw endpoint and bypass the outbox
-// entirely; BrokerUnavailableGameplayStallTests proves the pending row is captured but deliberately never
-// runs the delivery service.
+// HU-29 X.4 — proves EvidenceSubmissionRegisteredIntegrationEvent travels from the transactional bus
+// outbox through the delivery service to RabbitMQ to a bound consumer. The trivia answer path raises
+// TWO facts: AnswerRegistered (scoring, already proven by OutboxDeliveryOnRecoveryTests) and the
+// umbrella EvidenceSubmissionRegistered (audit/history/notification). This test proves the umbrella
+// fact survives the full outbox → delivery-service → broker → consumer loop end-to-end.
 //
 // Two phases over the SHARED Postgres, both wired to a REAL RabbitMQ container:
-//   Phase 1 (outage): a gameplay write goes through the real production seam (interceptor →
-//     OutboxDomainEventDispatcher → publish handler → bus-outbox IPublishEndpoint). The bus is started
-//     (so Publish clears MassTransit's bus-ready gate) but NO delivery service runs, so the outbox row
-//     is captured and stays pending — the broker is reachable yet nothing drains it.
-//   Phase 2 (recovery): a generic host with the same RabbitMQ config, a bound consumer, AND a running
-//     BusOutboxDeliveryService starts. The delivery service claims the pending row from Postgres,
-//     publishes it to RabbitMQ, and the consumer receives it — proving outbox → delivery-service →
-//     broker → consumer end to end.
+//   Phase 1 (accumulate): the write-path seam (interceptor → OutboxDomainEventDispatcher →
+//     publish handlers → bus-outbox IPublishEndpoint) captures the trivia answer. The bus is started
+//     so Publish clears the bus-ready gate, but NO delivery service runs, so outbox rows stay pending.
+//   Phase 2 (recovery): a generic host with the same RabbitMQ config, a bound
+//     EvidenceSubmissionRegistered consumer, AND a running BusOutboxDeliveryService starts.
+//     The delivery service claims the pending row from Postgres, publishes it to RabbitMQ, and the
+//     consumer receives it — proving outbox → delivery-service → broker → consumer end to end.
 //
-// Both phases configure RabbitMQ (not in-memory) on purpose: the outbox row stores the message's
-// destination address, and an in-memory write would persist a loopback:// destination that a real
-// delivery service cannot route to a RabbitMQ consumer. Judgment call: a true broker-down-during-write
-// outage is impractical here because Publish blocks on the bus-ready gate, which cannot clear while the
-// broker is down; gating the DELIVERY service instead is the reliable Testcontainers model and still
-// asserts the full drain path. Skips gracefully when Docker is unavailable, like the sibling tests.
+// Skips gracefully when Docker is unavailable.
 [Collection(PostgreSqlCollection.Name)]
-public sealed class OutboxDeliveryOnRecoveryTests
+public sealed class EvidenceSubmissionRegisteredDeliveryE2ETests
 {
     private static readonly DateTimeOffset ActiveAt = new(2026, 6, 4, 12, 0, 0, TimeSpan.Zero);
 
     private readonly string _connectionString;
     private readonly PersistenceTestContextFactory _contextFactory;
 
-    public OutboxDeliveryOnRecoveryTests(PostgreSqlFixture fixture)
+    public EvidenceSubmissionRegisteredDeliveryE2ETests(PostgreSqlFixture fixture)
     {
         _connectionString = fixture.ConnectionString;
         _contextFactory = new PersistenceTestContextFactory(fixture.ConnectionString);
@@ -70,21 +63,27 @@ public sealed class OutboxDeliveryOnRecoveryTests
         {
             var seeded = await SeedActiveTriviaQuestionSessionAsync();
 
-            // Phase 1 — outage: write goes through the outbox, but no delivery service drains it.
-            await CaptureAcceptedAnswerAsPendingOutboxRowAsync(rabbit, seeded);
+            // Phase 1 — accumulate: write goes through the outbox, no delivery service drains it.
+            await CaptureTriviaAnswerAsPendingOutboxRowsAsync(rabbit, seeded);
 
-            // The row is durably pending in Postgres before any delivery service runs.
+            // Both outbox rows are durably pending before any delivery service runs.
             await using (var verifyContext = _contextFactory.Create())
             {
-                var pending = await verifyContext.Set<OutboxMessage>()
+                var pendingEvidence = await verifyContext.Set<OutboxMessage>()
+                    .Where(message => message.MessageType.Contains(nameof(EvidenceSubmissionRegisteredIntegrationEvent)))
+                    .ToListAsync();
+                pendingEvidence.Should().ContainSingle(
+                    "phase 1 must capture the EvidenceSubmissionRegistered fact as a pending outbox row");
+
+                var pendingAnswer = await verifyContext.Set<OutboxMessage>()
                     .Where(message => message.MessageType.Contains(nameof(AnswerRegisteredIntegrationEvent)))
                     .ToListAsync();
-                pending.Should().ContainSingle(
-                    "phase 1 must capture the AnswerRegistered fact as a pending outbox row with no delivery service draining it");
+                pendingAnswer.Should().ContainSingle(
+                    "phase 1 must also capture the AnswerRegistered fact — both ride the same outbox");
             }
 
             // Phase 2 — recovery: a real host with a running BusOutboxDeliveryService + bound consumer.
-            var probe = new AnswerRegisteredProbe();
+            var probe = new EvidenceSubmissionRegisteredProbe();
             using var host = BuildRecoveryHost(rabbit, probe);
             await host.StartAsync();
             try
@@ -93,6 +92,10 @@ public sealed class OutboxDeliveryOnRecoveryTests
 
                 received.LiveSessionId.Should().Be(seeded.LiveSessionId);
                 received.TeamId.Should().Be(seeded.TeamId);
+                received.SubmissionType.Should().Be(EvidenceSubmissionType.TriviaAnswer);
+                received.ValidationState.Should().Be(EvidenceValidationState.Pending,
+                    "the umbrella intake fact always carries Pending even when the trivia path accepts");
+                received.ActiveSubstageId.Should().NotBeEmpty();
 
                 // The delivery service removes the OutboxMessage row once it is delivered; poll until drained.
                 await AssertOutboxRowDrainedAsync();
@@ -110,9 +113,9 @@ public sealed class OutboxDeliveryOnRecoveryTests
 
     // Phase 1: build the real write-path seam over the shared Postgres with a bus-outbox IPublishEndpoint
     // backed by the real RabbitMQ container, start the bus so Publish clears the bus-ready gate, and save
-    // an accepted answer. The bus-outbox delivery service is NOT registered/started here, so the enqueued
-    // OutboxMessage row stays pending — the outage this models is "nothing is draining the outbox".
-    private async Task CaptureAcceptedAnswerAsPendingOutboxRowAsync(RabbitMqContainer rabbit, SeededSession seeded)
+    // a trivia answer. The bus-outbox delivery service is NOT registered/started here, so the enqueued
+    // OutboxMessage rows stay pending.
+    private async Task CaptureTriviaAnswerAsPendingOutboxRowsAsync(RabbitMqContainer rabbit, SeededSession seeded)
     {
         var services = new ServiceCollection();
 
@@ -123,9 +126,6 @@ public sealed class OutboxDeliveryOnRecoveryTests
         services.AddScoped<AuditableEntityInterceptor>();
         services.AddScoped<DispatchDomainEventsInterceptor>();
 
-        // Add only the app's own interceptors by concrete type (mirrors production). MassTransit attaches
-        // its own bus-outbox interceptor via AddEntityFrameworkOutbox; resolving the full
-        // ISaveChangesInterceptor collection would re-enter this factory and StackOverflow.
         services.AddDbContext<ApplicationDbContext>((sp, options) =>
         {
             options.AddInterceptors(
@@ -139,7 +139,6 @@ public sealed class OutboxDeliveryOnRecoveryTests
         services.AddScoped<PublishEvidenceSubmissionRegisteredIntegrationEventHandler>();
         services.AddScoped<PublishQuestionClosedIntegrationEventHandler>();
         services.AddScoped<PublishSessionResultsFinalizedIntegrationEventHandler>();
-        services.AddScoped<PublishSessionStateChangedIntegrationEventHandler>();
         services.AddScoped<IOutboxDomainEventDispatcher, OutboxDomainEventDispatcher>();
         services.AddScoped<IMediator, NoOpMediator>();
 
@@ -181,8 +180,8 @@ public sealed class OutboxDeliveryOnRecoveryTests
 
     // Phase 2: a generic host whose MassTransitHostedService starts the bus + consumer endpoint and whose
     // BusOutboxDeliveryService (via UseBusOutbox) polls the shared Postgres outbox and drains the pending
-    // row to RabbitMQ, where the bound consumer receives it.
-    private IHost BuildRecoveryHost(RabbitMqContainer rabbit, AnswerRegisteredProbe probe)
+    // EvidenceSubmissionRegistered row to RabbitMQ, where the bound consumer receives it.
+    private IHost BuildRecoveryHost(RabbitMqContainer rabbit, EvidenceSubmissionRegisteredProbe probe)
     {
         return new HostBuilder()
             .ConfigureServices(services =>
@@ -200,7 +199,7 @@ public sealed class OutboxDeliveryOnRecoveryTests
                         outbox.QueryDelay = TimeSpan.FromSeconds(1);
                     });
 
-                    bus.AddConsumer<AnswerRegisteredTestConsumer>();
+                    bus.AddConsumer<EvidenceSubmissionRegisteredTestConsumer>();
                     bus.UsingRabbitMq((context, cfg) =>
                     {
                         cfg.Host(rabbit.Hostname, rabbit.GetMappedPublicPort(5672), "/", host =>
@@ -221,7 +220,7 @@ public sealed class OutboxDeliveryOnRecoveryTests
         {
             await using var context = _contextFactory.Create();
             var remaining = await context.Set<OutboxMessage>()
-                .CountAsync(message => message.MessageType.Contains(nameof(AnswerRegisteredIntegrationEvent)));
+                .CountAsync(message => message.MessageType.Contains(nameof(EvidenceSubmissionRegisteredIntegrationEvent)));
             if (remaining == 0)
             {
                 return;
@@ -232,23 +231,23 @@ public sealed class OutboxDeliveryOnRecoveryTests
 
         await using var finalContext = _contextFactory.Create();
         var stillPending = await finalContext.Set<OutboxMessage>()
-            .CountAsync(message => message.MessageType.Contains(nameof(AnswerRegisteredIntegrationEvent)));
+            .CountAsync(message => message.MessageType.Contains(nameof(EvidenceSubmissionRegisteredIntegrationEvent)));
         stillPending.Should().Be(0, "the delivery service must remove the outbox row once it is delivered to the broker");
     }
 
-    private sealed class AnswerRegisteredProbe
+    private sealed class EvidenceSubmissionRegisteredProbe
     {
-        public TaskCompletionSource<AnswerRegisteredIntegrationEvent> Received { get; } =
+        public TaskCompletionSource<EvidenceSubmissionRegisteredIntegrationEvent> Received { get; } =
             new(TaskCreationOptions.RunContinuationsAsynchronously);
     }
 
-    private sealed class AnswerRegisteredTestConsumer : IConsumer<AnswerRegisteredIntegrationEvent>
+    private sealed class EvidenceSubmissionRegisteredTestConsumer : IConsumer<EvidenceSubmissionRegisteredIntegrationEvent>
     {
-        private readonly AnswerRegisteredProbe _probe;
+        private readonly EvidenceSubmissionRegisteredProbe _probe;
 
-        public AnswerRegisteredTestConsumer(AnswerRegisteredProbe probe) => _probe = probe;
+        public EvidenceSubmissionRegisteredTestConsumer(EvidenceSubmissionRegisteredProbe probe) => _probe = probe;
 
-        public Task Consume(ConsumeContext<AnswerRegisteredIntegrationEvent> context)
+        public Task Consume(ConsumeContext<EvidenceSubmissionRegisteredIntegrationEvent> context)
         {
             _probe.Received.TrySetResult(context.Message);
             return Task.CompletedTask;
@@ -256,8 +255,7 @@ public sealed class OutboxDeliveryOnRecoveryTests
     }
 
     // A single-substage, two-question trivia session in Active with question 0 activated at ActiveAt; the
-    // active window admits an answer at ActiveAt+5s. Clears the shared LiveSessions + outbox tables first
-    // so cross-test leftovers cannot satisfy the per-message-type assertions.
+    // active window admits an answer at ActiveAt+5s. Clears the shared LiveSessions + outbox tables first.
     private async Task<SeededSession> SeedActiveTriviaQuestionSessionAsync()
     {
         await using var resetContext = _contextFactory.Create();
@@ -269,7 +267,7 @@ public sealed class OutboxDeliveryOnRecoveryTests
         var session = LiveSession.Create(
             SessionSource.Create(sourceMissionId),
             $"SES-{Guid.NewGuid():N}"[..12],
-            "Outbox Recovery Trivia Session",
+            "Evidence Intake E2E Trivia Session",
             20,
             ActiveAt.AddMinutes(-10),
             CreateTriviaRuntimeSnapshot(sourceMissionId));
