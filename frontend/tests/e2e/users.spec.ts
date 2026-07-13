@@ -19,6 +19,25 @@ test('operator sees users panel read-only', async ({ operatorPage: page }) => {
   await expect(page.locator('[data-testid^="deactivate-btn-"]')).toHaveCount(0)
 })
 
+test('admin sees the invite form; operator does not', async ({ adminPage: admin, operatorPage: operator }) => {
+  await admin.goto('/dashboard')
+  await admin.click('[data-testid="nav-users"]')
+  await expect(admin.locator('[data-testid="invite-user-form"]')).toBeVisible()
+  // No password field anywhere in the invite form.
+  await expect(admin.locator('[data-testid="invite-user-form"] input[type="password"]')).toHaveCount(0)
+
+  await operator.goto('/dashboard')
+  await operator.click('[data-testid="nav-users"]')
+  await expect(operator.locator('[data-testid="invite-user-form"]')).toHaveCount(0)
+})
+
+test('invite form offers only Operator and Administrator roles', async ({ adminPage: page }) => {
+  await page.goto('/dashboard')
+  await page.click('[data-testid="nav-users"]')
+  const roleOptions = page.locator('[data-testid="invite-role-select"] option')
+  await expect(roleOptions).toHaveText(['Operator', 'Administrator'])
+})
+
 test('deactivated user is blocked at login with clear error', async ({ page }) => {
   // This fixture has no session cookie; Keycloak would return deactivated user.
   // Simulate: navigate directly with error param (backend handles the 403 at bootstrap).

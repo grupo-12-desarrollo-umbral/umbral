@@ -47,6 +47,19 @@ export type UserAccessCatalogItemDto = {
   isActive: boolean
 }
 
+// Result of POST /api/users/invitations. The backend creates a local record in its pending state
+// (display name stands in as the email until the invitee completes their first sign-in) and returns
+// the id, the invited email, and the assigned role.
+export type InviteUserResultDto = {
+  userId: number
+  email: string
+  role: string
+}
+
+// Roles an administrator can invite. Participants self-register, so the invite form never offers it
+// (the backend enforces the same rule with a 422 ParticipantNotInvitable response).
+export type InvitableRole = 'Operator' | 'Administrator'
+
 export type PagedResult<T> = {
   items: T[]
   totalCount: number
