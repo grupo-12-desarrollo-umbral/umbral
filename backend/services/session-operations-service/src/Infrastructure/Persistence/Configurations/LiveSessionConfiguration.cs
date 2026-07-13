@@ -79,6 +79,20 @@ public sealed class LiveSessionConfiguration : IEntityTypeConfiguration<LiveSess
         builder.Property<DateTimeOffset?>("_questionTimerExpiredAt")
             .HasColumnName("question_timer_expired_at");
 
+        builder.Property<TimeSpan>("_substageTimerTotalDuration")
+            .HasColumnName("substage_timer_total_duration")
+            .IsRequired();
+
+        builder.Property<TimeSpan>("_substageTimerRemainingDuration")
+            .HasColumnName("substage_timer_remaining_duration")
+            .IsRequired();
+
+        builder.Property<DateTimeOffset?>("_substageTimerAdvancingSince")
+            .HasColumnName("substage_timer_advancing_since");
+
+        builder.Property<DateTimeOffset?>("_substageTimerExpiredAt")
+            .HasColumnName("substage_timer_expired_at");
+
         builder.Property(session => session.AssignedOperatorUserId)
             .HasColumnName("assigned_operator_user_id");
 
@@ -508,6 +522,64 @@ public sealed class LiveSessionConfiguration : IEntityTypeConfiguration<LiveSess
                 .UsePropertyAccessMode(PropertyAccessMode.Field);
         });
 
+        // Append-only per-team clue-release trace (HU-26). LiveSession exposes only the field-only
+        // navigation `_clueReleaseRecords` (read via GetClueReleaseRecords()), so the owned collection is
+        // mapped by field name — the same way the runtime Teams collection is loaded, so GetByIdAsync
+        // hydrates the release records back into the aggregate and the in-memory duplicate/no-leak guards
+        // still see prior releases after a reload. ClueReleaseRecord derives from BaseEntity (no audit
+        // columns), so the only base ceremony to strip is BaseEntity.Id.
+        builder.OwnsMany<ClueReleaseRecord>("_clueReleaseRecords", releaseBuilder =>
+        {
+            releaseBuilder.ToTable("live_session_clue_releases");
+            releaseBuilder.WithOwner().HasForeignKey(release => release.LiveSessionId);
+
+            releaseBuilder.Ignore(release => release.Id);
+            releaseBuilder.HasKey(release => release.ClueReleaseRecordId);
+
+            releaseBuilder.Property(release => release.ClueReleaseRecordId)
+                .HasColumnName("id")
+                .ValueGeneratedNever();
+
+            releaseBuilder.Property(release => release.LiveSessionId)
+                .HasColumnName("live_session_id")
+                .IsRequired();
+
+            releaseBuilder.Property(release => release.TeamId)
+                .HasColumnName("team_id")
+                .IsRequired();
+
+            releaseBuilder.Property(release => release.TargetId)
+                .HasColumnName("target_id")
+                .IsRequired();
+
+            releaseBuilder.Property(release => release.ClueId)
+                .HasColumnName("clue_id");
+
+            releaseBuilder.Property(release => release.ReleaseMode)
+                .HasColumnName("release_mode")
+                .HasConversion<string>()
+                .HasMaxLength(32)
+                .IsRequired();
+
+            releaseBuilder.Property(release => release.ReleasedByUserId)
+                .HasColumnName("released_by_user_id");
+
+            releaseBuilder.Property(release => release.ReleasedAt)
+                .HasColumnName("released_at")
+                .IsRequired();
+
+            // A clue may not be released twice to the same team for the same target (spec §ClueReleaseRecord
+            // L696): enforce the (team, target) uniqueness at the DB boundary, scoped to the owning session,
+            // mirroring the trivia first-write-wins unique index.
+            releaseBuilder.HasIndex(release => new
+                {
+                    release.LiveSessionId,
+                    release.TeamId,
+                    release.TargetId,
+                })
+                .IsUnique();
+        });
+
         builder.OwnsMany(session => session.Participants, participantBuilder =>
         {
             participantBuilder.ToTable("live_session_participants");
@@ -723,6 +795,9 @@ public sealed class LiveSessionConfiguration : IEntityTypeConfiguration<LiveSess
         });
 
         builder.Navigation(session => session.Teams)
+            .UsePropertyAccessMode(PropertyAccessMode.Field);
+
+        builder.Navigation("_clueReleaseRecords")
             .UsePropertyAccessMode(PropertyAccessMode.Field);
 
         builder.Navigation(session => session.Participants)

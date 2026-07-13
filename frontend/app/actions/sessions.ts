@@ -13,6 +13,7 @@ import {
   getOperatorSessionTimerSnapshot as getOperatorSessionTimerSnapshotLib,
   getOperatorTriviaAnsweredMonitor as getOperatorTriviaAnsweredMonitorLib,
   getOperatorSessionPanel as getOperatorSessionPanelLib,
+  releaseClue as releaseClueLib,
 } from '@/app/lib/sessions'
 import { listAssignableOperators as listAssignableOperatorsLib } from '@/app/lib/users'
 import { revalidatePath } from 'next/cache'
@@ -30,6 +31,8 @@ import type {
   SessionTimerSnapshotDto,
   TriviaAnsweredMonitorDto,
   OperatorSessionPanelDto,
+  ReleaseClueRequest,
+  ReleaseClueResultDto,
 } from '@/app/lib/definitions'
 import { IdentityError } from '@/app/lib/definitions'
 
@@ -164,6 +167,44 @@ export async function getOperatorSessionPanelAction(
       return { error: error.message }
     }
     return { error: 'Unexpected error fetching operator panel' }
+  }
+}
+
+// HU-26 operator clue release. Outcomes the control renders distinctly (never throws to the client):
+//   { data }          → released; result.releasedTeamIds lists the team(s) the clue is now visible to
+//   { duplicate }     → 409: already released to that team for this target
+//   { notReleasable } → 409: target has no releasable hidden clue in the active substage
+//   { notActive }     → 409: session is not Active
+//   { unauthorized }  → 403 non-owner / 401 / non-Operator → not-authorized state
+//   { error }         → 400 / 404 / transient / unexpected → retryable error state
+export async function releaseClueAction(
+  liveSessionId: string,
+  body: ReleaseClueRequest,
+): Promise<
+  | { data: ReleaseClueResultDto }
+  | { duplicate: true }
+  | { notReleasable: true }
+  | { notActive: true }
+  | { unauthorized: true }
+  | { error: string }
+> {
+  'use server'
+  const session = await verifySession()
+  if (session.role !== 'Operator') return { unauthorized: true }
+  try {
+    const data = await releaseClueLib(liveSessionId, body)
+    return { data }
+  } catch (error) {
+    if (error instanceof IdentityError) {
+      if (error.code === 'unauthorized') return { unauthorized: true }
+      return { error: error.message }
+    }
+    if (error instanceof Error) {
+      if (error.message === 'already_released') return { duplicate: true }
+      if (error.message === 'not_releasable') return { notReleasable: true }
+      if (error.message === 'not_active') return { notActive: true }
+    }
+    return { error: 'Could not release the clue. Try again.' }
   }
 }
 

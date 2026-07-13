@@ -9,9 +9,9 @@ using umbral_backend.Domain.Services;
 
 namespace umbral_backend.Application.UnitTests.Sessions.Queries.GetParticipantSessionTimerSnapshot;
 
-// Participant timer query returns the active-substage (trivia-question) window (HU-22) under the
-// unchanged participant-membership authorization guard: allowed reads see the active-question
-// remaining, no-active-question reads see 0 with no ActiveQuestion, denied/missing still throw.
+// Participant timer query returns the authoritative active-substage window under the unchanged
+// membership guard: trivia exposes its active question, while treasure hunt exposes the session-level
+// countdown without an ActiveQuestion; denied and missing reads still throw.
 public sealed class GetParticipantSessionTimerSnapshotQueryHandlerTests
 {
     private static readonly DateTimeOffset StartsAt = new(2026, 6, 4, 10, 0, 0, TimeSpan.Zero);
@@ -43,7 +43,7 @@ public sealed class GetParticipantSessionTimerSnapshotQueryHandlerTests
     }
 
     [Fact]
-    public async Task Handle_WhenNoQuestionIsActive_ReturnsNoCountdownAndNoActiveQuestion()
+    public async Task Handle_WhenTreasureHuntSubstageIsActive_ReturnsAdvancingCountdownWithoutActiveQuestion()
     {
         var session = CreateActiveTreasureHunt(activeAt: StartsAt.AddMinutes(1));
         var teamId = session.Teams.Single().TeamId;
@@ -53,9 +53,13 @@ public sealed class GetParticipantSessionTimerSnapshotQueryHandlerTests
             new GetParticipantSessionTimerSnapshotQuery(session.LiveSessionId, teamId, null),
             CancellationToken.None);
 
-        result.TotalSeconds.Should().Be(0);
-        result.RemainingSeconds.Should().Be(0);
-        result.IsAdvancing.Should().BeFalse();
+        result.SessionState.Should().Be(nameof(SessionState.Active));
+        result.TotalSeconds.Should().Be(45 * 60);
+        result.RemainingSeconds.Should().Be(42 * 60);
+        result.TimerStatus.Should().Be("Advancing");
+        result.IsAdvancing.Should().BeTrue();
+        result.IsExpired.Should().BeFalse();
+        result.AdvancingSince.Should().Be(StartsAt.AddMinutes(1));
         result.ActiveQuestion.Should().BeNull();
     }
 

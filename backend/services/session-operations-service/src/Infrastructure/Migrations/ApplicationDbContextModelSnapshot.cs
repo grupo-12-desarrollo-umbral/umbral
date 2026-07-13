@@ -279,6 +279,22 @@ namespace umbral_backend.Infrastructure.Migrations
                         .HasColumnType("interval")
                         .HasColumnName("question_timer_total_duration");
 
+                    b.Property<DateTimeOffset?>("_substageTimerAdvancingSince")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("substage_timer_advancing_since");
+
+                    b.Property<DateTimeOffset?>("_substageTimerExpiredAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("substage_timer_expired_at");
+
+                    b.Property<TimeSpan>("_substageTimerRemainingDuration")
+                        .HasColumnType("interval")
+                        .HasColumnName("substage_timer_remaining_duration");
+
+                    b.Property<TimeSpan>("_substageTimerTotalDuration")
+                        .HasColumnType("interval")
+                        .HasColumnName("substage_timer_total_duration");
+
                     b.HasKey("LiveSessionId");
 
                     b.HasIndex("SessionCode")
@@ -301,6 +317,53 @@ namespace umbral_backend.Infrastructure.Migrations
 
             modelBuilder.Entity("umbral_backend.Domain.Entities.LiveSession", b =>
                 {
+                    b.OwnsMany("umbral_backend.Domain.Entities.ClueReleaseRecord", "_clueReleaseRecords", b1 =>
+                        {
+                            b1.Property<Guid>("ClueReleaseRecordId")
+                                .HasColumnType("uuid")
+                                .HasColumnName("id");
+
+                            b1.Property<Guid?>("ClueId")
+                                .HasColumnType("uuid")
+                                .HasColumnName("clue_id");
+
+                            b1.Property<Guid>("LiveSessionId")
+                                .HasColumnType("uuid")
+                                .HasColumnName("live_session_id");
+
+                            b1.Property<string>("ReleaseMode")
+                                .IsRequired()
+                                .HasMaxLength(32)
+                                .HasColumnType("character varying(32)")
+                                .HasColumnName("release_mode");
+
+                            b1.Property<DateTimeOffset>("ReleasedAt")
+                                .HasColumnType("timestamp with time zone")
+                                .HasColumnName("released_at");
+
+                            b1.Property<int?>("ReleasedByUserId")
+                                .HasColumnType("integer")
+                                .HasColumnName("released_by_user_id");
+
+                            b1.Property<Guid>("TargetId")
+                                .HasColumnType("uuid")
+                                .HasColumnName("target_id");
+
+                            b1.Property<Guid>("TeamId")
+                                .HasColumnType("uuid")
+                                .HasColumnName("team_id");
+
+                            b1.HasKey("ClueReleaseRecordId");
+
+                            b1.HasIndex("LiveSessionId", "TeamId", "TargetId")
+                                .IsUnique();
+
+                            b1.ToTable("live_session_clue_releases", (string)null);
+
+                            b1.WithOwner()
+                                .HasForeignKey("LiveSessionId");
+                        });
+
                     b.OwnsMany("umbral_backend.Domain.Entities.JoinContext", "JoinContexts", b1 =>
                         {
                             b1.Property<Guid>("JoinContextId")
@@ -1005,6 +1068,8 @@ namespace umbral_backend.Infrastructure.Migrations
                     b.Navigation("Teams");
 
                     b.Navigation("TriviaAnswerSubmissions");
+
+                    b.Navigation("_clueReleaseRecords");
                 });
 #pragma warning restore 612, 618
         }

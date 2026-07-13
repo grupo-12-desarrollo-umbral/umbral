@@ -309,7 +309,11 @@ describe('session gateway auth', () => {
     getValidAccessTokenMock.mockResolvedValue('fresh-access-token')
     vi.mocked(global.fetch).mockResolvedValue(
       new Response(
-        JSON.stringify({ detail: 'Team reference already associated with this session.' }),
+        // Discriminated by the ProblemDetails `type` slug, not the generic `detail` sentence.
+        JSON.stringify({
+          type: 'duplicate-team-association-in-session',
+          detail: 'The request conflicts with the current state of the resource.',
+        }),
         {
           status: 409,
           headers: { 'Content-Type': 'application/json' },
@@ -329,5 +333,148 @@ describe('session gateway auth', () => {
         body: JSON.stringify({ referenceTeamId: 'reference-team-1' }),
       }),
     )
+  })
+
+  it('maps a non-scheduled session conflict to session_not_scheduled by type', async () => {
+    const { associateTeamToSession } = await import('@/app/lib/sessions')
+
+    getValidAccessTokenMock.mockResolvedValue('fresh-access-token')
+    vi.mocked(global.fetch).mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          type: 'team-association-requires-scheduled-session',
+          detail: 'The request conflicts with the current state of the resource.',
+        }),
+        { status: 409, headers: { 'Content-Type': 'application/json' } },
+      ),
+    )
+
+    await expect(
+      associateTeamToSession('session-1', 'reference-team-1'),
+    ).rejects.toThrowError('session_not_scheduled')
+  })
+
+  it('maps an unrecognized association 409 type to a generic conflict', async () => {
+    const { associateTeamToSession } = await import('@/app/lib/sessions')
+
+    getValidAccessTokenMock.mockResolvedValue('fresh-access-token')
+    vi.mocked(global.fetch).mockResolvedValue(
+      new Response(
+        JSON.stringify({ type: 'something-else', detail: 'Conflict.' }),
+        { status: 409, headers: { 'Content-Type': 'application/json' } },
+      ),
+    )
+
+    await expect(
+      associateTeamToSession('session-1', 'reference-team-1'),
+    ).rejects.toThrowError('association_conflict')
+  })
+
+  // HU-26 operator clue release: 200 parse, auth/status mapping, and the three 409 detail causes.
+  it('releases a target hidden clue to one team and returns the parsed result', async () => {
+    const { releaseClue } = await import('@/app/lib/sessions')
+
+    getValidAccessTokenMock.mockResolvedValue('token')
+    vi.mocked(global.fetch).mockResolvedValue(
+      new Response(
+        JSON.stringify({ targetId: 'target-1', releasedTeamIds: ['team-a'] }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      ),
+    )
+
+    await expect(
+      releaseClue('session-1', { targetId: 'target-1', teamId: 'team-a' }),
+    ).resolves.toEqual({ targetId: 'target-1', releasedTeamIds: ['team-a'] })
+
+    // Single-team body includes teamId.
+    expect(global.fetch).toHaveBeenCalledWith(
+      'http://localhost:8000/api/sessions/session-1/clues/release',
+      expect.objectContaining({
+        method: 'POST',
+        headers: expect.any(Headers),
+        body: JSON.stringify({ targetId: 'target-1', teamId: 'team-a' }),
+      }),
+    )
+  })
+
+  it('omits teamId from the body when releasing to all teams', async () => {
+    const { releaseClue } = await import('@/app/lib/sessions')
+
+    getValidAccessTokenMock.mockResolvedValue('token')
+    vi.mocked(global.fetch).mockResolvedValue(
+      new Response(
+        JSON.stringify({ targetId: 'target-1', releasedTeamIds: ['team-a', 'team-b'] }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      ),
+    )
+
+    await releaseClue('session-1', { targetId: 'target-1' })
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      'http://localhost:8000/api/sessions/session-1/clues/release',
+      expect.objectContaining({ body: JSON.stringify({ targetId: 'target-1' }) }),
+    )
+  })
+
+  it('maps a 400 to invalid_input', async () => {
+    const { releaseClue } = await import('@/app/lib/sessions')
+    getValidAccessTokenMock.mockResolvedValue('token')
+    vi.mocked(global.fetch).mockResolvedValue(new Response('', { status: 400 }))
+    await expect(releaseClue('session-1', { targetId: '' })).rejects.toThrowError('invalid_input')
+  })
+
+  it('maps 401 and 403 to an unauthorized identity error', async () => {
+    const { releaseClue } = await import('@/app/lib/sessions')
+    getValidAccessTokenMock.mockResolvedValue('token')
+
+    vi.mocked(global.fetch).mockResolvedValueOnce(new Response('', { status: 401 }))
+    await expect(releaseClue('session-1', { targetId: 't' })).rejects.toEqual(
+      expect.objectContaining<Partial<IdentityError>>({ name: 'IdentityError', code: 'unauthorized' }),
+    )
+
+    vi.mocked(global.fetch).mockResolvedValueOnce(new Response('', { status: 403 }))
+    await expect(releaseClue('session-1', { targetId: 't' })).rejects.toEqual(
+      expect.objectContaining<Partial<IdentityError>>({ name: 'IdentityError', code: 'unauthorized' }),
+    )
+  })
+
+  it('maps a 404 to session_not_found', async () => {
+    const { releaseClue } = await import('@/app/lib/sessions')
+    getValidAccessTokenMock.mockResolvedValue('token')
+    vi.mocked(global.fetch).mockResolvedValue(new Response('', { status: 404 }))
+    await expect(releaseClue('session-1', { targetId: 't' })).rejects.toThrowError('session_not_found')
+  })
+
+  it('maps each 409 type cause to its distinct typed error', async () => {
+    const { releaseClue } = await import('@/app/lib/sessions')
+    getValidAccessTokenMock.mockResolvedValue('token')
+
+    // The backend puts the discriminating slug in ProblemDetails `type`; `detail` is generic.
+    const conflict = (type: string) =>
+      new Response(
+        JSON.stringify({ type, title: 'Conflict.', detail: 'The request conflicts with the current state of the resource.' }),
+        { status: 409, headers: { 'Content-Type': 'application/json' } },
+      )
+
+    vi.mocked(global.fetch).mockResolvedValueOnce(conflict('clue-already-released-to-team'))
+    await expect(releaseClue('s', { targetId: 't', teamId: 'a' })).rejects.toThrowError('already_released')
+
+    vi.mocked(global.fetch).mockResolvedValueOnce(conflict('clue-not-releasable'))
+    await expect(releaseClue('s', { targetId: 't' })).rejects.toThrowError('not_releasable')
+
+    vi.mocked(global.fetch).mockResolvedValueOnce(conflict('session-not-active-for-clue-release'))
+    await expect(releaseClue('s', { targetId: 't' })).rejects.toThrowError('not_active')
+  })
+
+  it('maps an unrecognised 409 type to release_conflict', async () => {
+    const { releaseClue } = await import('@/app/lib/sessions')
+    getValidAccessTokenMock.mockResolvedValue('token')
+    vi.mocked(global.fetch).mockResolvedValue(
+      new Response(JSON.stringify({ type: 'something-else', title: 'Conflict.', detail: 'Conflict.' }), {
+        status: 409,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    )
+    await expect(releaseClue('s', { targetId: 't' })).rejects.toThrowError('release_conflict')
   })
 })

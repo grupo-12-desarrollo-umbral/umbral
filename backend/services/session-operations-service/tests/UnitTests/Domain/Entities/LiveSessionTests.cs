@@ -424,6 +424,68 @@ public sealed class LiveSessionTests
         snapshot.IsAdvancing.Should().BeFalse();
     }
 
+    [Fact]
+    public void GetAuthoritativeSessionTimerSnapshot_WhenTreasureHuntSubstageActive_TracksMaximumTimeWindow()
+    {
+        var session = LiveSessionFactory.CreateScheduledMultiTargetTreasureHunt(maximumTimeMinutes: 5);
+        var activeAt = new DateTimeOffset(2026, 6, 3, 10, 1, 0, TimeSpan.Zero);
+        Activate(session);
+
+        var snapshot = session.GetAuthoritativeSessionTimerSnapshot(activeAt.AddMinutes(1));
+
+        snapshot.TotalDuration.Should().Be(TimeSpan.FromMinutes(5));
+        snapshot.RemainingDuration.Should().Be(TimeSpan.FromMinutes(4));
+        snapshot.IsAdvancing.Should().BeTrue();
+        snapshot.IsExpired.Should().BeFalse();
+        snapshot.AdvancingSince.Should().Be(activeAt);
+        session.IsSubstageTimerAdvancing.Should().BeTrue();
+    }
+
+    [Fact]
+    public void GetAuthoritativeSessionTimerSnapshot_WhenTreasureHuntPausedThenResumed_FreezesAndResumesSameWindow()
+    {
+        var session = LiveSessionFactory.CreateScheduledMultiTargetTreasureHunt(maximumTimeMinutes: 5);
+        var activeAt = new DateTimeOffset(2026, 6, 3, 10, 1, 0, TimeSpan.Zero);
+        var pausedAt = activeAt.AddMinutes(1);
+        var resumedAt = pausedAt.AddMinutes(2);
+        Activate(session);
+
+        session.MoveTo(SessionState.Paused, pausedAt, new SessionStateTransitionPolicy());
+        var frozen = session.GetAuthoritativeSessionTimerSnapshot(pausedAt.AddMinutes(10));
+
+        session.MoveTo(SessionState.Active, resumedAt, new SessionStateTransitionPolicy());
+        var resumed = session.GetAuthoritativeSessionTimerSnapshot(resumedAt.AddMinutes(1));
+
+        frozen.RemainingDuration.Should().Be(TimeSpan.FromMinutes(4));
+        frozen.IsAdvancing.Should().BeFalse();
+        frozen.AdvancingSince.Should().BeNull();
+        resumed.RemainingDuration.Should().Be(TimeSpan.FromMinutes(3));
+        resumed.IsAdvancing.Should().BeTrue();
+        resumed.AdvancingSince.Should().Be(resumedAt);
+        session.ActiveSubstageId.Should().NotBeNull();
+    }
+
+    [Fact]
+    public void MarkSubstageTimerExpiredIfElapsed_WhenTreasureHuntWindowElapsed_ExpiresWithoutAdvancing()
+    {
+        var session = LiveSessionFactory.CreateScheduledMultiTargetTreasureHunt(maximumTimeMinutes: 5);
+        var activeAt = new DateTimeOffset(2026, 6, 3, 10, 1, 0, TimeSpan.Zero);
+        Activate(session);
+        var activeSubstageId = session.ActiveSubstageId;
+        session.ClearDomainEvents();
+
+        var snapshot = session.MarkSubstageTimerExpiredIfElapsed(activeAt.AddMinutes(5));
+
+        snapshot.RemainingDuration.Should().Be(TimeSpan.Zero);
+        snapshot.IsExpired.Should().BeTrue();
+        snapshot.IsAdvancing.Should().BeFalse();
+        snapshot.ExpiredAt.Should().Be(activeAt.AddMinutes(5));
+        session.IsSubstageTimerAdvancing.Should().BeFalse();
+        session.ActiveSubstageId.Should().Be(activeSubstageId);
+        session.State.Should().Be(SessionState.Active);
+        session.DomainEvents.Should().BeEmpty();
+    }
+
     // Pause freezes the active-substage timer; Active resumes the SAME question at the frozen remainder.
     [Fact]
     public void GetAuthoritativeSessionTimerSnapshot_WhenPausedThenResumed_FreezesAndResumesSameQuestion()
@@ -802,6 +864,12 @@ public sealed class LiveSessionTests
         var advancedEvent = session.DomainEvents.OfType<SubstageAdvancedEvent>().Single();
         advancedEvent.FromPlayMode.Should().Be(SubstagePlayMode.Trivia);
         advancedEvent.ToSubstageId.Should().Be(substages[1].SubstageSnapshotId);
+
+        var timer = session.GetAuthoritativeSessionTimerSnapshot(advancedAt.AddSeconds(30).AddMinutes(1));
+        timer.TotalDuration.Should().Be(TimeSpan.FromMinutes(45));
+        timer.RemainingDuration.Should().Be(TimeSpan.FromMinutes(44));
+        timer.IsAdvancing.Should().BeTrue();
+        timer.AdvancingSince.Should().Be(advancedAt.AddSeconds(30));
     }
 
     [Fact]

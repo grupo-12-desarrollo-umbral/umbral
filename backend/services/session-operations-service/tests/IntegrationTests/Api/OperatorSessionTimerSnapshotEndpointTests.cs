@@ -126,10 +126,37 @@ public sealed class OperatorSessionTimerSnapshotEndpointTests : IAsyncLifetime
         payload!.LiveSessionId.Should().Be(seeded);
         payload.TeamId.Should().BeNull();
         payload.SessionState.Should().Be(nameof(SessionState.Active));
-        payload.TotalSeconds.Should().Be(0);
-        payload.RemainingSeconds.Should().Be(0);
-        payload.IsAdvancing.Should().BeFalse();
+        payload.TotalSeconds.Should().Be(2700);
+        payload.RemainingSeconds.Should().BeGreaterThan(0);
+        payload.TimerStatus.Should().Be("Advancing");
+        payload.IsAdvancing.Should().BeTrue();
+        payload.IsExpired.Should().BeFalse();
+        payload.AdvancingSince.Should().NotBeNull();
+        payload.ExpiredAt.Should().BeNull();
         payload.ActiveQuestion.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task GetTimerSnapshot_ForActiveTreasureHunt_AdvancingRemainingDecreasesBetweenTwoReads()
+    {
+        var seeded = await SeedTreasureHuntSessionAsync();
+        AddTrustedHeaders(_client, OperatorExternalIdentityId, "Operator", "operator@example.com");
+
+        var first = await _client.GetAsync(BuildTimerUrl(seeded));
+        first.EnsureSuccessStatusCode();
+        var firstPayload = await first.Content.ReadFromJsonAsync<OperatorSessionTimerSnapshotResponse>();
+        firstPayload!.IsExpired.Should().BeFalse();
+        firstPayload.IsAdvancing.Should().BeTrue();
+
+        await Task.Delay(TimeSpan.FromMilliseconds(500));
+
+        var second = await _client.GetAsync(BuildTimerUrl(seeded));
+        second.EnsureSuccessStatusCode();
+        var secondPayload = await second.Content.ReadFromJsonAsync<OperatorSessionTimerSnapshotResponse>();
+        secondPayload!.IsExpired.Should().BeFalse();
+        secondPayload.IsAdvancing.Should().BeTrue();
+
+        secondPayload.RemainingSeconds.Should().BeLessThanOrEqualTo(firstPayload.RemainingSeconds);
     }
 
     [Fact]

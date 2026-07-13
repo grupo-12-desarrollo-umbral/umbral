@@ -12,6 +12,8 @@ import {
   type SessionTimerSnapshotDto,
   type TriviaAnsweredMonitorDto,
   type OperatorSessionPanelDto,
+  type ReleaseClueRequest,
+  type ReleaseClueResultDto,
 } from './definitions'
 import { verifySession } from './dal'
 import { KeycloakAuthError } from './keycloak'
@@ -261,19 +263,69 @@ export async function associateTeamToSession(
   if (response.status === 403) throw new IdentityError('unauthorized', 'Operator role required.')
   if (response.status === 404) throw new Error('not_found')
   if (response.status === 409) {
-    const problem = (await response.json().catch(() => null)) as { detail?: string } | null
-    const detail = problem?.detail?.toLowerCase() ?? ''
-    if (detail.includes('already associated')) {
-      throw new Error('duplicate_association')
+    // Branch on the stable ProblemDetails `type` (the ErrorCode slug), not `detail`: these domain
+    // exceptions declare no PublicDetail, so `detail` is a generic per-category sentence, never the
+    // domain message. Mirrors transitionSessionState / releaseClue.
+    const problem = (await response.json().catch(() => null)) as { type?: string } | null
+    switch (problem?.type) {
+      case 'duplicate-team-association-in-session':
+        throw new Error('duplicate_association')
+      case 'team-association-requires-scheduled-session':
+        throw new Error('session_not_scheduled')
+      default:
+        throw new Error('association_conflict')
     }
-    if (detail.includes('scheduled')) {
-      throw new Error('session_not_scheduled')
-    }
-    throw new Error('association_conflict')
   }
   if (!response.ok) {
     throw new IdentityError('unknown', `associateTeamToSession failed with status ${response.status}`)
   }
 
   return response.json() as Promise<AssociateTeamToSessionResultDto>
+}
+
+// HU-26 operator clue release. Mirrors transitionSessionState's POST + 409-ProblemDetails-`type` parse.
+// 403 = non-Operator or a non-owning operator (the ownership Proxy denies). The single 409 carries three
+// distinct causes distinguished by the ProblemDetails `type` slug, surfaced as distinct typed errors so
+// the control can render a specific, non-crashing message for each. Omit teamId to release to all teams.
+export async function releaseClue(
+  liveSessionId: string,
+  body: ReleaseClueRequest,
+): Promise<ReleaseClueResultDto> {
+  await verifySession()
+  const response = await fetch(
+    `${API_GATEWAY_URL}/api/sessions/${liveSessionId}/clues/release`,
+    {
+      method: 'POST',
+      headers: await getGatewayHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify(
+        body.teamId ? { targetId: body.targetId, teamId: body.teamId } : { targetId: body.targetId },
+      ),
+    },
+  )
+
+  if (response.status === 400) throw new Error('invalid_input')
+  if (response.status === 401) throw new IdentityError('unauthorized', 'Authentication failed.')
+  if (response.status === 403) throw new IdentityError('unauthorized', 'Not the assigned operator.')
+  if (response.status === 404) throw new Error('session_not_found')
+  if (response.status === 409) {
+    // The backend tags each release conflict with a stable ProblemDetails `type` (its ErrorCode slug);
+    // the `detail` is a generic per-category sentence, never the domain message — so branch on `type`,
+    // mirroring transitionSessionState (the domain exceptions declare no PublicDetail).
+    const problem = (await response.json().catch(() => null)) as { type?: string } | null
+    switch (problem?.type) {
+      case 'clue-already-released-to-team':
+        throw new Error('already_released')
+      case 'clue-not-releasable':
+        throw new Error('not_releasable')
+      case 'session-not-active-for-clue-release':
+        throw new Error('not_active')
+      default:
+        throw new Error('release_conflict')
+    }
+  }
+  if (!response.ok) {
+    throw new IdentityError('unknown', `releaseClue failed with status ${response.status}`)
+  }
+
+  return response.json() as Promise<ReleaseClueResultDto>
 }

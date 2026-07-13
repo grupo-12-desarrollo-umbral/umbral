@@ -92,6 +92,99 @@ describe('TreasureHuntBoard', () => {
     expect(texts).toContain('No clues yet.');
   });
 
+  test('surfaces a newly-revealed clue when visibleClues grows (empty → first clue)', () => {
+    // HU-26 reveal: the released clue arrives via a board push; the component is prop-driven, so a
+    // re-render with the grown visibleClues replaces the empty state with the clue's name + text.
+    const renderer = renderBoard({ visibleClues: [] });
+    switchTab(renderer, 'CLUES');
+    expect(allText(renderer.toJSON())).toContain('No clues yet.');
+
+    act(() => {
+      renderer.update(
+        React.createElement(TreasureHuntBoard, {
+          teamDisplayName: 'Lantern Foxes',
+          currentScore: 240,
+          timerDisplay: { label: '12:47', pct: 63, tone: 'running' },
+          resolvedTargets: 2,
+          totalActiveTargets: 5,
+          visibleClues: [
+            { targetSnapshotId: 'clue-1', targetName: 'Brass Astrolabe', clueText: 'Follow the north colonnade.' },
+          ],
+        }),
+      );
+    });
+
+    const texts = allText(renderer.toJSON());
+    expect(texts).not.toContain('No clues yet.');
+    expect(texts).toContain('Brass Astrolabe');
+    expect(texts).toContain('Follow the north colonnade.');
+  });
+
+  test('shows the new-clue indicator on growth while CLUES is unviewed, clears on view', () => {
+    // HU-26 reveal affordance: an ember dot on the CLUES segment flags a clue that arrived after
+    // mount; viewing the CLUES tab acknowledges it.
+    const renderer = renderBoard({ visibleClues: [] });
+    // Match the host node only: findAll returns both the composite View element and its rendered
+    // host, so filter to the host (string type) to count one node per rendered dot.
+    const dots = () =>
+      renderer.root.findAll(
+        (n) => typeof n.type === 'string' && n.props?.testID === 'treasure-hunt-clue-indicator',
+      );
+
+    // Default MAP tab, no clues at mount → no indicator.
+    expect(dots()).toHaveLength(0);
+
+    act(() => {
+      renderer.update(
+        React.createElement(TreasureHuntBoard, {
+          teamDisplayName: 'Lantern Foxes',
+          currentScore: 240,
+          timerDisplay: { label: '12:47', pct: 63, tone: 'running' },
+          resolvedTargets: 2,
+          totalActiveTargets: 5,
+          visibleClues: [
+            { targetSnapshotId: 'clue-1', targetName: 'Brass Astrolabe', clueText: 'Follow the north colonnade.' },
+          ],
+        }),
+      );
+    });
+
+    // A clue arrived in a later render while still on MAP → indicator appears.
+    expect(dots()).toHaveLength(1);
+
+    // Viewing the CLUES tab acknowledges it → indicator clears.
+    switchTab(renderer, 'CLUES');
+    expect(dots()).toHaveLength(0);
+  });
+
+  test('does not show the new-clue indicator when clues do not grow (score-only re-projection)', () => {
+    const renderer = renderBoard({ visibleClues: CLUES });
+    // Match the host node only: findAll returns both the composite View element and its rendered
+    // host, so filter to the host (string type) to count one node per rendered dot.
+    const dots = () =>
+      renderer.root.findAll(
+        (n) => typeof n.type === 'string' && n.props?.testID === 'treasure-hunt-clue-indicator',
+      );
+
+    expect(dots()).toHaveLength(0);
+
+    act(() => {
+      renderer.update(
+        React.createElement(TreasureHuntBoard, {
+          teamDisplayName: 'Lantern Foxes',
+          currentScore: 999,
+          timerDisplay: { label: '12:47', pct: 63, tone: 'running' },
+          resolvedTargets: 2,
+          totalActiveTargets: 5,
+          visibleClues: CLUES,
+        }),
+      );
+    });
+
+    // Same clue ids, only the score changed → no new-clue signal.
+    expect(dots()).toHaveLength(0);
+  });
+
   test('marks other-team cards as placeholder on the teams tab', () => {
     const renderer = renderBoard();
     switchTab(renderer, 'TEAMS');

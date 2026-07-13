@@ -14,10 +14,15 @@ public sealed class LiveSession : BaseAuditableEntity
     private readonly List<JoinContext> _joinContexts = new();
     private readonly List<TriviaAnswerSubmission> _triviaAnswerSubmissions = new();
     private readonly List<SessionEvent> _sessionEvents = new();
+    private readonly List<ClueReleaseRecord> _clueReleaseRecords = new();
     private TimeSpan _questionTimerTotalDuration;
     private TimeSpan _questionTimerRemainingDuration;
     private DateTimeOffset? _questionTimerAdvancingSince;
     private DateTimeOffset? _questionTimerExpiredAt;
+    private TimeSpan _substageTimerTotalDuration;
+    private TimeSpan _substageTimerRemainingDuration;
+    private DateTimeOffset? _substageTimerAdvancingSince;
+    private DateTimeOffset? _substageTimerExpiredAt;
 
     private LiveSession()
     {
@@ -29,6 +34,8 @@ public sealed class LiveSession : BaseAuditableEntity
         MissionRuntimeSnapshot = null!;
         _questionTimerTotalDuration = TimeSpan.Zero;
         _questionTimerRemainingDuration = TimeSpan.Zero;
+        _substageTimerTotalDuration = TimeSpan.Zero;
+        _substageTimerRemainingDuration = TimeSpan.Zero;
     }
 
     private LiveSession(
@@ -65,6 +72,8 @@ public sealed class LiveSession : BaseAuditableEntity
         AssignedOperatorUserId = assignedOperatorUserId;
         _questionTimerTotalDuration = TimeSpan.Zero;
         _questionTimerRemainingDuration = TimeSpan.Zero;
+        _substageTimerTotalDuration = TimeSpan.Zero;
+        _substageTimerRemainingDuration = TimeSpan.Zero;
     }
 
     public Guid LiveSessionId { get; private set; }
@@ -94,6 +103,8 @@ public sealed class LiveSession : BaseAuditableEntity
     public MaximumTime MaximumTime { get; private set; }
 
     public bool IsQuestionTimerAdvancing => LiveSessionStateFactory.For(State).IsQuestionTimerAdvancing(this);
+
+    public bool IsSubstageTimerAdvancing => LiveSessionStateFactory.For(State).IsSubstageTimerAdvancing(this);
 
     public int? AssignedOperatorUserId { get; private set; }
 
@@ -322,11 +333,21 @@ public sealed class LiveSession : BaseAuditableEntity
             actorType));
     }
 
-    // Authoritative displayed remaining time = the active trivia-question window (OD-1/OD-2/OD-3):
-    // a trivia question active -> the TriviaQuestionTimer window; otherwise no advancing countdown.
+    // Authoritative displayed remaining time is selected by the active substage's play mode:
+    // TreasureHunt owns a substage window; Trivia keeps the active-question window.
     public AuthoritativeSessionTimerSnapshot GetAuthoritativeSessionTimerSnapshot(DateTimeOffset observedAt)
     {
-        return GetActiveQuestionTimerSnapshot(observedAt);
+        if (ActiveSubstageId is null)
+        {
+            return GetActiveQuestionTimerSnapshot(observedAt);
+        }
+
+        var activeSubstage = GetOrderedSubstages()
+            .SingleOrDefault(substage => substage.SubstageSnapshotId == ActiveSubstageId.Value);
+
+        return activeSubstage?.PlayMode == SubstagePlayMode.TreasureHunt
+            ? LiveSessionStateFactory.For(State).GetSubstageTimerSnapshot(this, observedAt)
+            : GetActiveQuestionTimerSnapshot(observedAt);
     }
 
     public void ActivateQuestion(int questionIndex, DateTimeOffset occurredAt)
@@ -358,6 +379,11 @@ public sealed class LiveSession : BaseAuditableEntity
         return LiveSessionStateFactory.For(State).MarkQuestionTimerExpiredIfElapsed(this, occurredAt);
     }
 
+    public AuthoritativeSessionTimerSnapshot MarkSubstageTimerExpiredIfElapsed(DateTimeOffset occurredAt)
+    {
+        return LiveSessionStateFactory.For(State).MarkSubstageTimerExpiredIfElapsed(this, occurredAt);
+    }
+
     public void CloseActiveQuestion(DateTimeOffset occurredAt)
     {
         if (ActiveQuestionIndex is null)
@@ -377,6 +403,38 @@ public sealed class LiveSession : BaseAuditableEntity
             questionIndex,
             occurredAt,
             wasExpiredByTimer));
+    }
+
+    public void ReleaseClue(Guid targetId, Guid teamId, int operatorUserId, DateTimeOffset now)
+    {
+        EnsureSessionActiveForClueRelease();
+        EnsureOperatorUserIdIsValid(operatorUserId);
+        var target = ResolveReleasableTarget(targetId);
+        var team = GetTeam(teamId);
+        EnsureClueNotAlreadyReleased(team.TeamId, target.TargetSnapshotId);
+        AppendManualClueRelease(target, team, operatorUserId, now);
+    }
+
+    public void ReleaseClueToAllTeams(Guid targetId, int operatorUserId, DateTimeOffset now)
+    {
+        EnsureSessionActiveForClueRelease();
+        EnsureOperatorUserIdIsValid(operatorUserId);
+        var target = ResolveReleasableTarget(targetId);
+
+        foreach (var team in _teams)
+        {
+            EnsureClueNotAlreadyReleased(team.TeamId, target.TargetSnapshotId);
+        }
+
+        foreach (var team in _teams)
+        {
+            AppendManualClueRelease(target, team, operatorUserId, now);
+        }
+    }
+
+    public IReadOnlyCollection<ClueReleaseRecord> GetClueReleaseRecords()
+    {
+        return _clueReleaseRecords.AsReadOnly();
     }
 
     // HU-36A restricted pre-close monitor: for the active synchronized trivia question, enumerate the
@@ -548,7 +606,7 @@ public sealed class LiveSession : BaseAuditableEntity
         var timerSnapshot = GetAuthoritativeSessionTimerSnapshot(observedAt);
         var activeSubstageContext = BuildActiveSubstageContext();
         var substages = BuildSubstageProgress();
-        var visibleClues = CollectVisibleClues();
+        var visibleClues = CollectVisibleClues(team.TeamId);
         var activeTargets = CollectActiveTargets();
 
         return ParticipantTeamBoardSnapshot.Create(
@@ -694,7 +752,7 @@ public sealed class LiveSession : BaseAuditableEntity
             activeQuestionTimeLimitSeconds);
     }
 
-    private IReadOnlyList<VisibleClue> CollectVisibleClues()
+    private IReadOnlyList<VisibleClue> CollectVisibleClues(Guid teamId)
     {
         if (ActiveSubstageId is null)
         {
@@ -712,28 +770,125 @@ public sealed class LiveSession : BaseAuditableEntity
         // Treasure-hunt clues resolve per-target (unchanged). A trivia substage has no targets, so
         // its clues resolve from the substage-scoped clue snapshot instead (#145).
         return activeSubstage.PlayMode == SubstagePlayMode.TreasureHunt
-            ? CollectTargetVisibleClues(activeSubstage.SubstageSnapshotId)
+            ? CollectTargetVisibleClues(activeSubstage.SubstageSnapshotId, teamId)
             : CollectSubstageVisibleClues(activeSubstage.SubstageSnapshotId);
     }
 
-    private IReadOnlyList<VisibleClue> CollectTargetVisibleClues(Guid substageSnapshotId)
+    private IReadOnlyList<VisibleClue> CollectTargetVisibleClues(Guid substageSnapshotId, Guid teamId)
     {
-        // Show clue guidance from targets that have clue text. The ClueVisibilityPolicy field on
-        // TargetSnapshot defines when a clue becomes visible; for now we include clues from targets
-        // with a non-null policy (meaning the mission author intended visibility). Actual per-team
-        // release state belongs to HU-26/HU-28; HU-23 only reads already-visible guidance.
+        const string hiddenUntilOperatorRelease = "HiddenUntilOperatorRelease";
+
+        // Two-group order: always-visible clues (policy != HiddenUntilOperatorRelease) are pinned at the
+        // top by SequenceOrder ascending, then operator-released hidden clues render below them
+        // newest-released-first. SequenceOrder breaks ties within the released group (an all-teams release
+        // stamps every team's record with the same instant), keeping same-instant releases stably ordered.
         return MissionRuntimeSnapshot.TargetSnapshots
             .Where(target =>
                 target.SubstageSnapshotId == substageSnapshotId &&
                 target.IsActive &&
                 !string.IsNullOrWhiteSpace(target.ClueText) &&
                 !string.IsNullOrWhiteSpace(target.ClueVisibilityPolicy))
-            .OrderBy(target => target.SequenceOrder)
-            .Select(target => VisibleClue.Create(
-                target.TargetSnapshotId,
-                target.ClueText!,
-                target.Name))
+            .Select(target => new
+            {
+                target,
+                release = _clueReleaseRecords.SingleOrDefault(record =>
+                    record.TeamId == teamId &&
+                    record.TargetId == target.TargetSnapshotId),
+                alwaysVisible = !string.Equals(
+                    target.ClueVisibilityPolicy,
+                    hiddenUntilOperatorRelease,
+                    StringComparison.OrdinalIgnoreCase),
+            })
+            .Where(entry => entry.alwaysVisible || entry.release is not null)
+            .OrderBy(entry => entry.alwaysVisible ? 0 : 1)
+            .ThenByDescending(entry =>
+                entry.alwaysVisible ? DateTimeOffset.MinValue : entry.release!.ReleasedAt)
+            .ThenBy(entry => entry.target.SequenceOrder)
+            .Select(entry => VisibleClue.Create(
+                entry.target.TargetSnapshotId,
+                entry.target.ClueText!,
+                entry.target.Name))
             .ToList();
+    }
+
+    private void EnsureSessionActiveForClueRelease()
+    {
+        if (State is not SessionState.Active)
+        {
+            throw new SessionNotActiveForClueReleaseException(State);
+        }
+    }
+
+    private static void EnsureOperatorUserIdIsValid(int operatorUserId)
+    {
+        if (operatorUserId <= 0)
+        {
+            throw new OperatorUserIdMustBePositiveException();
+        }
+    }
+
+    private TargetSnapshot ResolveReleasableTarget(Guid targetId)
+    {
+        const string hiddenUntilOperatorRelease = "HiddenUntilOperatorRelease";
+
+        if (ActiveSubstageId is null)
+        {
+            throw new ClueNotReleasableException(targetId);
+        }
+
+        var activeSubstage = GetOrderedSubstages()
+            .SingleOrDefault(substage => substage.SubstageSnapshotId == ActiveSubstageId.Value);
+
+        if (activeSubstage is null || activeSubstage.PlayMode != SubstagePlayMode.TreasureHunt)
+        {
+            throw new ClueNotReleasableException(targetId);
+        }
+
+        return MissionRuntimeSnapshot.TargetSnapshots.SingleOrDefault(target =>
+                target.TargetSnapshotId == targetId &&
+                target.SubstageSnapshotId == activeSubstage.SubstageSnapshotId &&
+                target.IsActive &&
+                !string.IsNullOrWhiteSpace(target.ClueText) &&
+                string.Equals(
+                    target.ClueVisibilityPolicy,
+                    hiddenUntilOperatorRelease,
+                    StringComparison.OrdinalIgnoreCase))
+            ?? throw new ClueNotReleasableException(targetId);
+    }
+
+    private void EnsureClueNotAlreadyReleased(Guid teamId, Guid targetId)
+    {
+        if (_clueReleaseRecords.Any(record => record.TeamId == teamId && record.TargetId == targetId))
+        {
+            throw new ClueAlreadyReleasedToTeamException(teamId, targetId);
+        }
+    }
+
+    private void AppendManualClueRelease(
+        TargetSnapshot target,
+        Team team,
+        int operatorUserId,
+        DateTimeOffset releasedAt)
+    {
+        // TargetSnapshot embeds its clue fields and carries no distinct clue-node identity.
+        var release = ClueReleaseRecord.CreateManual(
+            LiveSessionId,
+            team.TeamId,
+            target.TargetSnapshotId,
+            clueId: null,
+            operatorUserId: operatorUserId,
+            releasedAt: releasedAt);
+
+        _clueReleaseRecords.Add(release);
+        team.IncrementReleasedClueCount();
+        AddDomainEvent(new ClueReleasedEvent(
+            LiveSessionId,
+            team.TeamId,
+            target.TargetSnapshotId,
+            release.ClueId,
+            release.ReleaseMode,
+            release.ReleasedByUserId,
+            release.ReleasedAt));
     }
 
     private IReadOnlyList<VisibleClue> CollectSubstageVisibleClues(Guid substageSnapshotId)
@@ -808,6 +963,7 @@ public sealed class LiveSession : BaseAuditableEntity
         }
 
         ActiveSubstageId = nextSubstage.SubstageSnapshotId;
+        SeedSubstageTimerIfTreasureHunt(nextSubstage, occurredAt);
         AddDomainEvent(new SubstageAdvancedEvent(
             LiveSessionId,
             fromSubstage.SubstageSnapshotId,
@@ -841,6 +997,14 @@ public sealed class LiveSession : BaseAuditableEntity
             _questionTimerRemainingDuration > TimeSpan.Zero;
     }
 
+    internal bool HasAdvancingSubstageTimer()
+    {
+        return ActiveSubstageId.HasValue &&
+            _substageTimerAdvancingSince.HasValue &&
+            _substageTimerExpiredAt is null &&
+            _substageTimerRemainingDuration > TimeSpan.Zero;
+    }
+
     internal void EnterActiveSessionState(DateTimeOffset occurredAt)
     {
         StartedAt ??= occurredAt;
@@ -848,12 +1012,22 @@ public sealed class LiveSession : BaseAuditableEntity
 
         // Entering Active starts the first substage in strict order (CONTEXT.md:48). `??=` guards
         // pause->resume so resuming never rewinds the pointer to the first substage.
-        ActiveSubstageId ??= GetOrderedSubstages()[0].SubstageSnapshotId;
+        if (ActiveSubstageId is null)
+        {
+            var firstSubstage = GetOrderedSubstages()[0];
+            ActiveSubstageId = firstSubstage.SubstageSnapshotId;
+            SeedSubstageTimerIfTreasureHunt(firstSubstage, occurredAt);
+        }
     }
 
     internal void EnterActiveQuestionTimerState(DateTimeOffset occurredAt)
     {
         ResumeQuestionTimer(occurredAt);
+    }
+
+    internal void EnterActiveSubstageTimerState(DateTimeOffset occurredAt)
+    {
+        ResumeSubstageTimer(occurredAt);
     }
 
     internal void EnterPausedSessionState(DateTimeOffset occurredAt)
@@ -866,15 +1040,22 @@ public sealed class LiveSession : BaseAuditableEntity
         FreezeQuestionTimer(occurredAt);
     }
 
+    internal void EnterPausedSubstageTimerState(DateTimeOffset occurredAt)
+    {
+        FreezeSubstageTimer(occurredAt);
+    }
+
     internal void EnterFinishedSessionState(DateTimeOffset occurredAt)
     {
         FreezeQuestionTimer(occurredAt);
+        FreezeSubstageTimer(occurredAt);
         EndedAt = occurredAt;
     }
 
     internal void EnterCancelledSessionState(DateTimeOffset occurredAt)
     {
         FreezeQuestionTimer(occurredAt);
+        FreezeSubstageTimer(occurredAt);
         CancelledAt = occurredAt;
     }
 
@@ -916,6 +1097,46 @@ public sealed class LiveSession : BaseAuditableEntity
         _questionTimerExpiredAt ??= occurredAt;
 
         return GetFrozenQuestionTimerSnapshot(occurredAt);
+    }
+
+    internal AuthoritativeSessionTimerSnapshot GetAdvancingSubstageTimerSnapshot(DateTimeOffset observedAt)
+    {
+        var remaining = CalculateAdvancingSubstageTimerRemaining(observedAt);
+        var expired = _substageTimerExpiredAt.HasValue || remaining <= TimeSpan.Zero;
+
+        return AuthoritativeSessionTimerSnapshot.Create(
+            _substageTimerTotalDuration,
+            remaining,
+            isAdvancing: !expired && HasAdvancingSubstageTimer(),
+            observedAt,
+            _substageTimerAdvancingSince,
+            _substageTimerExpiredAt);
+    }
+
+    internal AuthoritativeSessionTimerSnapshot GetFrozenSubstageTimerSnapshot(DateTimeOffset observedAt)
+    {
+        return AuthoritativeSessionTimerSnapshot.Create(
+            _substageTimerTotalDuration,
+            _substageTimerExpiredAt.HasValue ? TimeSpan.Zero : _substageTimerRemainingDuration,
+            isAdvancing: false,
+            observedAt,
+            advancingSince: null,
+            _substageTimerExpiredAt);
+    }
+
+    internal AuthoritativeSessionTimerSnapshot MarkAdvancingSubstageTimerExpiredIfElapsed(DateTimeOffset occurredAt)
+    {
+        var remaining = CalculateAdvancingSubstageTimerRemaining(occurredAt);
+        if (remaining > TimeSpan.Zero)
+        {
+            return GetAdvancingSubstageTimerSnapshot(occurredAt);
+        }
+
+        _substageTimerRemainingDuration = TimeSpan.Zero;
+        _substageTimerAdvancingSince = null;
+        _substageTimerExpiredAt ??= occurredAt;
+
+        return GetFrozenSubstageTimerSnapshot(occurredAt);
     }
 
     private void ResumeQuestionTimer(DateTimeOffset occurredAt)
@@ -972,6 +1193,76 @@ public sealed class LiveSession : BaseAuditableEntity
         }
 
         var remaining = _questionTimerRemainingDuration - elapsed;
+        return remaining > TimeSpan.Zero ? remaining : TimeSpan.Zero;
+    }
+
+    private void SeedSubstageTimerIfTreasureHunt(SubstageSnapshot substage, DateTimeOffset occurredAt)
+    {
+        if (substage.PlayMode != SubstagePlayMode.TreasureHunt)
+        {
+            return;
+        }
+
+        _substageTimerTotalDuration = TimeSpan.FromMinutes(MaximumTime.Minutes);
+        _substageTimerRemainingDuration = _substageTimerTotalDuration;
+        _substageTimerAdvancingSince = occurredAt;
+        _substageTimerExpiredAt = null;
+    }
+
+    private void ResumeSubstageTimer(DateTimeOffset occurredAt)
+    {
+        if (ActiveSubstageId is null || _substageTimerTotalDuration <= TimeSpan.Zero)
+        {
+            return;
+        }
+
+        if (_substageTimerExpiredAt is not null || _substageTimerRemainingDuration <= TimeSpan.Zero)
+        {
+            _substageTimerRemainingDuration = TimeSpan.Zero;
+            _substageTimerAdvancingSince = null;
+            _substageTimerExpiredAt ??= occurredAt;
+            return;
+        }
+
+        _substageTimerAdvancingSince = occurredAt;
+    }
+
+    private void FreezeSubstageTimer(DateTimeOffset occurredAt)
+    {
+        if (_substageTimerAdvancingSince is null)
+        {
+            return;
+        }
+
+        _substageTimerRemainingDuration = CalculateAdvancingSubstageTimerRemaining(occurredAt);
+        _substageTimerAdvancingSince = null;
+
+        if (_substageTimerRemainingDuration <= TimeSpan.Zero)
+        {
+            _substageTimerRemainingDuration = TimeSpan.Zero;
+            _substageTimerExpiredAt ??= occurredAt;
+        }
+    }
+
+    private TimeSpan CalculateAdvancingSubstageTimerRemaining(DateTimeOffset observedAt)
+    {
+        if (_substageTimerExpiredAt.HasValue)
+        {
+            return TimeSpan.Zero;
+        }
+
+        if (_substageTimerAdvancingSince is null)
+        {
+            return _substageTimerRemainingDuration;
+        }
+
+        var elapsed = observedAt - _substageTimerAdvancingSince.Value;
+        if (elapsed <= TimeSpan.Zero)
+        {
+            return _substageTimerRemainingDuration;
+        }
+
+        var remaining = _substageTimerRemainingDuration - elapsed;
         return remaining > TimeSpan.Zero ? remaining : TimeSpan.Zero;
     }
 
