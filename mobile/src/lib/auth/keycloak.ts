@@ -43,6 +43,30 @@ export function buildResetCredentialsUrl(
   return `${baseUrl}/realms/${realm}/login-actions/reset-credentials`;
 }
 
+// Opens Keycloak's hosted self-registration form (realm registrationAllowed: true).
+// The realm assigns the Participant default role; after email verification the user
+// returns to the app and signs in with the native form, which provisions them via
+// POST /api/users/authenticated. redirect_uri must match a umbral-mobile client
+// redirect URI (http://localhost/*).
+export function buildRegistrationUrl(
+  baseUrl: string = keycloakBaseUrl(),
+  realm: string = process.env.EXPO_PUBLIC_KEYCLOAK_REALM ?? '',
+  clientId: string = process.env.EXPO_PUBLIC_KEYCLOAK_CLIENT_ID ?? '',
+): string {
+  if (!baseUrl || !realm || !clientId) {
+    throw new Error('Missing Keycloak URL, realm, or client for registration flow');
+  }
+
+  const params = new URLSearchParams({
+    client_id: clientId,
+    response_type: 'code',
+    scope: 'openid email',
+    redirect_uri: 'http://localhost/',
+  });
+
+  return `${baseUrl}/realms/${realm}/protocol/openid-connect/registrations?${params.toString()}`;
+}
+
 function parseJwt(token: string): Record<string, unknown> {
   try {
     const base64Url = token.split('.')[1];
