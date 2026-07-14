@@ -6,23 +6,24 @@
  * Teams body, with a persistent "your team" strip — but is fed entirely by props
  * from the live HU-23 snapshot/push. It is TEAM-ONLY: score, target progress and
  * clues are for the participant's own team. Other-team cards are static,
- * clearly-marked placeholders (real standings/ranking is HU-39); the map stays a
- * labelled stub (real map is #156, target coordinates are #154).
+ * clearly-marked placeholders (real standings/ranking is HU-39); the Map tab renders the live target
+ * coordinates (#154) on a real Leaflet map (#156) via TargetMap.
  *
  * Layout: this is a full-viewport surface — sticky header, `flex: 1` body, absolutely-pinned team
  * strip — so it must be given the whole screen, never nested inside another vertical ScrollView.
  * The tab bodies are then the only scroller, which is what makes a long clue list scroll at all.
  */
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, View } from 'react-native';
 import { Card } from '@/components/ui/card';
 import { Screen } from '@/components/ui/screen';
 import { Text } from '@/components/ui/text';
 import { OperativeClueSurface } from '@/components/operative-clue-surface';
 import { SessionTimerBar } from '@/components/session-timer-bar';
+import { TargetMap } from '@/components/target-map';
 import { colors, radii, shadows, spacing, typography } from '@/constants/theme';
 import type { TimerDisplay } from '@/lib/realtime/timer-types';
-import { clueKey, type VisibleClueDto } from '@/lib/realtime/team-board-types';
+import { clueKey, type ActiveTargetDto, type VisibleClueDto } from '@/lib/realtime/team-board-types';
 
 // Other-team cards are static placeholders until HU-39 (real standings/ranking).
 // Each is tagged in the UI so it is unmistakable to sighted users and to
@@ -33,76 +34,6 @@ const PLACEHOLDER_OTHER_TEAMS: readonly { name: string }[] = [
 ];
 
 // --- Presentational pieces (ported from the prototype) ---
-
-function GridLines() {
-  const at = ['20%', '40%', '60%', '80%'] as const;
-  return (
-    <View style={[StyleSheet.absoluteFill, { pointerEvents: 'none' }]}>
-      {at.map((p) => (
-        <View
-          key={`h${p}`}
-          style={{ position: 'absolute', left: 0, right: 0, top: p, height: 1, backgroundColor: colors.borderSoft, opacity: 0.5 }}
-        />
-      ))}
-      {at.map((p) => (
-        <View
-          key={`v${p}`}
-          style={{ position: 'absolute', top: 0, bottom: 0, left: p, width: 1, backgroundColor: colors.borderSoft, opacity: 0.5 }}
-        />
-      ))}
-    </View>
-  );
-}
-
-// Coordinate chip dropped: the HU-23 contract carries no target coordinates.
-function MapStub({ style }: { style?: object }) {
-  return (
-    <View
-      accessibilityRole="image"
-      accessibilityLabel="Map preview stub"
-      style={[
-        {
-          backgroundColor: colors.warmMist,
-          borderRadius: radii.card,
-          borderCurve: 'continuous',
-          borderWidth: 1,
-          borderColor: colors.borderSoft,
-          overflow: 'hidden',
-          alignItems: 'center',
-          justifyContent: 'center',
-        },
-        style,
-      ]}
-    >
-      <GridLines />
-      <View style={{ alignItems: 'center', gap: spacing.xs }}>
-        <View
-          style={{
-            width: 24,
-            height: 24,
-            borderRadius: 12,
-            backgroundColor: colors.emberAccentStrong,
-            borderWidth: 3,
-            borderColor: colors.ivoryFog,
-            boxShadow: shadows.card,
-          }}
-        />
-        <View
-          style={{
-            backgroundColor: colors.paperSurface,
-            borderRadius: radii.pill,
-            borderWidth: 1,
-            borderColor: colors.borderSoft,
-            paddingHorizontal: spacing.sm,
-            paddingVertical: spacing.one,
-          }}
-        >
-          <Text variant="label" muted>MAP PREVIEW · STUB</Text>
-        </View>
-      </View>
-    </View>
-  );
-}
 
 // No scope chip: the live HU-23 VisibleClueDto has no team/global scope field. Heading is the target
 // name; body is the clue text. Target-less clues (operative / substage-initial) carry no target name,
@@ -127,6 +58,9 @@ export type TreasureHuntBoardProps = {
   resolvedTargets: number;
   totalActiveTargets: number;
   visibleClues: readonly VisibleClueDto[];
+  // Active treasure-hunt targets with coordinates; drives the Map tab (#156). Absent/empty → map
+  // empty state. Optional so a board push that predates #156 still renders (degrades, never crashes).
+  activeTargets?: readonly ActiveTargetDto[];
   // The board owns the whole viewport (its body is the only scroller), so session chrome that would
   // otherwise sit around it has to come in: `headerSlot` rides the sticky header — it is where the
   // substage name belongs (#171, see below) and where a transient connection banner stays readable on
@@ -142,6 +76,7 @@ export function TreasureHuntBoard({
   resolvedTargets,
   totalActiveTargets,
   visibleClues,
+  activeTargets = [],
   headerSlot,
   onLeave,
 }: TreasureHuntBoardProps) {
@@ -262,7 +197,7 @@ export function TreasureHuntBoard({
       <View style={{ flex: 1 }}>
         {tab === 'map' ? (
           <View style={{ flex: 1, padding: spacing.lg, paddingBottom: 100, gap: spacing.sm }}>
-            <MapStub style={{ flex: 1 }} />
+            <TargetMap targets={activeTargets} style={{ flex: 1 }} />
             <Card>
               <View style={{ gap: 2 }}>
                 <Text variant="label" muted>TARGET</Text>

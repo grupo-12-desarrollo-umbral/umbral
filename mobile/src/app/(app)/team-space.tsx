@@ -382,6 +382,7 @@ export function LiveTeamSpace({
         resolvedTargets={progress.resolved}
         totalActiveTargets={progress.total}
         visibleClues={board.visibleClues}
+        activeTargets={board.activeTargets ?? []}
         headerSlot={
           <>
             {banner}

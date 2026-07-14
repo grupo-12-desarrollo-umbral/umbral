@@ -251,6 +251,9 @@ const TREASURE_HUNT_BOARD = {
   visibleClues: [
     { targetSnapshotId: 't1', clueText: 'Follow the north colonnade.', targetName: 'Brass Astrolabe', operativeClueId: null },
   ],
+  activeTargets: [
+    { targetSnapshotId: 't1', name: 'Brass Astrolabe', sequenceOrder: 0, latitude: 40.4319, longitude: -3.6883 },
+  ],
 };
 
 // Single-substage trivia session: only the active name, no ordered chips.
@@ -286,15 +289,16 @@ describe('LiveTeamSpace play-mode branch', () => {
   test('TreasureHunt board renders the board and not the trivia stage', () => {
     mockUseTeamBoard.mockReturnValue({ board: TREASURE_HUNT_BOARD, isLoading: false, error: null });
 
-    const texts = allText(renderSpace().toJSON());
+    const renderer = renderSpace();
+    const texts = allText(renderer.toJSON());
 
     expect(texts).toContain('TREASURE HUNT');
     expect(texts).toContain('The Cartographer’s Vault');
     expect(texts).toContain('240');
     // target progress (resolved / total), a count — not coordinates
     expect(texts.join('')).toContain('2 / 5 targets');
-    // map stub + placeholder markers survive
-    expect(texts).toContain('MAP PREVIEW · STUB');
+    // The Map tab now renders the real Leaflet map (#156): the board's activeTargets reach a WebView.
+    expect(renderer.root.findByProps({ testID: 'target-map-webview' })).toBeTruthy();
     // trivia empty-state copy is NOT present
     expect(texts.join(' ')).not.toContain('Waiting for the next question');
   });
