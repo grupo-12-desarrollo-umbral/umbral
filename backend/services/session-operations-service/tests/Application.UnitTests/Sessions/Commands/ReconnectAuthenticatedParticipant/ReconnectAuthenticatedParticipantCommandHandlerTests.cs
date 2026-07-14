@@ -101,6 +101,54 @@ public sealed class ReconnectAuthenticatedParticipantCommandHandlerTests
     }
 
     [Fact]
+    public async Task Handle_WhenParticipantReconnectsAfterSessionAdvanced_ResultCarriesCurrentStateAndTimerForHydration()
+    {
+        // HU-08 / AC3 (multi-device hydration lock): a device that first joined while the session was
+        // Scheduled and later reconnects (2nd device / recovery) must be hydrated with the CURRENT
+        // SessionState + authoritative timer at reconnect time — not the state captured at first join.
+        // Distinct from the other reconnect tests: the state ADVANCED (Scheduled -> Active) between
+        // join and reconnect, and there is no active trivia question (treasure-hunt), so the result
+        // must still carry the current state + a session-level timer snapshot with no active-question countdown.
+        var session = CreateScheduledSession();
+        var team = session.AssociateTeam(Guid.NewGuid(), "Alpha", "A-01", 4);
+        var participantIdentity = Guid.NewGuid();
+        var joinedAt = new DateTimeOffset(2026, 6, 3, 10, 0, 0, TimeSpan.Zero);
+        var firstAdmission = session.AdmitParticipant(
+            participantIdentity,
+            "Nora",
+            team.TeamId,
+            joinedAt,
+            new JoinPolicy());
+        var transitionPolicy = new SessionStateTransitionPolicy();
+        session.MoveTo(SessionState.Preparing, joinedAt.AddMinutes(1), transitionPolicy);
+        session.MoveTo(SessionState.Active, joinedAt.AddMinutes(2), transitionPolicy);
+        session.DisconnectParticipant(
+            firstAdmission.Participant.SessionParticipantId,
+            joinedAt.AddMinutes(3));
+
+        var reconnectAt = joinedAt.AddMinutes(4);
+        var repository = CreateRepository(session);
+        var guard = CreateGuard(session.LiveSessionId, team.TeamId, isAllowed: true);
+        var currentUser = CreateCurrentUser(participantIdentity);
+        var command = new ReconnectAuthenticatedParticipantCommand(session.LiveSessionId, team.TeamId, "Nora", "join-token");
+        var handler = CreateHandler(repository, guard, currentUser, new FixedTimeProvider(reconnectAt));
+
+        var result = await handler.Handle(command, CancellationToken.None);
+
+        result.IsReconnect.Should().BeTrue();
+        // Current state at reconnect, not the Scheduled state captured at first join.
+        result.SessionState.Should().Be(SessionState.Active.ToString());
+        result.LastSeenAt.Should().Be(reconnectAt);
+        result.Timer.Should().NotBeNull();
+        result.Timer!.SessionState.Should().Be(nameof(SessionState.Active));
+        result.Timer.TeamId.Should().Be(team.TeamId);
+        result.Timer.ObservedAt.Should().Be(reconnectAt);
+        // Treasure-hunt session: no active trivia question -> no active-question countdown in the hydration payload.
+        result.Timer.ActiveQuestion.Should().BeNull();
+        repository.Verify(repo => repo.UpdateAsync(session, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
     public async Task Handle_WhenLateJoinTargetsActiveSession_ThrowsException()
     {
         var session = CreateActiveSession();
