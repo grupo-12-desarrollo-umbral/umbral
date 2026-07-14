@@ -35,7 +35,7 @@ cd ../mobile && pnpm install && pnpm start        # open in Expo Go / emulator
 
 ## 2. Grab the seeded session code
 
-The seed authors a mission with **two substages** in one stage: a **Trivia** substage (uses the dedicated two-question published quiz "HU-171 Progreso de substages" from `seed-all.sh`) followed by a **TreasureHunt** substage (2 targets with clues). The session is left in **Preparing**, one operator "Start" click from Active.
+The seed authors a mission with **two substages** in one stage: a **Trivia** substage (uses the dedicated two-question published quiz "HU-171 Progreso de substages" from `seed-all.sh` and includes one visible clue plus one operator-release clue) followed by a **TreasureHunt** substage (2 targets with clues — clue 1 is visible when the substage starts, clue 2 is withheld until the operator releases it). The session is left in **Preparing**, one operator "Start" click from Active.
 
 It prints the session you need — **copy the session code**:
 
@@ -99,7 +99,8 @@ The **SubstageProgress** component now shows:
 - **Chip row** with two chips:
   - **`✓ Trivia`** — completed styling (checkmark prefix).
   - **`2· Treasure Hunt`** — ember/active styling (its fixed position in the sequence).
-- Below it, the treasure-hunt board (score, clues, target progress).
+- Below it, the treasure-hunt board (score, clues, target progress). Only **Clue 1**
+  is listed — Clue 2 is operator-gated and stays hidden until released.
 
 That substage progress component — showing the ordered sequence with correct
 status styling — is HU-171 working. ✅
@@ -171,8 +172,11 @@ changes):
 //
 // Once Active, the live session's first (Trivia) substage becomes the active substage. The mobile
 // participant sees the SubstageProgress component above the trivia surface: "Now playing" + the
-// active substage name + an ordered chip row (Trivia active, TreasureHunt upcoming). Advancing
-// to the treasure-hunt substage flips the chips and shows the treasure-hunt board.
+// active substage name + an ordered chip row (Trivia active, TreasureHunt upcoming). The trivia
+// substage carries both a VisibleWhenSubstageStarts "mission clue" and a second
+// HiddenUntilOperatorRelease clue, so the participant sees a MISSION CLUE immediately and the
+// operator release panel has a trivia clue to list. Advancing to the treasure-hunt substage flips
+// the chips and shows the treasure-hunt board.
 //
 // Why a dedicated seed: global-setup only seeds single-play-mode missions, and #171's
 // SubstageProgress renders the ordered multi-substage sequence. A mixed-mode mission is required.
@@ -228,9 +232,13 @@ async function api(method: string, path: string, tok: string, body?: unknown): P
 
 // Authors a mixed-play-mode mission: one stage with two substages (Trivia then TreasureHunt).
 // Resolves an existing Published trivia quiz by title (seed-all.sh creates several) so the
-// trivia substage is runtime-ready. The TreasureHunt substage has two targets with clues. This
-// exercises the SubstageProgress chip row in both directions (Trivia active / TreasureHunt
-// upcoming, then TreasureHunt active / Trivia completed).
+// trivia substage is runtime-ready. The Trivia substage carries a target-less
+// VisibleWhenSubstageStarts "mission clue" (HU-28 both-null path) plus a second
+// HiddenUntilOperatorRelease clue. The TreasureHunt substage has two targets with clues: clue 1 is
+// visible as soon as the substage starts, clue 2 is withheld until the operator releases it — so the
+// participant board has a clue to show and the operator's "Release clue" picker has an entry to list
+// in both substages. This exercises the SubstageProgress chip row in both directions (Trivia active /
+// TreasureHunt upcoming, then TreasureHunt active / Trivia completed).
 //
 // Quiz resolved by title+status, not a hardcoded id: seed-all.sh wipes and recreates quizzes
 // with fresh serial ids every run, so pinning a literal id would break after the first reseed.
@@ -241,6 +249,7 @@ DECLARE
   v_mission_id    INT;
   v_stage_id      INT;
   v_quiz_id       INT;
+  v_trivia_sub    INT;
   v_th_sub        INT;
   v_clue_id       INT;
   v_seq           INT;
@@ -273,7 +282,19 @@ BEGIN
 
   -- Substage 1: Trivia (references the resolved quiz)
   INSERT INTO "MissionSubstages" ("StageId", "Title", "SequenceOrder", "PlayMode", "TriviaQuizId")
-  VALUES (v_stage_id, 'Trivia Round', 1, 'Trivia', v_quiz_id);
+  VALUES (v_stage_id, 'Trivia Round', 1, 'Trivia', v_quiz_id)
+  RETURNING "Id" INTO v_trivia_sub;
+
+  -- HU-28: two trivia-substage clues, neither wired to a target (trivia has none).
+  -- Clue 1 is visible immediately and reaches the board as a VisibleClue with both targetSnapshotId
+  -- and operativeClueId null — the "mission clue" case the mobile surface must render as MISSION CLUE
+  -- (not OPERATIVE CLUE) and the operator panel must count. Clue 2 is HiddenUntilOperatorRelease so
+  -- the operator dashboard can exercise the trivia clue-release path while the trivia round is active.
+  INSERT INTO "MissionClues" ("SubstageId", "Title", "SequenceOrder", "Text", "Visibility")
+  VALUES (v_trivia_sub, 'Pista inicial', 1, 'Observa el simbolo tallado en la entrada del templo.', 'VisibleWhenSubstageStarts');
+
+  INSERT INTO "MissionClues" ("SubstageId", "Title", "SequenceOrder", "Text", "Visibility")
+  VALUES (v_trivia_sub, 'Pista liberable', 2, 'Busca la marca grabada junto al arco central.', 'HiddenUntilOperatorRelease');
 
   -- Substage 2: TreasureHunt (upcoming until trivia completes)
   INSERT INTO "MissionSubstages" ("StageId", "Title", "SequenceOrder", "PlayMode")
@@ -282,7 +303,8 @@ BEGIN
 
   FOR v_seq IN 1..2 LOOP
     INSERT INTO "MissionClues" ("SubstageId", "Title", "SequenceOrder", "Text", "Visibility")
-    VALUES (v_th_sub, 'Clue ' || v_seq, v_seq, 'Find landmark #' || v_seq || ' and scan its code.', 'VisibleWhenSubstageStarts')
+    VALUES (v_th_sub, 'Clue ' || v_seq, v_seq, 'Find landmark #' || v_seq || ' and scan its code.',
+            CASE WHEN v_seq = 1 THEN 'VisibleWhenSubstageStarts' ELSE 'HiddenUntilOperatorRelease' END)
     RETURNING "Id" INTO v_clue_id;
 
     INSERT INTO "MissionTargets" ("SubstageId", "Name", "QrCode", "SequenceOrder", "IsActive", "Score", "ClueId")

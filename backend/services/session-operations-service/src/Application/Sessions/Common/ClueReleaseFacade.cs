@@ -1,5 +1,6 @@
 using umbral_backend.Application.Common.Interfaces;
 using umbral_backend.Application.Sessions.Commands.ReleaseClue;
+using umbral_backend.Domain.ValueObjects;
 
 namespace umbral_backend.Application.Sessions.Common;
 
@@ -27,28 +28,30 @@ public sealed class ClueReleaseFacade : IClueReleaseFacade
             command.LiveSessionId,
             cancellationToken);
         var operatorUserId = liveSession.AssignedOperatorUserId!.Value;
+        var subject = ClueReleaseSubject.Create(command.TargetId, command.ClueId);
+        var releasedAt = _timeProvider.GetUtcNow();
 
         IReadOnlyCollection<Guid> releasedTeamIds;
         if (command.TeamId.HasValue)
         {
-            liveSession.ReleaseClue(
-                command.TargetId,
+            liveSession.ReleaseClueToTeam(
+                subject,
                 command.TeamId.Value,
                 operatorUserId,
-                _timeProvider.GetUtcNow());
+                releasedAt);
             releasedTeamIds = [command.TeamId.Value];
         }
         else
         {
             liveSession.ReleaseClueToAllTeams(
-                command.TargetId,
+                subject,
                 operatorUserId,
-                _timeProvider.GetUtcNow());
+                releasedAt);
             releasedTeamIds = liveSession.Teams.Select(team => team.TeamId).ToArray();
         }
 
         await _liveSessionRepository.UpdateAsync(liveSession, cancellationToken);
 
-        return new ReleaseClueResultDto(command.TargetId, releasedTeamIds);
+        return new ReleaseClueResultDto(command.TargetId, command.ClueId, releasedTeamIds);
     }
 }

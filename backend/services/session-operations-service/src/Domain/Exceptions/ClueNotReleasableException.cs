@@ -2,8 +2,8 @@ namespace umbral_backend.Domain.Exceptions;
 
 public sealed class ClueNotReleasableException : DomainException
 {
-    public ClueNotReleasableException(Guid targetId)
-        : base($"Target '{targetId}' does not have a hidden clue in the active treasure-hunt substage.")
+    public ClueNotReleasableException(Guid subjectId)
+        : base($"Clue release subject '{subjectId}' does not identify a hidden clue in the active substage.")
     {
     }
 

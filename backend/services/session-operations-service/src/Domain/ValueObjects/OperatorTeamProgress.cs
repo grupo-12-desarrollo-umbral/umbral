@@ -7,12 +7,14 @@ public sealed class OperatorTeamProgress : ValueObject
         string teamCode,
         string displayName,
         int currentScore,
+        int releasedClueCount,
         ActiveSubstageContext? activeSubstageContext)
     {
         TeamId = teamId;
         TeamCode = teamCode;
         DisplayName = displayName;
         CurrentScore = currentScore;
+        ReleasedClueCount = releasedClueCount;
         ActiveSubstageContext = activeSubstageContext;
     }
 
@@ -24,6 +26,10 @@ public sealed class OperatorTeamProgress : ValueObject
 
     public int CurrentScore { get; }
 
+    // Clues the team can currently see: operator-released manual clues plus the active substage's
+    // always-on VisibleWhenSubstageStarts initial clues. A count only — no ranking/ledger.
+    public int ReleasedClueCount { get; }
+
     public ActiveSubstageContext? ActiveSubstageContext { get; }
 
     public static OperatorTeamProgress Create(
@@ -31,9 +37,10 @@ public sealed class OperatorTeamProgress : ValueObject
         string teamCode,
         string displayName,
         int currentScore,
+        int releasedClueCount,
         ActiveSubstageContext? activeSubstageContext)
     {
-        return new OperatorTeamProgress(teamId, teamCode, displayName, currentScore, activeSubstageContext);
+        return new OperatorTeamProgress(teamId, teamCode, displayName, currentScore, releasedClueCount, activeSubstageContext);
     }
 
     protected override IEnumerable<object?> GetEqualityComponents()
@@ -42,6 +49,7 @@ public sealed class OperatorTeamProgress : ValueObject
         yield return TeamCode;
         yield return DisplayName;
         yield return CurrentScore;
+        yield return ReleasedClueCount;
         yield return ActiveSubstageContext;
     }
 }

@@ -477,4 +477,131 @@ describe('session gateway auth', () => {
     )
     await expect(releaseClue('s', { targetId: 't' })).rejects.toThrowError('release_conflict')
   })
+
+  // HU-28 operator operative-clue authoring: 200 parse, auth/status mapping, POST body, single 409 detail cause.
+  it('assigns an operative clue to one team and returns the parsed result', async () => {
+    const { addOperativeClue } = await import('@/app/lib/sessions')
+
+    getValidAccessTokenMock.mockResolvedValue('token')
+    vi.mocked(global.fetch).mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          operativeClueIds: ['clue-1'],
+          assignedTeamIds: ['team-a'],
+          clueText: 'Look beneath the blue banner.',
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      ),
+    )
+
+    await expect(
+      addOperativeClue('session-1', { clueText: 'Look beneath the blue banner.', teamIds: ['team-a'] }),
+    ).resolves.toEqual({
+      operativeClueIds: ['clue-1'],
+      assignedTeamIds: ['team-a'],
+      clueText: 'Look beneath the blue banner.',
+    })
+
+    // Single-team body sends the exact clueText + the one selected id.
+    expect(global.fetch).toHaveBeenCalledWith(
+      'http://localhost:8000/api/sessions/session-1/operative-clues',
+      expect.objectContaining({
+        method: 'POST',
+        headers: expect.any(Headers),
+        body: JSON.stringify({ clueText: 'Look beneath the blue banner.', teamIds: ['team-a'] }),
+      }),
+    )
+  })
+
+  it('sends every selected team id when assigning to several/all teams', async () => {
+    const { addOperativeClue } = await import('@/app/lib/sessions')
+
+    getValidAccessTokenMock.mockResolvedValue('token')
+    vi.mocked(global.fetch).mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          operativeClueIds: ['clue-1', 'clue-2'],
+          assignedTeamIds: ['team-a', 'team-b'],
+          clueText: 'Regroup at the fountain.',
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      ),
+    )
+
+    await addOperativeClue('session-1', { clueText: 'Regroup at the fountain.', teamIds: ['team-a', 'team-b'] })
+
+    // "All teams" is the full id list assembled by the caller — sent verbatim (no omit-for-all signal).
+    expect(global.fetch).toHaveBeenCalledWith(
+      'http://localhost:8000/api/sessions/session-1/operative-clues',
+      expect.objectContaining({
+        body: JSON.stringify({ clueText: 'Regroup at the fountain.', teamIds: ['team-a', 'team-b'] }),
+      }),
+    )
+  })
+
+  it('maps a 400 to invalid_input', async () => {
+    const { addOperativeClue } = await import('@/app/lib/sessions')
+    getValidAccessTokenMock.mockResolvedValue('token')
+    vi.mocked(global.fetch).mockResolvedValue(new Response('', { status: 400 }))
+    await expect(
+      addOperativeClue('session-1', { clueText: '', teamIds: ['team-a'] }),
+    ).rejects.toThrowError('invalid_input')
+  })
+
+  it('maps 401 and 403 to an unauthorized identity error', async () => {
+    const { addOperativeClue } = await import('@/app/lib/sessions')
+    getValidAccessTokenMock.mockResolvedValue('token')
+
+    vi.mocked(global.fetch).mockResolvedValueOnce(new Response('', { status: 401 }))
+    await expect(
+      addOperativeClue('session-1', { clueText: 't', teamIds: ['a'] }),
+    ).rejects.toEqual(
+      expect.objectContaining<Partial<IdentityError>>({ name: 'IdentityError', code: 'unauthorized' }),
+    )
+
+    vi.mocked(global.fetch).mockResolvedValueOnce(new Response('', { status: 403 }))
+    await expect(
+      addOperativeClue('session-1', { clueText: 't', teamIds: ['a'] }),
+    ).rejects.toEqual(
+      expect.objectContaining<Partial<IdentityError>>({ name: 'IdentityError', code: 'unauthorized' }),
+    )
+  })
+
+  it('maps a 404 to session_not_found', async () => {
+    const { addOperativeClue } = await import('@/app/lib/sessions')
+    getValidAccessTokenMock.mockResolvedValue('token')
+    vi.mocked(global.fetch).mockResolvedValue(new Response('', { status: 404 }))
+    await expect(
+      addOperativeClue('session-1', { clueText: 't', teamIds: ['a'] }),
+    ).rejects.toThrowError('session_not_found')
+  })
+
+  it('maps the not-live 409 detail to not_live, and an unrecognised 409 to clue_conflict', async () => {
+    const { addOperativeClue } = await import('@/app/lib/sessions')
+    getValidAccessTokenMock.mockResolvedValue('token')
+
+    // Single 409 cause here: the domain message lands in ProblemDetails `detail`.
+    vi.mocked(global.fetch).mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          title: 'Conflict.',
+          detail: "Adding an operative clue requires an Active or Paused live session. Current state is 'Scheduled'.",
+        }),
+        { status: 409, headers: { 'Content-Type': 'application/json' } },
+      ),
+    )
+    await expect(
+      addOperativeClue('s', { clueText: 't', teamIds: ['a'] }),
+    ).rejects.toThrowError('not_live')
+
+    vi.mocked(global.fetch).mockResolvedValueOnce(
+      new Response(JSON.stringify({ title: 'Conflict.', detail: 'Some other conflict.' }), {
+        status: 409,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    )
+    await expect(
+      addOperativeClue('s', { clueText: 't', teamIds: ['a'] }),
+    ).rejects.toThrowError('clue_conflict')
+  })
 })

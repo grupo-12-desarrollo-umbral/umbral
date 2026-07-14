@@ -119,14 +119,9 @@ provisioning never fails and no operator-gated route is reachable.
 
 ## 7. Known limitations (by design — not bugs)
 
-- **Verification mail relies on the SMTP wiring from #141 (closed, already in this
-  branch).** The realm points Keycloak's SMTP at Mailpit, so mail lands in
-  `localhost:8025` locally — this was verified end-to-end (mail delivered; pre-verify
-  sign-in refused with "Account is not fully set up"; post-verify sign-in succeeds as
-  Participant). The one step that stays manual is clicking the emailed link: Keycloak 26
-  shows an anti-scanner "Click here to proceed" page that requires a real browser, so it
-  can't be driven headlessly. In an environment without a mail sink, verification can't
-  complete.
+- **Verification mail depends on SMTP (#141).** The realm points Keycloak's SMTP at
+  Mailpit, so mail lands in `localhost:8025` locally. In an environment without a mail
+  sink, verification can't complete.
 - **Registration redirects to `http://localhost/`.** That URI matches the
   `umbral-mobile` client but has nothing served on a device — it's just the post-verify
   landing. You return to the app and sign in with the native form; the app does not

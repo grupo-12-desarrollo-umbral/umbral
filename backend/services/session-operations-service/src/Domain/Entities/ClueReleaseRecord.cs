@@ -1,4 +1,5 @@
 using umbral_backend.Domain.Enums;
+using umbral_backend.Domain.ValueObjects;
 
 namespace umbral_backend.Domain.Entities;
 
@@ -9,15 +10,14 @@ public sealed class ClueReleaseRecord : BaseEntity
         ClueReleaseRecordId = Guid.Empty;
         LiveSessionId = Guid.Empty;
         TeamId = Guid.Empty;
-        TargetId = Guid.Empty;
+        TargetId = null;
     }
 
     private ClueReleaseRecord(
         Guid clueReleaseRecordId,
         Guid liveSessionId,
         Guid teamId,
-        Guid targetId,
-        Guid? clueId,
+        ClueReleaseSubject subject,
         ReleaseMode releaseMode,
         int? releasedByUserId,
         DateTimeOffset releasedAt)
@@ -25,8 +25,8 @@ public sealed class ClueReleaseRecord : BaseEntity
         ClueReleaseRecordId = clueReleaseRecordId;
         LiveSessionId = liveSessionId;
         TeamId = teamId;
-        TargetId = targetId;
-        ClueId = clueId;
+        TargetId = subject.TargetId;
+        ClueId = subject.ClueId;
         ReleaseMode = releaseMode;
         ReleasedByUserId = releasedByUserId;
         ReleasedAt = releasedAt;
@@ -38,7 +38,7 @@ public sealed class ClueReleaseRecord : BaseEntity
 
     public Guid TeamId { get; private set; }
 
-    public Guid TargetId { get; private set; }
+    public Guid? TargetId { get; private set; }
 
     public Guid? ClueId { get; private set; }
 
@@ -51,8 +51,7 @@ public sealed class ClueReleaseRecord : BaseEntity
     internal static ClueReleaseRecord CreateManual(
         Guid liveSessionId,
         Guid teamId,
-        Guid targetId,
-        Guid? clueId,
+        ClueReleaseSubject subject,
         int operatorUserId,
         DateTimeOffset releasedAt)
     {
@@ -60,8 +59,7 @@ public sealed class ClueReleaseRecord : BaseEntity
             Guid.NewGuid(),
             liveSessionId,
             teamId,
-            targetId,
-            clueId,
+            subject,
             ReleaseMode.Manual,
             operatorUserId,
             releasedAt);

@@ -4,10 +4,45 @@ import type { SessionTimerSnapshotDto } from './timer-types';
 // `feature/hu-23-live-team-board`, commit 9ad88ee). Wire fields are camelCase
 // (ASP.NET System.Text.Json default), matching every existing mobile DTO.
 
+// HU-23 target clues carry a target; HU-28 operative clues are operator-authored free text with NO
+// target (both target fields null) but a stable operativeClueId. Substage clues (trivia initial or
+// released hidden clues, #145 / HU-28) carry clueSnapshotId with no target and no operativeClueId.
+// Backend VisibleClueDto: `Guid? TargetSnapshotId, Guid? OperativeClueId, Guid? ClueSnapshotId,
+// string ClueText, string? TargetName`.
 export type VisibleClueDto = {
-  targetSnapshotId: string;
+  targetSnapshotId: string | null;
   clueText: string;
-  targetName: string;
+  targetName: string | null;
+  operativeClueId: string | null; // set only for operative clues; null for target and substage clues
+  clueSnapshotId?: string | null; // set for substage clues (trivia initial / released); absent/null otherwise
+};
+
+// The four clue kinds distinguished on the wire. A target clue carries targetSnapshotId; an
+// operative clue carries operativeClueId; a substage clue carries clueSnapshotId; a mission
+// (substage-initial) clue carries none of the three (fallback, should not occur after D-4).
+export type ClueKind = 'target' | 'operative' | 'substage' | 'mission';
+export const clueKind = (c: VisibleClueDto): ClueKind => {
+  if (c.targetSnapshotId != null) return 'target';
+  if (c.operativeClueId != null) return 'operative';
+  if (c.clueSnapshotId != null) return 'substage';
+  return 'mission';
+};
+
+// Stable list/dedup key for a visible clue. Target/operative/substage clues key on their id;
+// mission clues have no id on the wire, so they fall back to a kind-prefixed clue-text composite
+// (kept unique by the projection's per-substage ordering). Kind prefix keeps the buckets from ever
+// colliding.
+export const clueKey = (c: VisibleClueDto): string => {
+  switch (clueKind(c)) {
+    case 'target':
+      return `target:${c.targetSnapshotId}`;
+    case 'operative':
+      return `operative:${c.operativeClueId}`;
+    case 'substage':
+      return `substage:${c.clueSnapshotId}`;
+    case 'mission':
+      return `mission:${c.clueText}`;
+  }
 };
 
 // `playMode` is the substage-type branch key. Widen to string at the wire

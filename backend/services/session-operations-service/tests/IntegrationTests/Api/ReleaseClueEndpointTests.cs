@@ -56,6 +56,7 @@ public sealed class ReleaseClueEndpointTests : IAsyncLifetime
         var payload = await response.Content.ReadFromJsonAsync<ReleaseClueResultDto>();
         payload.Should().NotBeNull();
         payload!.TargetId.Should().Be(seeded.TargetSnapshotId);
+        payload.ClueId.Should().BeNull();
         payload.ReleasedTeamIds.Should().ContainSingle(id => id == seeded.PrimaryTeamId);
     }
 
@@ -74,9 +75,59 @@ public sealed class ReleaseClueEndpointTests : IAsyncLifetime
         var payload = await response.Content.ReadFromJsonAsync<ReleaseClueResultDto>();
         payload.Should().NotBeNull();
         payload!.TargetId.Should().Be(seeded.TargetSnapshotId);
+        payload.ClueId.Should().BeNull();
         payload.ReleasedTeamIds.Should().HaveCount(2);
         payload.ReleasedTeamIds.Should().Contain(seeded.PrimaryTeamId);
         payload.ReleasedTeamIds.Should().Contain(seeded.SecondaryTeamId);
+    }
+
+    [Fact]
+    public async Task ReleaseClue_TriviaClueId_ReturnsOkAndEchoesClueSubject()
+    {
+        var seeded = await SeedActiveTriviaSessionWithOperatorAsync();
+        AddTrustedHeaders(OperatorExternalIdentityId, "Operator", "operator@example.com");
+
+        var response = await _client.PostAsJsonAsync(
+            $"/api/sessions/{seeded.LiveSessionId}/clues/release",
+            new { clueId = seeded.ClueSnapshotId, teamId = seeded.PrimaryTeamId });
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var payload = await response.Content.ReadFromJsonAsync<ReleaseClueResultDto>();
+        payload.Should().NotBeNull();
+        payload!.TargetId.Should().BeNull();
+        payload.ClueId.Should().Be(seeded.ClueSnapshotId);
+        payload.ReleasedTeamIds.Should().Equal(seeded.PrimaryTeamId);
+    }
+
+    [Fact]
+    public async Task ReleaseClue_WhenNeitherSubjectIdIsProvided_ReturnsBadRequest()
+    {
+        var seeded = await SeedActiveTreasureHuntSessionWithOperatorAsync();
+        AddTrustedHeaders(OperatorExternalIdentityId, "Operator", "operator@example.com");
+
+        var response = await _client.PostAsJsonAsync(
+            $"/api/sessions/{seeded.LiveSessionId}/clues/release",
+            new { teamId = seeded.PrimaryTeamId });
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
+    public async Task ReleaseClue_WhenBothSubjectIdsAreProvided_ReturnsBadRequest()
+    {
+        var seeded = await SeedActiveTreasureHuntSessionWithOperatorAsync();
+        AddTrustedHeaders(OperatorExternalIdentityId, "Operator", "operator@example.com");
+
+        var response = await _client.PostAsJsonAsync(
+            $"/api/sessions/{seeded.LiveSessionId}/clues/release",
+            new
+            {
+                targetId = seeded.TargetSnapshotId,
+                clueId = Guid.NewGuid(),
+                teamId = seeded.PrimaryTeamId,
+            });
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
     }
 
     [Fact]
@@ -211,6 +262,37 @@ public sealed class ReleaseClueEndpointTests : IAsyncLifetime
         return new SeededSession(session.LiveSessionId, targetSnapshotId, primaryTeam.TeamId, secondaryTeam.TeamId);
     }
 
+    private async Task<SeededTriviaSession> SeedActiveTriviaSessionWithOperatorAsync()
+    {
+        await using var scope = _factory.Services.CreateAsyncScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var createdAt = DateTimeOffset.UtcNow.AddMinutes(-20);
+        var sourceMissionId = Guid.NewGuid();
+        var snapshot = CreateTriviaSnapshot(sourceMissionId);
+        var session = LiveSession.Create(
+            SessionSource.Create(sourceMissionId),
+            $"TCL-{Guid.NewGuid():N}"[..12],
+            "Trivia Clue Release Test",
+            20,
+            createdAt,
+            snapshot);
+        var primaryTeam = session.AssociateTeam(Guid.NewGuid(), "Alpha", "ALP-01", 4);
+        session.AssociateTeam(Guid.NewGuid(), "Bravo", "BRV-01", 4);
+        session.AssignOperator(OperatorUserId, createdAt.AddMinutes(1));
+
+        var transitionPolicy = new SessionStateTransitionPolicy();
+        session.MoveTo(SessionState.Preparing, createdAt.AddMinutes(1), transitionPolicy);
+        session.MoveTo(SessionState.Active, createdAt.AddMinutes(2), transitionPolicy);
+
+        dbContext.LiveSessions.Add(session);
+        await dbContext.SaveChangesAsync();
+
+        return new SeededTriviaSession(
+            session.LiveSessionId,
+            snapshot.ClueSnapshots.Single().ClueSnapshotId,
+            primaryTeam.TeamId);
+    }
+
     private static MissionRuntimeSnapshot CreateTreasureHuntSnapshot(Guid sourceMissionId)
     {
         var substage = SubstageSnapshot.CreateTreasureHunt("Treasure Hunt", 1);
@@ -238,9 +320,43 @@ public sealed class ReleaseClueEndpointTests : IAsyncLifetime
             []);
     }
 
+    private static MissionRuntimeSnapshot CreateTriviaSnapshot(Guid sourceMissionId)
+    {
+        var substage = SubstageSnapshot.CreateTrivia("Trivia Round", 1);
+        var question = TriviaQuestionSnapshot.Create(
+            substage.SubstageSnapshotId,
+            "Which planet is closest to the Sun?",
+            1,
+            100,
+            30,
+            "Mercury is closest.",
+            [
+                TriviaOptionSnapshot.Create("Mercury", 1, true),
+                TriviaOptionSnapshot.Create("Venus", 2, false)
+            ]);
+
+        return MissionRuntimeSnapshot.Create(
+            sourceMissionId,
+            "Trivia Clue Release Mission",
+            MaximumTime.Create(20),
+            [StageSnapshot.Create("Stage One", 1, [substage])],
+            [],
+            [question],
+            [ClueSnapshot.Create(
+                substage.SubstageSnapshotId,
+                "Operator-only trivia clue.",
+                ClueSnapshot.HiddenUntilOperatorReleasePolicy,
+                1)]);
+    }
+
     private sealed record SeededSession(
         Guid LiveSessionId,
         Guid TargetSnapshotId,
         Guid PrimaryTeamId,
         Guid SecondaryTeamId);
+
+    private sealed record SeededTriviaSession(
+        Guid LiveSessionId,
+        Guid ClueSnapshotId,
+        Guid PrimaryTeamId);
 }

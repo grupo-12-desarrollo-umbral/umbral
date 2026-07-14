@@ -50,6 +50,15 @@ export default function ParticipantHome() {
         />
       ) : null}
 
+      {/* DEV-ONLY UI prototype: HU-28 operative-clue reveal on the trivia surface. */}
+      {__DEV__ ? (
+        <Button
+          label="▶ Prototype · operative clue"
+          variant="secondary"
+          onPress={() => router.push('/(app)/operative-clue-prototype?variant=A' as Href)}
+        />
+      ) : null}
+
       <Button label="Sign out" variant="secondary" onPress={signOut} />
     </Screen>
   );

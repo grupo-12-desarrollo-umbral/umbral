@@ -4,7 +4,7 @@ import { useCallback, useEffect, useReducer, useRef, useState, useSyncExternalSt
 import { logout } from '@/app/actions/auth';
 import { refreshSession } from '@/app/actions/session';
 import { getUsersPage, deactivateUser, assignUserRole, inviteUser } from '@/app/actions/users';
-import { listSessionsForOperator, transitionSessionState, getSessionTimerSnapshotAction, getTriviaAnsweredMonitorAction, getOperatorSessionPanelAction } from '@/app/actions/sessions';
+import { listSessionsForOperator, transitionSessionState, getSessionTimerSnapshotAction, getTriviaAnsweredMonitorAction, getOperatorSessionPanelAction, getReleasableCluesAction } from '@/app/actions/sessions';
 import { TeamsPanel } from './TeamsPanel'
 import { TriviasPanel } from './TriviasPanel'
 import { MissionsPanel } from './MissionsPanel'
@@ -15,6 +15,7 @@ import { TriviaRoundPanel } from './TriviaRoundPanel'
 import { AnsweredMonitorPanel, type AnsweredTeamRow } from './AnsweredMonitorPanel'
 import { OperatorTeamProgressPanel } from './OperatorTeamProgressPanel'
 import { OperatorClueReleasePanel } from './OperatorClueReleasePanel'
+import { OperativeCluePanel } from './OperativeCluePanel'
 import { isNonLiveQuestionSnapshot } from './timer-snapshot'
 import { createSessionStateRealtimeClient, type SessionRealtimeStatus } from '@/app/lib/realtime/session-state-client'
 import { lifecycleActions, toLifecycleState } from '@/app/lib/session-lifecycle'
@@ -31,6 +32,7 @@ import type {
   TransitionSessionStateResultDto,
   TriviaAnsweredMonitorDto,
   OperatorSessionPanelDto,
+  ReleasableClueDto,
   UserAccessCatalogItemDto,
 } from '@/app/lib/definitions';
 import styles from './dashboard.module.css';
@@ -365,6 +367,24 @@ function operatorPanelReducer(state: OperatorPanelState, action: OperatorPanelAc
   }
 }
 
+// HU-28 releasable-clues store. A wholesale replace (the GET returns the full active-substage list) or
+// a reset on session switch — no deltas, so a plain replace/reset reducer suffices.
+type ReleasableCluesAction =
+  | { type: 'reset' }
+  | { type: 'loaded'; clues: ReleasableClueDto[] }
+
+function releasableCluesReducer(
+  _state: ReleasableClueDto[],
+  action: ReleasableCluesAction,
+): ReleasableClueDto[] {
+  switch (action.type) {
+    case 'reset':
+      return []
+    case 'loaded':
+      return action.clues
+  }
+}
+
 export default function DashboardClient({
   role: initialRole,
   displayName,
@@ -410,6 +430,11 @@ export default function DashboardClient({
   const [timerState, dispatchTimer] = useReducer(timerReducer, { snapshot: null, error: null, loading: false })
   const [monitorState, dispatchMonitor] = useReducer(answeredMonitorReducer, emptyAnsweredMonitor)
   const [operatorPanelState, dispatchOperatorPanel] = useReducer(operatorPanelReducer, emptyOperatorPanel)
+  // HU-28 release-clue picker source: the active substage's still-releasable hidden clues.
+  // No SignalR push exists for it, so it is (re)loaded on session select, reconnect, and substage advance.
+  // A reducer (not useState) so the session-switch reset dispatches inline in the same effect as the other
+  // resets without tripping the "no setState in effect" lint (mirrors dispatchTimer / dispatchOperatorPanel).
+  const [releasableClues, dispatchReleasableClues] = useReducer(releasableCluesReducer, [])
   const triviaRound = useTriviaRoundState()
   const {
     reset: resetTriviaRound,
@@ -536,6 +561,15 @@ export default function DashboardClient({
     else dispatchOperatorPanel({ type: 'failed', error: result.error })
   }, [])
 
+  const loadReleasableClues = useCallback(async (liveSessionId: string) => {
+    const result = await getReleasableCluesAction(liveSessionId)
+    // Drop a late response for a session the operator has since switched away from.
+    if (selectedRealtimeSessionIdRef.current !== liveSessionId) return
+    // On unauthorized/error the picker simply has no options (the release control renders its empty note);
+    // a transient read blip must not strand a stale clue list from a previous substage.
+    dispatchReleasableClues({ type: 'loaded', clues: 'data' in result ? result.data.clues : [] })
+  }, [])
+
   useEffect(() => {
     if (!selectedRealtimeSessionId) return
 
@@ -560,6 +594,8 @@ export default function DashboardClient({
           completeTriviaRound()
         } else if (notification.currentState !== 'Active') {
           resetTriviaRound()
+        } else {
+          void loadReleasableClues(selectedRealtimeSessionId)
         }
         setLiveUpdateNote('State updated live from another client or tab.')
       },
@@ -642,6 +678,8 @@ export default function DashboardClient({
       onSubstageAdvanced: (notification) => {
         if (notification.liveSessionId !== selectedRealtimeSessionId) return
         handleSubstageAdvanced(notification)
+        // The active substage changed, so its releasable hidden-clue targets did too; refetch the picker.
+        void loadReleasableClues(selectedRealtimeSessionId)
         // Substage boundary retires the prior question; clear the board (mirror onQuestionClosed).
         dispatchMonitor({ type: 'questionClosed' })
         // A substage boundary retires the prior question; drop the active-question window
@@ -677,6 +715,7 @@ export default function DashboardClient({
           void loadTimerSnapshot(selectedRealtimeSessionId)
           void loadAnsweredMonitor(selectedRealtimeSessionId)
           void loadOperatorPanel(selectedRealtimeSessionId)
+          void loadReleasableClues(selectedRealtimeSessionId)
         }
       },
     })
@@ -691,6 +730,7 @@ export default function DashboardClient({
     loadTimerSnapshot,
     loadAnsweredMonitor,
     loadOperatorPanel,
+    loadReleasableClues,
     resetTriviaRound,
     completeTriviaRound,
     handlePregameTimerTick,
@@ -706,11 +746,13 @@ export default function DashboardClient({
     dispatchTimer({ type: 'reset' })
     dispatchMonitor({ type: 'reset' })
     dispatchOperatorPanel({ type: 'reset' })
+    dispatchReleasableClues({ type: 'reset' })
     if (!selectedRealtimeSessionId) return
     void loadTimerSnapshot(selectedRealtimeSessionId)
     void loadAnsweredMonitor(selectedRealtimeSessionId)
     void loadOperatorPanel(selectedRealtimeSessionId)
-  }, [selectedRealtimeSessionId, loadTimerSnapshot, loadAnsweredMonitor, loadOperatorPanel])
+    void loadReleasableClues(selectedRealtimeSessionId)
+  }, [selectedRealtimeSessionId, loadTimerSnapshot, loadAnsweredMonitor, loadOperatorPanel, loadReleasableClues])
 
   function announce(title: string, body: string) {
     setToast({ title, body });
@@ -1151,17 +1193,32 @@ export default function DashboardClient({
                   loading={operatorPanelState.loading}
                 />
 
-                <OperatorClueReleasePanel
-                  liveSessionId={selectedOperatorSession.liveSessionId}
-                  state={selectedOperatorState}
-                  teams={(operatorPanelState.panel?.teamProgress ?? []).map((t) => ({
-                    teamId: t.teamId,
-                    displayName: t.displayName,
-                  }))}
-                  onReleased={(target, count) =>
-                    announce('Clue released', `Target ${target} revealed to ${count} team${count === 1 ? '' : 's'}.`)
-                  }
-                />
+                <div className={styles.cluePanelsRow}>
+                  <OperatorClueReleasePanel
+                    liveSessionId={selectedOperatorSession.liveSessionId}
+                    state={selectedOperatorState}
+                    teams={(operatorPanelState.panel?.teamProgress ?? []).map((t) => ({
+                      teamId: t.teamId,
+                      displayName: t.displayName,
+                    }))}
+                    releasableClues={releasableClues}
+                    onReleased={(label, count) =>
+                      announce('Clue released', `${label} revealed to ${count} team${count === 1 ? '' : 's'}.`)
+                    }
+                  />
+
+                  <OperativeCluePanel
+                    liveSessionId={selectedOperatorSession.liveSessionId}
+                    state={selectedOperatorState}
+                    teams={(operatorPanelState.panel?.teamProgress ?? []).map((t) => ({
+                      teamId: t.teamId,
+                      displayName: t.displayName,
+                    }))}
+                    onAdded={(count) =>
+                      announce('Operative clue assigned', `Clue assigned to ${count} team${count === 1 ? '' : 's'}.`)
+                    }
+                  />
+                </div>
 
                 <TriviaRoundPanel
                   phase={triviaRound.phase}

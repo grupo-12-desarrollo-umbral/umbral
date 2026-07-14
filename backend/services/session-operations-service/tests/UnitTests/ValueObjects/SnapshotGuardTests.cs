@@ -227,6 +227,7 @@ public sealed class SnapshotGuardTests
 
         var hidden = ClueSnapshot.Create(Guid.NewGuid(), "Hint", "HiddenUntilOperatorRelease", 2);
         hidden.IsVisibleWhenSubstageStarts.Should().BeFalse();
+        hidden.IsHiddenUntilOperatorRelease.Should().BeTrue();
     }
 
     [Fact]

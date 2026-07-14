@@ -1,8 +1,8 @@
-// HU-26 live-behavior e2e: the operator releases a treasure-hunt target's HIDDEN clue from the operator
-// hero. Drives a real create -> assign -> attach two teams -> Active through the gateway (mirroring the
-// session-operator-panel header + the session-clue-release-manual-seed hidden-clue authoring), then reads
-// the runtime target id from the immutable snapshot (no operator read exposes it yet — DES-94) and asserts
-// the success note + released count, the no-duplicate conflict message, and the Active-only render gate.
+// HU-26/HU-28 live-behavior e2e: the operator releases a treasure-hunt target's HIDDEN clue from the
+// operator hero. Drives a real create -> assign -> attach two teams -> Active through the gateway
+// (mirroring the session-operator-panel header + the session-clue-release-manual-seed hidden-clue
+// authoring), then picks the target from the release dropdown (fed by GET /clues/releasable — HU-28) and
+// asserts the success note + released count, the no-duplicate conflict message, and the Active-only gate.
 //
 // beforeAll adds an admin row keyed by admin-1's Keycloak sub so the gateway-JWT operator-assignment path
 // resolves the actor (global-setup seeds admin keyed by the literal 'admin-1' for the BFF-direct surface).
@@ -101,7 +101,8 @@ END $$;
 
 let activeCode = ''
 let prepCode = ''
-let targetId = ''
+// The active substage's first hidden-clue target renders in the dropdown as "{sequenceOrder}. {name}".
+const TARGET_OPTION_LABEL = '1. Target 1'
 
 test.describe.configure({ mode: 'serial' })
 test.setTimeout(90000)
@@ -145,14 +146,6 @@ test.beforeAll(async () => {
   activeCode = active.code
   const prep = await stageSession(admin, op, opId, missionId, 'Clue Release E2E Preparing', false)
   prepCode = prep.code
-
-  // No operator read exposes the runtime target id (DES-94), so read it from the immutable snapshot —
-  // the active substage's first hidden-clue target, exactly as the manual seed authored it.
-  targetId = sql(
-    'session_operations',
-    `SELECT id FROM live_session_mission_runtime_snapshot_targets WHERE live_session_id='${active.lsid}' AND is_active=true AND clue_visibility_policy='HiddenUntilOperatorRelease' ORDER BY sequence_order LIMIT 1`,
-  )
-  expect(targetId).toMatch(/^[0-9a-f-]{36}$/i)
 })
 
 async function openLiveOperation(page: import('@playwright/test').Page, code: string) {
@@ -170,7 +163,7 @@ async function openLiveOperation(page: import('@playwright/test').Page, code: st
 test('operator releases a target hidden clue to one team: success note + released count', async ({ operatorPage: page }) => {
   await openLiveOperation(page, activeCode)
 
-  await page.locator('[data-testid="clue-release-target-input"]').fill(targetId)
+  await page.locator('[data-testid="clue-release-target-select"]').selectOption({ label: TARGET_OPTION_LABEL })
   // The team select is populated from the operator panel's teamProgress, whose teamId is the RUNTIME
   // live-session team id (not the reference id TEAM_1) — so pick Gilded Owls by its visible label.
   await page.locator('[data-testid="clue-release-team-select"]').selectOption({ label: 'Gilded Owls' })
@@ -185,7 +178,7 @@ test('operator releases a target hidden clue to one team: success note + release
 test('releasing the same target to the same team again shows the duplicate message', async ({ operatorPage: page }) => {
   await openLiveOperation(page, activeCode)
 
-  await page.locator('[data-testid="clue-release-target-input"]').fill(targetId)
+  await page.locator('[data-testid="clue-release-target-select"]').selectOption({ label: TARGET_OPTION_LABEL })
   // Same runtime team as the success test — selected by label (the select's values are runtime team ids).
   await page.locator('[data-testid="clue-release-team-select"]').selectOption({ label: 'Gilded Owls' })
   await page.locator('[data-testid="clue-release-submit"]').click()

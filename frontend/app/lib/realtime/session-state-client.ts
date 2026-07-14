@@ -199,6 +199,7 @@ function normalizeOperatorPanel(raw: unknown): OperatorSessionPanelDto {
         teamCode: (t.teamCode ?? t.TeamCode ?? '') as string,
         displayName: (t.displayName ?? t.DisplayName ?? '') as string,
         score: (t.score ?? t.Score ?? 0) as number,
+        releasedClueCount: (t.releasedClueCount ?? t.ReleasedClueCount ?? 0) as number,
         activeSubstage:
           sub === null
             ? null

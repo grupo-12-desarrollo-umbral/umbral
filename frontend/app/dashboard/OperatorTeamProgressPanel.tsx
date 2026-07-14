@@ -8,8 +8,9 @@ type OperatorTeamProgressPanelProps = {
   loading: boolean
 }
 
-// Target-based progress for treasure-hunt / no-question; active-question order for trivia. Never
+// Target-based progress for treasure-hunt / no-question; active-question order for trivia — never
 // clue-based. Score is rendered verbatim (session-owned or zero) — no ranking, no ledger (HU-24B).
+// A separate released-clue tally (manual releases + active-substage initial clues) rides alongside.
 function ProgressCell({ team }: { team: OperatorTeamProgressDto }) {
   const sub = team.activeSubstage
   if (sub && sub.playMode === 'Trivia' && sub.activeQuestionSequenceOrder !== null) {
@@ -69,6 +70,11 @@ export function OperatorTeamProgressPanel({
     )
   }
 
+  // Released-clue rollup: how many teams have at least one clue visible (the "to how many teams"
+  // dimension the per-team tally naturally rolls up to). No distinct-clue total — the same initial
+  // clue counts once per team, so summing would double-count.
+  const teamsWithClues = panel.teamProgress.filter((team) => team.releasedClueCount > 0).length
+
   return (
     <section className={styles.panel} data-testid="operator-session-panel" aria-labelledby="operator-session-panel-title">
       <div className={styles.header}>
@@ -77,6 +83,11 @@ export function OperatorTeamProgressPanel({
           {panel.state}
         </span>
       </div>
+      {teamsWithClues > 0 && (
+        <p className={styles.stateNote} data-testid="panel-clue-rollup">
+          Clues released to {teamsWithClues} team{teamsWithClues === 1 ? '' : 's'}.
+        </p>
+      )}
       {panel.teamProgress.length === 0 ? (
         <p className={styles.stateNote} data-testid="panel-no-teams">No teams associated yet.</p>
       ) : (
@@ -85,6 +96,11 @@ export function OperatorTeamProgressPanel({
             <li key={team.teamId} className={styles.row} data-testid={`team-progress-${team.teamId}`}>
               <span className={styles.teamName}>{team.displayName}</span>
               <span className={styles.teamCode}>{team.teamCode}</span>
+              {team.releasedClueCount > 0 && (
+                <span className={styles.clues} data-testid={`team-progress-clues-${team.teamId}`}>
+                  {team.releasedClueCount} clue{team.releasedClueCount === 1 ? '' : 's'}
+                </span>
+              )}
               <span className={styles.score} data-testid={`team-progress-score-${team.teamId}`}>
                 {team.score} pts
               </span>

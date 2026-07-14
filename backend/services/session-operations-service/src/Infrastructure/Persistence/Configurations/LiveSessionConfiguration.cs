@@ -530,7 +530,11 @@ public sealed class LiveSessionConfiguration : IEntityTypeConfiguration<LiveSess
         // columns), so the only base ceremony to strip is BaseEntity.Id.
         builder.OwnsMany<ClueReleaseRecord>("_clueReleaseRecords", releaseBuilder =>
         {
-            releaseBuilder.ToTable("live_session_clue_releases");
+            releaseBuilder.ToTable(
+                "live_session_clue_releases",
+                tableBuilder => tableBuilder.HasCheckConstraint(
+                    "CK_live_session_clue_releases_exactly_one_subject",
+                    "(target_id IS NOT NULL) <> (clue_id IS NOT NULL)"));
             releaseBuilder.WithOwner().HasForeignKey(release => release.LiveSessionId);
 
             releaseBuilder.Ignore(release => release.Id);
@@ -549,8 +553,7 @@ public sealed class LiveSessionConfiguration : IEntityTypeConfiguration<LiveSess
                 .IsRequired();
 
             releaseBuilder.Property(release => release.TargetId)
-                .HasColumnName("target_id")
-                .IsRequired();
+                .HasColumnName("target_id");
 
             releaseBuilder.Property(release => release.ClueId)
                 .HasColumnName("clue_id");
@@ -568,16 +571,65 @@ public sealed class LiveSessionConfiguration : IEntityTypeConfiguration<LiveSess
                 .HasColumnName("released_at")
                 .IsRequired();
 
-            // A clue may not be released twice to the same team for the same target (spec §ClueReleaseRecord
-            // L696): enforce the (team, target) uniqueness at the DB boundary, scoped to the owning session,
-            // mirroring the trivia first-write-wins unique index.
+            // Spec §ClueReleaseRecord L696 forbids releasing the same clue twice to one team in one
+            // session. The target-backed and clue-snapshot-backed subjects therefore need independent
+            // filtered indexes: PostgreSQL otherwise treats nullable keys as distinct.
             releaseBuilder.HasIndex(release => new
                 {
                     release.LiveSessionId,
                     release.TeamId,
                     release.TargetId,
                 })
-                .IsUnique();
+                .IsUnique()
+                .HasFilter("target_id IS NOT NULL");
+
+            releaseBuilder.HasIndex(release => new
+                {
+                    release.LiveSessionId,
+                    release.TeamId,
+                    release.ClueId,
+                })
+                .IsUnique()
+                .HasFilter("clue_id IS NOT NULL");
+        });
+
+        // Append-only operator-authored clues targeted to individual teams (HU-28). The aggregate exposes
+        // the collection only through GetOperativeClues(), so map and hydrate its backing field directly,
+        // mirroring ClueReleaseRecord. OperativeClue derives from BaseEntity rather than
+        // BaseAuditableEntity: ignore the inherited integer Id and map only the explicit authorship/time
+        // fields below so no aggregate audit columns leak into the owned-child table.
+        builder.OwnsMany<OperativeClue>("_operativeClues", operativeClueBuilder =>
+        {
+            operativeClueBuilder.ToTable("live_session_operative_clues");
+            operativeClueBuilder.WithOwner().HasForeignKey(clue => clue.LiveSessionId);
+
+            operativeClueBuilder.Ignore(clue => clue.Id);
+            operativeClueBuilder.HasKey(clue => clue.OperativeClueId);
+
+            operativeClueBuilder.Property(clue => clue.OperativeClueId)
+                .HasColumnName("id")
+                .ValueGeneratedNever();
+
+            operativeClueBuilder.Property(clue => clue.LiveSessionId)
+                .HasColumnName("live_session_id")
+                .IsRequired();
+
+            operativeClueBuilder.Property(clue => clue.TeamId)
+                .HasColumnName("team_id")
+                .IsRequired();
+
+            operativeClueBuilder.Property(clue => clue.ClueText)
+                .HasColumnName("clue_text")
+                .HasMaxLength(500)
+                .IsRequired();
+
+            operativeClueBuilder.Property(clue => clue.CreatedByUserId)
+                .HasColumnName("created_by_user_id")
+                .IsRequired();
+
+            operativeClueBuilder.Property(clue => clue.CreatedAt)
+                .HasColumnName("created_at")
+                .IsRequired();
         });
 
         builder.OwnsMany(session => session.Participants, participantBuilder =>

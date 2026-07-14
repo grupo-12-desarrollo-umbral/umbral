@@ -17,7 +17,7 @@ public sealed class LiveSessionClueReleaseTests
     {
         var session = CreateActiveSessionWithHiddenClue(out var target, out var alpha, out _);
 
-        session.ReleaseClue(target.TargetSnapshotId, alpha.TeamId, operatorUserId: 42, now: ReleasedAt);
+        session.ReleaseClueToTeam(ClueReleaseSubject.ForTarget(target.TargetSnapshotId), alpha.TeamId, operatorUserId: 42, now: ReleasedAt);
 
         var record = session.GetClueReleaseRecords().Should().ContainSingle().Which;
         record.ClueReleaseRecordId.Should().NotBeEmpty();
@@ -46,7 +46,7 @@ public sealed class LiveSessionClueReleaseTests
         var session = CreateScheduledSessionWithHiddenClue(out var target);
         var team = session.AssociateTeam(Guid.NewGuid(), "Alpha", "A-01", 4);
 
-        var act = () => session.ReleaseClue(target.TargetSnapshotId, team.TeamId, 42, ReleasedAt);
+        var act = () => session.ReleaseClueToTeam(ClueReleaseSubject.ForTarget(target.TargetSnapshotId), team.TeamId, 42, ReleasedAt);
 
         act.Should().Throw<SessionNotActiveForClueReleaseException>()
             .Which.Category.Should().Be(ErrorCategory.Conflict);
@@ -61,7 +61,7 @@ public sealed class LiveSessionClueReleaseTests
         Activate(session);
         var target = session.MissionRuntimeSnapshot.TargetSnapshots.Single();
 
-        var act = () => session.ReleaseClue(target.TargetSnapshotId, team.TeamId, 42, ReleasedAt);
+        var act = () => session.ReleaseClueToTeam(ClueReleaseSubject.ForTarget(target.TargetSnapshotId), team.TeamId, 42, ReleasedAt);
 
         act.Should().Throw<ClueNotReleasableException>()
             .Which.Category.Should().Be(ErrorCategory.Conflict);
@@ -73,7 +73,7 @@ public sealed class LiveSessionClueReleaseTests
     {
         var session = CreateActiveSessionWithHiddenClue(out var target, out var alpha, out _);
 
-        var act = () => session.ReleaseClue(target.TargetSnapshotId, alpha.TeamId, 0, ReleasedAt);
+        var act = () => session.ReleaseClueToTeam(ClueReleaseSubject.ForTarget(target.TargetSnapshotId), alpha.TeamId, 0, ReleasedAt);
 
         act.Should().Throw<OperatorUserIdMustBePositiveException>();
         session.GetClueReleaseRecords().Should().BeEmpty();
@@ -83,9 +83,9 @@ public sealed class LiveSessionClueReleaseTests
     public void ReleaseClue_WhenAlreadyReleasedToSameTeamAndTarget_RejectsDuplicate()
     {
         var session = CreateActiveSessionWithHiddenClue(out var target, out var alpha, out _);
-        session.ReleaseClue(target.TargetSnapshotId, alpha.TeamId, 42, ReleasedAt);
+        session.ReleaseClueToTeam(ClueReleaseSubject.ForTarget(target.TargetSnapshotId), alpha.TeamId, 42, ReleasedAt);
 
-        var act = () => session.ReleaseClue(target.TargetSnapshotId, alpha.TeamId, 42, ReleasedAt.AddMinutes(1));
+        var act = () => session.ReleaseClueToTeam(ClueReleaseSubject.ForTarget(target.TargetSnapshotId), alpha.TeamId, 42, ReleasedAt.AddMinutes(1));
 
         act.Should().Throw<ClueAlreadyReleasedToTeamException>()
             .Which.Category.Should().Be(ErrorCategory.Conflict);
@@ -99,7 +99,7 @@ public sealed class LiveSessionClueReleaseTests
     {
         var session = CreateActiveSessionWithHiddenClue(out var target, out var alpha, out var bravo);
 
-        session.ReleaseClueToAllTeams(target.TargetSnapshotId, 42, ReleasedAt);
+        session.ReleaseClueToAllTeams(ClueReleaseSubject.ForTarget(target.TargetSnapshotId), 42, ReleasedAt);
 
         session.GetClueReleaseRecords().Should().HaveCount(2);
         session.GetClueReleaseRecords().Select(record => record.TeamId)
@@ -110,6 +110,78 @@ public sealed class LiveSessionClueReleaseTests
     }
 
     [Fact]
+    public void ReleaseClueToTeam_TriviaClue_SurfacesOnlyForReleasedTeam()
+    {
+        var session = CreateActiveTriviaSessionWithHiddenClue(out var clue, out var alpha, out var bravo);
+        var subject = ClueReleaseSubject.ForSubstageClue(clue.ClueSnapshotId);
+
+        session.ReleaseClueToTeam(subject, alpha.TeamId, 42, ReleasedAt);
+
+        var record = session.GetClueReleaseRecords().Should().ContainSingle().Which;
+        record.TargetId.Should().BeNull();
+        record.ClueId.Should().Be(clue.ClueSnapshotId);
+        session.ProjectParticipantTeamBoard(alpha.TeamId, ReleasedAt).VisibleClues
+            .Should().ContainSingle(visible => visible.ClueSnapshotId == clue.ClueSnapshotId);
+        session.ProjectParticipantTeamBoard(bravo.TeamId, ReleasedAt).VisibleClues
+            .Should().NotContain(visible => visible.ClueSnapshotId == clue.ClueSnapshotId);
+
+        var releasedEvent = session.DomainEvents.OfType<ClueReleasedEvent>().Should().ContainSingle().Which;
+        releasedEvent.TargetId.Should().BeNull();
+        releasedEvent.ClueId.Should().Be(clue.ClueSnapshotId);
+    }
+
+    [Fact]
+    public void ReleaseClueToAllTeams_TriviaClue_SurfacesForEveryTeam()
+    {
+        var session = CreateActiveTriviaSessionWithHiddenClue(out var clue, out var alpha, out var bravo);
+
+        session.ReleaseClueToAllTeams(
+            ClueReleaseSubject.ForSubstageClue(clue.ClueSnapshotId),
+            42,
+            ReleasedAt);
+
+        session.GetClueReleaseRecords().Should().HaveCount(2);
+        session.ProjectParticipantTeamBoard(alpha.TeamId, ReleasedAt).VisibleClues
+            .Should().ContainSingle(visible => visible.ClueSnapshotId == clue.ClueSnapshotId);
+        session.ProjectParticipantTeamBoard(bravo.TeamId, ReleasedAt).VisibleClues
+            .Should().ContainSingle(visible => visible.ClueSnapshotId == clue.ClueSnapshotId);
+    }
+
+    [Fact]
+    public void ReleaseClueToTeam_TriviaClue_WhenAlreadyReleased_RejectsDuplicate()
+    {
+        var session = CreateActiveTriviaSessionWithHiddenClue(out var clue, out var alpha, out _);
+        var subject = ClueReleaseSubject.ForSubstageClue(clue.ClueSnapshotId);
+        session.ReleaseClueToTeam(subject, alpha.TeamId, 42, ReleasedAt);
+
+        var act = () => session.ReleaseClueToTeam(
+            subject,
+            alpha.TeamId,
+            42,
+            ReleasedAt.AddMinutes(1));
+
+        act.Should().Throw<ClueAlreadyReleasedToTeamException>();
+        session.GetClueReleaseRecords().Should().ContainSingle();
+    }
+
+    [Fact]
+    public void ProjectOperatorSessionPanel_ReleasedTriviaClue_CountsItOnce()
+    {
+        var session = CreateActiveTriviaSessionWithHiddenClue(out var clue, out var alpha, out _);
+        session.ReleaseClueToTeam(
+            ClueReleaseSubject.ForSubstageClue(clue.ClueSnapshotId),
+            alpha.TeamId,
+            42,
+            ReleasedAt);
+
+        var progress = session.ProjectOperatorSessionPanel(ReleasedAt).TeamProgress
+            .Single(team => team.TeamId == alpha.TeamId);
+
+        progress.ReleasedClueCount.Should().Be(2,
+            "the initial clue and released hidden clue are disjoint and each count once");
+    }
+
+    [Fact]
     public void ReleaseClue_SurfacesHiddenClueOnlyForReleasedTeam()
     {
         var session = CreateActiveSessionWithHiddenClue(out var target, out var alpha, out var bravo);
@@ -117,7 +189,7 @@ public sealed class LiveSessionClueReleaseTests
         session.ProjectParticipantTeamBoard(alpha.TeamId, ReleasedAt).VisibleClues.Should().BeEmpty();
         session.ProjectParticipantTeamBoard(bravo.TeamId, ReleasedAt).VisibleClues.Should().BeEmpty();
 
-        session.ReleaseClue(target.TargetSnapshotId, alpha.TeamId, 42, ReleasedAt);
+        session.ReleaseClueToTeam(ClueReleaseSubject.ForTarget(target.TargetSnapshotId), alpha.TeamId, 42, ReleasedAt);
 
         session.ProjectParticipantTeamBoard(alpha.TeamId, ReleasedAt).VisibleClues
             .Should().ContainSingle().Which.TargetSnapshotId.Should().Be(target.TargetSnapshotId);
@@ -130,7 +202,7 @@ public sealed class LiveSessionClueReleaseTests
         var session = CreateActiveSessionWithHiddenClue(out var target, out var alpha, out _);
         var activeSubstageId = session.ActiveSubstageId;
 
-        session.ReleaseClue(target.TargetSnapshotId, alpha.TeamId, 42, ReleasedAt);
+        session.ReleaseClueToTeam(ClueReleaseSubject.ForTarget(target.TargetSnapshotId), alpha.TeamId, 42, ReleasedAt);
 
         session.ActiveSubstageId.Should().Be(activeSubstageId);
         var board = session.ProjectParticipantTeamBoard(alpha.TeamId, ReleasedAt);
@@ -144,9 +216,9 @@ public sealed class LiveSessionClueReleaseTests
         var session = CreateActiveSessionWithHiddenTargets(out var targets, out var alpha, out _);
 
         // Release out of sequence at distinct instants: target 1, then 3, then 2.
-        session.ReleaseClue(targets[0].TargetSnapshotId, alpha.TeamId, 42, ReleasedAt);
-        session.ReleaseClue(targets[2].TargetSnapshotId, alpha.TeamId, 42, ReleasedAt.AddMinutes(1));
-        session.ReleaseClue(targets[1].TargetSnapshotId, alpha.TeamId, 42, ReleasedAt.AddMinutes(2));
+        session.ReleaseClueToTeam(ClueReleaseSubject.ForTarget(targets[0].TargetSnapshotId), alpha.TeamId, 42, ReleasedAt);
+        session.ReleaseClueToTeam(ClueReleaseSubject.ForTarget(targets[2].TargetSnapshotId), alpha.TeamId, 42, ReleasedAt.AddMinutes(1));
+        session.ReleaseClueToTeam(ClueReleaseSubject.ForTarget(targets[1].TargetSnapshotId), alpha.TeamId, 42, ReleasedAt.AddMinutes(2));
 
         // Newest release sits at the top, oldest at the bottom — regardless of SequenceOrder.
         session.ProjectParticipantTeamBoard(alpha.TeamId, ReleasedAt.AddMinutes(3)).VisibleClues
@@ -163,9 +235,9 @@ public sealed class LiveSessionClueReleaseTests
         var session = CreateActiveSessionWithHiddenTargets(out var targets, out var alpha, out _);
 
         // All-teams releases at one instant stamp identical ReleasedAt; SequenceOrder breaks the tie.
-        session.ReleaseClueToAllTeams(targets[2].TargetSnapshotId, 42, ReleasedAt);
-        session.ReleaseClueToAllTeams(targets[0].TargetSnapshotId, 42, ReleasedAt);
-        session.ReleaseClueToAllTeams(targets[1].TargetSnapshotId, 42, ReleasedAt);
+        session.ReleaseClueToAllTeams(ClueReleaseSubject.ForTarget(targets[2].TargetSnapshotId), 42, ReleasedAt);
+        session.ReleaseClueToAllTeams(ClueReleaseSubject.ForTarget(targets[0].TargetSnapshotId), 42, ReleasedAt);
+        session.ReleaseClueToAllTeams(ClueReleaseSubject.ForTarget(targets[1].TargetSnapshotId), 42, ReleasedAt);
 
         session.ProjectParticipantTeamBoard(alpha.TeamId, ReleasedAt).VisibleClues
             .Select(clue => clue.TargetSnapshotId)
@@ -190,8 +262,8 @@ public sealed class LiveSessionClueReleaseTests
                 targets[3].TargetSnapshotId);
 
         // Release hidden target seq 2, then hidden target seq 3 at distinct instants.
-        session.ReleaseClue(targets[1].TargetSnapshotId, alpha.TeamId, 42, ReleasedAt);
-        session.ReleaseClue(targets[2].TargetSnapshotId, alpha.TeamId, 42, ReleasedAt.AddMinutes(1));
+        session.ReleaseClueToTeam(ClueReleaseSubject.ForTarget(targets[1].TargetSnapshotId), alpha.TeamId, 42, ReleasedAt);
+        session.ReleaseClueToTeam(ClueReleaseSubject.ForTarget(targets[2].TargetSnapshotId), alpha.TeamId, 42, ReleasedAt.AddMinutes(1));
 
         // Always-visible clues pinned first by sequence (1, 4), then released hidden newest-first (3, 2).
         session.ProjectParticipantTeamBoard(alpha.TeamId, ReleasedAt.AddMinutes(2)).VisibleClues
@@ -302,6 +374,20 @@ public sealed class LiveSessionClueReleaseTests
         alpha = session.AssociateTeam(Guid.NewGuid(), "Alpha", "A-01", 4);
         bravo = session.AssociateTeam(Guid.NewGuid(), "Bravo", "B-01", 4);
         Activate(session);
+        return session;
+    }
+
+    private static LiveSession CreateActiveTriviaSessionWithHiddenClue(
+        out ClueSnapshot clue,
+        out Team alpha,
+        out Team bravo)
+    {
+        var session = LiveSessionFactory.CreateScheduledTriviaWithClues();
+        alpha = session.AssociateTeam(Guid.NewGuid(), "Alpha", "A-01", 4);
+        bravo = session.AssociateTeam(Guid.NewGuid(), "Bravo", "B-01", 4);
+        Activate(session);
+        clue = session.MissionRuntimeSnapshot.ClueSnapshots
+            .Single(snapshot => snapshot.IsHiddenUntilOperatorRelease);
         return session;
     }
 

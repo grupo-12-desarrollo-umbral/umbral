@@ -8,16 +8,21 @@
  * clues are for the participant's own team. Other-team cards are static,
  * clearly-marked placeholders (real standings/ranking is HU-39); the map stays a
  * labelled stub (real map is #156, target coordinates are #154).
+ *
+ * Layout: this is a full-viewport surface — sticky header, `flex: 1` body, absolutely-pinned team
+ * strip — so it must be given the whole screen, never nested inside another vertical ScrollView.
+ * The tab bodies are then the only scroller, which is what makes a long clue list scroll at all.
  */
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { Card } from '@/components/ui/card';
 import { Screen } from '@/components/ui/screen';
 import { Text } from '@/components/ui/text';
+import { OperativeClueSurface } from '@/components/operative-clue-surface';
 import { SessionTimerBar } from '@/components/session-timer-bar';
 import { colors, radii, shadows, spacing, typography } from '@/constants/theme';
 import type { TimerDisplay } from '@/lib/realtime/timer-types';
-import type { VisibleClueDto } from '@/lib/realtime/team-board-types';
+import { clueKey, type VisibleClueDto } from '@/lib/realtime/team-board-types';
 
 // Other-team cards are static placeholders until HU-39 (real standings/ranking).
 // Each is tagged in the UI so it is unmistakable to sighted users and to
@@ -99,13 +104,14 @@ function MapStub({ style }: { style?: object }) {
   );
 }
 
-// No scope chip: the live HU-23 VisibleClueDto has no team/global scope field.
-// Heading is the target name; body is the clue text.
+// No scope chip: the live HU-23 VisibleClueDto has no team/global scope field. Heading is the target
+// name; body is the clue text. Target-less clues (operative / substage-initial) carry no target name,
+// so they read a plain "CLUE" label — one unified Clues surface, no per-kind wording.
 function ClueCard({ clue }: { clue: VisibleClueDto }) {
   return (
     <Card parchment>
       <View accessibilityRole="text" style={{ gap: spacing.xs }}>
-        <Text variant="label" muted>{clue.targetName}</Text>
+        <Text variant="label" muted>{clue.targetName ?? 'CLUE'}</Text>
         <Text variant="mono">{clue.clueText}</Text>
       </View>
     </Card>
@@ -121,6 +127,12 @@ export type TreasureHuntBoardProps = {
   resolvedTargets: number;
   totalActiveTargets: number;
   visibleClues: readonly VisibleClueDto[];
+  // The board owns the whole viewport (its body is the only scroller), so session chrome that would
+  // otherwise sit around it has to come in: `headerSlot` rides the sticky header — it is where the
+  // substage name belongs (#171, see below) and where a transient connection banner stays readable on
+  // every tab. `onLeave` adds the leave affordance to the persistent team strip.
+  headerSlot?: ReactNode;
+  onLeave?: () => void;
 };
 
 export function TreasureHuntBoard({
@@ -130,23 +142,40 @@ export function TreasureHuntBoard({
   resolvedTargets,
   totalActiveTargets,
   visibleClues,
+  headerSlot,
+  onLeave,
 }: TreasureHuntBoardProps) {
   const [tab, setTab] = useState<'map' | 'clues' | 'teams'>('map');
+
+  // HU-28: the board projection appends operative clues after the substage's target clues
+  // (`LiveSession.CollectVisibleClues`), which buries operator-pushed guidance below the mission's
+  // own always-visible clues — on a substage with a few targets it lands off the bottom of the tab,
+  // leaving the list looking unchanged. Op clues are the newest and most actionable guidance, so pin
+  // them above target clues. Within each group the list reads newest → oldest: operatives arrive
+  // already ordered by CreatedAt DESC from the backend; target clues are reversed so the last in
+  // SequenceOrder (closest to "last released") appears at the top of the target group.
+  const orderedClues = useMemo(
+    () => [
+      ...visibleClues.filter((c) => c.targetSnapshotId == null),
+      ...visibleClues.filter((c) => c.targetSnapshotId != null).reverse(),
+    ],
+    [visibleClues],
+  );
 
   // Reveal indicator: track which clue ids have been seen. Mount baseline = the seed snapshot's
   // clues (already-seen) so a reconnect never false-flashes; only clues arriving in a LATER render
   // are "new". Prop-diff bookkeeping only — never owns board state.
-  const seenClueIds = useRef<Set<string>>(new Set(visibleClues.map((c) => c.targetSnapshotId)));
+  const seenClueIds = useRef<Set<string>>(new Set(visibleClues.map(clueKey)));
 
   // Acknowledge (mark current clues seen) whenever the participant is on the CLUES tab.
   useEffect(() => {
     if (tab === 'clues') {
-      for (const c of visibleClues) seenClueIds.current.add(c.targetSnapshotId);
+      for (const c of visibleClues) seenClueIds.current.add(clueKey(c));
     }
   }, [tab, visibleClues]);
 
   const hasNewClues =
-    tab !== 'clues' && visibleClues.some((c) => !seenClueIds.current.has(c.targetSnapshotId));
+    tab !== 'clues' && visibleClues.some((c) => !seenClueIds.current.has(clueKey(c)));
 
   return (
     <View
@@ -164,9 +193,12 @@ export function TreasureHuntBoard({
           gap: spacing.sm,
         }}
       >
+        {headerSlot}
+
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
           <View style={{ flex: 1, paddingRight: spacing.sm }}>
-            {/* Active substage name is owned by the shared SubstageProgress component (#171). */}
+            {/* Active substage name is owned by the shared SubstageProgress component (#171), which
+                the host hands in through `headerSlot` above. */}
             <Text variant="label" muted>TREASURE HUNT</Text>
           </View>
           <View style={{ alignItems: 'flex-end' }}>
@@ -247,8 +279,8 @@ export function TreasureHuntBoard({
           </View>
         ) : tab === 'clues' ? (
           <Screen contentContainerStyle={{ gap: spacing.sm, paddingBottom: 100 }}>
-            {visibleClues.length > 0 ? (
-              visibleClues.map((c) => <ClueCard key={c.targetSnapshotId} clue={c} />)
+            {orderedClues.length > 0 ? (
+              orderedClues.map((c) => <ClueCard key={clueKey(c)} clue={c} />)
             ) : (
               <Card>
                 <Text variant="body" muted>No clues yet.</Text>
@@ -296,6 +328,14 @@ export function TreasureHuntBoard({
         )}
       </View>
 
+      {/* HU-28: the same viewport-pinned arrival toast the trivia surface raises. The Clues tab is
+          already the durable home here, so this is toast-only (no chip) — it stays quiet while that
+          tab is open and opens it when tapped. */}
+      <OperativeClueSurface
+        visibleClues={visibleClues}
+        home={{ listVisible: tab === 'clues', onOpen: () => setTab('clues') }}
+      />
+
       {/* persistent "your team" strip so team identity survives tab switches */}
       <View
         style={{
@@ -307,18 +347,40 @@ export function TreasureHuntBoard({
           paddingHorizontal: spacing.lg,
           paddingTop: spacing.xs,
           paddingBottom: 28,
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: spacing.sm,
         }}
       >
-        <Text variant="label" style={{ color: colors.emberAccentSoft }}>
-          YOUR TEAM · {teamDisplayName}
-        </Text>
-        <Text
-          variant="body"
-          style={{ color: colors.ivoryFog, fontVariant: ['tabular-nums'] }}
-          numberOfLines={1}
-        >
-          SCORE {currentScore}
-        </Text>
+        <View style={{ flex: 1 }}>
+          <Text variant="label" style={{ color: colors.emberAccentSoft }}>
+            YOUR TEAM · {teamDisplayName}
+          </Text>
+          <Text
+            variant="body"
+            style={{ color: colors.ivoryFog, fontVariant: ['tabular-nums'] }}
+            numberOfLines={1}
+          >
+            SCORE {currentScore}
+          </Text>
+        </View>
+        {onLeave ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Leave team space"
+            onPress={onLeave}
+            style={{
+              borderWidth: 1,
+              borderColor: colors.emberAccentSoft,
+              borderRadius: radii.pill,
+              borderCurve: 'continuous',
+              paddingHorizontal: spacing.md,
+              paddingVertical: spacing.xs,
+            }}
+          >
+            <Text variant="label" style={{ color: colors.emberAccentSoft }}>LEAVE</Text>
+          </Pressable>
+        ) : null}
       </View>
     </View>
   );

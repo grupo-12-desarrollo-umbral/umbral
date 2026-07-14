@@ -59,6 +59,7 @@ public sealed class GetParticipantTeamBoardQueryHandlerTests
         result.ActiveSubstage.ResolvedTargets.Should().Be(0);
         result.VisibleClues.Should().HaveCount(1);
         result.VisibleClues[0].ClueText.Should().Be("Look near the entrance.");
+        result.VisibleClues[0].OperativeClueId.Should().BeNull();
     }
 
     [Fact]

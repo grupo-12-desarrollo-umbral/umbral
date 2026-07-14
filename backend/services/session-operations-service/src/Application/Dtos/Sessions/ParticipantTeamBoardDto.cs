@@ -37,6 +37,8 @@ public sealed record ActiveSubstageTargetDto(
 
 public sealed record VisibleClueDto(
     Guid? TargetSnapshotId,
+    Guid? ClueSnapshotId,
+    Guid? OperativeClueId,
     string ClueText,
     string? TargetName);
 

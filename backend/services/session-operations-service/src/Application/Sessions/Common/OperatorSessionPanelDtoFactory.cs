@@ -16,6 +16,7 @@ public static class OperatorSessionPanelDtoFactory
                 progress.TeamCode,
                 progress.DisplayName,
                 progress.CurrentScore,
+                progress.ReleasedClueCount,
                 progress.ActiveSubstageContext is null
                     ? null
                     : new ActiveSubstageContextDto(

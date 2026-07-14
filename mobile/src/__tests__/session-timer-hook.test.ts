@@ -218,6 +218,67 @@ describe('useSessionTimer', () => {
     hook.unmount();
   });
 
+  test('routes a short-window Active tick to the pre-game countdown, leaving the session clock intact', async () => {
+    mockGetSnapshot.mockResolvedValueOnce(BASE_SNAPSHOT);
+    const client = makeClient();
+
+    const hook = renderHook({
+      client,
+      liveSessionId: 'sess-1',
+      teamId: 'team-1',
+      isReconnected: true,
+      reconnectNonce: 0,
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(hook.get().pregameSecondsLeft).toBeNull();
+    expect(hook.get().timer?.remainingSeconds).toBe(180);
+
+    // The 5s pre-game countdown arrives as a short total window while Active.
+    act(() => {
+      fireEvent({ ...BASE_EVENT, remainingMilliseconds: 5_000, totalMilliseconds: 5_000 });
+    });
+
+    expect(hook.get().pregameSecondsLeft).toBe(5);
+    // The session clock is NOT clobbered by the countdown tick.
+    expect(hook.get().timer?.remainingSeconds).toBe(180);
+
+    hook.unmount();
+  });
+
+  test('a normal timer event clears the pre-game countdown and updates the clock', async () => {
+    mockGetSnapshot.mockResolvedValueOnce(BASE_SNAPSHOT);
+    const client = makeClient();
+
+    const hook = renderHook({
+      client,
+      liveSessionId: 'sess-1',
+      teamId: 'team-1',
+      isReconnected: true,
+      reconnectNonce: 0,
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    act(() => {
+      fireEvent({ ...BASE_EVENT, remainingMilliseconds: 3_000, totalMilliseconds: 5_000 });
+    });
+    expect(hook.get().pregameSecondsLeft).toBe(3);
+
+    act(() => {
+      fireEvent({ ...BASE_EVENT, remainingMilliseconds: 120_000, totalMilliseconds: 300_000 });
+    });
+    expect(hook.get().pregameSecondsLeft).toBeNull();
+    expect(hook.get().timer?.remainingSeconds).toBe(120);
+
+    hook.unmount();
+  });
+
   test('paused event sets tone to paused', async () => {
     mockGetSnapshot.mockResolvedValueOnce(BASE_SNAPSHOT);
     const client = makeClient();

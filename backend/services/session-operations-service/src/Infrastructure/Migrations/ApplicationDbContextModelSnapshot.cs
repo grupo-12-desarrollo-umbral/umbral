@@ -345,7 +345,7 @@ namespace umbral_backend.Infrastructure.Migrations
                                 .HasColumnType("integer")
                                 .HasColumnName("released_by_user_id");
 
-                            b1.Property<Guid>("TargetId")
+                            b1.Property<Guid?>("TargetId")
                                 .HasColumnType("uuid")
                                 .HasColumnName("target_id");
 
@@ -355,10 +355,18 @@ namespace umbral_backend.Infrastructure.Migrations
 
                             b1.HasKey("ClueReleaseRecordId");
 
-                            b1.HasIndex("LiveSessionId", "TeamId", "TargetId")
-                                .IsUnique();
+                            b1.HasIndex("LiveSessionId", "TeamId", "ClueId")
+                                .IsUnique()
+                                .HasFilter("clue_id IS NOT NULL");
 
-                            b1.ToTable("live_session_clue_releases", (string)null);
+                            b1.HasIndex("LiveSessionId", "TeamId", "TargetId")
+                                .IsUnique()
+                                .HasFilter("target_id IS NOT NULL");
+
+                            b1.ToTable("live_session_clue_releases", null, t =>
+                                {
+                                    t.HasCheckConstraint("CK_live_session_clue_releases_exactly_one_subject", "(target_id IS NOT NULL) <> (clue_id IS NOT NULL)");
+                                });
 
                             b1.WithOwner()
                                 .HasForeignKey("LiveSessionId");
@@ -422,6 +430,44 @@ namespace umbral_backend.Infrastructure.Migrations
                             b1.HasKey("LiveSessionId");
 
                             b1.ToTable("live_sessions");
+
+                            b1.WithOwner()
+                                .HasForeignKey("LiveSessionId");
+                        });
+
+                    b.OwnsMany("umbral_backend.Domain.Entities.OperativeClue", "_operativeClues", b1 =>
+                        {
+                            b1.Property<Guid>("OperativeClueId")
+                                .HasColumnType("uuid")
+                                .HasColumnName("id");
+
+                            b1.Property<string>("ClueText")
+                                .IsRequired()
+                                .HasMaxLength(500)
+                                .HasColumnType("character varying(500)")
+                                .HasColumnName("clue_text");
+
+                            b1.Property<DateTimeOffset>("CreatedAt")
+                                .HasColumnType("timestamp with time zone")
+                                .HasColumnName("created_at");
+
+                            b1.Property<int>("CreatedByUserId")
+                                .HasColumnType("integer")
+                                .HasColumnName("created_by_user_id");
+
+                            b1.Property<Guid>("LiveSessionId")
+                                .HasColumnType("uuid")
+                                .HasColumnName("live_session_id");
+
+                            b1.Property<Guid>("TeamId")
+                                .HasColumnType("uuid")
+                                .HasColumnName("team_id");
+
+                            b1.HasKey("OperativeClueId");
+
+                            b1.HasIndex("LiveSessionId");
+
+                            b1.ToTable("live_session_operative_clues", (string)null);
 
                             b1.WithOwner()
                                 .HasForeignKey("LiveSessionId");
@@ -1145,6 +1191,8 @@ namespace umbral_backend.Infrastructure.Migrations
                     b.Navigation("TriviaAnswerSubmissions");
 
                     b.Navigation("_clueReleaseRecords");
+
+                    b.Navigation("_operativeClues");
                 });
 #pragma warning restore 612, 618
         }

@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using umbral_backend.Api.Services;
+using umbral_backend.Application.Sessions.Commands.AddOperativeClue;
 using umbral_backend.Application.Sessions.Commands.AssociateTeamToSession;
 using umbral_backend.Application.Sessions.Commands.AssignOperatorToSession;
 using umbral_backend.Application.Sessions.Commands.CreateSession;
@@ -16,6 +17,7 @@ using umbral_backend.Application.Sessions.Queries.GetOperatorSessionPanel;
 using umbral_backend.Application.Sessions.Queries.GetOperatorTriviaAnsweredMonitor;
 using umbral_backend.Application.Sessions.Queries.GetParticipantSessionTimerSnapshot;
 using umbral_backend.Application.Sessions.Queries.GetParticipantTeamBoard;
+using umbral_backend.Application.Sessions.Queries.GetReleasableClues;
 using umbral_backend.Application.Sessions.Queries.GetAssociatedTeamsForSession;
 using umbral_backend.Application.Sessions.Queries.GetSessionTeamLobby;
 using umbral_backend.Application.Sessions.Queries.ListAssignableSessions;
@@ -321,6 +323,21 @@ public sealed class SessionsController(ISender sender) : ControllerBase
         return Ok(result);
     }
 
+    // Operator release-clue picker source: hidden clues in the active treasure-hunt or trivia substage.
+    // Operator-scoped by the coarse policy; per-session ownership stays delegated to the resolver Proxy.
+    [HttpGet("{liveSessionId:guid}/clues/releasable")]
+    [Authorize(Policy = AuthorizationPolicies.Operator)]
+    public async Task<ActionResult<ReleasableCluesDto>> GetReleasableCluesAsync(
+        Guid liveSessionId,
+        CancellationToken cancellationToken)
+    {
+        var result = await sender.Send(
+            new GetReleasableCluesQuery(liveSessionId),
+            cancellationToken);
+
+        return Ok(result);
+    }
+
     [HttpPost("{liveSessionId:guid}/clues/release")]
     [Authorize(Policy = AuthorizationPolicies.Operator)]
     public async Task<ActionResult<ReleaseClueResultDto>> ReleaseClueAsync(
@@ -329,7 +346,21 @@ public sealed class SessionsController(ISender sender) : ControllerBase
         CancellationToken cancellationToken)
     {
         var result = await sender.Send(
-            new ReleaseClueCommand(liveSessionId, request.TargetId, request.TeamId),
+            new ReleaseClueCommand(liveSessionId, request.TargetId, request.ClueId, request.TeamId),
+            cancellationToken);
+
+        return Ok(result);
+    }
+
+    [HttpPost("{liveSessionId:guid}/operative-clues")]
+    [Authorize(Policy = AuthorizationPolicies.Operator)]
+    public async Task<ActionResult<AddOperativeClueResultDto>> AddOperativeCluesAsync(
+        Guid liveSessionId,
+        AddOperativeClueRequest request,
+        CancellationToken cancellationToken)
+    {
+        var result = await sender.Send(
+            new AddOperativeClueCommand(liveSessionId, request.ClueText, request.TeamIds),
             cancellationToken);
 
         return Ok(result);
@@ -364,5 +395,7 @@ public sealed class SessionsController(ISender sender) : ControllerBase
 
     public sealed record TransitionSessionStateRequest(string TargetState, string? Reason);
 
-    public sealed record ReleaseClueRequest(Guid TargetId, Guid? TeamId);
+    public sealed record ReleaseClueRequest(Guid? TargetId, Guid? ClueId, Guid? TeamId);
+
+    public sealed record AddOperativeClueRequest(string ClueText, IReadOnlyList<Guid> TeamIds);
 }

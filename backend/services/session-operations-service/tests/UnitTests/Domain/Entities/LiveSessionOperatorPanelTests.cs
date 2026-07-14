@@ -93,6 +93,26 @@ public sealed class LiveSessionOperatorPanelTests
         sharedContext.Targets.Should().BeEmpty();
     }
 
+    // The released-clue tracker must include always-on VisibleWhenSubstageStarts initial clues, not
+    // only manual operator releases — those never touch the persisted per-team ReleasedClueCount.
+    [Fact]
+    public void ProjectOperatorSessionPanel_TriviaWithInitialClues_CountsInitialCluesForEveryTeam()
+    {
+        var session = LiveSessionFactory.CreateScheduledTriviaWithClues();
+        session.AssociateTeam(Guid.NewGuid(), "Alpha", "A-01", 4);
+        session.AssociateTeam(Guid.NewGuid(), "Bravo", "B-01", 4);
+
+        var policy = new SessionStateTransitionPolicy();
+        session.MoveTo(SessionState.Preparing, ActiveAt.AddMinutes(-1), policy);
+        session.MoveTo(SessionState.Active, ActiveAt, policy);
+
+        var panel = session.ProjectOperatorSessionPanel(ActiveAt);
+
+        // One VisibleWhenSubstageStarts clue is live for every team once the trivia substage is active
+        // (the fixture's second clue is HiddenUntilOperatorRelease, so it is not counted).
+        panel.TeamProgress.Should().OnlyContain(progress => progress.ReleasedClueCount == 1);
+    }
+
     [Fact]
     public void ProjectOperatorSessionPanel_WhenNoActiveSubstage_HasNullActiveContextForEveryTeam()
     {
@@ -104,6 +124,8 @@ public sealed class LiveSessionOperatorPanelTests
 
         panel.State.Should().Be(SessionState.Scheduled);
         panel.TeamProgress.Should().OnlyContain(progress => progress.ActiveSubstageContext == null);
+        // No active substage and no manual releases ⇒ nothing released to anyone.
+        panel.TeamProgress.Should().OnlyContain(progress => progress.ReleasedClueCount == 0);
     }
 
     // Value equality: two projections of the same session state are equal, which exercises the

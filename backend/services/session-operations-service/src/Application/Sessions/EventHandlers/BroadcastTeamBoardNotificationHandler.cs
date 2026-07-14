@@ -13,7 +13,8 @@ namespace umbral_backend.Application.Sessions.EventHandlers;
 /// </summary>
 public sealed class BroadcastTeamBoardNotificationHandler
     : INotificationHandler<SessionStateChangedEvent>,
-        INotificationHandler<SubstageAdvancedEvent>
+        INotificationHandler<SubstageAdvancedEvent>,
+        INotificationHandler<OperativeClueAddedEvent>
 {
     private readonly ILiveSessionRepository _liveSessionRepository;
     private readonly ITeamBoardBroadcaster _teamBoardBroadcaster;
@@ -39,20 +40,54 @@ public sealed class BroadcastTeamBoardNotificationHandler
         return BroadcastAllTeamBoardsAsync(notification.LiveSessionId, cancellationToken);
     }
 
+    public Task Handle(OperativeClueAddedEvent notification, CancellationToken cancellationToken)
+    {
+        return BroadcastSingleTeamBoardAsync(
+            notification.LiveSessionId,
+            notification.TeamId,
+            cancellationToken);
+    }
+
     private async Task BroadcastAllTeamBoardsAsync(Guid liveSessionId, CancellationToken cancellationToken)
     {
-        var liveSession = await _liveSessionRepository.GetByIdAsync(liveSessionId, cancellationToken)
-            ?? throw new NotFoundException(nameof(LiveSession), liveSessionId);
-
+        var liveSession = await LoadAsync(liveSessionId, cancellationToken);
         var now = _timeProvider.GetUtcNow();
 
         foreach (var team in liveSession.Teams)
         {
-            var snapshot = liveSession.ProjectParticipantTeamBoard(team.TeamId, now);
-            var timerDto = SessionTimerSnapshotDtoFactory.Create(liveSession, team.TeamId, snapshot.TimerSnapshot);
-            var board = ParticipantTeamBoardDtoFactory.Create(liveSession, snapshot, timerDto);
-
-            await _teamBoardBroadcaster.BroadcastTeamBoardUpdatedAsync(board, cancellationToken);
+            await ProjectAndBroadcastAsync(liveSession, team.TeamId, now, cancellationToken);
         }
+    }
+
+    private async Task BroadcastSingleTeamBoardAsync(
+        Guid liveSessionId,
+        Guid teamId,
+        CancellationToken cancellationToken)
+    {
+        var liveSession = await LoadAsync(liveSessionId, cancellationToken);
+        await ProjectAndBroadcastAsync(
+            liveSession,
+            teamId,
+            _timeProvider.GetUtcNow(),
+            cancellationToken);
+    }
+
+    private async Task<LiveSession> LoadAsync(Guid liveSessionId, CancellationToken cancellationToken)
+    {
+        return await _liveSessionRepository.GetByIdAsync(liveSessionId, cancellationToken)
+            ?? throw new NotFoundException(nameof(LiveSession), liveSessionId);
+    }
+
+    private async Task ProjectAndBroadcastAsync(
+        LiveSession liveSession,
+        Guid teamId,
+        DateTimeOffset now,
+        CancellationToken cancellationToken)
+    {
+        var snapshot = liveSession.ProjectParticipantTeamBoard(teamId, now);
+        var timerDto = SessionTimerSnapshotDtoFactory.Create(liveSession, teamId, snapshot.TimerSnapshot);
+        var board = ParticipantTeamBoardDtoFactory.Create(liveSession, snapshot, timerDto);
+
+        await _teamBoardBroadcaster.BroadcastTeamBoardUpdatedAsync(board, cancellationToken);
     }
 }

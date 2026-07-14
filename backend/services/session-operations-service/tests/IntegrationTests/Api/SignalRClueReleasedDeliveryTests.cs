@@ -132,6 +132,37 @@ public sealed class SignalRClueReleasedDeliveryTests : IAsyncLifetime
         secondaryReceived!.TeamId.Should().Be(seeded.SecondaryTeamId);
     }
 
+    [Fact]
+    public async Task ReleaseTriviaClue_PushesBoardContainingClueSnapshotIdToReleasedTeam()
+    {
+        var participantExternalId = Guid.NewGuid();
+        var seeded = await SeedActiveTriviaSessionWithDisconnectedParticipantAsync(participantExternalId);
+
+        await using var connection = await ConnectParticipantAsync(
+            seeded.LiveSessionId,
+            participantExternalId,
+            seeded.TeamId);
+        ParticipantTeamBoardDto? received = null;
+        connection.On<ParticipantTeamBoardDto>(
+            SignalRTeamBoardBroadcaster.TeamBoardUpdatedMethod,
+            payload => received = payload);
+
+        var operatorClient = _factory.CreateClient();
+        AddTrustedHeaders(operatorClient, OperatorExternalIdentityId, "Operator", "operator@example.com");
+        var response = await operatorClient.PostAsJsonAsync(
+            $"/api/sessions/{seeded.LiveSessionId}/clues/release",
+            new { clueId = seeded.ClueSnapshotId, teamId = seeded.TeamId });
+
+        response.EnsureSuccessStatusCode();
+        await Task.Delay(500);
+
+        received.Should().NotBeNull();
+        received!.VisibleClues.Should().ContainSingle(clue =>
+            clue.ClueSnapshotId == seeded.ClueSnapshotId &&
+            clue.TargetSnapshotId == null &&
+            clue.OperativeClueId == null);
+    }
+
     private async Task<HubConnection> ConnectParticipantAsync(
         Guid liveSessionId,
         Guid externalIdentityId,
@@ -209,6 +240,43 @@ public sealed class SignalRClueReleasedDeliveryTests : IAsyncLifetime
         return new SeededSession(session.LiveSessionId, targetSnapshotId, primaryTeam.TeamId, secondaryTeam.TeamId);
     }
 
+    private async Task<SeededTriviaSession> SeedActiveTriviaSessionWithDisconnectedParticipantAsync(
+        Guid participantExternalIdentityId)
+    {
+        await using var scope = _factory.Services.CreateAsyncScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var createdAt = DateTimeOffset.UtcNow.AddMinutes(-20);
+        var sourceMissionId = Guid.NewGuid();
+        var snapshot = CreateTriviaSnapshot(sourceMissionId);
+        var session = LiveSession.Create(
+            SessionSource.Create(sourceMissionId),
+            $"TRS-{Guid.NewGuid():N}"[..12],
+            "Trivia Clue SignalR Push",
+            20,
+            createdAt,
+            snapshot);
+        var team = session.AssociateTeam(Guid.NewGuid(), "Alpha", "ALP-01", 4);
+        session.AssignOperator(OperatorUserId, createdAt.AddMinutes(1));
+        var participant = session.AdmitParticipant(
+            participantExternalIdentityId,
+            "AlphaUser",
+            team.TeamId,
+            createdAt.AddMinutes(1),
+            new JoinPolicy()).Participant;
+        session.DisconnectParticipant(participant.SessionParticipantId, createdAt.AddMinutes(2));
+        var transitionPolicy = new SessionStateTransitionPolicy();
+        session.MoveTo(SessionState.Preparing, createdAt.AddMinutes(2), transitionPolicy);
+        session.MoveTo(SessionState.Active, createdAt.AddMinutes(3), transitionPolicy);
+
+        dbContext.LiveSessions.Add(session);
+        await dbContext.SaveChangesAsync();
+
+        return new SeededTriviaSession(
+            session.LiveSessionId,
+            snapshot.ClueSnapshots.Single().ClueSnapshotId,
+            team.TeamId);
+    }
+
     private static MissionRuntimeSnapshot CreateTreasureHuntSnapshot(Guid sourceMissionId)
     {
         var substage = SubstageSnapshot.CreateTreasureHunt("Treasure Hunt", 1);
@@ -236,6 +304,34 @@ public sealed class SignalRClueReleasedDeliveryTests : IAsyncLifetime
             []);
     }
 
+    private static MissionRuntimeSnapshot CreateTriviaSnapshot(Guid sourceMissionId)
+    {
+        var substage = SubstageSnapshot.CreateTrivia("Trivia Round", 1);
+        var question = TriviaQuestionSnapshot.Create(
+            substage.SubstageSnapshotId,
+            "Which planet is closest to the Sun?",
+            1,
+            100,
+            30,
+            "Mercury is closest.",
+            [
+                TriviaOptionSnapshot.Create("Mercury", 1, true),
+                TriviaOptionSnapshot.Create("Venus", 2, false)
+            ]);
+        return MissionRuntimeSnapshot.Create(
+            sourceMissionId,
+            "Trivia Clue SignalR Push",
+            MaximumTime.Create(20),
+            [StageSnapshot.Create("Stage One", 1, [substage])],
+            [],
+            [question],
+            [ClueSnapshot.Create(
+                substage.SubstageSnapshotId,
+                "Operator-only trivia clue.",
+                ClueSnapshot.HiddenUntilOperatorReleasePolicy,
+                1)]);
+    }
+
     private static void AddTrustedHeaders(HttpClient client, string userId, string role, string email)
     {
         client.DefaultRequestHeaders.Remove("X-User-Id");
@@ -251,4 +347,6 @@ public sealed class SignalRClueReleasedDeliveryTests : IAsyncLifetime
         Guid TargetSnapshotId,
         Guid PrimaryTeamId,
         Guid SecondaryTeamId);
+
+    private sealed record SeededTriviaSession(Guid LiveSessionId, Guid ClueSnapshotId, Guid TeamId);
 }

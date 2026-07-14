@@ -100,6 +100,7 @@ function primeTimer() {
     display: { label: '00:42', pct: 70, tone: 'running' },
     activeQuestion: null,
     sessionState: 'Active',
+    pregameSecondsLeft: null,
     snapshotVersion: 1,
   });
 }
@@ -248,7 +249,7 @@ const TREASURE_HUNT_BOARD = {
     },
   ],
   visibleClues: [
-    { targetSnapshotId: 't1', clueText: 'Follow the north colonnade.', targetName: 'Brass Astrolabe' },
+    { targetSnapshotId: 't1', clueText: 'Follow the north colonnade.', targetName: 'Brass Astrolabe', operativeClueId: null },
   ],
 };
 
@@ -334,6 +335,55 @@ describe('LiveTeamSpace play-mode branch', () => {
     const texts = allText(renderSpace().toJSON());
 
     expect(texts.join(' ')).toContain("You don't have access to this team's board.");
+  });
+
+  test('TreasureHunt gives the board the viewport — no enclosing ScrollView, no fixed height', () => {
+    // The board is a full-screen surface (sticky header, flex body, pinned strip) whose tab bodies
+    // are ScrollViews. Boxing it at a fixed height inside the screen's own ScrollView nested two
+    // same-direction scrollers and left a long clue list barely scrollable, so this branch renders
+    // the board as the root: the only ScrollViews below it are its own tab bodies.
+    mockUseTeamBoard.mockReturnValue({ board: TREASURE_HUNT_BOARD, isLoading: false, error: null });
+    const renderer = renderSpace();
+
+    const root = renderer.toJSON() as { type?: string } | null;
+    expect(root?.type).not.toBe('RCTScrollView');
+
+    const scrollViews = renderer.root.findAll(
+      (n) => typeof n.type === 'string' && n.type === 'RCTScrollView',
+    );
+    // Exactly one tab body is mounted at a time, and MAP (the default) has no scroller of its own.
+    expect(scrollViews).toHaveLength(0);
+
+    const heights = renderer.root
+      .findAll((n) => typeof n.type === 'string')
+      .flatMap((n) => [n.props?.style].flat())
+      .filter((s): s is { height?: unknown } => !!s && typeof s === 'object')
+      .map((s) => s.height);
+    expect(heights).not.toContain(640);
+  });
+
+  test('TreasureHunt clue list is the single scroller and keeps the substage progress + leave action', () => {
+    mockUseTeamBoard.mockReturnValue({ board: TREASURE_HUNT_BOARD, isLoading: false, error: null });
+    const renderer = renderSpace();
+
+    // Substage progress (#171) rides the board's sticky header now that the board owns the screen.
+    expect(allText(renderer.toJSON())).toContain('The Cartographer’s Vault');
+    expect(renderer.root.findAll((n) => n.props?.accessibilityLabel === 'Leave team space').length)
+      .toBeGreaterThan(0);
+
+    // Switching to CLUES mounts exactly one scroller: the clue list itself, with nothing above it.
+    // The board's segmented control renders the first three role="button" pressables, in
+    // map/clues/teams order (the strip's leave control comes after them).
+    const buttons = renderer.root.findAll(
+      (n) => n.props?.accessibilityRole === 'button' && typeof n.props?.onPress === 'function',
+    );
+    act(() => {
+      (buttons[1].props.onPress as () => void)();
+    });
+
+    expect(
+      renderer.root.findAll((n) => typeof n.type === 'string' && n.type === 'RCTScrollView'),
+    ).toHaveLength(1);
   });
 
   test('a retained board suppresses the error banner on a failed re-fetch', () => {
