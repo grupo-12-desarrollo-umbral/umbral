@@ -2,7 +2,7 @@
   "realm": "umbral",
   "enabled": true,
   "displayName": "Umbral",
-  "registrationAllowed": true,
+  "registrationAllowed": false,
   "registrationEmailAsUsername": true,
   "resetPasswordAllowed": true,
   "resetCredentialsFlow": "reset credentials",
@@ -33,9 +33,6 @@
         "description": "${role_default-roles}",
         "composite": true,
         "composites": {
-          "realm": [
-            "Participant"
-          ],
           "client": {
             "account": [
               "view-profile",

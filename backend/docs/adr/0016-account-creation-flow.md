@@ -22,10 +22,18 @@ this ADR describes as "current". `GH #142` is done: `POST /api/users/invitations
 (`UsersController`) and `KeycloakAdminService.CreateUserAsync` /
 `SendExecuteActionsEmailAsync` implement §2 as recorded — user created with no
 password, `emailVerified: false`, `execute-actions-email`
-`[UPDATE_PASSWORD, VERIFY_EMAIL]`. Still pending: §1's `POST /api/users/register`
-participant path (`GH #143`); note the current `CreateUserAsync(email)` creates
-**no** credential, so the register path adds a password-accepting create rather
-than reusing it as-is.)*
+`[UPDATE_PASSWORD, VERIFY_EMAIL]`. §1 is now done as recorded (`GH #143`, realigned
+by `GH #217` after an earlier attempt shipped Keycloak's hosted registration page
+instead): the anonymous `POST /api/users/register` (`UsersController`) →
+`RegisterParticipantCommandHandler` creates the account via
+`KeycloakAdminService.CreateParticipantAsync` (enabled, `emailVerified: false`, with
+the chosen password as a non-temporary credential), assigns the server-fixed
+`Participant` role, and sends a `VERIFY_EMAIL`-only `execute-actions-email`; the
+role is never read from the request body. `registrationAllowed` is back to `false`
+and `Participant` is no longer the realm default role. The gateway exposes the
+single `/api/users/register` route anonymously behind a per-IP rate limiter; mobile
+registers through a custom native form (`app/(auth)/register.tsx`), not a hosted
+page.)*
 
 ## Context
 

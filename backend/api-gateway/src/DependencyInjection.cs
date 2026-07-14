@@ -1,8 +1,16 @@
+using System.Threading.RateLimiting;
+using Microsoft.AspNetCore.RateLimiting;
+
 namespace Microsoft.Extensions.DependencyInjection;
 
 public static class DependencyInjection
 {
     public const string FrontendCorsPolicyName = "FrontendSignalR";
+
+    // Applied to the anonymous /api/users/register route (ADR-0016 §1): hosted registration would have
+    // supplied bot/rate protection for free, so we add it here for the custom endpoint. Partitioned by
+    // client IP so one address cannot spray account creation or probe which emails already exist.
+    public const string RegisterRateLimiterPolicyName = "register";
 
     public static void AddGatewayServices(this IHostApplicationBuilder builder)
     {
@@ -94,6 +102,25 @@ public static class DependencyInjection
             });
 
         builder.Services.AddAuthorization();
+
+        builder.Services.AddRateLimiter(options =>
+        {
+            // 429 (not the default 503) so a throttled registrant gets the semantically correct status;
+            // problem+json keeps the body consistent with every other gateway error response.
+            options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+
+            options.AddPolicy(RegisterRateLimiterPolicyName, httpContext =>
+            {
+                var clientKey = httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+
+                return RateLimitPartition.GetFixedWindowLimiter(clientKey, _ => new FixedWindowRateLimiterOptions
+                {
+                    PermitLimit = 5,
+                    Window = TimeSpan.FromMinutes(15),
+                    QueueLimit = 0,
+                });
+            });
+        });
 
         // Mirrors the three domain services: an unhandled exception becomes RFC 7807 problem+json
         // instead of a bare framework 500. UseExceptionHandler in Program.cs activates it.
