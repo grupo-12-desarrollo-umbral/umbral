@@ -1,5 +1,6 @@
 using umbral_backend.Domain.Entities;
 using umbral_backend.Domain.Enums;
+using umbral_backend.Domain.Events;
 using umbral_backend.Domain.Exceptions;
 
 namespace umbral_backend.SessionOperations.UnitTests.Domain.Entities;
@@ -32,6 +33,8 @@ public sealed class EvidenceSubmissionTests
 
         submission.ValidationState.Should().Be(EvidenceValidationState.Rejected);
         submission.RejectionReason.Should().Be(EvidenceRejectionReason.SubstageBindingMismatch);
+        submission.DomainEvents.OfType<EvidenceSubmissionRejectedEvent>().Should().ContainSingle()
+            .Which.RejectionReason.Should().Be(EvidenceRejectionReason.SubstageBindingMismatch.ToString());
     }
 
     [Fact]
@@ -123,5 +126,7 @@ public sealed class EvidenceSubmissionTests
                 submittedAt)
         {
         }
+
+        public override string? DescribeOrigin() => null;
     }
 }

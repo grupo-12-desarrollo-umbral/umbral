@@ -36,5 +36,6 @@ public static class PersistenceServiceExtensions
 
         builder.Services.AddScoped<IDatabaseHealthCheck, DatabaseHealthCheck>();
         builder.Services.AddScoped<ILiveSessionRepository, LiveSessionRepository>();
+        builder.Services.AddScoped<IEvidenceTraceRepository, EvidenceTraceRepository>();
     }
 }

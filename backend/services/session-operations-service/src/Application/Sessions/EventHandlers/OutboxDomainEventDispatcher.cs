@@ -14,6 +14,8 @@ public sealed class OutboxDomainEventDispatcher : IOutboxDomainEventDispatcher
 {
     private readonly PublishAnswerRegisteredIntegrationEventHandler _answerRegistered;
     private readonly PublishEvidenceSubmissionRegisteredIntegrationEventHandler _evidenceSubmissionRegistered;
+    private readonly PublishEvidenceSubmissionAcceptedIntegrationEventHandler _evidenceSubmissionAccepted;
+    private readonly PublishEvidenceSubmissionRejectedIntegrationEventHandler _evidenceSubmissionRejected;
     private readonly PublishQuestionClosedIntegrationEventHandler _questionClosed;
     private readonly PublishSessionResultsFinalizedIntegrationEventHandler _sessionResultsFinalized;
     private readonly PublishSessionStateChangedIntegrationEventHandler _sessionStateChanged;
@@ -22,6 +24,8 @@ public sealed class OutboxDomainEventDispatcher : IOutboxDomainEventDispatcher
     public OutboxDomainEventDispatcher(
         PublishAnswerRegisteredIntegrationEventHandler answerRegistered,
         PublishEvidenceSubmissionRegisteredIntegrationEventHandler evidenceSubmissionRegistered,
+        PublishEvidenceSubmissionAcceptedIntegrationEventHandler evidenceSubmissionAccepted,
+        PublishEvidenceSubmissionRejectedIntegrationEventHandler evidenceSubmissionRejected,
         PublishQuestionClosedIntegrationEventHandler questionClosed,
         PublishSessionResultsFinalizedIntegrationEventHandler sessionResultsFinalized,
         PublishSessionStateChangedIntegrationEventHandler sessionStateChanged,
@@ -29,6 +33,8 @@ public sealed class OutboxDomainEventDispatcher : IOutboxDomainEventDispatcher
     {
         _answerRegistered = answerRegistered;
         _evidenceSubmissionRegistered = evidenceSubmissionRegistered;
+        _evidenceSubmissionAccepted = evidenceSubmissionAccepted;
+        _evidenceSubmissionRejected = evidenceSubmissionRejected;
         _questionClosed = questionClosed;
         _sessionResultsFinalized = sessionResultsFinalized;
         _sessionStateChanged = sessionStateChanged;
@@ -40,6 +46,10 @@ public sealed class OutboxDomainEventDispatcher : IOutboxDomainEventDispatcher
         AnswerRegisteredEvent answerRegistered => _answerRegistered.Handle(answerRegistered, cancellationToken),
         EvidenceSubmissionRegisteredEvent evidenceSubmissionRegistered =>
             _evidenceSubmissionRegistered.Handle(evidenceSubmissionRegistered, cancellationToken),
+        EvidenceSubmissionAcceptedEvent evidenceSubmissionAccepted =>
+            _evidenceSubmissionAccepted.Handle(evidenceSubmissionAccepted, cancellationToken),
+        EvidenceSubmissionRejectedEvent evidenceSubmissionRejected =>
+            _evidenceSubmissionRejected.Handle(evidenceSubmissionRejected, cancellationToken),
         QuestionClosedEvent questionClosed => _questionClosed.Handle(questionClosed, cancellationToken),
         TargetResolvedEvent targetResolved => _targetResolved.Handle(targetResolved, cancellationToken),
         SessionStateChangedEvent sessionStateChanged => DispatchSessionStateChangedAsync(

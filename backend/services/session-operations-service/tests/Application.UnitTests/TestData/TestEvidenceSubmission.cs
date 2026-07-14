@@ -22,5 +22,7 @@ internal sealed class TestEvidenceSubmission : EvidenceSubmission
     {
     }
 
-    internal void Accept() => MarkAcceptedByConcreteForm();
+    public override string? DescribeOrigin() => "test-origin";
+
+    internal void Accept(DateTimeOffset resolvedAt) => MarkAcceptedByConcreteForm(resolvedAt);
 }

@@ -570,7 +570,7 @@ public sealed class LiveSession : BaseAuditableEntity
                         registeredAt);
                 });
 
-            submission.AcceptRegisteredAnswer();
+            submission.AcceptRegisteredAnswer(submittedAt);
             _triviaAnswerSubmissions.Add(submission);
             RaiseAnswerRegistered(submission);
             return submission;
@@ -617,11 +617,11 @@ public sealed class LiveSession : BaseAuditableEntity
         var rejectionReason = DetermineTargetResolutionRejection(submission, target);
         if (rejectionReason is not null)
         {
-            submission.RejectRegisteredTarget(rejectionReason.Value);
+            submission.RejectRegisteredTarget(rejectionReason.Value, submittedAt);
             return submission;
         }
 
-        submission.AcceptRegisteredTarget();
+        submission.AcceptRegisteredTarget(submittedAt);
         AddDomainEvent(new TargetResolvedEvent(
             LiveSessionId,
             submission.TeamId,
@@ -699,7 +699,8 @@ public sealed class LiveSession : BaseAuditableEntity
             activeSubstageId,
             submissionType,
             submittedAt,
-            EvidenceValidationState.Pending));
+            EvidenceValidationState.Pending,
+            originReference: submission.DescribeOrigin()));
 
         return submission;
     }

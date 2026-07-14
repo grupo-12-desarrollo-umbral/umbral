@@ -1024,6 +1024,8 @@ public sealed class LiveSessionTests
         submission.RejectionReason.Should().BeNull();
 
         session.DomainEvents.OfType<EvidenceSubmissionRegisteredEvent>().Should().ContainSingle();
+        var registeredEvent = session.DomainEvents.OfType<EvidenceSubmissionRegisteredEvent>().Single();
+        registeredEvent.OriginReference.Should().Be($"target:{target.TargetSnapshotId}");
         var registeredIndex = session.DomainEvents.ToList().FindIndex(domainEvent =>
             domainEvent is EvidenceSubmissionRegisteredEvent);
         var resolvedIndex = session.DomainEvents.ToList().FindIndex(domainEvent =>
@@ -1038,6 +1040,9 @@ public sealed class LiveSessionTests
         resolved.TargetSnapshotId.Should().Be(target.TargetSnapshotId);
         resolved.ScoreValue.Should().Be(target.Score);
         resolved.ResolvedAt.Should().Be(submittedAt);
+
+        submission.DomainEvents.OfType<EvidenceSubmissionAcceptedEvent>().Should().ContainSingle()
+            .Which.EvidenceSubmissionId.Should().Be(submission.EvidenceSubmissionId);
 
         session.ProjectParticipantTeamBoard(team.TeamId, submittedAt)
             .ActiveSubstageContext!.ResolvedTargets.Should().Be(1);
@@ -1062,7 +1067,11 @@ public sealed class LiveSessionTests
             .Be(TargetResolutionRejectionReason.ScannedValueDoesNotResolveToTarget);
         session.TreasureEvidenceSubmissions.Should().ContainSingle().Which.Should().Be(submission);
         session.DomainEvents.OfType<EvidenceSubmissionRegisteredEvent>().Should().ContainSingle();
+        session.DomainEvents.OfType<EvidenceSubmissionRegisteredEvent>().Single()
+            .OriginReference.Should().Be("qr:WRONG-QR");
         session.DomainEvents.OfType<TargetResolvedEvent>().Should().BeEmpty();
+        submission.DomainEvents.OfType<EvidenceSubmissionRejectedEvent>().Should().ContainSingle()
+            .Which.RejectionReason.Should().Be("The scanned value does not resolve to a target.");
     }
 
     [Fact]
@@ -1086,6 +1095,8 @@ public sealed class LiveSessionTests
         session.TreasureEvidenceSubmissions.Should().HaveCount(2);
         session.DomainEvents.OfType<EvidenceSubmissionRegisteredEvent>().Should().HaveCount(2);
         session.DomainEvents.OfType<TargetResolvedEvent>().Should().ContainSingle();
+        duplicate.DomainEvents.OfType<EvidenceSubmissionRejectedEvent>().Should().ContainSingle()
+            .Which.RejectionReason.Should().Be("The target has already been resolved by this team.");
         session.ProjectParticipantTeamBoard(team.TeamId, submittedAt.AddSeconds(1))
             .ActiveSubstageContext!.ResolvedTargets.Should().Be(1);
     }
@@ -1107,7 +1118,11 @@ public sealed class LiveSessionTests
         submission.ResolutionRejectionReason.Should()
             .Be(TargetResolutionRejectionReason.TargetOutsideActiveSubstage);
         session.DomainEvents.OfType<EvidenceSubmissionRegisteredEvent>().Should().ContainSingle();
+        session.DomainEvents.OfType<EvidenceSubmissionRegisteredEvent>().Single()
+            .OriginReference.Should().Be($"target:{submission.TargetSnapshotId}");
         session.DomainEvents.OfType<TargetResolvedEvent>().Should().BeEmpty();
+        submission.DomainEvents.OfType<EvidenceSubmissionRejectedEvent>().Should().ContainSingle()
+            .Which.RejectionReason.Should().Be("The resolved target does not belong to the active treasure-hunt substage.");
     }
 
     [Theory]
@@ -1203,6 +1218,9 @@ public sealed class LiveSessionTests
         evidenceRegistered.SubmissionType.Should().Be(EvidenceSubmissionType.TriviaAnswer);
         evidenceRegistered.SubmittedAt.Should().Be(submittedAt);
         evidenceRegistered.ValidationState.Should().Be(EvidenceValidationState.Pending);
+        evidenceRegistered.OriginReference.Should().Be("question:1");
+        submission.DomainEvents.OfType<EvidenceSubmissionAcceptedEvent>().Should().ContainSingle()
+            .Which.EvidenceSubmissionId.Should().Be(submission.EvidenceSubmissionId);
     }
 
     [Fact]

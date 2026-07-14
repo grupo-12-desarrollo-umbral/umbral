@@ -104,10 +104,10 @@ public sealed class RejectedEvidenceSubmissionPersistenceTests
             "the umbrella intake fact stays Pending — the rejection outcome is a separate persistence concern");
     }
 
-    // HU-30 X.3 Gate #3 — no orphaned outbox rows beyond the single EvidenceSubmissionRegistered
-    // (no second publisher stack, no exchange bootstrap).
+    // HU-30 X.3 Gate #3 — all four outbound integration facts land atomically:
+    //   EvidenceSubmissionRegistered + Accepted (trivia auto-accept) + AnswerRegistered + Rejected (HU-32 X.2).
     [Fact]
-    public async Task RejectedEvidenceSubmission_ProducesOnlySingleOutboxMessageType()
+    public async Task RejectedEvidenceSubmission_ProducesFourOutboxMessages()
     {
         await using var clearContext = _contextFactory.Create();
         await clearContext.Set<OutboxMessage>().ExecuteDeleteAsync();
@@ -129,19 +129,25 @@ public sealed class RejectedEvidenceSubmissionPersistenceTests
         await using var verifyContext = _contextFactory.Create();
         var allOutboxRows = await verifyContext.Set<OutboxMessage>().ToListAsync();
 
-        // The rejected evidence write produces two events:
-        // 1. EvidenceSubmissionRegistered (umbrella intake — AC #1/#6)
-        // 2. AnswerRegistered (trivia specialization, inherited from HU-34)
-        allOutboxRows.Should().HaveCount(2,
-            "rejected evidence produces EvidenceSubmissionRegistered + AnswerRegistered — no extra publisher stack");
+        allOutboxRows.Should().HaveCount(4,
+            "trivia auto-accept + manual reject fills all four outbox publishers: " +
+            "EvidenceSubmissionRegistered, EvidenceSubmissionAccepted, AnswerRegistered, EvidenceSubmissionRejected");
 
         allOutboxRows.Should().ContainSingle(m =>
                 m.MessageType.Contains(nameof(EvidenceSubmissionRegisteredIntegrationEvent)),
             "the umbrella EvidenceSubmissionRegistered fact fires regardless of acceptance/rejection outcome");
 
         allOutboxRows.Should().ContainSingle(m =>
+                m.MessageType.Contains(nameof(EvidenceSubmissionAcceptedIntegrationEvent)),
+            "the trivia auto-accept path raises EvidenceSubmissionAccepted before the test resets to Pending");
+
+        allOutboxRows.Should().ContainSingle(m =>
                 m.MessageType.Contains(nameof(AnswerRegisteredIntegrationEvent)),
             "the specialized AnswerRegistered fact still fires for the trivia context");
+
+        allOutboxRows.Should().ContainSingle(m =>
+                m.MessageType.Contains(nameof(EvidenceSubmissionRejectedIntegrationEvent)),
+            "the HU-32 X.2 EvidenceSubmissionRejected fact fires for the manual rejection path");
     }
 
     // Resets a TriviaAnswerSubmission back to Pending so the Reject transition path is exercisable.
@@ -178,6 +184,8 @@ public sealed class RejectedEvidenceSubmissionPersistenceTests
 
         services.AddScoped<PublishAnswerRegisteredIntegrationEventHandler>();
         services.AddScoped<PublishEvidenceSubmissionRegisteredIntegrationEventHandler>();
+        services.AddScoped<PublishEvidenceSubmissionAcceptedIntegrationEventHandler>();
+        services.AddScoped<PublishEvidenceSubmissionRejectedIntegrationEventHandler>();
         services.AddScoped<PublishQuestionClosedIntegrationEventHandler>();
         services.AddScoped<PublishSessionResultsFinalizedIntegrationEventHandler>();
         services.AddScoped<PublishSessionStateChangedIntegrationEventHandler>();

@@ -190,6 +190,65 @@ namespace umbral_backend.Infrastructure.Migrations
                     b.ToTable("OutboxState");
                 });
 
+            modelBuilder.Entity("umbral_backend.Domain.Entities.EvidenceTraceEntry", b =>
+                {
+                    b.Property<Guid>("EvidenceSubmissionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("evidence_submission_id");
+
+                    b.Property<Guid>("ActiveSubstageId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("active_substage_id");
+
+                    b.Property<Guid>("LiveSessionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("live_session_id");
+
+                    b.Property<string>("OriginReference")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("origin_reference");
+
+                    b.Property<string>("RejectionReason")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("rejection_reason");
+
+                    b.Property<DateTimeOffset?>("ResolvedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("resolved_at");
+
+                    b.Property<string>("SubmissionType")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("submission_type");
+
+                    b.Property<DateTimeOffset>("SubmittedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("submitted_at");
+
+                    b.Property<Guid?>("SubmittedByParticipantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("submitted_by_participant_id");
+
+                    b.Property<Guid>("TeamId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("team_id");
+
+                    b.Property<string>("ValidationState")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("validation_state");
+
+                    b.HasKey("EvidenceSubmissionId");
+
+                    b.HasIndex("LiveSessionId", "TeamId");
+
+                    b.ToTable("evidence_trace_entries", (string)null);
+                });
+
             modelBuilder.Entity("umbral_backend.Domain.Entities.LiveSession", b =>
                 {
                     b.Property<Guid>("LiveSessionId")

@@ -13,6 +13,8 @@ public sealed class ApplicationDbContext : DbContext
 
     public DbSet<LiveSession> LiveSessions => Set<LiveSession>();
 
+    public DbSet<EvidenceTraceEntry> EvidenceTraceEntries => Set<EvidenceTraceEntry>();
+
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);

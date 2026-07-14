@@ -57,6 +57,8 @@ public static class DependencyInjection
         // MediatR notifications, so their OutboxMessage insert rides the business SaveChanges).
         builder.Services.AddScoped<PublishAnswerRegisteredIntegrationEventHandler>();
         builder.Services.AddScoped<PublishEvidenceSubmissionRegisteredIntegrationEventHandler>();
+        builder.Services.AddScoped<PublishEvidenceSubmissionAcceptedIntegrationEventHandler>();
+        builder.Services.AddScoped<PublishEvidenceSubmissionRejectedIntegrationEventHandler>();
         builder.Services.AddScoped<PublishQuestionClosedIntegrationEventHandler>();
         builder.Services.AddScoped<PublishSessionResultsFinalizedIntegrationEventHandler>();
         builder.Services.AddScoped<PublishSessionStateChangedIntegrationEventHandler>();

@@ -72,7 +72,7 @@ public sealed class TriviaAnswerSubmission : EvidenceSubmission
             isCorrect,
             scoreValue);
 
-        submission.AcceptRegisteredAnswer();
+        submission.AcceptRegisteredAnswer(submittedAt);
         return submission;
     }
 
@@ -99,8 +99,11 @@ public sealed class TriviaAnswerSubmission : EvidenceSubmission
             scoreValue);
     }
 
-    internal void AcceptRegisteredAnswer()
+    internal void AcceptRegisteredAnswer(DateTimeOffset resolvedAt)
     {
-        MarkAcceptedByConcreteForm();
+        MarkAcceptedByConcreteForm(resolvedAt);
     }
+
+    public override string? DescribeOrigin() =>
+        $"question:{QuestionSequenceOrder}";
 }

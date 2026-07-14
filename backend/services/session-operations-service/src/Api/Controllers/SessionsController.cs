@@ -12,6 +12,7 @@ using umbral_backend.Application.Sessions.Commands.SelectTeam;
 using umbral_backend.Application.Sessions.Commands.SubmitTriviaAnswer;
 using umbral_backend.Application.Sessions.Commands.TransitionSessionState;
 using umbral_backend.Application.Sessions.Common;
+using umbral_backend.Application.Sessions.Queries.GetOperatorEvidenceTrace;
 using umbral_backend.Application.Sessions.Queries.GetOperatorSessionTimerSnapshot;
 using umbral_backend.Application.Sessions.Queries.GetOperatorSessionPanel;
 using umbral_backend.Application.Sessions.Queries.GetOperatorTriviaAnsweredMonitor;
@@ -361,6 +362,22 @@ public sealed class SessionsController(ISender sender) : ControllerBase
     {
         var result = await sender.Send(
             new AddOperativeClueCommand(liveSessionId, request.ClueText, request.TeamIds),
+            cancellationToken);
+
+        return Ok(result);
+    }
+
+    // HU-32: operator evidence traceability read surface. Returns the full trace list for a live session,
+    // optionally filtered by team, gated to the assigned operator by the ownership resolver Proxy.
+    [HttpGet("{liveSessionId:guid}/evidence-submissions")]
+    [Authorize(Policy = AuthorizationPolicies.Operator)]
+    public async Task<ActionResult<EvidenceTraceDto>> GetEvidenceSubmissionsAsync(
+        Guid liveSessionId,
+        [FromQuery] Guid? teamId,
+        CancellationToken cancellationToken)
+    {
+        var result = await sender.Send(
+            new GetOperatorEvidenceTraceQuery(liveSessionId, teamId),
             cancellationToken);
 
         return Ok(result);
