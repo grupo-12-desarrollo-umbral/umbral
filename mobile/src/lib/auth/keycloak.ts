@@ -32,6 +32,17 @@ function logoutUrl(): string {
   return `${keycloakBaseUrl()}/realms/${realm}/protocol/openid-connect/logout`;
 }
 
+export function buildResetCredentialsUrl(
+  baseUrl: string = keycloakBaseUrl(),
+  realm: string = process.env.EXPO_PUBLIC_KEYCLOAK_REALM ?? '',
+): string {
+  if (!baseUrl || !realm) {
+    throw new Error('Missing Keycloak URL or realm for reset-credentials flow');
+  }
+
+  return `${baseUrl}/realms/${realm}/login-actions/reset-credentials`;
+}
+
 function parseJwt(token: string): Record<string, unknown> {
   try {
     const base64Url = token.split('.')[1];

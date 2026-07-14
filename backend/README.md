@@ -163,6 +163,22 @@ definiendo:
 Los usuarios sembrados de desarrollo llevan `emailVerified: true`, así que el
 login local sigue funcionando sin pasar por el mail catcher.
 
+### Password reset hospedado de Keycloak
+
+El realm deja **explícitamente** enlazado el flujo hospedado de restablecimiento
+de contraseña con `resetCredentialsFlow: "reset credentials"` y lo expone en:
+
+- `http://localhost:8080/realms/umbral/login-actions/reset-credentials`
+
+Ese es el entry point que consumen el login web y la app móvil para "Forgot your
+password?".
+
+Para que el enlace del correo siga siendo usable fuera del caso ideal de entrega
+instantánea, el realm fija `actionTokenGeneratedByUserLifespan: 900` (15
+minutos). Es el TTL del token de reset enviado por correo; Keycloak trae 5
+minutos por defecto, pero en práctica suele quedar corto para el round-trip del
+mail incluso en entornos bajos en latencia.
+
 ---
 
 ## Cómo ejecutar el backend

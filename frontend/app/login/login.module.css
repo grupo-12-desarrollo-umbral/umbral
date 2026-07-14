@@ -92,3 +92,16 @@
 .primaryButton:active {
   transform: translateY(1px);
 }
+
+.secondaryLink {
+  color: var(--text-secondary);
+  font-size: 0.92rem;
+  font-weight: 600;
+  text-decoration: underline;
+  text-decoration-color: color-mix(in oklab, var(--accent) 36%, transparent);
+  text-underline-offset: 0.18em;
+}
+
+.secondaryLink:hover {
+  color: var(--text-primary);
+}

@@ -1,4 +1,8 @@
-import { signInWithPassword, KeycloakError } from '@/lib/auth/keycloak';
+import {
+  buildResetCredentialsUrl,
+  signInWithPassword,
+  KeycloakError,
+} from '@/lib/auth/keycloak';
 
 jest.mock('expo/fetch', () => ({
   fetch: jest.fn(),
@@ -76,4 +80,10 @@ test('successful login returns mapped tokens', async () => {
     refreshToken: 'ref_xyz',
     idToken: 'hdr.payload.sig',
   });
+});
+
+test('builds the hosted reset-credentials URL for the realm', () => {
+  expect(buildResetCredentialsUrl('http://localhost:8080', 'umbral')).toBe(
+    'http://localhost:8080/realms/umbral/login-actions/reset-credentials',
+  );
 });

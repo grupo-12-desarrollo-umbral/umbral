@@ -83,6 +83,17 @@ export function buildAuthorizationUrl(state: string, codeChallenge: string): str
   return url.toString()
 }
 
+export function buildResetCredentialsUrl(
+  keycloakUrl: string = KEYCLOAK_URL ?? '',
+  realm: string = KEYCLOAK_REALM ?? '',
+): string {
+  if (!keycloakUrl || !realm) {
+    throw new Error('Missing Keycloak URL or realm for reset-credentials flow.')
+  }
+
+  return `${keycloakUrl}/realms/${realm}/login-actions/reset-credentials`
+}
+
 export function toExpiresAtMs(expiresInSeconds: number, nowMs: number = Date.now()): number {
   return nowMs + expiresInSeconds * 1000
 }
