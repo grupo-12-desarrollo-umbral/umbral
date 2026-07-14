@@ -250,6 +250,26 @@ public sealed class SnapshotGuardTests
         a.GetHashCode().Should().Be(b.GetHashCode());
     }
 
+    [Fact]
+    public void ActiveSubstageContext_WithTargets_IsEqualByEveryTargetValue()
+    {
+        var substageId = Guid.NewGuid();
+        var targetId = Guid.NewGuid();
+        var first = ActiveSubstageContext.CreateTreasureHunt(
+            substageId,
+            "Treasure Route",
+            resolvedTargets: 0,
+            [new ActiveSubstageTarget(targetId, "Main Exhibit", 1, true)]);
+        var second = ActiveSubstageContext.CreateTreasureHunt(
+            substageId,
+            "Treasure Route",
+            resolvedTargets: 0,
+            [new ActiveSubstageTarget(targetId, "Main Exhibit", 1, true)]);
+
+        first.Should().Be(second);
+        first.GetHashCode().Should().Be(second.GetHashCode());
+    }
+
     // ── MissionRuntimeSnapshot ───────────────────────────────────────────────
     [Fact]
     public void Mission_EmptySourceId_Throws()

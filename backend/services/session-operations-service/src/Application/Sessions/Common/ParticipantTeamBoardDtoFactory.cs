@@ -62,6 +62,13 @@ public static class ParticipantTeamBoardDtoFactory
             context.TotalActiveTargets,
             context.ResolvedTargets,
             context.ActiveQuestionSequenceOrder,
-            context.ActiveQuestionTimeLimitSeconds);
+            context.ActiveQuestionTimeLimitSeconds,
+            context.Targets
+                .Select(target => new ActiveSubstageTargetDto(
+                    target.TargetSnapshotId,
+                    target.Name,
+                    target.SequenceOrder,
+                    target.HasHiddenClue))
+                .ToList());
     }
 }
