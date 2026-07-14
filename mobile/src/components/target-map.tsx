@@ -20,8 +20,14 @@ export type TargetMapTarget = {
 
 // A wire payload always carries numeric coordinates, but guard anyway: a target missing/`NaN`
 // coordinates is treated as unplaceable so the map never renders a pin at a bogus point.
+//
+// 0,0 is unplaceable for a different reason: the backend has no null coordinate, so a target the
+// operator saved without a location reads back as 0,0. Honouring it literally would drop a pin in the
+// Atlantic (Null Island) instead of showing the empty state. The real point at 0,0 is open ocean and
+// can't be authored in the operator editor either, so nothing reachable is lost.
 function isPlaceable(target: TargetMapTarget): boolean {
-  return Number.isFinite(target.latitude) && Number.isFinite(target.longitude);
+  if (!Number.isFinite(target.latitude) || !Number.isFinite(target.longitude)) return false;
+  return target.latitude !== 0 || target.longitude !== 0;
 }
 
 export function TargetMap({

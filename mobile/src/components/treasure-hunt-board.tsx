@@ -67,6 +67,10 @@ export type TreasureHuntBoardProps = {
   // every tab. `onLeave` adds the leave affordance to the persistent team strip.
   headerSlot?: ReactNode;
   onLeave?: () => void;
+  // Launches the QR target scanner (#223). Present only for an active treasure-hunt substage — which is
+  // exactly when this board renders — so the affordance is inherently scoped to treasure hunts, never
+  // trivia. Absent → no scan button (e.g. a board push that predates the scanner).
+  onScan?: () => void;
 };
 
 export function TreasureHuntBoard({
@@ -79,6 +83,7 @@ export function TreasureHuntBoard({
   activeTargets = [],
   headerSlot,
   onLeave,
+  onScan,
 }: TreasureHuntBoardProps) {
   const [tab, setTab] = useState<'map' | 'clues' | 'teams'>('map');
 
@@ -262,6 +267,36 @@ export function TreasureHuntBoard({
           </Screen>
         )}
       </View>
+
+      {/* #223: floating QR-scan launcher, pinned above the team strip so it rides every tab. Only ever
+          shown for an active treasure-hunt substage (this board is the treasure-hunt branch), which is
+          the AC's "scanning only while a treasure-hunt substage is active". */}
+      {onScan ? (
+        <Pressable
+          testID="treasure-hunt-scan-button"
+          accessibilityRole="button"
+          accessibilityLabel="Scan a target QR code"
+          onPress={onScan}
+          style={{
+            position: 'absolute',
+            right: spacing.lg,
+            bottom: 92,
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: spacing.xs,
+            backgroundColor: colors.emberAccentStrong,
+            borderRadius: radii.pill,
+            borderCurve: 'continuous',
+            paddingHorizontal: spacing.lg,
+            paddingVertical: spacing.sm,
+            boxShadow: shadows.card,
+          }}
+        >
+          <Text variant="label" style={{ color: colors.ivoryFog }}>
+            SCAN TARGET
+          </Text>
+        </Pressable>
+      ) : null}
 
       {/* HU-28: the same viewport-pinned arrival toast the trivia surface raises. The Clues tab is
           already the durable home here, so this is toast-only (no chip) — it stays quiet while that

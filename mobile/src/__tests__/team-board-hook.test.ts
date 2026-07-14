@@ -475,6 +475,34 @@ describe('useTeamBoard', () => {
     hook.unmount();
   });
 
+  test('bumping refreshNonce re-fetches the board (post-scan progress pull)', async () => {
+    mockGetTeamBoard.mockResolvedValue(BASE_BOARD);
+    const client = makeClient();
+
+    const hook = renderHook({
+      client,
+      liveSessionId: 'sess-1',
+      teamId: REFERENCE_TEAM_ID,
+      isReconnected: true,
+      reconnectNonce: 0,
+      refreshNonce: 0,
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(mockGetTeamBoard).toHaveBeenCalledTimes(1);
+
+    await hook.rerender({ refreshNonce: 1 });
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(mockGetTeamBoard).toHaveBeenCalledTimes(2);
+
+    hook.unmount();
+  });
+
   test('snapshot error sets the error token and leaves board null', async () => {
     mockGetTeamBoard.mockRejectedValueOnce(new ApiError(403, 'forbidden', 'nope'));
     const client = makeClient();

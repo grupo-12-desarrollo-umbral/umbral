@@ -9,6 +9,11 @@ import type {
   SubmitTriviaAnswerResultDto,
   TriviaAnswerRejectionReasonCode,
 } from '@/lib/realtime/trivia-types';
+import type {
+  RegisterTargetScanRequest,
+  RegisterTargetScanResultDto,
+  TargetScanRejectionReasonCode,
+} from '@/lib/realtime/target-scan-types';
 
 export type TimerSnapshotError =
   | 'network-error'
@@ -149,4 +154,92 @@ export async function submitTriviaAnswer(
   }
 
   return response.json() as Promise<SubmitTriviaAnswerResultDto>;
+}
+
+// ── Register target scan (HU-31 contract, consumed by #223) ─────────────────────────────────────────
+// The mobile QR scanner submits a captured payload here. A correct scan resolves the target and returns
+// 200 acceptance metadata (never the score). A wrong/duplicate/out-of-context scan is retained-rejected
+// as RFC 7807 (422, `type: "target-scan-rejected"`) with the consistent reason in `detail`; pre-intake
+// blocks (non-admitting session, denied participant, etc.) surface as ProblemDetails on other statuses.
+// Like `submitTriviaAnswer`, this fetches directly rather than via `apiClient` so the ProblemDetails
+// `detail`/status — which `apiClient` does not read — reach the UI.
+
+// Typed rejection for a non-2xx scan. `reasonCode` is derived from the HTTP status (see the union);
+// `detail` carries the backend's reason string, which for a retained rejection (422) is the exact
+// message the participant should see. `status` is 0 for a network failure.
+export class RegisterTargetScanRejection extends Error {
+  constructor(
+    public readonly reasonCode: TargetScanRejectionReasonCode,
+    public readonly status: number,
+    public readonly detail: string,
+  ) {
+    super(detail);
+    this.name = 'RegisterTargetScanRejection';
+  }
+}
+
+// Maps the HTTP status of a failed scan to a stable reason code. The three retained-rejection reasons
+// (unknown QR, out-of-context target, duplicate) all share status 422 and are distinguished only by the
+// backend's `detail` message, so 422 collapses to a single 'retained-rejection' code that surfaces that
+// message verbatim.
+function toScanRejectionReasonCode(status: number): TargetScanRejectionReasonCode {
+  switch (status) {
+    case 0:
+      return 'network';
+    case 400:
+      return 'invalid-scan';
+    case 401:
+      return 'unauthorized';
+    case 403:
+      return 'not-a-participant';
+    case 404:
+      return 'session-not-found';
+    case 409:
+      return 'session-not-accepting';
+    case 422:
+      return 'retained-rejection';
+    default:
+      return 'unknown';
+  }
+}
+
+// POST /api/sessions/{liveSessionId}/participants/target-scans (Participant policy). Resolves with the
+// acceptance metadata on 200; rejects with a `RegisterTargetScanRejection` carrying the typed reasonCode
+// and the backend reason on any failure.
+export async function registerTargetScan(
+  liveSessionId: string,
+  request: RegisterTargetScanRequest,
+): Promise<RegisterTargetScanResultDto> {
+  const token = await getAccessToken();
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
+  let response: Response;
+  try {
+    response = await fetch(
+      `${apiBaseUrl()}/api/sessions/${encodeURIComponent(liveSessionId)}/participants/target-scans`,
+      { method: 'POST', headers, body: JSON.stringify(request) },
+    );
+  } catch {
+    throw new RegisterTargetScanRejection('network', 0, 'Network request failed');
+  }
+
+  if (!response.ok) {
+    let detail = `HTTP ${response.status}`;
+    try {
+      const problem = (await response.json()) as { detail?: string };
+      detail = problem.detail ?? detail;
+    } catch {
+      // Non-JSON error body: keep the status-derived fallback detail.
+    }
+    throw new RegisterTargetScanRejection(
+      toScanRejectionReasonCode(response.status),
+      response.status,
+      detail,
+    );
+  }
+
+  return response.json() as Promise<RegisterTargetScanResultDto>;
 }

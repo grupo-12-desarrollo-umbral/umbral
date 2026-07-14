@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useRef } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   buildTargetMapHtml,
   TARGET_PICK_MESSAGE,
@@ -28,6 +28,23 @@ export function TargetMap({
   testId?: string
   label?: string
 }) {
+  // Ask the browser for the operator's location so the map doesn't start at (0,0) / the Atlantic Ocean
+  // when no markers or draft exist yet.
+  const [browserLoc, setBrowserLoc] = useState<{ lat: number; lng: number } | null>(null)
+  useEffect(() => {
+    if (!('geolocation' in navigator)) return
+    navigator.geolocation.getCurrentPosition(
+      (pos) => setBrowserLoc({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+      (err) => {
+        // Falling back to the world view is correct for all three failure codes, but they are not the
+        // same problem: 1 = the operator denied us, 2 = the browser has no fix to give (common on a
+        // desktop with no GPS, and on Chromium builds whose network-location provider has no API key),
+        // 3 = we gave up waiting. Silently swallowing them made a broken provider look like a denial.
+        console.warn(`[TargetMap] geolocation unavailable (code ${err.code}): ${err.message}`)
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 60_000 },
+    )
+  }, [])
   // Keep the latest onPick in a ref so the message listener is registered once and never goes stale.
   const onPickRef = useRef(onPick)
   useEffect(() => {
@@ -47,10 +64,10 @@ export function TargetMap({
     return () => window.removeEventListener('message', handle)
   }, [interactive])
 
-  // Re-derive srcDoc only when the placed pins, draft, or mode change — not on every parent render.
+  // Re-derive srcDoc only when the placed pins, draft, mode, or browser location change.
   const srcDoc = useMemo(
-    () => buildTargetMapHtml({ markers, draft, interactive }),
-    [markers, draft, interactive],
+    () => buildTargetMapHtml({ markers, draft, interactive, defaultCenter: browserLoc }),
+    [markers, draft, interactive, browserLoc],
   )
 
   const hasContent = markers.length > 0 || draft !== null
