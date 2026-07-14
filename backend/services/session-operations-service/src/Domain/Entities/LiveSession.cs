@@ -15,6 +15,7 @@ public sealed class LiveSession : BaseAuditableEntity
     private readonly List<SessionParticipant> _participants = new();
     private readonly List<JoinContext> _joinContexts = new();
     private readonly List<TriviaAnswerSubmission> _triviaAnswerSubmissions = new();
+    private readonly List<TreasureEvidenceSubmission> _treasureEvidenceSubmissions = new();
     private readonly List<SessionEvent> _sessionEvents = new();
     private readonly List<ClueReleaseRecord> _clueReleaseRecords = new();
     private TimeSpan _questionTimerTotalDuration;
@@ -130,6 +131,8 @@ public sealed class LiveSession : BaseAuditableEntity
     // Accepted trivia answers (base evidence + trivia specialization). Only first-write-wins accepted
     // answers live here; rejected attempts throw and never enter this collection.
     public IReadOnlyCollection<TriviaAnswerSubmission> TriviaAnswerSubmissions => _triviaAnswerSubmissions.AsReadOnly();
+
+    public IReadOnlyCollection<TreasureEvidenceSubmission> TreasureEvidenceSubmissions => _treasureEvidenceSubmissions.AsReadOnly();
 
     public static LiveSession Create(
         SessionSource source,
@@ -514,6 +517,102 @@ public sealed class LiveSession : BaseAuditableEntity
         }
     }
 
+    public TreasureEvidenceSubmission RegisterTargetScan(
+        Guid teamId,
+        string scannedValue,
+        Guid submittedByParticipantId,
+        DateTimeOffset submittedAt)
+    {
+        var submission = RegisterEvidenceCore(
+            teamId,
+            EvidenceSubmissionType.TreasureHuntQrScan,
+            submittedByParticipantId,
+            submittedAt,
+            (team, activeSubstageId, participantId, registeredAt) =>
+            {
+                EnsureActiveTreasureHuntSubstage(activeSubstageId);
+                var resolvedTarget = ResolveScannedTarget(scannedValue);
+
+                return TreasureEvidenceSubmission.Begin(
+                    LiveSessionId,
+                    team.TeamId,
+                    activeSubstageId,
+                    scannedValue,
+                    resolvedTarget?.TargetSnapshotId,
+                    participantId!.Value,
+                    registeredAt);
+            });
+
+        _treasureEvidenceSubmissions.Add(submission);
+
+        var target = submission.TargetSnapshotId is null
+            ? null
+            : MissionRuntimeSnapshot.TargetSnapshots.Single(target =>
+                target.TargetSnapshotId == submission.TargetSnapshotId.Value);
+
+        var rejectionReason = DetermineTargetResolutionRejection(submission, target);
+        if (rejectionReason is not null)
+        {
+            submission.RejectRegisteredTarget(rejectionReason.Value);
+            return submission;
+        }
+
+        submission.AcceptRegisteredTarget();
+        AddDomainEvent(new TargetResolvedEvent(
+            LiveSessionId,
+            submission.TeamId,
+            submission.EvidenceSubmissionId,
+            submission.ActiveSubstageId,
+            target!.TargetSnapshotId,
+            target.Score,
+            submission.SubmittedAt));
+
+        return submission;
+    }
+
+    private void EnsureActiveTreasureHuntSubstage(Guid activeSubstageId)
+    {
+        var activeSubstage = GetOrderedSubstages().SingleOrDefault(substage =>
+            substage.SubstageSnapshotId == activeSubstageId);
+
+        if (activeSubstage?.PlayMode != SubstagePlayMode.TreasureHunt)
+        {
+            throw new EvidenceSubmissionContextRequiredException();
+        }
+    }
+
+    private TargetSnapshot? ResolveScannedTarget(string scannedValue)
+    {
+        var normalizedValue = scannedValue.Trim();
+        return MissionRuntimeSnapshot.TargetSnapshots.SingleOrDefault(target =>
+            string.Equals(target.QrCode, normalizedValue, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private TargetResolutionRejectionReason? DetermineTargetResolutionRejection(
+        TreasureEvidenceSubmission submission,
+        TargetSnapshot? target)
+    {
+        if (target is null)
+        {
+            return TargetResolutionRejectionReason.ScannedValueDoesNotResolveToTarget;
+        }
+
+        if (target.SubstageSnapshotId != submission.ActiveSubstageId || !target.IsActive)
+        {
+            return TargetResolutionRejectionReason.TargetOutsideActiveSubstage;
+        }
+
+        var alreadyResolved = _treasureEvidenceSubmissions.Any(existing =>
+            existing != submission &&
+            existing.TeamId == submission.TeamId &&
+            existing.TargetSnapshotId == target.TargetSnapshotId &&
+            existing.ValidationState == EvidenceValidationState.Accepted);
+
+        return alreadyResolved
+            ? TargetResolutionRejectionReason.TargetAlreadyResolvedByTeam
+            : null;
+    }
+
     // Step 1 — session-state gate, delegated to the State type (Active is the only state that admits
     // answers; Paused/Finished/Cancelled and pre-start states reject).
     internal TSubmission RegisterEvidenceCore<TSubmission>(
@@ -661,7 +760,7 @@ public sealed class LiveSession : BaseAuditableEntity
     {
         var team = GetTeam(teamId);
         var timerSnapshot = GetAuthoritativeSessionTimerSnapshot(observedAt);
-        var activeSubstageContext = BuildActiveSubstageContext();
+        var activeSubstageContext = BuildActiveSubstageContext(team.TeamId);
         var substages = BuildSubstageProgress();
         var visibleClues = CollectVisibleClues(team.TeamId);
         var activeTargets = CollectActiveTargets();
@@ -681,16 +780,26 @@ public sealed class LiveSession : BaseAuditableEntity
     public OperatorSessionPanelSnapshot ProjectOperatorSessionPanel(DateTimeOffset observedAt)
     {
         var timerSnapshot = GetAuthoritativeSessionTimerSnapshot(observedAt);
-        var activeSubstageContext = BuildActiveSubstageContext();
-
+        var sharedContexts = new Dictionary<(SubstagePlayMode? PlayMode, int ResolvedTargets), ActiveSubstageContext?>();
         var teamProgress = _teams
             .OrderBy(team => team.TeamCode.Value, StringComparer.Ordinal)
-            .Select(team => OperatorTeamProgress.Create(
-                team.TeamId,
-                team.TeamCode.Value,
-                team.DisplayName,
-                team.CurrentScore ?? 0,
-                activeSubstageContext))
+            .Select(team =>
+            {
+                var context = BuildActiveSubstageContext(team.TeamId);
+                var contextKey = (context?.PlayMode, context?.ResolvedTargets ?? 0);
+                if (!sharedContexts.TryGetValue(contextKey, out var sharedContext))
+                {
+                    sharedContext = context;
+                    sharedContexts.Add(contextKey, sharedContext);
+                }
+
+                return OperatorTeamProgress.Create(
+                    team.TeamId,
+                    team.TeamCode.Value,
+                    team.DisplayName,
+                    team.CurrentScore ?? 0,
+                    sharedContext);
+            })
             .ToList();
 
         return OperatorSessionPanelSnapshot.Create(
@@ -747,7 +856,7 @@ public sealed class LiveSession : BaseAuditableEntity
         return index == activeIndex ? SubstageProgressStatus.Active : SubstageProgressStatus.Upcoming;
     }
 
-    private ActiveSubstageContext? BuildActiveSubstageContext()
+    private ActiveSubstageContext? BuildActiveSubstageContext(Guid teamId)
     {
         if (ActiveSubstageId is null)
         {
@@ -763,11 +872,11 @@ public sealed class LiveSession : BaseAuditableEntity
         }
 
         return activeSubstage.PlayMode == SubstagePlayMode.TreasureHunt
-            ? BuildTreasureHuntContext(activeSubstage)
+            ? BuildTreasureHuntContext(activeSubstage, teamId)
             : BuildTriviaContext(activeSubstage);
     }
 
-    private ActiveSubstageContext BuildTreasureHuntContext(SubstageSnapshot substage)
+    private ActiveSubstageContext BuildTreasureHuntContext(SubstageSnapshot substage, Guid teamId)
     {
         var activeTargets = MissionRuntimeSnapshot.TargetSnapshots
             .Where(target => target.SubstageSnapshotId == substage.SubstageSnapshotId && target.IsActive)
@@ -782,9 +891,10 @@ public sealed class LiveSession : BaseAuditableEntity
                     StringComparison.OrdinalIgnoreCase)))
             .ToArray();
 
-        // Target resolution persistence does not exist yet (HU-31 owns it). Report 0 resolved
-        // and expose total active targets. Do NOT infer from CurrentClueNodeId or ReleasedClueCount.
-        var resolvedTargets = 0;
+        var resolvedTargets = _treasureEvidenceSubmissions.Count(submission =>
+            submission.TeamId == teamId &&
+            submission.ActiveSubstageId == substage.SubstageSnapshotId &&
+            submission.ValidationState == EvidenceValidationState.Accepted);
 
         return ActiveSubstageContext.CreateTreasureHunt(
             substage.SubstageSnapshotId,

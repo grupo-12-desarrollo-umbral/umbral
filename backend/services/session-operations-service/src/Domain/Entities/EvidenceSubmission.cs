@@ -78,6 +78,9 @@ public abstract class EvidenceSubmission : BaseEntity
 
     public EvidenceValidationState ValidationState { get; private set; }
 
+    // Contextual rejection reason owned by the HU-30 validation path (Reject below).
+    // Concrete forms with their own typed reason (e.g. treasure target resolution) do not
+    // set this; they flip state via MarkRejectedByConcreteForm and keep their own reason.
     public EvidenceRejectionReason? RejectionReason { get; private set; }
 
     public void Reject(EvidenceRejectionReason reason)
@@ -94,5 +97,10 @@ public abstract class EvidenceSubmission : BaseEntity
     protected void MarkAcceptedByConcreteForm()
     {
         ValidationState = EvidenceValidationState.Accepted;
+    }
+
+    protected void MarkRejectedByConcreteForm()
+    {
+        ValidationState = EvidenceValidationState.Rejected;
     }
 }

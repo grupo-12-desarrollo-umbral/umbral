@@ -17,19 +17,22 @@ public sealed class OutboxDomainEventDispatcher : IOutboxDomainEventDispatcher
     private readonly PublishQuestionClosedIntegrationEventHandler _questionClosed;
     private readonly PublishSessionResultsFinalizedIntegrationEventHandler _sessionResultsFinalized;
     private readonly PublishSessionStateChangedIntegrationEventHandler _sessionStateChanged;
+    private readonly PublishTargetResolvedIntegrationEventHandler _targetResolved;
 
     public OutboxDomainEventDispatcher(
         PublishAnswerRegisteredIntegrationEventHandler answerRegistered,
         PublishEvidenceSubmissionRegisteredIntegrationEventHandler evidenceSubmissionRegistered,
         PublishQuestionClosedIntegrationEventHandler questionClosed,
         PublishSessionResultsFinalizedIntegrationEventHandler sessionResultsFinalized,
-        PublishSessionStateChangedIntegrationEventHandler sessionStateChanged)
+        PublishSessionStateChangedIntegrationEventHandler sessionStateChanged,
+        PublishTargetResolvedIntegrationEventHandler targetResolved)
     {
         _answerRegistered = answerRegistered;
         _evidenceSubmissionRegistered = evidenceSubmissionRegistered;
         _questionClosed = questionClosed;
         _sessionResultsFinalized = sessionResultsFinalized;
         _sessionStateChanged = sessionStateChanged;
+        _targetResolved = targetResolved;
     }
 
     public Task DispatchAsync(BaseEvent domainEvent, CancellationToken cancellationToken) => domainEvent switch
@@ -38,6 +41,7 @@ public sealed class OutboxDomainEventDispatcher : IOutboxDomainEventDispatcher
         EvidenceSubmissionRegisteredEvent evidenceSubmissionRegistered =>
             _evidenceSubmissionRegistered.Handle(evidenceSubmissionRegistered, cancellationToken),
         QuestionClosedEvent questionClosed => _questionClosed.Handle(questionClosed, cancellationToken),
+        TargetResolvedEvent targetResolved => _targetResolved.Handle(targetResolved, cancellationToken),
         SessionStateChangedEvent sessionStateChanged => DispatchSessionStateChangedAsync(
             sessionStateChanged,
             cancellationToken),

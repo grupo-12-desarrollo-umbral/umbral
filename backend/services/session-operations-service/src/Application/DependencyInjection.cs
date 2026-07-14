@@ -16,6 +16,8 @@ using umbral_backend.Application.Sessions.Common.EvidenceValidation;
 using umbral_backend.Application.Sessions.Common.EvidenceValidation.Validators;
 using umbral_backend.Application.Sessions.Common.TriviaAnswerValidation;
 using umbral_backend.Application.Sessions.Common.TriviaAnswerValidation.Validators;
+using umbral_backend.Application.Sessions.Common.TargetResolution;
+using umbral_backend.Application.Sessions.Common.TargetResolution.Validators;
 using umbral_backend.Application.Sessions.StateTransitions;
 using umbral_backend.Application.Sessions.StateTransitions.Validators;
 using umbral_backend.Domain.Services;
@@ -58,6 +60,7 @@ public static class DependencyInjection
         builder.Services.AddScoped<PublishQuestionClosedIntegrationEventHandler>();
         builder.Services.AddScoped<PublishSessionResultsFinalizedIntegrationEventHandler>();
         builder.Services.AddScoped<PublishSessionStateChangedIntegrationEventHandler>();
+        builder.Services.AddScoped<PublishTargetResolvedIntegrationEventHandler>();
         builder.Services.AddScoped<IOutboxDomainEventDispatcher, OutboxDomainEventDispatcher>();
 
         // Chain of Responsibility for session-state transitions. Registration order is the run
@@ -86,5 +89,10 @@ public static class DependencyInjection
         builder.Services.AddScoped<TriviaAnswerValidationLink, TriviaAnswerWindowLink>();
         builder.Services.AddScoped<TriviaAnswerValidationLink, DuplicateTriviaAnswerLink>();
         builder.Services.AddScoped<TriviaAnswerValidationChain>();
+
+        builder.Services.AddScoped<TargetResolutionLink, TargetExistsForScanLink>();
+        builder.Services.AddScoped<TargetResolutionLink, TargetBelongsToActiveSubstageLink>();
+        builder.Services.AddScoped<TargetResolutionLink, TargetNotAlreadyResolvedLink>();
+        builder.Services.AddScoped<TargetResolutionChain>();
     }
 }
