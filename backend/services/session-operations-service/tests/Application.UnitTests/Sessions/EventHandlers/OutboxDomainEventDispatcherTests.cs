@@ -45,7 +45,10 @@ public sealed class OutboxDomainEventDispatcherTests
                 NullLogger<PublishSessionResultsFinalizedIntegrationEventHandler>.Instance),
             new PublishSessionStateChangedIntegrationEventHandler(
                 publishEndpoint.Object,
-                NullLogger<PublishSessionStateChangedIntegrationEventHandler>.Instance));
+                NullLogger<PublishSessionStateChangedIntegrationEventHandler>.Instance),
+            new PublishTargetResolvedIntegrationEventHandler(
+                publishEndpoint.Object,
+                NullLogger<PublishTargetResolvedIntegrationEventHandler>.Instance));
 
         await dispatcher.DispatchAsync(
             new SessionStateChangedEvent(

@@ -1287,4 +1287,112 @@ public sealed class LiveSessionRepositoryIntegrationTests
                 ClueSnapshot.Create(triviaSubstage.SubstageSnapshotId, "Released by operator.", "HiddenUntilOperatorRelease", 2)
             ]);
     }
+
+    // HU-31: an accepted treasure evidence submission round-trips through the aggregate repository.
+    [Fact]
+    public async Task UpdateAsync_RoundTripsAcceptedTreasureEvidenceSubmissionThroughAggregate()
+    {
+        await using var resetContext = BuildContext();
+        await ResetDatabaseAsync(resetContext);
+
+        var activeAt = new DateTimeOffset(2026, 7, 13, 12, 0, 0, TimeSpan.Zero);
+        var liveSession = CreateActiveTreasureHuntSession(activeAt);
+        var teamId = liveSession.Teams.Single().TeamId;
+        var participantId = Guid.NewGuid();
+
+        await using (var seedContext = BuildContext())
+        {
+            seedContext.LiveSessions.Add(liveSession);
+            await seedContext.SaveChangesAsync(CancellationToken.None);
+        }
+
+        var submittedAt = activeAt.AddSeconds(30);
+
+        await using (var actContext = BuildContext())
+        {
+            var repository = new LiveSessionRepository(actContext);
+            var persistedSession = await repository.GetByIdAsync(liveSession.LiveSessionId, CancellationToken.None);
+
+            persistedSession.Should().NotBeNull();
+
+            persistedSession!.RegisterTargetScan(teamId, "QR-ALPHA", participantId, submittedAt);
+
+            await repository.UpdateAsync(persistedSession, CancellationToken.None);
+        }
+
+        await using var assertContext = BuildContext();
+        var reloadedSession = await new LiveSessionRepository(assertContext)
+            .GetByIdAsync(liveSession.LiveSessionId, CancellationToken.None);
+
+        reloadedSession.Should().NotBeNull();
+        reloadedSession!.TreasureEvidenceSubmissions.Should().ContainSingle();
+
+        var submission = reloadedSession.TreasureEvidenceSubmissions.Single();
+
+        submission.EvidenceSubmissionId.Should().NotBe(Guid.Empty);
+        submission.LiveSessionId.Should().Be(liveSession.LiveSessionId);
+        submission.TeamId.Should().Be(teamId);
+        submission.ActiveSubstageId.Should().Be(reloadedSession.ActiveSubstageId!.Value);
+        submission.SubmissionType.Should().Be(EvidenceSubmissionType.TreasureHuntQrScan);
+        submission.SubmittedByParticipantId.Should().Be(participantId);
+        submission.SubmittedAt.Should().BeCloseTo(submittedAt, TimeSpan.FromMicroseconds(1));
+        submission.ValidationState.Should().Be(EvidenceValidationState.Accepted);
+        submission.ScannedValue.Should().Be("QR-ALPHA");
+
+        var target = reloadedSession.MissionRuntimeSnapshot.TargetSnapshots.Single();
+        submission.TargetSnapshotId.Should().Be(target.TargetSnapshotId);
+        submission.RejectionReason.Should().BeNull();
+        submission.ResolutionRejectionReason.Should().BeNull();
+
+        // The resolved target must carry the snapshotted score verbatim.
+        submission.TargetSnapshotId.Should().Be(target.TargetSnapshotId);
+    }
+
+    // HU-31: a rejected treasure evidence submission (wrong QR) round-trips with the rejection reason.
+    [Fact]
+    public async Task UpdateAsync_RoundTripsRejectedTreasureEvidenceSubmissionThroughAggregate()
+    {
+        await using var resetContext = BuildContext();
+        await ResetDatabaseAsync(resetContext);
+
+        var activeAt = new DateTimeOffset(2026, 7, 13, 12, 0, 0, TimeSpan.Zero);
+        var liveSession = CreateActiveTreasureHuntSession(activeAt);
+        var teamId = liveSession.Teams.Single().TeamId;
+        var participantId = Guid.NewGuid();
+
+        await using (var seedContext = BuildContext())
+        {
+            seedContext.LiveSessions.Add(liveSession);
+            await seedContext.SaveChangesAsync(CancellationToken.None);
+        }
+
+        var submittedAt = activeAt.AddSeconds(30);
+
+        await using (var actContext = BuildContext())
+        {
+            var repository = new LiveSessionRepository(actContext);
+            var persistedSession = await repository.GetByIdAsync(liveSession.LiveSessionId, CancellationToken.None);
+
+            persistedSession.Should().NotBeNull();
+
+            // "QR-BOGUS" does not match any target in the runtime snapshot.
+            persistedSession!.RegisterTargetScan(teamId, "QR-BOGUS", participantId, submittedAt);
+
+            await repository.UpdateAsync(persistedSession, CancellationToken.None);
+        }
+
+        await using var assertContext = BuildContext();
+        var reloadedSession = await new LiveSessionRepository(assertContext)
+            .GetByIdAsync(liveSession.LiveSessionId, CancellationToken.None);
+
+        reloadedSession.Should().NotBeNull();
+        reloadedSession!.TreasureEvidenceSubmissions.Should().ContainSingle();
+
+        var submission = reloadedSession.TreasureEvidenceSubmissions.Single();
+
+        submission.ValidationState.Should().Be(EvidenceValidationState.Rejected);
+        submission.ScannedValue.Should().Be("QR-BOGUS");
+        submission.TargetSnapshotId.Should().BeNull();
+        submission.ResolutionRejectionReason.Should().Be(TargetResolutionRejectionReason.ScannedValueDoesNotResolveToTarget);
+    }
 }

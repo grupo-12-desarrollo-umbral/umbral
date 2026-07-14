@@ -72,7 +72,7 @@ public sealed class LiveSessionTeamBoardTests
         board.ActiveSubstageContext.Should().NotBeNull();
         board.ActiveSubstageContext!.PlayMode.Should().Be(SubstagePlayMode.TreasureHunt);
         board.ActiveSubstageContext.TotalActiveTargets.Should().Be(3, "the snapshot has 3 active targets");
-        board.ActiveSubstageContext.ResolvedTargets.Should().Be(0, "target-resolution persistence does not exist yet");
+        board.ActiveSubstageContext.ResolvedTargets.Should().Be(0, "the team has not resolved a target yet");
     }
 
     // Gate: visible clues are optional guidance — they exist but do NOT affect progress.

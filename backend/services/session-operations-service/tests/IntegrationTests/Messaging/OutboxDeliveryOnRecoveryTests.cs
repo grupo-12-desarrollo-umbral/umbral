@@ -140,6 +140,7 @@ public sealed class OutboxDeliveryOnRecoveryTests
         services.AddScoped<PublishQuestionClosedIntegrationEventHandler>();
         services.AddScoped<PublishSessionResultsFinalizedIntegrationEventHandler>();
         services.AddScoped<PublishSessionStateChangedIntegrationEventHandler>();
+        services.AddScoped<PublishTargetResolvedIntegrationEventHandler>();
         services.AddScoped<IOutboxDomainEventDispatcher, OutboxDomainEventDispatcher>();
         services.AddScoped<IMediator, NoOpMediator>();
 

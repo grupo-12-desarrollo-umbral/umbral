@@ -1004,6 +1004,158 @@ public sealed class LiveSessionTests
             name.Contains("Finalized", StringComparison.Ordinal));
     }
 
+    // ── HU-31: target-scan registration and retained rejection ───────────────────────────────────
+
+    [Fact]
+    public void RegisterTargetScan_WhenQrMatchesActiveTarget_AcceptsAndRaisesOrderedFactsWithRelayedScore()
+    {
+        var session = LiveSessionFactory.CreateScheduledMultiTargetTreasureHunt();
+        Activate(session);
+        var team = session.Teams.Single();
+        var participantId = Guid.NewGuid();
+        var submittedAt = new DateTimeOffset(2026, 7, 13, 10, 1, 5, TimeSpan.Zero);
+        var target = session.MissionRuntimeSnapshot.TargetSnapshots.Single(target => target.Score == 200);
+
+        var submission = session.RegisterTargetScan(team.TeamId, "QR-003", participantId, submittedAt);
+
+        session.TreasureEvidenceSubmissions.Should().ContainSingle().Which.Should().Be(submission);
+        submission.ValidationState.Should().Be(EvidenceValidationState.Accepted);
+        submission.TargetSnapshotId.Should().Be(target.TargetSnapshotId);
+        submission.RejectionReason.Should().BeNull();
+
+        session.DomainEvents.OfType<EvidenceSubmissionRegisteredEvent>().Should().ContainSingle();
+        var registeredIndex = session.DomainEvents.ToList().FindIndex(domainEvent =>
+            domainEvent is EvidenceSubmissionRegisteredEvent);
+        var resolvedIndex = session.DomainEvents.ToList().FindIndex(domainEvent =>
+            domainEvent is TargetResolvedEvent);
+        registeredIndex.Should().BeLessThan(resolvedIndex);
+
+        var resolved = session.DomainEvents.OfType<TargetResolvedEvent>().Single();
+        resolved.LiveSessionId.Should().Be(session.LiveSessionId);
+        resolved.TeamId.Should().Be(team.TeamId);
+        resolved.EvidenceSubmissionId.Should().Be(submission.EvidenceSubmissionId);
+        resolved.ActiveSubstageId.Should().Be(session.ActiveSubstageId!.Value);
+        resolved.TargetSnapshotId.Should().Be(target.TargetSnapshotId);
+        resolved.ScoreValue.Should().Be(target.Score);
+        resolved.ResolvedAt.Should().Be(submittedAt);
+
+        session.ProjectParticipantTeamBoard(team.TeamId, submittedAt)
+            .ActiveSubstageContext!.ResolvedTargets.Should().Be(1);
+    }
+
+    [Fact]
+    public void RegisterTargetScan_WhenQrDoesNotResolve_RetainsRejectedEvidenceAndRaisesOnlyRegistrationFact()
+    {
+        var session = LiveSessionFactory.CreateScheduledTreasureHunt();
+        Activate(session);
+        var team = session.Teams.Single();
+
+        var submission = session.RegisterTargetScan(
+            team.TeamId,
+            "WRONG-QR",
+            Guid.NewGuid(),
+            new DateTimeOffset(2026, 7, 13, 10, 1, 5, TimeSpan.Zero));
+
+        submission.ValidationState.Should().Be(EvidenceValidationState.Rejected);
+        submission.TargetSnapshotId.Should().BeNull();
+        submission.ResolutionRejectionReason.Should()
+            .Be(TargetResolutionRejectionReason.ScannedValueDoesNotResolveToTarget);
+        session.TreasureEvidenceSubmissions.Should().ContainSingle().Which.Should().Be(submission);
+        session.DomainEvents.OfType<EvidenceSubmissionRegisteredEvent>().Should().ContainSingle();
+        session.DomainEvents.OfType<TargetResolvedEvent>().Should().BeEmpty();
+    }
+
+    [Fact]
+    public void RegisterTargetScan_WhenTargetAlreadyResolvedByTeam_RetainsDuplicateAsRejected()
+    {
+        var session = LiveSessionFactory.CreateScheduledTreasureHunt();
+        Activate(session);
+        var team = session.Teams.Single();
+        var submittedAt = new DateTimeOffset(2026, 7, 13, 10, 1, 5, TimeSpan.Zero);
+        session.RegisterTargetScan(team.TeamId, "QR-001", Guid.NewGuid(), submittedAt);
+
+        var duplicate = session.RegisterTargetScan(
+            team.TeamId,
+            "QR-001",
+            Guid.NewGuid(),
+            submittedAt.AddSeconds(1));
+
+        duplicate.ValidationState.Should().Be(EvidenceValidationState.Rejected);
+        duplicate.ResolutionRejectionReason.Should()
+            .Be(TargetResolutionRejectionReason.TargetAlreadyResolvedByTeam);
+        session.TreasureEvidenceSubmissions.Should().HaveCount(2);
+        session.DomainEvents.OfType<EvidenceSubmissionRegisteredEvent>().Should().HaveCount(2);
+        session.DomainEvents.OfType<TargetResolvedEvent>().Should().ContainSingle();
+        session.ProjectParticipantTeamBoard(team.TeamId, submittedAt.AddSeconds(1))
+            .ActiveSubstageContext!.ResolvedTargets.Should().Be(1);
+    }
+
+    [Fact]
+    public void RegisterTargetScan_WhenQrMatchesTargetOutsideActiveSubstage_RetainsRejectedEvidence()
+    {
+        var session = CreateTwoTreasureSubstageSessionWithTargetInSecondSubstage();
+        Activate(session);
+        var team = session.Teams.Single();
+
+        var submission = session.RegisterTargetScan(
+            team.TeamId,
+            "QR-LATER",
+            Guid.NewGuid(),
+            new DateTimeOffset(2026, 7, 13, 10, 1, 5, TimeSpan.Zero));
+
+        submission.ValidationState.Should().Be(EvidenceValidationState.Rejected);
+        submission.ResolutionRejectionReason.Should()
+            .Be(TargetResolutionRejectionReason.TargetOutsideActiveSubstage);
+        session.DomainEvents.OfType<EvidenceSubmissionRegisteredEvent>().Should().ContainSingle();
+        session.DomainEvents.OfType<TargetResolvedEvent>().Should().BeEmpty();
+    }
+
+    [Theory]
+    [InlineData(SessionState.Paused)]
+    [InlineData(SessionState.Cancelled)]
+    public void RegisterTargetScan_WhenSessionDoesNotAdmitEvidence_RejectsBeforeRegistration(SessionState state)
+    {
+        var session = LiveSessionFactory.CreateScheduledTreasureHunt();
+        Activate(session);
+        var team = session.Teams.Single();
+        session.MoveTo(
+            state,
+            new DateTimeOffset(2026, 7, 13, 10, 2, 0, TimeSpan.Zero),
+            new SessionStateTransitionPolicy());
+
+        var act = () => session.RegisterTargetScan(
+            team.TeamId,
+            "QR-001",
+            Guid.NewGuid(),
+            new DateTimeOffset(2026, 7, 13, 10, 2, 1, TimeSpan.Zero));
+
+        act.Should().Throw<TriviaAnswerRequiresActiveSessionException>();
+        session.TreasureEvidenceSubmissions.Should().BeEmpty();
+        session.DomainEvents.OfType<EvidenceSubmissionRegisteredEvent>().Should().BeEmpty();
+        session.DomainEvents.OfType<TargetResolvedEvent>().Should().BeEmpty();
+    }
+
+    [Fact]
+    public void RegisterTargetScan_WhenSessionFinished_RejectsBeforeRegistration()
+    {
+        var session = LiveSessionFactory.CreateScheduledTreasureHunt();
+        Activate(session);
+        var team = session.Teams.Single();
+        var finishedAt = new DateTimeOffset(2026, 7, 13, 10, 2, 0, TimeSpan.Zero);
+        session.CompleteActiveSubstageAndAdvance(finishedAt, new SessionStateTransitionPolicy());
+
+        var act = () => session.RegisterTargetScan(
+            team.TeamId,
+            "QR-001",
+            Guid.NewGuid(),
+            finishedAt.AddSeconds(1));
+
+        act.Should().Throw<TriviaAnswerRequiresActiveSessionException>();
+        session.TreasureEvidenceSubmissions.Should().BeEmpty();
+        session.DomainEvents.OfType<EvidenceSubmissionRegisteredEvent>().Should().BeEmpty();
+        session.DomainEvents.OfType<TargetResolvedEvent>().Should().BeEmpty();
+    }
+
     // ── HU-34: answer-registration Template Method skeleton ───────────────────────────────────────
     // One workflow governs accept + reject. These tests lock every branch of the single write.
 
@@ -1364,6 +1516,34 @@ public sealed class LiveSessionTests
         var session = LiveSessionFactory.CreateScheduledTriviaWithThreeQuestions();
         Activate(session);
         return session;
+    }
+
+    private static LiveSession CreateTwoTreasureSubstageSessionWithTargetInSecondSubstage()
+    {
+        var firstSubstage = SubstageSnapshot.CreateTreasureHunt("First Route", 1);
+        var secondSubstage = SubstageSnapshot.CreateTreasureHunt("Second Route", 2);
+        var stage = StageSnapshot.Create("Stage One", 1, [firstSubstage, secondSubstage]);
+        var firstTarget = MissionRuntimeSnapshotFactory.CreateTarget(
+            firstSubstage.SubstageSnapshotId,
+            "QR-FIRST");
+        var secondTarget = MissionRuntimeSnapshotFactory.CreateTarget(
+            secondSubstage.SubstageSnapshotId,
+            "QR-LATER");
+        var snapshot = MissionRuntimeSnapshot.Create(
+            Guid.NewGuid(),
+            "Two Route Hunt",
+            MaximumTime.Create(45),
+            [stage],
+            [firstTarget, secondTarget],
+            []);
+
+        return LiveSession.Create(
+            SessionSource.Create(snapshot.SourceMissionId),
+            "two-th",
+            "Two Route Hunt",
+            45,
+            new DateTimeOffset(2026, 7, 13, 10, 0, 0, TimeSpan.Zero),
+            snapshot);
     }
 
     // Drives an already-team-associated Scheduled session to the requested state

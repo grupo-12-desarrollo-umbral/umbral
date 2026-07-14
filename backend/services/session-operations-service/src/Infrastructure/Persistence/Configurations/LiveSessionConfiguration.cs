@@ -811,6 +811,75 @@ public sealed class LiveSessionConfiguration : IEntityTypeConfiguration<LiveSess
         builder.Navigation(session => session.JoinContexts)
             .UsePropertyAccessMode(PropertyAccessMode.Field);
 
+        // Treasure (QR/target) evidence submissions: base EvidenceSubmission umbrella + concrete
+        // TreasureEvidenceSubmission specialization, owned by the session aggregate. TreasureEvidenceSubmission
+        // derives from BaseEntity (NOT BaseAuditableEntity), so it carries no created_by/updated_by/
+        // created_at/updated_at audit columns — the only base-class ceremony to strip is BaseEntity.Id.
+        builder.OwnsMany(session => session.TreasureEvidenceSubmissions, treasureBuilder =>
+        {
+            treasureBuilder.ToTable("live_session_treasure_evidence_submissions");
+            treasureBuilder.WithOwner().HasForeignKey(treasure => treasure.LiveSessionId);
+
+            treasureBuilder.Ignore(treasure => treasure.Id);
+            treasureBuilder.HasKey(treasure => treasure.EvidenceSubmissionId);
+
+            treasureBuilder.Property(treasure => treasure.EvidenceSubmissionId)
+                .HasColumnName("id")
+                .ValueGeneratedNever();
+
+            treasureBuilder.Property(treasure => treasure.LiveSessionId)
+                .HasColumnName("live_session_id")
+                .IsRequired();
+
+            treasureBuilder.Property(treasure => treasure.TeamId)
+                .HasColumnName("team_id")
+                .IsRequired();
+
+            treasureBuilder.Property(treasure => treasure.ActiveSubstageId)
+                .HasColumnName("active_substage_id")
+                .IsRequired();
+
+            treasureBuilder.Property(treasure => treasure.SubmissionType)
+                .HasColumnName("submission_type")
+                .HasConversion<string>()
+                .HasMaxLength(32)
+                .IsRequired();
+
+            treasureBuilder.Property(treasure => treasure.SubmittedByParticipantId)
+                .HasColumnName("submitted_by_participant_id");
+
+            treasureBuilder.Property(treasure => treasure.SubmittedAt)
+                .HasColumnName("submitted_at")
+                .IsRequired();
+
+            treasureBuilder.Property(treasure => treasure.ValidationState)
+                .HasColumnName("validation_state")
+                .HasConversion<string>()
+                .HasMaxLength(32)
+                .IsRequired();
+
+            treasureBuilder.Property(treasure => treasure.RejectionReason)
+                .HasColumnName("rejection_reason")
+                .HasConversion<string>()
+                .HasMaxLength(256);
+
+            treasureBuilder.Property(treasure => treasure.ScannedValue)
+                .HasColumnName("scanned_value")
+                .HasMaxLength(200)
+                .IsRequired();
+
+            treasureBuilder.Property(treasure => treasure.TargetSnapshotId)
+                .HasColumnName("target_snapshot_id");
+
+            treasureBuilder.Property(treasure => treasure.ResolutionRejectionReason)
+                .HasColumnName("resolution_rejection_reason")
+                .HasConversion<string>()
+                .HasMaxLength(64);
+        });
+
+        builder.Navigation(session => session.TreasureEvidenceSubmissions)
+            .UsePropertyAccessMode(PropertyAccessMode.Field);
+
         builder.Navigation(session => session.TriviaAnswerSubmissions)
             .UsePropertyAccessMode(PropertyAccessMode.Field);
 

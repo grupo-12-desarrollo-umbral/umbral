@@ -62,7 +62,10 @@ public sealed class PublishEvidenceSubmissionRegisteredIntegrationEventHandlerTe
                 NullLogger<PublishSessionResultsFinalizedIntegrationEventHandler>.Instance),
             new PublishSessionStateChangedIntegrationEventHandler(
                 publishEndpoint.Object,
-                NullLogger<PublishSessionStateChangedIntegrationEventHandler>.Instance));
+                NullLogger<PublishSessionStateChangedIntegrationEventHandler>.Instance),
+            new PublishTargetResolvedIntegrationEventHandler(
+                publishEndpoint.Object,
+                NullLogger<PublishTargetResolvedIntegrationEventHandler>.Instance));
         var domainEvent = Event();
 
         await dispatcher.DispatchAsync(domainEvent, CancellationToken.None);
