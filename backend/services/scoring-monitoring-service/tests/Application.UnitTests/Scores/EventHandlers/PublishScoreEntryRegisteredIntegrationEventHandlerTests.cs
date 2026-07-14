@@ -1,0 +1,65 @@
+using MassTransit;
+using Microsoft.Extensions.Logging.Abstractions;
+using umbral_backend.Application.Scores.Common;
+using umbral_backend.Application.Scores.EventHandlers;
+using umbral_backend.Domain.Enums;
+using umbral_backend.Domain.Events;
+
+namespace umbral_backend.ScoringMonitoring.Application.UnitTests.Scores.EventHandlers;
+
+public sealed class PublishScoreEntryRegisteredIntegrationEventHandlerTests
+{
+    [Fact]
+    public async Task Handle_PublishesExactlyOneIntegrationEvent()
+    {
+        var publishEndpoint = new Mock<IPublishEndpoint>();
+        var notification = Event();
+        var handler = new PublishScoreEntryRegisteredIntegrationEventHandler(
+            publishEndpoint.Object,
+            NullLogger<PublishScoreEntryRegisteredIntegrationEventHandler>.Instance);
+
+        await handler.Handle(notification, CancellationToken.None);
+
+        publishEndpoint.Verify(
+            endpoint => endpoint.Publish(
+                It.Is<ScoreEntryRegisteredIntegrationEvent>(integrationEvent =>
+                    integrationEvent.ScoreEntryId == notification.ScoreEntryId &&
+                    integrationEvent.LiveSessionId == notification.LiveSessionId &&
+                    integrationEvent.TeamId == notification.TeamId &&
+                    integrationEvent.SourceEntityId == notification.SourceEntityId),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task Handle_WhenPublishThrows_DoesNotPropagate()
+    {
+        var publishEndpoint = new Mock<IPublishEndpoint>();
+        publishEndpoint
+            .Setup(endpoint => endpoint.Publish(It.IsAny<ScoreEntryRegisteredIntegrationEvent>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("broker unreachable"));
+
+        var handler = new PublishScoreEntryRegisteredIntegrationEventHandler(
+            publishEndpoint.Object,
+            NullLogger<PublishScoreEntryRegisteredIntegrationEventHandler>.Instance);
+
+        var act = () => handler.Handle(Event(), CancellationToken.None);
+
+        await act.Should().NotThrowAsync();
+    }
+
+    private static ScoreEntryRegistered Event()
+    {
+        return new ScoreEntryRegistered(
+            Guid.NewGuid(),
+            Guid.NewGuid(),
+            Guid.NewGuid(),
+            ScoreEntryType.Grant,
+            "trivia-answer-correct",
+            100,
+            new DateTimeOffset(2026, 7, 14, 18, 30, 0, TimeSpan.Zero),
+            ScoreSourceType.TriviaAnswerSubmission,
+            Guid.NewGuid(),
+            recordedByUserId: null);
+    }
+}
