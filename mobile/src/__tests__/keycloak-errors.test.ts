@@ -1,4 +1,5 @@
 import {
+  buildRegistrationUrl,
   buildResetCredentialsUrl,
   signInWithPassword,
   KeycloakError,
@@ -86,4 +87,16 @@ test('builds the hosted reset-credentials URL for the realm', () => {
   expect(buildResetCredentialsUrl('http://localhost:8080', 'umbral')).toBe(
     'http://localhost:8080/realms/umbral/login-actions/reset-credentials',
   );
+});
+
+test('builds the hosted registration URL with a client-matched redirect', () => {
+  const url = new URL(
+    buildRegistrationUrl('http://localhost:8080', 'umbral', 'umbral-mobile'),
+  );
+  expect(url.origin + url.pathname).toBe(
+    'http://localhost:8080/realms/umbral/protocol/openid-connect/registrations',
+  );
+  expect(url.searchParams.get('client_id')).toBe('umbral-mobile');
+  expect(url.searchParams.get('response_type')).toBe('code');
+  expect(url.searchParams.get('redirect_uri')).toBe('http://localhost/');
 });

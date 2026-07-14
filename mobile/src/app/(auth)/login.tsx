@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Screen } from '@/components/ui/screen';
 import { Text } from '@/components/ui/text';
 import { TextField } from '@/components/ui/text-field';
-import { buildResetCredentialsUrl } from '@/lib/auth/keycloak';
+import { buildRegistrationUrl, buildResetCredentialsUrl } from '@/lib/auth/keycloak';
 import { useAuth } from '@/lib/auth/use-auth';
 import { colors, spacing } from '@/constants/theme';
 
@@ -34,6 +34,7 @@ export default function LoginScreen() {
   const [emailError, setEmailError] = useState('');
   const [passwordError, setPasswordError] = useState('');
   const [resetError, setResetError] = useState('');
+  const [registerError, setRegisterError] = useState('');
 
   const loading = status === 'authenticating';
   const isNetworkError = errorMessage?.startsWith(NETWORK_ERROR_PREFIX) ?? false;
@@ -57,6 +58,7 @@ export default function LoginScreen() {
   async function handleSubmit() {
     Keyboard.dismiss();
     setResetError('');
+    setRegisterError('');
 
     let valid = true;
     if (!email.trim()) {
@@ -92,6 +94,18 @@ export default function LoginScreen() {
       await Linking.openURL(buildResetCredentialsUrl());
     } catch {
       setResetError('Could not open the password reset page.');
+      fireHaptic('error');
+    }
+  }
+
+  async function handleCreateAccount() {
+    Keyboard.dismiss();
+    setRegisterError('');
+
+    try {
+      await Linking.openURL(buildRegistrationUrl());
+    } catch {
+      setRegisterError('Could not open the sign-up page.');
       fireHaptic('error');
     }
   }
@@ -145,6 +159,16 @@ export default function LoginScreen() {
         </Text>
       ) : null}
 
+      {registerError ? (
+        <Text
+          variant="body"
+          selectable
+          style={{ color: colors.signalCritical, textAlign: 'center' }}
+        >
+          {registerError}
+        </Text>
+      ) : null}
+
       <Button
         label={isNetworkError ? 'Try again' : 'Sign in'}
         variant="primary"
@@ -167,6 +191,23 @@ export default function LoginScreen() {
           }}
         >
           Forgot your password?
+        </Text>
+      </Pressable>
+
+      <Pressable
+        accessibilityRole="link"
+        onPress={handleCreateAccount}
+        disabled={loading}
+        style={{ alignItems: 'center', paddingVertical: spacing.xs }}
+      >
+        <Text
+          variant="label"
+          style={{
+            color: loading ? colors.textMuted : colors.emberAccentStrong,
+            textDecorationLine: 'underline',
+          }}
+        >
+          New here? Create an account
         </Text>
       </Pressable>
     </Screen>

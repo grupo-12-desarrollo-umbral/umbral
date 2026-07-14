@@ -30,32 +30,60 @@ public sealed class TrustedHeadersTransform : RequestTransform
         }
     }
 
+    // The three application roles, most-privileged first. Downstream services only understand these
+    // exact names (identity-access-service's GatewayRoleParser rejects anything else), so the header
+    // must carry one of them or nothing.
+    private static readonly string[] ApplicationRolesByPrecedence =
+    {
+        "Administrator",
+        "Operator",
+        "Participant",
+    };
+
+    // A Keycloak token carries every realm role the user holds, and realm_access.roles has no
+    // guaranteed order. Self-registered participants also receive Keycloak's baseline roles
+    // (default-roles-umbral, offline_access, uma_authorization), so blindly taking the first entry
+    // could forward "offline_access" as the role and make provisioning fail. Pick the one
+    // application role we recognise, most-privileged first, ignoring the baseline roles.
     private static string? GetRealmRole(ClaimsPrincipal user)
     {
-        var mappedRole = user.FindAll(ClaimTypes.Role).FirstOrDefault()?.Value
-            ?? user.FindFirstValue("role")
-            ?? user.FindFirstValue("roles");
+        var candidates = CollectRealmRoleCandidates(user);
+        return ApplicationRolesByPrecedence.FirstOrDefault(candidates.Contains);
+    }
 
-        if (!string.IsNullOrWhiteSpace(mappedRole))
+    private static HashSet<string> CollectRealmRoleCandidates(ClaimsPrincipal user)
+    {
+        var candidates = new HashSet<string>(StringComparer.Ordinal);
+
+        foreach (var mapped in user.FindAll(ClaimTypes.Role).Select(claim => claim.Value))
         {
-            return mappedRole;
+            AddRoleCandidate(candidates, mapped);
         }
+        AddRoleCandidate(candidates, user.FindFirstValue("role"));
+        AddRoleCandidate(candidates, user.FindFirstValue("roles"));
 
         var realmAccess = user.FindFirstValue("realm_access");
-        if (string.IsNullOrWhiteSpace(realmAccess))
+        if (!string.IsNullOrWhiteSpace(realmAccess))
         {
-            return null;
+            using var document = JsonDocument.Parse(realmAccess);
+            if (document.RootElement.TryGetProperty("roles", out var roles) &&
+                roles.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var role in roles.EnumerateArray())
+                {
+                    AddRoleCandidate(candidates, role.GetString());
+                }
+            }
         }
 
-        using var document = JsonDocument.Parse(realmAccess);
-        if (!document.RootElement.TryGetProperty("roles", out var roles) ||
-            roles.ValueKind != JsonValueKind.Array)
-        {
-            return null;
-        }
+        return candidates;
+    }
 
-        return roles.EnumerateArray()
-            .Select(role => role.GetString())
-            .FirstOrDefault(role => !string.IsNullOrWhiteSpace(role));
+    private static void AddRoleCandidate(HashSet<string> candidates, string? value)
+    {
+        if (!string.IsNullOrWhiteSpace(value))
+        {
+            candidates.Add(value.Trim());
+        }
     }
 }
