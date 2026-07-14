@@ -1,4 +1,4 @@
-namespace umbral_backend.Infrastructure.IntegrationTests;
+namespace umbral_backend.ScoringMonitoring.IntegrationTests;
 
 [CollectionDefinition(Name)]
 public sealed class PostgreSqlCollection : ICollectionFixture<PostgreSqlFixture>

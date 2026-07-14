@@ -1,24 +1,24 @@
-using System.Diagnostics.CodeAnalysis;
 using System.Security.Claims;
 using System.Text.Encodings.Web;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
+using umbral_backend.Api.Hubs;
 using umbral_backend.Api.Services;
 using umbral_backend.Application.Common.Interfaces;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
-[ExcludeFromCodeCoverage]
 public static class DependencyInjection
 {
     public static void AddWebServices(this IHostApplicationBuilder builder)
     {
-        builder.AddObservability();
-        builder.Services.AddDatabaseDeveloperPageExceptionFilter();
         builder.Services.AddHttpContextAccessor();
-        builder.Services.AddScoped<CurrentUserContext>();
-        builder.Services.AddScoped<ICurrentUser, CurrentUser>();
+        builder.Services.AddSignalR(options =>
+        {
+            options.EnableDetailedErrors = builder.Environment.IsDevelopment();
+        });
+        builder.Services.AddSingleton<IRankingBroadcaster, RankingBroadcaster>();
         builder.Services
             .AddAuthentication(TrustedHeadersAuthenticationDefaults.Scheme)
             .AddScheme<AuthenticationSchemeOptions, TrustedHeadersAuthenticationHandler>(
@@ -26,17 +26,11 @@ public static class DependencyInjection
                 _ => { });
         builder.Services.AddAuthorization(options =>
         {
-            options.AddPolicy(AuthorizationPolicies.Administrator, policy =>
+            options.AddPolicy(AuthorizationPolicies.ParticipantOrOperator, policy =>
             {
                 policy.AddAuthenticationSchemes(TrustedHeadersAuthenticationDefaults.Scheme);
                 policy.RequireAuthenticatedUser();
-                policy.RequireRole("Administrator");
-            });
-            options.AddPolicy(AuthorizationPolicies.Operator, policy =>
-            {
-                policy.AddAuthenticationSchemes(TrustedHeadersAuthenticationDefaults.Scheme);
-                policy.RequireAuthenticatedUser();
-                policy.RequireRole("Operator");
+                policy.RequireRole("Participant", "Operator");
             });
             options.AddPolicy(AuthorizationPolicies.AdministratorOrOperator, policy =>
             {
@@ -45,14 +39,12 @@ public static class DependencyInjection
                 policy.RequireRole("Administrator", "Operator");
             });
         });
-        builder.Services.AddExceptionHandler<ProblemDetailsExceptionHandler>();
         builder.Services.Configure<ApiBehaviorOptions>(options => options.SuppressModelStateInvalidFilter = true);
         builder.Services.AddControllers();
         builder.Services.AddOpenApi();
     }
 }
 
-[ExcludeFromCodeCoverage]
 file sealed class TrustedHeadersAuthenticationHandler : AuthenticationHandler<AuthenticationSchemeOptions>
 {
     public TrustedHeadersAuthenticationHandler(
@@ -91,7 +83,6 @@ file sealed class TrustedHeadersAuthenticationHandler : AuthenticationHandler<Au
     }
 }
 
-[ExcludeFromCodeCoverage]
 file static class TrustedHeadersAuthenticationDefaults
 {
     public const string Scheme = "TrustedHeaders";

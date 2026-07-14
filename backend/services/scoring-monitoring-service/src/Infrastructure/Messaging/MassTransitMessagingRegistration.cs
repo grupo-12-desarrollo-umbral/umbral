@@ -3,18 +3,12 @@ using MassTransit;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
-using umbral_backend.Infrastructure.Messaging.Consumers;
+using umbral_backend.Application.Rankings.Consumers;
+using umbral_backend.Application.Scores.Consumers;
 
 namespace umbral_backend.Infrastructure.Messaging;
 
-/// <summary>
-/// Registers the MassTransit bus over the RabbitMQ transport (#191) and binds the
-/// <see cref="AnswerRegisteredConsumer"/> to the <c>session-answer-registered</c> exchange that
-/// SessionOperations publishes to. Vanilla topology — the only customisation is the exchange name
-/// carried by <c>[EntityName]</c> on the contract. Broker host/credentials come from
-/// <see cref="RabbitMqOptions"/> (config, not hardcoded); the Generic Host starts/stops the bus.
-/// </summary>
-[ExcludeFromCodeCoverage] // Composition-root wiring — exercised end-to-end by the messaging integration test.
+[ExcludeFromCodeCoverage]
 public static class MassTransitMessagingRegistration
 {
     public static void AddMassTransitMessaging(this IHostApplicationBuilder builder)
@@ -22,6 +16,7 @@ public static class MassTransitMessagingRegistration
         builder.Services.AddMassTransit(bus =>
         {
             bus.AddConsumer<AnswerRegisteredConsumer>();
+            bus.AddConsumer<ScoreEntryRegisteredConsumer>();
 
             bus.UsingRabbitMq((context, cfg) =>
             {

@@ -6,7 +6,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <InternalsVisibleTo Include="umbral_backend.Infrastructure.IntegrationTests" />
+    <InternalsVisibleTo Include="umbral_backend.ScoringMonitoring.IntegrationTests" />
   </ItemGroup>
 
   <ItemGroup>
@@ -14,15 +14,14 @@
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="MassTransit" />
+    <PackageReference Include="MassTransit.RabbitMQ" />
     <PackageReference Include="Microsoft.EntityFrameworkCore" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
-    <PackageReference Include="MassTransit" />
-    <PackageReference Include="MassTransit.RabbitMQ" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
-    <PackageReference Include="RabbitMQ.Client" />
   </ItemGroup>
 
   <ItemGroup>

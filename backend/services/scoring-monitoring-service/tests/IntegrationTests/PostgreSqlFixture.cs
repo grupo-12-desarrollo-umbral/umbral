@@ -2,7 +2,7 @@ using Npgsql;
 using Testcontainers.PostgreSql;
 using umbral_backend.Infrastructure.Persistence;
 
-namespace umbral_backend.Infrastructure.IntegrationTests;
+namespace umbral_backend.ScoringMonitoring.IntegrationTests;
 
 public sealed class PostgreSqlFixture : IAsyncLifetime
 {
@@ -14,9 +14,9 @@ public sealed class PostgreSqlFixture : IAsyncLifetime
 
     public async Task InitializeAsync()
     {
-        await _postgres.StartAsync();
+        await DockerAvailability.StartOrSkipAsync(() => _postgres.StartAsync(), _postgres.DisposeAsync);
 
-        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+        var options = new DbContextOptionsBuilder<ScoringMonitoringDbContext>()
             .UseNpgsql(ConnectionString)
             .Options;
 
@@ -26,7 +26,7 @@ public sealed class PostgreSqlFixture : IAsyncLifetime
         {
             try
             {
-                await using var context = new ApplicationDbContext(options);
+                await using var context = new ScoringMonitoringDbContext(options);
                 await context.Database.MigrateAsync();
                 return;
             }
@@ -36,7 +36,7 @@ public sealed class PostgreSqlFixture : IAsyncLifetime
             }
         }
 
-        await using var finalContext = new ApplicationDbContext(options);
+        await using var finalContext = new ScoringMonitoringDbContext(options);
         await finalContext.Database.MigrateAsync();
     }
 

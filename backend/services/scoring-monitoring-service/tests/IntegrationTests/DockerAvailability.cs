@@ -3,7 +3,7 @@ using System.Net.Sockets;
 using DotNet.Testcontainers.Configurations;
 using Xunit.Sdk;
 
-namespace umbral_backend.Infrastructure.IntegrationTests;
+namespace umbral_backend.ScoringMonitoring.IntegrationTests;
 
 internal static class DockerAvailability
 {
@@ -30,9 +30,6 @@ internal static class DockerAvailability
             throw SkipException.ForSkip(SkipReason);
         }
 
-        // Once the daemon has answered its API ping, failures here belong to image pull,
-        // authentication, container configuration, port binding, or broker startup.
-        // They must escape so the integration test cannot turn green without exercising RabbitMQ.
         await start();
     }
 

@@ -1,14 +1,13 @@
-using System.Diagnostics.CodeAnalysis;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using umbral_backend.Application.Common.Interfaces;
 using umbral_backend.Infrastructure.Persistence;
 using umbral_backend.Infrastructure.Persistence.Interceptors;
+using umbral_backend.Infrastructure.Persistence.Repositories;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
-[ExcludeFromCodeCoverage]
 public static class PersistenceServiceExtensions
 {
     public static void AddPersistenceServices(this IHostApplicationBuilder builder)
@@ -22,12 +21,13 @@ public static class PersistenceServiceExtensions
         builder.Services.AddScoped<ISaveChangesInterceptor, AuditableEntityInterceptor>();
         builder.Services.AddScoped<ISaveChangesInterceptor, DispatchDomainEventsInterceptor>();
 
-        builder.Services.AddDbContext<ApplicationDbContext>((sp, options) =>
+        builder.Services.AddDbContext<ScoringMonitoringDbContext>((sp, options) =>
         {
             options.AddInterceptors(sp.GetServices<ISaveChangesInterceptor>());
             options.UseNpgsql(connectionString);
         });
 
-        builder.Services.AddScoped<IDatabaseHealthCheck, DatabaseHealthCheck>();
+        builder.Services.AddScoped<IScoreEntryRepository, ScoreEntryRepository>();
+        builder.Services.AddScoped<IRankingRepository, RankingRepository>();
     }
 }

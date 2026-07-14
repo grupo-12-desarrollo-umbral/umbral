@@ -3,8 +3,8 @@
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <RootNamespace>umbral_backend.Application.UnitTests</RootNamespace>
-    <AssemblyName>umbral_backend.Application.UnitTests</AssemblyName>
+    <RootNamespace>umbral_backend.ScoringMonitoring.Application.UnitTests</RootNamespace>
+    <AssemblyName>umbral_backend.ScoringMonitoring.Application.UnitTests</AssemblyName>
   </PropertyGroup>
 
   <ItemGroup>
