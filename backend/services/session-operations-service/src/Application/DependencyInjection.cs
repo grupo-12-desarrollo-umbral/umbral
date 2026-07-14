@@ -12,6 +12,8 @@ using umbral_backend.Application.Sessions.Common;
 using umbral_backend.Application.Sessions.EventHandlers;
 using umbral_backend.Application.Sessions.Common.EvidenceIntakeValidation;
 using umbral_backend.Application.Sessions.Common.EvidenceIntakeValidation.Validators;
+using umbral_backend.Application.Sessions.Common.EvidenceValidation;
+using umbral_backend.Application.Sessions.Common.EvidenceValidation.Validators;
 using umbral_backend.Application.Sessions.Common.TriviaAnswerValidation;
 using umbral_backend.Application.Sessions.Common.TriviaAnswerValidation.Validators;
 using umbral_backend.Application.Sessions.StateTransitions;
@@ -71,6 +73,13 @@ public static class DependencyInjection
         builder.Services.AddScoped<EvidenceIntakeValidationLink, SessionAdmitsReceptionLink>();
         builder.Services.AddScoped<EvidenceIntakeValidationLink, ActiveSubstagePresentLink>();
         builder.Services.AddScoped<EvidenceIntakeValidationChain>();
+
+        // Contextual EvidenceValidationPolicy Chain of Responsibility. Registration order IS the
+        // execution order; the first rejected context prevents every later link from running.
+        builder.Services.AddScoped<EvidenceValidationLink, ActiveSubstageBindingLink>();
+        builder.Services.AddScoped<EvidenceValidationLink, SubmissionWindowLink>();
+        builder.Services.AddScoped<EvidenceValidationLink, SubmissionOriginLink>();
+        builder.Services.AddScoped<EvidenceValidationChain>();
 
         // Trivia composes the shared admission chain above with these form-specific extension links.
         builder.Services.AddScoped<TriviaAnswerValidationLink, ActiveTriviaQuestionLink>();

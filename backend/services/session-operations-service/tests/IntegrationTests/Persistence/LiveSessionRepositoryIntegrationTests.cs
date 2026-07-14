@@ -835,7 +835,7 @@ public sealed class LiveSessionRepositoryIntegrationTests
         await ResetDatabaseAsync(resetContext);
 
         var activeAt = new DateTimeOffset(2026, 6, 4, 12, 0, 0, TimeSpan.Zero);
-        var liveSession = CreateActiveTreasureHuntSession(activeAt);
+        var liveSession = CreateActiveReleasableTreasureHuntSession(activeAt);
         var teamId = liveSession.Teams.Single().TeamId;
         var targetId = liveSession.MissionRuntimeSnapshot.TargetSnapshots.Single().TargetSnapshotId;
 
@@ -895,7 +895,7 @@ public sealed class LiveSessionRepositoryIntegrationTests
         await ResetDatabaseAsync(resetContext);
 
         var activeAt = new DateTimeOffset(2026, 6, 4, 12, 0, 0, TimeSpan.Zero);
-        var liveSession = CreateActiveTreasureHuntSession(activeAt);
+        var liveSession = CreateActiveReleasableTreasureHuntSession(activeAt);
         var teamId = liveSession.Teams.Single().TeamId;
         var targetId = liveSession.MissionRuntimeSnapshot.TargetSnapshots.Single().TargetSnapshotId;
 
@@ -1032,7 +1032,7 @@ public sealed class LiveSessionRepositoryIntegrationTests
         sessionEvent.PayloadSummary.Should().Be($"{SessionState.Scheduled}→{SessionState.Preparing}");
     }
 
-    private static LiveSession CreateActiveTreasureHuntSession(DateTimeOffset activeAt)
+    private static LiveSession CreateActiveReleasableTreasureHuntSession(DateTimeOffset activeAt)
     {
         var sourceMissionId = Guid.NewGuid();
         var liveSession = LiveSession.Create(
@@ -1166,6 +1166,16 @@ public sealed class LiveSessionRepositoryIntegrationTests
         liveSession.MoveTo(SessionState.Preparing, activeAt.AddMinutes(-1), transitionPolicy);
         liveSession.MoveTo(SessionState.Active, activeAt, transitionPolicy);
         liveSession.ActivateQuestion(0, activeAt);
+        return liveSession;
+    }
+
+    private static LiveSession CreateActiveTreasureHuntSession(DateTimeOffset activeAt)
+    {
+        var liveSession = CreateSession(activeAt.AddMinutes(-10));
+        var transitionPolicy = new SessionStateTransitionPolicy();
+        liveSession.AssociateTeam(Guid.NewGuid(), "Aurora", "AUR-01", 3);
+        liveSession.MoveTo(SessionState.Preparing, activeAt.AddMinutes(-1), transitionPolicy);
+        liveSession.MoveTo(SessionState.Active, activeAt, transitionPolicy);
         return liveSession;
     }
 

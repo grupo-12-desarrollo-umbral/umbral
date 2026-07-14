@@ -78,6 +78,19 @@ public abstract class EvidenceSubmission : BaseEntity
 
     public EvidenceValidationState ValidationState { get; private set; }
 
+    public EvidenceRejectionReason? RejectionReason { get; private set; }
+
+    public void Reject(EvidenceRejectionReason reason)
+    {
+        if (ValidationState != EvidenceValidationState.Pending)
+        {
+            throw new EvidenceAlreadyResolvedException(ValidationState);
+        }
+
+        ValidationState = EvidenceValidationState.Rejected;
+        RejectionReason = reason;
+    }
+
     protected void MarkAcceptedByConcreteForm()
     {
         ValidationState = EvidenceValidationState.Accepted;

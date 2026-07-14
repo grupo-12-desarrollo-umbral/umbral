@@ -20,6 +20,53 @@ public sealed class EvidenceSubmissionTests
             DateTimeOffset.UtcNow);
 
         submission.ValidationState.Should().Be(EvidenceValidationState.Pending);
+        submission.RejectionReason.Should().BeNull();
+    }
+
+    [Fact]
+    public void Reject_WhenPending_MarksRejectedWithExplicitReason()
+    {
+        var submission = CreatePendingSubmission();
+
+        submission.Reject(EvidenceRejectionReason.SubstageBindingMismatch);
+
+        submission.ValidationState.Should().Be(EvidenceValidationState.Rejected);
+        submission.RejectionReason.Should().Be(EvidenceRejectionReason.SubstageBindingMismatch);
+    }
+
+    [Fact]
+    public void Reject_WhenAlreadyRejected_ThrowsAlreadyResolved()
+    {
+        var submission = CreatePendingSubmission();
+        submission.Reject(EvidenceRejectionReason.OutsideSubmissionWindow);
+
+        var act = () => submission.Reject(EvidenceRejectionReason.UnauthorizedOrigin);
+
+        act.Should().Throw<EvidenceAlreadyResolvedException>()
+            .Which.Category.Should().Be(ErrorCategory.Conflict);
+        submission.ValidationState.Should().Be(EvidenceValidationState.Rejected);
+        submission.RejectionReason.Should().Be(EvidenceRejectionReason.OutsideSubmissionWindow);
+    }
+
+    [Fact]
+    public void Reject_WhenAlreadyAccepted_ThrowsAlreadyResolved()
+    {
+        var submission = TriviaAnswerSubmission.Accept(
+            Guid.NewGuid(),
+            Guid.NewGuid(),
+            Guid.NewGuid(),
+            questionSequenceOrder: 1,
+            selectedOptionSequenceOrder: 1,
+            submittedByParticipantId: Guid.NewGuid(),
+            DateTimeOffset.UtcNow,
+            isCorrect: true,
+            scoreValue: 100);
+
+        var act = () => submission.Reject(EvidenceRejectionReason.UnauthorizedOrigin);
+
+        act.Should().Throw<EvidenceAlreadyResolvedException>();
+        submission.ValidationState.Should().Be(EvidenceValidationState.Accepted);
+        submission.RejectionReason.Should().BeNull();
     }
 
     [Theory]
@@ -44,6 +91,17 @@ public sealed class EvidenceSubmissionTests
             scoreValue: 100);
 
         act.Should().Throw<EvidenceSubmissionContextRequiredException>();
+    }
+
+    private static PendingEvidenceSubmission CreatePendingSubmission()
+    {
+        return new PendingEvidenceSubmission(
+            Guid.NewGuid(),
+            Guid.NewGuid(),
+            Guid.NewGuid(),
+            Guid.NewGuid(),
+            Guid.NewGuid(),
+            DateTimeOffset.UtcNow);
     }
 
     private sealed class PendingEvidenceSubmission : EvidenceSubmission

@@ -28,6 +28,29 @@ public sealed class TriviaAnsweredMonitorSnapshotTests
         act.Should().Throw<SubstageSnapshotIdRequiredException>();
     }
 
+    [Fact]
+    public void Create_WithNullRoster_DefaultsToEmptyTeamStatuses()
+    {
+        var snapshot = TriviaAnsweredMonitorSnapshot.Create(Guid.NewGuid(), 1, null!);
+
+        snapshot.TeamStatuses.Should().BeEmpty();
+    }
+
+    // Value equality is by component: identical (substage, sequence, roster) snapshots are equal,
+    // which exercises the GetEqualityComponents enumeration including the roster loop.
+    [Fact]
+    public void Equality_SnapshotsWithIdenticalComponents_AreEqual()
+    {
+        var substageSnapshotId = Guid.NewGuid();
+        var alpha = TeamAnsweredStatus.CreateAnswered(Guid.NewGuid(), "A-01", "Alpha", DateTimeOffset.UnixEpoch);
+
+        var first = TriviaAnsweredMonitorSnapshot.Create(substageSnapshotId, 3, [alpha]);
+        var second = TriviaAnsweredMonitorSnapshot.Create(substageSnapshotId, 3, [alpha]);
+
+        first.Should().Be(second);
+        first.GetHashCode().Should().Be(second.GetHashCode());
+    }
+
     // No-leak invariant: the snapshot exposes no option/correctness/score member.
     [Fact]
     public void Snapshot_ExposesNoOptionCorrectnessOrScoreProperty()
