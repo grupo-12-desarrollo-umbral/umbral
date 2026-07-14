@@ -1,5 +1,5 @@
 import React from 'react';
-import { act, create } from 'react-test-renderer';
+import { act, create, type ReactTestInstance } from 'react-test-renderer';
 import { LiveTeamSpace } from '@/app/(app)/team-space';
 import { useActiveQuestion } from '@/lib/realtime/use-active-question';
 import { useSessionTimer } from '@/lib/realtime/use-session-timer';
@@ -67,6 +67,16 @@ type TreeNode = {
   props?: Record<string, unknown>;
   children?: (TreeNode | string)[] | null;
 };
+
+// The host node React Native's test renderer emits for a ScrollView. react-test-renderer types `type`
+// against the DOM/SVG intrinsic union, which has no overlap with React Native's host names, so a direct
+// `node.type === SCROLL_VIEW_HOST` is a compile error (TS2367) even though it matches at runtime.
+// Comparing the widened string keeps the check on the value the renderer actually produces.
+const SCROLL_VIEW_HOST = 'RCTScrollView';
+
+function isScrollView(node: ReactTestInstance): boolean {
+  return typeof node.type === 'string' && String(node.type) === SCROLL_VIEW_HOST;
+}
 
 function allText(node: unknown): (string | number)[] {
   if (node === null || node === undefined) return [];
@@ -350,11 +360,9 @@ describe('LiveTeamSpace play-mode branch', () => {
     const renderer = renderSpace();
 
     const root = renderer.toJSON() as { type?: string } | null;
-    expect(root?.type).not.toBe('RCTScrollView');
+    expect(root?.type).not.toBe(SCROLL_VIEW_HOST);
 
-    const scrollViews = renderer.root.findAll(
-      (n) => typeof n.type === 'string' && n.type === 'RCTScrollView',
-    );
+    const scrollViews = renderer.root.findAll(isScrollView);
     // Exactly one tab body is mounted at a time, and MAP (the default) has no scroller of its own.
     expect(scrollViews).toHaveLength(0);
 
@@ -385,9 +393,7 @@ describe('LiveTeamSpace play-mode branch', () => {
       (buttons[1].props.onPress as () => void)();
     });
 
-    expect(
-      renderer.root.findAll((n) => typeof n.type === 'string' && n.type === 'RCTScrollView'),
-    ).toHaveLength(1);
+    expect(renderer.root.findAll(isScrollView)).toHaveLength(1);
   });
 
   test('a retained board suppresses the error banner on a failed re-fetch', () => {

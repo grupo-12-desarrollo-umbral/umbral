@@ -24,6 +24,7 @@ import { useSessionTimer } from '@/lib/realtime/use-session-timer';
 import { useSubmitAnswer } from '@/lib/realtime/use-submit-answer';
 import { useTeamBoard } from '@/lib/realtime/use-team-board';
 import { TreasureHuntBoard } from '@/components/treasure-hunt-board';
+import { TargetScanner } from '@/components/target-scanner';
 import {
   OperativeCluePortalHost,
   OperativeClueSurface,
@@ -300,6 +301,10 @@ export function LiveTeamSpace({
 }) {
   const { result } = outcome;
   const [teamsOpen, setTeamsOpen] = useState(false);
+  // #223 QR scanner: open state + a board re-fetch trigger bumped on every accepted scan (there is no
+  // board push after a scan resolves, so the target-progress numerator is pulled on demand).
+  const [scannerOpen, setScannerOpen] = useState(false);
+  const [boardRefreshNonce, setBoardRefreshNonce] = useState(0);
   // A QuestionClosed for the displayed question bumps this to re-fetch the timer snapshot and reconcile.
   const [resyncNonce, setResyncNonce] = useState(0);
   const requestResync = useCallback(() => setResyncNonce(n => n + 1), []);
@@ -339,6 +344,8 @@ export function LiveTeamSpace({
     reconnectNonce,
     // Re-fetch the board when the session state advances (e.g. Preparing → Active on Start).
     sessionState: snapshotSessionState,
+    // …and after an accepted target scan, to advance the resolved-target count (#223).
+    refreshNonce: boardRefreshNonce,
   });
   const playMode = board?.activeSubstage?.playMode;
   // Only surface an error while it actually masks the board: a still-good board
@@ -375,22 +382,34 @@ export function LiveTeamSpace({
     // ScrollViews inside a same-direction parent — a combination that leaves a long clue list barely
     // scrollable. Given the viewport it sizes itself, and its body is the only vertical scroller.
     return (
-      <TreasureHuntBoard
-        teamDisplayName={board.teamDisplayName}
-        currentScore={board.currentScore}
-        timerDisplay={display}
-        resolvedTargets={progress.resolved}
-        totalActiveTargets={progress.total}
-        visibleClues={board.visibleClues}
-        activeTargets={board.activeTargets ?? []}
-        headerSlot={
-          <>
-            {banner}
-            <SubstageProgress board={board} />
-          </>
-        }
-        onLeave={onLeave}
-      />
+      <>
+        <TreasureHuntBoard
+          teamDisplayName={board.teamDisplayName}
+          currentScore={board.currentScore}
+          timerDisplay={display}
+          resolvedTargets={progress.resolved}
+          totalActiveTargets={progress.total}
+          visibleClues={board.visibleClues}
+          activeTargets={board.activeTargets ?? []}
+          headerSlot={
+            <>
+              {banner}
+              <SubstageProgress board={board} />
+            </>
+          }
+          onLeave={onLeave}
+          onScan={() => setScannerOpen(true)}
+        />
+        {scannerOpen ? (
+          <TargetScanner
+            liveSessionId={result.liveSessionId}
+            teamId={referenceTeamId}
+            token={token}
+            onClose={() => setScannerOpen(false)}
+            onResolved={() => setBoardRefreshNonce((n) => n + 1)}
+          />
+        ) : null}
+      </>
     );
   }
 

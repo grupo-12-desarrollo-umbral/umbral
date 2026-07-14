@@ -22,7 +22,7 @@ import { TriviaQuestionList } from '../TriviaQuestionList'
 import { nextSequenceOrder } from './NodeControls'
 import { QrPreview } from './QrPreview'
 import { TargetMap } from './TargetMap'
-import type { TargetMapMarker } from './target-map-html'
+import { isPlacedCoordinate, type TargetMapMarker } from './target-map-html'
 import {
   PLAY_MODES,
   PLAY_MODE_LABELS,
@@ -42,13 +42,15 @@ function parseCoord(value: string): number | null {
 }
 
 // The map pins for a substage's already-placed targets, excluding the one being edited (passed as
-// `excludeId`) since that target's live draft is shown separately as the draft pin.
+// `excludeId`) since that target's live draft is shown separately as the draft pin. Targets with no
+// location (stored as 0,0) are dropped, so they neither pin the ocean nor anchor the initial view away
+// from the operator's own location.
 function contextMarkers(
   targets: MissionSubstageDto['targets'],
   excludeId?: number,
 ): TargetMapMarker[] {
   return targets
-    .filter((t) => t.id !== excludeId)
+    .filter((t) => t.id !== excludeId && isPlacedCoordinate(t.latitude, t.longitude))
     .map((t) => ({
       id: String(t.id),
       name: t.name,
@@ -444,7 +446,10 @@ function LocationField({
 }) {
   const lat = parseCoord(latitude)
   const lng = parseCoord(longitude)
-  const draft = lat !== null && lng !== null ? { latitude: lat, longitude: lng } : null
+  // A target saved without a location reads back as "0"/"0", which parses as a valid coordinate. Treat
+  // it as unplaced so the map falls through to the operator's own location instead of Null Island.
+  const draft =
+    lat !== null && lng !== null && isPlacedCoordinate(lat, lng) ? { latitude: lat, longitude: lng } : null
 
   return (
     <div className={styles.locationField}>
@@ -911,9 +916,9 @@ function TargetRow({
             Score: {target.score} ({difficulty})
           </span>
           <span className={styles.treeClueText} data-testid={`target-location-${target.id}`}>
-            {target.latitude === 0 && target.longitude === 0
-              ? 'No location set'
-              : `📍 ${target.latitude.toFixed(5)}, ${target.longitude.toFixed(5)}`}
+            {isPlacedCoordinate(target.latitude, target.longitude)
+              ? `📍 ${target.latitude.toFixed(5)}, ${target.longitude.toFixed(5)}`
+              : 'No location set'}
           </span>
           {!target.isActive && (
             <span className={styles.chip} data-tone="muted">

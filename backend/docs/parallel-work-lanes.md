@@ -1,6 +1,6 @@
 # Parallel Work Lanes — Active Todo HU Tickets
 
-This plan contains the **14 active, non-archived Linear HU tickets in `Todo`** for `umbral-equipo-12` plus the repository's **6 open GitHub issues**. Reconciled against live Linear and `workflow_refactor.md` on **2026-07-13** (~20:33 UTC): DES-29, DES-36, DES-39, and DES-93 completed; DES-37/HU-27 archived; DES-94 (ENABLER) added; **DES-42 (HU-31) and DES-95 (HU-30) moved to In Progress** and left the Todo set; **DES-40 (HU-30A) and DES-41 (HU-30B) resolved as Duplicate of DES-95**. DES-95 replaced the old DES-40/DES-41 split and is not itself in Todo.
+This plan contains the **13 active, non-archived Linear HU tickets in `Todo`** for `umbral-equipo-12` plus the repository's **6 open GitHub issues**. Reconciled against live Linear and `workflow_refactor.md` on **2026-07-13** (~23:46 UTC, after DES-34/HU-25A was canceled and absorbed into DES-96): DES-29, DES-36, DES-39, and DES-93 completed; DES-37/HU-27 archived; DES-94 (ENABLER) added; **DES-42 (HU-31) and DES-95 (HU-30) moved to In Progress** and left the Todo set; **DES-40 (HU-30A) and DES-41 (HU-30B) resolved as Duplicate of DES-95**. DES-95 replaced the old DES-40/DES-41 split and is not itself in Todo.
 
 The conflict rule is simple: two tickets that edit the same service or application tree must not run concurrently. Run one ticket at a time within a lane; parallelize only across disjoint trees.
 
@@ -39,7 +39,6 @@ DES-94 and DES-38 are the only startable Lane A roots. DES-40 and DES-41 no long
 DES-42* → DES-51 → DES-53
                   ├→ DES-50
                   └→ DES-54 → DES-48
-                             ├→ DES-34
                              ├→ DES-35
                              └→ DES-33
 
@@ -54,7 +53,6 @@ DES-51 + DES-54 + DES-56 → DES-57
 | Ticket | Trees reserved | Parallelization rule |
 |---|---|---|
 | DES-13 | session operations (labeled `svc:session-operations-service`; membership blockers HU-07A/07B are the identity touchpoint) | Blocked by DES-42 (In Progress) — not startable yet. When unblocked, run alone with respect to Lane A. |
-| DES-34 | cross-service reads | Confirm its generated brief, then reserve every tree it names. |
 | DES-35 | cross-service reads + participant client | Confirm its generated brief, then reserve every tree it names. |
 | DES-43 | session operations + scoring/monitoring | Reserve Lanes A and B. |
 | DES-48 | session operations + scoring/monitoring | Reserve Lanes A and B. |
@@ -92,11 +90,11 @@ GH #148 (admin user management + operator-invite UI) closed 2026-07-13 via PR #2
 
 No open GitHub issue names any of the 14 Todo HUs as a blocker. The GitHub ordering is therefore driven by file conflicts and coordination, not by an unresolved dependency edge.
 
-## Complete Todo inventory (14)
+## Complete Todo inventory (13)
 
-DES-13, DES-33, DES-34, DES-35, DES-38, DES-43, DES-48, DES-50, DES-51, DES-53, DES-54, DES-56, DES-57, DES-94.
+DES-13, DES-33, DES-35, DES-38, DES-43, DES-48, DES-50, DES-51, DES-53, DES-54, DES-56, DES-57, DES-94.
 
-Not in Todo: DES-42 and DES-95 are In Progress; DES-40 and DES-41 are Duplicate of DES-95.
+Not in Todo: DES-42 and DES-95 are In Progress; DES-40 and DES-41 are Duplicate of DES-95; DES-34 (HU-25A) canceled 2026-07-13, absorbed into DES-96.
 
 ## Complete open GitHub inventory (6)
 

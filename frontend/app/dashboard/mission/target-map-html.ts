@@ -23,6 +23,13 @@ export type TargetMapDraft = {
 // this type before trusting the payload.
 export const TARGET_PICK_MESSAGE = 'umbral:target-pick'
 
+// The backend has no null coordinate: a target saved without a location reads back as 0,0. Treat that
+// pair as "unplaced" rather than as Null Island, so it never anchors the view or draws a pin. The cost
+// is that the real point at 0,0 (open ocean) can't be authored — the editor already made that trade.
+export function isPlacedCoordinate(latitude: number, longitude: number): boolean {
+  return latitude !== 0 || longitude !== 0
+}
+
 const LEAFLET_VERSION = '1.9.4'
 
 // Zoom when a single point anchors the view. A world view (nothing placed yet) starts zoomed out so the
@@ -37,24 +44,33 @@ export type BuildTargetMapOptions = {
   draft?: TargetMapDraft | null
   // When true, clicking the map posts a TARGET_PICK_MESSAGE and moves the draft marker.
   interactive?: boolean
+  // Fallback center when no markers or draft exist (e.g. browser geolocation).
+  defaultCenter?: { lat: number; lng: number } | null
 }
 
-// Chooses the initial centre/zoom: the draft if present, else the first context marker, else a
-// zoomed-out world view so an operator with nothing placed can still navigate.
+// Chooses the initial centre/zoom: the draft if present, else the first context marker, else the
+// caller-supplied default, else a zoomed-out world view so an operator with nothing placed can still
+// navigate. Callers pass only placed markers/draft, so an unplaced target can never anchor the view.
 function resolveView(
   markers: readonly TargetMapMarker[],
   draft: TargetMapDraft | null,
+  defaultCenter: { lat: number; lng: number } | null,
 ): { lat: number; lng: number; zoom: number } {
   if (draft) return { lat: draft.latitude, lng: draft.longitude, zoom: PLACED_ZOOM }
   if (markers.length > 0) return { lat: markers[0].latitude, lng: markers[0].longitude, zoom: PLACED_ZOOM }
+  if (defaultCenter) return { lat: defaultCenter.lat, lng: defaultCenter.lng, zoom: PLACED_ZOOM }
   return { lat: 0, lng: 0, zoom: WORLD_ZOOM }
 }
 
 export function buildTargetMapHtml(options: BuildTargetMapOptions = {}): string {
-  const markers = options.markers ?? []
-  const draft = options.draft ?? null
+  // Drop the 0,0 sentinel here as well as at the call sites: it must neither anchor the view nor draw a
+  // pin in the middle of the Atlantic.
+  const markers = (options.markers ?? []).filter((m) => isPlacedCoordinate(m.latitude, m.longitude))
+  const rawDraft = options.draft ?? null
+  const draft = rawDraft && isPlacedCoordinate(rawDraft.latitude, rawDraft.longitude) ? rawDraft : null
   const interactive = options.interactive ?? false
-  const view = resolveView(markers, draft)
+  const defaultCenter = options.defaultCenter ?? null
+  const view = resolveView(markers, draft, defaultCenter)
 
   // Operator-authored target names reach this string, so serialise through JSON and neutralise `<` so a
   // name can never break out of the <script> block or inject markup.

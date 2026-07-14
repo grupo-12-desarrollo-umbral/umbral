@@ -29,6 +29,11 @@ describe('buildTargetMapHtml', () => {
     expect(html).toContain('setView([0, 0], 2)')
   })
 
+  it('uses defaultCenter when no markers or draft exist', () => {
+    const html = buildTargetMapHtml({ defaultCenter: { lat: 40.41, lng: -3.69 } })
+    expect(html).toContain('setView([40.41, -3.69], 15)')
+  })
+
   it('serialises every marker into the payload', () => {
     const html = buildTargetMapHtml({ markers })
     expect(html).toContain('"name":"Waterfall"')
@@ -46,9 +51,34 @@ describe('buildTargetMapHtml', () => {
     expect(interactive).toContain('Click the map to place this target')
   })
 
+  it('treats the 0,0 sentinel as unplaced rather than centring on Null Island', () => {
+    // A target saved with no location reads back as 0,0. It must not anchor the view, or the operator
+    // lands in the Atlantic instead of at their own position.
+    const unplaced: TargetMapMarker[] = [{ id: '1', name: 'Unplaced', latitude: 0, longitude: 0 }]
+    const html = buildTargetMapHtml({
+      markers: unplaced,
+      defaultCenter: { lat: 40.41, lng: -3.69 },
+    })
+    expect(html).toContain('setView([40.41, -3.69], 15)')
+    expect(html).not.toContain('"name":"Unplaced"')
+  })
+
+  it('ignores a 0,0 draft so the operator location still wins', () => {
+    const html = buildTargetMapHtml({
+      draft: { latitude: 0, longitude: 0 },
+      defaultCenter: { lat: 40.41, lng: -3.69 },
+    })
+    expect(html).toContain('setView([40.41, -3.69], 15)')
+  })
+
+  it('still centres on a placed marker ahead of the operator location', () => {
+    const html = buildTargetMapHtml({ markers, defaultCenter: { lat: 40.41, lng: -3.69 } })
+    expect(html).toContain('setView([10.5, -70.25]')
+  })
+
   it('escapes < in a target name to prevent script-block injection', () => {
     const evil: TargetMapMarker[] = [
-      { id: 'x', name: '</script><img src=x>', latitude: 0, longitude: 0 },
+      { id: 'x', name: '</script><img src=x>', latitude: 10.5, longitude: -70.25 },
     ]
     const html = buildTargetMapHtml({ markers: evil })
     expect(html).not.toContain('</script><img')

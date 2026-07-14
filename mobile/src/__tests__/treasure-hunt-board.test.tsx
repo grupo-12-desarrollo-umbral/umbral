@@ -399,6 +399,25 @@ describe('TreasureHuntBoard', () => {
 
     expect(allText(renderer.toJSON())).toContain('Follow the north colonnade.');
   });
+
+  test('no scan launcher renders without onScan', () => {
+    const renderer = renderBoard();
+    expect(
+      renderer.root.findAllByProps({ testID: 'treasure-hunt-scan-button' }),
+    ).toHaveLength(0);
+  });
+
+  test('the scan launcher invokes onScan', () => {
+    const onScan = jest.fn();
+    const renderer = renderBoard({ onScan });
+    const scanButton = renderer.root.findAllByProps({ testID: 'treasure-hunt-scan-button' })[0];
+
+    act(() => {
+      (scanButton.props.onPress as () => void)();
+    });
+
+    expect(onScan).toHaveBeenCalledTimes(1);
+  });
 });
 
 // The arrival toast is portalled out of the board, so these mount the board inside the host that
