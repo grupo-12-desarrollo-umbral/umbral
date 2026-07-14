@@ -164,6 +164,8 @@ public sealed class TargetResolvedOutboxTests
 
         services.AddScoped<PublishAnswerRegisteredIntegrationEventHandler>();
         services.AddScoped<PublishEvidenceSubmissionRegisteredIntegrationEventHandler>();
+        services.AddScoped<PublishEvidenceSubmissionAcceptedIntegrationEventHandler>();
+        services.AddScoped<PublishEvidenceSubmissionRejectedIntegrationEventHandler>();
         services.AddScoped<PublishTargetResolvedIntegrationEventHandler>();
         services.AddScoped<PublishQuestionClosedIntegrationEventHandler>();
         services.AddScoped<PublishSessionResultsFinalizedIntegrationEventHandler>();

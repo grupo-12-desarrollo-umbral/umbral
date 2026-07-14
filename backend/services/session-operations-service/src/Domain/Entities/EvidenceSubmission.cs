@@ -1,4 +1,5 @@
 using umbral_backend.Domain.Enums;
+using umbral_backend.Domain.Events;
 using umbral_backend.Domain.Exceptions;
 
 namespace umbral_backend.Domain.Entities;
@@ -92,15 +93,48 @@ public abstract class EvidenceSubmission : BaseEntity
 
         ValidationState = EvidenceValidationState.Rejected;
         RejectionReason = reason;
+
+        AddDomainEvent(new EvidenceSubmissionRejectedEvent(
+            LiveSessionId,
+            TeamId,
+            EvidenceSubmissionId,
+            ActiveSubstageId,
+            SubmissionType,
+            SubmittedAt,
+            reason.ToString(),
+            SubmittedAt));
     }
 
-    protected void MarkAcceptedByConcreteForm()
+    protected void MarkAcceptedByConcreteForm(DateTimeOffset resolvedAt)
     {
         ValidationState = EvidenceValidationState.Accepted;
+
+        AddDomainEvent(new EvidenceSubmissionAcceptedEvent(
+            LiveSessionId,
+            TeamId,
+            EvidenceSubmissionId,
+            ActiveSubstageId,
+            SubmissionType,
+            SubmittedAt,
+            resolvedAt));
     }
 
-    protected void MarkRejectedByConcreteForm()
+    protected void MarkRejectedByConcreteForm(string reason, DateTimeOffset resolvedAt)
     {
         ValidationState = EvidenceValidationState.Rejected;
+
+        AddDomainEvent(new EvidenceSubmissionRejectedEvent(
+            LiveSessionId,
+            TeamId,
+            EvidenceSubmissionId,
+            ActiveSubstageId,
+            SubmissionType,
+            SubmittedAt,
+            reason,
+            resolvedAt));
     }
+
+    // The origin grain that identifies the "nodo de misión o pregunta de trivia" for
+    // traceability (AC #2). Each concrete form provides its own grain.
+    public abstract string? DescribeOrigin();
 }

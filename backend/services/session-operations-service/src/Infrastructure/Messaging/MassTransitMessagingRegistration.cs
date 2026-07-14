@@ -3,6 +3,7 @@ using MassTransit;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
+using umbral_backend.Infrastructure.Messaging.Consumers;
 using umbral_backend.Infrastructure.Persistence;
 
 namespace umbral_backend.Infrastructure.Messaging;
@@ -23,6 +24,10 @@ public static class MassTransitMessagingRegistration
     {
         builder.Services.AddMassTransit(bus =>
         {
+            bus.AddConsumer<EvidenceSubmissionRegisteredConsumer>();
+            bus.AddConsumer<EvidenceSubmissionAcceptedConsumer>();
+            bus.AddConsumer<EvidenceSubmissionRejectedConsumer>();
+
             bus.AddEntityFrameworkOutbox<ApplicationDbContext>(outbox =>
             {
                 outbox.UsePostgres();                                    // Npgsql row-lock semantics for the delivery service

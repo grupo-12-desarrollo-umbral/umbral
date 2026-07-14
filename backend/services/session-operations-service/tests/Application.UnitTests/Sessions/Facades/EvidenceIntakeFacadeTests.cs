@@ -150,7 +150,7 @@ public sealed class EvidenceIntakeFacadeTests
             (evidence, _) =>
             {
                 log.Add("accept");
-                evidence.Accept();
+                evidence.Accept(submittedAt);
                 return Task.CompletedTask;
             },
             CancellationToken.None);

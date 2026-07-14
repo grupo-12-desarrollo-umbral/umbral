@@ -37,7 +37,8 @@ public sealed class PublishEvidenceSubmissionRegisteredIntegrationEventHandler
                     notification.ActiveSubstageId,
                     notification.SubmissionType,
                     notification.SubmittedAt,
-                    notification.ValidationState),
+                    notification.ValidationState,
+                    notification.OriginReference),
                 cancellationToken);
         }
         catch (Exception exception)

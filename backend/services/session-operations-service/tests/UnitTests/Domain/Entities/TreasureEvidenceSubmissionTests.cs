@@ -1,5 +1,6 @@
 using umbral_backend.Domain.Entities;
 using umbral_backend.Domain.Enums;
+using umbral_backend.Domain.Events;
 
 namespace umbral_backend.SessionOperations.UnitTests.Domain.Entities;
 
@@ -37,6 +38,41 @@ public sealed class TreasureEvidenceSubmissionTests
         submission.RejectionReason.Should().BeNull();
         submission.ResolutionRejectionReason.Should().BeNull();
         submission.EvidenceSubmissionId.Should().NotBeEmpty();
+
+        submission.DomainEvents.OfType<EvidenceSubmissionAcceptedEvent>().Should().ContainSingle()
+            .Which.EvidenceSubmissionId.Should().Be(submission.EvidenceSubmissionId);
+    }
+
+    [Fact]
+    public void RejectRegisteredTarget_RaisesRejectedEventWithTargetResolutionReason()
+    {
+        var liveSessionId = Guid.NewGuid();
+        var teamId = Guid.NewGuid();
+        var substageId = Guid.NewGuid();
+        var submittedAt = new DateTimeOffset(2026, 7, 13, 10, 1, 5, TimeSpan.Zero);
+
+        var submission = TreasureEvidenceSubmission.Begin(
+            liveSessionId,
+            teamId,
+            substageId,
+            "WRONG-QR",
+            targetSnapshotId: null,
+            Guid.NewGuid(),
+            submittedAt);
+
+        submission.RejectRegisteredTarget(
+            TargetResolutionRejectionReason.ScannedValueDoesNotResolveToTarget,
+            submittedAt);
+
+        submission.ValidationState.Should().Be(EvidenceValidationState.Rejected);
+        submission.ResolutionRejectionReason.Should()
+            .Be(TargetResolutionRejectionReason.ScannedValueDoesNotResolveToTarget);
+        submission.RejectionReason.Should().BeNull();
+
+        var rejectedEvent = submission.DomainEvents.OfType<EvidenceSubmissionRejectedEvent>().Should().ContainSingle().Which;
+        rejectedEvent.EvidenceSubmissionId.Should().Be(submission.EvidenceSubmissionId);
+        rejectedEvent.RejectionReason.Should().Be("The scanned value does not resolve to a target.");
+        rejectedEvent.ResolvedAt.Should().Be(submittedAt);
     }
 
     [Theory]

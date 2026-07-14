@@ -13,7 +13,8 @@ public sealed class EvidenceSubmissionRegisteredEvent : BaseEvent
         Guid activeSubstageId,
         EvidenceSubmissionType submissionType,
         DateTimeOffset submittedAt,
-        EvidenceValidationState validationState)
+        EvidenceValidationState validationState,
+        string? originReference = null)
     {
         LiveSessionId = liveSessionId;
         TeamId = teamId;
@@ -22,6 +23,7 @@ public sealed class EvidenceSubmissionRegisteredEvent : BaseEvent
         SubmissionType = submissionType;
         SubmittedAt = submittedAt;
         ValidationState = validationState;
+        OriginReference = originReference;
     }
 
     public Guid LiveSessionId { get; }
@@ -31,4 +33,8 @@ public sealed class EvidenceSubmissionRegisteredEvent : BaseEvent
     public EvidenceSubmissionType SubmissionType { get; }
     public DateTimeOffset SubmittedAt { get; }
     public EvidenceValidationState ValidationState { get; }
+
+    // The origin grain (target, question, etc.) identifying the *"nodo de misión o pregunta de trivia"*
+    // for traceability (AC #2). Derived per concrete form; null when the form does not contribute one.
+    public string? OriginReference { get; }
 }
