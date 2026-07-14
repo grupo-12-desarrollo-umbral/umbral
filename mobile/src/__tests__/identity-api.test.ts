@@ -1,4 +1,4 @@
-import { registerParticipant } from '@/lib/api/identity';
+import { registerParticipant, requestPasswordReset } from '@/lib/api/identity';
 import { ApiError } from '@/lib/api/client';
 
 const mockFetch = jest.fn();
@@ -54,5 +54,33 @@ describe('registerParticipant', () => {
     const err = await registerParticipant('N', 'dup@example.com', 'sup3rsecret').catch((e) => e);
     expect(err).toBeInstanceOf(ApiError);
     expect((err as ApiError).status).toBe(409);
+  });
+});
+
+describe('requestPasswordReset', () => {
+  beforeEach(() => jest.clearAllMocks());
+
+  test('POSTs the email to the anonymous forgot-password endpoint and resolves void', async () => {
+    // 204 No Content — the shared client resolves void without touching the body.
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      status: 204,
+      json: () => Promise.reject(new Error('should not be called for 204')),
+    });
+
+    await expect(requestPasswordReset('someone@example.com')).resolves.toBeUndefined();
+
+    const [url, init] = mockFetch.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe('http://localhost:8000/api/users/forgot-password');
+    expect(init.method).toBe('POST');
+    expect(JSON.parse(init.body as string)).toEqual({ email: 'someone@example.com' });
+  });
+
+  test('surfaces a network error as an ApiError', async () => {
+    mockFetch.mockRejectedValueOnce(new TypeError('Network request failed'));
+
+    const err = await requestPasswordReset('someone@example.com').catch((e) => e);
+    expect(err).toBeInstanceOf(ApiError);
+    expect((err as ApiError).status).toBe(0);
   });
 });

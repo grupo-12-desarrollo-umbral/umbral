@@ -125,6 +125,31 @@ public sealed class KeycloakAdminService : IIdentityProviderAdminService
     public Task SendVerifyEmailAsync(string externalIdentityId, CancellationToken cancellationToken) =>
         ExecuteActionsEmailAsync(externalIdentityId, new[] { "VERIFY_EMAIL" }, cancellationToken);
 
+    // Anonymous forgot-password (ADR-0016 §1): email an UPDATE_PASSWORD-only action link. Keycloak owns
+    // the reset flow; we only trigger the mail, mirroring SendVerifyEmailAsync.
+    public Task SendResetPasswordEmailAsync(string externalIdentityId, CancellationToken cancellationToken) =>
+        ExecuteActionsEmailAsync(externalIdentityId, new[] { "UPDATE_PASSWORD" }, cancellationToken);
+
+    // Resolve the Keycloak user id for an exact email match, or null if none. exact=true keeps Keycloak
+    // from returning substring matches. Backs the anonymous forgot-password flow: a null result lets the
+    // handler stay silent so the endpoint never discloses whether an address is registered.
+    public async Task<string?> FindUserIdByEmailAsync(string email, CancellationToken cancellationToken)
+    {
+        var token = await GetAdminTokenAsync(cancellationToken);
+
+        var request = new HttpRequestMessage(
+            HttpMethod.Get,
+            $"{_options.AdminAuthority}/admin/realms/{_options.Realm}/users?email={Uri.EscapeDataString(email)}&exact=true");
+
+        request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+
+        var response = await _httpClient.SendAsync(request, cancellationToken);
+        await EnsureSuccessOrThrowAsync(response, "find user by email", cancellationToken);
+
+        var users = await response.Content.ReadFromJsonAsync<List<UserRepresentation>>(cancellationToken) ?? [];
+        return users.FirstOrDefault()?.Id;
+    }
+
     private async Task ExecuteActionsEmailAsync(
         string externalIdentityId, string[] actions, CancellationToken cancellationToken)
     {
@@ -409,5 +434,11 @@ public sealed class KeycloakAdminService : IIdentityProviderAdminService
 
         [JsonPropertyName("name")]
         public string Name { get; init; } = string.Empty;
+    }
+
+    private sealed record UserRepresentation
+    {
+        [JsonPropertyName("id")]
+        public string Id { get; init; } = string.Empty;
     }
 }

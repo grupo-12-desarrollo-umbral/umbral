@@ -47,6 +47,16 @@ public sealed class IdentityAccessApiWebApplicationFactory : WebApplicationFacto
         public Task SendVerifyEmailAsync(string externalIdentityId, CancellationToken cancellationToken)
             => Task.CompletedTask;
 
+        // Emails starting with "unknown" model an address with no account (returns null); everything
+        // else resolves to an id. Lets the forgot-password tests exercise both branches while the
+        // endpoint stays 202 either way.
+        public Task<string?> FindUserIdByEmailAsync(string email, CancellationToken cancellationToken)
+            => Task.FromResult<string?>(
+                email.StartsWith("unknown", StringComparison.OrdinalIgnoreCase) ? null : $"kc-{Guid.NewGuid():N}");
+
+        public Task SendResetPasswordEmailAsync(string externalIdentityId, CancellationToken cancellationToken)
+            => Task.CompletedTask;
+
         public Task DeleteUserAsync(string externalIdentityId, CancellationToken cancellationToken)
             => Task.CompletedTask;
 

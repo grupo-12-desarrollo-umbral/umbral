@@ -32,27 +32,10 @@ function logoutUrl(): string {
   return `${keycloakBaseUrl()}/realms/${realm}/protocol/openid-connect/logout`;
 }
 
-// Bind the hosted reset-credentials flow to the app client + a redirect back to
-// the app. Without client_id Keycloak defaults to the built-in `account` client
-// and, after a successful reset, sends the user to the account console
-// (`/realms/<realm>/account/`) — which this realm never configures, so it errors
-// with "unexpected error". Mirrors buildRegistrationUrl's client_id + redirect_uri.
-export function buildResetCredentialsUrl(
-  baseUrl: string = keycloakBaseUrl(),
-  realm: string = process.env.EXPO_PUBLIC_KEYCLOAK_REALM ?? '',
-  clientId: string = process.env.EXPO_PUBLIC_KEYCLOAK_CLIENT_ID ?? 'umbral-mobile',
-): string {
-  if (!baseUrl || !realm) {
-    throw new Error('Missing Keycloak URL or realm for reset-credentials flow');
-  }
-
-  const params = new URLSearchParams({
-    client_id: clientId,
-    redirect_uri: 'http://localhost/',
-  });
-
-  return `${baseUrl}/realms/${realm}/login-actions/reset-credentials?${params.toString()}`;
-}
+// Forgot-password does NOT use a Keycloak hosted page (ADR-0016 §1). It is a custom native form
+// (app/(auth)/forgot-password.tsx) that posts to POST /api/users/forgot-password, which delegates to
+// Keycloak's Admin API to email an UPDATE_PASSWORD action link. There is deliberately no
+// buildResetCredentialsUrl here.
 
 // Participant self-registration does NOT use a Keycloak hosted page (ADR-0016 §1). It is a custom
 // native form (app/(auth)/register.tsx) that posts to POST /api/users/register — mirroring how login

@@ -18,9 +18,10 @@ function AuthGuard() {
     const inApp = segments[0] === '(app)';
     const inAuth = segments[0] === '(auth)';
     const inLogin = inAuth && segments[1] === 'login';
-    // register is an anonymous entry point (ADR-0016 §1) — like login, an unauthenticated user must
-    // be able to stay on it instead of being bounced back to the login screen.
+    // register and forgot-password are anonymous entry points (ADR-0016 §1) — like login, an
+    // unauthenticated user must be able to stay on them instead of being bounced to the login screen.
     const inRegister = inAuth && segments[1] === 'register';
+    const inForgotPassword = inAuth && segments[1] === 'forgot-password';
 
     if (status === 'authenticated' && !inApp) {
       router.replace('/(app)' as Href);
@@ -28,7 +29,12 @@ function AuthGuard() {
       if (!(inAuth && segments[1] === 'access-denied')) {
         router.replace('/(auth)/access-denied' as Href);
       }
-    } else if ((status === 'idle' || status === 'error') && !inLogin && !inRegister) {
+    } else if (
+      (status === 'idle' || status === 'error') &&
+      !inLogin &&
+      !inRegister &&
+      !inForgotPassword
+    ) {
       router.replace('/(auth)/login' as Href);
     }
   }, [status, segments]);
