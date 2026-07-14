@@ -83,6 +83,11 @@ export function buildAuthorizationUrl(state: string, codeChallenge: string): str
   return url.toString()
 }
 
+// Bind the hosted reset-credentials flow to the app client + a redirect back to
+// the login page. Without client_id Keycloak defaults to the built-in `account`
+// client and, after a successful reset, dumps the user on the account console
+// (`/realms/<realm>/account/`) — which this realm never configures, so it errors
+// with "unexpected error". client_id + redirect_uri land the user back on /login.
 export function buildResetCredentialsUrl(
   keycloakUrl: string = KEYCLOAK_URL ?? '',
   realm: string = KEYCLOAK_REALM ?? '',
@@ -91,7 +96,12 @@ export function buildResetCredentialsUrl(
     throw new Error('Missing Keycloak URL or realm for reset-credentials flow.')
   }
 
-  return `${keycloakUrl}/realms/${realm}/login-actions/reset-credentials`
+  const params = new URLSearchParams({
+    client_id: KEYCLOAK_CLIENT_ID ?? 'umbral-web',
+    redirect_uri: `${process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'}/login`,
+  })
+
+  return `${keycloakUrl}/realms/${realm}/login-actions/reset-credentials?${params.toString()}`
 }
 
 export function toExpiresAtMs(expiresInSeconds: number, nowMs: number = Date.now()): number {

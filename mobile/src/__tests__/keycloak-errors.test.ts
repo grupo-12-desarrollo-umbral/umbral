@@ -83,10 +83,16 @@ test('successful login returns mapped tokens', async () => {
   });
 });
 
-test('builds the hosted reset-credentials URL for the realm', () => {
-  expect(buildResetCredentialsUrl('http://localhost:8080', 'umbral')).toBe(
+test('builds the hosted reset-credentials URL bound to the app client', () => {
+  const url = new URL(
+    buildResetCredentialsUrl('http://localhost:8080', 'umbral', 'umbral-mobile'),
+  );
+  expect(url.origin + url.pathname).toBe(
     'http://localhost:8080/realms/umbral/login-actions/reset-credentials',
   );
+  // client_id keeps Keycloak off the built-in account console after reset.
+  expect(url.searchParams.get('client_id')).toBe('umbral-mobile');
+  expect(url.searchParams.get('redirect_uri')).toBe('http://localhost/');
 });
 
 test('builds the hosted registration URL with a client-matched redirect', () => {

@@ -18,9 +18,13 @@ describe('keycloak expiry helpers', () => {
     expect(isExpiredOrNearExpiry(70_000, 2_000, 60_000)).toBe(false)
   })
 
-  it('builds the hosted reset-credentials URL for the realm', () => {
-    expect(buildResetCredentialsUrl('http://localhost:8080', 'umbral')).toBe(
+  it('builds the reset-credentials URL bound to the app client', () => {
+    const url = new URL(buildResetCredentialsUrl('http://localhost:8080', 'umbral'))
+    expect(url.origin + url.pathname).toBe(
       'http://localhost:8080/realms/umbral/login-actions/reset-credentials',
     )
+    // client_id keeps Keycloak off the built-in account console after reset.
+    expect(url.searchParams.get('client_id')).toBe('umbral-web')
+    expect(url.searchParams.get('redirect_uri')).toBe('http://localhost:3000/login')
   })
 })
