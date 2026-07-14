@@ -58,9 +58,13 @@ public sealed class OperatorSessionPanelEndpointTests : IAsyncLifetime
         payload.TeamProgress.Select(team => team.ActiveSubstage!.PlayMode)
             .Should().OnlyContain(playMode => playMode == SubstagePlayMode.TreasureHunt.ToString());
         payload.TeamProgress.Select(team => team.ActiveSubstage!.TotalActiveTargets)
-            .Should().OnlyContain(totalActiveTargets => totalActiveTargets == 1);
+            .Should().OnlyContain(totalActiveTargets => totalActiveTargets == 2);
         payload.TeamProgress.Select(team => team.ActiveSubstage!.ResolvedTargets)
             .Should().OnlyContain(resolvedTargets => resolvedTargets == 0);
+        payload.TeamProgress.Select(team => team.ActiveSubstage!.Targets).Should().OnlyContain(targets =>
+            targets.Count == 2 &&
+            targets[0] == new ActiveSubstageTargetResponse(seeded.VisibleTargetId, "Target Alpha", 1, false) &&
+            targets[1] == new ActiveSubstageTargetResponse(seeded.HiddenTargetId, "Target Bravo", 2, true));
     }
 
     [Fact]
@@ -107,7 +111,14 @@ public sealed class OperatorSessionPanelEndpointTests : IAsyncLifetime
         dbContext.LiveSessions.Add(session);
         await dbContext.SaveChangesAsync();
 
-        return new SeededPanelSession(session.LiveSessionId);
+        var orderedTargets = session.MissionRuntimeSnapshot.TargetSnapshots
+            .OrderBy(target => target.SequenceOrder)
+            .ToArray();
+
+        return new SeededPanelSession(
+            session.LiveSessionId,
+            orderedTargets[0].TargetSnapshotId,
+            orderedTargets[1].TargetSnapshotId);
     }
 
     private static MissionRuntimeSnapshot CreateTreasureHuntSnapshot(Guid sourceMissionId)
@@ -132,7 +143,18 @@ public sealed class OperatorSessionPanelEndpointTests : IAsyncLifetime
                     4.711,
                     -74.0721,
                     "Look under the stairs.",
-                    null)
+                    "VisibleWhenSubstageStarts"),
+                TargetSnapshot.Create(
+                    treasureHuntSubstage.SubstageSnapshotId,
+                    "Target Bravo",
+                    "QR-BRAVO",
+                    2,
+                    true,
+                    50,
+                    4.712,
+                    -74.073,
+                    "Look behind the painting.",
+                    "HiddenUntilOperatorRelease")
             ],
             []);
     }
@@ -161,7 +183,10 @@ public sealed class OperatorSessionPanelEndpointTests : IAsyncLifetime
         client.DefaultRequestHeaders.Add("X-User-Email", email);
     }
 
-    private sealed record SeededPanelSession(Guid LiveSessionId);
+    private sealed record SeededPanelSession(
+        Guid LiveSessionId,
+        Guid VisibleTargetId,
+        Guid HiddenTargetId);
 
     private sealed record OperatorSessionPanelResponse(
         Guid LiveSessionId,
@@ -207,7 +232,14 @@ public sealed class OperatorSessionPanelEndpointTests : IAsyncLifetime
         int TotalActiveTargets,
         int ResolvedTargets,
         int? ActiveQuestionSequenceOrder,
-        int? ActiveQuestionTimeLimitSeconds);
+        int? ActiveQuestionTimeLimitSeconds,
+        IReadOnlyList<ActiveSubstageTargetResponse> Targets);
+
+    private sealed record ActiveSubstageTargetResponse(
+        Guid TargetSnapshotId,
+        string Name,
+        int SequenceOrder,
+        bool HasHiddenClue);
 
     private sealed record ProblemDetailsResponse(string? Type, string? Title, int? Status, string? Detail);
 }

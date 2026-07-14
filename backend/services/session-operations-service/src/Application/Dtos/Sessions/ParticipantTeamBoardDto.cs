@@ -26,7 +26,14 @@ public sealed record ActiveSubstageContextDto(
     int TotalActiveTargets,
     int ResolvedTargets,
     int? ActiveQuestionSequenceOrder,
-    int? ActiveQuestionTimeLimitSeconds);
+    int? ActiveQuestionTimeLimitSeconds,
+    IReadOnlyList<ActiveSubstageTargetDto> Targets);
+
+public sealed record ActiveSubstageTargetDto(
+    Guid TargetSnapshotId,
+    string Name,
+    int SequenceOrder,
+    bool HasHiddenClue);
 
 public sealed record VisibleClueDto(
     Guid? TargetSnapshotId,

@@ -53,6 +53,15 @@ public sealed class LiveSessionOperatorPanelTests
         sharedContext!.PlayMode.Should().Be(SubstagePlayMode.TreasureHunt);
         sharedContext.TotalActiveTargets.Should().Be(3);
         sharedContext.ResolvedTargets.Should().Be(0);
+        sharedContext.Targets.Select(target => (target.Name, target.SequenceOrder, target.HasHiddenClue))
+            .Should().Equal(
+                ("Main Exhibit", 1, false),
+                ("Main Exhibit", 2, true),
+                ("Main Exhibit", 3, false));
+        sharedContext.Targets.Select(target => target.TargetSnapshotId)
+            .Should().Equal(session.MissionRuntimeSnapshot.TargetSnapshots
+                .OrderBy(target => target.SequenceOrder)
+                .Select(target => target.TargetSnapshotId));
     }
 
     [Fact]
@@ -81,6 +90,7 @@ public sealed class LiveSessionOperatorPanelTests
         sharedContext.ResolvedTargets.Should().Be(0);
         sharedContext.ActiveQuestionSequenceOrder.Should().Be(1);
         sharedContext.ActiveQuestionTimeLimitSeconds.Should().Be(30);
+        sharedContext.Targets.Should().BeEmpty();
     }
 
     [Fact]

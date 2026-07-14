@@ -9,6 +9,8 @@ namespace umbral_backend.Domain.Entities;
 
 public sealed class LiveSession : BaseAuditableEntity
 {
+    private const string HiddenUntilOperatorReleasePolicy = "HiddenUntilOperatorRelease";
+
     private readonly List<Team> _teams = new();
     private readonly List<SessionParticipant> _participants = new();
     private readonly List<JoinContext> _joinContexts = new();
@@ -769,9 +771,16 @@ public sealed class LiveSession : BaseAuditableEntity
     {
         var activeTargets = MissionRuntimeSnapshot.TargetSnapshots
             .Where(target => target.SubstageSnapshotId == substage.SubstageSnapshotId && target.IsActive)
+            .OrderBy(target => target.SequenceOrder)
+            .Select(target => new ActiveSubstageTarget(
+                target.TargetSnapshotId,
+                target.Name,
+                target.SequenceOrder,
+                string.Equals(
+                    target.ClueVisibilityPolicy,
+                    HiddenUntilOperatorReleasePolicy,
+                    StringComparison.OrdinalIgnoreCase)))
             .ToArray();
-
-        var totalActiveTargets = activeTargets.Length;
 
         // Target resolution persistence does not exist yet (HU-31 owns it). Report 0 resolved
         // and expose total active targets. Do NOT infer from CurrentClueNodeId or ReleasedClueCount.
@@ -780,8 +789,8 @@ public sealed class LiveSession : BaseAuditableEntity
         return ActiveSubstageContext.CreateTreasureHunt(
             substage.SubstageSnapshotId,
             substage.Title,
-            totalActiveTargets,
-            resolvedTargets);
+            resolvedTargets,
+            activeTargets);
     }
 
     private ActiveSubstageContext BuildTriviaContext(SubstageSnapshot substage)
@@ -831,8 +840,6 @@ public sealed class LiveSession : BaseAuditableEntity
 
     private IReadOnlyList<VisibleClue> CollectTargetVisibleClues(Guid substageSnapshotId, Guid teamId)
     {
-        const string hiddenUntilOperatorRelease = "HiddenUntilOperatorRelease";
-
         // Two-group order: always-visible clues (policy != HiddenUntilOperatorRelease) are pinned at the
         // top by SequenceOrder ascending, then operator-released hidden clues render below them
         // newest-released-first. SequenceOrder breaks ties within the released group (an all-teams release
@@ -851,7 +858,7 @@ public sealed class LiveSession : BaseAuditableEntity
                     record.TargetId == target.TargetSnapshotId),
                 alwaysVisible = !string.Equals(
                     target.ClueVisibilityPolicy,
-                    hiddenUntilOperatorRelease,
+                    HiddenUntilOperatorReleasePolicy,
                     StringComparison.OrdinalIgnoreCase),
             })
             .Where(entry => entry.alwaysVisible || entry.release is not null)
@@ -884,8 +891,6 @@ public sealed class LiveSession : BaseAuditableEntity
 
     private TargetSnapshot ResolveReleasableTarget(Guid targetId)
     {
-        const string hiddenUntilOperatorRelease = "HiddenUntilOperatorRelease";
-
         if (ActiveSubstageId is null)
         {
             throw new ClueNotReleasableException(targetId);
@@ -906,7 +911,7 @@ public sealed class LiveSession : BaseAuditableEntity
                 !string.IsNullOrWhiteSpace(target.ClueText) &&
                 string.Equals(
                     target.ClueVisibilityPolicy,
-                    hiddenUntilOperatorRelease,
+                    HiddenUntilOperatorReleasePolicy,
                     StringComparison.OrdinalIgnoreCase))
             ?? throw new ClueNotReleasableException(targetId);
     }

@@ -25,7 +25,14 @@ public static class OperatorSessionPanelDtoFactory
                         progress.ActiveSubstageContext.TotalActiveTargets,
                         progress.ActiveSubstageContext.ResolvedTargets,
                         progress.ActiveSubstageContext.ActiveQuestionSequenceOrder,
-                        progress.ActiveSubstageContext.ActiveQuestionTimeLimitSeconds)))
+                        progress.ActiveSubstageContext.ActiveQuestionTimeLimitSeconds,
+                        progress.ActiveSubstageContext.Targets
+                            .Select(target => new ActiveSubstageTargetDto(
+                                target.TargetSnapshotId,
+                                target.Name,
+                                target.SequenceOrder,
+                                target.HasHiddenClue))
+                            .ToList())))
             .ToList();
 
         return new OperatorSessionPanelDto(

@@ -104,6 +104,12 @@ public sealed record SubstageProgressItem(
     SubstagePlayMode PlayMode,
     SubstageProgressStatus Status);
 
+public sealed record ActiveSubstageTarget(
+    Guid TargetSnapshotId,
+    string Name,
+    int SequenceOrder,
+    bool HasHiddenClue);
+
 public sealed class ActiveSubstageContext : ValueObject
 {
     private ActiveSubstageContext(
@@ -113,7 +119,8 @@ public sealed class ActiveSubstageContext : ValueObject
         int totalActiveTargets,
         int resolvedTargets,
         int? activeQuestionSequenceOrder,
-        int? activeQuestionTimeLimitSeconds)
+        int? activeQuestionTimeLimitSeconds,
+        IReadOnlyList<ActiveSubstageTarget> targets)
     {
         SubstageSnapshotId = substageSnapshotId;
         PlayMode = playMode;
@@ -122,6 +129,7 @@ public sealed class ActiveSubstageContext : ValueObject
         ResolvedTargets = resolvedTargets;
         ActiveQuestionSequenceOrder = activeQuestionSequenceOrder;
         ActiveQuestionTimeLimitSeconds = activeQuestionTimeLimitSeconds;
+        Targets = targets;
     }
 
     public Guid SubstageSnapshotId { get; }
@@ -138,20 +146,23 @@ public sealed class ActiveSubstageContext : ValueObject
 
     public int? ActiveQuestionTimeLimitSeconds { get; }
 
+    public IReadOnlyList<ActiveSubstageTarget> Targets { get; }
+
     public static ActiveSubstageContext CreateTreasureHunt(
         Guid substageSnapshotId,
         string title,
-        int totalActiveTargets,
-        int resolvedTargets)
+        int resolvedTargets,
+        IReadOnlyList<ActiveSubstageTarget> targets)
     {
         return new ActiveSubstageContext(
             substageSnapshotId,
             SubstagePlayMode.TreasureHunt,
             title,
-            totalActiveTargets,
+            targets.Count,
             resolvedTargets,
             activeQuestionSequenceOrder: null,
-            activeQuestionTimeLimitSeconds: null);
+            activeQuestionTimeLimitSeconds: null,
+            targets);
     }
 
     public static ActiveSubstageContext CreateTrivia(
@@ -167,7 +178,8 @@ public sealed class ActiveSubstageContext : ValueObject
             totalActiveTargets: 0,
             resolvedTargets: 0,
             activeQuestionSequenceOrder,
-            activeQuestionTimeLimitSeconds);
+            activeQuestionTimeLimitSeconds,
+            targets: []);
     }
 
     protected override IEnumerable<object?> GetEqualityComponents()
@@ -179,5 +191,10 @@ public sealed class ActiveSubstageContext : ValueObject
         yield return ResolvedTargets;
         yield return ActiveQuestionSequenceOrder;
         yield return ActiveQuestionTimeLimitSeconds;
+
+        foreach (var target in Targets)
+        {
+            yield return target;
+        }
     }
 }
