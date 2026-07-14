@@ -66,10 +66,67 @@ public sealed class KeycloakAdminService : IIdentityProviderAdminService
         return location.Segments[^1].Trim('/');
     }
 
+    // Create a self-registering participant: enabled, email unverified, and carrying the password the
+    // person chose on the mobile form (temporary: false — it is their real password, not a reset seed).
+    // Created enabled so Keycloak will send the verification email; the register handler compensates
+    // with DeleteUserAsync if a later step fails. Single attempt — a POST is not idempotent. Returns the
+    // new user's Keycloak id from the Location header. A 409 surfaces as EmailAlreadyRegisteredException.
+    public async Task<string> CreateParticipantAsync(
+        string displayName, string email, string password, CancellationToken cancellationToken)
+    {
+        var token = await GetAdminTokenAsync(cancellationToken);
+
+        var request = new HttpRequestMessage(
+            HttpMethod.Post,
+            $"{_options.AdminAuthority}/admin/realms/{_options.Realm}/users")
+        {
+            Content = JsonContent.Create(new
+            {
+                username = email,
+                email,
+                firstName = displayName,
+                enabled = true,
+                emailVerified = false,
+                credentials = new[]
+                {
+                    new { type = "password", value = password, temporary = false },
+                },
+            }),
+        };
+
+        request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+
+        var response = await _httpClient.SendAsync(request, cancellationToken);
+
+        if (response.StatusCode == HttpStatusCode.Conflict)
+        {
+            throw new EmailAlreadyRegisteredException(email);
+        }
+
+        await EnsureSuccessOrThrowAsync(response, "create participant", cancellationToken);
+
+        var location = response.Headers.Location
+            ?? throw new InvalidOperationException("Keycloak did not return a Location header for the created user.");
+
+        _logger.LogInformation("Keycloak participant created for email {Email}", email);
+
+        return location.Segments[^1].Trim('/');
+    }
+
     // Ask Keycloak to email the invitee a required-actions link for UPDATE_PASSWORD, UPDATE_PROFILE and VERIFY_EMAIL.
     // Relies on the realm's configured SMTP server; a delivery/config failure surfaces (with Keycloak's
     // reason) so the invitation handler can compensate instead of leaving an orphaned account.
-    public async Task SendExecuteActionsEmailAsync(string externalIdentityId, CancellationToken cancellationToken)
+    public Task SendExecuteActionsEmailAsync(string externalIdentityId, CancellationToken cancellationToken) =>
+        ExecuteActionsEmailAsync(
+            externalIdentityId, new[] { "UPDATE_PASSWORD", "UPDATE_PROFILE", "VERIFY_EMAIL" }, cancellationToken);
+
+    // Self-registered participants already set their password on the form, so only VERIFY_EMAIL is
+    // required — email verification stays delegated to Keycloak (ADR-0016 §1).
+    public Task SendVerifyEmailAsync(string externalIdentityId, CancellationToken cancellationToken) =>
+        ExecuteActionsEmailAsync(externalIdentityId, new[] { "VERIFY_EMAIL" }, cancellationToken);
+
+    private async Task ExecuteActionsEmailAsync(
+        string externalIdentityId, string[] actions, CancellationToken cancellationToken)
     {
         var token = await GetAdminTokenAsync(cancellationToken);
 
@@ -77,7 +134,7 @@ public sealed class KeycloakAdminService : IIdentityProviderAdminService
             HttpMethod.Put,
             $"{_options.AdminAuthority}/admin/realms/{_options.Realm}/users/{externalIdentityId}/execute-actions-email")
         {
-            Content = JsonContent.Create(new[] { "UPDATE_PASSWORD", "UPDATE_PROFILE", "VERIFY_EMAIL" }),
+            Content = JsonContent.Create(actions),
         };
 
         request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);

@@ -5,6 +5,7 @@ using umbral_backend.Application.Users.Commands.AssignUserRole;
 using umbral_backend.Application.Users.Queries.GetUsers;
 using umbral_backend.Application.Users.Commands.AuthenticateUser;
 using umbral_backend.Application.Users.Commands.InviteUser;
+using umbral_backend.Application.Users.Commands.RegisterParticipant;
 using umbral_backend.Application.Users.Commands.DeactivateUser;
 using umbral_backend.Application.Users.Commands.ReactivateUser;
 using umbral_backend.Application.Users.Queries.GetAuthenticatedActorProfile;
@@ -23,6 +24,22 @@ public sealed class UsersController(ISender sender) : ControllerBase
         var result = await sender.Send(new AuthenticateUserCommand(request.DisplayName), cancellationToken);
 
         return Ok(result);
+    }
+
+    // Anonymous participant self-registration (ADR-0016 §1). Unauthenticated by design: the caller has
+    // no account yet. The gateway exposes this single /api/users/register route without auth and behind
+    // per-IP rate limiting; every other /api/users/* route stays authenticated. The role is server-fixed
+    // to Participant in the command handler and never read from the request body.
+    [HttpPost("register")]
+    public async Task<ActionResult<RegisterParticipantResultDto>> RegisterParticipantAsync(
+        RegisterParticipantRequest request,
+        CancellationToken cancellationToken)
+    {
+        var result = await sender.Send(
+            new RegisterParticipantCommand(request.DisplayName, request.Email, request.Password),
+            cancellationToken);
+
+        return StatusCode(StatusCodes.Status201Created, result);
     }
 
     [HttpPost("invitations")]
@@ -84,6 +101,8 @@ public sealed class UsersController(ISender sender) : ControllerBase
     }
 
     public sealed record BootstrapAuthenticatedUserRequest(string DisplayName);
+
+    public sealed record RegisterParticipantRequest(string DisplayName, string Email, string Password);
 
     public sealed record InviteUserRequest(string Email, string Role);
 

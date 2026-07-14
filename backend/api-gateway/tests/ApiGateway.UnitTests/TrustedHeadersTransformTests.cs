@@ -112,6 +112,38 @@ public sealed class TrustedHeadersTransformTests
         context.ProxyRequest.Headers.Contains("X-User-Role").Should().BeFalse();
     }
 
+    // A client must never supply the trusted identity headers. On an anonymous request (e.g. the
+    // register route) they are the only identity present, so an un-stripped forgery would be believed
+    // downstream. Stripping is unconditional.
+    [Theory]
+    [InlineData("X-User-Id")]
+    [InlineData("X-User-Role")]
+    [InlineData("X-User-Email")]
+    public async Task StripsForgedIdentityHeadersOnAnUnauthenticatedRequest(string header)
+    {
+        var context = BuildContext(string.Empty);
+        context.ProxyRequest.Headers.TryAddWithoutValidation(header, "Administrator");
+
+        await new TrustedHeadersTransform().ApplyAsync(context);
+
+        context.ProxyRequest.Headers.Contains(header).Should().BeFalse();
+    }
+
+    // When the caller forges an identity header AND is authenticated, the forgery is dropped before
+    // the gateway re-adds its own value — so exactly one value (the token's) is forwarded, never the
+    // client's alongside it.
+    [Fact]
+    public async Task OverwritesAForgedRoleHeaderWithTheTokenDerivedRole()
+    {
+        var context = BuildAuthenticatedContext("{\"roles\":[\"Operator\"]}");
+        context.ProxyRequest.Headers.TryAddWithoutValidation("X-User-Role", "Administrator");
+
+        await new TrustedHeadersTransform().ApplyAsync(context);
+
+        context.ProxyRequest.Headers.GetValues("X-User-Role").Should().ContainSingle()
+            .Which.Should().Be("Operator");
+    }
+
     private static string? HeaderValue(RequestTransformContext context, string name)
     {
         return context.ProxyRequest.Headers.TryGetValues(name, out var values)

@@ -37,7 +37,14 @@ public sealed class IdentityAccessApiWebApplicationFactory : WebApplicationFacto
         public Task<string> CreateUserAsync(string email, CancellationToken cancellationToken)
             => Task.FromResult($"kc-{Guid.NewGuid():N}");
 
+        public Task<string> CreateParticipantAsync(
+            string displayName, string email, string password, CancellationToken cancellationToken)
+            => Task.FromResult($"kc-{Guid.NewGuid():N}");
+
         public Task SendExecuteActionsEmailAsync(string externalIdentityId, CancellationToken cancellationToken)
+            => Task.CompletedTask;
+
+        public Task SendVerifyEmailAsync(string externalIdentityId, CancellationToken cancellationToken)
             => Task.CompletedTask;
 
         public Task DeleteUserAsync(string externalIdentityId, CancellationToken cancellationToken)

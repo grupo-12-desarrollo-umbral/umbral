@@ -2,8 +2,20 @@ namespace ApiGateway.Transforms;
 
 public sealed class TrustedHeadersTransform : RequestTransform
 {
+    // Identity headers the gateway mints from the validated token. A client must never supply these:
+    // downstream services trust them implicitly (the gateway is the trust boundary), so an inbound copy
+    // is always stripped before the gateway conditionally re-adds its own. This matters most for the
+    // anonymous /api/users/register route, which now flows through this same pipeline unauthenticated —
+    // without the strip, a caller could forge X-User-Role and reach an identity header downstream.
+    private static readonly string[] TrustedIdentityHeaders = { "X-User-Id", "X-User-Role", "X-User-Email" };
+
     public override ValueTask ApplyAsync(RequestTransformContext context)
     {
+        foreach (var header in TrustedIdentityHeaders)
+        {
+            context.ProxyRequest.Headers.Remove(header);
+        }
+
         var user = context.HttpContext.User;
         if (user.Identity?.IsAuthenticated == true)
         {

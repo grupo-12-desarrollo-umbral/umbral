@@ -2,12 +2,13 @@ import { useEffect, useRef, useState } from 'react';
 import { Keyboard, Pressable, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import * as Linking from 'expo-linking';
+import { useRouter, type Href } from 'expo-router';
 import { BrandMark } from '@/components/ui/brand-mark';
 import { Button } from '@/components/ui/button';
 import { Screen } from '@/components/ui/screen';
 import { Text } from '@/components/ui/text';
 import { TextField } from '@/components/ui/text-field';
-import { buildRegistrationUrl, buildResetCredentialsUrl } from '@/lib/auth/keycloak';
+import { buildResetCredentialsUrl } from '@/lib/auth/keycloak';
 import { useAuth } from '@/lib/auth/use-auth';
 import { colors, spacing } from '@/constants/theme';
 
@@ -29,12 +30,12 @@ function fireHaptic(type: 'success' | 'error') {
 
 export default function LoginScreen() {
   const { signIn, status, errorMessage } = useAuth();
+  const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [emailError, setEmailError] = useState('');
   const [passwordError, setPasswordError] = useState('');
   const [resetError, setResetError] = useState('');
-  const [registerError, setRegisterError] = useState('');
 
   const loading = status === 'authenticating';
   const isNetworkError = errorMessage?.startsWith(NETWORK_ERROR_PREFIX) ?? false;
@@ -58,7 +59,6 @@ export default function LoginScreen() {
   async function handleSubmit() {
     Keyboard.dismiss();
     setResetError('');
-    setRegisterError('');
 
     let valid = true;
     if (!email.trim()) {
@@ -98,16 +98,10 @@ export default function LoginScreen() {
     }
   }
 
-  async function handleCreateAccount() {
+  function handleCreateAccount() {
     Keyboard.dismiss();
-    setRegisterError('');
-
-    try {
-      await Linking.openURL(buildRegistrationUrl());
-    } catch {
-      setRegisterError('Could not open the sign-up page.');
-      fireHaptic('error');
-    }
+    // Native form (ADR-0016 §1) — no Keycloak hosted page, no browser redirect.
+    router.push('/(auth)/register' as Href);
   }
 
   return (
@@ -156,16 +150,6 @@ export default function LoginScreen() {
           style={{ color: colors.signalCritical, textAlign: 'center' }}
         >
           {resetError}
-        </Text>
-      ) : null}
-
-      {registerError ? (
-        <Text
-          variant="body"
-          selectable
-          style={{ color: colors.signalCritical, textAlign: 'center' }}
-        >
-          {registerError}
         </Text>
       ) : null}
 
