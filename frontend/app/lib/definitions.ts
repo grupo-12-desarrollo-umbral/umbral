@@ -110,6 +110,10 @@ export type MissionTargetDto = {
   isActive: boolean
   clueId: number | null
   score: number
+  // Map location the operator assigns (#154/#156). Display/context only — QR scanning stays
+  // the sole source of truth for resolution. Always present; unplaced targets read as 0,0.
+  latitude: number
+  longitude: number
 }
 
 export type TriviaQuizSelectionDto = { triviaQuizId: number }
@@ -165,6 +169,8 @@ export type AddTargetRequest = {
   name: string
   qrCode: string
   sequenceOrder: number
+  latitude: number
+  longitude: number
   isActive?: boolean
 }
 
@@ -172,6 +178,8 @@ export type UpdateTargetRequest = {
   name: string
   qrCode: string
   sequenceOrder: number
+  latitude: number
+  longitude: number
   isActive: boolean
 }
 

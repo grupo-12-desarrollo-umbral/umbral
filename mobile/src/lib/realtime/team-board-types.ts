@@ -75,6 +75,19 @@ export type SubstageProgressDto = {
   status: SubstageProgressStatus;
 };
 
+// One active target of the live treasure-hunt substage, with its display coordinates (#154/#156).
+// Backend ActiveTargetDto: `Guid TargetSnapshotId, string Name, int SequenceOrder, double Latitude,
+// double Longitude`. Coordinates are display/context only — QR validation still owns resolution, and
+// there is no geofencing. The list is ordered by `sequenceOrder`, so `activeTargets[0]` is the target
+// the map centres on. Empty when no treasure-hunt substage is active.
+export type ActiveTargetDto = {
+  targetSnapshotId: string;
+  name: string;
+  sequenceOrder: number;
+  latitude: number;
+  longitude: number;
+};
+
 export type ParticipantTeamBoardDto = {
   liveSessionId: string;
   teamId: string;
@@ -92,6 +105,8 @@ export type ParticipantTeamBoardDto = {
   substages: readonly SubstageProgressDto[];
   // Already-released, visible clues only; guidance, NOT progress.
   visibleClues: readonly VisibleClueDto[];
+  // Active treasure-hunt targets with coordinates for the Map tab (#156); empty for trivia.
+  activeTargets: readonly ActiveTargetDto[];
 };
 
 // Target progress is `resolvedTargets` / `totalActiveTargets` — a count, NOT

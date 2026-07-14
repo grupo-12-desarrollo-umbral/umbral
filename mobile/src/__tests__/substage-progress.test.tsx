@@ -56,6 +56,7 @@ const BASE: ParticipantTeamBoardDto = {
     { substageSnapshotId: 'sub-2', title: 'The Vault', sequenceOrder: 1, playMode: 'TreasureHunt', status: 'Active' },
   ],
   visibleClues: [],
+  activeTargets: [],
 };
 
 describe('SubstageProgress', () => {

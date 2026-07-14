@@ -22,6 +22,10 @@ const CLUES: VisibleClueDto[] = [
   { targetSnapshotId: 't1', clueText: 'Follow the north colonnade.', targetName: 'Brass Astrolabe', operativeClueId: null },
 ];
 
+const TARGETS = [
+  { targetSnapshotId: 't1', name: 'Brass Astrolabe', sequenceOrder: 0, latitude: 40.4319, longitude: -3.6883 },
+];
+
 function renderBoard(overrides?: Partial<React.ComponentProps<typeof TreasureHuntBoard>>) {
   let renderer: ReturnType<typeof create> | null = null;
   act(() => {
@@ -33,6 +37,7 @@ function renderBoard(overrides?: Partial<React.ComponentProps<typeof TreasureHun
         resolvedTargets: 2,
         totalActiveTargets: 5,
         visibleClues: CLUES,
+        activeTargets: TARGETS,
         ...overrides,
       }),
     );
@@ -54,7 +59,7 @@ function switchTab(renderer: ReturnType<typeof create>, tab: keyof typeof TAB_IN
 }
 
 describe('TreasureHuntBoard', () => {
-  test('renders score and the map-stub target progress from props', () => {
+  test('renders score and the target-progress count from props', () => {
     const texts = allText(renderBoard().toJSON());
 
     expect(texts).toContain('TREASURE HUNT');
@@ -62,10 +67,37 @@ describe('TreasureHuntBoard', () => {
     expect(texts).toContain('SCORE');
     expect(texts).toContain('240');
     // Map tab is the default; target progress is a count, not coordinates.
-    expect(texts).toContain('MAP PREVIEW · STUB');
     expect(texts.join('')).toContain('2 / 5 targets');
-    // No coordinate strings from the old prototype.
+    // No coordinate strings are rendered as chrome text — coordinates live inside the map WebView.
     expect(texts.join(' ')).not.toContain('°');
+  });
+
+  test('renders the real target map on the default MAP tab, fed by activeTargets', () => {
+    // #156: the Map tab hosts a Leaflet WebView; the active targets and their coordinates reach the
+    // injected HTML, replacing the old labelled stub.
+    const renderer = renderBoard();
+    const webview = renderer.root.findByProps({ testID: 'target-map-webview' });
+
+    expect(webview).toBeTruthy();
+    const html = (webview.props.source as { html: string }).html;
+    expect(html).toContain('Brass Astrolabe');
+    expect(html).toContain('40.4319');
+    expect(html).toContain('-3.6883');
+    expect(html).toContain('leaflet');
+    // No stub label survives.
+    expect(allText(renderer.toJSON())).not.toContain('MAP PREVIEW · STUB');
+  });
+
+  test('degrades to a clear empty state when there are no active targets', () => {
+    // #156 AC: a target without coordinates (here, no active targets at all) shows an empty state and
+    // never mounts a map WebView — no crash.
+    const renderer = renderBoard({ activeTargets: [] });
+    const texts = allText(renderer.toJSON());
+
+    expect(texts).toContain('NO MAP LOCATION YET');
+    expect(
+      renderer.root.findAll((n) => n.props?.testID === 'target-map-webview'),
+    ).toHaveLength(0);
   });
 
   test('exposes target progress via an accessibility label', () => {

@@ -104,6 +104,7 @@ const BASE_BOARD: ParticipantTeamBoardDto = {
     { substageSnapshotId: 'sub-1', title: 'The Vault', sequenceOrder: 1, playMode: 'TreasureHunt', status: 'Active' },
   ],
   visibleClues: [],
+  activeTargets: [],
 };
 
 // --- Tests ---
