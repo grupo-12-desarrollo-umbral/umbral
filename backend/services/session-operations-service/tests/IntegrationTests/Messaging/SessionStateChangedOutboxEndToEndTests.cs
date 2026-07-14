@@ -144,6 +144,8 @@ public sealed class SessionStateChangedOutboxEndToEndTests
         services.AddScoped<ILiveSessionRepository, LiveSessionRepository>();
         services.AddScoped<PublishAnswerRegisteredIntegrationEventHandler>();
         services.AddScoped<PublishEvidenceSubmissionRegisteredIntegrationEventHandler>();
+        services.AddScoped<PublishEvidenceSubmissionAcceptedIntegrationEventHandler>();
+        services.AddScoped<PublishEvidenceSubmissionRejectedIntegrationEventHandler>();
         services.AddScoped<PublishQuestionClosedIntegrationEventHandler>();
         services.AddScoped<PublishSessionResultsFinalizedIntegrationEventHandler>();
         services.AddScoped<PublishSessionStateChangedIntegrationEventHandler>();
@@ -281,6 +283,8 @@ public sealed class SessionStateChangedOutboxEndToEndTests
         services.AddScoped<ILiveSessionRepository, LiveSessionRepository>();
         services.AddScoped<PublishAnswerRegisteredIntegrationEventHandler>();
         services.AddScoped<PublishEvidenceSubmissionRegisteredIntegrationEventHandler>();
+        services.AddScoped<PublishEvidenceSubmissionAcceptedIntegrationEventHandler>();
+        services.AddScoped<PublishEvidenceSubmissionRejectedIntegrationEventHandler>();
         services.AddScoped<PublishQuestionClosedIntegrationEventHandler>();
         services.AddScoped<PublishSessionResultsFinalizedIntegrationEventHandler>();
         services.AddScoped<PublishSessionStateChangedIntegrationEventHandler>();

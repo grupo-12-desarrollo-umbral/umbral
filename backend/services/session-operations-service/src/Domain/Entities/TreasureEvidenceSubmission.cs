@@ -54,7 +54,7 @@ public sealed class TreasureEvidenceSubmission : EvidenceSubmission
             submittedByParticipantId,
             submittedAt);
 
-        submission.AcceptRegisteredTarget();
+        submission.AcceptRegisteredTarget(submittedAt);
         return submission;
     }
 
@@ -77,14 +77,19 @@ public sealed class TreasureEvidenceSubmission : EvidenceSubmission
             submittedAt);
     }
 
-    internal void AcceptRegisteredTarget()
+    internal void AcceptRegisteredTarget(DateTimeOffset resolvedAt)
     {
-        MarkAcceptedByConcreteForm();
+        MarkAcceptedByConcreteForm(resolvedAt);
     }
 
-    internal void RejectRegisteredTarget(TargetResolutionRejectionReason reason)
+    internal void RejectRegisteredTarget(TargetResolutionRejectionReason reason, DateTimeOffset resolvedAt)
     {
         ResolutionRejectionReason = reason;
-        MarkRejectedByConcreteForm();
+        MarkRejectedByConcreteForm(reason.ToMessage(), resolvedAt);
     }
+
+    public override string? DescribeOrigin() =>
+        TargetSnapshotId is { } targetId
+            ? $"target:{targetId}"
+            : $"qr:{ScannedValue}";
 }

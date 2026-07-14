@@ -54,6 +54,12 @@ public sealed class PublishEvidenceSubmissionRegisteredIntegrationEventHandlerTe
                 publishEndpoint.Object,
                 NullLogger<PublishAnswerRegisteredIntegrationEventHandler>.Instance),
             evidenceHandler,
+            new PublishEvidenceSubmissionAcceptedIntegrationEventHandler(
+                publishEndpoint.Object,
+                NullLogger<PublishEvidenceSubmissionAcceptedIntegrationEventHandler>.Instance),
+            new PublishEvidenceSubmissionRejectedIntegrationEventHandler(
+                publishEndpoint.Object,
+                NullLogger<PublishEvidenceSubmissionRejectedIntegrationEventHandler>.Instance),
             new PublishQuestionClosedIntegrationEventHandler(
                 publishEndpoint.Object,
                 NullLogger<PublishQuestionClosedIntegrationEventHandler>.Instance),

@@ -6,6 +6,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="umbral_backend.SessionOperations.UnitTests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="MediatR.Contracts" />
   </ItemGroup>
 </Project>
