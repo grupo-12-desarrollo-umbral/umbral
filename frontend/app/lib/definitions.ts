@@ -452,7 +452,8 @@ export type TeamAnsweredNotificationDto = {
 // Response of GET /api/sessions/{id}/operator-panel (Operator) AND the SignalR
 // "OperatorSessionPanelUpdated" push on live-session-operators:{id} — same DTO for both.
 // Progress is target-based (resolvedTargets/totalActiveTargets), score is session-owned-or-zero.
-// No ranking / events / evidence / clue-as-progress (those are HU-24B).
+// Carries a per-team releasedClueCount (manual releases + the active substage's initial clues) as a
+// plain tally — progress stays target-based. No ranking / events / evidence (those are HU-24B).
 export type OperatorActiveSubstageContextDto = {
   substageSnapshotId: string
   playMode: 'TreasureHunt' | 'Trivia' | string
@@ -468,6 +469,7 @@ export type OperatorTeamProgressDto = {
   teamCode: string
   displayName: string
   score: number // Team.CurrentScore ?? 0
+  releasedClueCount: number // clues visible to this team: manual releases + active-substage initial clues
   activeSubstage: OperatorActiveSubstageContextDto | null
 }
 
@@ -478,18 +480,52 @@ export type OperatorSessionPanelDto = {
   teamProgress: OperatorTeamProgressDto[] // ordered by teamCode (backend Ordinal sort)
 }
 
-// --- HU-26 operator clue release ---
+// --- HU-26/HU-28 operator clue release ---
 // Request of POST /api/sessions/{liveSessionId}/clues/release (Operator + ownership Proxy).
-// Omit teamId to release the target's hidden clue to ALL teams.
+// Exactly one of targetId or clueId must be set. Omit teamId to release to ALL teams.
 export type ReleaseClueRequest = {
-  targetId: string // Guid — the treasure-hunt target whose hidden clue becomes visible
+  targetId?: string // Guid — treasure-hunt target whose hidden clue becomes visible
+  clueId?: string // Guid — trivia substage clue snapshot to release
   teamId?: string // Guid — omit ⇒ release to all teams
 }
 
-// 200 response: the released target + the team ids the clue is now visible to.
+// 200 response: the released subject + the team ids the clue is now visible to.
 export type ReleaseClueResultDto = {
-  targetId: string
+  targetId?: string
+  clueId?: string
   releasedTeamIds: string[] // one id for a single-team release; every team for all-teams
+}
+
+// Response of GET /api/sessions/{liveSessionId}/clues/releasable (Operator + ownership Proxy). The
+// active substage's still-releasable hidden clues — the picker source for the release control.
+// `clues` is empty when the active substage has no releasable hidden clues.
+export type ReleasableClueDto = {
+  targetId?: string // runtime Guid for treasure-hunt targets — passed to ReleaseClueRequest.targetId
+  clueId?: string // runtime Guid for trivia substage clues — passed to ReleaseClueRequest.clueId
+  targetName?: string // null for trivia clues; the frontend renders "Pista {sequenceOrder}"
+  sequenceOrder: number
+  clueText: string
+}
+
+export type ReleasableCluesDto = {
+  liveSessionId: string
+  activeSubstageId: string | null
+  clues: ReleasableClueDto[]
+}
+
+// --- HU-28 operator operative-clue authoring ---
+// Request of POST /api/sessions/{liveSessionId}/operative-clues (Operator + ownership).
+// teamIds must be non-empty; "all teams" sends every team id (no omit-for-all signal here).
+export type AddOperativeClueRequest = {
+  clueText: string // free text, 1..500 chars (backend validator)
+  teamIds: string[] // Guid[] — one, several, or all; must contain ≥1
+}
+
+// 200 response: the created clue rows + the teams the clue is now assigned to + the echoed text.
+export type AddOperativeClueResultDto = {
+  operativeClueIds: string[] // Guid[] — one id per (clue × team); length === assignedTeamIds.length
+  assignedTeamIds: string[] // Guid[] — teams the clue was assigned to
+  clueText: string
 }
 
 // Phases of the automated trivia round, derived from SignalR pushes only.

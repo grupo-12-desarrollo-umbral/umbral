@@ -7,7 +7,7 @@ public sealed class ClueReleasedEvent : BaseEvent
     public ClueReleasedEvent(
         Guid liveSessionId,
         Guid teamId,
-        Guid targetId,
+        Guid? targetId,
         Guid? clueId,
         ReleaseMode releaseMode,
         int? releasedByUserId,
@@ -26,7 +26,7 @@ public sealed class ClueReleasedEvent : BaseEvent
 
     public Guid TeamId { get; }
 
-    public Guid TargetId { get; }
+    public Guid? TargetId { get; }
 
     public Guid? ClueId { get; }
 

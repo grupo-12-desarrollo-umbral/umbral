@@ -116,6 +116,7 @@ describe('createSessionStateRealtimeClient — OperatorSessionPanelUpdated', () 
         teamCode: 'AAA',
         displayName: 'Alpha',
         score: 0,
+        releasedClueCount: 2,
         activeSubstage: {
           substageSnapshotId: 'sub-1',
           playMode: 'TreasureHunt',
@@ -143,6 +144,7 @@ describe('createSessionStateRealtimeClient — OperatorSessionPanelUpdated', () 
           teamCode: 'AAA',
           displayName: 'Alpha',
           score: 0,
+          releasedClueCount: 2,
           activeSubstage: {
             substageSnapshotId: 'sub-1',
             playMode: 'TreasureHunt',
@@ -173,6 +175,7 @@ describe('createSessionStateRealtimeClient — OperatorSessionPanelUpdated', () 
           TeamCode: 'AAA',
           DisplayName: 'Alpha',
           Score: 0,
+          ReleasedClueCount: 2,
           ActiveSubstage: {
             SubstageSnapshotId: 'sub-1',
             PlayMode: 'TreasureHunt',

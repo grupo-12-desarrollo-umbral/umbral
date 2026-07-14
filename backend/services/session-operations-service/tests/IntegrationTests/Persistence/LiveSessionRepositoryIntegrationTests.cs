@@ -853,7 +853,7 @@ public sealed class LiveSessionRepositoryIntegrationTests
             var persistedSession = await repository.GetByIdAsync(liveSession.LiveSessionId, CancellationToken.None);
 
             persistedSession.Should().NotBeNull();
-            persistedSession!.ReleaseClue(targetId, teamId, 42, releasedAt);
+            persistedSession!.ReleaseClueToTeam(ClueReleaseSubject.ForTarget(targetId), teamId, 42, releasedAt);
 
             await repository.UpdateAsync(persistedSession, CancellationToken.None);
         }
@@ -881,8 +881,96 @@ public sealed class LiveSessionRepositoryIntegrationTests
         reloadedSession.ActiveSubstageId.Should().Be(liveSession.ActiveSubstageId);
 
         // The deep-loaded collection makes the duplicate guard fire after a reload — no leak across reloads.
-        var releaseAgain = () => reloadedSession.ReleaseClue(targetId, teamId, 42, releasedAt.AddSeconds(1));
+        var releaseAgain = () => reloadedSession.ReleaseClueToTeam(ClueReleaseSubject.ForTarget(targetId), teamId, 42, releasedAt.AddSeconds(1));
         releaseAgain.Should().Throw<ClueAlreadyReleasedToTeamException>();
+    }
+
+    [Fact]
+    public async Task UpdateAsync_RoundTripsTriviaClueReleaseByClueId()
+    {
+        await using var resetContext = BuildContext();
+        await ResetDatabaseAsync(resetContext);
+
+        var activeAt = new DateTimeOffset(2026, 7, 14, 12, 0, 0, TimeSpan.Zero);
+        var liveSession = CreateActiveReleasableTriviaSession(activeAt);
+        var teamId = liveSession.Teams.Single().TeamId;
+        var clueId = liveSession.MissionRuntimeSnapshot.ClueSnapshots.Single().ClueSnapshotId;
+
+        await using (var seedContext = BuildContext())
+        {
+            seedContext.LiveSessions.Add(liveSession);
+            await seedContext.SaveChangesAsync(CancellationToken.None);
+        }
+
+        await using (var actContext = BuildContext())
+        {
+            var repository = new LiveSessionRepository(actContext);
+            var persistedSession = await repository.GetByIdAsync(liveSession.LiveSessionId, CancellationToken.None);
+            persistedSession.Should().NotBeNull();
+            persistedSession!.ReleaseClueToTeam(
+                ClueReleaseSubject.ForSubstageClue(clueId),
+                teamId,
+                42,
+                activeAt.AddSeconds(30));
+            await repository.UpdateAsync(persistedSession, CancellationToken.None);
+        }
+
+        await using var assertContext = BuildContext();
+        var reloaded = await new LiveSessionRepository(assertContext)
+            .GetByIdAsync(liveSession.LiveSessionId, CancellationToken.None);
+
+        reloaded.Should().NotBeNull();
+        var record = reloaded!.GetClueReleaseRecords().Should().ContainSingle().Which;
+        record.TargetId.Should().BeNull();
+        record.ClueId.Should().Be(clueId);
+        reloaded.ProjectParticipantTeamBoard(teamId, activeAt.AddMinutes(1)).VisibleClues
+            .Should().ContainSingle(clue => clue.ClueSnapshotId == clueId);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_RoundTripsOperativeClueThroughAggregate()
+    {
+        await using var resetContext = BuildContext();
+        await ResetDatabaseAsync(resetContext);
+
+        var activeAt = new DateTimeOffset(2026, 7, 13, 12, 0, 0, TimeSpan.Zero);
+        var liveSession = CreateActiveReleasableTreasureHuntSession(activeAt);
+        var teamId = liveSession.Teams.Single().TeamId;
+
+        await using (var seedContext = BuildContext())
+        {
+            seedContext.LiveSessions.Add(liveSession);
+            await seedContext.SaveChangesAsync(CancellationToken.None);
+        }
+
+        const string clueText = "The north gate opens after the bell.";
+        const int createdByUserId = 42;
+        var createdAt = activeAt.AddMinutes(2);
+
+        await using (var actContext = BuildContext())
+        {
+            var repository = new LiveSessionRepository(actContext);
+            var persistedSession = await repository.GetByIdAsync(liveSession.LiveSessionId, CancellationToken.None);
+
+            persistedSession.Should().NotBeNull();
+            persistedSession!.AddOperativeClue(clueText, [teamId], createdByUserId, createdAt);
+
+            await repository.UpdateAsync(persistedSession, CancellationToken.None);
+        }
+
+        await using var assertContext = BuildContext();
+        var reloadedSession = await new LiveSessionRepository(assertContext)
+            .GetByIdAsync(liveSession.LiveSessionId, CancellationToken.None);
+
+        reloadedSession.Should().NotBeNull();
+        reloadedSession!.GetOperativeClues().Should().ContainSingle();
+
+        var operativeClue = reloadedSession.GetOperativeClues().Single();
+        operativeClue.LiveSessionId.Should().Be(liveSession.LiveSessionId);
+        operativeClue.TeamId.Should().Be(teamId);
+        operativeClue.ClueText.Should().Be(clueText);
+        operativeClue.CreatedByUserId.Should().Be(createdByUserId);
+        operativeClue.CreatedAt.Should().BeCloseTo(createdAt, TimeSpan.FromMicroseconds(1));
     }
 
     // HU-26 DB-boundary guard: two aggregates loaded before either committed (each blind to the other's
@@ -918,8 +1006,8 @@ public sealed class LiveSessionRepositoryIntegrationTests
         firstSession.Should().NotBeNull();
         secondSession.Should().NotBeNull();
 
-        firstSession!.ReleaseClue(targetId, teamId, 42, releasedAt);
-        secondSession!.ReleaseClue(targetId, teamId, 43, releasedAt);
+        firstSession!.ReleaseClueToTeam(ClueReleaseSubject.ForTarget(targetId), teamId, 42, releasedAt);
+        secondSession!.ReleaseClueToTeam(ClueReleaseSubject.ForTarget(targetId), teamId, 43, releasedAt);
 
         await new LiveSessionRepository(firstContext).UpdateAsync(firstSession, CancellationToken.None);
 
@@ -1045,6 +1133,48 @@ public sealed class LiveSessionRepositoryIntegrationTests
 
         var transitionPolicy = new SessionStateTransitionPolicy();
         liveSession.AssociateTeam(Guid.NewGuid(), "Aurora", "AUR-01", 3);
+        liveSession.MoveTo(SessionState.Preparing, activeAt.AddMinutes(-1), transitionPolicy);
+        liveSession.MoveTo(SessionState.Active, activeAt, transitionPolicy);
+        return liveSession;
+    }
+
+    private static LiveSession CreateActiveReleasableTriviaSession(DateTimeOffset activeAt)
+    {
+        var sourceMissionId = Guid.NewGuid();
+        var substage = SubstageSnapshot.CreateTrivia("Trivia Round", 1);
+        var question = TriviaQuestionSnapshot.Create(
+            substage.SubstageSnapshotId,
+            "Capital of France?",
+            1,
+            50,
+            30,
+            "Paris is the capital city.",
+            [
+                TriviaOptionSnapshot.Create("Paris", 1, true),
+                TriviaOptionSnapshot.Create("Lyon", 2, false)
+            ]);
+        var clue = ClueSnapshot.Create(
+            substage.SubstageSnapshotId,
+            "Operator-only trivia clue.",
+            ClueSnapshot.HiddenUntilOperatorReleasePolicy,
+            1);
+        var snapshot = MissionRuntimeSnapshot.Create(
+            sourceMissionId,
+            "Trivia Mission Runtime",
+            MaximumTime.Create(20),
+            [StageSnapshot.Create("Stage One", 1, [substage])],
+            [],
+            [question],
+            [clue]);
+        var liveSession = LiveSession.Create(
+            SessionSource.Create(sourceMissionId),
+            $"TRV-{Guid.NewGuid():N}"[..12],
+            "Trivia Night",
+            20,
+            activeAt.AddMinutes(-10),
+            snapshot);
+        liveSession.AssociateTeam(Guid.NewGuid(), "Aurora", "AUR-01", 3);
+        var transitionPolicy = new SessionStateTransitionPolicy();
         liveSession.MoveTo(SessionState.Preparing, activeAt.AddMinutes(-1), transitionPolicy);
         liveSession.MoveTo(SessionState.Active, activeAt, transitionPolicy);
         return liveSession;

@@ -34,6 +34,9 @@ SEEDED_LIVE_TRIVIA_TITLE="Seeded Live Trivia"
 SEEDED_LIVE_TRIVIA_SOURCE_TITLE="Filosofos de Atenas"
 SEEDED_LIVE_TRIVIA_MISSION_NAME="Seeded Live Trivia Mission"
 
+PANA_TH_MISSION_NAME="Pana Exito Treasure Hunt Mission"
+PANA_TH_TITLE="Pana Exito TH"
+
 echo "=== 1/3  Seeding trivia, sessions, and teams (psql) …"
 
 declare -A SESSIONS=(
@@ -75,6 +78,10 @@ done
 
 psql -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d session_operations -c "
   DELETE FROM live_sessions WHERE title_snapshot = '$SEEDED_LIVE_TRIVIA_TITLE';
+" 2>/dev/null || true
+
+psql -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d session_operations -c "
+  DELETE FROM live_sessions WHERE title_snapshot = '$PANA_TH_TITLE';
 " 2>/dev/null || true
 
 echo "  mission_design (trivia quizzes) …"
@@ -316,6 +323,55 @@ SELECT \"Id\", 'Africa', 1, true FROM q1
 UNION ALL SELECT \"Id\", 'Asia', 2, false FROM q1
 UNION ALL SELECT \"Id\", 'Europa', 3, false FROM q1
 UNION ALL SELECT \"Id\", 'Oceania', 4, false FROM q1;
+"
+
+# Pana Exito Treasure Hunt — a TREASURE-HUNT-FIRST mission for the operator clue-release picker.
+# The picker (LiveSession.ProjectReleasableTargets) lists a target only when its clue is
+# HiddenUntilOperatorRelease AND its substage is the ACTIVE one AND that substage is a TreasureHunt.
+# In the HU-171 mixed fixture the treasure hunt is substage 2, so the picker stays empty until the
+# trivia round times out (~30s/question). Here the treasure hunt IS substage 1, so the dropdown is
+# populated the moment the session goes Active — nothing to sit through.
+#
+# Clue 1 is always-visible and clue 2 ('pana exito') is operator-gated, so one mission shows both
+# sides: the participant board has a clue on arrival, the picker has exactly one entry to release.
+#
+# Authored in psql (not via the missions API) so ActivationState can be stamped 'Ready' directly,
+# mirroring the HU-171 manual seed. This mission selects no trivia quiz, so the catalog wipe above
+# never cascades to it — it must be deleted by name here to stay idempotent.
+echo "  mission_design (pana exito treasure-hunt mission) …"
+psql -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d mission_design -c "
+  DELETE FROM \"Missions\" WHERE \"Name\" = '$PANA_TH_MISSION_NAME';
+"
+psql -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d mission_design -c "
+WITH mission AS (
+  INSERT INTO \"Missions\" (\"Name\", \"Description\", \"Difficulty\", \"MaximumTimeMinutes\", \"IsActive\", \"ActivationState\", \"Created\", \"LastModified\")
+  VALUES ('$PANA_TH_MISSION_NAME', 'Treasure hunt primero: el picker de pistas del operador se llena apenas inicia la sesion.', 'Easy', 60, true, 'Ready', NOW(), NOW())
+  RETURNING \"Id\"
+),
+stage AS (
+  INSERT INTO \"MissionStages\" (\"MissionId\", \"Title\", \"SequenceOrder\")
+  SELECT \"Id\", 'Stage 1', 1 FROM mission
+  RETURNING \"Id\"
+),
+sub AS (
+  INSERT INTO \"MissionSubstages\" (\"StageId\", \"Title\", \"SequenceOrder\", \"PlayMode\")
+  SELECT \"Id\", 'Treasure Hunt', 1, 'TreasureHunt' FROM stage
+  RETURNING \"Id\"
+),
+clue1 AS (
+  INSERT INTO \"MissionClues\" (\"SubstageId\", \"Title\", \"SequenceOrder\", \"Text\", \"Visibility\")
+  SELECT \"Id\", 'Clue 1', 1, 'Busca el mural azul y escanea su codigo.', 'VisibleWhenSubstageStarts' FROM sub
+  RETURNING \"Id\"
+),
+clue2 AS (
+  INSERT INTO \"MissionClues\" (\"SubstageId\", \"Title\", \"SequenceOrder\", \"Text\", \"Visibility\")
+  SELECT \"Id\", 'Clue 2', 2, 'pana exito', 'HiddenUntilOperatorRelease' FROM sub
+  RETURNING \"Id\"
+)
+INSERT INTO \"MissionTargets\" (\"SubstageId\", \"Name\", \"QrCode\", \"SequenceOrder\", \"IsActive\", \"Score\", \"ClueId\")
+SELECT sub.\"Id\", 'Target 1', 'PANA-QR-1', 1, true, 50, clue1.\"Id\" FROM sub, clue1
+UNION ALL
+SELECT sub.\"Id\", 'Target 2', 'PANA-QR-2', 2, true, 50, clue2.\"Id\" FROM sub, clue2;
 "
 
 echo "  identity_access (registered teams) …"
@@ -689,6 +745,28 @@ seed_ready_mission() {
     echo "  FAILED ($http): could not select trivia quiz for seeded mission" >&2; echo "$body" >&2; return 1
   fi
 
+  # POST .../nodes — two trivia-substage clues (HU-28): one visible immediately and one operator-gated.
+  # A trivia substage has no targets, so both are authored as substage clues rather than target clues.
+  # The first reaches the live board as a VisibleClue with BOTH targetSnapshotId and operativeClueId null
+  # (the "mission clue" case, distinct from operator-authored operative clues). The second is seeded as
+  # HiddenUntilOperatorRelease so the operator dashboard's release panel has a trivia clue to list while
+  # the trivia round is active.
+  resp="$(curl -sS -w $'\n%{http_code}' -X POST "$BASE_URL/api/missions/$mission_id/nodes" \
+    -H "Authorization: Bearer $token" -H "Content-Type: application/json" \
+    -d "{\"nodeType\":\"Clue\",\"title\":\"Pista inicial\",\"sequenceOrder\":1,\"stageId\":$stage_id,\"substageId\":$substage_id,\"clueText\":\"Observa el simbolo tallado en la entrada del templo.\",\"clueVisibilityPolicy\":\"VisibleWhenSubstageStarts\"}")"
+  http="${resp##*$'\n'}"; body="${resp%$'\n'*}"
+  if [[ "$http" != "200" ]]; then
+    echo "  FAILED ($http): could not add substage-initial clue to seeded mission" >&2; echo "$body" >&2; return 1
+  fi
+
+  resp="$(curl -sS -w $'\n%{http_code}' -X POST "$BASE_URL/api/missions/$mission_id/nodes" \
+    -H "Authorization: Bearer $token" -H "Content-Type: application/json" \
+    -d "{\"nodeType\":\"Clue\",\"title\":\"Pista liberable\",\"sequenceOrder\":2,\"stageId\":$stage_id,\"substageId\":$substage_id,\"clueText\":\"Consulta la inscripcion oculta junto al arco central.\",\"clueVisibilityPolicy\":\"HiddenUntilOperatorRelease\"}")"
+  http="${resp##*$'\n'}"; body="${resp%$'\n'*}"
+  if [[ "$http" != "200" ]]; then
+    echo "  FAILED ($http): could not add operator-release trivia clue to seeded mission" >&2; echo "$body" >&2; return 1
+  fi
+
   # GET .../readiness — must be ready before activation.
   body="$(curl -sS "$BASE_URL/api/missions/$mission_id/readiness" -H "Authorization: Bearer $token")"
   if ! grep -q '"isReady":true' <<<"$body"; then
@@ -932,6 +1010,45 @@ SEEDED_LIVE_TRIVIA_CODE="$(psql -At -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d se
 " | tr -d '[:space:]')"
 echo "  live trivia ready: ${SEEDED_LIVE_TRIVIA_CODE:-$SEEDED_LIVE_TRIVIA_ID} → Active"
 
+echo "  pana exito treasure-hunt fixture …"
+
+# Resolved by name+state rather than a literal id: the Part 1 block deletes and reinserts this
+# mission every run, so its serial id changes each time.
+PANA_TH_MISSION_ID="$(psql -At -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d mission_design -c "
+  SELECT \"Id\"
+  FROM \"Missions\"
+  WHERE \"Name\" = '$PANA_TH_MISSION_NAME'
+    AND \"IsActive\" = true
+    AND \"ActivationState\" = 'Ready'
+  ORDER BY \"Id\" DESC
+  LIMIT 1;
+" | tr -d '[:space:]')"
+
+if [[ -z "$PANA_TH_MISSION_ID" ]]; then
+  echo "  FAILED: could not resolve the '$PANA_TH_MISSION_NAME' mission authored in Part 1"
+  exit 1
+fi
+
+# POST /api/sessions builds the immutable runtime snapshot from the mission, carrying each clue's
+# visibility policy across — that snapshot, not the mission, is what the picker reads.
+PANA_TH_SESSION_ID="$(app_create_session "$APP_ADMIN_TOKEN" "$PANA_TH_MISSION_ID" "$PANA_TH_TITLE")"
+if [[ -z "$PANA_TH_SESSION_ID" ]]; then
+  echo "  FAILED: pana exito treasure-hunt session API returned no liveSessionId"
+  exit 1
+fi
+
+app_assign_operator_to_session "$APP_ADMIN_TOKEN" "$PANA_TH_SESSION_ID" "$OPERATOR_USER_ID"
+app_associate_team_to_session "$OPERATOR_TOKEN" "$PANA_TH_SESSION_ID" "$DELTA_TEAM_ID"
+app_transition_session "$OPERATOR_TOKEN" "$PANA_TH_SESSION_ID" "Preparing"
+# Active on purpose: the treasure hunt is substage 1, so going Active parks the session directly on
+# it and the release picker is populated with 'pana exito' with no further operator action.
+app_transition_session "$OPERATOR_TOKEN" "$PANA_TH_SESSION_ID" "Active"
+
+PANA_TH_CODE="$(psql -At -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d session_operations -c "
+  SELECT session_code FROM live_sessions WHERE id = '$PANA_TH_SESSION_ID';
+" | tr -d '[:space:]')"
+echo "  pana exito TH ready: ${PANA_TH_CODE:-$PANA_TH_SESSION_ID} → Active (clue 'pana exito' releasable)"
+
 echo ""
 echo "Done.  Sessions seeded:"
 for CODE in "${!SESSIONS[@]}"; do
@@ -939,3 +1056,4 @@ for CODE in "${!SESSIONS[@]}"; do
   echo "  $CODE  → $STATE"
 done
 echo "  ${SEEDED_LIVE_TRIVIA_CODE:-$SEEDED_LIVE_TRIVIA_ID}  → Active (Mission)"
+echo "  ${PANA_TH_CODE:-$PANA_TH_SESSION_ID}  → Active (Treasure Hunt — 'pana exito' ready to release)"

@@ -5,6 +5,7 @@ namespace umbral_backend.Domain.Entities;
 public sealed class SessionEvent : BaseEntity
 {
     private const string StateChangedEventType = "SessionStateChanged";
+    private const string OperativeClueCreatedEventType = "OperativeClueCreated";
 
     private SessionEvent()
     {
@@ -31,6 +32,24 @@ public sealed class SessionEvent : BaseEntity
         ActorId = actorId;
         EventType = StateChangedEventType;
         PayloadSummary = BuildStateChangeSummary(previousState, currentState, reason);
+        CorrelationId = Guid.NewGuid();
+    }
+
+    private SessionEvent(
+        Guid liveSessionId,
+        DateTimeOffset occurredAt,
+        SessionEventActorType actorType,
+        int? actorId,
+        string eventType,
+        string payloadSummary)
+    {
+        SessionEventId = Guid.NewGuid();
+        LiveSessionId = liveSessionId;
+        OccurredAt = occurredAt;
+        ActorType = actorType;
+        ActorId = actorId;
+        EventType = eventType;
+        PayloadSummary = payloadSummary;
         CorrelationId = Guid.NewGuid();
     }
 
@@ -67,6 +86,28 @@ public sealed class SessionEvent : BaseEntity
             actorType,
             actorId,
             NormalizeReason(reason));
+    }
+
+    public static SessionEvent ForOperativeClueAdded(
+        Guid liveSessionId,
+        DateTimeOffset occurredAt,
+        int createdByUserId,
+        Guid teamId,
+        string clueText)
+    {
+        return new SessionEvent(
+            liveSessionId,
+            occurredAt,
+            SessionEventActorType.Operator,
+            createdByUserId,
+            OperativeClueCreatedEventType,
+            BuildOperativeClueAddedSummary(teamId, clueText));
+    }
+
+    private static string BuildOperativeClueAddedSummary(Guid teamId, string clueText)
+    {
+        var textPreview = clueText.Length > 120 ? clueText[..120] + "\u2026" : clueText;
+        return $"OperativeClueCreated: {textPreview} (team: {teamId})";
     }
 
     private static string BuildStateChangeSummary(

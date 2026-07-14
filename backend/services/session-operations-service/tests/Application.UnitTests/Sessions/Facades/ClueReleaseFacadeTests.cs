@@ -25,9 +25,11 @@ public sealed class ClueReleaseFacadeTests
         var facade = CreateFacade(resolver.Object, repository.Object);
         var activeSubstageId = session.ActiveSubstageId;
 
-        var result = await facade.ReleaseCluesAsync(new(session.LiveSessionId, targetId, alphaId), CancellationToken.None);
+        var result = await facade.ReleaseCluesAsync(
+            new(session.LiveSessionId, targetId, null, alphaId), CancellationToken.None);
 
         result.TargetId.Should().Be(targetId);
+        result.ClueId.Should().BeNull();
         result.ReleasedTeamIds.Should().Equal(alphaId);
         session.GetClueReleaseRecords().Should().ContainSingle(record => record.TeamId == alphaId && record.ReleasedByUserId == OperatorUserId && record.ReleasedAt == Now);
         session.GetClueReleaseRecords().Should().NotContain(record => record.TeamId == bravoId);
@@ -45,7 +47,8 @@ public sealed class ClueReleaseFacadeTests
         var repository = CreateRepository(session);
         var facade = CreateFacade(CreateResolver(session).Object, repository.Object);
 
-        var result = await facade.ReleaseCluesAsync(new(session.LiveSessionId, targetId, null), CancellationToken.None);
+        var result = await facade.ReleaseCluesAsync(
+            new(session.LiveSessionId, targetId, null, null), CancellationToken.None);
 
         result.ReleasedTeamIds.Should().BeEquivalentTo([alphaId, bravoId]);
         session.GetClueReleaseRecords().Select(record => record.TeamId).Should().BeEquivalentTo([alphaId, bravoId]);
@@ -54,14 +57,33 @@ public sealed class ClueReleaseFacadeTests
     }
 
     [Fact]
-    public async Task ReleaseCluesAsync_WhenReleaseIsDuplicate_PropagatesDomainRejectionWithoutPersisting()
+    public async Task ReleaseCluesAsync_WhenClueIdIsProvided_ConstructsTriviaClueSubject()
     {
-        var session = CreateActiveSession(out var targetId, out var alphaId, out _);
-        session.ReleaseClue(targetId, alphaId, OperatorUserId, Now.AddMinutes(-1));
+        var session = CreateActiveTriviaSession(out var clueId, out var teamId);
         var repository = CreateRepository(session);
         var facade = CreateFacade(CreateResolver(session).Object, repository.Object);
 
-        var act = async () => await facade.ReleaseCluesAsync(new(session.LiveSessionId, targetId, alphaId), CancellationToken.None);
+        var result = await facade.ReleaseCluesAsync(
+            new(session.LiveSessionId, null, clueId, teamId),
+            CancellationToken.None);
+
+        result.TargetId.Should().BeNull();
+        result.ClueId.Should().Be(clueId);
+        session.GetClueReleaseRecords().Should().ContainSingle(record =>
+            record.TargetId == null && record.ClueId == clueId && record.TeamId == teamId);
+        repository.Verify(x => x.UpdateAsync(session, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task ReleaseCluesAsync_WhenReleaseIsDuplicate_PropagatesDomainRejectionWithoutPersisting()
+    {
+        var session = CreateActiveSession(out var targetId, out var alphaId, out _);
+        session.ReleaseClueToTeam(ClueReleaseSubject.ForTarget(targetId), alphaId, OperatorUserId, Now.AddMinutes(-1));
+        var repository = CreateRepository(session);
+        var facade = CreateFacade(CreateResolver(session).Object, repository.Object);
+
+        var act = async () => await facade.ReleaseCluesAsync(
+            new(session.LiveSessionId, targetId, null, alphaId), CancellationToken.None);
 
         await act.Should().ThrowAsync<ClueAlreadyReleasedToTeamException>();
         repository.Verify(x => x.UpdateAsync(It.IsAny<LiveSession>(), It.IsAny<CancellationToken>()), Times.Never);
@@ -80,7 +102,8 @@ public sealed class ClueReleaseFacadeTests
         ISessionAdministrationAccessResolver proxy = new SessionAdministrationAuthorizationProxy(currentUser.Object, repository.Object, actorClient.Object);
         var facade = CreateFacade(proxy, repository.Object);
 
-        var act = async () => await facade.ReleaseCluesAsync(new(session.LiveSessionId, targetId, alphaId), CancellationToken.None);
+        var act = async () => await facade.ReleaseCluesAsync(
+            new(session.LiveSessionId, targetId, null, alphaId), CancellationToken.None);
 
         await act.Should().ThrowAsync<ForbiddenAccessException>();
         session.GetClueReleaseRecords().Should().BeEmpty();
@@ -120,6 +143,50 @@ public sealed class ClueReleaseFacadeTests
         targetId = target.TargetSnapshotId;
         alphaId = alpha.TeamId;
         bravoId = bravo.TeamId;
+        return session;
+    }
+
+    private static LiveSession CreateActiveTriviaSession(out Guid clueId, out Guid teamId)
+    {
+        var substage = SubstageSnapshot.CreateTrivia("Trivia Round", 1);
+        var question = TriviaQuestionSnapshot.Create(
+            substage.SubstageSnapshotId,
+            "Which planet is closest to the Sun?",
+            1,
+            100,
+            30,
+            "Mercury is closest.",
+            [
+                TriviaOptionSnapshot.Create("Mercury", 1, true),
+                TriviaOptionSnapshot.Create("Venus", 2, false)
+            ]);
+        var clue = ClueSnapshot.Create(
+            substage.SubstageSnapshotId,
+            "Operator-only clue.",
+            ClueSnapshot.HiddenUntilOperatorReleasePolicy,
+            1);
+        var snapshot = MissionRuntimeSnapshot.Create(
+            Guid.NewGuid(),
+            "Trivia Mission",
+            MaximumTime.Create(20),
+            [StageSnapshot.Create("Stage One", 1, [substage])],
+            [],
+            [question],
+            [clue]);
+        var session = LiveSession.Create(
+            SessionSource.Create(snapshot.SourceMissionId),
+            "trivia-clue",
+            "Trivia Mission",
+            20,
+            Now.AddHours(-1),
+            snapshot);
+        session.AssignOperator(OperatorUserId, Now.AddMinutes(-10));
+        var team = session.AssociateTeam(Guid.NewGuid(), "Alpha", "A-01", 4);
+        var policy = new SessionStateTransitionPolicy();
+        session.MoveTo(SessionState.Preparing, Now.AddMinutes(-2), policy);
+        session.MoveTo(SessionState.Active, Now.AddMinutes(-1), policy);
+        clueId = clue.ClueSnapshotId;
+        teamId = team.TeamId;
         return session;
     }
 

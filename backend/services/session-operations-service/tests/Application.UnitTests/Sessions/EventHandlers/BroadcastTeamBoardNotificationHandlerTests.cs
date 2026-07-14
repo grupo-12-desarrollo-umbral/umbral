@@ -89,6 +89,48 @@ public sealed class BroadcastTeamBoardNotificationHandlerTests
         }
     }
 
+    [Fact]
+    public async Task Handle_OperativeClueAdded_BroadcastsOnlyAssignedTeamBoardWithStableClueId()
+    {
+        var session = CreateActiveTreasureHunt(out var teamIds, teamCount: 2);
+        session.AddOperativeClue("Look beneath the blue banner.", [teamIds[0]], 55, Now);
+        var operativeClue = session.GetOperativeClues().Single();
+        var domainEvent = session.DomainEvents
+            .OfType<OperativeClueAddedEvent>()
+            .Single(current => current.OperativeClueId == operativeClue.OperativeClueId);
+        ParticipantTeamBoardDto? broadcastBoard = null;
+        var broadcaster = new Mock<ITeamBoardBroadcaster>();
+        broadcaster
+            .Setup(current => current.BroadcastTeamBoardUpdatedAsync(
+                It.IsAny<ParticipantTeamBoardDto>(),
+                It.IsAny<CancellationToken>()))
+            .Callback<ParticipantTeamBoardDto, CancellationToken>((board, _) => broadcastBoard = board)
+            .Returns(Task.CompletedTask);
+        var handler = CreateHandler(session, broadcaster);
+
+        await handler.Handle(domainEvent, CancellationToken.None);
+
+        broadcaster.Verify(
+            current => current.BroadcastTeamBoardUpdatedAsync(
+                It.Is<ParticipantTeamBoardDto>(board => board.TeamId == teamIds[0]),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+        broadcaster.Verify(
+            current => current.BroadcastTeamBoardUpdatedAsync(
+                It.Is<ParticipantTeamBoardDto>(board => board.TeamId == teamIds[1]),
+                It.IsAny<CancellationToken>()),
+            Times.Never);
+        broadcaster.VerifyNoOtherCalls();
+
+        broadcastBoard.Should().NotBeNull();
+        var clue = broadcastBoard!.VisibleClues
+            .Should().ContainSingle(current => current.OperativeClueId == operativeClue.OperativeClueId)
+            .Which;
+        clue.ClueText.Should().Be(operativeClue.ClueText);
+        clue.TargetSnapshotId.Should().BeNull();
+        clue.TargetName.Should().BeNull();
+    }
+
     private static BroadcastTeamBoardNotificationHandler CreateHandler(
         LiveSession session,
         Mock<ITeamBoardBroadcaster> broadcaster)

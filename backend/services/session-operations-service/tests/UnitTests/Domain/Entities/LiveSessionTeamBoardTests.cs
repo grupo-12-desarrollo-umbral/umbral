@@ -158,6 +158,9 @@ public sealed class LiveSessionTeamBoardTests
         clue.ClueText.Should().Be("Shown at start.");
         clue.TargetSnapshotId.Should().BeNull("a trivia clue has no owning target");
         clue.TargetName.Should().BeNull("a trivia clue has no owning target");
+        // Both wire ids null is the "mission initial clue" case the mobile surface keys on (HU-28):
+        // distinct from an operator-authored operative clue, which carries a non-null OperativeClueId.
+        clue.OperativeClueId.Should().BeNull("a substage-initial clue is not operator-authored");
     }
 
     // Gate: trivia board with no active question has null question context.

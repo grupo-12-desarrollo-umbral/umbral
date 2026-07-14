@@ -83,3 +83,13 @@
   color: var(--text-muted);
   font-variant-numeric: tabular-nums;
 }
+
+/* Released-clue tally: manual releases + active-substage initial clues. A count, not progress. */
+.clues {
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}

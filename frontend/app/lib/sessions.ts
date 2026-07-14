@@ -14,6 +14,9 @@ import {
   type OperatorSessionPanelDto,
   type ReleaseClueRequest,
   type ReleaseClueResultDto,
+  type ReleasableCluesDto,
+  type AddOperativeClueRequest,
+  type AddOperativeClueResultDto,
 } from './definitions'
 import { verifySession } from './dal'
 import { KeycloakAuthError } from './keycloak'
@@ -228,6 +231,28 @@ export async function getOperatorSessionPanel(
   return response.json() as Promise<OperatorSessionPanelDto>
 }
 
+// HU-28 operator release-clue picker source. Mirrors getOperatorSessionPanel's gateway path + auth/
+// status mapping. 403 = a non-owning operator: the ownership Proxy denies the read.
+export async function getReleasableClues(
+  liveSessionId: string,
+): Promise<ReleasableCluesDto> {
+  await verifySession()
+  const response = await fetch(
+    `${API_GATEWAY_URL}/api/sessions/${liveSessionId}/clues/releasable`,
+    {
+      headers: await getGatewayHeaders(),
+      cache: 'no-store',
+    },
+  )
+
+  if (response.status === 401) throw new IdentityError('unauthorized', 'Releasable clues: auth expired')
+  if (response.status === 403) throw new IdentityError('unauthorized', 'Releasable clues: not assigned operator')
+  if (response.status === 404) throw new IdentityError('unknown', 'Session not found')
+  if (!response.ok) throw new IdentityError('unknown', `Releasable clues read failed with status ${response.status}`)
+
+  return response.json() as Promise<ReleasableCluesDto>
+}
+
 export async function getSessionAssociatedTeams(
   liveSessionId: string,
 ): Promise<SessionAssociatedTeamsDto> {
@@ -292,14 +317,16 @@ export async function releaseClue(
   body: ReleaseClueRequest,
 ): Promise<ReleaseClueResultDto> {
   await verifySession()
+  const payload: Record<string, string> = {}
+  if (body.targetId) payload.targetId = body.targetId
+  if (body.clueId) payload.clueId = body.clueId
+  if (body.teamId) payload.teamId = body.teamId
   const response = await fetch(
     `${API_GATEWAY_URL}/api/sessions/${liveSessionId}/clues/release`,
     {
       method: 'POST',
       headers: await getGatewayHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify(
-        body.teamId ? { targetId: body.targetId, teamId: body.teamId } : { targetId: body.targetId },
-      ),
+      body: JSON.stringify(payload),
     },
   )
 
@@ -328,4 +355,41 @@ export async function releaseClue(
   }
 
   return response.json() as Promise<ReleaseClueResultDto>
+}
+
+// HU-28 operator operative-clue authoring. Mirrors releaseClue's POST + 409-ProblemDetails-detail parse.
+// 403 = non-Operator or a non-owning operator (ownership denies). The single 409 (session not Active/
+// Paused) is surfaced as a distinct typed error the control renders non-crashingly. teamIds is sent
+// as-is (already non-empty; "all teams" is the full id list assembled by the caller).
+export async function addOperativeClue(
+  liveSessionId: string,
+  body: AddOperativeClueRequest,
+): Promise<AddOperativeClueResultDto> {
+  await verifySession()
+  const response = await fetch(
+    `${API_GATEWAY_URL}/api/sessions/${liveSessionId}/operative-clues`,
+    {
+      method: 'POST',
+      headers: await getGatewayHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ clueText: body.clueText, teamIds: body.teamIds }),
+    },
+  )
+
+  if (response.status === 400) throw new Error('invalid_input')
+  if (response.status === 401) throw new IdentityError('unauthorized', 'Authentication failed.')
+  if (response.status === 403) throw new IdentityError('unauthorized', 'Not the assigned operator.')
+  if (response.status === 404) throw new Error('session_not_found')
+  if (response.status === 409) {
+    // Single 409 cause here (session not Active/Paused). The backend's ProblemDetails carries the
+    // domain message in `detail`; match the not-live substring, mirroring releaseClue's detail parse.
+    const problem = (await response.json().catch(() => null)) as { detail?: string } | null
+    const detail = problem?.detail?.toLowerCase() ?? ''
+    if (detail.includes('requires an active or paused')) throw new Error('not_live')
+    throw new Error('clue_conflict')
+  }
+  if (!response.ok) {
+    throw new IdentityError('unknown', `addOperativeClue failed with status ${response.status}`)
+  }
+
+  return response.json() as Promise<AddOperativeClueResultDto>
 }

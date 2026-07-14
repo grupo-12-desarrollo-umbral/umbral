@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { ActivityIndicator, Pressable, View } from 'react-native';
 import { useLocalSearchParams, useRouter, type Href } from 'expo-router';
 import * as Haptics from 'expo-haptics';
@@ -24,7 +24,12 @@ import { useSessionTimer } from '@/lib/realtime/use-session-timer';
 import { useSubmitAnswer } from '@/lib/realtime/use-submit-answer';
 import { useTeamBoard } from '@/lib/realtime/use-team-board';
 import { TreasureHuntBoard } from '@/components/treasure-hunt-board';
+import {
+  OperativeCluePortalHost,
+  OperativeClueSurface,
+} from '@/components/operative-clue-surface';
 import { SubstageProgress } from '@/components/substage-progress';
+import { SubstageCountdown } from '@/components/substage-countdown';
 import { targetProgress } from '@/lib/realtime/team-board-types';
 import type { SessionsHubClient } from '@/lib/realtime/sessions-hub';
 import type { ReconnectContext } from '@/lib/realtime/sessions-hub-types';
@@ -191,66 +196,84 @@ export default function TeamSpaceScreen() {
     status === 'connecting' ||
     status === 'reconnecting';
 
-  return (
-    <Screen contentContainerStyle={{ gap: spacing.md }}>
-      <View style={{ alignItems: 'center', paddingVertical: spacing.lg }}>
-        <BrandMark size="lg" />
+  const isLive = status === 'reconnected' && outcome?.kind === 'reconnected';
+
+  // Shared chrome. `LiveTeamSpace` owns its own container (the treasure-hunt board is a full-screen
+  // surface and must not be nested in a ScrollView), so the chrome is handed to it rather than
+  // wrapped around it: the brand mark only suits the scrolling trivia surface, while the transient
+  // connection banner has to reach both branches.
+  const brandMark = (
+    <View style={{ alignItems: 'center', paddingVertical: spacing.lg }}>
+      <BrandMark size="lg" />
+    </View>
+  );
+  const reconnectingBanner = isHubReconnecting ? (
+    <Panel>
+      <View
+        style={{
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: spacing.xs,
+        }}
+      >
+        <ActivityIndicator size="small" color={colors.signalWarning} />
+        <Text variant="body" style={{ color: colors.signalWarning }}>
+          Reconnecting…
+        </Text>
       </View>
+    </Panel>
+  ) : null;
 
-      {isHubReconnecting ? (
-        <Panel>
-          <View
-            style={{
-              flexDirection: 'row',
-              alignItems: 'center',
-              gap: spacing.xs,
-            }}
-          >
-            <ActivityIndicator size="small" color={colors.signalWarning} />
-            <Text variant="body" style={{ color: colors.signalWarning }}>
-              Reconnecting…
-            </Text>
-          </View>
-        </Panel>
-      ) : null}
-
-      {isLoading ? (
-        <View style={{ alignItems: 'center', paddingVertical: spacing.xl, gap: spacing.md }}>
-          <ActivityIndicator size="large" color={colors.emberAccent} />
-          <Text variant="body" muted>
-            Restoring your team space…
-          </Text>
-        </View>
-      ) : status === 'reconnected' && outcome?.kind === 'reconnected' ? (
+  return (
+    // Host the viewport-pinned operative-clue toast overlay as a sibling of the play surface
+    // (HU-28 B2, design doc decision 2) so it stays fixed while the content below it scrolls.
+    <OperativeCluePortalHost>
+      {!isLoading && isLive ? (
         <LiveTeamSpace
-            outcome={outcome}
-            onLeave={leaveToHome}
-            client={client}
-            reconnectNonce={reconnectNonce}
-            referenceTeamId={context?.teamId ?? outcome.result.teamId}
-            token={context?.token}
-          />
-      ) : phase === 'no-context' ? (
-        <>
-          <Panel>
-            <View style={{ gap: spacing.sm }}>
-              <Text variant="headline">No active session</Text>
+          outcome={outcome}
+          onLeave={leaveToHome}
+          client={client}
+          reconnectNonce={reconnectNonce}
+          referenceTeamId={context?.teamId ?? outcome.result.teamId}
+          token={context?.token}
+          brandMark={brandMark}
+          banner={reconnectingBanner}
+        />
+      ) : (
+        <Screen contentContainerStyle={{ gap: spacing.md }}>
+          {brandMark}
+          {reconnectingBanner}
+
+          {isLoading ? (
+            <View style={{ alignItems: 'center', paddingVertical: spacing.xl, gap: spacing.md }}>
+              <ActivityIndicator size="large" color={colors.emberAccent} />
               <Text variant="body" muted>
-                There&apos;s no live team space to restore. Join a session to get
-                started.
+                Restoring your team space…
               </Text>
             </View>
-          </Panel>
-          <Button
-            label="Back to home"
-            variant="primary"
-            onPress={() => router.replace('/(app)' as Href)}
-          />
-        </>
-      ) : outcome ? (
-        <DeniedState outcome={outcome} onLeave={leaveToHome} onRetry={retry} />
-      ) : null}
-    </Screen>
+          ) : phase === 'no-context' ? (
+            <>
+              <Panel>
+                <View style={{ gap: spacing.sm }}>
+                  <Text variant="headline">No active session</Text>
+                  <Text variant="body" muted>
+                    There&apos;s no live team space to restore. Join a session to get
+                    started.
+                  </Text>
+                </View>
+              </Panel>
+              <Button
+                label="Back to home"
+                variant="primary"
+                onPress={() => router.replace('/(app)' as Href)}
+              />
+            </>
+          ) : outcome ? (
+            <DeniedState outcome={outcome} onLeave={leaveToHome} onRetry={retry} />
+          ) : null}
+        </Screen>
+      )}
+    </OperativeCluePortalHost>
   );
 }
 
@@ -261,6 +284,8 @@ export function LiveTeamSpace({
   reconnectNonce,
   referenceTeamId,
   token,
+  brandMark,
+  banner,
 }: {
   outcome: Extract<ReconnectOutcome, { kind: 'reconnected' }>;
   onLeave: () => void;
@@ -268,6 +293,10 @@ export function LiveTeamSpace({
   reconnectNonce: number;
   referenceTeamId: string;
   token?: string | null;
+  // Screen chrome, injected because the play-mode branch below picks the container: only this
+  // component knows the play mode (it owns the board fetch), and the two modes need different roots.
+  brandMark?: ReactNode;
+  banner?: ReactNode;
 }) {
   const { result } = outcome;
   const [teamsOpen, setTeamsOpen] = useState(false);
@@ -278,6 +307,7 @@ export function LiveTeamSpace({
     display,
     activeQuestion,
     sessionState: snapshotSessionState,
+    pregameSecondsLeft,
     snapshotVersion,
   } = useSessionTimer({
     client,
@@ -340,26 +370,34 @@ export function LiveTeamSpace({
 
   if (playMode === 'TreasureHunt' && board) {
     const progress = targetProgress(board.activeSubstage);
+    // The board takes the whole screen. It was previously boxed at a hard-coded 640px inside the
+    // outer Screen's ScrollView, which both cropped it on most devices and put its Clues/Teams
+    // ScrollViews inside a same-direction parent — a combination that leaves a long clue list barely
+    // scrollable. Given the viewport it sizes itself, and its body is the only vertical scroller.
     return (
-      <>
-        <SubstageProgress board={board} />
-        <View style={{ marginHorizontal: -spacing.lg, height: 640 }}>
-          <TreasureHuntBoard
-            teamDisplayName={board.teamDisplayName}
-            currentScore={board.currentScore}
-            timerDisplay={display}
-            resolvedTargets={progress.resolved}
-            totalActiveTargets={progress.total}
-            visibleClues={board.visibleClues}
-          />
-        </View>
-        <Button label="Leave team space" variant="secondary" onPress={onLeave} />
-      </>
+      <TreasureHuntBoard
+        teamDisplayName={board.teamDisplayName}
+        currentScore={board.currentScore}
+        timerDisplay={display}
+        resolvedTargets={progress.resolved}
+        totalActiveTargets={progress.total}
+        visibleClues={board.visibleClues}
+        headerSlot={
+          <>
+            {banner}
+            <SubstageProgress board={board} />
+          </>
+        }
+        onLeave={onLeave}
+      />
     );
   }
 
   return (
-    <>
+    <Screen contentContainerStyle={{ gap: spacing.md }}>
+      {brandMark}
+      {banner}
+
       {maskedBoardError ? (
         <Panel>
           <Text
@@ -372,6 +410,13 @@ export function LiveTeamSpace({
       ) : null}
 
       {board ? <SubstageProgress board={board} /> : null}
+
+      {/* Trivia pre-game 5s countdown (backend emits it only for a trivia substage, so it surfaces on
+          this play surface, never the parked treasure-hunt board). Off the main timer — see useSessionTimer.
+          Hidden once a question is active so the countdown never overlaps the live question. */}
+      {pregameSecondsLeft != null && view.kind !== 'active' ? (
+        <SubstageCountdown secondsLeft={pregameSecondsLeft} />
+      ) : null}
 
       <View style={{ marginHorizontal: -spacing.lg }}>
         {view.kind === 'active' ? (
@@ -396,6 +441,11 @@ export function LiveTeamSpace({
           </View>
         )}
       </View>
+
+      {/* HU-28 B2: the trivia surface has no Clues tab, so every clue kind (operative, substage-initial,
+          scheduled/target) lands in the collapsed CLUES chip (durable store + dot) + arrival toast, fed
+          from the live board. Suppress the toast during pre-game countdown so it doesn't overlap. */}
+      {board ? <OperativeClueSurface visibleClues={board.visibleClues} suppressToast={pregameSecondsLeft != null} /> : null}
 
       <Pressable
         accessibilityRole="button"
@@ -447,7 +497,7 @@ export function LiveTeamSpace({
       ) : null}
 
       <Button label="Leave team space" variant="secondary" onPress={onLeave} />
-    </>
+    </Screen>
   );
 }
 

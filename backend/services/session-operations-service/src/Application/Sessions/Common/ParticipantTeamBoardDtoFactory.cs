@@ -27,6 +27,8 @@ public static class ParticipantTeamBoardDtoFactory
         var visibleClues = snapshot.VisibleClues
             .Select(clue => new VisibleClueDto(
                 clue.TargetSnapshotId,
+                clue.ClueSnapshotId,
+                clue.OperativeClueId,
                 clue.ClueText,
                 clue.TargetName))
             .ToList();

@@ -2,8 +2,8 @@ namespace umbral_backend.Domain.Exceptions;
 
 public sealed class ClueAlreadyReleasedToTeamException : DomainException
 {
-    public ClueAlreadyReleasedToTeamException(Guid teamId, Guid targetId)
-        : base($"The clue for target '{targetId}' has already been released to team '{teamId}'.")
+    public ClueAlreadyReleasedToTeamException(Guid teamId, Guid subjectId)
+        : base($"Clue '{subjectId}' has already been released to team '{teamId}'.")
     {
     }
 

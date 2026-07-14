@@ -13,7 +13,9 @@ import {
   getOperatorSessionTimerSnapshot as getOperatorSessionTimerSnapshotLib,
   getOperatorTriviaAnsweredMonitor as getOperatorTriviaAnsweredMonitorLib,
   getOperatorSessionPanel as getOperatorSessionPanelLib,
+  getReleasableClues as getReleasableCluesLib,
   releaseClue as releaseClueLib,
+  addOperativeClue as addOperativeClueLib,
 } from '@/app/lib/sessions'
 import { listAssignableOperators as listAssignableOperatorsLib } from '@/app/lib/users'
 import { revalidatePath } from 'next/cache'
@@ -33,6 +35,9 @@ import type {
   OperatorSessionPanelDto,
   ReleaseClueRequest,
   ReleaseClueResultDto,
+  ReleasableCluesDto,
+  AddOperativeClueRequest,
+  AddOperativeClueResultDto,
 } from '@/app/lib/definitions'
 import { IdentityError } from '@/app/lib/definitions'
 
@@ -170,6 +175,32 @@ export async function getOperatorSessionPanelAction(
   }
 }
 
+// HU-28 operator release-clue picker source. Same three-outcome envelope as getOperatorSessionPanelAction:
+//   { data }          → active substage id + releasable clues for the dropdown
+//   { unauthorized }  → 403 non-owner / 401 auth expired / non-operator → not-authorized state
+//   { error }         → 404 / unexpected / transient backend failure → error state; never throws
+export async function getReleasableCluesAction(
+  liveSessionId: string,
+): Promise<
+  | { data: ReleasableCluesDto }
+  | { unauthorized: true }
+  | { error: string }
+> {
+  'use server'
+  const session = await verifySession()
+  if (session.role !== 'Operator') return { unauthorized: true }
+  try {
+    const data = await getReleasableCluesLib(liveSessionId)
+    return { data }
+  } catch (error) {
+    if (error instanceof IdentityError) {
+      if (error.code === 'unauthorized') return { unauthorized: true }
+      return { error: error.message }
+    }
+    return { error: 'Unexpected error fetching releasable clues' }
+  }
+}
+
 // HU-26 operator clue release. Outcomes the control renders distinctly (never throws to the client):
 //   { data }          → released; result.releasedTeamIds lists the team(s) the clue is now visible to
 //   { duplicate }     → 409: already released to that team for this target
@@ -205,6 +236,37 @@ export async function releaseClueAction(
       if (error.message === 'not_active') return { notActive: true }
     }
     return { error: 'Could not release the clue. Try again.' }
+  }
+}
+
+// HU-28 operator operative-clue authoring. Outcomes the control renders distinctly (never throws to
+// the client):
+//   { data }         → assigned; result.assignedTeamIds lists the team(s) the clue is now visible to
+//   { notLive }      → 409: session is not Active or Paused
+//   { unauthorized } → 403 non-owner / 401 / non-Operator → not-authorized state
+//   { error }        → 400 / 404 / transient / unexpected → retryable error state
+export async function addOperativeClueAction(
+  liveSessionId: string,
+  body: AddOperativeClueRequest,
+): Promise<
+  | { data: AddOperativeClueResultDto }
+  | { notLive: true }
+  | { unauthorized: true }
+  | { error: string }
+> {
+  'use server'
+  const session = await verifySession()
+  if (session.role !== 'Operator') return { unauthorized: true }
+  try {
+    const data = await addOperativeClueLib(liveSessionId, body)
+    return { data }
+  } catch (error) {
+    if (error instanceof IdentityError) {
+      if (error.code === 'unauthorized') return { unauthorized: true }
+      return { error: error.message }
+    }
+    if (error instanceof Error && error.message === 'not_live') return { notLive: true }
+    return { error: 'Could not assign the operative clue. Try again.' }
   }
 }
 

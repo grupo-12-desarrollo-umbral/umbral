@@ -8,8 +8,8 @@ public sealed class ReleaseClueCommandHandlerTests
     [Fact]
     public async Task Handle_DelegatesTheCompleteUseCaseToTheFacade()
     {
-        var command = new ReleaseClueCommand(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid());
-        var expected = new ReleaseClueResultDto(command.TargetId, [command.TeamId!.Value]);
+        var command = new ReleaseClueCommand(Guid.NewGuid(), Guid.NewGuid(), null, Guid.NewGuid());
+        var expected = new ReleaseClueResultDto(command.TargetId, command.ClueId, [command.TeamId!.Value]);
         var facade = new Mock<IClueReleaseFacade>();
         facade.Setup(x => x.ReleaseCluesAsync(command, It.IsAny<CancellationToken>())).ReturnsAsync(expected);
         var handler = new ReleaseClueCommandHandler(facade.Object);
