@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { isExpiredOrNearExpiry, toExpiresAtMs } from '@/app/lib/keycloak'
+import {
+  buildResetCredentialsUrl,
+  isExpiredOrNearExpiry,
+  toExpiresAtMs,
+} from '@/app/lib/keycloak'
 
 describe('keycloak expiry helpers', () => {
   it('converts expires_in seconds into an absolute timestamp', () => {
@@ -12,5 +16,11 @@ describe('keycloak expiry helpers', () => {
 
   it('keeps tokens outside the skew window as fresh', () => {
     expect(isExpiredOrNearExpiry(70_000, 2_000, 60_000)).toBe(false)
+  })
+
+  it('builds the hosted reset-credentials URL for the realm', () => {
+    expect(buildResetCredentialsUrl('http://localhost:8080', 'umbral')).toBe(
+      'http://localhost:8080/realms/umbral/login-actions/reset-credentials',
+    )
   })
 })

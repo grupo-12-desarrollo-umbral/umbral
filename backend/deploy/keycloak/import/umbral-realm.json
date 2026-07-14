@@ -4,7 +4,9 @@
   "displayName": "Umbral",
   "registrationAllowed": false,
   "resetPasswordAllowed": true,
+  "resetCredentialsFlow": "reset credentials",
   "verifyEmail": true,
+  "actionTokenGeneratedByUserLifespan": 900,
   "smtpServer": {
     "host": "${KC_SMTP_HOST:mailpit}",
     "port": "${KC_SMTP_PORT:1025}",

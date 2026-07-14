@@ -1,4 +1,5 @@
 import LoginCard from './LoginCard'
+import { buildResetCredentialsUrl } from '@/app/lib/keycloak'
 
 export default async function LoginPage({
   searchParams,
@@ -8,5 +9,5 @@ export default async function LoginPage({
   const params = await searchParams
   const error = params.error
 
-  return <LoginCard error={error} />
+  return <LoginCard error={error} forgotPasswordHref={buildResetCredentialsUrl()} />
 }
