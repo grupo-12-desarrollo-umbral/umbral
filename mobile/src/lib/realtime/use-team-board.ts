@@ -39,6 +39,7 @@ export function useTeamBoard({
   isReconnected,
   reconnectNonce,
   sessionState,
+  refreshNonce = 0,
 }: {
   client: SessionsHubClient;
   liveSessionId: string;
@@ -48,6 +49,9 @@ export function useTeamBoard({
   reconnectNonce: number;
   // Live session state from `useSessionTimer`; a change (e.g. Preparing → Active) re-fetches the board.
   sessionState?: string | null;
+  // Caller-driven re-fetch trigger. There is no board push after a target scan resolves (#223), so an
+  // accepted scan bumps this to pull the advanced target-progress numerator. Any change re-fetches.
+  refreshNonce?: number;
 }): UseTeamBoardResult {
   const [board, setBoard] = useState<ParticipantTeamBoardDto | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -77,7 +81,7 @@ export function useTeamBoard({
     return () => {
       active = false;
     };
-  }, [isReconnected, reconnectNonce, sessionState, liveSessionId, teamId, token]);
+  }, [isReconnected, reconnectNonce, sessionState, refreshNonce, liveSessionId, teamId, token]);
 
   useEffect(() => {
     return client.onTeamBoardUpdated((pushed: ParticipantTeamBoardDto) => {

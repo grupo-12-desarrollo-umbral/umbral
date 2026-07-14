@@ -3,8 +3,8 @@
 import { useCallback, useEffect, useReducer, useRef, useState, useSyncExternalStore, useTransition } from 'react';
 import { logout } from '@/app/actions/auth';
 import { refreshSession } from '@/app/actions/session';
-import { getUsersPage, deactivateUser, assignUserRole } from '@/app/actions/users';
-import { listSessionsForOperator, transitionSessionState, getSessionTimerSnapshotAction, getTriviaAnsweredMonitorAction, getOperatorSessionPanelAction } from '@/app/actions/sessions';
+import { getUsersPage, deactivateUser, assignUserRole, inviteUser } from '@/app/actions/users';
+import { listSessionsForOperator, transitionSessionState, getSessionTimerSnapshotAction, getTriviaAnsweredMonitorAction, getOperatorSessionPanelAction, getReleasableCluesAction } from '@/app/actions/sessions';
 import { TeamsPanel } from './TeamsPanel'
 import { TriviasPanel } from './TriviasPanel'
 import { MissionsPanel } from './MissionsPanel'
@@ -14,11 +14,15 @@ import { OperatorSessionTimerPanel } from './OperatorSessionTimerPanel'
 import { TriviaRoundPanel } from './TriviaRoundPanel'
 import { AnsweredMonitorPanel, type AnsweredTeamRow } from './AnsweredMonitorPanel'
 import { OperatorTeamProgressPanel } from './OperatorTeamProgressPanel'
+import { OperatorClueReleasePanel } from './OperatorClueReleasePanel'
+import { OperativeCluePanel } from './OperativeCluePanel'
 import { isNonLiveQuestionSnapshot } from './timer-snapshot'
 import { createSessionStateRealtimeClient, type SessionRealtimeStatus } from '@/app/lib/realtime/session-state-client'
 import { lifecycleActions, toLifecycleState } from '@/app/lib/session-lifecycle'
+import { getAccountStatus, accountStatusLabel, accountStatusTone } from '@/app/lib/account-status'
 import { useTriviaRoundState } from '@/app/lib/realtime/use-trivia-round-state'
 import type {
+  InvitableRole,
   PagedResult,
   SessionAssignmentSummaryDto,
   SessionLifecycleState,
@@ -28,6 +32,7 @@ import type {
   TransitionSessionStateResultDto,
   TriviaAnsweredMonitorDto,
   OperatorSessionPanelDto,
+  ReleasableClueDto,
   UserAccessCatalogItemDto,
 } from '@/app/lib/definitions';
 import styles from './dashboard.module.css';
@@ -362,6 +367,24 @@ function operatorPanelReducer(state: OperatorPanelState, action: OperatorPanelAc
   }
 }
 
+// HU-28 releasable-clues store. A wholesale replace (the GET returns the full active-substage list) or
+// a reset on session switch — no deltas, so a plain replace/reset reducer suffices.
+type ReleasableCluesAction =
+  | { type: 'reset' }
+  | { type: 'loaded'; clues: ReleasableClueDto[] }
+
+function releasableCluesReducer(
+  _state: ReleasableClueDto[],
+  action: ReleasableCluesAction,
+): ReleasableClueDto[] {
+  switch (action.type) {
+    case 'reset':
+      return []
+    case 'loaded':
+      return action.clues
+  }
+}
+
 export default function DashboardClient({
   role: initialRole,
   displayName,
@@ -407,6 +430,11 @@ export default function DashboardClient({
   const [timerState, dispatchTimer] = useReducer(timerReducer, { snapshot: null, error: null, loading: false })
   const [monitorState, dispatchMonitor] = useReducer(answeredMonitorReducer, emptyAnsweredMonitor)
   const [operatorPanelState, dispatchOperatorPanel] = useReducer(operatorPanelReducer, emptyOperatorPanel)
+  // HU-28 release-clue picker source: the active substage's still-releasable hidden clues.
+  // No SignalR push exists for it, so it is (re)loaded on session select, reconnect, and substage advance.
+  // A reducer (not useState) so the session-switch reset dispatches inline in the same effect as the other
+  // resets without tripping the "no setState in effect" lint (mirrors dispatchTimer / dispatchOperatorPanel).
+  const [releasableClues, dispatchReleasableClues] = useReducer(releasableCluesReducer, [])
   const triviaRound = useTriviaRoundState()
   const {
     reset: resetTriviaRound,
@@ -533,6 +561,15 @@ export default function DashboardClient({
     else dispatchOperatorPanel({ type: 'failed', error: result.error })
   }, [])
 
+  const loadReleasableClues = useCallback(async (liveSessionId: string) => {
+    const result = await getReleasableCluesAction(liveSessionId)
+    // Drop a late response for a session the operator has since switched away from.
+    if (selectedRealtimeSessionIdRef.current !== liveSessionId) return
+    // On unauthorized/error the picker simply has no options (the release control renders its empty note);
+    // a transient read blip must not strand a stale clue list from a previous substage.
+    dispatchReleasableClues({ type: 'loaded', clues: 'data' in result ? result.data.clues : [] })
+  }, [])
+
   useEffect(() => {
     if (!selectedRealtimeSessionId) return
 
@@ -557,6 +594,8 @@ export default function DashboardClient({
           completeTriviaRound()
         } else if (notification.currentState !== 'Active') {
           resetTriviaRound()
+        } else {
+          void loadReleasableClues(selectedRealtimeSessionId)
         }
         setLiveUpdateNote('State updated live from another client or tab.')
       },
@@ -639,6 +678,8 @@ export default function DashboardClient({
       onSubstageAdvanced: (notification) => {
         if (notification.liveSessionId !== selectedRealtimeSessionId) return
         handleSubstageAdvanced(notification)
+        // The active substage changed, so its releasable hidden-clue targets did too; refetch the picker.
+        void loadReleasableClues(selectedRealtimeSessionId)
         // Substage boundary retires the prior question; clear the board (mirror onQuestionClosed).
         dispatchMonitor({ type: 'questionClosed' })
         // A substage boundary retires the prior question; drop the active-question window
@@ -674,6 +715,7 @@ export default function DashboardClient({
           void loadTimerSnapshot(selectedRealtimeSessionId)
           void loadAnsweredMonitor(selectedRealtimeSessionId)
           void loadOperatorPanel(selectedRealtimeSessionId)
+          void loadReleasableClues(selectedRealtimeSessionId)
         }
       },
     })
@@ -688,6 +730,7 @@ export default function DashboardClient({
     loadTimerSnapshot,
     loadAnsweredMonitor,
     loadOperatorPanel,
+    loadReleasableClues,
     resetTriviaRound,
     completeTriviaRound,
     handlePregameTimerTick,
@@ -703,11 +746,13 @@ export default function DashboardClient({
     dispatchTimer({ type: 'reset' })
     dispatchMonitor({ type: 'reset' })
     dispatchOperatorPanel({ type: 'reset' })
+    dispatchReleasableClues({ type: 'reset' })
     if (!selectedRealtimeSessionId) return
     void loadTimerSnapshot(selectedRealtimeSessionId)
     void loadAnsweredMonitor(selectedRealtimeSessionId)
     void loadOperatorPanel(selectedRealtimeSessionId)
-  }, [selectedRealtimeSessionId, loadTimerSnapshot, loadAnsweredMonitor, loadOperatorPanel])
+    void loadReleasableClues(selectedRealtimeSessionId)
+  }, [selectedRealtimeSessionId, loadTimerSnapshot, loadAnsweredMonitor, loadOperatorPanel, loadReleasableClues])
 
   function announce(title: string, body: string) {
     setToast({ title, body });
@@ -820,7 +865,8 @@ export default function DashboardClient({
     if (role === 'admin') return item.key !== 'operator'
     // HU-09 (DES-14): mission authoring is admin-only; operators never see the missions nav.
     // Issue #173: trivia authoring is now Operator-owned, so operators keep the trivias nav.
-    if (role === 'operator') return item.key !== 'operator' && item.key !== 'missions'
+    // Issue #148: the Users view is Administrator-only; operators never see the users nav.
+    if (role === 'operator') return item.key !== 'operator' && item.key !== 'missions' && item.key !== 'users'
     return true
   })
 
@@ -1003,7 +1049,7 @@ export default function DashboardClient({
                 </p>
               </div>
             </section>
-          ) : activeNav === 'users' ? (
+          ) : activeNav === 'users' && role === 'admin' ? (
             <UsersPanel role={role} />
           ) : activeNav === 'teams' ? (
             <TeamsPanel role={role} />
@@ -1146,6 +1192,33 @@ export default function DashboardClient({
                   error={operatorPanelState.error}
                   loading={operatorPanelState.loading}
                 />
+
+                <div className={styles.cluePanelsRow}>
+                  <OperatorClueReleasePanel
+                    liveSessionId={selectedOperatorSession.liveSessionId}
+                    state={selectedOperatorState}
+                    teams={(operatorPanelState.panel?.teamProgress ?? []).map((t) => ({
+                      teamId: t.teamId,
+                      displayName: t.displayName,
+                    }))}
+                    releasableClues={releasableClues}
+                    onReleased={(label, count) =>
+                      announce('Clue released', `${label} revealed to ${count} team${count === 1 ? '' : 's'}.`)
+                    }
+                  />
+
+                  <OperativeCluePanel
+                    liveSessionId={selectedOperatorSession.liveSessionId}
+                    state={selectedOperatorState}
+                    teams={(operatorPanelState.panel?.teamProgress ?? []).map((t) => ({
+                      teamId: t.teamId,
+                      displayName: t.displayName,
+                    }))}
+                    onAdded={(count) =>
+                      announce('Operative clue assigned', `Clue assigned to ${count} team${count === 1 ? '' : 's'}.`)
+                    }
+                  />
+                </div>
 
                 <TriviaRoundPanel
                   phase={triviaRound.phase}
@@ -1467,19 +1540,56 @@ function UsersPanel({ role }: { role: DashboardRole }) {
   const [roleEditId, setRoleEditId] = useState<number | null>(null)
   const [pendingRole, setPendingRole] = useState<string>('')
   const [roleError, setRoleError] = useState<string | null>(null)
+  const [inviteEmail, setInviteEmail] = useState('')
+  const [inviteRole, setInviteRole] = useState<InvitableRole>('Operator')
+  const [inviteError, setInviteError] = useState<string | null>(null)
+  const [inviteNotice, setInviteNotice] = useState<string | null>(null)
+
+  const loadUsers = useCallback(
+    (target: number) => {
+      startTransition(async () => {
+        setError(null)
+        try {
+          const result = await getUsersPage(target)
+          setData(result)
+        } catch {
+          setError('Failed to load users.')
+        }
+      })
+    },
+    [startTransition],
+  )
 
   // Fetch on mount and page change
   useEffect(() => {
+    loadUsers(page)
+  }, [page, loadUsers])
+
+  async function handleInvite() {
+    const email = inviteEmail.trim()
+    setInviteError(null)
+    setInviteNotice(null)
+    if (!email) {
+      setInviteError('Enter an email address to invite.')
+      return
+    }
     startTransition(async () => {
-      setError(null)
       try {
-        const result = await getUsersPage(page)
-        setData(result)
-      } catch {
-        setError('Failed to load users.')
+        await inviteUser(email, inviteRole)
+        setInviteNotice(`Invitation sent to ${email}. It appears in the users list as a pending invitation once the account is provisioned — on a large user base it may be on a later page.`)
+        setInviteEmail('')
+        setInviteRole('Operator')
+        // Re-read from the first page so the newly invited (pending) account is visible immediately.
+        if (page === 1) {
+          loadUsers(1)
+        } else {
+          setPage(1)
+        }
+      } catch (err) {
+        setInviteError(err instanceof Error && err.message ? err.message : 'The invitation could not be sent. Try again.')
       }
     })
-  }, [page])
+  }
 
   async function handleDeactivate(id: number) {
     startTransition(async () => {
@@ -1547,6 +1657,69 @@ function UsersPanel({ role }: { role: DashboardRole }) {
         {isPending && <span className={styles.chip}>Loading…</span>}
       </div>
 
+      {role === 'admin' && (
+        <form
+          className={styles.formGroup}
+          data-testid="invite-user-form"
+          onSubmit={(e) => { e.preventDefault(); void handleInvite() }}
+        >
+          <div className={styles.fieldLabel}>Invite a user</div>
+          <div className={styles.panelMeta}>
+            The invitee sets their own password from the email they receive — no password is set here.
+          </div>
+
+          <label>
+            <span>Email</span>
+            <input
+              className={styles.formInput}
+              data-testid="invite-email-input"
+              type="email"
+              value={inviteEmail}
+              onChange={(e) => setInviteEmail(e.target.value)}
+              placeholder="name@example.com"
+              disabled={isPending}
+            />
+          </label>
+
+          <label>
+            <span>Role</span>
+            <select
+              className={styles.inlineSelect}
+              data-testid="invite-role-select"
+              value={inviteRole}
+              onChange={(e) => setInviteRole(e.target.value as InvitableRole)}
+              disabled={isPending}
+            >
+              <option value="Operator">Operator</option>
+              <option value="Administrator">Administrator</option>
+            </select>
+          </label>
+
+          {inviteError && (
+            <span className={styles.fieldError} role="alert" data-testid="invite-error">
+              {inviteError}
+            </span>
+          )}
+
+          {inviteNotice && (
+            <span className={styles.panelMeta} role="status" data-testid="invite-notice">
+              {inviteNotice}
+            </span>
+          )}
+
+          <div className={styles.panelActions}>
+            <button
+              className={styles.primaryButton}
+              data-testid="invite-submit"
+              type="submit"
+              disabled={isPending}
+            >
+              {isPending ? 'Sending…' : 'Send invitation'}
+            </button>
+          </div>
+        </form>
+      )}
+
       {error && (
         <p className={styles.errorBanner} role="alert">
           {error}
@@ -1572,9 +1745,11 @@ function UsersPanel({ role }: { role: DashboardRole }) {
               </tr>
             </thead>
             <tbody>
-              {data.items.map((user) => (
-                <tr key={user.id}>
-                  <td data-label="Name">{user.displayName}</td>
+              {data.items.map((user) => {
+                const status = getAccountStatus(user)
+                return (
+                <tr key={user.id} data-testid={`user-row-${user.id}`} data-status={status}>
+                  <td data-label="Name">{status === 'pending' ? <span className={styles.mutedText}>Pending sign-in</span> : user.displayName}</td>
                   <td data-label="Email">{user.email}</td>
                   <td data-label="Role">
                     {role === 'admin' && roleEditId === user.id ? (
@@ -1595,9 +1770,10 @@ function UsersPanel({ role }: { role: DashboardRole }) {
                   <td data-label="Status">
                     <span
                       className={styles.chip}
-                      data-tone={user.isActive ? 'success' : 'critical'}
+                      data-tone={accountStatusTone[status]}
+                      data-testid={`user-status-${user.id}`}
                     >
-                      {user.isActive ? 'Active' : 'Deactivated'}
+                      {accountStatusLabel[status]}
                     </span>
                   </td>
                   {role === 'admin' && (
@@ -1675,7 +1851,8 @@ function UsersPanel({ role }: { role: DashboardRole }) {
                     </td>
                   )}
                 </tr>
-              ))}
+                )
+              })}
             </tbody>
           </table>
 

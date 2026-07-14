@@ -150,4 +150,9 @@ public sealed class Team : BaseEntity
         _members.Add(member);
         return member;
     }
+
+    internal void IncrementReleasedClueCount()
+    {
+        ReleasedClueCount++;
+    }
 }

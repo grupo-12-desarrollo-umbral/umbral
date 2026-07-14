@@ -1086,6 +1086,114 @@ public sealed class IdentityAccessApiEndpointsTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task RegisterParticipant_WithoutTrustedHeaders_ReturnsCreatedWithParticipantRole_AndWritesNoLocalRecord()
+    {
+        // Anonymous by design (ADR-0016 §1): no trusted headers, exactly as an unauthenticated caller.
+        ClearTrustedHeaders(_client);
+
+        var response = await _client.PostAsJsonAsync(
+            "/api/users/register",
+            new { displayName = "New Participant", email = "newbie@example.com", password = "sup3rsecret" });
+
+        response.StatusCode.Should().Be(HttpStatusCode.Created);
+
+        var payload = await response.Content.ReadFromJsonAsync<RegisterParticipantResponse>();
+        payload.Should().NotBeNull();
+        payload!.Email.Should().Be("newbie@example.com");
+        payload.Role.Should().Be("Participant");
+
+        // No local User record yet — that is provisioned on first sign-in via /api/users/authenticated.
+        await using var scope = _factory.Services.CreateAsyncScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        (await dbContext.Users.AnyAsync()).Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task RegisterParticipant_WithRoleInBody_IgnoresItAndStillCreatesParticipant()
+    {
+        ClearTrustedHeaders(_client);
+
+        // A "role" field in the body is not part of the command and can never elevate the account: the
+        // role is server-fixed to Participant. An extra JSON property is simply ignored on binding.
+        var response = await _client.PostAsJsonAsync(
+            "/api/users/register",
+            new
+            {
+                displayName = "Sneaky",
+                email = "sneaky@example.com",
+                password = "sup3rsecret",
+                role = "Administrator",
+            });
+
+        response.StatusCode.Should().Be(HttpStatusCode.Created);
+
+        var payload = await response.Content.ReadFromJsonAsync<RegisterParticipantResponse>();
+        payload.Should().NotBeNull();
+        payload!.Role.Should().Be("Participant");
+    }
+
+    [Fact]
+    public async Task RegisterParticipant_WithInvalidBody_ReturnsBadRequest()
+    {
+        ClearTrustedHeaders(_client);
+
+        var response = await _client.PostAsJsonAsync(
+            "/api/users/register",
+            new { displayName = " ", email = "not-an-email", password = "short" });
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+
+        var problem = await response.Content.ReadFromJsonAsync<ProblemDetails>();
+        problem.Should().NotBeNull();
+        problem!.Status.Should().Be(StatusCodes.Status400BadRequest);
+        problem.Title.Should().Be("Validation failed.");
+    }
+
+    [Fact]
+    public async Task ForgotPassword_WithKnownEmail_ReturnsNoContent()
+    {
+        // Anonymous by design (ADR-0016 §1): no trusted headers, exactly as an unauthenticated caller.
+        ClearTrustedHeaders(_client);
+
+        var response = await _client.PostAsJsonAsync(
+            "/api/users/forgot-password",
+            new { email = "known@example.com" });
+
+        response.StatusCode.Should().Be(HttpStatusCode.NoContent);
+    }
+
+    [Fact]
+    public async Task ForgotPassword_WithUnknownEmail_ReturnsSameNoContentStatus_ToPreventEnumeration()
+    {
+        ClearTrustedHeaders(_client);
+
+        // The fake returns no account for "unknown*"; the endpoint must still answer 204 — identical to
+        // the known-email case — so a caller can never tell which addresses are registered.
+        var response = await _client.PostAsJsonAsync(
+            "/api/users/forgot-password",
+            new { email = "unknown@example.com" });
+
+        response.StatusCode.Should().Be(HttpStatusCode.NoContent);
+    }
+
+    [Fact]
+    public async Task ForgotPassword_WithInvalidBody_ReturnsBadRequest()
+    {
+        ClearTrustedHeaders(_client);
+
+        var response = await _client.PostAsJsonAsync(
+            "/api/users/forgot-password",
+            new { email = "not-an-email" });
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+
+        var problem = await response.Content.ReadFromJsonAsync<ProblemDetails>();
+        problem.Should().NotBeNull();
+        problem!.Status.Should().Be(StatusCodes.Status400BadRequest);
+        problem.Title.Should().Be("Validation failed.");
+    }
+
+    [Fact]
     public async Task DeactivateUserAccess_WithAdministratorHeaders_ReturnsNoContentAndPersistsInactiveState()
     {
         await SeedUserAsync("kc-admin-01", "Admin User", "admin@example.com", Role.Administrator);
@@ -1288,6 +1396,8 @@ public sealed class IdentityAccessApiEndpointsTests : IAsyncLifetime
         bool IsActive);
 
     private sealed record InviteUserResponse(int UserId, string Email, string Role);
+
+    private sealed record RegisterParticipantResponse(string Email, string Role);
 
     private sealed record RegisterTeamResponse(Guid TeamId);
 

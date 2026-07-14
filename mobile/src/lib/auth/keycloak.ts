@@ -32,6 +32,15 @@ function logoutUrl(): string {
   return `${keycloakBaseUrl()}/realms/${realm}/protocol/openid-connect/logout`;
 }
 
+// Forgot-password does NOT use a Keycloak hosted page (ADR-0016 §1). It is a custom native form
+// (app/(auth)/forgot-password.tsx) that posts to POST /api/users/forgot-password, which delegates to
+// Keycloak's Admin API to email an UPDATE_PASSWORD action link. There is deliberately no
+// buildResetCredentialsUrl here.
+
+// Participant self-registration does NOT use a Keycloak hosted page (ADR-0016 §1). It is a custom
+// native form (app/(auth)/register.tsx) that posts to POST /api/users/register — mirroring how login
+// delegates only the credential exchange. There is deliberately no buildRegistrationUrl here.
+
 function parseJwt(token: string): Record<string, unknown> {
   try {
     const base64Url = token.split('.')[1];

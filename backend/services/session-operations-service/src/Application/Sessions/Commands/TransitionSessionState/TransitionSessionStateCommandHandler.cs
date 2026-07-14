@@ -32,20 +32,30 @@ public sealed class TransitionSessionStateCommandHandler
         TransitionSessionStateCommand request,
         CancellationToken cancellationToken)
     {
-        var liveSession = await _sessionAdministrationAccessResolver.GetAuthorizedSessionAsync(
+        var authorizedAccess = await _sessionAdministrationAccessResolver.GetAuthorizedSessionWithActorAsync(
             request.LiveSessionId,
             cancellationToken);
+        var liveSession = authorizedAccess.Session;
 
-        var context = new SessionTransitionContext(liveSession, request.TargetState, request.Reason);
+        var context = new SessionTransitionContext(
+            liveSession,
+            request.TargetState,
+            request.Reason,
+            authorizedAccess.ResponsibleUserId);
         await _validatorChain.ValidateAsync(context, cancellationToken);
 
         var previousState = liveSession.State;
 
-        // The domain transition re-asserts its own invariant as the last line of defence and
-        // raises SessionStateChangedEvent, which the dispatch interceptor turns into the SignalR
-        // broadcast on save.
+        // The domain transition re-asserts its own invariant as the last line of defence and raises
+        // SessionStateChangedEvent. The dispatch interceptor captures its integration publications
+        // in the bus outbox pre-commit and fans out its SignalR notification post-commit.
         var occurredAt = _timeProvider.GetUtcNow();
-        liveSession.MoveTo(request.TargetState, occurredAt, _transitionPolicy, request.Reason);
+        liveSession.MoveTo(
+            context.TargetState,
+            occurredAt,
+            _transitionPolicy,
+            context.Reason,
+            context.ResponsibleUserId);
         var timerSnapshot = liveSession.GetAuthoritativeSessionTimerSnapshot(occurredAt);
 
         await _liveSessionRepository.UpdateAsync(liveSession, cancellationToken);

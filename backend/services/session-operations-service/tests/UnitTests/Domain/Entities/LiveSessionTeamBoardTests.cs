@@ -72,7 +72,7 @@ public sealed class LiveSessionTeamBoardTests
         board.ActiveSubstageContext.Should().NotBeNull();
         board.ActiveSubstageContext!.PlayMode.Should().Be(SubstagePlayMode.TreasureHunt);
         board.ActiveSubstageContext.TotalActiveTargets.Should().Be(3, "the snapshot has 3 active targets");
-        board.ActiveSubstageContext.ResolvedTargets.Should().Be(0, "target-resolution persistence does not exist yet");
+        board.ActiveSubstageContext.ResolvedTargets.Should().Be(0, "the team has not resolved a target yet");
     }
 
     // Gate: visible clues are optional guidance — they exist but do NOT affect progress.
@@ -158,6 +158,9 @@ public sealed class LiveSessionTeamBoardTests
         clue.ClueText.Should().Be("Shown at start.");
         clue.TargetSnapshotId.Should().BeNull("a trivia clue has no owning target");
         clue.TargetName.Should().BeNull("a trivia clue has no owning target");
+        // Both wire ids null is the "mission initial clue" case the mobile surface keys on (HU-28):
+        // distinct from an operator-authored operative clue, which carries a non-null OperativeClueId.
+        clue.OperativeClueId.Should().BeNull("a substage-initial clue is not operator-authored");
     }
 
     // Gate: trivia board with no active question has null question context.

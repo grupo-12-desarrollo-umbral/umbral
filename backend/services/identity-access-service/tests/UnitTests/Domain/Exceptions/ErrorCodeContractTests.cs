@@ -19,6 +19,7 @@ public sealed class ErrorCodeContractTests
         {
             ["DeactivatedUserAccessDeniedException"] = "deactivated-user-access-denied",
             ["DeactivatedUserRoleAssignmentNotAllowedException"] = "deactivated-user-role-assignment-not-allowed",
+            ["EmailAlreadyRegisteredException"] = "email-already-registered",
             ["ExternalIdentityIdRequiredException"] = "external-identity-id-required",
             ["ExternalIdentityMismatchException"] = "external-identity-mismatch",
             ["IdentityProviderNameRequiredException"] = "identity-provider-name-required",

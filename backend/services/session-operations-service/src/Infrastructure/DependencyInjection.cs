@@ -16,13 +16,10 @@ public static class DependencyInjection
         builder.Services.AddSingleton(TimeProvider.System);
         builder.Services.AddHostedService<AuthoritativeSessionTimerWorker>();
 
-        builder.Services.Configure<RabbitMqOptions>(
-            builder.Configuration.GetSection(RabbitMqOptions.SectionName));
+        builder.Services.Configure<MassTransitRabbitMqOptions>(
+            builder.Configuration.GetSection(MassTransitRabbitMqOptions.SectionName));
 
-        // QuestionClosed publishes via MassTransit (#164); the hand-rolled publisher still carries
-        // AnswerRegistered + SessionResultsFinalized until #165/#166 migrate them.
         builder.AddMassTransitMessaging();
-        builder.Services.AddSingleton<IIntegrationEventPublisher, RabbitMqIntegrationEventPublisher>();
 
         builder.Services.Configure<ParticipantMembershipAccessClientOptions>(
             builder.Configuration.GetSection(ParticipantMembershipAccessClientOptions.SectionName));

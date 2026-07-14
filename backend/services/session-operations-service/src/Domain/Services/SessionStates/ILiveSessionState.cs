@@ -18,11 +18,17 @@ internal interface ILiveSessionState
 
     bool IsQuestionTimerAdvancing(LiveSession session);
 
+    AuthoritativeSessionTimerSnapshot GetSubstageTimerSnapshot(LiveSession session, DateTimeOffset observedAt);
+
+    AuthoritativeSessionTimerSnapshot MarkSubstageTimerExpiredIfElapsed(LiveSession session, DateTimeOffset occurredAt);
+
+    bool IsSubstageTimerAdvancing(LiveSession session);
+
     // Gates timer-driven substage advancement: only Active advances, every other state rejects
     // (Paused freezes it). Keeps the "operator cannot force advancement" rule in the state type.
     void EnsureCanAdvanceSubstage(LiveSession session);
 
-    // Gates trivia answer registration: only Active admits answers, every other state rejects
+    // Gates evidence registration: only Active admits evidence, every other state rejects
     // (Paused/Finished/Cancelled). Keeps the session-state gameplay rule in the state type.
-    void EnsureCanRegisterTriviaAnswer(LiveSession session);
+    void EnsureCanRegisterEvidence(LiveSession session);
 }

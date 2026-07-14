@@ -22,6 +22,7 @@ const panel: OperatorSessionPanelDto = {
       teamCode: 'AAA',
       displayName: 'Alpha',
       score: 0,
+      releasedClueCount: 0,
       activeSubstage: {
         substageSnapshotId: 'sub-1',
         playMode: 'TreasureHunt',
@@ -37,6 +38,7 @@ const panel: OperatorSessionPanelDto = {
       teamCode: 'BBB',
       displayName: 'Bravo',
       score: 15,
+      releasedClueCount: 2,
       activeSubstage: {
         substageSnapshotId: 'sub-2',
         playMode: 'Trivia',
@@ -90,6 +92,30 @@ describe('OperatorTeamProgressPanel', () => {
     expect(html).toContain('data-testid="team-progress-score-team-a"')
     expect(html).toContain('0 pts')
     expect(html).toContain('15 pts')
+  })
+
+  it('shows a per-team released-clue tally only for teams with clues', () => {
+    const html = render()
+    // Bravo has 2 clues; Alpha has none, so no clue tally is rendered for it.
+    expect(html).toContain('data-testid="team-progress-clues-team-b"')
+    expect(html).toContain('2 clues')
+    expect(html).not.toContain('data-testid="team-progress-clues-team-a"')
+  })
+
+  it('rolls up how many teams have clues released', () => {
+    const html = render()
+    expect(html).toContain('data-testid="panel-clue-rollup"')
+    expect(html).toContain('Clues released to 1 team.')
+  })
+
+  it('omits the clue rollup when no team has released clues', () => {
+    const html = render({
+      panel: {
+        ...panel,
+        teamProgress: panel.teamProgress.map((team) => ({ ...team, releasedClueCount: 0 })),
+      },
+    })
+    expect(html).not.toContain('data-testid="panel-clue-rollup"')
   })
 
   it('renders the not-authorized state and no team data when unauthorized', () => {

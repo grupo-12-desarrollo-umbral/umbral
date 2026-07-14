@@ -34,6 +34,35 @@ public sealed class SessionAdministrationAuthorizationProxyTests
     }
 
     [Fact]
+    public async Task GetAuthorizedSessionWithActorAsync_WhenCallerIsAssignedOperator_SurfacesNumericUserId()
+    {
+        var session = CreateScheduledSession();
+        session.AssignOperator(27, DateTimeOffset.UtcNow);
+        var proxy = CreateProxy(session, "kc-operator-27", "Operator", resolvedUserId: 27);
+
+        var result = await proxy.GetAuthorizedSessionWithActorAsync(
+            session.LiveSessionId,
+            CancellationToken.None);
+
+        result.Session.Should().BeSameAs(session);
+        result.ResponsibleUserId.Should().Be(27);
+    }
+
+    [Fact]
+    public async Task GetAuthorizedSessionWithActorAsync_WhenCallerIsAdministrator_ReturnsNullActor()
+    {
+        var session = CreateScheduledSession();
+        var proxy = CreateProxy(session, "99", "Administrator");
+
+        var result = await proxy.GetAuthorizedSessionWithActorAsync(
+            session.LiveSessionId,
+            CancellationToken.None);
+
+        result.Session.Should().BeSameAs(session);
+        result.ResponsibleUserId.Should().BeNull();
+    }
+
+    [Fact]
     public async Task GetAuthorizedSessionAsync_WhenCallerIsDifferentOperator_ThrowsForbiddenException()
     {
         var session = CreateScheduledSession();

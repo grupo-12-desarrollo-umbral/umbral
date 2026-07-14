@@ -65,3 +65,10 @@ services:
     volumes:
       - ./services/session-operations-service/src:/src/src
       - ${HOME}/.nuget/packages:/tmp/nuget
+
+  scoring-monitoring-service:
+    <<: *dotnet-watch
+    working_dir: /src/src/Api
+    volumes:
+      - ./services/scoring-monitoring-service/src:/src/src
+      - ${HOME}/.nuget/packages:/tmp/nuget

@@ -1,4 +1,5 @@
 using MassTransit;
+using MassTransit.EntityFrameworkCoreIntegration;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -13,10 +14,14 @@ public sealed class SessionOperationsApiWebApplicationFactory : WebApplicationFa
 {
     private const string ConnectionStringEnvironmentVariable = "ConnectionStrings__umbral_backendDb";
     private readonly string _connectionString;
+    private readonly bool _useRealPublishEndpoint;
 
-    public SessionOperationsApiWebApplicationFactory(string connectionString)
+    public SessionOperationsApiWebApplicationFactory(
+        string connectionString,
+        bool useRealPublishEndpoint = false)
     {
         _connectionString = connectionString;
+        _useRealPublishEndpoint = useRealPublishEndpoint;
         Environment.SetEnvironmentVariable(ConnectionStringEnvironmentVariable, _connectionString);
     }
 
@@ -63,23 +68,23 @@ public sealed class SessionOperationsApiWebApplicationFactory : WebApplicationFa
             services.RemoveAll<IMissionRuntimeSource>();
             services.AddScoped<IMissionRuntimeSource>(_ => MissionRuntimeSource);
 
-            // Cut the real MassTransit publish path. appsettings points the broker at the compose
-            // hostname "rabbitmq:5672", which doesn't resolve under the test host; MassTransit's
-            // Publish then blocks awaiting a connection under its retry policy (it doesn't fail fast),
-            // hanging every test that closes a question. A no-op endpoint keeps the handler's dispatch
-            // synchronous and broker-free.
-            services.RemoveAll<IPublishEndpoint>();
-            services.AddSingleton<IPublishEndpoint, NoOpPublishEndpoint>();
-
-            // Drop the MassTransit bus hosted service too, so it doesn't spam background connection
-            // retries against the unreachable broker for the lifetime of the booted host.
-            foreach (var busHostedServiceDescriptor in services
-                .Where(descriptor =>
-                    descriptor.ServiceType == typeof(IHostedService)
-                    && descriptor.ImplementationType?.Namespace?.StartsWith("MassTransit", StringComparison.Ordinal) == true)
-                .ToList())
+            if (!_useRealPublishEndpoint)
             {
-                services.Remove(busHostedServiceDescriptor);
+                // Most API tests are broker-free. Keep their domain-event dispatch synchronous with
+                // a no-op endpoint and remove MassTransit's hosted bus, which would otherwise retry
+                // against the compose-only hostname. Broker end-to-end tests explicitly opt into the
+                // real endpoint and provide Testcontainers configuration.
+                services.RemoveAll<IPublishEndpoint>();
+                services.AddSingleton<IPublishEndpoint, NoOpPublishEndpoint>();
+
+                foreach (var busHostedServiceDescriptor in services
+                    .Where(descriptor =>
+                        descriptor.ServiceType == typeof(IHostedService)
+                        && descriptor.ImplementationType?.Namespace?.StartsWith("MassTransit", StringComparison.Ordinal) == true)
+                    .ToList())
+                {
+                    services.Remove(busHostedServiceDescriptor);
+                }
             }
         });
     }
@@ -136,6 +141,14 @@ public sealed class SessionOperationsApiWebApplicationFactory : WebApplicationFa
         // Deleting the aggregate root cascades to teams, participants, join contexts,
         // and team members (all FKs are ON DELETE CASCADE).
         await dbContext.LiveSessions.ExecuteDeleteAsync();
+
+        // Reset messaging state too: the transactional outbox tables are shared across the test
+        // collection, so undelivered rows leaked by earlier tests would otherwise be drained by this
+        // booted app's delivery service and stall real delivery. OutboxMessage first (it references
+        // OutboxState).
+        await dbContext.Set<OutboxMessage>().ExecuteDeleteAsync();
+        await dbContext.Set<OutboxState>().ExecuteDeleteAsync();
+        await dbContext.Set<InboxState>().ExecuteDeleteAsync();
     }
 
     protected override void Dispose(bool disposing)

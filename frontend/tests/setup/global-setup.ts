@@ -99,7 +99,7 @@ ON CONFLICT (id) DO UPDATE SET
 
   // Seed one active, runtime-ready trivia mission so the session-creation form has
   // a selectable mission in e2e tests. Resolves the quiz by title+status rather than a
-  // hardcoded id: seed-dev-data.sh DELETEs and re-inserts quizzes without resetting the
+  // hardcoded id: seed-all.sh DELETEs and re-inserts quizzes without resetting the
   // identity sequence, so 'Filosofos de Atenas' lands at a different id on every run —
   // pinning a literal id silently points the substage at a Draft/Archived/missing quiz,
   // which passes the catalog's persisted-'Ready' check but fails live create eligibility.
@@ -116,7 +116,7 @@ BEGIN
   ORDER BY "Id" DESC LIMIT 1;
 
   IF v_quiz_id IS NULL THEN
-    RAISE EXCEPTION 'No Published "Filosofos de Atenas" quiz found — run seed-dev-data.sh first.';
+    RAISE EXCEPTION 'No Published "Filosofos de Atenas" quiz found — run seed-all.sh first.';
   END IF;
 
   SELECT "Id" INTO v_mission_id FROM "Missions" WHERE "Name" = 'E2E Seed Mission' LIMIT 1;
@@ -166,7 +166,7 @@ BEGIN
   ORDER BY "Id" DESC LIMIT 1;
 
   IF v_quiz_id IS NULL THEN
-    RAISE EXCEPTION 'No Published "Filosofos de Atenas" quiz found — run seed-dev-data.sh first.';
+    RAISE EXCEPTION 'No Published "Filosofos de Atenas" quiz found — run seed-all.sh first.';
   END IF;
 
   SELECT "Id" INTO v_mission_id FROM "Missions" WHERE "Name" = 'E2E Activatable Mission' LIMIT 1;
@@ -222,7 +222,7 @@ BEGIN
   ORDER BY "Id" DESC LIMIT 1;
 
   IF v_quiz_id IS NULL THEN
-    RAISE EXCEPTION 'No Published "Filosofos de Atenas" quiz found — run seed-dev-data.sh first.';
+    RAISE EXCEPTION 'No Published "Filosofos de Atenas" quiz found — run seed-all.sh first.';
   END IF;
 
   SELECT "Id" INTO v_mission_id FROM "Missions" WHERE "Name" = 'E2E Not-Ready Mission' LIMIT 1;

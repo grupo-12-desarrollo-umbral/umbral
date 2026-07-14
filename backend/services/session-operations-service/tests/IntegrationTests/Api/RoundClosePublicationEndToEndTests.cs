@@ -17,20 +17,21 @@ namespace umbral_backend.Infrastructure.IntegrationTests.Api;
 
 /// <summary>
 /// HU-33B X.4 end-to-end gate: a real facade-driven trivia round close both (a) publishes the
-/// SessionResultsFinalizedIntegrationEvent on the durable topic exchange (session.results.finalized)
-/// via the hand-rolled RabbitMQ producer when the close finishes the session via SessionCompletion,
+/// SessionResultsFinalizedIntegrationEvent on its MassTransit exchange when the close finishes the
+/// session via SessionCompletion,
 /// AND (b) still fires the HU-33A/21A SignalR broadcasts (QuestionClosed + SessionStateChanged→Finished)
-/// to live-session:{id}. QuestionClosed now publishes through MassTransit (#164); its integration-event
-/// delivery is covered end-to-end by MassTransitQuestionClosedPublishTests, so this test asserts the
-/// QuestionClosed *SignalR* broadcast only, not its RabbitMQ delivery. Proves the RabbitMQ producer
-/// rides alongside the runtime without regressing the real-time transport. Skipped cleanly when
-/// Docker/Testcontainers is unavailable.
+/// to live-session:{id}. Proves the MassTransit producer rides alongside the runtime without
+/// regressing the real-time transport. Skipped cleanly when Docker/Testcontainers is unavailable.
 /// </summary>
 [Collection(PostgreSqlCollection.Name)]
 public sealed class RoundClosePublicationEndToEndTests : IAsyncLifetime
 {
     private const int OperatorUserId = 71;
     private const string OperatorExternalIdentityId = "kc-operator-71";
+    private static readonly JsonSerializerOptions MassTransitJsonOptions = new()
+    {
+        PropertyNameCaseInsensitive = true,
+    };
 
     private readonly PostgreSqlFixture _fixture;
     private RabbitMqContainer? _rabbit;
@@ -55,13 +56,15 @@ public sealed class RoundClosePublicationEndToEndTests : IAsyncLifetime
         await DockerAvailability.StartOrSkipAsync(() => _rabbit.StartAsync(), _rabbit.DisposeAsync);
         _brokerAvailable = true;
 
-        // The composed singleton publisher binds RabbitMqOptions from configuration; env vars point
-        // it at the Testcontainers broker (WebApplication.CreateBuilder reads env vars by default).
+        // MassTransit binds its RabbitMQ host options from configuration; env vars point the booted app at the
+        // Testcontainers broker (WebApplication.CreateBuilder reads env vars by default).
         Environment.SetEnvironmentVariable("RabbitMq__HostName", _rabbit.Hostname);
         Environment.SetEnvironmentVariable(
             "RabbitMq__Port", _rabbit.GetMappedPublicPort(5672).ToString());
 
-        _factory = new SessionOperationsApiWebApplicationFactory(_fixture.ConnectionString);
+        _factory = new SessionOperationsApiWebApplicationFactory(
+            _fixture.ConnectionString,
+            useRealPublishEndpoint: true);
         _factory.AccessClient.IsAllowed = true;
         _factory.AuthenticatedActorProfileAccessClient.CurrentActor = new AuthenticatedActorProfileLookupDto(
             OperatorUserId,
@@ -93,15 +96,12 @@ public sealed class RoundClosePublicationEndToEndTests : IAsyncLifetime
         var externalIdentityId = Guid.NewGuid();
         var seeded = await SeedActiveSingleQuestionTriviaSessionAsync(externalIdentityId);
 
-        // Bind the finalized queue BEFORE the close — a topic exchange drops unroutable messages.
-        // QuestionClosed now rides MassTransit (#164), not this exchange, so only the still-hand-rolled
-        // SessionResultsFinalized event is asserted over RabbitMQ here.
+        // Bind before the close so the published event cannot be dropped before the test queue exists.
         await using var consumerConnection = await CreateBrokerConnectionAsync();
         await using var consumerChannel = await consumerConnection.CreateChannelAsync();
         await consumerChannel.ExchangeDeclareAsync(
-            "umbral.session-operations", ExchangeType.Topic, durable: true, autoDelete: false);
-        var finalizedQueue = await BindQueueAsync(
-            consumerChannel, RabbitMqIntegrationEventPublisher.SessionResultsFinalizedRoutingKey);
+            "session-results-finalized", ExchangeType.Fanout, durable: true, autoDelete: false);
+        var finalizedQueue = await BindQueueAsync(consumerChannel, "session-results-finalized");
 
         // Join the live-session group so the participant is subscribed to the HU-33A/21A broadcasts.
         await using var participant = CreateHubConnection(
@@ -132,9 +132,7 @@ public sealed class RoundClosePublicationEndToEndTests : IAsyncLifetime
         // Drive the authoritative round exactly as the timer worker does on last-question expiry:
         // the facade closes the only question, advances past the only substage, and — no substage
         // remaining — completes the session via SessionCompletion → Finished. The SaveChanges
-        // dispatches run the publish handlers: QuestionClosedEvent via MassTransit (stubbed in the
-        // factory), then SessionStateChangedEvent→Finished via the hand-rolled RabbitMQ producer
-        // asserted below.
+        // dispatches run both MassTransit publish handlers; the finalized event is asserted below.
         await using (var scope = _factory.Services.CreateAsyncScope())
         {
             var repository = scope.ServiceProvider.GetRequiredService<ILiveSessionRepository>();
@@ -152,10 +150,9 @@ public sealed class RoundClosePublicationEndToEndTests : IAsyncLifetime
         stateNotification.LiveSessionId.Should().Be(seeded.LiveSessionId);
         stateNotification.CurrentState.Should().Be(nameof(SessionState.Finished));
 
-        // (b) RabbitMQ: exactly one SessionResultsFinalized integration event on its routing key,
-        // carrying the correlation fields (QuestionClosed now rides MassTransit — see
-        // MassTransitQuestionClosedPublishTests).
-        var finalized = await DrainSingleAsync<SessionResultsFinalizedIntegrationEvent>(
+        // (b) RabbitMQ: exactly one MassTransit-enveloped SessionResultsFinalized integration event
+        // carrying the session correlation field.
+        var finalized = await DrainSingleMassTransitMessageAsync<SessionResultsFinalizedIntegrationEvent>(
             consumerChannel, finalizedQueue);
         finalized.LiveSessionId.Should().Be(seeded.LiveSessionId);
     }
@@ -172,16 +169,15 @@ public sealed class RoundClosePublicationEndToEndTests : IAsyncLifetime
         return await factory.CreateConnectionAsync();
     }
 
-    private static async Task<string> BindQueueAsync(IChannel channel, string routingKey)
+    private static async Task<string> BindQueueAsync(IChannel channel, string exchangeName)
     {
-        var queueName = $"e2e.{routingKey}.{Guid.NewGuid():N}";
+        var queueName = $"e2e.{exchangeName}.{Guid.NewGuid():N}";
         await channel.QueueDeclareAsync(queueName, durable: true, exclusive: false, autoDelete: false);
-        await channel.QueueBindAsync(queueName, "umbral.session-operations", routingKey);
+        await channel.QueueBindAsync(queueName, exchangeName, routingKey: string.Empty);
         return queueName;
     }
 
-    // Poll the bound queue (best-effort publish is off-thread) and assert exactly one message landed.
-    private static async Task<T> DrainSingleAsync<T>(IChannel channel, string queueName)
+    private static async Task<T> DrainSingleMassTransitMessageAsync<T>(IChannel channel, string queueName)
     {
         var messages = new List<T>();
         for (var attempt = 0; attempt < 50; attempt++)
@@ -189,7 +185,10 @@ public sealed class RoundClosePublicationEndToEndTests : IAsyncLifetime
             var delivery = await channel.BasicGetAsync(queueName, autoAck: true);
             if (delivery is not null)
             {
-                messages.Add(JsonSerializer.Deserialize<T>(delivery.Body.Span)!);
+                using var envelope = JsonDocument.Parse(delivery.Body);
+                messages.Add(envelope.RootElement
+                    .GetProperty("message")
+                    .Deserialize<T>(MassTransitJsonOptions)!);
             }
             else if (messages.Count > 0)
             {
@@ -202,7 +201,7 @@ public sealed class RoundClosePublicationEndToEndTests : IAsyncLifetime
         }
 
         messages.Should().ContainSingle(
-            "the close must publish exactly one {0} on its routing key", typeof(T).Name);
+            "the close must publish exactly one {0} through MassTransit", typeof(T).Name);
         return messages[0];
     }
 

@@ -37,6 +37,32 @@ public sealed class BroadcastTeamBoardNotificationHandlerTests
     }
 
     [Fact]
+    public async Task Handle_MemberChange_InvokesTeamBroadcasterSoTheChangeReachesTheTeamsDevices()
+    {
+        // HU-08 / AC1-AC2 (multi-device propagation lock): when the board of a team that has an admitted
+        // member changes, the notification handler must invoke ITeamBoardBroadcaster.BroadcastTeamBoardUpdatedAsync
+        // with that team's board — this is the single fan-out point through which the change reaches every
+        // device the team's members have joined to the team:{teamId} group. If a future refactor drops this
+        // call, multi-device sync silently breaks; this test locks it.
+        var session = CreateActiveTreasureHuntWithMember(out var teamId);
+        var broadcaster = new Mock<ITeamBoardBroadcaster>();
+        var handler = CreateHandler(session, broadcaster);
+
+        await handler.Handle(
+            new SessionStateChangedEvent(session.LiveSessionId, SessionState.Preparing, SessionState.Active, Now),
+            CancellationToken.None);
+
+        broadcaster.Verify(
+            current => current.BroadcastTeamBoardUpdatedAsync(
+                It.Is<ParticipantTeamBoardDto>(board =>
+                    board.LiveSessionId == session.LiveSessionId &&
+                    board.TeamId == teamId),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+        broadcaster.VerifyNoOtherCalls();
+    }
+
+    [Fact]
     public async Task Handle_SubstageAdvanced_BroadcastsTreasureHuntBoardOnceForTheTeam()
     {
         var session = CreateActiveTreasureHunt(out var teamIds);
@@ -89,6 +115,48 @@ public sealed class BroadcastTeamBoardNotificationHandlerTests
         }
     }
 
+    [Fact]
+    public async Task Handle_OperativeClueAdded_BroadcastsOnlyAssignedTeamBoardWithStableClueId()
+    {
+        var session = CreateActiveTreasureHunt(out var teamIds, teamCount: 2);
+        session.AddOperativeClue("Look beneath the blue banner.", [teamIds[0]], 55, Now);
+        var operativeClue = session.GetOperativeClues().Single();
+        var domainEvent = session.DomainEvents
+            .OfType<OperativeClueAddedEvent>()
+            .Single(current => current.OperativeClueId == operativeClue.OperativeClueId);
+        ParticipantTeamBoardDto? broadcastBoard = null;
+        var broadcaster = new Mock<ITeamBoardBroadcaster>();
+        broadcaster
+            .Setup(current => current.BroadcastTeamBoardUpdatedAsync(
+                It.IsAny<ParticipantTeamBoardDto>(),
+                It.IsAny<CancellationToken>()))
+            .Callback<ParticipantTeamBoardDto, CancellationToken>((board, _) => broadcastBoard = board)
+            .Returns(Task.CompletedTask);
+        var handler = CreateHandler(session, broadcaster);
+
+        await handler.Handle(domainEvent, CancellationToken.None);
+
+        broadcaster.Verify(
+            current => current.BroadcastTeamBoardUpdatedAsync(
+                It.Is<ParticipantTeamBoardDto>(board => board.TeamId == teamIds[0]),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+        broadcaster.Verify(
+            current => current.BroadcastTeamBoardUpdatedAsync(
+                It.Is<ParticipantTeamBoardDto>(board => board.TeamId == teamIds[1]),
+                It.IsAny<CancellationToken>()),
+            Times.Never);
+        broadcaster.VerifyNoOtherCalls();
+
+        broadcastBoard.Should().NotBeNull();
+        var clue = broadcastBoard!.VisibleClues
+            .Should().ContainSingle(current => current.OperativeClueId == operativeClue.OperativeClueId)
+            .Which;
+        clue.ClueText.Should().Be(operativeClue.ClueText);
+        clue.TargetSnapshotId.Should().BeNull();
+        clue.TargetName.Should().BeNull();
+    }
+
     private static BroadcastTeamBoardNotificationHandler CreateHandler(
         LiveSession session,
         Mock<ITeamBoardBroadcaster> broadcaster)
@@ -125,6 +193,26 @@ public sealed class BroadcastTeamBoardNotificationHandlerTests
         session.MoveTo(SessionState.Active, Now.AddMinutes(-1), policy);
 
         teamIds = ids;
+        return session;
+    }
+
+    // Active treasure-hunt session whose single team has one admitted (then still-present) member,
+    // so the board fan-out represents a change that must reach that member's devices.
+    private static LiveSession CreateActiveTreasureHuntWithMember(out Guid teamId)
+    {
+        var session = LiveSessionTestFactory.CreateScheduledTreasureHunt(
+            $"SES-{Guid.NewGuid():N}"[..12],
+            "Treasure Session",
+            45,
+            Now.AddHours(1));
+
+        var team = session.AssociateTeam(Guid.NewGuid(), "Alpha", "A-01", 4);
+        var policy = new SessionStateTransitionPolicy();
+        session.MoveTo(SessionState.Preparing, Now.AddMinutes(-3), policy);
+        session.AdmitParticipant(Guid.NewGuid(), "Nora", team.TeamId, Now.AddMinutes(-2), new JoinPolicy());
+        session.MoveTo(SessionState.Active, Now.AddMinutes(-1), policy);
+
+        teamId = team.TeamId;
         return session;
     }
 

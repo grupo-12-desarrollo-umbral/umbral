@@ -8,8 +8,16 @@ public sealed record ParticipantTeamBoardDto(
     int CurrentScore,
     SessionTimerSnapshotDto Timer,
     ActiveSubstageContextDto? ActiveSubstage,
+    IReadOnlyList<SubstageProgressDto> Substages,
     IReadOnlyList<VisibleClueDto> VisibleClues,
     IReadOnlyList<ActiveTargetDto> ActiveTargets);
+
+public sealed record SubstageProgressDto(
+    Guid SubstageSnapshotId,
+    string Title,
+    int SequenceOrder,
+    string PlayMode,
+    string Status);
 
 public sealed record ActiveSubstageContextDto(
     Guid SubstageSnapshotId,
@@ -18,10 +26,19 @@ public sealed record ActiveSubstageContextDto(
     int TotalActiveTargets,
     int ResolvedTargets,
     int? ActiveQuestionSequenceOrder,
-    int? ActiveQuestionTimeLimitSeconds);
+    int? ActiveQuestionTimeLimitSeconds,
+    IReadOnlyList<ActiveSubstageTargetDto> Targets);
+
+public sealed record ActiveSubstageTargetDto(
+    Guid TargetSnapshotId,
+    string Name,
+    int SequenceOrder,
+    bool HasHiddenClue);
 
 public sealed record VisibleClueDto(
     Guid? TargetSnapshotId,
+    Guid? ClueSnapshotId,
+    Guid? OperativeClueId,
     string ClueText,
     string? TargetName);
 

@@ -9,8 +9,15 @@ using umbral_backend.Application.Sessions.Commands.DisconnectParticipant;
 using umbral_backend.Application.Sessions.Commands.ReconnectAuthenticatedParticipant;
 using umbral_backend.Application.Sessions.Commands.TransitionSessionState;
 using umbral_backend.Application.Sessions.Common;
+using umbral_backend.Application.Sessions.EventHandlers;
+using umbral_backend.Application.Sessions.Common.EvidenceIntakeValidation;
+using umbral_backend.Application.Sessions.Common.EvidenceIntakeValidation.Validators;
+using umbral_backend.Application.Sessions.Common.EvidenceValidation;
+using umbral_backend.Application.Sessions.Common.EvidenceValidation.Validators;
 using umbral_backend.Application.Sessions.Common.TriviaAnswerValidation;
 using umbral_backend.Application.Sessions.Common.TriviaAnswerValidation.Validators;
+using umbral_backend.Application.Sessions.Common.TargetResolution;
+using umbral_backend.Application.Sessions.Common.TargetResolution.Validators;
 using umbral_backend.Application.Sessions.StateTransitions;
 using umbral_backend.Application.Sessions.StateTransitions.Validators;
 using umbral_backend.Domain.Services;
@@ -40,9 +47,23 @@ public static class DependencyInjection
 
         builder.Services.AddScoped<IRuntimeParticipationGuard, RuntimeParticipationGuard>();
         builder.Services.AddScoped<ISessionAdministrationAccessResolver, SessionAdministrationAuthorizationProxy>();
+        builder.Services.AddScoped<IClueReleaseFacade, ClueReleaseFacade>();
         builder.Services.AddScoped<ISessionTeamAssociationFacade, SessionTeamAssociationFacade>();
         builder.Services.AddScoped<ITriviaRoundOrchestratorFacade, TriviaRoundOrchestratorFacade>();
+        builder.Services.AddScoped<IEvidenceIntakeFacade, EvidenceIntakeFacade>();
         builder.Services.AddScoped<IQuestionActivationStrategy, SequentialQuestionActivationStrategy>();
+
+        // Transactional-outbox integration publishers dispatched pre-commit by the interceptor (not via
+        // MediatR notifications, so their OutboxMessage insert rides the business SaveChanges).
+        builder.Services.AddScoped<PublishAnswerRegisteredIntegrationEventHandler>();
+        builder.Services.AddScoped<PublishEvidenceSubmissionRegisteredIntegrationEventHandler>();
+        builder.Services.AddScoped<PublishEvidenceSubmissionAcceptedIntegrationEventHandler>();
+        builder.Services.AddScoped<PublishEvidenceSubmissionRejectedIntegrationEventHandler>();
+        builder.Services.AddScoped<PublishQuestionClosedIntegrationEventHandler>();
+        builder.Services.AddScoped<PublishSessionResultsFinalizedIntegrationEventHandler>();
+        builder.Services.AddScoped<PublishSessionStateChangedIntegrationEventHandler>();
+        builder.Services.AddScoped<PublishTargetResolvedIntegrationEventHandler>();
+        builder.Services.AddScoped<IOutboxDomainEventDispatcher, OutboxDomainEventDispatcher>();
 
         // Chain of Responsibility for session-state transitions. Registration order is the run
         // order; downstream HUs append a validator here without modifying SessionTransitionChain.
@@ -51,13 +72,29 @@ public static class DependencyInjection
         builder.Services.AddScoped<SessionTransitionValidator, ParticipantReadinessGate>();
         builder.Services.AddScoped<SessionTransitionChain>();
 
-        // Chain of Responsibility for trivia-answer acceptance (HU-34). Registration order IS the run
-        // order — runtime participation -> active question -> timer window -> duplicate team answer —
-        // and the chain short-circuits on the first rejecting link.
-        builder.Services.AddScoped<TriviaAnswerValidationLink, RuntimeParticipationLink>();
+        // Shared evidence-intake Chain of Responsibility. Registration order IS the run order and
+        // each rejecting link short-circuits the rest.
+        builder.Services.AddScoped<EvidenceIntakeValidationLink, RuntimeParticipationLink>();
+        builder.Services.AddScoped<EvidenceIntakeValidationLink, SessionAdmitsReceptionLink>();
+        builder.Services.AddScoped<EvidenceIntakeValidationLink, ActiveSubstagePresentLink>();
+        builder.Services.AddScoped<EvidenceIntakeValidationChain>();
+
+        // Contextual EvidenceValidationPolicy Chain of Responsibility. Registration order IS the
+        // execution order; the first rejected context prevents every later link from running.
+        builder.Services.AddScoped<EvidenceValidationLink, ActiveSubstageBindingLink>();
+        builder.Services.AddScoped<EvidenceValidationLink, SubmissionWindowLink>();
+        builder.Services.AddScoped<EvidenceValidationLink, SubmissionOriginLink>();
+        builder.Services.AddScoped<EvidenceValidationChain>();
+
+        // Trivia composes the shared admission chain above with these form-specific extension links.
         builder.Services.AddScoped<TriviaAnswerValidationLink, ActiveTriviaQuestionLink>();
         builder.Services.AddScoped<TriviaAnswerValidationLink, TriviaAnswerWindowLink>();
         builder.Services.AddScoped<TriviaAnswerValidationLink, DuplicateTriviaAnswerLink>();
         builder.Services.AddScoped<TriviaAnswerValidationChain>();
+
+        builder.Services.AddScoped<TargetResolutionLink, TargetExistsForScanLink>();
+        builder.Services.AddScoped<TargetResolutionLink, TargetBelongsToActiveSubstageLink>();
+        builder.Services.AddScoped<TargetResolutionLink, TargetNotAlreadyResolvedLink>();
+        builder.Services.AddScoped<TargetResolutionChain>();
     }
 }

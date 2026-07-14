@@ -34,6 +34,9 @@ SEEDED_LIVE_TRIVIA_TITLE="Seeded Live Trivia"
 SEEDED_LIVE_TRIVIA_SOURCE_TITLE="Filosofos de Atenas"
 SEEDED_LIVE_TRIVIA_MISSION_NAME="Seeded Live Trivia Mission"
 
+PANA_TH_MISSION_NAME="Pana Exito Treasure Hunt Mission"
+PANA_TH_TITLE="Pana Exito TH"
+
 echo "=== 1/3  Seeding trivia, sessions, and teams (psql) …"
 
 declare -A SESSIONS=(
@@ -77,12 +80,24 @@ psql -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d session_operations -c "
   DELETE FROM live_sessions WHERE title_snapshot = '$SEEDED_LIVE_TRIVIA_TITLE';
 " 2>/dev/null || true
 
+psql -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d session_operations -c "
+  DELETE FROM live_sessions WHERE title_snapshot = '$PANA_TH_TITLE';
+" 2>/dev/null || true
+
 echo "  mission_design (trivia quizzes) …"
-# Delete the seeded mission first (cascades to its stages/substages). Quizzes are wiped
-# and recreated with fresh serial ids every run, so the mission's quiz selection must be
-# reauthored each run too — otherwise it dangles and the mission stops being runtime-ready.
+# The canonical quiz catalog is destructive: quizzes are wiped and recreated with fresh ids.
+# Delete every mission that selects a trivia quiz first (cascades to stages/substages), so no
+# persisted MissionSubstage can retain a dangling or, worse, silently remapped TriviaQuizId.
+# Playwright global setup recreates its E2E missions after seed-all; the live seed mission below
+# is reauthored later in this script.
 psql -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d mission_design -c "
-  DELETE FROM \"Missions\" WHERE \"Name\" = '$SEEDED_LIVE_TRIVIA_MISSION_NAME';
+  DELETE FROM \"Missions\"
+  WHERE \"Id\" IN (
+    SELECT DISTINCT stages.\"MissionId\"
+    FROM \"MissionStages\" AS stages
+    JOIN \"MissionSubstages\" AS substages ON substages.\"StageId\" = stages.\"Id\"
+    WHERE substages.\"TriviaQuizId\" IS NOT NULL
+  );
   DELETE FROM \"TriviaOptions\";
   DELETE FROM \"TriviaQuestions\";
   DELETE FROM \"TriviaQuizzes\";
@@ -95,18 +110,18 @@ WITH quiz AS (
   RETURNING \"Id\"
 ),
 q1 AS (
-  INSERT INTO \"TriviaQuestions\" (\"TriviaQuizId\", \"Prompt\", \"SequenceOrder\", \"ScoreValue\", \"TimeLimitSeconds\", \"Explanation\", \"IsActive\")
-  SELECT \"Id\", '¿Quién fue el maestro de Platón?', 1, 100, 30, 'Sócrates fue el maestro de Platón.', true FROM quiz
+  INSERT INTO \"TriviaQuestions\" (\"TriviaQuizId\", \"Prompt\", \"ScoreValue\", \"TimeLimitSeconds\", \"Explanation\", \"IsActive\")
+  SELECT \"Id\", '¿Quién fue el maestro de Platón?', 100, 30, 'Sócrates fue el maestro de Platón.', true FROM quiz
   RETURNING \"Id\"
 ),
 q2 AS (
-  INSERT INTO \"TriviaQuestions\" (\"TriviaQuizId\", \"Prompt\", \"SequenceOrder\", \"ScoreValue\", \"TimeLimitSeconds\", \"Explanation\", \"IsActive\")
-  SELECT \"Id\", '¿Qué filósofo fundó la Academia de Atenas?', 2, 100, 30, 'Platón fundó la Academia de Atenas.', true FROM quiz
+  INSERT INTO \"TriviaQuestions\" (\"TriviaQuizId\", \"Prompt\", \"ScoreValue\", \"TimeLimitSeconds\", \"Explanation\", \"IsActive\")
+  SELECT \"Id\", '¿Qué filósofo fundó la Academia de Atenas?', 100, 30, 'Platón fundó la Academia de Atenas.', true FROM quiz
   RETURNING \"Id\"
 ),
 q3 AS (
-  INSERT INTO \"TriviaQuestions\" (\"TriviaQuizId\", \"Prompt\", \"SequenceOrder\", \"ScoreValue\", \"TimeLimitSeconds\", \"Explanation\", \"IsActive\")
-  SELECT \"Id\", '¿Cuál de estos filósofos fue discípulo de Platón?', 3, 100, 30, 'Aristóteles fue discípulo de Platón.', true FROM quiz
+  INSERT INTO \"TriviaQuestions\" (\"TriviaQuizId\", \"Prompt\", \"ScoreValue\", \"TimeLimitSeconds\", \"Explanation\", \"IsActive\")
+  SELECT \"Id\", '¿Cuál de estos filósofos fue discípulo de Platón?', 100, 30, 'Aristóteles fue discípulo de Platón.', true FROM quiz
   RETURNING \"Id\"
 )
 INSERT INTO \"TriviaOptions\" (\"TriviaQuestionId\", \"OptionText\", \"SequenceOrder\", \"IsCorrect\")
@@ -131,18 +146,18 @@ WITH quiz AS (
   RETURNING \"Id\"
 ),
 q1 AS (
-  INSERT INTO \"TriviaQuestions\" (\"TriviaQuizId\", \"Prompt\", \"SequenceOrder\", \"ScoreValue\", \"TimeLimitSeconds\", \"Explanation\", \"IsActive\")
-  SELECT \"Id\", '¿Qué guitarrista es conocido como \"Slowhand\"?', 1, 100, 30, 'Eric Clapton es apodado Slowhand.', true FROM quiz
+  INSERT INTO \"TriviaQuestions\" (\"TriviaQuizId\", \"Prompt\", \"ScoreValue\", \"TimeLimitSeconds\", \"Explanation\", \"IsActive\")
+  SELECT \"Id\", '¿Qué guitarrista es conocido como \"Slowhand\"?', 100, 30, 'Eric Clapton es apodado Slowhand.', true FROM quiz
   RETURNING \"Id\"
 ),
 q2 AS (
-  INSERT INTO \"TriviaQuestions\" (\"TriviaQuizId\", \"Prompt\", \"SequenceOrder\", \"ScoreValue\", \"TimeLimitSeconds\", \"Explanation\", \"IsActive\")
-  SELECT \"Id\", '¿Cuál de estos guitarristas revolucionó el rock con su técnica en los años 60?', 2, 100, 30, 'Jimi Hendrix revolucionó la guitarra eléctrica.', true FROM quiz
+  INSERT INTO \"TriviaQuestions\" (\"TriviaQuizId\", \"Prompt\", \"ScoreValue\", \"TimeLimitSeconds\", \"Explanation\", \"IsActive\")
+  SELECT \"Id\", '¿Cuál de estos guitarristas revolucionó el rock con su técnica en los años 60?', 100, 30, 'Jimi Hendrix revolucionó la guitarra eléctrica.', true FROM quiz
   RETURNING \"Id\"
 ),
 q3 AS (
-  INSERT INTO \"TriviaQuestions\" (\"TriviaQuizId\", \"Prompt\", \"SequenceOrder\", \"ScoreValue\", \"TimeLimitSeconds\", \"Explanation\", \"IsActive\")
-  SELECT \"Id\", '¿Qué guitarrista popularizó la técnica del tapping en el rock?', 3, 100, 30, 'Eddie Van Halen popularizó el tapping.', true FROM quiz
+  INSERT INTO \"TriviaQuestions\" (\"TriviaQuizId\", \"Prompt\", \"ScoreValue\", \"TimeLimitSeconds\", \"Explanation\", \"IsActive\")
+  SELECT \"Id\", '¿Qué guitarrista popularizó la técnica del tapping en el rock?', 100, 30, 'Eddie Van Halen popularizó el tapping.', true FROM quiz
   RETURNING \"Id\"
 )
 INSERT INTO \"TriviaOptions\" (\"TriviaQuestionId\", \"OptionText\", \"SequenceOrder\", \"IsCorrect\")
@@ -159,6 +174,29 @@ UNION ALL SELECT \"Id\", 'Steve Vai', 2, false FROM q3
 UNION ALL SELECT \"Id\", 'Joe Satriani', 3, false FROM q3
 UNION ALL SELECT \"Id\", 'Yngwie Malmsteen', 4, false FROM q3;
 "
+# HU-171 Progreso de substages — Published, dedicated to the mixed-play-mode manual test.
+psql -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d mission_design -c "
+WITH quiz AS (
+  INSERT INTO \"TriviaQuizzes\" (\"Title\", \"Description\", \"Status\", \"Created\", \"LastModified\")
+  VALUES ('HU-171 Progreso de substages', 'Quiz estable para probar Trivia seguida de Treasure Hunt.', 'Published', NOW(), NOW())
+  RETURNING \"Id\"
+),
+q1 AS (
+  INSERT INTO \"TriviaQuestions\" (\"TriviaQuizId\", \"Prompt\", \"ScoreValue\", \"TimeLimitSeconds\", \"Explanation\", \"IsActive\")
+  SELECT \"Id\", '¿Cuál es el primer modo de juego de esta misión?', 100, 30, 'La misión comienza con Trivia.', true FROM quiz
+  RETURNING \"Id\"
+),
+q2 AS (
+  INSERT INTO \"TriviaQuestions\" (\"TriviaQuizId\", \"Prompt\", \"ScoreValue\", \"TimeLimitSeconds\", \"Explanation\", \"IsActive\")
+  SELECT \"Id\", '¿Qué modo de juego sigue después de Trivia?', 100, 30, 'Treasure Hunt es el segundo substage.', true FROM quiz
+  RETURNING \"Id\"
+)
+INSERT INTO \"TriviaOptions\" (\"TriviaQuestionId\", \"OptionText\", \"SequenceOrder\", \"IsCorrect\")
+SELECT \"Id\", 'Trivia', 1, true FROM q1
+UNION ALL SELECT \"Id\", 'Treasure Hunt', 2, false FROM q1
+UNION ALL SELECT \"Id\", 'Treasure Hunt', 1, true FROM q2
+UNION ALL SELECT \"Id\", 'Trivia', 2, false FROM q2;
+"
 # Peliculas mas vistas en los ultimos 5 anos — Published
 psql -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d mission_design -c "
 WITH quiz AS (
@@ -167,18 +205,18 @@ WITH quiz AS (
   RETURNING \"Id\"
 ),
 q1 AS (
-  INSERT INTO \"TriviaQuestions\" (\"TriviaQuizId\", \"Prompt\", \"SequenceOrder\", \"ScoreValue\", \"TimeLimitSeconds\", \"Explanation\", \"IsActive\")
-  SELECT \"Id\", '¿Cuál fue la película más taquillera de 2023?', 1, 100, 30, 'Barbie fue la película más taquillera de 2023.', true FROM quiz
+  INSERT INTO \"TriviaQuestions\" (\"TriviaQuizId\", \"Prompt\", \"ScoreValue\", \"TimeLimitSeconds\", \"Explanation\", \"IsActive\")
+  SELECT \"Id\", '¿Cuál fue la película más taquillera de 2023?', 100, 30, 'Barbie fue la película más taquillera de 2023.', true FROM quiz
   RETURNING \"Id\"
 ),
 q2 AS (
-  INSERT INTO \"TriviaQuestions\" (\"TriviaQuizId\", \"Prompt\", \"SequenceOrder\", \"ScoreValue\", \"TimeLimitSeconds\", \"Explanation\", \"IsActive\")
-  SELECT \"Id\", '¿Qué película de 2022 rompió récords como secuela de un clásico de los 80?', 2, 100, 30, 'Top Gun: Maverick fue un éxito masivo en 2022.', true FROM quiz
+  INSERT INTO \"TriviaQuestions\" (\"TriviaQuizId\", \"Prompt\", \"ScoreValue\", \"TimeLimitSeconds\", \"Explanation\", \"IsActive\")
+  SELECT \"Id\", '¿Qué película de 2022 rompió récords como secuela de un clásico de los 80?', 100, 30, 'Top Gun: Maverick fue un éxito masivo en 2022.', true FROM quiz
   RETURNING \"Id\"
 ),
 q3 AS (
-  INSERT INTO \"TriviaQuestions\" (\"TriviaQuizId\", \"Prompt\", \"SequenceOrder\", \"ScoreValue\", \"TimeLimitSeconds\", \"Explanation\", \"IsActive\")
-  SELECT \"Id\", '¿Cuál de estas películas ganó el Oscar a Mejor Película en 2024?', 3, 100, 30, 'Oppenheimer ganó el Oscar a Mejor Película en 2024.', true FROM quiz
+  INSERT INTO \"TriviaQuestions\" (\"TriviaQuizId\", \"Prompt\", \"ScoreValue\", \"TimeLimitSeconds\", \"Explanation\", \"IsActive\")
+  SELECT \"Id\", '¿Cuál de estas películas ganó el Oscar a Mejor Película en 2024?', 100, 30, 'Oppenheimer ganó el Oscar a Mejor Película en 2024.', true FROM quiz
   RETURNING \"Id\"
 )
 INSERT INTO \"TriviaOptions\" (\"TriviaQuestionId\", \"OptionText\", \"SequenceOrder\", \"IsCorrect\")
@@ -203,18 +241,18 @@ WITH quiz AS (
   RETURNING \"Id\"
 ),
 q1 AS (
-  INSERT INTO \"TriviaQuestions\" (\"TriviaQuizId\", \"Prompt\", \"SequenceOrder\", \"ScoreValue\", \"TimeLimitSeconds\", \"Explanation\", \"IsActive\")
-  SELECT \"Id\", '¿Qué género musical se originó en Nueva Orleans a principios del siglo XX?', 1, 100, 30, 'El jazz nació en Nueva Orleans.', true FROM quiz
+  INSERT INTO \"TriviaQuestions\" (\"TriviaQuizId\", \"Prompt\", \"ScoreValue\", \"TimeLimitSeconds\", \"Explanation\", \"IsActive\")
+  SELECT \"Id\", '¿Qué género musical se originó en Nueva Orleans a principios del siglo XX?', 100, 30, 'El jazz nació en Nueva Orleans.', true FROM quiz
   RETURNING \"Id\"
 ),
 q2 AS (
-  INSERT INTO \"TriviaQuestions\" (\"TriviaQuizId\", \"Prompt\", \"SequenceOrder\", \"ScoreValue\", \"TimeLimitSeconds\", \"Explanation\", \"IsActive\")
-  SELECT \"Id\", '¿Cuál de estos artistas es conocido como el \"Rey del Pop\"?', 2, 100, 30, 'Michael Jackson es el Rey del Pop.', true FROM quiz
+  INSERT INTO \"TriviaQuestions\" (\"TriviaQuizId\", \"Prompt\", \"ScoreValue\", \"TimeLimitSeconds\", \"Explanation\", \"IsActive\")
+  SELECT \"Id\", '¿Cuál de estos artistas es conocido como el \"Rey del Pop\"?', 100, 30, 'Michael Jackson es el Rey del Pop.', true FROM quiz
   RETURNING \"Id\"
 ),
 q3 AS (
-  INSERT INTO \"TriviaQuestions\" (\"TriviaQuizId\", \"Prompt\", \"SequenceOrder\", \"ScoreValue\", \"TimeLimitSeconds\", \"Explanation\", \"IsActive\")
-  SELECT \"Id\", '¿Qué banda británica lanzó el álbum \"The Dark Side of the Moon\"?', 3, 100, 30, 'Pink Floyd lanzó The Dark Side of the Moon.', true FROM quiz
+  INSERT INTO \"TriviaQuestions\" (\"TriviaQuizId\", \"Prompt\", \"ScoreValue\", \"TimeLimitSeconds\", \"Explanation\", \"IsActive\")
+  SELECT \"Id\", '¿Qué banda británica lanzó el álbum \"The Dark Side of the Moon\"?', 100, 30, 'Pink Floyd lanzó The Dark Side of the Moon.', true FROM quiz
   RETURNING \"Id\"
 )
 INSERT INTO \"TriviaOptions\" (\"TriviaQuestionId\", \"OptionText\", \"SequenceOrder\", \"IsCorrect\")
@@ -239,18 +277,18 @@ WITH quiz AS (
   RETURNING \"Id\"
 ),
 q1 AS (
-  INSERT INTO \"TriviaQuestions\" (\"TriviaQuizId\", \"Prompt\", \"SequenceOrder\", \"ScoreValue\", \"TimeLimitSeconds\", \"Explanation\", \"IsActive\")
-  SELECT \"Id\", '¿Cuál es la capital de Francia?', 1, 100, 30, 'París es la capital de Francia.', true FROM quiz
+  INSERT INTO \"TriviaQuestions\" (\"TriviaQuizId\", \"Prompt\", \"ScoreValue\", \"TimeLimitSeconds\", \"Explanation\", \"IsActive\")
+  SELECT \"Id\", '¿Cuál es la capital de Francia?', 100, 30, 'París es la capital de Francia.', true FROM quiz
   RETURNING \"Id\"
 ),
 q2 AS (
-  INSERT INTO \"TriviaQuestions\" (\"TriviaQuizId\", \"Prompt\", \"SequenceOrder\", \"ScoreValue\", \"TimeLimitSeconds\", \"Explanation\", \"IsActive\")
-  SELECT \"Id\", '¿Cuál es la capital de Japón?', 2, 100, 30, 'Tokio es la capital de Japón.', true FROM quiz
+  INSERT INTO \"TriviaQuestions\" (\"TriviaQuizId\", \"Prompt\", \"ScoreValue\", \"TimeLimitSeconds\", \"Explanation\", \"IsActive\")
+  SELECT \"Id\", '¿Cuál es la capital de Japón?', 100, 30, 'Tokio es la capital de Japón.', true FROM quiz
   RETURNING \"Id\"
 ),
 q3 AS (
-  INSERT INTO \"TriviaQuestions\" (\"TriviaQuizId\", \"Prompt\", \"SequenceOrder\", \"ScoreValue\", \"TimeLimitSeconds\", \"Explanation\", \"IsActive\")
-  SELECT \"Id\", '¿Cuál es la capital de Australia?', 3, 100, 30, 'Canberra es la capital de Australia.', true FROM quiz
+  INSERT INTO \"TriviaQuestions\" (\"TriviaQuizId\", \"Prompt\", \"ScoreValue\", \"TimeLimitSeconds\", \"Explanation\", \"IsActive\")
+  SELECT \"Id\", '¿Cuál es la capital de Australia?', 100, 30, 'Canberra es la capital de Australia.', true FROM quiz
   RETURNING \"Id\"
 )
 INSERT INTO \"TriviaOptions\" (\"TriviaQuestionId\", \"OptionText\", \"SequenceOrder\", \"IsCorrect\")
@@ -276,8 +314,8 @@ WITH quiz AS (
   RETURNING \"Id\"
 ),
 q1 AS (
-  INSERT INTO \"TriviaQuestions\" (\"TriviaQuizId\", \"Prompt\", \"SequenceOrder\", \"ScoreValue\", \"TimeLimitSeconds\", \"Explanation\", \"IsActive\")
-  SELECT \"Id\", '¿En que continente esta Egipto?', 1, 100, 30, 'Egipto esta en Africa.', true FROM quiz
+  INSERT INTO \"TriviaQuestions\" (\"TriviaQuizId\", \"Prompt\", \"ScoreValue\", \"TimeLimitSeconds\", \"Explanation\", \"IsActive\")
+  SELECT \"Id\", '¿En que continente esta Egipto?', 100, 30, 'Egipto esta en Africa.', true FROM quiz
   RETURNING \"Id\"
 )
 INSERT INTO \"TriviaOptions\" (\"TriviaQuestionId\", \"OptionText\", \"SequenceOrder\", \"IsCorrect\")
@@ -285,6 +323,55 @@ SELECT \"Id\", 'Africa', 1, true FROM q1
 UNION ALL SELECT \"Id\", 'Asia', 2, false FROM q1
 UNION ALL SELECT \"Id\", 'Europa', 3, false FROM q1
 UNION ALL SELECT \"Id\", 'Oceania', 4, false FROM q1;
+"
+
+# Pana Exito Treasure Hunt — a TREASURE-HUNT-FIRST mission for the operator clue-release picker.
+# The picker (LiveSession.ProjectReleasableTargets) lists a target only when its clue is
+# HiddenUntilOperatorRelease AND its substage is the ACTIVE one AND that substage is a TreasureHunt.
+# In the HU-171 mixed fixture the treasure hunt is substage 2, so the picker stays empty until the
+# trivia round times out (~30s/question). Here the treasure hunt IS substage 1, so the dropdown is
+# populated the moment the session goes Active — nothing to sit through.
+#
+# Clue 1 is always-visible and clue 2 ('pana exito') is operator-gated, so one mission shows both
+# sides: the participant board has a clue on arrival, the picker has exactly one entry to release.
+#
+# Authored in psql (not via the missions API) so ActivationState can be stamped 'Ready' directly,
+# mirroring the HU-171 manual seed. This mission selects no trivia quiz, so the catalog wipe above
+# never cascades to it — it must be deleted by name here to stay idempotent.
+echo "  mission_design (pana exito treasure-hunt mission) …"
+psql -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d mission_design -c "
+  DELETE FROM \"Missions\" WHERE \"Name\" = '$PANA_TH_MISSION_NAME';
+"
+psql -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d mission_design -c "
+WITH mission AS (
+  INSERT INTO \"Missions\" (\"Name\", \"Description\", \"Difficulty\", \"MaximumTimeMinutes\", \"IsActive\", \"ActivationState\", \"Created\", \"LastModified\")
+  VALUES ('$PANA_TH_MISSION_NAME', 'Treasure hunt primero: el picker de pistas del operador se llena apenas inicia la sesion.', 'Easy', 60, true, 'Ready', NOW(), NOW())
+  RETURNING \"Id\"
+),
+stage AS (
+  INSERT INTO \"MissionStages\" (\"MissionId\", \"Title\", \"SequenceOrder\")
+  SELECT \"Id\", 'Stage 1', 1 FROM mission
+  RETURNING \"Id\"
+),
+sub AS (
+  INSERT INTO \"MissionSubstages\" (\"StageId\", \"Title\", \"SequenceOrder\", \"PlayMode\")
+  SELECT \"Id\", 'Treasure Hunt', 1, 'TreasureHunt' FROM stage
+  RETURNING \"Id\"
+),
+clue1 AS (
+  INSERT INTO \"MissionClues\" (\"SubstageId\", \"Title\", \"SequenceOrder\", \"Text\", \"Visibility\")
+  SELECT \"Id\", 'Clue 1', 1, 'Busca el mural azul y escanea su codigo.', 'VisibleWhenSubstageStarts' FROM sub
+  RETURNING \"Id\"
+),
+clue2 AS (
+  INSERT INTO \"MissionClues\" (\"SubstageId\", \"Title\", \"SequenceOrder\", \"Text\", \"Visibility\")
+  SELECT \"Id\", 'Clue 2', 2, 'pana exito', 'HiddenUntilOperatorRelease' FROM sub
+  RETURNING \"Id\"
+)
+INSERT INTO \"MissionTargets\" (\"SubstageId\", \"Name\", \"QrCode\", \"SequenceOrder\", \"IsActive\", \"Score\", \"ClueId\")
+SELECT sub.\"Id\", 'Target 1', 'PANA-QR-1', 1, true, 50, clue1.\"Id\" FROM sub, clue1
+UNION ALL
+SELECT sub.\"Id\", 'Target 2', 'PANA-QR-2', 2, true, 50, clue2.\"Id\" FROM sub, clue2;
 "
 
 echo "  identity_access (registered teams) …"
@@ -658,6 +745,28 @@ seed_ready_mission() {
     echo "  FAILED ($http): could not select trivia quiz for seeded mission" >&2; echo "$body" >&2; return 1
   fi
 
+  # POST .../nodes — two trivia-substage clues (HU-28): one visible immediately and one operator-gated.
+  # A trivia substage has no targets, so both are authored as substage clues rather than target clues.
+  # The first reaches the live board as a VisibleClue with BOTH targetSnapshotId and operativeClueId null
+  # (the "mission clue" case, distinct from operator-authored operative clues). The second is seeded as
+  # HiddenUntilOperatorRelease so the operator dashboard's release panel has a trivia clue to list while
+  # the trivia round is active.
+  resp="$(curl -sS -w $'\n%{http_code}' -X POST "$BASE_URL/api/missions/$mission_id/nodes" \
+    -H "Authorization: Bearer $token" -H "Content-Type: application/json" \
+    -d "{\"nodeType\":\"Clue\",\"title\":\"Pista inicial\",\"sequenceOrder\":1,\"stageId\":$stage_id,\"substageId\":$substage_id,\"clueText\":\"Observa el simbolo tallado en la entrada del templo.\",\"clueVisibilityPolicy\":\"VisibleWhenSubstageStarts\"}")"
+  http="${resp##*$'\n'}"; body="${resp%$'\n'*}"
+  if [[ "$http" != "200" ]]; then
+    echo "  FAILED ($http): could not add substage-initial clue to seeded mission" >&2; echo "$body" >&2; return 1
+  fi
+
+  resp="$(curl -sS -w $'\n%{http_code}' -X POST "$BASE_URL/api/missions/$mission_id/nodes" \
+    -H "Authorization: Bearer $token" -H "Content-Type: application/json" \
+    -d "{\"nodeType\":\"Clue\",\"title\":\"Pista liberable\",\"sequenceOrder\":2,\"stageId\":$stage_id,\"substageId\":$substage_id,\"clueText\":\"Consulta la inscripcion oculta junto al arco central.\",\"clueVisibilityPolicy\":\"HiddenUntilOperatorRelease\"}")"
+  http="${resp##*$'\n'}"; body="${resp%$'\n'*}"
+  if [[ "$http" != "200" ]]; then
+    echo "  FAILED ($http): could not add operator-release trivia clue to seeded mission" >&2; echo "$body" >&2; return 1
+  fi
+
   # GET .../readiness — must be ready before activation.
   body="$(curl -sS "$BASE_URL/api/missions/$mission_id/readiness" -H "Authorization: Bearer $token")"
   if ! grep -q '"isReady":true' <<<"$body"; then
@@ -901,6 +1010,45 @@ SEEDED_LIVE_TRIVIA_CODE="$(psql -At -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d se
 " | tr -d '[:space:]')"
 echo "  live trivia ready: ${SEEDED_LIVE_TRIVIA_CODE:-$SEEDED_LIVE_TRIVIA_ID} → Active"
 
+echo "  pana exito treasure-hunt fixture …"
+
+# Resolved by name+state rather than a literal id: the Part 1 block deletes and reinserts this
+# mission every run, so its serial id changes each time.
+PANA_TH_MISSION_ID="$(psql -At -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d mission_design -c "
+  SELECT \"Id\"
+  FROM \"Missions\"
+  WHERE \"Name\" = '$PANA_TH_MISSION_NAME'
+    AND \"IsActive\" = true
+    AND \"ActivationState\" = 'Ready'
+  ORDER BY \"Id\" DESC
+  LIMIT 1;
+" | tr -d '[:space:]')"
+
+if [[ -z "$PANA_TH_MISSION_ID" ]]; then
+  echo "  FAILED: could not resolve the '$PANA_TH_MISSION_NAME' mission authored in Part 1"
+  exit 1
+fi
+
+# POST /api/sessions builds the immutable runtime snapshot from the mission, carrying each clue's
+# visibility policy across — that snapshot, not the mission, is what the picker reads.
+PANA_TH_SESSION_ID="$(app_create_session "$APP_ADMIN_TOKEN" "$PANA_TH_MISSION_ID" "$PANA_TH_TITLE")"
+if [[ -z "$PANA_TH_SESSION_ID" ]]; then
+  echo "  FAILED: pana exito treasure-hunt session API returned no liveSessionId"
+  exit 1
+fi
+
+app_assign_operator_to_session "$APP_ADMIN_TOKEN" "$PANA_TH_SESSION_ID" "$OPERATOR_USER_ID"
+app_associate_team_to_session "$OPERATOR_TOKEN" "$PANA_TH_SESSION_ID" "$DELTA_TEAM_ID"
+app_transition_session "$OPERATOR_TOKEN" "$PANA_TH_SESSION_ID" "Preparing"
+# Active on purpose: the treasure hunt is substage 1, so going Active parks the session directly on
+# it and the release picker is populated with 'pana exito' with no further operator action.
+app_transition_session "$OPERATOR_TOKEN" "$PANA_TH_SESSION_ID" "Active"
+
+PANA_TH_CODE="$(psql -At -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d session_operations -c "
+  SELECT session_code FROM live_sessions WHERE id = '$PANA_TH_SESSION_ID';
+" | tr -d '[:space:]')"
+echo "  pana exito TH ready: ${PANA_TH_CODE:-$PANA_TH_SESSION_ID} → Active (clue 'pana exito' releasable)"
+
 echo ""
 echo "Done.  Sessions seeded:"
 for CODE in "${!SESSIONS[@]}"; do
@@ -908,3 +1056,4 @@ for CODE in "${!SESSIONS[@]}"; do
   echo "  $CODE  → $STATE"
 done
 echo "  ${SEEDED_LIVE_TRIVIA_CODE:-$SEEDED_LIVE_TRIVIA_ID}  → Active (Mission)"
+echo "  ${PANA_TH_CODE:-$PANA_TH_SESSION_ID}  → Active (Treasure Hunt — 'pana exito' ready to release)"

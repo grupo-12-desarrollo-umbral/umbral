@@ -162,7 +162,12 @@ public sealed class LiveSessionTests
         var session = LiveSessionFactory.CreateScheduledTreasureHunt();
         var occurredAt = new DateTimeOffset(2026, 6, 3, 10, 0, 0, TimeSpan.Zero);
 
-        session.MoveTo(SessionState.Preparing, occurredAt, new SessionStateTransitionPolicy(), "ready");
+        session.MoveTo(
+            SessionState.Preparing,
+            occurredAt,
+            new SessionStateTransitionPolicy(),
+            "ready",
+            responsibleUserId: 27);
 
         session.State.Should().Be(SessionState.Preparing);
 
@@ -171,6 +176,16 @@ public sealed class LiveSessionTests
         stateEvent.PreviousState.Should().Be(SessionState.Scheduled);
         stateEvent.CurrentState.Should().Be(SessionState.Preparing);
         stateEvent.ChangedAt.Should().Be(occurredAt);
+        stateEvent.ResponsibleUserId.Should().Be(27);
+        stateEvent.Reason.Should().Be("ready");
+        stateEvent.ActorType.Should().Be(SessionEventActorType.Operator);
+
+        var auditRecord = session.SessionEvents.Should().ContainSingle().Subject;
+        auditRecord.LiveSessionId.Should().Be(session.LiveSessionId);
+        auditRecord.OccurredAt.Should().Be(occurredAt);
+        auditRecord.ActorType.Should().Be(SessionEventActorType.Operator);
+        auditRecord.ActorId.Should().Be(27);
+        auditRecord.PayloadSummary.Should().Be("Scheduled→Preparing: ready");
     }
 
     [Fact]
@@ -183,6 +198,7 @@ public sealed class LiveSessionTests
         act.Should().Throw<InvalidSessionStateTransitionException>();
         session.State.Should().Be(SessionState.Scheduled);
         session.DomainEvents.OfType<SessionStateChangedEvent>().Should().BeEmpty();
+        session.SessionEvents.Should().BeEmpty();
     }
 
     [Fact]
@@ -406,6 +422,68 @@ public sealed class LiveSessionTests
         snapshot.TotalDuration.Should().Be(TimeSpan.Zero);
         snapshot.RemainingDuration.Should().Be(TimeSpan.Zero);
         snapshot.IsAdvancing.Should().BeFalse();
+    }
+
+    [Fact]
+    public void GetAuthoritativeSessionTimerSnapshot_WhenTreasureHuntSubstageActive_TracksMaximumTimeWindow()
+    {
+        var session = LiveSessionFactory.CreateScheduledMultiTargetTreasureHunt(maximumTimeMinutes: 5);
+        var activeAt = new DateTimeOffset(2026, 6, 3, 10, 1, 0, TimeSpan.Zero);
+        Activate(session);
+
+        var snapshot = session.GetAuthoritativeSessionTimerSnapshot(activeAt.AddMinutes(1));
+
+        snapshot.TotalDuration.Should().Be(TimeSpan.FromMinutes(5));
+        snapshot.RemainingDuration.Should().Be(TimeSpan.FromMinutes(4));
+        snapshot.IsAdvancing.Should().BeTrue();
+        snapshot.IsExpired.Should().BeFalse();
+        snapshot.AdvancingSince.Should().Be(activeAt);
+        session.IsSubstageTimerAdvancing.Should().BeTrue();
+    }
+
+    [Fact]
+    public void GetAuthoritativeSessionTimerSnapshot_WhenTreasureHuntPausedThenResumed_FreezesAndResumesSameWindow()
+    {
+        var session = LiveSessionFactory.CreateScheduledMultiTargetTreasureHunt(maximumTimeMinutes: 5);
+        var activeAt = new DateTimeOffset(2026, 6, 3, 10, 1, 0, TimeSpan.Zero);
+        var pausedAt = activeAt.AddMinutes(1);
+        var resumedAt = pausedAt.AddMinutes(2);
+        Activate(session);
+
+        session.MoveTo(SessionState.Paused, pausedAt, new SessionStateTransitionPolicy());
+        var frozen = session.GetAuthoritativeSessionTimerSnapshot(pausedAt.AddMinutes(10));
+
+        session.MoveTo(SessionState.Active, resumedAt, new SessionStateTransitionPolicy());
+        var resumed = session.GetAuthoritativeSessionTimerSnapshot(resumedAt.AddMinutes(1));
+
+        frozen.RemainingDuration.Should().Be(TimeSpan.FromMinutes(4));
+        frozen.IsAdvancing.Should().BeFalse();
+        frozen.AdvancingSince.Should().BeNull();
+        resumed.RemainingDuration.Should().Be(TimeSpan.FromMinutes(3));
+        resumed.IsAdvancing.Should().BeTrue();
+        resumed.AdvancingSince.Should().Be(resumedAt);
+        session.ActiveSubstageId.Should().NotBeNull();
+    }
+
+    [Fact]
+    public void MarkSubstageTimerExpiredIfElapsed_WhenTreasureHuntWindowElapsed_ExpiresWithoutAdvancing()
+    {
+        var session = LiveSessionFactory.CreateScheduledMultiTargetTreasureHunt(maximumTimeMinutes: 5);
+        var activeAt = new DateTimeOffset(2026, 6, 3, 10, 1, 0, TimeSpan.Zero);
+        Activate(session);
+        var activeSubstageId = session.ActiveSubstageId;
+        session.ClearDomainEvents();
+
+        var snapshot = session.MarkSubstageTimerExpiredIfElapsed(activeAt.AddMinutes(5));
+
+        snapshot.RemainingDuration.Should().Be(TimeSpan.Zero);
+        snapshot.IsExpired.Should().BeTrue();
+        snapshot.IsAdvancing.Should().BeFalse();
+        snapshot.ExpiredAt.Should().Be(activeAt.AddMinutes(5));
+        session.IsSubstageTimerAdvancing.Should().BeFalse();
+        session.ActiveSubstageId.Should().Be(activeSubstageId);
+        session.State.Should().Be(SessionState.Active);
+        session.DomainEvents.Should().BeEmpty();
     }
 
     // Pause freezes the active-substage timer; Active resumes the SAME question at the frozen remainder.
@@ -786,6 +864,12 @@ public sealed class LiveSessionTests
         var advancedEvent = session.DomainEvents.OfType<SubstageAdvancedEvent>().Single();
         advancedEvent.FromPlayMode.Should().Be(SubstagePlayMode.Trivia);
         advancedEvent.ToSubstageId.Should().Be(substages[1].SubstageSnapshotId);
+
+        var timer = session.GetAuthoritativeSessionTimerSnapshot(advancedAt.AddSeconds(30).AddMinutes(1));
+        timer.TotalDuration.Should().Be(TimeSpan.FromMinutes(45));
+        timer.RemainingDuration.Should().Be(TimeSpan.FromMinutes(44));
+        timer.IsAdvancing.Should().BeTrue();
+        timer.AdvancingSince.Should().Be(advancedAt.AddSeconds(30));
     }
 
     [Fact]
@@ -815,6 +899,15 @@ public sealed class LiveSessionTests
         finishedEvent.LiveSessionId.Should().Be(session.LiveSessionId);
         finishedEvent.PreviousState.Should().Be(SessionState.Active);
         finishedEvent.ChangedAt.Should().Be(advancedAt.AddSeconds(30));
+        finishedEvent.ResponsibleUserId.Should().BeNull();
+        finishedEvent.Reason.Should().BeNull();
+        finishedEvent.ActorType.Should().Be(SessionEventActorType.System);
+
+        var auditRecord = session.SessionEvents
+            .Single(sessionEvent => sessionEvent.PayloadSummary == "Active→Finished");
+        auditRecord.OccurredAt.Should().Be(advancedAt.AddSeconds(30));
+        auditRecord.ActorType.Should().Be(SessionEventActorType.System);
+        auditRecord.ActorId.Should().BeNull();
     }
 
     [Fact]
@@ -911,6 +1004,173 @@ public sealed class LiveSessionTests
             name.Contains("Finalized", StringComparison.Ordinal));
     }
 
+    // ── HU-31: target-scan registration and retained rejection ───────────────────────────────────
+
+    [Fact]
+    public void RegisterTargetScan_WhenQrMatchesActiveTarget_AcceptsAndRaisesOrderedFactsWithRelayedScore()
+    {
+        var session = LiveSessionFactory.CreateScheduledMultiTargetTreasureHunt();
+        Activate(session);
+        var team = session.Teams.Single();
+        var participantId = Guid.NewGuid();
+        var submittedAt = new DateTimeOffset(2026, 7, 13, 10, 1, 5, TimeSpan.Zero);
+        var target = session.MissionRuntimeSnapshot.TargetSnapshots.Single(target => target.Score == 200);
+
+        var submission = session.RegisterTargetScan(team.TeamId, "QR-003", participantId, submittedAt);
+
+        session.TreasureEvidenceSubmissions.Should().ContainSingle().Which.Should().Be(submission);
+        submission.ValidationState.Should().Be(EvidenceValidationState.Accepted);
+        submission.TargetSnapshotId.Should().Be(target.TargetSnapshotId);
+        submission.RejectionReason.Should().BeNull();
+
+        session.DomainEvents.OfType<EvidenceSubmissionRegisteredEvent>().Should().ContainSingle();
+        var registeredEvent = session.DomainEvents.OfType<EvidenceSubmissionRegisteredEvent>().Single();
+        registeredEvent.OriginReference.Should().Be($"target:{target.TargetSnapshotId}");
+        var registeredIndex = session.DomainEvents.ToList().FindIndex(domainEvent =>
+            domainEvent is EvidenceSubmissionRegisteredEvent);
+        var resolvedIndex = session.DomainEvents.ToList().FindIndex(domainEvent =>
+            domainEvent is TargetResolvedEvent);
+        registeredIndex.Should().BeLessThan(resolvedIndex);
+
+        var resolved = session.DomainEvents.OfType<TargetResolvedEvent>().Single();
+        resolved.LiveSessionId.Should().Be(session.LiveSessionId);
+        resolved.TeamId.Should().Be(team.TeamId);
+        resolved.EvidenceSubmissionId.Should().Be(submission.EvidenceSubmissionId);
+        resolved.ActiveSubstageId.Should().Be(session.ActiveSubstageId!.Value);
+        resolved.TargetSnapshotId.Should().Be(target.TargetSnapshotId);
+        resolved.ScoreValue.Should().Be(target.Score);
+        resolved.ResolvedAt.Should().Be(submittedAt);
+
+        submission.DomainEvents.OfType<EvidenceSubmissionAcceptedEvent>().Should().ContainSingle()
+            .Which.EvidenceSubmissionId.Should().Be(submission.EvidenceSubmissionId);
+
+        session.ProjectParticipantTeamBoard(team.TeamId, submittedAt)
+            .ActiveSubstageContext!.ResolvedTargets.Should().Be(1);
+    }
+
+    [Fact]
+    public void RegisterTargetScan_WhenQrDoesNotResolve_RetainsRejectedEvidenceAndRaisesOnlyRegistrationFact()
+    {
+        var session = LiveSessionFactory.CreateScheduledTreasureHunt();
+        Activate(session);
+        var team = session.Teams.Single();
+
+        var submission = session.RegisterTargetScan(
+            team.TeamId,
+            "WRONG-QR",
+            Guid.NewGuid(),
+            new DateTimeOffset(2026, 7, 13, 10, 1, 5, TimeSpan.Zero));
+
+        submission.ValidationState.Should().Be(EvidenceValidationState.Rejected);
+        submission.TargetSnapshotId.Should().BeNull();
+        submission.ResolutionRejectionReason.Should()
+            .Be(TargetResolutionRejectionReason.ScannedValueDoesNotResolveToTarget);
+        session.TreasureEvidenceSubmissions.Should().ContainSingle().Which.Should().Be(submission);
+        session.DomainEvents.OfType<EvidenceSubmissionRegisteredEvent>().Should().ContainSingle();
+        session.DomainEvents.OfType<EvidenceSubmissionRegisteredEvent>().Single()
+            .OriginReference.Should().Be("qr:WRONG-QR");
+        session.DomainEvents.OfType<TargetResolvedEvent>().Should().BeEmpty();
+        submission.DomainEvents.OfType<EvidenceSubmissionRejectedEvent>().Should().ContainSingle()
+            .Which.RejectionReason.Should().Be("The scanned value does not resolve to a target.");
+    }
+
+    [Fact]
+    public void RegisterTargetScan_WhenTargetAlreadyResolvedByTeam_RetainsDuplicateAsRejected()
+    {
+        var session = LiveSessionFactory.CreateScheduledTreasureHunt();
+        Activate(session);
+        var team = session.Teams.Single();
+        var submittedAt = new DateTimeOffset(2026, 7, 13, 10, 1, 5, TimeSpan.Zero);
+        session.RegisterTargetScan(team.TeamId, "QR-001", Guid.NewGuid(), submittedAt);
+
+        var duplicate = session.RegisterTargetScan(
+            team.TeamId,
+            "QR-001",
+            Guid.NewGuid(),
+            submittedAt.AddSeconds(1));
+
+        duplicate.ValidationState.Should().Be(EvidenceValidationState.Rejected);
+        duplicate.ResolutionRejectionReason.Should()
+            .Be(TargetResolutionRejectionReason.TargetAlreadyResolvedByTeam);
+        session.TreasureEvidenceSubmissions.Should().HaveCount(2);
+        session.DomainEvents.OfType<EvidenceSubmissionRegisteredEvent>().Should().HaveCount(2);
+        session.DomainEvents.OfType<TargetResolvedEvent>().Should().ContainSingle();
+        duplicate.DomainEvents.OfType<EvidenceSubmissionRejectedEvent>().Should().ContainSingle()
+            .Which.RejectionReason.Should().Be("The target has already been resolved by this team.");
+        session.ProjectParticipantTeamBoard(team.TeamId, submittedAt.AddSeconds(1))
+            .ActiveSubstageContext!.ResolvedTargets.Should().Be(1);
+    }
+
+    [Fact]
+    public void RegisterTargetScan_WhenQrMatchesTargetOutsideActiveSubstage_RetainsRejectedEvidence()
+    {
+        var session = CreateTwoTreasureSubstageSessionWithTargetInSecondSubstage();
+        Activate(session);
+        var team = session.Teams.Single();
+
+        var submission = session.RegisterTargetScan(
+            team.TeamId,
+            "QR-LATER",
+            Guid.NewGuid(),
+            new DateTimeOffset(2026, 7, 13, 10, 1, 5, TimeSpan.Zero));
+
+        submission.ValidationState.Should().Be(EvidenceValidationState.Rejected);
+        submission.ResolutionRejectionReason.Should()
+            .Be(TargetResolutionRejectionReason.TargetOutsideActiveSubstage);
+        session.DomainEvents.OfType<EvidenceSubmissionRegisteredEvent>().Should().ContainSingle();
+        session.DomainEvents.OfType<EvidenceSubmissionRegisteredEvent>().Single()
+            .OriginReference.Should().Be($"target:{submission.TargetSnapshotId}");
+        session.DomainEvents.OfType<TargetResolvedEvent>().Should().BeEmpty();
+        submission.DomainEvents.OfType<EvidenceSubmissionRejectedEvent>().Should().ContainSingle()
+            .Which.RejectionReason.Should().Be("The resolved target does not belong to the active treasure-hunt substage.");
+    }
+
+    [Theory]
+    [InlineData(SessionState.Paused)]
+    [InlineData(SessionState.Cancelled)]
+    public void RegisterTargetScan_WhenSessionDoesNotAdmitEvidence_RejectsBeforeRegistration(SessionState state)
+    {
+        var session = LiveSessionFactory.CreateScheduledTreasureHunt();
+        Activate(session);
+        var team = session.Teams.Single();
+        session.MoveTo(
+            state,
+            new DateTimeOffset(2026, 7, 13, 10, 2, 0, TimeSpan.Zero),
+            new SessionStateTransitionPolicy());
+
+        var act = () => session.RegisterTargetScan(
+            team.TeamId,
+            "QR-001",
+            Guid.NewGuid(),
+            new DateTimeOffset(2026, 7, 13, 10, 2, 1, TimeSpan.Zero));
+
+        act.Should().Throw<TriviaAnswerRequiresActiveSessionException>();
+        session.TreasureEvidenceSubmissions.Should().BeEmpty();
+        session.DomainEvents.OfType<EvidenceSubmissionRegisteredEvent>().Should().BeEmpty();
+        session.DomainEvents.OfType<TargetResolvedEvent>().Should().BeEmpty();
+    }
+
+    [Fact]
+    public void RegisterTargetScan_WhenSessionFinished_RejectsBeforeRegistration()
+    {
+        var session = LiveSessionFactory.CreateScheduledTreasureHunt();
+        Activate(session);
+        var team = session.Teams.Single();
+        var finishedAt = new DateTimeOffset(2026, 7, 13, 10, 2, 0, TimeSpan.Zero);
+        session.CompleteActiveSubstageAndAdvance(finishedAt, new SessionStateTransitionPolicy());
+
+        var act = () => session.RegisterTargetScan(
+            team.TeamId,
+            "QR-001",
+            Guid.NewGuid(),
+            finishedAt.AddSeconds(1));
+
+        act.Should().Throw<TriviaAnswerRequiresActiveSessionException>();
+        session.TreasureEvidenceSubmissions.Should().BeEmpty();
+        session.DomainEvents.OfType<EvidenceSubmissionRegisteredEvent>().Should().BeEmpty();
+        session.DomainEvents.OfType<TargetResolvedEvent>().Should().BeEmpty();
+    }
+
     // ── HU-34: answer-registration Template Method skeleton ───────────────────────────────────────
     // One workflow governs accept + reject. These tests lock every branch of the single write.
 
@@ -949,6 +1209,18 @@ public sealed class LiveSessionTests
         registered.IsCorrect.Should().BeTrue();
         registered.ScoreValue.Should().Be(100);
         registered.SubmittedAt.Should().Be(submittedAt);
+
+        var evidenceRegistered = session.DomainEvents.OfType<EvidenceSubmissionRegisteredEvent>().Single();
+        evidenceRegistered.LiveSessionId.Should().Be(session.LiveSessionId);
+        evidenceRegistered.TeamId.Should().Be(team.TeamId);
+        evidenceRegistered.EvidenceSubmissionId.Should().Be(submission.EvidenceSubmissionId);
+        evidenceRegistered.ActiveSubstageId.Should().Be(session.ActiveSubstageId.Value);
+        evidenceRegistered.SubmissionType.Should().Be(EvidenceSubmissionType.TriviaAnswer);
+        evidenceRegistered.SubmittedAt.Should().Be(submittedAt);
+        evidenceRegistered.ValidationState.Should().Be(EvidenceValidationState.Pending);
+        evidenceRegistered.OriginReference.Should().Be("question:1");
+        submission.DomainEvents.OfType<EvidenceSubmissionAcceptedEvent>().Should().ContainSingle()
+            .Which.EvidenceSubmissionId.Should().Be(submission.EvidenceSubmissionId);
     }
 
     [Fact]
@@ -1023,6 +1295,7 @@ public sealed class LiveSessionTests
         session.TriviaAnswerSubmissions.Should().ContainSingle();
         session.TriviaAnswerSubmissions.Single().SelectedOptionSequenceOrder.Should().Be(1); // first write wins
         session.DomainEvents.OfType<AnswerRegisteredEvent>().Should().ContainSingle();
+        session.DomainEvents.OfType<EvidenceSubmissionRegisteredEvent>().Should().ContainSingle();
     }
 
     [Fact]
@@ -1038,6 +1311,7 @@ public sealed class LiveSessionTests
         act.Should().Throw<LateTriviaAnswerException>();
         session.TriviaAnswerSubmissions.Should().BeEmpty();
         session.DomainEvents.OfType<AnswerRegisteredEvent>().Should().BeEmpty();
+        session.DomainEvents.OfType<EvidenceSubmissionRegisteredEvent>().Should().BeEmpty();
     }
 
     [Fact]
@@ -1050,6 +1324,25 @@ public sealed class LiveSessionTests
 
         act.Should().Throw<TriviaAnswerRequiresActiveQuestionException>();
         session.DomainEvents.OfType<AnswerRegisteredEvent>().Should().BeEmpty();
+        session.DomainEvents.OfType<EvidenceSubmissionRegisteredEvent>().Should().BeEmpty();
+    }
+
+    [Fact]
+    public void RegisterTriviaAnswer_WhenTeamIsUnknown_RejectsWithoutSubmissionOrRegistrationEvent()
+    {
+        var session = ActivateTriviaSession();
+        var activatedAt = new DateTimeOffset(2026, 6, 3, 10, 1, 0, TimeSpan.Zero);
+        session.ActivateQuestion(0, activatedAt);
+
+        var act = () => session.RegisterTriviaAnswer(
+            Guid.NewGuid(),
+            selectedOptionSequenceOrder: 1,
+            Guid.NewGuid(),
+            activatedAt.AddSeconds(5));
+
+        act.Should().Throw<TeamNotFoundException>();
+        session.TriviaAnswerSubmissions.Should().BeEmpty();
+        session.DomainEvents.OfType<EvidenceSubmissionRegisteredEvent>().Should().BeEmpty();
     }
 
     [Fact]
@@ -1064,6 +1357,7 @@ public sealed class LiveSessionTests
 
         act.Should().Throw<InvalidTriviaAnswerOptionException>();
         session.TriviaAnswerSubmissions.Should().BeEmpty();
+        session.DomainEvents.OfType<EvidenceSubmissionRegisteredEvent>().Should().BeEmpty();
     }
 
     [Fact]
@@ -1080,6 +1374,8 @@ public sealed class LiveSessionTests
         var act = () => session.RegisterTriviaAnswer(team.TeamId, selectedOptionSequenceOrder: 1, Guid.NewGuid(), advancedAt.AddSeconds(31));
 
         act.Should().Throw<TriviaAnswerRequiresTriviaSubstageException>();
+        session.TriviaAnswerSubmissions.Should().BeEmpty();
+        session.DomainEvents.OfType<EvidenceSubmissionRegisteredEvent>().Should().BeEmpty();
     }
 
     [Fact]
@@ -1096,6 +1392,8 @@ public sealed class LiveSessionTests
             new DateTimeOffset(2026, 6, 3, 10, 1, 0, TimeSpan.Zero));
 
         act.Should().Throw<TriviaAnswerRequiresTriviaSubstageException>();
+        session.TriviaAnswerSubmissions.Should().BeEmpty();
+        session.DomainEvents.OfType<EvidenceSubmissionRegisteredEvent>().Should().BeEmpty();
     }
 
     [Fact]
@@ -1111,6 +1409,7 @@ public sealed class LiveSessionTests
 
         act.Should().Throw<TriviaAnswerRequiresActiveSessionException>();
         session.DomainEvents.OfType<AnswerRegisteredEvent>().Should().BeEmpty();
+        session.DomainEvents.OfType<EvidenceSubmissionRegisteredEvent>().Should().BeEmpty();
     }
 
     [Fact]
@@ -1143,6 +1442,78 @@ public sealed class LiveSessionTests
         act.Should().Throw<TriviaAnswerRequiresActiveSessionException>();
     }
 
+    // ── #171: ordered substage progress on the participant team board ─────────────────────────────
+    // The board exposes the whole ordered substage sequence with per-item status so a mixed-play-mode
+    // participant sees where they are, not just the active substage.
+
+    [Fact]
+    public void ProjectParticipantTeamBoard_BeforeSessionIsActive_MarksEverySubstageUpcoming()
+    {
+        var session = LiveSessionFactory.CreateScheduledTriviaThenTreasureHunt();
+        var team = session.AssociateTeam(Guid.NewGuid(), "Alpha", "A-01", 4);
+        var orderedSubstages = OrderedSubstages(session);
+
+        var board = session.ProjectParticipantTeamBoard(team.TeamId, DateTimeOffset.UtcNow);
+
+        board.Substages.Should().HaveCount(2);
+        board.Substages.Select(substage => substage.SubstageSnapshotId)
+            .Should().Equal(orderedSubstages.Select(substage => substage.SubstageSnapshotId));
+        board.Substages.Select(substage => substage.SequenceOrder).Should().Equal(0, 1);
+        board.Substages.Select(substage => substage.Status)
+            .Should().AllBeEquivalentTo(SubstageProgressStatus.Upcoming);
+    }
+
+    [Fact]
+    public void ProjectParticipantTeamBoard_WhenActive_FlagsTheActiveSubstageAndKeepsLaterOnesUpcoming()
+    {
+        var session = LiveSessionFactory.CreateScheduledTriviaThenTreasureHunt();
+        Activate(session);
+        var team = session.Teams.Single();
+        var orderedSubstages = OrderedSubstages(session);
+
+        var board = session.ProjectParticipantTeamBoard(team.TeamId, DateTimeOffset.UtcNow);
+
+        board.Substages.Select(substage => substage.PlayMode)
+            .Should().Equal(SubstagePlayMode.Trivia, SubstagePlayMode.TreasureHunt);
+        board.Substages[0].SubstageSnapshotId.Should().Be(orderedSubstages[0].SubstageSnapshotId);
+        board.Substages[0].Status.Should().Be(SubstageProgressStatus.Active);
+        board.Substages[1].Status.Should().Be(SubstageProgressStatus.Upcoming);
+    }
+
+    [Fact]
+    public void ProjectParticipantTeamBoard_AfterAdvancement_MarksPriorSubstageCompletedAndNewActive()
+    {
+        var session = LiveSessionFactory.CreateScheduledTriviaThenTreasureHunt();
+        Activate(session);
+        var team = session.Teams.Single();
+        var advancedAt = new DateTimeOffset(2026, 6, 3, 10, 2, 0, TimeSpan.Zero);
+        session.ActivateQuestion(0, advancedAt);
+        session.CloseActiveQuestion(advancedAt.AddSeconds(30));
+        session.CompleteActiveSubstageAndAdvance(advancedAt.AddSeconds(30), new SessionStateTransitionPolicy());
+
+        var board = session.ProjectParticipantTeamBoard(team.TeamId, DateTimeOffset.UtcNow);
+
+        board.Substages[0].Status.Should().Be(SubstageProgressStatus.Completed);
+        board.Substages[1].Status.Should().Be(SubstageProgressStatus.Active);
+    }
+
+    [Fact]
+    public void ProjectParticipantTeamBoard_WhenFinished_MarksEverySubstageCompleted()
+    {
+        var session = ActivateTriviaSession();
+        var team = session.Teams.Single();
+        var advancedAt = new DateTimeOffset(2026, 6, 3, 10, 2, 0, TimeSpan.Zero);
+        session.ActivateQuestion(0, advancedAt);
+        session.CloseActiveQuestion(advancedAt.AddSeconds(30));
+        session.CompleteActiveSubstageAndAdvance(advancedAt.AddSeconds(30), new SessionStateTransitionPolicy());
+
+        session.State.Should().Be(SessionState.Finished);
+        var board = session.ProjectParticipantTeamBoard(team.TeamId, DateTimeOffset.UtcNow);
+
+        board.Substages.Should().ContainSingle();
+        board.Substages[0].Status.Should().Be(SubstageProgressStatus.Completed);
+    }
+
     private static IReadOnlyList<SubstageSnapshot> OrderedSubstages(LiveSession session)
     {
         return session.MissionRuntimeSnapshot.StageSnapshots
@@ -1163,6 +1534,34 @@ public sealed class LiveSessionTests
         var session = LiveSessionFactory.CreateScheduledTriviaWithThreeQuestions();
         Activate(session);
         return session;
+    }
+
+    private static LiveSession CreateTwoTreasureSubstageSessionWithTargetInSecondSubstage()
+    {
+        var firstSubstage = SubstageSnapshot.CreateTreasureHunt("First Route", 1);
+        var secondSubstage = SubstageSnapshot.CreateTreasureHunt("Second Route", 2);
+        var stage = StageSnapshot.Create("Stage One", 1, [firstSubstage, secondSubstage]);
+        var firstTarget = MissionRuntimeSnapshotFactory.CreateTarget(
+            firstSubstage.SubstageSnapshotId,
+            "QR-FIRST");
+        var secondTarget = MissionRuntimeSnapshotFactory.CreateTarget(
+            secondSubstage.SubstageSnapshotId,
+            "QR-LATER");
+        var snapshot = MissionRuntimeSnapshot.Create(
+            Guid.NewGuid(),
+            "Two Route Hunt",
+            MaximumTime.Create(45),
+            [stage],
+            [firstTarget, secondTarget],
+            []);
+
+        return LiveSession.Create(
+            SessionSource.Create(snapshot.SourceMissionId),
+            "two-th",
+            "Two Route Hunt",
+            45,
+            new DateTimeOffset(2026, 7, 13, 10, 0, 0, TimeSpan.Zero),
+            snapshot);
     }
 
     // Drives an already-team-associated Scheduled session to the requested state

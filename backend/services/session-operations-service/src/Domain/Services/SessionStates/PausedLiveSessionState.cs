@@ -16,5 +16,6 @@ internal sealed class PausedLiveSessionState : LiveSessionStateBase
     {
         session.EnterPausedSessionState(occurredAt);
         session.EnterPausedQuestionTimerState(occurredAt);
+        session.EnterPausedSubstageTimerState(occurredAt);
     }
 }

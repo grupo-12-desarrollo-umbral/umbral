@@ -69,7 +69,12 @@ internal static class MissionRuntimeSnapshotFactory
             CreateQuestions(triviaSubstage.SubstageSnapshotId, 1));
     }
 
-    internal static TargetSnapshot CreateTarget(Guid substageSnapshotId, string qrCode = "QR-001", int sequenceOrder = 1, int score = 100)
+    internal static TargetSnapshot CreateTarget(
+        Guid substageSnapshotId,
+        string qrCode = "QR-001",
+        int sequenceOrder = 1,
+        int score = 100,
+        string? clueVisibilityPolicy = "VisibleAtStart")
     {
         return TargetSnapshot.Create(
             substageSnapshotId,
@@ -81,7 +86,7 @@ internal static class MissionRuntimeSnapshotFactory
             latitude: 4.711,
             longitude: -74.0721,
             clueText: "Look near the entrance.",
-            clueVisibilityPolicy: "VisibleAtStart");
+            clueVisibilityPolicy);
     }
 
     internal static MissionRuntimeSnapshot CreateTreasureHuntSnapshotWithMultipleTargets(int maximumTimeMinutes = 45)
@@ -96,7 +101,12 @@ internal static class MissionRuntimeSnapshotFactory
             [stage],
             [
                 CreateTarget(treasureSubstage.SubstageSnapshotId, "QR-001", 1, 100),
-                CreateTarget(treasureSubstage.SubstageSnapshotId, "QR-002", 2, 150),
+                CreateTarget(
+                    treasureSubstage.SubstageSnapshotId,
+                    "QR-002",
+                    2,
+                    150,
+                    "HiddenUntilOperatorRelease"),
                 CreateTarget(treasureSubstage.SubstageSnapshotId, "QR-003", 3, 200)
             ],
             []);

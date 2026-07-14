@@ -17,6 +17,7 @@ internal sealed class ActiveLiveSessionState : LiveSessionStateBase
     {
         session.EnterActiveSessionState(occurredAt);
         session.EnterActiveQuestionTimerState(occurredAt);
+        session.EnterActiveSubstageTimerState(occurredAt);
     }
 
     public override AuthoritativeSessionTimerSnapshot GetQuestionTimerSnapshot(LiveSession session, DateTimeOffset observedAt)
@@ -34,13 +35,28 @@ internal sealed class ActiveLiveSessionState : LiveSessionStateBase
         return session.HasAdvancingQuestionTimer();
     }
 
+    public override AuthoritativeSessionTimerSnapshot GetSubstageTimerSnapshot(LiveSession session, DateTimeOffset observedAt)
+    {
+        return session.GetAdvancingSubstageTimerSnapshot(observedAt);
+    }
+
+    public override AuthoritativeSessionTimerSnapshot MarkSubstageTimerExpiredIfElapsed(LiveSession session, DateTimeOffset occurredAt)
+    {
+        return session.MarkAdvancingSubstageTimerExpiredIfElapsed(occurredAt);
+    }
+
+    public override bool IsSubstageTimerAdvancing(LiveSession session)
+    {
+        return session.HasAdvancingSubstageTimer();
+    }
+
     public override void EnsureCanAdvanceSubstage(LiveSession session)
     {
         // Active is the only state that advances substages (timer-driven).
     }
 
-    public override void EnsureCanRegisterTriviaAnswer(LiveSession session)
+    public override void EnsureCanRegisterEvidence(LiveSession session)
     {
-        // Active is the only state that admits trivia answers.
+        // Active is the only state that admits evidence.
     }
 }

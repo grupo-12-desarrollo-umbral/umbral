@@ -3,6 +3,8 @@ import {
   getParticipantTeamBoard,
   getParticipantTimerSnapshot,
   interpretTimerSnapshotError,
+  registerTargetScan,
+  RegisterTargetScanRejection,
   submitTriviaAnswer,
   SubmitTriviaAnswerRejection,
 } from '@/lib/api/sessions';
@@ -245,5 +247,106 @@ describe('submitTriviaAnswer', () => {
       expect(rejection.reasonCode).toBe('unknown');
       expect(rejection.status).toBe(0);
     }
+  });
+});
+
+describe('registerTargetScan', () => {
+  beforeEach(() => jest.clearAllMocks());
+
+  const REQUEST = { teamId: 'team-1', scannedValue: 'QR-ALPHA' };
+
+  test('POSTs to the target-scans endpoint and resolves the result on 200', async () => {
+    const result = {
+      liveSessionId: 'sess-1',
+      teamId: 'team-1',
+      activeSubstageId: 'sub-1',
+      targetSnapshotId: 'target-1',
+      isResolved: true,
+      rejectionReason: null,
+      submittedAt: '2026-07-14T10:00:00Z',
+    };
+    mockFetch.mockResolvedValueOnce({ ok: true, json: () => Promise.resolve(result) });
+
+    const response = await registerTargetScan('sess-1', REQUEST);
+
+    expect(response).toEqual(result);
+    const [url, init] = mockFetch.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe('http://localhost:8000/api/sessions/sess-1/participants/target-scans');
+    expect(init.method).toBe('POST');
+    expect(JSON.parse(init.body as string)).toEqual(REQUEST);
+  });
+
+  test('422 retained rejection carries the backend reason in detail', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status: 422,
+      json: () =>
+        Promise.resolve({
+          type: 'target-scan-rejected',
+          detail: 'The target has already been resolved by this team.',
+        }),
+    });
+
+    try {
+      await registerTargetScan('sess-1', REQUEST);
+      fail('Expected rejection');
+    } catch (e) {
+      expect(e).toBeInstanceOf(RegisterTargetScanRejection);
+      const rejection = e as RegisterTargetScanRejection;
+      expect(rejection.reasonCode).toBe('retained-rejection');
+      expect(rejection.status).toBe(422);
+      expect(rejection.detail).toBe('The target has already been resolved by this team.');
+    }
+  });
+
+  test.each([
+    [400, 'invalid-scan'],
+    [401, 'unauthorized'],
+    [403, 'not-a-participant'],
+    [404, 'session-not-found'],
+    [409, 'session-not-accepting'],
+    [500, 'unknown'],
+  ])('status %i maps to reasonCode %s', async (status, reasonCode) => {
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status,
+      json: () => Promise.resolve({ detail: 'nope' }),
+    });
+
+    await expect(registerTargetScan('sess-1', REQUEST)).rejects.toMatchObject({
+      reasonCode,
+      status,
+    });
+  });
+
+  test('non-JSON error body falls back to a status detail', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status: 409,
+      json: () => Promise.reject(new Error('not json')),
+    });
+
+    await expect(registerTargetScan('sess-1', REQUEST)).rejects.toMatchObject({
+      reasonCode: 'session-not-accepting',
+      detail: 'HTTP 409',
+    });
+  });
+
+  test('network failure throws with reasonCode network and status 0', async () => {
+    mockFetch.mockRejectedValueOnce(new TypeError('Network request failed'));
+
+    await expect(registerTargetScan('sess-1', REQUEST)).rejects.toMatchObject({
+      reasonCode: 'network',
+      status: 0,
+    });
+  });
+
+  test('URL-encodes liveSessionId in the path', async () => {
+    mockFetch.mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({}) });
+
+    await registerTargetScan('sess/with/slash', REQUEST);
+
+    const [url] = mockFetch.mock.calls[0] as [string, ...unknown[]];
+    expect(url).toContain('sess%2Fwith%2Fslash');
   });
 });

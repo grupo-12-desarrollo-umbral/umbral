@@ -1,19 +1,24 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using umbral_backend.Api.Services;
+using umbral_backend.Application.Sessions.Commands.AddOperativeClue;
 using umbral_backend.Application.Sessions.Commands.AssociateTeamToSession;
 using umbral_backend.Application.Sessions.Commands.AssignOperatorToSession;
 using umbral_backend.Application.Sessions.Commands.CreateSession;
 using umbral_backend.Application.Sessions.Commands.ReconnectAuthenticatedParticipant;
+using umbral_backend.Application.Sessions.Commands.RegisterTargetScan;
+using umbral_backend.Application.Sessions.Commands.ReleaseClue;
 using umbral_backend.Application.Sessions.Commands.SelectTeam;
 using umbral_backend.Application.Sessions.Commands.SubmitTriviaAnswer;
 using umbral_backend.Application.Sessions.Commands.TransitionSessionState;
 using umbral_backend.Application.Sessions.Common;
+using umbral_backend.Application.Sessions.Queries.GetOperatorEvidenceTrace;
 using umbral_backend.Application.Sessions.Queries.GetOperatorSessionTimerSnapshot;
 using umbral_backend.Application.Sessions.Queries.GetOperatorSessionPanel;
 using umbral_backend.Application.Sessions.Queries.GetOperatorTriviaAnsweredMonitor;
 using umbral_backend.Application.Sessions.Queries.GetParticipantSessionTimerSnapshot;
 using umbral_backend.Application.Sessions.Queries.GetParticipantTeamBoard;
+using umbral_backend.Application.Sessions.Queries.GetReleasableClues;
 using umbral_backend.Application.Sessions.Queries.GetAssociatedTeamsForSession;
 using umbral_backend.Application.Sessions.Queries.GetSessionTeamLobby;
 using umbral_backend.Application.Sessions.Queries.ListAssignableSessions;
@@ -182,6 +187,44 @@ public sealed class SessionsController(ISender sender) : ControllerBase
         return Ok(result);
     }
 
+    // HU-31: participant submits a scanned QR/token value for server-side target resolution. Intake is
+    // unconditional (AC#5) — every context-valid scan is registered and publishes
+    // EvidenceSubmissionRegistered — but only a correct match ACCEPTS the evidence and publishes the
+    // TargetResolved fact, which alone carries the score (never this response). A wrong/duplicate/
+    // out-of-context scan is retained as Rejected and surfaces here as an RFC 7807 rejection with a
+    // consistent reason; a non-admitting session (Paused/Finished/Cancelled) and a denied participation
+    // fact are blocked pre-intake and surface as ProblemDetails via the global handler. Correctness and
+    // points never leak on this participant path.
+    [HttpPost("{liveSessionId:guid}/participants/target-scans")]
+    [Authorize(Policy = AuthorizationPolicies.Participant)]
+    public async Task<ActionResult<RegisterTargetScanResultDto>> RegisterTargetScanAsync(
+        Guid liveSessionId,
+        RegisterTargetScanRequest request,
+        CancellationToken cancellationToken)
+    {
+        var result = await sender.Send(
+            new RegisterTargetScanCommand(
+                liveSessionId,
+                request.TeamId,
+                request.ScannedValue,
+                request.Token),
+            cancellationToken);
+
+        if (!result.IsResolved)
+        {
+            // Retained-reject (AC#9): the scan was registered for audit and EvidenceSubmissionRegistered
+            // already fired, but the target was not resolved. The consistent rejection reason is reported
+            // as RFC 7807 — the score never travels on this path, only on the RabbitMQ TargetResolved fact.
+            return Problem(
+                detail: result.RejectionReason,
+                statusCode: StatusCodes.Status422UnprocessableEntity,
+                title: "Unprocessable entity.",
+                type: "target-scan-rejected");
+        }
+
+        return Ok(result);
+    }
+
     [HttpGet("{liveSessionId:guid}/participants/timer")]
     [Authorize(Policy = AuthorizationPolicies.Participant)]
     public async Task<ActionResult<SessionTimerSnapshotDto>> GetParticipantTimerSnapshotAsync(
@@ -281,6 +324,65 @@ public sealed class SessionsController(ISender sender) : ControllerBase
         return Ok(result);
     }
 
+    // Operator release-clue picker source: hidden clues in the active treasure-hunt or trivia substage.
+    // Operator-scoped by the coarse policy; per-session ownership stays delegated to the resolver Proxy.
+    [HttpGet("{liveSessionId:guid}/clues/releasable")]
+    [Authorize(Policy = AuthorizationPolicies.Operator)]
+    public async Task<ActionResult<ReleasableCluesDto>> GetReleasableCluesAsync(
+        Guid liveSessionId,
+        CancellationToken cancellationToken)
+    {
+        var result = await sender.Send(
+            new GetReleasableCluesQuery(liveSessionId),
+            cancellationToken);
+
+        return Ok(result);
+    }
+
+    [HttpPost("{liveSessionId:guid}/clues/release")]
+    [Authorize(Policy = AuthorizationPolicies.Operator)]
+    public async Task<ActionResult<ReleaseClueResultDto>> ReleaseClueAsync(
+        Guid liveSessionId,
+        ReleaseClueRequest request,
+        CancellationToken cancellationToken)
+    {
+        var result = await sender.Send(
+            new ReleaseClueCommand(liveSessionId, request.TargetId, request.ClueId, request.TeamId),
+            cancellationToken);
+
+        return Ok(result);
+    }
+
+    [HttpPost("{liveSessionId:guid}/operative-clues")]
+    [Authorize(Policy = AuthorizationPolicies.Operator)]
+    public async Task<ActionResult<AddOperativeClueResultDto>> AddOperativeCluesAsync(
+        Guid liveSessionId,
+        AddOperativeClueRequest request,
+        CancellationToken cancellationToken)
+    {
+        var result = await sender.Send(
+            new AddOperativeClueCommand(liveSessionId, request.ClueText, request.TeamIds),
+            cancellationToken);
+
+        return Ok(result);
+    }
+
+    // HU-32: operator evidence traceability read surface. Returns the full trace list for a live session,
+    // optionally filtered by team, gated to the assigned operator by the ownership resolver Proxy.
+    [HttpGet("{liveSessionId:guid}/evidence-submissions")]
+    [Authorize(Policy = AuthorizationPolicies.Operator)]
+    public async Task<ActionResult<EvidenceTraceDto>> GetEvidenceSubmissionsAsync(
+        Guid liveSessionId,
+        [FromQuery] Guid? teamId,
+        CancellationToken cancellationToken)
+    {
+        var result = await sender.Send(
+            new GetOperatorEvidenceTraceQuery(liveSessionId, teamId),
+            cancellationToken);
+
+        return Ok(result);
+    }
+
     public sealed record CreateSessionRequest(
         int MissionId,
         string Title,
@@ -301,7 +403,16 @@ public sealed class SessionsController(ISender sender) : ControllerBase
         int SelectedOptionSequenceOrder,
         string? Token);
 
+    public sealed record RegisterTargetScanRequest(
+        Guid TeamId,
+        string ScannedValue,
+        string? Token);
+
     public sealed record AssignOperatorRequest(int OperatorUserId);
 
     public sealed record TransitionSessionStateRequest(string TargetState, string? Reason);
+
+    public sealed record ReleaseClueRequest(Guid? TargetId, Guid? ClueId, Guid? TeamId);
+
+    public sealed record AddOperativeClueRequest(string ClueText, IReadOnlyList<Guid> TeamIds);
 }

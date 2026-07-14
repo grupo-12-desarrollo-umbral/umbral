@@ -13,6 +13,28 @@ or [ADR-0009](0009-resolve-operator-ownership-via-identity-actor-profile.md)
 (`/api/users/me` actor-profile contract). It only decides **how a Keycloak
 account and its local `User` record first come into existence**.
 
+*(Updated 2026-07-12 — implementation status. The decision stands; two pieces it
+described as forthcoming have since landed and the file-line references below are
+point-in-time. `GH #140` is done: the service now authenticates via the
+`umbral-backend` confidential client with `grant_type: client_credentials`
+(`KeycloakAdminService.GetAdminTokenAsync`), not the `admin-cli` password grant
+this ADR describes as "current". `GH #142` is done: `POST /api/users/invitations`
+(`UsersController`) and `KeycloakAdminService.CreateUserAsync` /
+`SendExecuteActionsEmailAsync` implement §2 as recorded — user created with no
+password, `emailVerified: false`, `execute-actions-email`
+`[UPDATE_PASSWORD, VERIFY_EMAIL]`. §1 is now done as recorded (`GH #143`, realigned
+by `GH #217` after an earlier attempt shipped Keycloak's hosted registration page
+instead): the anonymous `POST /api/users/register` (`UsersController`) →
+`RegisterParticipantCommandHandler` creates the account via
+`KeycloakAdminService.CreateParticipantAsync` (enabled, `emailVerified: false`, with
+the chosen password as a non-temporary credential), assigns the server-fixed
+`Participant` role, and sends a `VERIFY_EMAIL`-only `execute-actions-email`; the
+role is never read from the request body. `registrationAllowed` is back to `false`
+and `Participant` is no longer the realm default role. The gateway exposes the
+single `/api/users/register` route anonymously behind a per-IP rate limiter; mobile
+registers through a custom native form (`app/(auth)/register.tsx`), not a hosted
+page.)*
+
 ## Context
 
 There is no written decision covering how accounts come into existence. Today all

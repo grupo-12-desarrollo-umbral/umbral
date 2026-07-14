@@ -193,6 +193,140 @@ public sealed class KeycloakAdminServiceTests
     }
 
     [Fact]
+    public async Task CreateParticipantAsync_CreatesEnabledUnverifiedUserWithPassword_AndReturnsIdFromLocationHeader()
+    {
+        var handler = new StubHandler(req =>
+        {
+            if (req.Method == HttpMethod.Post && req.RequestUri!.AbsolutePath.EndsWith("/users"))
+            {
+                var created = new HttpResponseMessage(HttpStatusCode.Created);
+                created.Headers.Location = new Uri("http://keycloak/admin/realms/umbral/users/new-participant-id");
+                return created;
+            }
+
+            return Ok(req);
+        });
+        var service = CreateService(handler);
+
+        var id = await service.CreateParticipantAsync(
+            "New Participant", "participant@example.com", "sup3rsecret", CancellationToken.None);
+
+        id.Should().Be("new-participant-id");
+
+        var post = handler.Requests.Single(r =>
+            r.Method == HttpMethod.Post && r.RequestUri!.AbsolutePath.EndsWith("/users"));
+        var body = await post.Content!.ReadAsStringAsync();
+        // Enabled so Keycloak sends the verification email; unverified so the participant must verify.
+        body.Should().Contain("\"enabled\":true");
+        body.Should().Contain("\"emailVerified\":false");
+        body.Should().Contain("participant@example.com");
+        body.Should().Contain("New Participant");
+        // The chosen password is forwarded as a non-temporary credential (their real password).
+        body.Should().Contain("\"type\":\"password\"");
+        body.Should().Contain("\"value\":\"sup3rsecret\"");
+        body.Should().Contain("\"temporary\":false");
+    }
+
+    [Fact]
+    public async Task CreateParticipantAsync_WhenKeycloakReturnsConflict_ThrowsEmailAlreadyRegistered()
+    {
+        var handler = new StubHandler(req =>
+        {
+            if (req.Method == HttpMethod.Post && req.RequestUri!.AbsolutePath.EndsWith("/users"))
+            {
+                return new HttpResponseMessage(HttpStatusCode.Conflict);
+            }
+
+            return Ok(req);
+        });
+        var service = CreateService(handler);
+
+        var act = async () => await service.CreateParticipantAsync(
+            "New Participant", "participant@example.com", "sup3rsecret", CancellationToken.None);
+
+        await act.Should().ThrowAsync<EmailAlreadyRegisteredException>();
+    }
+
+    [Fact]
+    public async Task SendVerifyEmailAsync_PutsVerifyEmailAction_WithoutUpdatePassword()
+    {
+        var handler = new StubHandler(req => Ok(req));
+        var service = CreateService(handler);
+
+        await service.SendVerifyEmailAsync("kc-user", CancellationToken.None);
+
+        var put = handler.Requests.SingleOrDefault(r =>
+            r.Method == HttpMethod.Put && r.RequestUri!.AbsolutePath.EndsWith("/users/kc-user/execute-actions-email"));
+        put.Should().NotBeNull();
+
+        var body = await put!.Content!.ReadAsStringAsync();
+        body.Should().Contain("VERIFY_EMAIL");
+        // Participants set their password on the form up front — no UPDATE_PASSWORD action.
+        body.Should().NotContain("UPDATE_PASSWORD");
+    }
+
+    [Fact]
+    public async Task SendResetPasswordEmailAsync_PutsUpdatePasswordAction_WithoutVerifyEmail()
+    {
+        var handler = new StubHandler(req => Ok(req));
+        var service = CreateService(handler);
+
+        await service.SendResetPasswordEmailAsync("kc-user", CancellationToken.None);
+
+        var put = handler.Requests.SingleOrDefault(r =>
+            r.Method == HttpMethod.Put && r.RequestUri!.AbsolutePath.EndsWith("/users/kc-user/execute-actions-email"));
+        put.Should().NotBeNull();
+
+        var body = await put!.Content!.ReadAsStringAsync();
+        body.Should().Contain("UPDATE_PASSWORD");
+        // Forgot-password only resets the credential — no VERIFY_EMAIL/UPDATE_PROFILE actions.
+        body.Should().NotContain("VERIFY_EMAIL");
+    }
+
+    [Fact]
+    public async Task FindUserIdByEmailAsync_WhenUserExists_ReturnsIdFromExactMatch()
+    {
+        var handler = new StubHandler(req =>
+        {
+            if (req.Method == HttpMethod.Get && req.RequestUri!.AbsolutePath.EndsWith("/users"))
+            {
+                return Json("[{\"id\":\"kc-found-id\",\"email\":\"participant@example.com\"}]");
+            }
+
+            return Ok(req);
+        });
+        var service = CreateService(handler);
+
+        var id = await service.FindUserIdByEmailAsync("participant@example.com", CancellationToken.None);
+
+        id.Should().Be("kc-found-id");
+        var get = handler.Requests.Single(r =>
+            r.Method == HttpMethod.Get && r.RequestUri!.AbsolutePath.EndsWith("/users"));
+        // Exact match keeps Keycloak from returning substring hits.
+        get.RequestUri!.Query.Should().Contain("exact=true");
+        get.RequestUri.Query.Should().Contain("email=participant%40example.com");
+    }
+
+    [Fact]
+    public async Task FindUserIdByEmailAsync_WhenNoUserMatches_ReturnsNull()
+    {
+        var handler = new StubHandler(req =>
+        {
+            if (req.Method == HttpMethod.Get && req.RequestUri!.AbsolutePath.EndsWith("/users"))
+            {
+                return Json("[]");
+            }
+
+            return Ok(req);
+        });
+        var service = CreateService(handler);
+
+        var id = await service.FindUserIdByEmailAsync("nobody@example.com", CancellationToken.None);
+
+        id.Should().BeNull();
+    }
+
+    [Fact]
     public async Task DeleteUserAsync_SendsDelete_AndTreatsMissingUserAsAlreadyRemoved()
     {
         var handler = new StubHandler(req =>

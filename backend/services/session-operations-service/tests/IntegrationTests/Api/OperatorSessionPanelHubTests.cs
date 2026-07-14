@@ -96,6 +96,13 @@ public sealed class OperatorSessionPanelHubTests : IAsyncLifetime
         panel.State.Should().Be(nameof(SessionState.Paused));
         panel.TeamProgress.Should().ContainSingle();
         panel.TeamProgress[0].TeamId.Should().Be(seeded.TeamId);
+        panel.TeamProgress[0].ActiveSubstage.Should().NotBeNull();
+        panel.TeamProgress[0].ActiveSubstage!.Targets.Should().ContainSingle();
+        panel.TeamProgress[0].ActiveSubstage.Targets[0].Should().Be(new ActiveSubstageTargetDto(
+            seeded.TargetId,
+            "Find the key",
+            1,
+            true));
         participantReceived.Task.IsCompleted.Should().BeFalse(
             "participants only join live-session:{id}/team:{id} and must never receive operator panel updates");
     }
@@ -147,7 +154,10 @@ public sealed class OperatorSessionPanelHubTests : IAsyncLifetime
         dbContext.LiveSessions.Add(session);
         await dbContext.SaveChangesAsync();
 
-        return new SeededSession(session.LiveSessionId, team.TeamId);
+        return new SeededSession(
+            session.LiveSessionId,
+            team.TeamId,
+            session.MissionRuntimeSnapshot.TargetSnapshots.Single().TargetSnapshotId);
     }
 
     private static MissionRuntimeSnapshot CreateTreasureHuntSnapshot(Guid sourceMissionId)
@@ -172,7 +182,7 @@ public sealed class OperatorSessionPanelHubTests : IAsyncLifetime
                     4.711,
                     -74.0721,
                     "Look near the entrance.",
-                    null)
+                    "HiddenUntilOperatorRelease")
             ],
             []);
     }
@@ -187,5 +197,5 @@ public sealed class OperatorSessionPanelHubTests : IAsyncLifetime
         client.DefaultRequestHeaders.Add("X-User-Email", email);
     }
 
-    private sealed record SeededSession(Guid LiveSessionId, Guid TeamId);
+    private sealed record SeededSession(Guid LiveSessionId, Guid TeamId, Guid TargetId);
 }

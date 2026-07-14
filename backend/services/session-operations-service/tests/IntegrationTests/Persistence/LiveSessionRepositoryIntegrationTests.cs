@@ -1,5 +1,6 @@
 using umbral_backend.Domain.Entities;
 using umbral_backend.Domain.Enums;
+using umbral_backend.Domain.Exceptions;
 using umbral_backend.Domain.Services;
 using umbral_backend.Domain.ValueObjects;
 using umbral_backend.Infrastructure.Persistence;
@@ -423,6 +424,104 @@ public sealed class LiveSessionRepositoryIntegrationTests
         sessions.Should().ContainSingle(session => session.LiveSessionId == liveSession.LiveSessionId);
     }
 
+    // DES-93: an Active session whose first substage is TreasureHunt seeds an advancing substage timer on
+    // activation; the worker must tick it, so ListActiveTimersAsync selects it via the substage branch.
+    [Fact]
+    public async Task ListActiveTimersAsync_ReturnsSessionWithAdvancingTreasureHuntSubstageTimer()
+    {
+        await using var resetContext = BuildContext();
+        await ResetDatabaseAsync(resetContext);
+
+        var activeAt = new DateTimeOffset(2026, 6, 4, 12, 0, 0, TimeSpan.Zero);
+        var liveSession = CreateActiveTreasureHuntSession(activeAt);
+
+        await using (var seedContext = BuildContext())
+        {
+            seedContext.LiveSessions.Add(liveSession);
+            await seedContext.SaveChangesAsync(CancellationToken.None);
+        }
+
+        await using var assertContext = BuildContext();
+        var sessions = await new LiveSessionRepository(assertContext)
+            .ListActiveTimersAsync(CancellationToken.None);
+
+        sessions.Should().ContainSingle(session => session.LiveSessionId == liveSession.LiveSessionId);
+    }
+
+    // DES-93 stale-field guard: SeedSubstageTimerIfTreasureHunt early-returns without clearing the
+    // _substageTimer* fields when a TreasureHunt substage advances to a non-treasure-hunt one, so the
+    // advancing/expired predicate alone would keep matching. The predicate is scoped to the active
+    // substage actually being TreasureHunt, so an advanced-to-Trivia session (with no active question)
+    // must NOT be returned — otherwise the report-only worker would tick it redundantly.
+    [Fact]
+    public async Task ListActiveTimersAsync_ExcludesSessionAdvancedFromTreasureHuntToTriviaSubstage()
+    {
+        await using var resetContext = BuildContext();
+        await ResetDatabaseAsync(resetContext);
+
+        var activeAt = new DateTimeOffset(2026, 6, 4, 12, 0, 0, TimeSpan.Zero);
+        var sourceMissionId = Guid.NewGuid();
+        var liveSession = LiveSession.Create(
+            SessionSource.Create(sourceMissionId),
+            $"SES-{Guid.NewGuid():N}"[..12],
+            "Mixed Route",
+            20,
+            activeAt.AddMinutes(-10),
+            CreateMixedRuntimeSnapshot(sourceMissionId, 20));
+        var transitionPolicy = new SessionStateTransitionPolicy();
+        liveSession.AssociateTeam(Guid.NewGuid(), "Aurora", "AUR-01", 3);
+        liveSession.MoveTo(SessionState.Preparing, activeAt.AddMinutes(-1), transitionPolicy);
+        liveSession.MoveTo(SessionState.Active, activeAt, transitionPolicy);
+        // Active substage is now the leading TreasureHunt substage (timer seeded + advancing). Advance to
+        // the trailing Trivia substage without activating a question: the substage timer fields stay stale.
+        liveSession.CompleteActiveSubstageAndAdvance(activeAt.AddSeconds(30), transitionPolicy);
+        liveSession.ActiveQuestionIndex.Should().BeNull();
+
+        await using (var seedContext = BuildContext())
+        {
+            seedContext.LiveSessions.Add(liveSession);
+            await seedContext.SaveChangesAsync(CancellationToken.None);
+        }
+
+        await using var assertContext = BuildContext();
+        var sessions = await new LiveSessionRepository(assertContext)
+            .ListActiveTimersAsync(CancellationToken.None);
+
+        sessions.Should().NotContain(session => session.LiveSessionId == liveSession.LiveSessionId);
+    }
+
+    // DES-93: round-trips a seeded, advancing TreasureHunt substage timer through Postgres and proves the
+    // authoritative snapshot is the substage window seeded from the session-level MaximumTime (45 min),
+    // not the zero/expired question window that shipped before this slice.
+    [Fact]
+    public async Task GetByIdAsync_RestoresAdvancingTreasureHuntSubstageTimer()
+    {
+        await using var resetContext = BuildContext();
+        await ResetDatabaseAsync(resetContext);
+
+        var activeAt = new DateTimeOffset(2026, 6, 4, 12, 0, 0, TimeSpan.Zero);
+        var liveSession = CreateActiveTreasureHuntSession(activeAt);
+
+        await using (var seedContext = BuildContext())
+        {
+            seedContext.LiveSessions.Add(liveSession);
+            await seedContext.SaveChangesAsync(CancellationToken.None);
+        }
+
+        await using var assertContext = BuildContext();
+        var persistedSession = await new LiveSessionRepository(assertContext)
+            .GetByIdAsync(liveSession.LiveSessionId, CancellationToken.None);
+
+        persistedSession.Should().NotBeNull();
+        var snapshot = persistedSession!.GetAuthoritativeSessionTimerSnapshot(activeAt.AddMinutes(1));
+
+        snapshot.TotalDuration.Should().Be(TimeSpan.FromMinutes(45));
+        snapshot.RemainingDuration.Should().BeCloseTo(TimeSpan.FromMinutes(44), TimeSpan.FromMilliseconds(1));
+        snapshot.IsAdvancing.Should().BeTrue();
+        snapshot.IsExpired.Should().BeFalse();
+        snapshot.AdvancingSince.Should().Be(activeAt);
+    }
+
     // HU-22 (OD-3): the authoritative snapshot is the active trivia-question window, not a whole-session
     // countdown. Question 0 carries a 30s limit; these round-trip its advance/freeze/resume through Postgres.
     [Fact]
@@ -725,6 +824,393 @@ public sealed class LiveSessionRepositoryIntegrationTests
         statusByCode["DDD-01"].AnsweredAt.Should().BeNull();
     }
 
+    // HU-26: a manual clue release appends an append-only ClueReleaseRecord and increments the released
+    // team's ReleasedClueCount. This proves the owned collection round-trips through a real save -> reload:
+    // the reloaded aggregate must re-hydrate the release record (team/target/releasedAt) via GetByIdAsync's
+    // deep load, so the in-memory duplicate/no-leak guards still see the prior release after a reload.
+    [Fact]
+    public async Task UpdateAsync_RoundTripsManualClueReleaseRecordThroughAggregate()
+    {
+        await using var resetContext = BuildContext();
+        await ResetDatabaseAsync(resetContext);
+
+        var activeAt = new DateTimeOffset(2026, 6, 4, 12, 0, 0, TimeSpan.Zero);
+        var liveSession = CreateActiveReleasableTreasureHuntSession(activeAt);
+        var teamId = liveSession.Teams.Single().TeamId;
+        var targetId = liveSession.MissionRuntimeSnapshot.TargetSnapshots.Single().TargetSnapshotId;
+
+        await using (var seedContext = BuildContext())
+        {
+            seedContext.LiveSessions.Add(liveSession);
+            await seedContext.SaveChangesAsync(CancellationToken.None);
+        }
+
+        var releasedAt = activeAt.AddSeconds(30);
+
+        await using (var actContext = BuildContext())
+        {
+            var repository = new LiveSessionRepository(actContext);
+            var persistedSession = await repository.GetByIdAsync(liveSession.LiveSessionId, CancellationToken.None);
+
+            persistedSession.Should().NotBeNull();
+            persistedSession!.ReleaseClueToTeam(ClueReleaseSubject.ForTarget(targetId), teamId, 42, releasedAt);
+
+            await repository.UpdateAsync(persistedSession, CancellationToken.None);
+        }
+
+        await using var assertContext = BuildContext();
+        var reloadedSession = await new LiveSessionRepository(assertContext)
+            .GetByIdAsync(liveSession.LiveSessionId, CancellationToken.None);
+
+        reloadedSession.Should().NotBeNull();
+
+        var records = reloadedSession!.GetClueReleaseRecords();
+        records.Should().ContainSingle();
+
+        var record = records.Single();
+        record.LiveSessionId.Should().Be(liveSession.LiveSessionId);
+        record.TeamId.Should().Be(teamId);
+        record.TargetId.Should().Be(targetId);
+        record.ClueId.Should().BeNull();
+        record.ReleaseMode.Should().Be(ReleaseMode.Manual);
+        record.ReleasedByUserId.Should().Be(42);
+        record.ReleasedAt.Should().BeCloseTo(releasedAt, TimeSpan.FromMicroseconds(1));
+
+        // The released team's counter increments and round-trips; releasing does not advance the substage.
+        reloadedSession.Teams.Single().ReleasedClueCount.Should().Be(1);
+        reloadedSession.ActiveSubstageId.Should().Be(liveSession.ActiveSubstageId);
+
+        // The deep-loaded collection makes the duplicate guard fire after a reload — no leak across reloads.
+        var releaseAgain = () => reloadedSession.ReleaseClueToTeam(ClueReleaseSubject.ForTarget(targetId), teamId, 42, releasedAt.AddSeconds(1));
+        releaseAgain.Should().Throw<ClueAlreadyReleasedToTeamException>();
+    }
+
+    [Fact]
+    public async Task UpdateAsync_RoundTripsTriviaClueReleaseByClueId()
+    {
+        await using var resetContext = BuildContext();
+        await ResetDatabaseAsync(resetContext);
+
+        var activeAt = new DateTimeOffset(2026, 7, 14, 12, 0, 0, TimeSpan.Zero);
+        var liveSession = CreateActiveReleasableTriviaSession(activeAt);
+        var teamId = liveSession.Teams.Single().TeamId;
+        var clueId = liveSession.MissionRuntimeSnapshot.ClueSnapshots.Single().ClueSnapshotId;
+
+        await using (var seedContext = BuildContext())
+        {
+            seedContext.LiveSessions.Add(liveSession);
+            await seedContext.SaveChangesAsync(CancellationToken.None);
+        }
+
+        await using (var actContext = BuildContext())
+        {
+            var repository = new LiveSessionRepository(actContext);
+            var persistedSession = await repository.GetByIdAsync(liveSession.LiveSessionId, CancellationToken.None);
+            persistedSession.Should().NotBeNull();
+            persistedSession!.ReleaseClueToTeam(
+                ClueReleaseSubject.ForSubstageClue(clueId),
+                teamId,
+                42,
+                activeAt.AddSeconds(30));
+            await repository.UpdateAsync(persistedSession, CancellationToken.None);
+        }
+
+        await using var assertContext = BuildContext();
+        var reloaded = await new LiveSessionRepository(assertContext)
+            .GetByIdAsync(liveSession.LiveSessionId, CancellationToken.None);
+
+        reloaded.Should().NotBeNull();
+        var record = reloaded!.GetClueReleaseRecords().Should().ContainSingle().Which;
+        record.TargetId.Should().BeNull();
+        record.ClueId.Should().Be(clueId);
+        reloaded.ProjectParticipantTeamBoard(teamId, activeAt.AddMinutes(1)).VisibleClues
+            .Should().ContainSingle(clue => clue.ClueSnapshotId == clueId);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_RoundTripsOperativeClueThroughAggregate()
+    {
+        await using var resetContext = BuildContext();
+        await ResetDatabaseAsync(resetContext);
+
+        var activeAt = new DateTimeOffset(2026, 7, 13, 12, 0, 0, TimeSpan.Zero);
+        var liveSession = CreateActiveReleasableTreasureHuntSession(activeAt);
+        var teamId = liveSession.Teams.Single().TeamId;
+
+        await using (var seedContext = BuildContext())
+        {
+            seedContext.LiveSessions.Add(liveSession);
+            await seedContext.SaveChangesAsync(CancellationToken.None);
+        }
+
+        const string clueText = "The north gate opens after the bell.";
+        const int createdByUserId = 42;
+        var createdAt = activeAt.AddMinutes(2);
+
+        await using (var actContext = BuildContext())
+        {
+            var repository = new LiveSessionRepository(actContext);
+            var persistedSession = await repository.GetByIdAsync(liveSession.LiveSessionId, CancellationToken.None);
+
+            persistedSession.Should().NotBeNull();
+            persistedSession!.AddOperativeClue(clueText, [teamId], createdByUserId, createdAt);
+
+            await repository.UpdateAsync(persistedSession, CancellationToken.None);
+        }
+
+        await using var assertContext = BuildContext();
+        var reloadedSession = await new LiveSessionRepository(assertContext)
+            .GetByIdAsync(liveSession.LiveSessionId, CancellationToken.None);
+
+        reloadedSession.Should().NotBeNull();
+        reloadedSession!.GetOperativeClues().Should().ContainSingle();
+
+        var operativeClue = reloadedSession.GetOperativeClues().Single();
+        operativeClue.LiveSessionId.Should().Be(liveSession.LiveSessionId);
+        operativeClue.TeamId.Should().Be(teamId);
+        operativeClue.ClueText.Should().Be(clueText);
+        operativeClue.CreatedByUserId.Should().Be(createdByUserId);
+        operativeClue.CreatedAt.Should().BeCloseTo(createdAt, TimeSpan.FromMicroseconds(1));
+    }
+
+    // HU-26 DB-boundary guard: two aggregates loaded before either committed (each blind to the other's
+    // release) must not both persist a release for the same team + target. The unique index rejects the
+    // second write with a DbUpdateException.
+    [Fact]
+    public async Task UpdateAsync_RejectsSecondClueReleaseForSameTeamAndTargetAtDatabase()
+    {
+        await using var resetContext = BuildContext();
+        await ResetDatabaseAsync(resetContext);
+
+        var activeAt = new DateTimeOffset(2026, 6, 4, 12, 0, 0, TimeSpan.Zero);
+        var liveSession = CreateActiveReleasableTreasureHuntSession(activeAt);
+        var teamId = liveSession.Teams.Single().TeamId;
+        var targetId = liveSession.MissionRuntimeSnapshot.TargetSnapshots.Single().TargetSnapshotId;
+
+        await using (var seedContext = BuildContext())
+        {
+            seedContext.LiveSessions.Add(liveSession);
+            await seedContext.SaveChangesAsync(CancellationToken.None);
+        }
+
+        var releasedAt = activeAt.AddSeconds(30);
+
+        await using var firstContext = BuildContext();
+        await using var secondContext = BuildContext();
+
+        var firstSession = await new LiveSessionRepository(firstContext)
+            .GetByIdAsync(liveSession.LiveSessionId, CancellationToken.None);
+        var secondSession = await new LiveSessionRepository(secondContext)
+            .GetByIdAsync(liveSession.LiveSessionId, CancellationToken.None);
+
+        firstSession.Should().NotBeNull();
+        secondSession.Should().NotBeNull();
+
+        firstSession!.ReleaseClueToTeam(ClueReleaseSubject.ForTarget(targetId), teamId, 42, releasedAt);
+        secondSession!.ReleaseClueToTeam(ClueReleaseSubject.ForTarget(targetId), teamId, 43, releasedAt);
+
+        await new LiveSessionRepository(firstContext).UpdateAsync(firstSession, CancellationToken.None);
+
+        var secondWrite = async () =>
+            await new LiveSessionRepository(secondContext).UpdateAsync(secondSession, CancellationToken.None);
+
+        await secondWrite.Should().ThrowAsync<DbUpdateException>(
+            "the unique index on team + target must reject a second release for the same clue");
+    }
+
+    // HU-21: every valid transition appends an append-only SessionEvent capturing the date, the
+    // responsible actor, and the reason. This proves the OwnsMany live_session_events child round-trips
+    // through the aggregate repository: an Operator-driven cancellation persists an Operator SessionEvent
+    // with the responsible user id and the "previous→current: reason" payload summary.
+    [Fact]
+    public async Task UpdateAsync_RoundTripsOperatorTransitionSessionEventThroughAggregate()
+    {
+        await using var resetContext = BuildContext();
+        await ResetDatabaseAsync(resetContext);
+
+        var createdAt = DateTimeOffset.UtcNow.AddMinutes(-30);
+        var liveSession = CreateSession(createdAt);
+
+        await using (var seedContext = BuildContext())
+        {
+            seedContext.LiveSessions.Add(liveSession);
+            await seedContext.SaveChangesAsync(CancellationToken.None);
+        }
+
+        var cancelledAt = createdAt.AddMinutes(10);
+        const string reason = "Venue closed unexpectedly";
+        const int responsibleUserId = 42;
+
+        await using (var actContext = BuildContext())
+        {
+            var repository = new LiveSessionRepository(actContext);
+            var persistedSession = await repository.GetByIdAsync(liveSession.LiveSessionId, CancellationToken.None);
+
+            persistedSession.Should().NotBeNull();
+            persistedSession!.MoveTo(
+                SessionState.Cancelled,
+                cancelledAt,
+                new SessionStateTransitionPolicy(),
+                reason,
+                responsibleUserId);
+
+            await repository.UpdateAsync(persistedSession, CancellationToken.None);
+        }
+
+        await using var assertContext = BuildContext();
+        var reloadedSession = await new LiveSessionRepository(assertContext)
+            .GetByIdAsync(liveSession.LiveSessionId, CancellationToken.None);
+
+        reloadedSession.Should().NotBeNull();
+        reloadedSession!.SessionEvents.Should().ContainSingle();
+
+        var sessionEvent = reloadedSession.SessionEvents.Single();
+        sessionEvent.SessionEventId.Should().NotBe(Guid.Empty);
+        sessionEvent.LiveSessionId.Should().Be(liveSession.LiveSessionId);
+        sessionEvent.OccurredAt.Should().BeCloseTo(cancelledAt, TimeSpan.FromMicroseconds(1));
+        sessionEvent.ActorType.Should().Be(SessionEventActorType.Operator);
+        sessionEvent.ActorId.Should().Be(responsibleUserId);
+        sessionEvent.EventType.Should().Be("SessionStateChanged");
+        sessionEvent.PayloadSummary.Should().Be($"{SessionState.Scheduled}→{SessionState.Cancelled}: {reason}");
+        sessionEvent.CorrelationId.Should().NotBe(Guid.Empty);
+    }
+
+    // A system-driven transition (no responsible operator) records a System SessionEvent with a null
+    // actor id and a reasonless payload summary — proving the actor_type enum→string conversion and the
+    // nullable actor_id column round-trip for the System path.
+    [Fact]
+    public async Task UpdateAsync_RoundTripsSystemTransitionSessionEventWithNullActor()
+    {
+        await using var resetContext = BuildContext();
+        await ResetDatabaseAsync(resetContext);
+
+        var createdAt = DateTimeOffset.UtcNow.AddMinutes(-30);
+        var liveSession = CreateSession(createdAt);
+
+        await using (var seedContext = BuildContext())
+        {
+            seedContext.LiveSessions.Add(liveSession);
+            await seedContext.SaveChangesAsync(CancellationToken.None);
+        }
+
+        var preparingAt = createdAt.AddMinutes(5);
+
+        await using (var actContext = BuildContext())
+        {
+            var repository = new LiveSessionRepository(actContext);
+            var persistedSession = await repository.GetByIdAsync(liveSession.LiveSessionId, CancellationToken.None);
+
+            persistedSession.Should().NotBeNull();
+            // No responsibleUserId → System actor.
+            persistedSession!.MoveTo(SessionState.Preparing, preparingAt, new SessionStateTransitionPolicy());
+
+            await repository.UpdateAsync(persistedSession, CancellationToken.None);
+        }
+
+        await using var assertContext = BuildContext();
+        var reloadedSession = await new LiveSessionRepository(assertContext)
+            .GetByIdAsync(liveSession.LiveSessionId, CancellationToken.None);
+
+        reloadedSession.Should().NotBeNull();
+        reloadedSession!.SessionEvents.Should().ContainSingle();
+
+        var sessionEvent = reloadedSession.SessionEvents.Single();
+        sessionEvent.ActorType.Should().Be(SessionEventActorType.System);
+        sessionEvent.ActorId.Should().BeNull();
+        sessionEvent.PayloadSummary.Should().Be($"{SessionState.Scheduled}→{SessionState.Preparing}");
+    }
+
+    private static LiveSession CreateActiveReleasableTreasureHuntSession(DateTimeOffset activeAt)
+    {
+        var sourceMissionId = Guid.NewGuid();
+        var liveSession = LiveSession.Create(
+            SessionSource.Create(sourceMissionId),
+            $"SES-{Guid.NewGuid():N}"[..12],
+            "Treasure Hunt Night",
+            45,
+            activeAt.AddMinutes(-10),
+            CreateReleasableTreasureHuntRuntimeSnapshot(sourceMissionId, 45));
+
+        var transitionPolicy = new SessionStateTransitionPolicy();
+        liveSession.AssociateTeam(Guid.NewGuid(), "Aurora", "AUR-01", 3);
+        liveSession.MoveTo(SessionState.Preparing, activeAt.AddMinutes(-1), transitionPolicy);
+        liveSession.MoveTo(SessionState.Active, activeAt, transitionPolicy);
+        return liveSession;
+    }
+
+    private static LiveSession CreateActiveReleasableTriviaSession(DateTimeOffset activeAt)
+    {
+        var sourceMissionId = Guid.NewGuid();
+        var substage = SubstageSnapshot.CreateTrivia("Trivia Round", 1);
+        var question = TriviaQuestionSnapshot.Create(
+            substage.SubstageSnapshotId,
+            "Capital of France?",
+            1,
+            50,
+            30,
+            "Paris is the capital city.",
+            [
+                TriviaOptionSnapshot.Create("Paris", 1, true),
+                TriviaOptionSnapshot.Create("Lyon", 2, false)
+            ]);
+        var clue = ClueSnapshot.Create(
+            substage.SubstageSnapshotId,
+            "Operator-only trivia clue.",
+            ClueSnapshot.HiddenUntilOperatorReleasePolicy,
+            1);
+        var snapshot = MissionRuntimeSnapshot.Create(
+            sourceMissionId,
+            "Trivia Mission Runtime",
+            MaximumTime.Create(20),
+            [StageSnapshot.Create("Stage One", 1, [substage])],
+            [],
+            [question],
+            [clue]);
+        var liveSession = LiveSession.Create(
+            SessionSource.Create(sourceMissionId),
+            $"TRV-{Guid.NewGuid():N}"[..12],
+            "Trivia Night",
+            20,
+            activeAt.AddMinutes(-10),
+            snapshot);
+        liveSession.AssociateTeam(Guid.NewGuid(), "Aurora", "AUR-01", 3);
+        var transitionPolicy = new SessionStateTransitionPolicy();
+        liveSession.MoveTo(SessionState.Preparing, activeAt.AddMinutes(-1), transitionPolicy);
+        liveSession.MoveTo(SessionState.Active, activeAt, transitionPolicy);
+        return liveSession;
+    }
+
+    // A treasure-hunt snapshot whose single active target carries an operator-gated hidden clue, so
+    // ReleaseClue resolves it as releasable in the active substage.
+    private static MissionRuntimeSnapshot CreateReleasableTreasureHuntRuntimeSnapshot(
+        Guid sourceMissionId,
+        int maximumTimeMinutes)
+    {
+        var treasureHuntSubstage = SubstageSnapshot.CreateTreasureHunt("Treasure Hunt", 1);
+
+        return MissionRuntimeSnapshot.Create(
+            sourceMissionId,
+            "Mission Runtime",
+            MaximumTime.Create(maximumTimeMinutes),
+            [
+                StageSnapshot.Create("Stage One", 1, [treasureHuntSubstage])
+            ],
+            [
+                TargetSnapshot.Create(
+                    treasureHuntSubstage.SubstageSnapshotId,
+                    "Target Alpha",
+                    "QR-ALPHA",
+                    1,
+                    true,
+                    100,
+                    4.711,
+                    -74.0721,
+                    "Look under the stairs",
+                    "HiddenUntilOperatorRelease")
+            ],
+            []);
+    }
+
     private ApplicationDbContext BuildContext()
     {
         return _contextFactory.Create();
@@ -810,6 +1296,16 @@ public sealed class LiveSessionRepositoryIntegrationTests
         liveSession.MoveTo(SessionState.Preparing, activeAt.AddMinutes(-1), transitionPolicy);
         liveSession.MoveTo(SessionState.Active, activeAt, transitionPolicy);
         liveSession.ActivateQuestion(0, activeAt);
+        return liveSession;
+    }
+
+    private static LiveSession CreateActiveTreasureHuntSession(DateTimeOffset activeAt)
+    {
+        var liveSession = CreateSession(activeAt.AddMinutes(-10));
+        var transitionPolicy = new SessionStateTransitionPolicy();
+        liveSession.AssociateTeam(Guid.NewGuid(), "Aurora", "AUR-01", 3);
+        liveSession.MoveTo(SessionState.Preparing, activeAt.AddMinutes(-1), transitionPolicy);
+        liveSession.MoveTo(SessionState.Active, activeAt, transitionPolicy);
         return liveSession;
     }
 
@@ -920,5 +1416,113 @@ public sealed class LiveSessionRepositoryIntegrationTests
                 ClueSnapshot.Create(triviaSubstage.SubstageSnapshotId, "Shown at start.", "VisibleWhenSubstageStarts", 1),
                 ClueSnapshot.Create(triviaSubstage.SubstageSnapshotId, "Released by operator.", "HiddenUntilOperatorRelease", 2)
             ]);
+    }
+
+    // HU-31: an accepted treasure evidence submission round-trips through the aggregate repository.
+    [Fact]
+    public async Task UpdateAsync_RoundTripsAcceptedTreasureEvidenceSubmissionThroughAggregate()
+    {
+        await using var resetContext = BuildContext();
+        await ResetDatabaseAsync(resetContext);
+
+        var activeAt = new DateTimeOffset(2026, 7, 13, 12, 0, 0, TimeSpan.Zero);
+        var liveSession = CreateActiveTreasureHuntSession(activeAt);
+        var teamId = liveSession.Teams.Single().TeamId;
+        var participantId = Guid.NewGuid();
+
+        await using (var seedContext = BuildContext())
+        {
+            seedContext.LiveSessions.Add(liveSession);
+            await seedContext.SaveChangesAsync(CancellationToken.None);
+        }
+
+        var submittedAt = activeAt.AddSeconds(30);
+
+        await using (var actContext = BuildContext())
+        {
+            var repository = new LiveSessionRepository(actContext);
+            var persistedSession = await repository.GetByIdAsync(liveSession.LiveSessionId, CancellationToken.None);
+
+            persistedSession.Should().NotBeNull();
+
+            persistedSession!.RegisterTargetScan(teamId, "QR-ALPHA", participantId, submittedAt);
+
+            await repository.UpdateAsync(persistedSession, CancellationToken.None);
+        }
+
+        await using var assertContext = BuildContext();
+        var reloadedSession = await new LiveSessionRepository(assertContext)
+            .GetByIdAsync(liveSession.LiveSessionId, CancellationToken.None);
+
+        reloadedSession.Should().NotBeNull();
+        reloadedSession!.TreasureEvidenceSubmissions.Should().ContainSingle();
+
+        var submission = reloadedSession.TreasureEvidenceSubmissions.Single();
+
+        submission.EvidenceSubmissionId.Should().NotBe(Guid.Empty);
+        submission.LiveSessionId.Should().Be(liveSession.LiveSessionId);
+        submission.TeamId.Should().Be(teamId);
+        submission.ActiveSubstageId.Should().Be(reloadedSession.ActiveSubstageId!.Value);
+        submission.SubmissionType.Should().Be(EvidenceSubmissionType.TreasureHuntQrScan);
+        submission.SubmittedByParticipantId.Should().Be(participantId);
+        submission.SubmittedAt.Should().BeCloseTo(submittedAt, TimeSpan.FromMicroseconds(1));
+        submission.ValidationState.Should().Be(EvidenceValidationState.Accepted);
+        submission.ScannedValue.Should().Be("QR-ALPHA");
+
+        var target = reloadedSession.MissionRuntimeSnapshot.TargetSnapshots.Single();
+        submission.TargetSnapshotId.Should().Be(target.TargetSnapshotId);
+        submission.RejectionReason.Should().BeNull();
+        submission.ResolutionRejectionReason.Should().BeNull();
+
+        // The resolved target must carry the snapshotted score verbatim.
+        submission.TargetSnapshotId.Should().Be(target.TargetSnapshotId);
+    }
+
+    // HU-31: a rejected treasure evidence submission (wrong QR) round-trips with the rejection reason.
+    [Fact]
+    public async Task UpdateAsync_RoundTripsRejectedTreasureEvidenceSubmissionThroughAggregate()
+    {
+        await using var resetContext = BuildContext();
+        await ResetDatabaseAsync(resetContext);
+
+        var activeAt = new DateTimeOffset(2026, 7, 13, 12, 0, 0, TimeSpan.Zero);
+        var liveSession = CreateActiveTreasureHuntSession(activeAt);
+        var teamId = liveSession.Teams.Single().TeamId;
+        var participantId = Guid.NewGuid();
+
+        await using (var seedContext = BuildContext())
+        {
+            seedContext.LiveSessions.Add(liveSession);
+            await seedContext.SaveChangesAsync(CancellationToken.None);
+        }
+
+        var submittedAt = activeAt.AddSeconds(30);
+
+        await using (var actContext = BuildContext())
+        {
+            var repository = new LiveSessionRepository(actContext);
+            var persistedSession = await repository.GetByIdAsync(liveSession.LiveSessionId, CancellationToken.None);
+
+            persistedSession.Should().NotBeNull();
+
+            // "QR-BOGUS" does not match any target in the runtime snapshot.
+            persistedSession!.RegisterTargetScan(teamId, "QR-BOGUS", participantId, submittedAt);
+
+            await repository.UpdateAsync(persistedSession, CancellationToken.None);
+        }
+
+        await using var assertContext = BuildContext();
+        var reloadedSession = await new LiveSessionRepository(assertContext)
+            .GetByIdAsync(liveSession.LiveSessionId, CancellationToken.None);
+
+        reloadedSession.Should().NotBeNull();
+        reloadedSession!.TreasureEvidenceSubmissions.Should().ContainSingle();
+
+        var submission = reloadedSession.TreasureEvidenceSubmissions.Single();
+
+        submission.ValidationState.Should().Be(EvidenceValidationState.Rejected);
+        submission.ScannedValue.Should().Be("QR-BOGUS");
+        submission.TargetSnapshotId.Should().BeNull();
+        submission.ResolutionRejectionReason.Should().Be(TargetResolutionRejectionReason.ScannedValueDoesNotResolveToTarget);
     }
 }

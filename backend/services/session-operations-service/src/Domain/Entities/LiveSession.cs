@@ -9,14 +9,24 @@ namespace umbral_backend.Domain.Entities;
 
 public sealed class LiveSession : BaseAuditableEntity
 {
+    private const string HiddenUntilOperatorReleasePolicy = "HiddenUntilOperatorRelease";
+
     private readonly List<Team> _teams = new();
     private readonly List<SessionParticipant> _participants = new();
     private readonly List<JoinContext> _joinContexts = new();
     private readonly List<TriviaAnswerSubmission> _triviaAnswerSubmissions = new();
+    private readonly List<TreasureEvidenceSubmission> _treasureEvidenceSubmissions = new();
+    private readonly List<SessionEvent> _sessionEvents = new();
+    private readonly List<ClueReleaseRecord> _clueReleaseRecords = new();
+    private readonly List<OperativeClue> _operativeClues = new();
     private TimeSpan _questionTimerTotalDuration;
     private TimeSpan _questionTimerRemainingDuration;
     private DateTimeOffset? _questionTimerAdvancingSince;
     private DateTimeOffset? _questionTimerExpiredAt;
+    private TimeSpan _substageTimerTotalDuration;
+    private TimeSpan _substageTimerRemainingDuration;
+    private DateTimeOffset? _substageTimerAdvancingSince;
+    private DateTimeOffset? _substageTimerExpiredAt;
 
     private LiveSession()
     {
@@ -28,6 +38,8 @@ public sealed class LiveSession : BaseAuditableEntity
         MissionRuntimeSnapshot = null!;
         _questionTimerTotalDuration = TimeSpan.Zero;
         _questionTimerRemainingDuration = TimeSpan.Zero;
+        _substageTimerTotalDuration = TimeSpan.Zero;
+        _substageTimerRemainingDuration = TimeSpan.Zero;
     }
 
     private LiveSession(
@@ -64,6 +76,8 @@ public sealed class LiveSession : BaseAuditableEntity
         AssignedOperatorUserId = assignedOperatorUserId;
         _questionTimerTotalDuration = TimeSpan.Zero;
         _questionTimerRemainingDuration = TimeSpan.Zero;
+        _substageTimerTotalDuration = TimeSpan.Zero;
+        _substageTimerRemainingDuration = TimeSpan.Zero;
     }
 
     public Guid LiveSessionId { get; private set; }
@@ -94,6 +108,8 @@ public sealed class LiveSession : BaseAuditableEntity
 
     public bool IsQuestionTimerAdvancing => LiveSessionStateFactory.For(State).IsQuestionTimerAdvancing(this);
 
+    public bool IsSubstageTimerAdvancing => LiveSessionStateFactory.For(State).IsSubstageTimerAdvancing(this);
+
     public int? AssignedOperatorUserId { get; private set; }
 
     public MissionRuntimeSnapshot MissionRuntimeSnapshot { get; private set; }
@@ -111,9 +127,13 @@ public sealed class LiveSession : BaseAuditableEntity
 
     public IReadOnlyCollection<JoinContext> JoinContexts => _joinContexts.AsReadOnly();
 
+    public IReadOnlyCollection<SessionEvent> SessionEvents => _sessionEvents.AsReadOnly();
+
     // Accepted trivia answers (base evidence + trivia specialization). Only first-write-wins accepted
     // answers live here; rejected attempts throw and never enter this collection.
     public IReadOnlyCollection<TriviaAnswerSubmission> TriviaAnswerSubmissions => _triviaAnswerSubmissions.AsReadOnly();
+
+    public IReadOnlyCollection<TreasureEvidenceSubmission> TreasureEvidenceSubmissions => _treasureEvidenceSubmissions.AsReadOnly();
 
     public static LiveSession Create(
         SessionSource source,
@@ -278,7 +298,12 @@ public sealed class LiveSession : BaseAuditableEntity
         return joinContext;
     }
 
-    public void MoveTo(SessionState nextState, DateTimeOffset occurredAt, SessionStateTransitionPolicy transitionPolicy, string? reason = null)
+    public void MoveTo(
+        SessionState nextState,
+        DateTimeOffset occurredAt,
+        SessionStateTransitionPolicy transitionPolicy,
+        string? reason = null,
+        int? responsibleUserId = null)
     {
         ArgumentNullException.ThrowIfNull(transitionPolicy);
 
@@ -289,16 +314,46 @@ public sealed class LiveSession : BaseAuditableEntity
         LastStateChangedAt = occurredAt;
         StateReason = string.IsNullOrWhiteSpace(reason) ? null : reason.Trim();
 
+        var actorType = responsibleUserId.HasValue
+            ? SessionEventActorType.Operator
+            : SessionEventActorType.System;
+
         LiveSessionStateFactory.For(nextState).Enter(this, occurredAt);
 
-        AddDomainEvent(new SessionStateChangedEvent(LiveSessionId, previousState, nextState, occurredAt));
+        _sessionEvents.Add(SessionEvent.ForStateChange(
+            LiveSessionId,
+            previousState,
+            nextState,
+            occurredAt,
+            actorType,
+            responsibleUserId,
+            StateReason));
+
+        AddDomainEvent(new SessionStateChangedEvent(
+            LiveSessionId,
+            previousState,
+            nextState,
+            occurredAt,
+            responsibleUserId,
+            StateReason,
+            actorType));
     }
 
-    // Authoritative displayed remaining time = the active trivia-question window (OD-1/OD-2/OD-3):
-    // a trivia question active -> the TriviaQuestionTimer window; otherwise no advancing countdown.
+    // Authoritative displayed remaining time is selected by the active substage's play mode:
+    // TreasureHunt owns a substage window; Trivia keeps the active-question window.
     public AuthoritativeSessionTimerSnapshot GetAuthoritativeSessionTimerSnapshot(DateTimeOffset observedAt)
     {
-        return GetActiveQuestionTimerSnapshot(observedAt);
+        if (ActiveSubstageId is null)
+        {
+            return GetActiveQuestionTimerSnapshot(observedAt);
+        }
+
+        var activeSubstage = GetOrderedSubstages()
+            .SingleOrDefault(substage => substage.SubstageSnapshotId == ActiveSubstageId.Value);
+
+        return activeSubstage?.PlayMode == SubstagePlayMode.TreasureHunt
+            ? LiveSessionStateFactory.For(State).GetSubstageTimerSnapshot(this, observedAt)
+            : GetActiveQuestionTimerSnapshot(observedAt);
     }
 
     public void ActivateQuestion(int questionIndex, DateTimeOffset occurredAt)
@@ -330,6 +385,11 @@ public sealed class LiveSession : BaseAuditableEntity
         return LiveSessionStateFactory.For(State).MarkQuestionTimerExpiredIfElapsed(this, occurredAt);
     }
 
+    public AuthoritativeSessionTimerSnapshot MarkSubstageTimerExpiredIfElapsed(DateTimeOffset occurredAt)
+    {
+        return LiveSessionStateFactory.For(State).MarkSubstageTimerExpiredIfElapsed(this, occurredAt);
+    }
+
     public void CloseActiveQuestion(DateTimeOffset occurredAt)
     {
         if (ActiveQuestionIndex is null)
@@ -349,6 +409,101 @@ public sealed class LiveSession : BaseAuditableEntity
             questionIndex,
             occurredAt,
             wasExpiredByTimer));
+    }
+
+    public void ReleaseClueToTeam(
+        ClueReleaseSubject subject,
+        Guid teamId,
+        int operatorUserId,
+        DateTimeOffset now)
+    {
+        EnsureSessionActiveForClueRelease();
+        EnsureOperatorUserIdIsValid(operatorUserId);
+        ResolveReleasableSubject(subject);
+        var team = GetTeam(teamId);
+        EnsureClueNotAlreadyReleased(team.TeamId, subject);
+        AppendManualClueRelease(subject, team, operatorUserId, now);
+    }
+
+    public void ReleaseClueToAllTeams(
+        ClueReleaseSubject subject,
+        int operatorUserId,
+        DateTimeOffset now)
+    {
+        EnsureSessionActiveForClueRelease();
+        EnsureOperatorUserIdIsValid(operatorUserId);
+        ResolveReleasableSubject(subject);
+
+        foreach (var team in _teams)
+        {
+            EnsureClueNotAlreadyReleased(team.TeamId, subject);
+        }
+
+        foreach (var team in _teams)
+        {
+            AppendManualClueRelease(subject, team, operatorUserId, now);
+        }
+    }
+
+    public IReadOnlyCollection<ClueReleaseRecord> GetClueReleaseRecords()
+    {
+        return _clueReleaseRecords.AsReadOnly();
+    }
+
+    public void AddOperativeClue(
+        string clueText,
+        IReadOnlyCollection<Guid> teamIds,
+        int operatorUserId,
+        DateTimeOffset now)
+    {
+        if (State is not (SessionState.Active or SessionState.Paused))
+        {
+            throw new SessionNotLiveForOperativeClueException(State);
+        }
+
+        if (string.IsNullOrWhiteSpace(clueText))
+        {
+            throw new OperativeClueTextRequiredException();
+        }
+
+        if (teamIds.Count == 0)
+        {
+            throw new OperativeClueRequiresAtLeastOneTeamException();
+        }
+
+        EnsureOperatorUserIdIsValid(operatorUserId);
+        var teams = teamIds.Select(GetTeam).ToArray();
+        var trimmedClueText = clueText.Trim();
+
+        foreach (var team in teams)
+        {
+            var operativeClue = OperativeClue.Create(
+                LiveSessionId,
+                team.TeamId,
+                trimmedClueText,
+                operatorUserId,
+                now);
+
+            _operativeClues.Add(operativeClue);
+            _sessionEvents.Add(SessionEvent.ForOperativeClueAdded(
+                LiveSessionId,
+                now,
+                operatorUserId,
+                team.TeamId,
+                trimmedClueText));
+            AddDomainEvent(new OperativeClueAddedEvent(
+                operativeClue.OperativeClueId,
+                operativeClue.LiveSessionId,
+                operativeClue.TeamId,
+                operativeClue.ClueText,
+                operativeClue.CreatedByUserId,
+                operativeClue.CreatedAt));
+        }
+    }
+
+    public IReadOnlyCollection<OperativeClue> GetOperativeClues()
+    {
+        return _operativeClues.AsReadOnly();
     }
 
     // HU-36A restricted pre-close monitor: for the active synchronized trivia question, enumerate the
@@ -381,34 +536,189 @@ public sealed class LiveSession : BaseAuditableEntity
             : TeamAnsweredStatus.CreateAnswered(team.TeamId, team.TeamCode.Value, team.DisplayName, acceptedAnswer.SubmittedAt);
     }
 
-    // ── Fixed answer-registration skeleton (Template Method, HU-34) ────────────────────────────────
+    // Shared evidence registration with the existing trivia specialization.
     // One stable ordered workflow governs BOTH outcomes: the first in-time answer is ACCEPTED and every
     // late/duplicate/invalid attempt is REJECTED. Accept and reject are two branches of THIS single
     // write — the guards below (window + first-write-wins) are the only divergence points; there is no
     // separate reject entry point and no second entity/event for rejected attempts. The invariant steps
-    // stay in this one place so the later shared evidence pipeline (HU-29/HU-30A) can extract them.
+    // stay in this one place while the generic prefix is shared by every concrete evidence form.
     public TriviaAnswerSubmission RegisterTriviaAnswer(
         Guid teamId,
         int selectedOptionSequenceOrder,
         Guid submittedByParticipantId,
         DateTimeOffset submittedAt)
     {
-        EnsureSessionAdmitsTriviaAnswer();                                     // 1. session/runtime state gate
-        var team = GetTeam(teamId);                                           // 2. resolve the answering team
-        var question = ResolveActiveTriviaQuestion();                         // 3. authoritative active question
-        EnsureAnswerWindowOpen(submittedAt);                                  // 4. timer window (late guard)
-        var selectedOption = ResolveSelectedOption(question, selectedOptionSequenceOrder); // 5. option valid
-        EnsureFirstAnswerWins(team.TeamId, question);                        // 6. first-write-wins guard
-        var submission = AcceptTriviaAnswer(team, question, selectedOption, submittedByParticipantId, submittedAt); // 7. persist base + specialization + snapshot
-        RaiseAnswerRegistered(submission);                                   // 8. raise fact on success only
+        try
+        {
+            var submission = RegisterEvidenceCore(
+                teamId,
+                EvidenceSubmissionType.TriviaAnswer,
+                submittedByParticipantId,
+                submittedAt,
+                (team, _, participantId, registeredAt) =>
+                {
+                    var question = ResolveActiveTriviaQuestion();
+                    EnsureAnswerWindowOpen(registeredAt);
+                    var selectedOption = ResolveSelectedOption(question, selectedOptionSequenceOrder);
+                    EnsureFirstAnswerWins(team.TeamId, question);
+
+                    return BeginTriviaAnswer(
+                        team,
+                        question,
+                        selectedOption,
+                        participantId!.Value,
+                        registeredAt);
+                });
+
+            submission.AcceptRegisteredAnswer(submittedAt);
+            _triviaAnswerSubmissions.Add(submission);
+            RaiseAnswerRegistered(submission);
+            return submission;
+        }
+        catch (EvidenceSubmissionContextRequiredException) when (ActiveSubstageId is null)
+        {
+            throw new TriviaAnswerRequiresTriviaSubstageException();
+        }
+    }
+
+    public TreasureEvidenceSubmission RegisterTargetScan(
+        Guid teamId,
+        string scannedValue,
+        Guid submittedByParticipantId,
+        DateTimeOffset submittedAt)
+    {
+        var submission = RegisterEvidenceCore(
+            teamId,
+            EvidenceSubmissionType.TreasureHuntQrScan,
+            submittedByParticipantId,
+            submittedAt,
+            (team, activeSubstageId, participantId, registeredAt) =>
+            {
+                EnsureActiveTreasureHuntSubstage(activeSubstageId);
+                var resolvedTarget = ResolveScannedTarget(scannedValue);
+
+                return TreasureEvidenceSubmission.Begin(
+                    LiveSessionId,
+                    team.TeamId,
+                    activeSubstageId,
+                    scannedValue,
+                    resolvedTarget?.TargetSnapshotId,
+                    participantId!.Value,
+                    registeredAt);
+            });
+
+        _treasureEvidenceSubmissions.Add(submission);
+
+        var target = submission.TargetSnapshotId is null
+            ? null
+            : MissionRuntimeSnapshot.TargetSnapshots.Single(target =>
+                target.TargetSnapshotId == submission.TargetSnapshotId.Value);
+
+        var rejectionReason = DetermineTargetResolutionRejection(submission, target);
+        if (rejectionReason is not null)
+        {
+            submission.RejectRegisteredTarget(rejectionReason.Value, submittedAt);
+            return submission;
+        }
+
+        submission.AcceptRegisteredTarget(submittedAt);
+        AddDomainEvent(new TargetResolvedEvent(
+            LiveSessionId,
+            submission.TeamId,
+            submission.EvidenceSubmissionId,
+            submission.ActiveSubstageId,
+            target!.TargetSnapshotId,
+            target.Score,
+            submission.SubmittedAt));
+
         return submission;
+    }
+
+    private void EnsureActiveTreasureHuntSubstage(Guid activeSubstageId)
+    {
+        var activeSubstage = GetOrderedSubstages().SingleOrDefault(substage =>
+            substage.SubstageSnapshotId == activeSubstageId);
+
+        if (activeSubstage?.PlayMode != SubstagePlayMode.TreasureHunt)
+        {
+            throw new EvidenceSubmissionContextRequiredException();
+        }
+    }
+
+    private TargetSnapshot? ResolveScannedTarget(string scannedValue)
+    {
+        var normalizedValue = scannedValue.Trim();
+        return MissionRuntimeSnapshot.TargetSnapshots.SingleOrDefault(target =>
+            string.Equals(target.QrCode, normalizedValue, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private TargetResolutionRejectionReason? DetermineTargetResolutionRejection(
+        TreasureEvidenceSubmission submission,
+        TargetSnapshot? target)
+    {
+        if (target is null)
+        {
+            return TargetResolutionRejectionReason.ScannedValueDoesNotResolveToTarget;
+        }
+
+        if (target.SubstageSnapshotId != submission.ActiveSubstageId || !target.IsActive)
+        {
+            return TargetResolutionRejectionReason.TargetOutsideActiveSubstage;
+        }
+
+        var alreadyResolved = _treasureEvidenceSubmissions.Any(existing =>
+            existing != submission &&
+            existing.TeamId == submission.TeamId &&
+            existing.TargetSnapshotId == target.TargetSnapshotId &&
+            existing.ValidationState == EvidenceValidationState.Accepted);
+
+        return alreadyResolved
+            ? TargetResolutionRejectionReason.TargetAlreadyResolvedByTeam
+            : null;
     }
 
     // Step 1 — session-state gate, delegated to the State type (Active is the only state that admits
     // answers; Paused/Finished/Cancelled and pre-start states reject).
-    private void EnsureSessionAdmitsTriviaAnswer()
+    internal TSubmission RegisterEvidenceCore<TSubmission>(
+        Guid teamId,
+        EvidenceSubmissionType submissionType,
+        Guid? submittedByParticipantId,
+        DateTimeOffset submittedAt,
+        Func<Team, Guid, Guid?, DateTimeOffset, TSubmission> registerConcreteForm)
+        where TSubmission : EvidenceSubmission
     {
-        LiveSessionStateFactory.For(State).EnsureCanRegisterTriviaAnswer(this);
+        EnsureSessionAdmitsEvidence();
+        var team = GetTeam(teamId);
+        var activeSubstageId = ResolveActiveSubstageForEvidence();
+        var submission = registerConcreteForm(team, activeSubstageId, submittedByParticipantId, submittedAt);
+
+        AddDomainEvent(new EvidenceSubmissionRegisteredEvent(
+            LiveSessionId,
+            team.TeamId,
+            submission.EvidenceSubmissionId,
+            activeSubstageId,
+            submissionType,
+            submittedAt,
+            EvidenceValidationState.Pending,
+            originReference: submission.DescribeOrigin()));
+
+        return submission;
+    }
+
+    private void EnsureSessionAdmitsEvidence()
+    {
+        LiveSessionStateFactory.For(State).EnsureCanRegisterEvidence(this);
+    }
+
+    private Guid ResolveActiveSubstageForEvidence()
+    {
+        if (ActiveSubstageId is null ||
+            GetOrderedSubstages().All(substage => substage.SubstageSnapshotId != ActiveSubstageId.Value))
+        {
+            throw new EvidenceSubmissionContextRequiredException();
+        }
+
+        return ActiveSubstageId.Value;
     }
 
     // Step 3 — the synchronized active trivia question shared by all teams (HU-33A seam). Rejects a
@@ -470,7 +780,7 @@ public sealed class LiveSession : BaseAuditableEntity
 
     // Step 7 — create the base evidence + trivia specialization, snapshotting correctness and the
     // awarded score from the question option (correct → question ScoreValue; wrong → zero).
-    private TriviaAnswerSubmission AcceptTriviaAnswer(
+    private TriviaAnswerSubmission BeginTriviaAnswer(
         Team team,
         TriviaQuestionSnapshot question,
         TriviaOptionSnapshot selectedOption,
@@ -480,7 +790,7 @@ public sealed class LiveSession : BaseAuditableEntity
         var isCorrect = selectedOption.IsCorrect;
         var scoreValue = isCorrect ? question.ScoreValue : 0;
 
-        var submission = TriviaAnswerSubmission.Accept(
+        return TriviaAnswerSubmission.Begin(
             LiveSessionId,
             team.TeamId,
             question.SubstageSnapshotId,
@@ -490,9 +800,6 @@ public sealed class LiveSession : BaseAuditableEntity
             submittedAt,
             isCorrect,
             scoreValue);
-
-        _triviaAnswerSubmissions.Add(submission);
-        return submission;
     }
 
     // Step 8 — the accepted-answer fact, raised only on the success path.
@@ -518,8 +825,9 @@ public sealed class LiveSession : BaseAuditableEntity
     {
         var team = GetTeam(teamId);
         var timerSnapshot = GetAuthoritativeSessionTimerSnapshot(observedAt);
-        var activeSubstageContext = BuildActiveSubstageContext();
-        var visibleClues = CollectVisibleClues();
+        var activeSubstageContext = BuildActiveSubstageContext(team.TeamId);
+        var substages = BuildSubstageProgress();
+        var visibleClues = CollectVisibleClues(team.TeamId);
         var activeTargets = CollectActiveTargets();
 
         return ParticipantTeamBoardSnapshot.Create(
@@ -529,6 +837,7 @@ public sealed class LiveSession : BaseAuditableEntity
             team.CurrentScore ?? 0,
             timerSnapshot,
             activeSubstageContext,
+            substages,
             visibleClues,
             activeTargets);
     }
@@ -536,16 +845,30 @@ public sealed class LiveSession : BaseAuditableEntity
     public OperatorSessionPanelSnapshot ProjectOperatorSessionPanel(DateTimeOffset observedAt)
     {
         var timerSnapshot = GetAuthoritativeSessionTimerSnapshot(observedAt);
-        var activeSubstageContext = BuildActiveSubstageContext();
-
+        // Substage-initial clues are session-level (same for every team) and never increment the
+        // persisted per-team ReleasedClueCount, so add them to each team's manual-release tally here.
+        var substageInitialClueCount = CountVisibleSubstageInitialClues();
+        var sharedContexts = new Dictionary<(SubstagePlayMode? PlayMode, int ResolvedTargets), ActiveSubstageContext?>();
         var teamProgress = _teams
             .OrderBy(team => team.TeamCode.Value, StringComparer.Ordinal)
-            .Select(team => OperatorTeamProgress.Create(
-                team.TeamId,
-                team.TeamCode.Value,
-                team.DisplayName,
-                team.CurrentScore ?? 0,
-                activeSubstageContext))
+            .Select(team =>
+            {
+                var context = BuildActiveSubstageContext(team.TeamId);
+                var contextKey = (context?.PlayMode, context?.ResolvedTargets ?? 0);
+                if (!sharedContexts.TryGetValue(contextKey, out var sharedContext))
+                {
+                    sharedContext = context;
+                    sharedContexts.Add(contextKey, sharedContext);
+                }
+
+                return OperatorTeamProgress.Create(
+                    team.TeamId,
+                    team.TeamCode.Value,
+                    team.DisplayName,
+                    team.CurrentScore ?? 0,
+                    team.ReleasedClueCount + substageInitialClueCount,
+                    sharedContext);
+            })
             .ToList();
 
         return OperatorSessionPanelSnapshot.Create(
@@ -555,7 +878,126 @@ public sealed class LiveSession : BaseAuditableEntity
             teamProgress);
     }
 
-    private ActiveSubstageContext? BuildActiveSubstageContext()
+    // Currently-visible VisibleWhenSubstageStarts initial clues on the active substage. Trivia-only —
+    // treasure-hunt clues live per-target, not in the substage-scoped ClueSnapshots — so this is 0 for
+    // a treasure-hunt or inactive substage. Deliberately counts only initial clues: released hidden
+    // clues already increment each team's ReleasedClueCount and would otherwise be counted twice.
+    private int CountVisibleSubstageInitialClues()
+    {
+        if (ActiveSubstageId is null)
+        {
+            return 0;
+        }
+
+        var activeSubstage = GetOrderedSubstages()
+            .SingleOrDefault(substage => substage.SubstageSnapshotId == ActiveSubstageId.Value);
+
+        return activeSubstage?.PlayMode == SubstagePlayMode.Trivia
+            ? MissionRuntimeSnapshot.ClueSnapshots.Count(clue =>
+                clue.SubstageSnapshotId == activeSubstage.SubstageSnapshotId &&
+                clue.IsVisibleWhenSubstageStarts &&
+                !string.IsNullOrWhiteSpace(clue.Text))
+            : 0;
+    }
+
+    // Operator release-clue picker: hidden clues in the active substage, target-backed for treasure
+    // hunts and clue-snapshot-backed for trivia. Empty when no active substage has releasable clues.
+    public IReadOnlyList<ReleasableClue> ProjectReleasableClues()
+    {
+        if (ActiveSubstageId is null)
+        {
+            return [];
+        }
+
+        var activeSubstage = GetOrderedSubstages()
+            .SingleOrDefault(substage => substage.SubstageSnapshotId == ActiveSubstageId.Value);
+
+        if (activeSubstage is null)
+        {
+            return [];
+        }
+
+        if (activeSubstage.PlayMode == SubstagePlayMode.TreasureHunt)
+        {
+            return MissionRuntimeSnapshot.TargetSnapshots
+                .Where(target =>
+                    target.SubstageSnapshotId == activeSubstage.SubstageSnapshotId &&
+                    target.IsActive &&
+                    !string.IsNullOrWhiteSpace(target.ClueText) &&
+                    string.Equals(
+                        target.ClueVisibilityPolicy,
+                        HiddenUntilOperatorReleasePolicy,
+                        StringComparison.OrdinalIgnoreCase))
+                .OrderBy(target => target.SequenceOrder)
+                .Select(target => ReleasableClue.ForTarget(
+                    target.TargetSnapshotId,
+                    target.Name,
+                    target.SequenceOrder,
+                    target.ClueText!))
+                .ToList();
+        }
+
+        return MissionRuntimeSnapshot.ClueSnapshots
+            .Where(clue =>
+                clue.SubstageSnapshotId == activeSubstage.SubstageSnapshotId &&
+                clue.IsHiddenUntilOperatorRelease &&
+                !string.IsNullOrWhiteSpace(clue.Text))
+            .OrderBy(clue => clue.SequenceOrder)
+            .Select(clue => ReleasableClue.ForSubstageClue(
+                clue.ClueSnapshotId,
+                clue.SequenceOrder,
+                clue.Text))
+            .ToList();
+    }
+
+    // Projects the whole ordered substage sequence with per-item progress status (#171). Status is
+    // derived from each substage's position vs. the live-substage pointer: before the session is
+    // Active nothing has started (all Upcoming); once Finished the pointer is gone and everything is
+    // behind us (all Completed); otherwise it splits Completed / Active / Upcoming around the pointer.
+    // SequenceOrder is the flattened session-wide position, so the whole cross-stage flow reads in one
+    // monotonic order regardless of per-stage numbering.
+    private IReadOnlyList<SubstageProgressItem> BuildSubstageProgress()
+    {
+        var orderedSubstages = GetOrderedSubstages();
+        var activeIndex = ActiveSubstageId is null
+            ? -1
+            : Array.FindIndex(orderedSubstages, substage => substage.SubstageSnapshotId == ActiveSubstageId.Value);
+
+        return orderedSubstages
+            .Select((substage, index) => new SubstageProgressItem(
+                substage.SubstageSnapshotId,
+                substage.Title,
+                index,
+                substage.PlayMode,
+                DeriveSubstageProgressStatus(index, activeIndex)))
+            .ToList();
+    }
+
+    private SubstageProgressStatus DeriveSubstageProgressStatus(int index, int activeIndex)
+    {
+        // Pre-Active states have no live substage yet — the whole flow is still ahead.
+        if (State is SessionState.Scheduled or SessionState.Preparing)
+        {
+            return SubstageProgressStatus.Upcoming;
+        }
+
+        // SessionCompletion finishes the session without rewinding the pointer (it parks on the last
+        // substage), so Finished is the authoritative "everything is behind us" signal — treat the
+        // whole sequence as Completed rather than leaving the final substage flagged Active.
+        if (State is SessionState.Finished || activeIndex < 0)
+        {
+            return SubstageProgressStatus.Completed;
+        }
+
+        if (index < activeIndex)
+        {
+            return SubstageProgressStatus.Completed;
+        }
+
+        return index == activeIndex ? SubstageProgressStatus.Active : SubstageProgressStatus.Upcoming;
+    }
+
+    private ActiveSubstageContext? BuildActiveSubstageContext(Guid teamId)
     {
         if (ActiveSubstageId is null)
         {
@@ -571,27 +1013,35 @@ public sealed class LiveSession : BaseAuditableEntity
         }
 
         return activeSubstage.PlayMode == SubstagePlayMode.TreasureHunt
-            ? BuildTreasureHuntContext(activeSubstage)
+            ? BuildTreasureHuntContext(activeSubstage, teamId)
             : BuildTriviaContext(activeSubstage);
     }
 
-    private ActiveSubstageContext BuildTreasureHuntContext(SubstageSnapshot substage)
+    private ActiveSubstageContext BuildTreasureHuntContext(SubstageSnapshot substage, Guid teamId)
     {
         var activeTargets = MissionRuntimeSnapshot.TargetSnapshots
             .Where(target => target.SubstageSnapshotId == substage.SubstageSnapshotId && target.IsActive)
+            .OrderBy(target => target.SequenceOrder)
+            .Select(target => new ActiveSubstageTarget(
+                target.TargetSnapshotId,
+                target.Name,
+                target.SequenceOrder,
+                string.Equals(
+                    target.ClueVisibilityPolicy,
+                    HiddenUntilOperatorReleasePolicy,
+                    StringComparison.OrdinalIgnoreCase)))
             .ToArray();
 
-        var totalActiveTargets = activeTargets.Length;
-
-        // Target resolution persistence does not exist yet (HU-31 owns it). Report 0 resolved
-        // and expose total active targets. Do NOT infer from CurrentClueNodeId or ReleasedClueCount.
-        var resolvedTargets = 0;
+        var resolvedTargets = _treasureEvidenceSubmissions.Count(submission =>
+            submission.TeamId == teamId &&
+            submission.ActiveSubstageId == substage.SubstageSnapshotId &&
+            submission.ValidationState == EvidenceValidationState.Accepted);
 
         return ActiveSubstageContext.CreateTreasureHunt(
             substage.SubstageSnapshotId,
             substage.Title,
-            totalActiveTargets,
-            resolvedTargets);
+            resolvedTargets,
+            activeTargets);
     }
 
     private ActiveSubstageContext BuildTriviaContext(SubstageSnapshot substage)
@@ -617,60 +1067,212 @@ public sealed class LiveSession : BaseAuditableEntity
             activeQuestionTimeLimitSeconds);
     }
 
-    private IReadOnlyList<VisibleClue> CollectVisibleClues()
+    private IReadOnlyList<VisibleClue> CollectVisibleClues(Guid teamId)
     {
-        if (ActiveSubstageId is null)
+        IReadOnlyList<VisibleClue> plannedClues = [];
+        if (ActiveSubstageId is not null)
         {
-            return [];
+            var activeSubstage = GetOrderedSubstages()
+                .SingleOrDefault(substage => substage.SubstageSnapshotId == ActiveSubstageId.Value);
+
+            if (activeSubstage is not null)
+            {
+                // Treasure-hunt clues resolve per-target (unchanged). A trivia substage has no targets, so
+                // its clues resolve from the substage-scoped clue snapshot instead (#145).
+                plannedClues = activeSubstage.PlayMode == SubstagePlayMode.TreasureHunt
+                    ? CollectTargetVisibleClues(activeSubstage.SubstageSnapshotId, teamId)
+                    : CollectSubstageVisibleClues(activeSubstage.SubstageSnapshotId, teamId);
+            }
         }
 
-        var activeSubstage = GetOrderedSubstages()
-            .SingleOrDefault(substage => substage.SubstageSnapshotId == ActiveSubstageId.Value);
-
-        if (activeSubstage is null)
-        {
-            return [];
-        }
-
-        // Treasure-hunt clues resolve per-target (unchanged). A trivia substage has no targets, so
-        // its clues resolve from the substage-scoped clue snapshot instead (#145).
-        return activeSubstage.PlayMode == SubstagePlayMode.TreasureHunt
-            ? CollectTargetVisibleClues(activeSubstage.SubstageSnapshotId)
-            : CollectSubstageVisibleClues(activeSubstage.SubstageSnapshotId);
+        // Operative clues render newest-authored-first: they are live operator guidance, so the freshest
+        // is the most actionable. Order explicitly rather than leaning on insertion order — the backing
+        // collection is loaded with a plain `.Include("_operativeClues")` (no ORDER BY) and keys on a
+        // random Guid, so the load order carries no chronology. CreatedAt cannot tie within a group: a
+        // push stamps one clue per team, so a given team never gets two at the same instant.
+        return plannedClues
+            .Concat(_operativeClues
+                .Where(clue => clue.TeamId == teamId)
+                .OrderByDescending(clue => clue.CreatedAt)
+                .Select(clue => VisibleClue.CreateForOperative(clue.OperativeClueId, clue.ClueText)))
+            .ToList();
     }
 
-    private IReadOnlyList<VisibleClue> CollectTargetVisibleClues(Guid substageSnapshotId)
+    private IReadOnlyList<VisibleClue> CollectTargetVisibleClues(Guid substageSnapshotId, Guid teamId)
     {
-        // Show clue guidance from targets that have clue text. The ClueVisibilityPolicy field on
-        // TargetSnapshot defines when a clue becomes visible; for now we include clues from targets
-        // with a non-null policy (meaning the mission author intended visibility). Actual per-team
-        // release state belongs to HU-26/HU-28; HU-23 only reads already-visible guidance.
+        // Two-group order: always-visible clues (policy != HiddenUntilOperatorRelease) are pinned at the
+        // top by SequenceOrder ascending, then operator-released hidden clues render below them
+        // newest-released-first. SequenceOrder breaks ties within the released group (an all-teams release
+        // stamps every team's record with the same instant), keeping same-instant releases stably ordered.
         return MissionRuntimeSnapshot.TargetSnapshots
             .Where(target =>
                 target.SubstageSnapshotId == substageSnapshotId &&
                 target.IsActive &&
                 !string.IsNullOrWhiteSpace(target.ClueText) &&
                 !string.IsNullOrWhiteSpace(target.ClueVisibilityPolicy))
-            .OrderBy(target => target.SequenceOrder)
-            .Select(target => VisibleClue.Create(
-                target.TargetSnapshotId,
-                target.ClueText!,
-                target.Name))
+            .Select(target => new
+            {
+                target,
+                release = _clueReleaseRecords.SingleOrDefault(record =>
+                    record.TeamId == teamId &&
+                    record.TargetId == target.TargetSnapshotId),
+                alwaysVisible = !string.Equals(
+                    target.ClueVisibilityPolicy,
+                    HiddenUntilOperatorReleasePolicy,
+                    StringComparison.OrdinalIgnoreCase),
+            })
+            .Where(entry => entry.alwaysVisible || entry.release is not null)
+            .OrderBy(entry => entry.alwaysVisible ? 0 : 1)
+            .ThenByDescending(entry =>
+                entry.alwaysVisible ? DateTimeOffset.MinValue : entry.release!.ReleasedAt)
+            .ThenBy(entry => entry.target.SequenceOrder)
+            .Select(entry => VisibleClue.Create(
+                entry.target.TargetSnapshotId,
+                entry.target.ClueText!,
+                entry.target.Name))
             .ToList();
     }
 
-    private IReadOnlyList<VisibleClue> CollectSubstageVisibleClues(Guid substageSnapshotId)
+    private void EnsureSessionActiveForClueRelease()
     {
-        // Honor ClueVisibilityPolicy for a target-less substage (#145): VisibleWhenSubstageStarts
-        // clues surface as soon as the substage is active; HiddenUntilOperatorRelease clues stay
-        // withheld until an operator release exists (HU-26/HU-28), so they are not projected here.
+        if (State is not SessionState.Active)
+        {
+            throw new SessionNotActiveForClueReleaseException(State);
+        }
+    }
+
+    private static void EnsureOperatorUserIdIsValid(int operatorUserId)
+    {
+        if (operatorUserId <= 0)
+        {
+            throw new OperatorUserIdMustBePositiveException();
+        }
+    }
+
+    private TargetSnapshot ResolveReleasableTarget(Guid targetId)
+    {
+        if (ActiveSubstageId is null)
+        {
+            throw new ClueNotReleasableException(targetId);
+        }
+
+        var activeSubstage = GetOrderedSubstages()
+            .SingleOrDefault(substage => substage.SubstageSnapshotId == ActiveSubstageId.Value);
+
+        if (activeSubstage is null || activeSubstage.PlayMode != SubstagePlayMode.TreasureHunt)
+        {
+            throw new ClueNotReleasableException(targetId);
+        }
+
+        return MissionRuntimeSnapshot.TargetSnapshots.SingleOrDefault(target =>
+                target.TargetSnapshotId == targetId &&
+                target.SubstageSnapshotId == activeSubstage.SubstageSnapshotId &&
+                target.IsActive &&
+                !string.IsNullOrWhiteSpace(target.ClueText) &&
+                string.Equals(
+                    target.ClueVisibilityPolicy,
+                    HiddenUntilOperatorReleasePolicy,
+                    StringComparison.OrdinalIgnoreCase))
+            ?? throw new ClueNotReleasableException(targetId);
+    }
+
+    private ClueSnapshot ResolveReleasableSubstageClue(Guid clueId)
+    {
+        if (ActiveSubstageId is null)
+        {
+            throw new ClueNotReleasableException(clueId);
+        }
+
+        var activeSubstage = GetOrderedSubstages()
+            .SingleOrDefault(substage => substage.SubstageSnapshotId == ActiveSubstageId.Value);
+
+        if (activeSubstage is null || activeSubstage.PlayMode != SubstagePlayMode.Trivia)
+        {
+            throw new ClueNotReleasableException(clueId);
+        }
+
+        return MissionRuntimeSnapshot.ClueSnapshots.SingleOrDefault(clue =>
+                clue.ClueSnapshotId == clueId &&
+                clue.SubstageSnapshotId == activeSubstage.SubstageSnapshotId &&
+                clue.IsHiddenUntilOperatorRelease &&
+                !string.IsNullOrWhiteSpace(clue.Text))
+            ?? throw new ClueNotReleasableException(clueId);
+    }
+
+    private void ResolveReleasableSubject(ClueReleaseSubject subject)
+    {
+        if (subject.TargetId.HasValue)
+        {
+            ResolveReleasableTarget(subject.TargetId.Value);
+            return;
+        }
+
+        ResolveReleasableSubstageClue(subject.ClueId!.Value);
+    }
+
+    private void EnsureClueNotAlreadyReleased(Guid teamId, ClueReleaseSubject subject)
+    {
+        if (_clueReleaseRecords.Any(record =>
+                record.TeamId == teamId &&
+                record.TargetId == subject.TargetId &&
+                record.ClueId == subject.ClueId))
+        {
+            throw new ClueAlreadyReleasedToTeamException(
+                teamId,
+                subject.TargetId ?? subject.ClueId!.Value);
+        }
+    }
+
+    private void AppendManualClueRelease(
+        ClueReleaseSubject subject,
+        Team team,
+        int operatorUserId,
+        DateTimeOffset releasedAt)
+    {
+        var release = ClueReleaseRecord.CreateManual(
+            LiveSessionId,
+            team.TeamId,
+            subject,
+            operatorUserId: operatorUserId,
+            releasedAt: releasedAt);
+
+        _clueReleaseRecords.Add(release);
+        team.IncrementReleasedClueCount();
+        AddDomainEvent(new ClueReleasedEvent(
+            LiveSessionId,
+            team.TeamId,
+            release.TargetId,
+            release.ClueId,
+            release.ReleaseMode,
+            release.ReleasedByUserId,
+            release.ReleasedAt));
+    }
+
+    private IReadOnlyList<VisibleClue> CollectSubstageVisibleClues(Guid substageSnapshotId, Guid teamId)
+    {
+        // Two-group order mirrors target clues: initial clues stay pinned by SequenceOrder, then
+        // operator-released hidden clues render newest-first with SequenceOrder breaking ties.
         return MissionRuntimeSnapshot.ClueSnapshots
             .Where(clue =>
                 clue.SubstageSnapshotId == substageSnapshotId &&
-                clue.IsVisibleWhenSubstageStarts &&
                 !string.IsNullOrWhiteSpace(clue.Text))
-            .OrderBy(clue => clue.SequenceOrder)
-            .Select(clue => VisibleClue.CreateForSubstage(clue.Text))
+            .Select(clue => new
+            {
+                clue,
+                release = _clueReleaseRecords.SingleOrDefault(record =>
+                    record.TeamId == teamId &&
+                    record.ClueId == clue.ClueSnapshotId),
+            })
+            .Where(entry => entry.clue.IsVisibleWhenSubstageStarts || entry.release is not null)
+            .OrderBy(entry => entry.clue.IsVisibleWhenSubstageStarts ? 0 : 1)
+            .ThenByDescending(entry =>
+                entry.clue.IsVisibleWhenSubstageStarts
+                    ? DateTimeOffset.MinValue
+                    : entry.release!.ReleasedAt)
+            .ThenBy(entry => entry.clue.SequenceOrder)
+            .Select(entry => VisibleClue.CreateForSubstage(
+                entry.clue.ClueSnapshotId,
+                entry.clue.Text))
             .ToList();
     }
 
@@ -731,6 +1333,7 @@ public sealed class LiveSession : BaseAuditableEntity
         }
 
         ActiveSubstageId = nextSubstage.SubstageSnapshotId;
+        SeedSubstageTimerIfTreasureHunt(nextSubstage, occurredAt);
         AddDomainEvent(new SubstageAdvancedEvent(
             LiveSessionId,
             fromSubstage.SubstageSnapshotId,
@@ -764,6 +1367,14 @@ public sealed class LiveSession : BaseAuditableEntity
             _questionTimerRemainingDuration > TimeSpan.Zero;
     }
 
+    internal bool HasAdvancingSubstageTimer()
+    {
+        return ActiveSubstageId.HasValue &&
+            _substageTimerAdvancingSince.HasValue &&
+            _substageTimerExpiredAt is null &&
+            _substageTimerRemainingDuration > TimeSpan.Zero;
+    }
+
     internal void EnterActiveSessionState(DateTimeOffset occurredAt)
     {
         StartedAt ??= occurredAt;
@@ -771,12 +1382,22 @@ public sealed class LiveSession : BaseAuditableEntity
 
         // Entering Active starts the first substage in strict order (CONTEXT.md:48). `??=` guards
         // pause->resume so resuming never rewinds the pointer to the first substage.
-        ActiveSubstageId ??= GetOrderedSubstages()[0].SubstageSnapshotId;
+        if (ActiveSubstageId is null)
+        {
+            var firstSubstage = GetOrderedSubstages()[0];
+            ActiveSubstageId = firstSubstage.SubstageSnapshotId;
+            SeedSubstageTimerIfTreasureHunt(firstSubstage, occurredAt);
+        }
     }
 
     internal void EnterActiveQuestionTimerState(DateTimeOffset occurredAt)
     {
         ResumeQuestionTimer(occurredAt);
+    }
+
+    internal void EnterActiveSubstageTimerState(DateTimeOffset occurredAt)
+    {
+        ResumeSubstageTimer(occurredAt);
     }
 
     internal void EnterPausedSessionState(DateTimeOffset occurredAt)
@@ -789,15 +1410,22 @@ public sealed class LiveSession : BaseAuditableEntity
         FreezeQuestionTimer(occurredAt);
     }
 
+    internal void EnterPausedSubstageTimerState(DateTimeOffset occurredAt)
+    {
+        FreezeSubstageTimer(occurredAt);
+    }
+
     internal void EnterFinishedSessionState(DateTimeOffset occurredAt)
     {
         FreezeQuestionTimer(occurredAt);
+        FreezeSubstageTimer(occurredAt);
         EndedAt = occurredAt;
     }
 
     internal void EnterCancelledSessionState(DateTimeOffset occurredAt)
     {
         FreezeQuestionTimer(occurredAt);
+        FreezeSubstageTimer(occurredAt);
         CancelledAt = occurredAt;
     }
 
@@ -839,6 +1467,46 @@ public sealed class LiveSession : BaseAuditableEntity
         _questionTimerExpiredAt ??= occurredAt;
 
         return GetFrozenQuestionTimerSnapshot(occurredAt);
+    }
+
+    internal AuthoritativeSessionTimerSnapshot GetAdvancingSubstageTimerSnapshot(DateTimeOffset observedAt)
+    {
+        var remaining = CalculateAdvancingSubstageTimerRemaining(observedAt);
+        var expired = _substageTimerExpiredAt.HasValue || remaining <= TimeSpan.Zero;
+
+        return AuthoritativeSessionTimerSnapshot.Create(
+            _substageTimerTotalDuration,
+            remaining,
+            isAdvancing: !expired && HasAdvancingSubstageTimer(),
+            observedAt,
+            _substageTimerAdvancingSince,
+            _substageTimerExpiredAt);
+    }
+
+    internal AuthoritativeSessionTimerSnapshot GetFrozenSubstageTimerSnapshot(DateTimeOffset observedAt)
+    {
+        return AuthoritativeSessionTimerSnapshot.Create(
+            _substageTimerTotalDuration,
+            _substageTimerExpiredAt.HasValue ? TimeSpan.Zero : _substageTimerRemainingDuration,
+            isAdvancing: false,
+            observedAt,
+            advancingSince: null,
+            _substageTimerExpiredAt);
+    }
+
+    internal AuthoritativeSessionTimerSnapshot MarkAdvancingSubstageTimerExpiredIfElapsed(DateTimeOffset occurredAt)
+    {
+        var remaining = CalculateAdvancingSubstageTimerRemaining(occurredAt);
+        if (remaining > TimeSpan.Zero)
+        {
+            return GetAdvancingSubstageTimerSnapshot(occurredAt);
+        }
+
+        _substageTimerRemainingDuration = TimeSpan.Zero;
+        _substageTimerAdvancingSince = null;
+        _substageTimerExpiredAt ??= occurredAt;
+
+        return GetFrozenSubstageTimerSnapshot(occurredAt);
     }
 
     private void ResumeQuestionTimer(DateTimeOffset occurredAt)
@@ -895,6 +1563,76 @@ public sealed class LiveSession : BaseAuditableEntity
         }
 
         var remaining = _questionTimerRemainingDuration - elapsed;
+        return remaining > TimeSpan.Zero ? remaining : TimeSpan.Zero;
+    }
+
+    private void SeedSubstageTimerIfTreasureHunt(SubstageSnapshot substage, DateTimeOffset occurredAt)
+    {
+        if (substage.PlayMode != SubstagePlayMode.TreasureHunt)
+        {
+            return;
+        }
+
+        _substageTimerTotalDuration = TimeSpan.FromMinutes(MaximumTime.Minutes);
+        _substageTimerRemainingDuration = _substageTimerTotalDuration;
+        _substageTimerAdvancingSince = occurredAt;
+        _substageTimerExpiredAt = null;
+    }
+
+    private void ResumeSubstageTimer(DateTimeOffset occurredAt)
+    {
+        if (ActiveSubstageId is null || _substageTimerTotalDuration <= TimeSpan.Zero)
+        {
+            return;
+        }
+
+        if (_substageTimerExpiredAt is not null || _substageTimerRemainingDuration <= TimeSpan.Zero)
+        {
+            _substageTimerRemainingDuration = TimeSpan.Zero;
+            _substageTimerAdvancingSince = null;
+            _substageTimerExpiredAt ??= occurredAt;
+            return;
+        }
+
+        _substageTimerAdvancingSince = occurredAt;
+    }
+
+    private void FreezeSubstageTimer(DateTimeOffset occurredAt)
+    {
+        if (_substageTimerAdvancingSince is null)
+        {
+            return;
+        }
+
+        _substageTimerRemainingDuration = CalculateAdvancingSubstageTimerRemaining(occurredAt);
+        _substageTimerAdvancingSince = null;
+
+        if (_substageTimerRemainingDuration <= TimeSpan.Zero)
+        {
+            _substageTimerRemainingDuration = TimeSpan.Zero;
+            _substageTimerExpiredAt ??= occurredAt;
+        }
+    }
+
+    private TimeSpan CalculateAdvancingSubstageTimerRemaining(DateTimeOffset observedAt)
+    {
+        if (_substageTimerExpiredAt.HasValue)
+        {
+            return TimeSpan.Zero;
+        }
+
+        if (_substageTimerAdvancingSince is null)
+        {
+            return _substageTimerRemainingDuration;
+        }
+
+        var elapsed = observedAt - _substageTimerAdvancingSince.Value;
+        if (elapsed <= TimeSpan.Zero)
+        {
+            return _substageTimerRemainingDuration;
+        }
+
+        var remaining = _substageTimerRemainingDuration - elapsed;
         return remaining > TimeSpan.Zero ? remaining : TimeSpan.Zero;
     }
 

@@ -1,5 +1,5 @@
+using MassTransit;
 using Microsoft.Extensions.Logging;
-using umbral_backend.Application.Common.Interfaces;
 using umbral_backend.Application.Sessions.Common;
 using umbral_backend.Domain.Events;
 
@@ -7,21 +7,23 @@ namespace umbral_backend.Application.Sessions.EventHandlers;
 
 /// <summary>
 /// Bridges the <see cref="AnswerRegisteredEvent"/> domain fact onto the RabbitMQ transport through
-/// the existing HU-33B <see cref="IIntegrationEventPublisher"/> seam. Domain events are dispatched
-/// inside SaveChanges = after transactional success, so this fires only once the accepted answer is
-/// persisted (AC #4). Broker/publish failures are logged and swallowed so the runtime never faults
-/// on a transport problem (D-3, AC #6). Correctness/score ride the contract for downstream scoring.
+/// MassTransit's <see cref="IPublishEndpoint"/>. Dispatched by <c>OutboxDomainEventDispatcher</c> from
+/// the interceptor's pre-commit phase: under the bus outbox this <c>Publish</c> is a local
+/// OutboxMessage insert that commits atomically with the accepted-answer write and is drained to the
+/// broker asynchronously (AC #4) — never blocking the hot path. A publish failure is a DbContext fault,
+/// so it is logged and rethrown to roll the transaction back rather than silently dropped.
+/// Correctness/score ride the contract for downstream scoring.
 /// </summary>
-public sealed class PublishAnswerRegisteredIntegrationEventHandler : INotificationHandler<AnswerRegisteredEvent>
+public sealed class PublishAnswerRegisteredIntegrationEventHandler
 {
-    private readonly IIntegrationEventPublisher _publisher;
+    private readonly IPublishEndpoint _publishEndpoint;
     private readonly ILogger<PublishAnswerRegisteredIntegrationEventHandler> _logger;
 
     public PublishAnswerRegisteredIntegrationEventHandler(
-        IIntegrationEventPublisher publisher,
+        IPublishEndpoint publishEndpoint,
         ILogger<PublishAnswerRegisteredIntegrationEventHandler> logger)
     {
-        _publisher = publisher;
+        _publishEndpoint = publishEndpoint;
         _logger = logger;
     }
 
@@ -29,7 +31,7 @@ public sealed class PublishAnswerRegisteredIntegrationEventHandler : INotificati
     {
         try
         {
-            await _publisher.PublishAsync(
+            await _publishEndpoint.Publish(
                 new AnswerRegisteredIntegrationEvent(
                     notification.LiveSessionId,
                     notification.TeamId,
@@ -46,10 +48,11 @@ public sealed class PublishAnswerRegisteredIntegrationEventHandler : INotificati
         {
             _logger.LogError(
                 exception,
-                "Failed to publish AnswerRegisteredIntegrationEvent for session {LiveSessionId} team {TeamId} question {QuestionSequenceOrder}.",
+                "Failed to enqueue AnswerRegisteredIntegrationEvent for session {LiveSessionId} team {TeamId} question {QuestionSequenceOrder}.",
                 notification.LiveSessionId,
                 notification.TeamId,
                 notification.QuestionSequenceOrder);
+            throw;
         }
     }
 }

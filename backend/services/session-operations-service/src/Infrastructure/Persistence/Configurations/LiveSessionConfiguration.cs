@@ -79,6 +79,20 @@ public sealed class LiveSessionConfiguration : IEntityTypeConfiguration<LiveSess
         builder.Property<DateTimeOffset?>("_questionTimerExpiredAt")
             .HasColumnName("question_timer_expired_at");
 
+        builder.Property<TimeSpan>("_substageTimerTotalDuration")
+            .HasColumnName("substage_timer_total_duration")
+            .IsRequired();
+
+        builder.Property<TimeSpan>("_substageTimerRemainingDuration")
+            .HasColumnName("substage_timer_remaining_duration")
+            .IsRequired();
+
+        builder.Property<DateTimeOffset?>("_substageTimerAdvancingSince")
+            .HasColumnName("substage_timer_advancing_since");
+
+        builder.Property<DateTimeOffset?>("_substageTimerExpiredAt")
+            .HasColumnName("substage_timer_expired_at");
+
         builder.Property(session => session.AssignedOperatorUserId)
             .HasColumnName("assigned_operator_user_id");
 
@@ -508,6 +522,116 @@ public sealed class LiveSessionConfiguration : IEntityTypeConfiguration<LiveSess
                 .UsePropertyAccessMode(PropertyAccessMode.Field);
         });
 
+        // Append-only per-team clue-release trace (HU-26). LiveSession exposes only the field-only
+        // navigation `_clueReleaseRecords` (read via GetClueReleaseRecords()), so the owned collection is
+        // mapped by field name — the same way the runtime Teams collection is loaded, so GetByIdAsync
+        // hydrates the release records back into the aggregate and the in-memory duplicate/no-leak guards
+        // still see prior releases after a reload. ClueReleaseRecord derives from BaseEntity (no audit
+        // columns), so the only base ceremony to strip is BaseEntity.Id.
+        builder.OwnsMany<ClueReleaseRecord>("_clueReleaseRecords", releaseBuilder =>
+        {
+            releaseBuilder.ToTable(
+                "live_session_clue_releases",
+                tableBuilder => tableBuilder.HasCheckConstraint(
+                    "CK_live_session_clue_releases_exactly_one_subject",
+                    "(target_id IS NOT NULL) <> (clue_id IS NOT NULL)"));
+            releaseBuilder.WithOwner().HasForeignKey(release => release.LiveSessionId);
+
+            releaseBuilder.Ignore(release => release.Id);
+            releaseBuilder.HasKey(release => release.ClueReleaseRecordId);
+
+            releaseBuilder.Property(release => release.ClueReleaseRecordId)
+                .HasColumnName("id")
+                .ValueGeneratedNever();
+
+            releaseBuilder.Property(release => release.LiveSessionId)
+                .HasColumnName("live_session_id")
+                .IsRequired();
+
+            releaseBuilder.Property(release => release.TeamId)
+                .HasColumnName("team_id")
+                .IsRequired();
+
+            releaseBuilder.Property(release => release.TargetId)
+                .HasColumnName("target_id");
+
+            releaseBuilder.Property(release => release.ClueId)
+                .HasColumnName("clue_id");
+
+            releaseBuilder.Property(release => release.ReleaseMode)
+                .HasColumnName("release_mode")
+                .HasConversion<string>()
+                .HasMaxLength(32)
+                .IsRequired();
+
+            releaseBuilder.Property(release => release.ReleasedByUserId)
+                .HasColumnName("released_by_user_id");
+
+            releaseBuilder.Property(release => release.ReleasedAt)
+                .HasColumnName("released_at")
+                .IsRequired();
+
+            // Spec §ClueReleaseRecord L696 forbids releasing the same clue twice to one team in one
+            // session. The target-backed and clue-snapshot-backed subjects therefore need independent
+            // filtered indexes: PostgreSQL otherwise treats nullable keys as distinct.
+            releaseBuilder.HasIndex(release => new
+                {
+                    release.LiveSessionId,
+                    release.TeamId,
+                    release.TargetId,
+                })
+                .IsUnique()
+                .HasFilter("target_id IS NOT NULL");
+
+            releaseBuilder.HasIndex(release => new
+                {
+                    release.LiveSessionId,
+                    release.TeamId,
+                    release.ClueId,
+                })
+                .IsUnique()
+                .HasFilter("clue_id IS NOT NULL");
+        });
+
+        // Append-only operator-authored clues targeted to individual teams (HU-28). The aggregate exposes
+        // the collection only through GetOperativeClues(), so map and hydrate its backing field directly,
+        // mirroring ClueReleaseRecord. OperativeClue derives from BaseEntity rather than
+        // BaseAuditableEntity: ignore the inherited integer Id and map only the explicit authorship/time
+        // fields below so no aggregate audit columns leak into the owned-child table.
+        builder.OwnsMany<OperativeClue>("_operativeClues", operativeClueBuilder =>
+        {
+            operativeClueBuilder.ToTable("live_session_operative_clues");
+            operativeClueBuilder.WithOwner().HasForeignKey(clue => clue.LiveSessionId);
+
+            operativeClueBuilder.Ignore(clue => clue.Id);
+            operativeClueBuilder.HasKey(clue => clue.OperativeClueId);
+
+            operativeClueBuilder.Property(clue => clue.OperativeClueId)
+                .HasColumnName("id")
+                .ValueGeneratedNever();
+
+            operativeClueBuilder.Property(clue => clue.LiveSessionId)
+                .HasColumnName("live_session_id")
+                .IsRequired();
+
+            operativeClueBuilder.Property(clue => clue.TeamId)
+                .HasColumnName("team_id")
+                .IsRequired();
+
+            operativeClueBuilder.Property(clue => clue.ClueText)
+                .HasColumnName("clue_text")
+                .HasMaxLength(500)
+                .IsRequired();
+
+            operativeClueBuilder.Property(clue => clue.CreatedByUserId)
+                .HasColumnName("created_by_user_id")
+                .IsRequired();
+
+            operativeClueBuilder.Property(clue => clue.CreatedAt)
+                .HasColumnName("created_at")
+                .IsRequired();
+        });
+
         builder.OwnsMany(session => session.Participants, participantBuilder =>
         {
             participantBuilder.ToTable("live_session_participants");
@@ -643,6 +767,11 @@ public sealed class LiveSessionConfiguration : IEntityTypeConfiguration<LiveSess
                 .HasMaxLength(32)
                 .IsRequired();
 
+            answerBuilder.Property(answer => answer.RejectionReason)
+                .HasColumnName("rejection_reason")
+                .HasConversion<string>()
+                .HasMaxLength(256);
+
             answerBuilder.Property(answer => answer.QuestionSequenceOrder)
                 .HasColumnName("question_sequence_order")
                 .IsRequired();
@@ -672,7 +801,60 @@ public sealed class LiveSessionConfiguration : IEntityTypeConfiguration<LiveSess
                 .IsUnique();
         });
 
+        // Append-only per-transition audit trail (bd_umbral_entity_spec.md:453-480): one SessionEvent
+        // per valid state change, capturing actor + reason. SessionEvent derives from BaseEntity (NOT
+        // BaseAuditableEntity), so it carries no created_by/updated_by/created_at/updated_at columns —
+        // the only base-class ceremony to strip is BaseEntity.Id, ignored exactly as the other children
+        // do. Never updated after insert; mirrors the TriviaAnswerSubmissions OwnsMany block.
+        builder.OwnsMany(session => session.SessionEvents, eventBuilder =>
+        {
+            eventBuilder.ToTable("live_session_events");
+            eventBuilder.WithOwner().HasForeignKey(sessionEvent => sessionEvent.LiveSessionId);
+
+            eventBuilder.Ignore(sessionEvent => sessionEvent.Id);
+            eventBuilder.HasKey(sessionEvent => sessionEvent.SessionEventId);
+
+            eventBuilder.Property(sessionEvent => sessionEvent.SessionEventId)
+                .HasColumnName("id")
+                .ValueGeneratedNever();
+
+            eventBuilder.Property(sessionEvent => sessionEvent.LiveSessionId)
+                .HasColumnName("live_session_id")
+                .IsRequired();
+
+            eventBuilder.Property(sessionEvent => sessionEvent.OccurredAt)
+                .HasColumnName("occurred_at")
+                .IsRequired();
+
+            eventBuilder.Property(sessionEvent => sessionEvent.ActorType)
+                .HasColumnName("actor_type")
+                .HasConversion<string>()
+                .HasMaxLength(32)
+                .IsRequired();
+
+            eventBuilder.Property(sessionEvent => sessionEvent.ActorId)
+                .HasColumnName("actor_id");
+
+            eventBuilder.Property(sessionEvent => sessionEvent.EventType)
+                .HasColumnName("event_type")
+                .HasMaxLength(64)
+                .IsRequired();
+
+            // Wide enough to hold "{previous}→{current}: {reason}"; reason mirrors StateReason (500).
+            eventBuilder.Property(sessionEvent => sessionEvent.PayloadSummary)
+                .HasColumnName("payload_summary")
+                .HasMaxLength(600)
+                .IsRequired();
+
+            eventBuilder.Property(sessionEvent => sessionEvent.CorrelationId)
+                .HasColumnName("correlation_id")
+                .IsRequired();
+        });
+
         builder.Navigation(session => session.Teams)
+            .UsePropertyAccessMode(PropertyAccessMode.Field);
+
+        builder.Navigation("_clueReleaseRecords")
             .UsePropertyAccessMode(PropertyAccessMode.Field);
 
         builder.Navigation(session => session.Participants)
@@ -681,7 +863,79 @@ public sealed class LiveSessionConfiguration : IEntityTypeConfiguration<LiveSess
         builder.Navigation(session => session.JoinContexts)
             .UsePropertyAccessMode(PropertyAccessMode.Field);
 
+        // Treasure (QR/target) evidence submissions: base EvidenceSubmission umbrella + concrete
+        // TreasureEvidenceSubmission specialization, owned by the session aggregate. TreasureEvidenceSubmission
+        // derives from BaseEntity (NOT BaseAuditableEntity), so it carries no created_by/updated_by/
+        // created_at/updated_at audit columns — the only base-class ceremony to strip is BaseEntity.Id.
+        builder.OwnsMany(session => session.TreasureEvidenceSubmissions, treasureBuilder =>
+        {
+            treasureBuilder.ToTable("live_session_treasure_evidence_submissions");
+            treasureBuilder.WithOwner().HasForeignKey(treasure => treasure.LiveSessionId);
+
+            treasureBuilder.Ignore(treasure => treasure.Id);
+            treasureBuilder.HasKey(treasure => treasure.EvidenceSubmissionId);
+
+            treasureBuilder.Property(treasure => treasure.EvidenceSubmissionId)
+                .HasColumnName("id")
+                .ValueGeneratedNever();
+
+            treasureBuilder.Property(treasure => treasure.LiveSessionId)
+                .HasColumnName("live_session_id")
+                .IsRequired();
+
+            treasureBuilder.Property(treasure => treasure.TeamId)
+                .HasColumnName("team_id")
+                .IsRequired();
+
+            treasureBuilder.Property(treasure => treasure.ActiveSubstageId)
+                .HasColumnName("active_substage_id")
+                .IsRequired();
+
+            treasureBuilder.Property(treasure => treasure.SubmissionType)
+                .HasColumnName("submission_type")
+                .HasConversion<string>()
+                .HasMaxLength(32)
+                .IsRequired();
+
+            treasureBuilder.Property(treasure => treasure.SubmittedByParticipantId)
+                .HasColumnName("submitted_by_participant_id");
+
+            treasureBuilder.Property(treasure => treasure.SubmittedAt)
+                .HasColumnName("submitted_at")
+                .IsRequired();
+
+            treasureBuilder.Property(treasure => treasure.ValidationState)
+                .HasColumnName("validation_state")
+                .HasConversion<string>()
+                .HasMaxLength(32)
+                .IsRequired();
+
+            treasureBuilder.Property(treasure => treasure.RejectionReason)
+                .HasColumnName("rejection_reason")
+                .HasConversion<string>()
+                .HasMaxLength(256);
+
+            treasureBuilder.Property(treasure => treasure.ScannedValue)
+                .HasColumnName("scanned_value")
+                .HasMaxLength(200)
+                .IsRequired();
+
+            treasureBuilder.Property(treasure => treasure.TargetSnapshotId)
+                .HasColumnName("target_snapshot_id");
+
+            treasureBuilder.Property(treasure => treasure.ResolutionRejectionReason)
+                .HasColumnName("resolution_rejection_reason")
+                .HasConversion<string>()
+                .HasMaxLength(64);
+        });
+
+        builder.Navigation(session => session.TreasureEvidenceSubmissions)
+            .UsePropertyAccessMode(PropertyAccessMode.Field);
+
         builder.Navigation(session => session.TriviaAnswerSubmissions)
+            .UsePropertyAccessMode(PropertyAccessMode.Field);
+
+        builder.Navigation(session => session.SessionEvents)
             .UsePropertyAccessMode(PropertyAccessMode.Field);
 
         builder.Navigation(session => session.MissionRuntimeSnapshot)

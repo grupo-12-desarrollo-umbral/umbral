@@ -11,6 +11,7 @@ public sealed class ParticipantTeamBoardSnapshot : ValueObject
         int currentScore,
         AuthoritativeSessionTimerSnapshot timerSnapshot,
         ActiveSubstageContext? activeSubstageContext,
+        IReadOnlyList<SubstageProgressItem> substages,
         IReadOnlyList<VisibleClue> visibleClues,
         IReadOnlyList<VisibleTarget> activeTargets)
     {
@@ -20,6 +21,7 @@ public sealed class ParticipantTeamBoardSnapshot : ValueObject
         CurrentScore = currentScore;
         TimerSnapshot = timerSnapshot;
         ActiveSubstageContext = activeSubstageContext;
+        Substages = substages;
         VisibleClues = visibleClues;
         ActiveTargets = activeTargets;
     }
@@ -36,6 +38,10 @@ public sealed class ParticipantTeamBoardSnapshot : ValueObject
 
     public ActiveSubstageContext? ActiveSubstageContext { get; }
 
+    // The whole ordered substage sequence with per-item progress status (#171) — lets a
+    // mixed-play-mode participant see where they are in the flow, not just the active substage.
+    public IReadOnlyList<SubstageProgressItem> Substages { get; }
+
     public IReadOnlyList<VisibleClue> VisibleClues { get; }
 
     public IReadOnlyList<VisibleTarget> ActiveTargets { get; }
@@ -47,6 +53,7 @@ public sealed class ParticipantTeamBoardSnapshot : ValueObject
         int currentScore,
         AuthoritativeSessionTimerSnapshot timerSnapshot,
         ActiveSubstageContext? activeSubstageContext,
+        IReadOnlyList<SubstageProgressItem> substages,
         IReadOnlyList<VisibleClue> visibleClues,
         IReadOnlyList<VisibleTarget> activeTargets)
     {
@@ -57,6 +64,7 @@ public sealed class ParticipantTeamBoardSnapshot : ValueObject
             currentScore,
             timerSnapshot,
             activeSubstageContext,
+            substages,
             visibleClues,
             activeTargets);
     }
@@ -70,6 +78,11 @@ public sealed class ParticipantTeamBoardSnapshot : ValueObject
         yield return TimerSnapshot;
         yield return ActiveSubstageContext;
 
+        foreach (var substage in Substages)
+        {
+            yield return substage;
+        }
+
         foreach (var clue in VisibleClues)
         {
             yield return clue;
@@ -82,6 +95,21 @@ public sealed class ParticipantTeamBoardSnapshot : ValueObject
     }
 }
 
+// One entry in the ordered substage progress list (#171): its identity, display title, a
+// session-wide display ordinal, its play mode, and where it sits relative to the active pointer.
+public sealed record SubstageProgressItem(
+    Guid SubstageSnapshotId,
+    string Title,
+    int SequenceOrder,
+    SubstagePlayMode PlayMode,
+    SubstageProgressStatus Status);
+
+public sealed record ActiveSubstageTarget(
+    Guid TargetSnapshotId,
+    string Name,
+    int SequenceOrder,
+    bool HasHiddenClue);
+
 public sealed class ActiveSubstageContext : ValueObject
 {
     private ActiveSubstageContext(
@@ -91,7 +119,8 @@ public sealed class ActiveSubstageContext : ValueObject
         int totalActiveTargets,
         int resolvedTargets,
         int? activeQuestionSequenceOrder,
-        int? activeQuestionTimeLimitSeconds)
+        int? activeQuestionTimeLimitSeconds,
+        IReadOnlyList<ActiveSubstageTarget> targets)
     {
         SubstageSnapshotId = substageSnapshotId;
         PlayMode = playMode;
@@ -100,6 +129,7 @@ public sealed class ActiveSubstageContext : ValueObject
         ResolvedTargets = resolvedTargets;
         ActiveQuestionSequenceOrder = activeQuestionSequenceOrder;
         ActiveQuestionTimeLimitSeconds = activeQuestionTimeLimitSeconds;
+        Targets = targets;
     }
 
     public Guid SubstageSnapshotId { get; }
@@ -116,20 +146,23 @@ public sealed class ActiveSubstageContext : ValueObject
 
     public int? ActiveQuestionTimeLimitSeconds { get; }
 
+    public IReadOnlyList<ActiveSubstageTarget> Targets { get; }
+
     public static ActiveSubstageContext CreateTreasureHunt(
         Guid substageSnapshotId,
         string title,
-        int totalActiveTargets,
-        int resolvedTargets)
+        int resolvedTargets,
+        IReadOnlyList<ActiveSubstageTarget> targets)
     {
         return new ActiveSubstageContext(
             substageSnapshotId,
             SubstagePlayMode.TreasureHunt,
             title,
-            totalActiveTargets,
+            targets.Count,
             resolvedTargets,
             activeQuestionSequenceOrder: null,
-            activeQuestionTimeLimitSeconds: null);
+            activeQuestionTimeLimitSeconds: null,
+            targets);
     }
 
     public static ActiveSubstageContext CreateTrivia(
@@ -145,7 +178,8 @@ public sealed class ActiveSubstageContext : ValueObject
             totalActiveTargets: 0,
             resolvedTargets: 0,
             activeQuestionSequenceOrder,
-            activeQuestionTimeLimitSeconds);
+            activeQuestionTimeLimitSeconds,
+            targets: []);
     }
 
     protected override IEnumerable<object?> GetEqualityComponents()
@@ -157,5 +191,10 @@ public sealed class ActiveSubstageContext : ValueObject
         yield return ResolvedTargets;
         yield return ActiveQuestionSequenceOrder;
         yield return ActiveQuestionTimeLimitSeconds;
+
+        foreach (var target in Targets)
+        {
+            yield return target;
+        }
     }
 }

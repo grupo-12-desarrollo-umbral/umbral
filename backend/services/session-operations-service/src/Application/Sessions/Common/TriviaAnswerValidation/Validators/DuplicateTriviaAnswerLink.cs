@@ -3,7 +3,7 @@ using umbral_backend.Domain.Exceptions;
 namespace umbral_backend.Application.Sessions.Common.TriviaAnswerValidation.Validators;
 
 /// <summary>
-/// Link 4 of 4 (last): first-write-wins. Exactly one accepted answer per team per snapshotted
+/// Third trivia-specific link (last): first-write-wins. Exactly one accepted answer per team per snapshotted
 /// question; a repeat is rejected as a duplicate with the same reason the domain skeleton raises, so
 /// late and duplicate rejections stay consistent. Resolves the answering team by runtime or reference
 /// id (matching the aggregate); an unknown team is left to the domain's team-resolution guard.

@@ -53,6 +53,15 @@ public sealed class LiveSessionOperatorPanelTests
         sharedContext!.PlayMode.Should().Be(SubstagePlayMode.TreasureHunt);
         sharedContext.TotalActiveTargets.Should().Be(3);
         sharedContext.ResolvedTargets.Should().Be(0);
+        sharedContext.Targets.Select(target => (target.Name, target.SequenceOrder, target.HasHiddenClue))
+            .Should().Equal(
+                ("Main Exhibit", 1, false),
+                ("Main Exhibit", 2, true),
+                ("Main Exhibit", 3, false));
+        sharedContext.Targets.Select(target => target.TargetSnapshotId)
+            .Should().Equal(session.MissionRuntimeSnapshot.TargetSnapshots
+                .OrderBy(target => target.SequenceOrder)
+                .Select(target => target.TargetSnapshotId));
     }
 
     [Fact]
@@ -81,6 +90,27 @@ public sealed class LiveSessionOperatorPanelTests
         sharedContext.ResolvedTargets.Should().Be(0);
         sharedContext.ActiveQuestionSequenceOrder.Should().Be(1);
         sharedContext.ActiveQuestionTimeLimitSeconds.Should().Be(30);
+        sharedContext.Targets.Should().BeEmpty();
+    }
+
+    // The released-clue tracker must include always-on VisibleWhenSubstageStarts initial clues, not
+    // only manual operator releases — those never touch the persisted per-team ReleasedClueCount.
+    [Fact]
+    public void ProjectOperatorSessionPanel_TriviaWithInitialClues_CountsInitialCluesForEveryTeam()
+    {
+        var session = LiveSessionFactory.CreateScheduledTriviaWithClues();
+        session.AssociateTeam(Guid.NewGuid(), "Alpha", "A-01", 4);
+        session.AssociateTeam(Guid.NewGuid(), "Bravo", "B-01", 4);
+
+        var policy = new SessionStateTransitionPolicy();
+        session.MoveTo(SessionState.Preparing, ActiveAt.AddMinutes(-1), policy);
+        session.MoveTo(SessionState.Active, ActiveAt, policy);
+
+        var panel = session.ProjectOperatorSessionPanel(ActiveAt);
+
+        // One VisibleWhenSubstageStarts clue is live for every team once the trivia substage is active
+        // (the fixture's second clue is HiddenUntilOperatorRelease, so it is not counted).
+        panel.TeamProgress.Should().OnlyContain(progress => progress.ReleasedClueCount == 1);
     }
 
     [Fact]
@@ -94,6 +124,24 @@ public sealed class LiveSessionOperatorPanelTests
 
         panel.State.Should().Be(SessionState.Scheduled);
         panel.TeamProgress.Should().OnlyContain(progress => progress.ActiveSubstageContext == null);
+        // No active substage and no manual releases ⇒ nothing released to anyone.
+        panel.TeamProgress.Should().OnlyContain(progress => progress.ReleasedClueCount == 0);
+    }
+
+    // Value equality: two projections of the same session state are equal, which exercises the
+    // snapshot's GetEqualityComponents enumeration including the per-team progress loop.
+    [Fact]
+    public void ProjectOperatorSessionPanel_TwoProjectionsOfSameState_AreValueEqual()
+    {
+        var session = LiveSessionFactory.CreateScheduledTreasureHunt();
+        session.AssociateTeam(Guid.NewGuid(), "Alpha", "A-01", 4);
+        session.AssociateTeam(Guid.NewGuid(), "Bravo", "B-01", 4);
+
+        var first = session.ProjectOperatorSessionPanel(ActiveAt);
+        var second = session.ProjectOperatorSessionPanel(ActiveAt);
+
+        first.Should().Be(second);
+        first.GetHashCode().Should().Be(second.GetHashCode());
     }
 
     [Fact]

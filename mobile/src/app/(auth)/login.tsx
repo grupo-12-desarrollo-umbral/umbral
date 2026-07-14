@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
-import { Keyboard, View } from 'react-native';
+import { Keyboard, Pressable, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
+import { useRouter, type Href } from 'expo-router';
 import { BrandMark } from '@/components/ui/brand-mark';
 import { Button } from '@/components/ui/button';
 import { Screen } from '@/components/ui/screen';
@@ -27,6 +28,7 @@ function fireHaptic(type: 'success' | 'error') {
 
 export default function LoginScreen() {
   const { signIn, status, errorMessage } = useAuth();
+  const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [emailError, setEmailError] = useState('');
@@ -80,6 +82,18 @@ export default function LoginScreen() {
     await signIn(email.trim(), password);
   }
 
+  function handleForgotPassword() {
+    Keyboard.dismiss();
+    // Native form (ADR-0016 §1) — no Keycloak hosted page, no browser redirect.
+    router.push('/(auth)/forgot-password' as Href);
+  }
+
+  function handleCreateAccount() {
+    Keyboard.dismiss();
+    // Native form (ADR-0016 §1) — no Keycloak hosted page, no browser redirect.
+    router.push('/(auth)/register' as Href);
+  }
+
   return (
     <Screen centered contentContainerStyle={{ gap: spacing.md }}>
       <View style={{ alignItems: 'center', paddingBottom: spacing.xl }}>
@@ -126,6 +140,40 @@ export default function LoginScreen() {
         disabled={loading}
         loading={loading}
       />
+
+      <Pressable
+        accessibilityRole="link"
+        onPress={handleForgotPassword}
+        disabled={loading}
+        style={{ alignItems: 'center', paddingVertical: spacing.xs }}
+      >
+        <Text
+          variant="label"
+          style={{
+            color: loading ? colors.textMuted : colors.emberAccentStrong,
+            textDecorationLine: 'underline',
+          }}
+        >
+          Forgot your password?
+        </Text>
+      </Pressable>
+
+      <Pressable
+        accessibilityRole="link"
+        onPress={handleCreateAccount}
+        disabled={loading}
+        style={{ alignItems: 'center', paddingVertical: spacing.xs }}
+      >
+        <Text
+          variant="label"
+          style={{
+            color: loading ? colors.textMuted : colors.emberAccentStrong,
+            textDecorationLine: 'underline',
+          }}
+        >
+          New here? Create an account
+        </Text>
+      </Pressable>
     </Screen>
   );
 }

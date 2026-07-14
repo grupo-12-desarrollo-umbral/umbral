@@ -90,6 +90,10 @@ async function addTarget(
   await page.click(`[data-testid="add-target-btn-${substageId}"]`)
   await page.fill('[data-testid="target-name-input"]', name)
   await page.fill('[data-testid="target-qrcode-input"]', qrCode)
+  // Map location (#156): typed directly rather than via the Leaflet click (the OSM iframe is not
+  // driven in e2e). Coordinates are optional, but exercising them covers the request plumbing.
+  await page.fill('[data-testid="add-target-latitude-input"]', '10.5')
+  await page.fill('[data-testid="add-target-longitude-input"]', '-66.9')
   await page.locator('[data-testid="target-name-input"]').first().press('Tab')
   // Click the Save button inside the add target form
   await page.locator('button:has-text("Save"):not([data-testid*="confirm"])').first().click()
@@ -194,6 +198,10 @@ test('admin sets a substage to TreasureHunt and adds a target with a clue', asyn
   // The score is derived from the mission's difficulty (Intermediate => 50 * 2).
   await expect(page.locator(`[data-testid="target-score-${targetId}"]`)).toContainText(
     'Score: 100 (Intermediate)',
+  )
+  // The assigned map location (#156) is displayed on the target row.
+  await expect(page.locator(`[data-testid="target-location-${targetId}"]`)).toContainText(
+    '10.50000, -66.90000',
   )
   // Associate a clue from within the target's edit form
   const targetRow = page.locator(`[data-testid="target-node-${targetId}"]`)

@@ -23,6 +23,10 @@ public sealed class LiveSessionRepository : ILiveSessionRepository
             .Include(session => session.Participants)
             .Include(session => session.JoinContexts)
             .Include(session => session.TriviaAnswerSubmissions)
+            .Include(session => session.TreasureEvidenceSubmissions)
+            .Include(session => session.SessionEvents)
+            .Include("_clueReleaseRecords")
+            .Include("_operativeClues")
             .Include(session => session.MissionRuntimeSnapshot)
                 .ThenInclude(snapshot => snapshot.StageSnapshots)
                     .ThenInclude(stage => stage.SubstageSnapshots)
@@ -45,6 +49,9 @@ public sealed class LiveSessionRepository : ILiveSessionRepository
             .Include(session => session.Participants)
             .Include(session => session.JoinContexts)
             .Include(session => session.TriviaAnswerSubmissions)
+            .Include(session => session.TreasureEvidenceSubmissions)
+            .Include("_clueReleaseRecords")
+            .Include("_operativeClues")
             .Include(session => session.MissionRuntimeSnapshot)
                 .ThenInclude(snapshot => snapshot.StageSnapshots)
                     .ThenInclude(stage => stage.SubstageSnapshots)
@@ -116,12 +123,45 @@ public sealed class LiveSessionRepository : ILiveSessionRepository
 
     public async Task<IReadOnlyList<LiveSession>> ListActiveTimersAsync(CancellationToken cancellationToken)
     {
-        return await _context.LiveSessions
+        // Two authoritative-timer windows tick under an Active session: the trivia active-question
+        // window, and the treasure-hunt substage window. The substage branch is scoped to the active
+        // substage actually being TreasureHunt — the _substageTimer* fields can be left stale after a
+        // TreasureHunt -> Trivia advance (SeedSubstageTimerIfTreasureHunt early-returns without clearing
+        // them), so the advancing/expired predicate alone would keep ticking such sessions redundantly.
+        //
+        // The predicate below stays within translatable timer columns so EF never has to translate the
+        // owned-collection snapshot navigation into SQL. The TreasureHunt scoping is then applied in
+        // memory over the hydrated snapshot (deep-loaded via the Includes below).
+        var candidates = await _context.LiveSessions
             .Where(session =>
                 session.State == SessionState.Active &&
-                session.ActiveQuestionIndex != null &&
-                EF.Property<DateTimeOffset?>(session, "_questionTimerExpiredAt") == null)
+                ((session.ActiveQuestionIndex != null &&
+                    EF.Property<DateTimeOffset?>(session, "_questionTimerExpiredAt") == null) ||
+                 (EF.Property<DateTimeOffset?>(session, "_substageTimerAdvancingSince") != null &&
+                    EF.Property<DateTimeOffset?>(session, "_substageTimerExpiredAt") == null)))
+            .Include(session => session.MissionRuntimeSnapshot)
+                .ThenInclude(snapshot => snapshot.StageSnapshots)
+                    .ThenInclude(stage => stage.SubstageSnapshots)
+            .AsSplitQuery()
             .ToListAsync(cancellationToken);
+
+        return candidates
+            .Where(session =>
+                session.ActiveQuestionIndex != null || ActiveSubstageIsTreasureHunt(session))
+            .ToList();
+    }
+
+    // True when the session's active substage (matched by ActiveSubstageId) resolves, within the
+    // hydrated snapshot, to a TreasureHunt substage. Guards against stale _substageTimer* fields left
+    // behind by a TreasureHunt -> Trivia advance.
+    private static bool ActiveSubstageIsTreasureHunt(LiveSession session)
+    {
+        return session.MissionRuntimeSnapshot is not null &&
+            session.MissionRuntimeSnapshot.StageSnapshots
+                .SelectMany(stage => stage.SubstageSnapshots)
+                .Any(substage =>
+                    substage.SubstageSnapshotId == session.ActiveSubstageId &&
+                    substage.PlayMode == SubstagePlayMode.TreasureHunt);
     }
 
     public async Task UpdateAsync(LiveSession liveSession, CancellationToken cancellationToken)

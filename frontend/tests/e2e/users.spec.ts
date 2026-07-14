@@ -12,11 +12,33 @@ test('admin sees deactivate button on active users', async ({ adminPage: page })
   await expect(page.locator('[data-testid^="deactivate-btn-"]').first()).toBeVisible()
 })
 
-test('operator sees users panel read-only', async ({ operatorPage: page }) => {
+test('operator cannot see or reach the users view', async ({ operatorPage: page }) => {
+  // Issue #148: the Users view is Administrator-only. Operators must not see the nav
+  // item and must not be able to reach the panel.
+  await page.goto('/dashboard')
+  await expect(page.locator('[data-testid="nav-users"]')).toHaveCount(0)
+  await expect(page.locator('[data-testid="users-panel"]')).toHaveCount(0)
+})
+
+test('admin sees the invite form; operator does not', async ({ adminPage: admin, operatorPage: operator }) => {
+  await admin.goto('/dashboard')
+  await admin.click('[data-testid="nav-users"]')
+  await expect(admin.locator('[data-testid="invite-user-form"]')).toBeVisible()
+  // No password field anywhere in the invite form.
+  await expect(admin.locator('[data-testid="invite-user-form"] input[type="password"]')).toHaveCount(0)
+
+  // Issue #148: operators cannot reach the users view at all, so the invite form is
+  // never present for them.
+  await operator.goto('/dashboard')
+  await expect(operator.locator('[data-testid="nav-users"]')).toHaveCount(0)
+  await expect(operator.locator('[data-testid="invite-user-form"]')).toHaveCount(0)
+})
+
+test('invite form offers only Operator and Administrator roles', async ({ adminPage: page }) => {
   await page.goto('/dashboard')
   await page.click('[data-testid="nav-users"]')
-  await expect(page.locator('[data-testid="users-panel"]')).toBeVisible()
-  await expect(page.locator('[data-testid^="deactivate-btn-"]')).toHaveCount(0)
+  const roleOptions = page.locator('[data-testid="invite-role-select"] option')
+  await expect(roleOptions).toHaveText(['Operator', 'Administrator'])
 })
 
 test('deactivated user is blocked at login with clear error', async ({ page }) => {

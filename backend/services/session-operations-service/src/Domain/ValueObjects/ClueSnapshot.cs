@@ -11,6 +11,7 @@ public sealed class ClueSnapshot : ValueObject
     // Mission-design's ClueVisibilityPolicy.VisibleWhenSubstageStarts, serialized by name. Kept as a
     // string constant because SessionOperations does not own the authoring enum.
     public const string VisibleWhenSubstageStartsPolicy = "VisibleWhenSubstageStarts";
+    public const string HiddenUntilOperatorReleasePolicy = "HiddenUntilOperatorRelease";
 
     private ClueSnapshot()
     {
@@ -56,6 +57,9 @@ public sealed class ClueSnapshot : ValueObject
 
     public bool IsVisibleWhenSubstageStarts =>
         string.Equals(VisibilityPolicy, VisibleWhenSubstageStartsPolicy, StringComparison.OrdinalIgnoreCase);
+
+    public bool IsHiddenUntilOperatorRelease =>
+        string.Equals(VisibilityPolicy, HiddenUntilOperatorReleasePolicy, StringComparison.OrdinalIgnoreCase);
 
     public static ClueSnapshot Create(
         Guid substageSnapshotId,

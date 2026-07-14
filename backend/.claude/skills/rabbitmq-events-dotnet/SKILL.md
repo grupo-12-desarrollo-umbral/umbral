@@ -1,81 +1,44 @@
 ---
 name: rabbitmq-events-dotnet
-description: Designs and implements RabbitMQ-based event publishing and consumption in modern .NET applications using the Generic Host, DI, options, and background services. Use when the user mentions RabbitMQ, AMQP, queues, exchanges, consumers, publishers, DLQ/DLX, retries, event-driven integration, or reliable messaging in C#/.NET.
+description: Implements integration events with MassTransit over RabbitMQ in the Umbral .NET services. Use for event contracts, publishers, consumers, topology, failure queues, and messaging tests.
 ---
 
-# RabbitMQ Events for .NET
+# MassTransit over RabbitMQ
 
-Implement production-grade RabbitMQ event flows in modern .NET while adapting to the host application's conventions instead of imposing a fixed architecture.
-
-## Quick Start
-
-1. Inspect the project first:
-   - hosting model: worker, ASP.NET Core, console, library
-   - current DI/config/logging conventions
-   - existing messaging abstractions, serializers, and transaction boundaries
-2. Choose the event shape and delivery semantics:
-   - command vs event
-   - at-most-once vs at-least-once
-   - transient vs durable
-   - classic vs quorum queue
-3. Implement the smallest reliable slice:
-   - validated RabbitMQ options
-   - long-lived connection management
-   - topology declaration
-   - publisher with confirms
-   - consumer with manual ack and bounded prefetch
-4. Add failure handling:
-   - mandatory publish handling
-   - retry or delayed retry path
-   - DLX/DLQ
-   - idempotent consumer behavior
-5. Verify with focused integration tests and operational checks.
+Use MassTransit as the single messaging path. Do not add direct `RabbitMQ.Client` publishers,
+connection/channel management, or a policy-free project-owned publisher wrapper.
 
 ## Workflow
 
-### 1. Shape the topology
+1. Inspect the owning bounded context, its contracts, and existing MassTransit registration.
+2. Define the integration-event record in Application and give it a stable, domain-meaningful
+   exchange name with `[EntityName("...")]`.
+3. Inject MassTransit's transport-neutral `IPublishEndpoint` directly into the MediatR event handler
+   and call `Publish` after the domain event is dispatched. Use a cancellation token linked to the
+   caller and bounded to five seconds; log and swallow timeout or publication failures because the
+   operation has already committed.
+4. Keep RabbitMQ host credentials and `UsingRabbitMq` topology configuration in Infrastructure.
+5. Implement consumers with `IConsumer<T>` and register them through `AddMassTransit` /
+   `ConfigureEndpoints`.
+6. Verify handler mapping with unit tests and the real transport path with Testcontainers-based
+   integration tests that skip only when Docker is unavailable.
 
-- Prefer explicit exchanges over publishing to queues directly.
-- Use `topic` exchanges for domain events unless routing requirements are truly simple.
-- Use stable routing keys such as `orders.created` or `billing.invoice-issued`.
-- Declare durable topology for durable workflows.
-- Prefer RabbitMQ policies for broker-side queue behavior such as DLX, TTL, and delivery limits.
+## Project conventions
 
-### 2. Implement publishers
-
-- Reuse long-lived connections and channels.
-- Do not share a publishing channel concurrently across threads.
-- Enable publisher confirms for anything that must not be silently lost.
-- Use persistent messages for durable flows.
-- Set `message_id`, `type`, `content_type`, correlation data, and useful headers.
-- Handle unroutable mandatory publishes.
-
-### 3. Implement consumers
-
-- Run consumers in `BackgroundService` or an equivalent hosted service.
-- Use manual acknowledgements.
-- Set a bounded prefetch and tune it deliberately.
-- Deserialize or copy the delivery body before the handler returns.
-- Keep handlers idempotent and cancellation-aware.
-- Ack only after the side effects and persistence boundary succeed.
-
-### 4. Operate safely
-
-- Prefer separate connections for publishers and consumers.
-- Set a client-provided connection name.
-- Keep heartbeats enabled.
-- Use automatic recovery, but still implement startup retry logic.
-- Add health checks, structured logging, and metrics.
-
-## Rules
-
-- Never open a new connection per publish.
-- Never rely on auto-ack for important business processing.
-- Never assume RabbitMQ gives exactly-once delivery.
-- Never hardcode queue arguments that should be managed by policies unless there is no broker-admin path.
-- Never use polling consumption (`BasicGet`) for normal event processing.
+- Application may reference `MassTransit.Abstractions`; it must not reference the RabbitMQ transport.
+- Infrastructure owns `MassTransit.RabbitMQ`, host configuration, credentials, and bus registration.
+- Publish through `IPublishEndpoint`; do not introduce `IIntegrationEventPublisher` forwarding seams.
+- Every post-commit publish uses a caller-linked five-second cancellation timeout and logs and
+  swallows publication failures.
+- Use one exchange per message type via `[EntityName]`; do not restore the former shared topic
+  exchange or routing-key switch.
+- Use MassTransit's serialized envelope and topology rather than hand-rolled JSON bodies.
+- Let MassTransit route unhandled consumer faults to its automatic `<endpoint>_error` queue. Do not
+  add a custom retry/outbox policy unless an accepted design explicitly requires one.
+- Do not claim exactly-once delivery. Consumers must tolerate redelivery and make side effects
+  idempotent where the use case requires it.
 
 ## References
 
-- Implementation guidance: [REFERENCE.md](REFERENCE.md)
-- Code templates and examples: [EXAMPLES.md](EXAMPLES.md)
+- Repository-specific guidance: [REFERENCE.md](REFERENCE.md)
+- Code examples: [EXAMPLES.md](EXAMPLES.md)

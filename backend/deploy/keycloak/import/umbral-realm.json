@@ -3,8 +3,18 @@
   "enabled": true,
   "displayName": "Umbral",
   "registrationAllowed": false,
+  "registrationEmailAsUsername": false,
   "resetPasswordAllowed": true,
+  "resetCredentialsFlow": "reset credentials",
   "verifyEmail": true,
+  "defaultRole": {
+    "name": "default-roles-umbral",
+    "description": "${role_default-roles}",
+    "composite": true,
+    "clientRole": false,
+    "containerId": "umbral"
+  },
+  "actionTokenGeneratedByUserLifespan": 900,
   "smtpServer": {
     "host": "${KC_SMTP_HOST:mailpit}",
     "port": "${KC_SMTP_PORT:1025}",
@@ -18,6 +28,20 @@
   },
   "roles": {
     "realm": [
+      {
+        "name": "default-roles-umbral",
+        "description": "${role_default-roles}",
+        "composite": true,
+        "composites": {
+          "client": {
+            "account": [
+              "view-profile",
+              "manage-account"
+            ]
+          }
+        },
+        "clientRole": false
+      },
       {
         "name": "Administrator",
         "description": "Administrative platform access"

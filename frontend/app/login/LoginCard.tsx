@@ -2,7 +2,13 @@
 
 import styles from './login.module.css'
 
-export default function LoginCard({ error }: { error?: string }) {
+export default function LoginCard({
+  error,
+  forgotPasswordHref,
+}: {
+  error?: string
+  forgotPasswordHref: string
+}) {
   return (
     <div className={styles.page}>
       <div className={styles.card}>
@@ -26,6 +32,10 @@ export default function LoginCard({ error }: { error?: string }) {
 
         <a className={styles.primaryButton} href="/api/auth/login">
           Sign in with Keycloak
+        </a>
+
+        <a className={styles.secondaryLink} href={forgotPasswordHref}>
+          Forgot your password?
         </a>
       </div>
     </div>

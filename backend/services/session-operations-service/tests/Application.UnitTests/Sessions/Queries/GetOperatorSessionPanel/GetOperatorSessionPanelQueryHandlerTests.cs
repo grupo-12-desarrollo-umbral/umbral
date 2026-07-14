@@ -40,6 +40,11 @@ public sealed class GetOperatorSessionPanelQueryHandlerTests
         result.TeamProgress.Select(team => team.ActiveSubstage).Should().NotContainNulls();
         result.TeamProgress.Select(team => team.ActiveSubstage!.TotalActiveTargets).Should().OnlyContain(count => count == 1);
         result.TeamProgress.Select(team => team.ActiveSubstage!.ResolvedTargets).Should().OnlyContain(count => count == 0);
+        result.TeamProgress.Select(team => team.ActiveSubstage!.Targets).Should().OnlyContain(targets =>
+            targets.Count == 1 &&
+            targets[0].Name == "Main Exhibit" &&
+            targets[0].SequenceOrder == 1 &&
+            !targets[0].HasHiddenClue);
 
         resolver.Verify(
             r => r.GetAuthorizedSessionAsync(session.LiveSessionId, It.IsAny<CancellationToken>()),
@@ -86,7 +91,7 @@ public sealed class GetOperatorSessionPanelQueryHandlerTests
             .Select(property => property.Name);
 
         rootProperties.Should().BeEquivalentTo("LiveSessionId", "State", "Timer", "TeamProgress");
-        teamProperties.Should().BeEquivalentTo("TeamId", "TeamCode", "DisplayName", "Score", "ActiveSubstage");
+        teamProperties.Should().BeEquivalentTo("TeamId", "TeamCode", "DisplayName", "Score", "ReleasedClueCount", "ActiveSubstage");
         teamProperties.Should().NotContain(new[] { "Rank", "Winner", "Penalty", "ScoreLedger" });
     }
 

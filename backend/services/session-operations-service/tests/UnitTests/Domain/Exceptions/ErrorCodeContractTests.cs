@@ -18,11 +18,15 @@ public sealed class ErrorCodeContractTests
         new Dictionary<string, string>(StringComparer.Ordinal)
         {
             ["AnswerSubmitterIsNotSessionParticipantException"] = "answer-submitter-is-not-session-participant",
+            ["ClueAlreadyReleasedToTeamException"] = "clue-already-released-to-team",
+            ["ClueNotReleasableException"] = "clue-not-releasable",
+            ["ClueReleaseSubjectInvalidException"] = "clue-release-subject-invalid",
             ["ClueSnapshotIdRequiredException"] = "clue-snapshot-id-required",
             ["ClueSnapshotSubstageRequiredException"] = "clue-snapshot-substage-required",
             ["DuplicateTeamAssociationInSessionException"] = "duplicate-team-association-in-session",
             ["DuplicateTeamCodeInSessionException"] = "duplicate-team-code-in-session",
             ["DuplicateTriviaAnswerException"] = "duplicate-trivia-answer",
+            ["EvidenceAlreadyResolvedException"] = "evidence-already-resolved",
             ["EvidenceSubmissionContextRequiredException"] = "evidence-submission-context-required",
             // Overridden slug (does not follow the class name):
             ["InvalidSessionStateTransitionException"] = "invalid-state-transition",
@@ -46,6 +50,8 @@ public sealed class ErrorCodeContractTests
             ["NoActiveSubstageException"] = "no-active-substage",
             ["OpenTeamSelectionClosedException"] = "open-team-selection-closed",
             ["OperatorUserIdMustBePositiveException"] = "operator-user-id-must-be-positive",
+            ["OperativeClueRequiresAtLeastOneTeamException"] = "operative-clue-requires-at-least-one-team",
+            ["OperativeClueTextRequiredException"] = "operative-clue-text-required",
             ["ParticipantAlreadyConnectedException"] = "participant-already-connected",
             ["ParticipantAssignedToDifferentTeamException"] = "participant-assigned-to-different-team",
             ["ParticipantDisplayNameRequiredException"] = "participant-display-name-required",
@@ -56,6 +62,8 @@ public sealed class ErrorCodeContractTests
             ["QuestionIndexOutOfRangeException"] = "question-index-out-of-range",
             ["ReferenceTeamIdRequiredException"] = "reference-team-id-required",
             ["SessionSourceEntityRequiredException"] = "session-source-entity-required",
+            ["SessionNotActiveForClueReleaseException"] = "session-not-active-for-clue-release",
+            ["SessionNotLiveForOperativeClueException"] = "session-not-live-for-operative-clue",
             ["StageSnapshotIdRequiredException"] = "stage-snapshot-id-required",
             ["StageSnapshotMustContainSubstagesException"] = "stage-snapshot-must-contain-substages",
             ["SubstageAdvancementRequiresActiveSessionException"] = "substage-advancement-requires-active-session",

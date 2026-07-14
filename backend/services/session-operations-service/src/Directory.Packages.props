@@ -12,6 +12,9 @@
          the Application layer; RabbitMQ pulls in the transport for the Infrastructure bus registration. -->
     <PackageVersion Include="MassTransit" Version="8.4.1" />
     <PackageVersion Include="MassTransit.Abstractions" Version="8.4.1" />
+    <!-- EF Core transactional bus outbox: the scoped IPublishEndpoint becomes a DB insert inside the
+         business transaction, and a hosted delivery service drains it to RabbitMQ asynchronously. -->
+    <PackageVersion Include="MassTransit.EntityFrameworkCore" Version="8.4.1" />
     <PackageVersion Include="MassTransit.RabbitMQ" Version="8.4.1" />
     <PackageVersion Include="MediatR" Version="12.4.1" />
     <PackageVersion Include="MediatR.Contracts" Version="2.0.1" />
@@ -42,7 +45,6 @@
          what gives hub invocations a W3C trace id (spike S1). Do not downgrade below 1.12.0. -->
     <PackageVersion Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.16.0" />
     <PackageVersion Include="OpenTelemetry.Instrumentation.Http" Version="1.16.0" />
-    <PackageVersion Include="RabbitMQ.Client" Version="7.1.2" />
     <PackageVersion Include="Scalar.AspNetCore" Version="2.0.36" />
   </ItemGroup>
 </Project>

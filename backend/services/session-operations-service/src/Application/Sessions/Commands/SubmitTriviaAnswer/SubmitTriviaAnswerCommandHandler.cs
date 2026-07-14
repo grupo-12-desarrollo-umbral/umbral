@@ -1,6 +1,8 @@
 using umbral_backend.Application.Common.Exceptions;
 using umbral_backend.Application.Common.Interfaces;
 using umbral_backend.Application.Dtos.Sessions;
+using umbral_backend.Application.Sessions.Common;
+using umbral_backend.Application.Sessions.Common.EvidenceIntakeValidation;
 using umbral_backend.Application.Sessions.Common.TriviaAnswerValidation;
 using umbral_backend.Domain.Entities;
 using umbral_backend.Domain.Exceptions;
@@ -8,10 +10,9 @@ using umbral_backend.Domain.Exceptions;
 namespace umbral_backend.Application.Sessions.Commands.SubmitTriviaAnswer;
 
 /// <summary>
-/// Orchestrates one trivia-answer write: load the aggregate, run the ordered Chain of Responsibility
-/// (runtime participation -> active question -> timer window -> duplicate team answer, short-circuit
-/// on first failure), then delegate to the single domain answer-registration skeleton — the handler
-/// orchestrates, the links and the domain decide. Accepted answers persist and, only then, raise
+/// Loads the aggregate and delegates the shared write workflow to EvidenceIntakeFacade. The composed
+/// chain runs generic admission before trivia-specific checks, then the aggregate remains the final
+/// authority. Accepted answers persist and, only then, raise
 /// <c>AnswerRegisteredEvent</c>, which the bridges turn into the RabbitMQ contract and the operator
 /// signal. The result carries acceptance metadata only.
 /// </summary>
@@ -20,17 +21,20 @@ public sealed class SubmitTriviaAnswerCommandHandler
 {
     private readonly ILiveSessionRepository _liveSessionRepository;
     private readonly TriviaAnswerValidationChain _validationChain;
+    private readonly IEvidenceIntakeFacade _evidenceIntakeFacade;
     private readonly ICurrentUser _currentUser;
     private readonly TimeProvider _timeProvider;
 
     public SubmitTriviaAnswerCommandHandler(
         ILiveSessionRepository liveSessionRepository,
         TriviaAnswerValidationChain validationChain,
+        IEvidenceIntakeFacade evidenceIntakeFacade,
         ICurrentUser currentUser,
         TimeProvider timeProvider)
     {
         _liveSessionRepository = liveSessionRepository;
         _validationChain = validationChain;
+        _evidenceIntakeFacade = evidenceIntakeFacade;
         _currentUser = currentUser;
         _timeProvider = timeProvider;
     }
@@ -54,19 +58,22 @@ public sealed class SubmitTriviaAnswerCommandHandler
             request.Token,
             submittedAt);
 
-        await _validationChain.ValidateAsync(context, cancellationToken);
-
-        var submittedByParticipantId = ResolveParticipantId(session);
-
-        // The domain skeleton re-asserts every invariant as the last line of defence, snapshots
-        // correctness/score, and raises AnswerRegisteredEvent on the accept path only.
-        var submission = session.RegisterTriviaAnswer(
+        var intakeContext = new EvidenceIntakeValidationContext(
+            session,
             request.TeamId,
-            request.SelectedOptionSequenceOrder,
-            submittedByParticipantId,
+            request.TriviaSubstageSnapshotId,
+            request.Token,
             submittedAt);
 
-        await _liveSessionRepository.UpdateAsync(session, cancellationToken);
+        var submission = await _evidenceIntakeFacade.RegisterAsync(
+            intakeContext,
+            ct => _validationChain.ValidateConcreteFormAsync(context, ct),
+            liveSession => liveSession.RegisterTriviaAnswer(
+                request.TeamId,
+                request.SelectedOptionSequenceOrder,
+                ResolveParticipantId(liveSession),
+                submittedAt),
+            cancellationToken);
 
         return new SubmitTriviaAnswerResultDto(
             session.LiveSessionId,

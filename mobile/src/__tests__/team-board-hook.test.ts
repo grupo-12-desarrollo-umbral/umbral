@@ -99,7 +99,12 @@ const BASE_BOARD: ParticipantTeamBoardDto = {
     activeQuestionSequenceOrder: null,
     activeQuestionTimeLimitSeconds: null,
   },
+  substages: [
+    { substageSnapshotId: 'sub-0', title: 'Opening Trivia', sequenceOrder: 0, playMode: 'Trivia', status: 'Completed' },
+    { substageSnapshotId: 'sub-1', title: 'The Vault', sequenceOrder: 1, playMode: 'TreasureHunt', status: 'Active' },
+  ],
   visibleClues: [],
+  activeTargets: [],
 };
 
 // --- Tests ---
@@ -174,6 +179,42 @@ describe('useTeamBoard', () => {
     hook.unmount();
   });
 
+  test('a push carrying an advanced substage sequence replaces the ordered substages', async () => {
+    // Advancement rebroadcasts the whole board (#171): the prior substage flips to Completed and the
+    // next becomes Active. The hook applies the push wholesale, so board.substages tracks it.
+    mockGetTeamBoard.mockResolvedValueOnce(BASE_BOARD);
+    const client = makeClient();
+
+    const hook = renderHook({
+      client,
+      liveSessionId: 'sess-1',
+      teamId: REFERENCE_TEAM_ID,
+      isReconnected: true,
+      reconnectNonce: 0,
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(hook.get().board?.substages.find(s => s.status === 'Active')?.substageSnapshotId).toBe('sub-1');
+
+    act(() => {
+      fireBoard({
+        ...BASE_BOARD,
+        activeSubstage: null,
+        substages: [
+          { substageSnapshotId: 'sub-0', title: 'Opening Trivia', sequenceOrder: 0, playMode: 'Trivia', status: 'Completed' },
+          { substageSnapshotId: 'sub-1', title: 'The Vault', sequenceOrder: 1, playMode: 'TreasureHunt', status: 'Completed' },
+        ],
+      });
+    });
+
+    expect(hook.get().board?.substages.every(s => s.status === 'Completed')).toBe(true);
+
+    hook.unmount();
+  });
+
   test('ignores a push for a different liveSessionId', async () => {
     mockGetTeamBoard.mockResolvedValueOnce(BASE_BOARD);
     const client = makeClient();
@@ -195,6 +236,145 @@ describe('useTeamBoard', () => {
     });
 
     expect(hook.get().board?.currentScore).toBe(0);
+
+    hook.unmount();
+  });
+
+  test('a push carrying a newly-released clue grows visibleClues', async () => {
+    // HU-26 reveal: the operator releases a clue on the web side; the backend re-projects the board
+    // and pushes it. The hook applies it wholesale, so the new VisibleClueDto lands in visibleClues.
+    mockGetTeamBoard.mockResolvedValueOnce(BASE_BOARD);
+    const client = makeClient();
+
+    const hook = renderHook({
+      client,
+      liveSessionId: 'sess-1',
+      teamId: REFERENCE_TEAM_ID,
+      isReconnected: true,
+      reconnectNonce: 0,
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(hook.get().board?.visibleClues).toHaveLength(0);
+
+    act(() => {
+      fireBoard({
+        ...BASE_BOARD,
+        visibleClues: [
+          { targetSnapshotId: 'clue-1', targetName: 'Brass Astrolabe', clueText: 'Follow the north colonnade.', operativeClueId: null },
+        ],
+      });
+    });
+
+    expect(hook.get().board?.visibleClues).toHaveLength(1);
+    expect(hook.get().board?.visibleClues[0].targetName).toBe('Brass Astrolabe');
+    expect(hook.get().board?.visibleClues[0].clueText).toBe('Follow the north colonnade.');
+
+    hook.unmount();
+  });
+
+  test('does not add a released clue from a push for a different liveSessionId', async () => {
+    // Cross-session isolation: a clue released in another session must never surface on this board.
+    mockGetTeamBoard.mockResolvedValueOnce(BASE_BOARD);
+    const client = makeClient();
+
+    const hook = renderHook({
+      client,
+      liveSessionId: 'sess-1',
+      teamId: REFERENCE_TEAM_ID,
+      isReconnected: true,
+      reconnectNonce: 0,
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    act(() => {
+      fireBoard({
+        ...BASE_BOARD,
+        liveSessionId: 'other-sess',
+        visibleClues: [
+          { targetSnapshotId: 'clue-x', targetName: 'Other Team Target', clueText: 'Not for this team.', operativeClueId: null },
+        ],
+      });
+    });
+
+    expect(hook.get().board?.visibleClues).toHaveLength(0);
+
+    hook.unmount();
+  });
+
+  test('a push carrying an operative clue (null target fields) grows visibleClues', async () => {
+    // HU-28 reveal: the operator authors a free-text operative clue on the web side; P0 re-projects
+    // the assigned team's board and pushes it. Operative clues carry null targetSnapshotId/targetName
+    // and a non-null operativeClueId — the hook applies the push wholesale, so it lands in visibleClues.
+    mockGetTeamBoard.mockResolvedValueOnce(BASE_BOARD);
+    const client = makeClient();
+
+    const hook = renderHook({
+      client,
+      liveSessionId: 'sess-1',
+      teamId: REFERENCE_TEAM_ID,
+      isReconnected: true,
+      reconnectNonce: 0,
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(hook.get().board?.visibleClues).toHaveLength(0);
+
+    act(() => {
+      fireBoard({
+        ...BASE_BOARD,
+        visibleClues: [
+          { targetSnapshotId: null, targetName: null, clueText: 'Look beneath the blue banner.', operativeClueId: 'op-9f1c2a3b' },
+        ],
+      });
+    });
+
+    expect(hook.get().board?.visibleClues).toHaveLength(1);
+    expect(hook.get().board?.visibleClues[0].targetSnapshotId).toBeNull();
+    expect(hook.get().board?.visibleClues[0].targetName).toBeNull();
+    expect(hook.get().board?.visibleClues[0].operativeClueId).toBe('op-9f1c2a3b');
+    expect(hook.get().board?.visibleClues[0].clueText).toBe('Look beneath the blue banner.');
+
+    hook.unmount();
+  });
+
+  test('does not add an operative clue from a push for a different liveSessionId', async () => {
+    // Cross-session isolation: an operative clue assigned in another session must never surface here.
+    mockGetTeamBoard.mockResolvedValueOnce(BASE_BOARD);
+    const client = makeClient();
+
+    const hook = renderHook({
+      client,
+      liveSessionId: 'sess-1',
+      teamId: REFERENCE_TEAM_ID,
+      isReconnected: true,
+      reconnectNonce: 0,
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    act(() => {
+      fireBoard({
+        ...BASE_BOARD,
+        liveSessionId: 'other-sess',
+        visibleClues: [
+          { targetSnapshotId: null, targetName: null, clueText: 'Not for this team.', operativeClueId: 'op-other' },
+        ],
+      });
+    });
+
+    expect(hook.get().board?.visibleClues).toHaveLength(0);
 
     hook.unmount();
   });
@@ -291,6 +471,34 @@ describe('useTeamBoard', () => {
 
     expect(mockGetTeamBoard).toHaveBeenCalledTimes(2);
     expect(hook.get().board?.activeSubstage?.playMode).toBe('TreasureHunt');
+
+    hook.unmount();
+  });
+
+  test('bumping refreshNonce re-fetches the board (post-scan progress pull)', async () => {
+    mockGetTeamBoard.mockResolvedValue(BASE_BOARD);
+    const client = makeClient();
+
+    const hook = renderHook({
+      client,
+      liveSessionId: 'sess-1',
+      teamId: REFERENCE_TEAM_ID,
+      isReconnected: true,
+      reconnectNonce: 0,
+      refreshNonce: 0,
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(mockGetTeamBoard).toHaveBeenCalledTimes(1);
+
+    await hook.rerender({ refreshNonce: 1 });
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(mockGetTeamBoard).toHaveBeenCalledTimes(2);
 
     hook.unmount();
   });

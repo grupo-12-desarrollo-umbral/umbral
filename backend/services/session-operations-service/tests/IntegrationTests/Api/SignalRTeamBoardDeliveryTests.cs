@@ -227,7 +227,8 @@ public sealed class SignalRTeamBoardDeliveryTests : IAsyncLifetime
             "A-01",
             0,
             timer,
-            new ActiveSubstageContextDto(Guid.NewGuid(), "TreasureHunt", "Treasure Hunt", 1, 0, null, null),
+            new ActiveSubstageContextDto(Guid.NewGuid(), "TreasureHunt", "Treasure Hunt", 1, 0, null, null, []),
+            [],
             [],
             []);
     }

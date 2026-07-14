@@ -29,10 +29,19 @@ export type UseSessionTimerResult = {
   display: TimerDisplay;
   activeQuestion: SessionTimerSnapshotDto['activeQuestion'] | null;
   sessionState: string | null;
+  // The trivia pre-game countdown numeral (5→1), or null when not counting down. The backend emits it
+  // as a short-window SessionTimerUpdated before a trivia round's first question; kept off the main
+  // timer so those ticks never clobber the session clock (mirrors the operator dashboard, HU-M-countdown).
+  pregameSecondsLeft: number | null;
   // Increments each time a snapshot fetch settles. A "landed" signal consumers can key a reconcile
   // on, so they act on fresh data rather than the stale value present when the fetch was triggered.
   snapshotVersion: number;
 };
+
+// A SessionTimerUpdated whose total window is this small while Active is a pre-game countdown tick, not
+// the session clock: the create-session form enforces a 1-minute minimum, so a tiny total can only be
+// the orchestration's pre-game ticks (same guard as the web dashboard).
+const PREGAME_MAX_TOTAL_MS = 10_000;
 
 export function useSessionTimer({
   client,
@@ -55,6 +64,7 @@ export function useSessionTimer({
   const [timer, setTimer] = useState<TimerState | null>(null);
   const [activeQuestion, setActiveQuestion] = useState<SessionTimerSnapshotDto['activeQuestion'] | null>(null);
   const [sessionState, setSessionState] = useState<string | null>(null);
+  const [pregameSecondsLeft, setPregameSecondsLeft] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<TimerSnapshotError | null>(null);
   const [snapshotVersion, setSnapshotVersion] = useState(0);
@@ -71,6 +81,8 @@ export function useSessionTimer({
     getParticipantTimerSnapshot(liveSessionId, teamId, token)
       .then(snapshot => {
         if (!active) return;
+        // A fresh snapshot is the authoritative session clock — end any pre-game countdown display.
+        setPregameSecondsLeft(null);
         setTimer({
           remainingSeconds: snapshot.remainingSeconds,
           totalSeconds: snapshot.totalSeconds,
@@ -103,6 +115,18 @@ export function useSessionTimer({
     return client.onTimerUpdated((notification: SessionTimerUpdatedNotificationDto) => {
       if (notification.liveSessionId !== liveSessionId) return;
 
+      // Pre-game countdown ticks ride SessionTimerUpdated on a short window — route them to the
+      // countdown numeral and leave the session clock untouched (matches the web dashboard).
+      if (
+        notification.totalMilliseconds <= PREGAME_MAX_TOTAL_MS &&
+        notification.sessionState === 'Active'
+      ) {
+        setPregameSecondsLeft(Math.max(0, Math.ceil(notification.remainingMilliseconds / 1000)));
+        setSessionState(notification.sessionState);
+        return;
+      }
+
+      setPregameSecondsLeft(null);
       setTimer({
         remainingSeconds: notification.remainingMilliseconds / 1000,
         totalSeconds: notification.totalMilliseconds / 1000,
@@ -119,5 +143,5 @@ export function useSessionTimer({
     ? toTimerDisplay(timer.remainingSeconds, timer.totalSeconds, timer.isPaused, timer.isExpired)
     : UNAVAILABLE_TIMER_DISPLAY;
 
-  return { timer, isLoading, error, display, activeQuestion, sessionState, snapshotVersion };
+  return { timer, isLoading, error, display, activeQuestion, sessionState, pregameSecondsLeft, snapshotVersion };
 }

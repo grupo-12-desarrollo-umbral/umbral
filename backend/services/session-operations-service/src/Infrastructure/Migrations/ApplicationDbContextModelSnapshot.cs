@@ -22,6 +22,233 @@ namespace umbral_backend.Infrastructure.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("MassTransit.EntityFrameworkCoreIntegration.InboxState", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<DateTime?>("Consumed")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("ConsumerId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("Delivered")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("ExpirationTime")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<long?>("LastSequenceNumber")
+                        .HasColumnType("bigint");
+
+                    b.Property<Guid>("LockId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("MessageId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("ReceiveCount")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("Received")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("bytea");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Delivered");
+
+                    b.ToTable("InboxState");
+                });
+
+            modelBuilder.Entity("MassTransit.EntityFrameworkCoreIntegration.OutboxMessage", b =>
+                {
+                    b.Property<long>("SequenceNumber")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("SequenceNumber"));
+
+                    b.Property<string>("Body")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.Property<Guid?>("ConversationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("CorrelationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("DestinationAddress")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.Property<DateTime?>("EnqueueTime")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("ExpirationTime")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("FaultAddress")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.Property<string>("Headers")
+                        .HasColumnType("text");
+
+                    b.Property<Guid?>("InboxConsumerId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("InboxMessageId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("InitiatorId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("MessageId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("MessageType")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<Guid?>("OutboxId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Properties")
+                        .HasColumnType("text");
+
+                    b.Property<Guid?>("RequestId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ResponseAddress")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.Property<DateTime>("SentTime")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("SourceAddress")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.HasKey("SequenceNumber");
+
+                    b.HasIndex("EnqueueTime");
+
+                    b.HasIndex("ExpirationTime");
+
+                    b.HasIndex("OutboxId", "SequenceNumber")
+                        .IsUnique();
+
+                    b.HasIndex("InboxMessageId", "InboxConsumerId", "SequenceNumber")
+                        .IsUnique();
+
+                    b.ToTable("OutboxMessage");
+                });
+
+            modelBuilder.Entity("MassTransit.EntityFrameworkCoreIntegration.OutboxState", b =>
+                {
+                    b.Property<Guid>("OutboxId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("Created")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("Delivered")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<long?>("LastSequenceNumber")
+                        .HasColumnType("bigint");
+
+                    b.Property<Guid>("LockId")
+                        .HasColumnType("uuid");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("bytea");
+
+                    b.HasKey("OutboxId");
+
+                    b.HasIndex("Created");
+
+                    b.ToTable("OutboxState");
+                });
+
+            modelBuilder.Entity("umbral_backend.Domain.Entities.EvidenceTraceEntry", b =>
+                {
+                    b.Property<Guid>("EvidenceSubmissionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("evidence_submission_id");
+
+                    b.Property<Guid>("ActiveSubstageId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("active_substage_id");
+
+                    b.Property<Guid>("LiveSessionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("live_session_id");
+
+                    b.Property<string>("OriginReference")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("origin_reference");
+
+                    b.Property<string>("RejectionReason")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("rejection_reason");
+
+                    b.Property<DateTimeOffset?>("ResolvedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("resolved_at");
+
+                    b.Property<string>("SubmissionType")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("submission_type");
+
+                    b.Property<DateTimeOffset>("SubmittedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("submitted_at");
+
+                    b.Property<Guid?>("SubmittedByParticipantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("submitted_by_participant_id");
+
+                    b.Property<Guid>("TeamId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("team_id");
+
+                    b.Property<string>("ValidationState")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("validation_state");
+
+                    b.HasKey("EvidenceSubmissionId");
+
+                    b.HasIndex("LiveSessionId", "TeamId");
+
+                    b.ToTable("evidence_trace_entries", (string)null);
+                });
+
             modelBuilder.Entity("umbral_backend.Domain.Entities.LiveSession", b =>
                 {
                     b.Property<Guid>("LiveSessionId")
@@ -111,6 +338,22 @@ namespace umbral_backend.Infrastructure.Migrations
                         .HasColumnType("interval")
                         .HasColumnName("question_timer_total_duration");
 
+                    b.Property<DateTimeOffset?>("_substageTimerAdvancingSince")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("substage_timer_advancing_since");
+
+                    b.Property<DateTimeOffset?>("_substageTimerExpiredAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("substage_timer_expired_at");
+
+                    b.Property<TimeSpan>("_substageTimerRemainingDuration")
+                        .HasColumnType("interval")
+                        .HasColumnName("substage_timer_remaining_duration");
+
+                    b.Property<TimeSpan>("_substageTimerTotalDuration")
+                        .HasColumnType("interval")
+                        .HasColumnName("substage_timer_total_duration");
+
                     b.HasKey("LiveSessionId");
 
                     b.HasIndex("SessionCode")
@@ -119,8 +362,75 @@ namespace umbral_backend.Infrastructure.Migrations
                     b.ToTable("live_sessions", (string)null);
                 });
 
+            modelBuilder.Entity("MassTransit.EntityFrameworkCoreIntegration.OutboxMessage", b =>
+                {
+                    b.HasOne("MassTransit.EntityFrameworkCoreIntegration.OutboxState", null)
+                        .WithMany()
+                        .HasForeignKey("OutboxId");
+
+                    b.HasOne("MassTransit.EntityFrameworkCoreIntegration.InboxState", null)
+                        .WithMany()
+                        .HasForeignKey("InboxMessageId", "InboxConsumerId")
+                        .HasPrincipalKey("MessageId", "ConsumerId");
+                });
+
             modelBuilder.Entity("umbral_backend.Domain.Entities.LiveSession", b =>
                 {
+                    b.OwnsMany("umbral_backend.Domain.Entities.ClueReleaseRecord", "_clueReleaseRecords", b1 =>
+                        {
+                            b1.Property<Guid>("ClueReleaseRecordId")
+                                .HasColumnType("uuid")
+                                .HasColumnName("id");
+
+                            b1.Property<Guid?>("ClueId")
+                                .HasColumnType("uuid")
+                                .HasColumnName("clue_id");
+
+                            b1.Property<Guid>("LiveSessionId")
+                                .HasColumnType("uuid")
+                                .HasColumnName("live_session_id");
+
+                            b1.Property<string>("ReleaseMode")
+                                .IsRequired()
+                                .HasMaxLength(32)
+                                .HasColumnType("character varying(32)")
+                                .HasColumnName("release_mode");
+
+                            b1.Property<DateTimeOffset>("ReleasedAt")
+                                .HasColumnType("timestamp with time zone")
+                                .HasColumnName("released_at");
+
+                            b1.Property<int?>("ReleasedByUserId")
+                                .HasColumnType("integer")
+                                .HasColumnName("released_by_user_id");
+
+                            b1.Property<Guid?>("TargetId")
+                                .HasColumnType("uuid")
+                                .HasColumnName("target_id");
+
+                            b1.Property<Guid>("TeamId")
+                                .HasColumnType("uuid")
+                                .HasColumnName("team_id");
+
+                            b1.HasKey("ClueReleaseRecordId");
+
+                            b1.HasIndex("LiveSessionId", "TeamId", "ClueId")
+                                .IsUnique()
+                                .HasFilter("clue_id IS NOT NULL");
+
+                            b1.HasIndex("LiveSessionId", "TeamId", "TargetId")
+                                .IsUnique()
+                                .HasFilter("target_id IS NOT NULL");
+
+                            b1.ToTable("live_session_clue_releases", null, t =>
+                                {
+                                    t.HasCheckConstraint("CK_live_session_clue_releases_exactly_one_subject", "(target_id IS NOT NULL) <> (clue_id IS NOT NULL)");
+                                });
+
+                            b1.WithOwner()
+                                .HasForeignKey("LiveSessionId");
+                        });
+
                     b.OwnsMany("umbral_backend.Domain.Entities.JoinContext", "JoinContexts", b1 =>
                         {
                             b1.Property<Guid>("JoinContextId")
@@ -179,6 +489,94 @@ namespace umbral_backend.Infrastructure.Migrations
                             b1.HasKey("LiveSessionId");
 
                             b1.ToTable("live_sessions");
+
+                            b1.WithOwner()
+                                .HasForeignKey("LiveSessionId");
+                        });
+
+                    b.OwnsMany("umbral_backend.Domain.Entities.OperativeClue", "_operativeClues", b1 =>
+                        {
+                            b1.Property<Guid>("OperativeClueId")
+                                .HasColumnType("uuid")
+                                .HasColumnName("id");
+
+                            b1.Property<string>("ClueText")
+                                .IsRequired()
+                                .HasMaxLength(500)
+                                .HasColumnType("character varying(500)")
+                                .HasColumnName("clue_text");
+
+                            b1.Property<DateTimeOffset>("CreatedAt")
+                                .HasColumnType("timestamp with time zone")
+                                .HasColumnName("created_at");
+
+                            b1.Property<int>("CreatedByUserId")
+                                .HasColumnType("integer")
+                                .HasColumnName("created_by_user_id");
+
+                            b1.Property<Guid>("LiveSessionId")
+                                .HasColumnType("uuid")
+                                .HasColumnName("live_session_id");
+
+                            b1.Property<Guid>("TeamId")
+                                .HasColumnType("uuid")
+                                .HasColumnName("team_id");
+
+                            b1.HasKey("OperativeClueId");
+
+                            b1.HasIndex("LiveSessionId");
+
+                            b1.ToTable("live_session_operative_clues", (string)null);
+
+                            b1.WithOwner()
+                                .HasForeignKey("LiveSessionId");
+                        });
+
+                    b.OwnsMany("umbral_backend.Domain.Entities.SessionEvent", "SessionEvents", b1 =>
+                        {
+                            b1.Property<Guid>("SessionEventId")
+                                .HasColumnType("uuid")
+                                .HasColumnName("id");
+
+                            b1.Property<int?>("ActorId")
+                                .HasColumnType("integer")
+                                .HasColumnName("actor_id");
+
+                            b1.Property<string>("ActorType")
+                                .IsRequired()
+                                .HasMaxLength(32)
+                                .HasColumnType("character varying(32)")
+                                .HasColumnName("actor_type");
+
+                            b1.Property<Guid>("CorrelationId")
+                                .HasColumnType("uuid")
+                                .HasColumnName("correlation_id");
+
+                            b1.Property<string>("EventType")
+                                .IsRequired()
+                                .HasMaxLength(64)
+                                .HasColumnType("character varying(64)")
+                                .HasColumnName("event_type");
+
+                            b1.Property<Guid>("LiveSessionId")
+                                .HasColumnType("uuid")
+                                .HasColumnName("live_session_id");
+
+                            b1.Property<DateTimeOffset>("OccurredAt")
+                                .HasColumnType("timestamp with time zone")
+                                .HasColumnName("occurred_at");
+
+                            b1.Property<string>("PayloadSummary")
+                                .IsRequired()
+                                .HasMaxLength(600)
+                                .HasColumnType("character varying(600)")
+                                .HasColumnName("payload_summary");
+
+                            b1.HasKey("SessionEventId");
+
+                            b1.HasIndex("LiveSessionId");
+
+                            b1.ToTable("live_session_events", (string)null);
 
                             b1.WithOwner()
                                 .HasForeignKey("LiveSessionId");
@@ -340,6 +738,74 @@ namespace umbral_backend.Infrastructure.Migrations
                             b1.Navigation("Members");
                         });
 
+                    b.OwnsMany("umbral_backend.Domain.Entities.TreasureEvidenceSubmission", "TreasureEvidenceSubmissions", b1 =>
+                        {
+                            b1.Property<Guid>("EvidenceSubmissionId")
+                                .HasColumnType("uuid")
+                                .HasColumnName("id");
+
+                            b1.Property<Guid>("ActiveSubstageId")
+                                .HasColumnType("uuid")
+                                .HasColumnName("active_substage_id");
+
+                            b1.Property<Guid>("LiveSessionId")
+                                .HasColumnType("uuid")
+                                .HasColumnName("live_session_id");
+
+                            b1.Property<string>("RejectionReason")
+                                .HasMaxLength(256)
+                                .HasColumnType("character varying(256)")
+                                .HasColumnName("rejection_reason");
+
+                            b1.Property<string>("ResolutionRejectionReason")
+                                .HasMaxLength(64)
+                                .HasColumnType("character varying(64)")
+                                .HasColumnName("resolution_rejection_reason");
+
+                            b1.Property<string>("ScannedValue")
+                                .IsRequired()
+                                .HasMaxLength(200)
+                                .HasColumnType("character varying(200)")
+                                .HasColumnName("scanned_value");
+
+                            b1.Property<string>("SubmissionType")
+                                .IsRequired()
+                                .HasMaxLength(32)
+                                .HasColumnType("character varying(32)")
+                                .HasColumnName("submission_type");
+
+                            b1.Property<DateTimeOffset>("SubmittedAt")
+                                .HasColumnType("timestamp with time zone")
+                                .HasColumnName("submitted_at");
+
+                            b1.Property<Guid?>("SubmittedByParticipantId")
+                                .HasColumnType("uuid")
+                                .HasColumnName("submitted_by_participant_id");
+
+                            b1.Property<Guid?>("TargetSnapshotId")
+                                .HasColumnType("uuid")
+                                .HasColumnName("target_snapshot_id");
+
+                            b1.Property<Guid>("TeamId")
+                                .HasColumnType("uuid")
+                                .HasColumnName("team_id");
+
+                            b1.Property<string>("ValidationState")
+                                .IsRequired()
+                                .HasMaxLength(32)
+                                .HasColumnType("character varying(32)")
+                                .HasColumnName("validation_state");
+
+                            b1.HasKey("EvidenceSubmissionId");
+
+                            b1.HasIndex("LiveSessionId");
+
+                            b1.ToTable("live_session_treasure_evidence_submissions", (string)null);
+
+                            b1.WithOwner()
+                                .HasForeignKey("LiveSessionId");
+                        });
+
                     b.OwnsMany("umbral_backend.Domain.Entities.TriviaAnswerSubmission", "TriviaAnswerSubmissions", b1 =>
                         {
                             b1.Property<Guid>("EvidenceSubmissionId")
@@ -361,6 +827,11 @@ namespace umbral_backend.Infrastructure.Migrations
                             b1.Property<int>("QuestionSequenceOrder")
                                 .HasColumnType("integer")
                                 .HasColumnName("question_sequence_order");
+
+                            b1.Property<string>("RejectionReason")
+                                .HasMaxLength(256)
+                                .HasColumnType("character varying(256)")
+                                .HasColumnName("rejection_reason");
 
                             b1.Property<int>("ScoreValue")
                                 .HasColumnType("integer")
@@ -767,12 +1238,20 @@ namespace umbral_backend.Infrastructure.Migrations
 
                     b.Navigation("Participants");
 
+                    b.Navigation("SessionEvents");
+
                     b.Navigation("Source")
                         .IsRequired();
 
                     b.Navigation("Teams");
 
+                    b.Navigation("TreasureEvidenceSubmissions");
+
                     b.Navigation("TriviaAnswerSubmissions");
+
+                    b.Navigation("_clueReleaseRecords");
+
+                    b.Navigation("_operativeClues");
                 });
 #pragma warning restore 612, 618
         }

@@ -18,16 +18,24 @@ public static class PersistenceServiceExtensions
             throw new InvalidOperationException("Connection string 'umbral_backendDb' not found.");
         }
 
-        builder.Services.AddScoped<ISaveChangesInterceptor, AuditableEntityInterceptor>();
-        builder.Services.AddScoped<ISaveChangesInterceptor, DispatchDomainEventsInterceptor>();
+        builder.Services.AddScoped<AuditableEntityInterceptor>();
+        builder.Services.AddScoped<DispatchDomainEventsInterceptor>();
 
         builder.Services.AddDbContext<ApplicationDbContext>((sp, options) =>
         {
-            options.AddInterceptors(sp.GetServices<ISaveChangesInterceptor>());
+            // Add ONLY the app's own interceptors, by concrete type. Resolving the whole
+            // ISaveChangesInterceptor collection here would also pull in MassTransit's bus-outbox
+            // interceptor, whose construction resolves ApplicationDbContext and re-enters this factory —
+            // an infinite loop / StackOverflow. MassTransit attaches its outbox interceptor to the
+            // DbContext itself via AddEntityFrameworkOutbox, so it must not be added again here.
+            options.AddInterceptors(
+                sp.GetRequiredService<AuditableEntityInterceptor>(),
+                sp.GetRequiredService<DispatchDomainEventsInterceptor>());
             options.UseNpgsql(connectionString);
         });
 
         builder.Services.AddScoped<IDatabaseHealthCheck, DatabaseHealthCheck>();
         builder.Services.AddScoped<ILiveSessionRepository, LiveSessionRepository>();
+        builder.Services.AddScoped<IEvidenceTraceRepository, EvidenceTraceRepository>();
     }
 }

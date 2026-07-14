@@ -890,6 +890,84 @@ html[data-theme="dark"] .cluePreview::after {
   font-weight: 600;
 }
 
+/* HU-28: operator clue-authoring panels (Release clue + Operative clue) sit side-by-side between the
+   session and trivia counters. Each lays fields out in a horizontal row (target + team; textarea then
+   assign-to) with a right-sized action button instead of a full-width one. */
+.cluePanelsRow {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr));
+  gap: 1rem;
+  align-items: start;
+}
+
+.clueFieldRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.clueField {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  flex: 1 1 11rem;
+  min-width: 0;
+}
+
+.clueFieldFull {
+  flex-basis: 100%;
+}
+
+.clueFieldLabel {
+  color: var(--text-muted);
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.clueControl {
+  width: 100%;
+  min-height: 2.6rem;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: 0.6rem;
+  background: var(--surface);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 0.9rem;
+}
+
+.clueControl:focus-visible {
+  outline: 2px solid color-mix(in oklab, var(--accent) 55%, transparent);
+  outline-offset: 1px;
+}
+
+.clueTextarea {
+  min-height: 4.5rem;
+  resize: vertical;
+  line-height: 1.5;
+}
+
+.cluePreviewText {
+  margin: 0;
+  padding: 0.6rem 0.7rem;
+  border: 1px dashed var(--border-subtle);
+  border-radius: 0.6rem;
+  background: color-mix(in oklab, var(--surface-raised) 70%, transparent);
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+
+.clueActions {
+  display: flex;
+}
+
+.clueActions .primaryButton {
+  min-width: 9rem;
+}
+
 .teamDropdown {
   position: relative;
 }
@@ -2486,4 +2564,43 @@ html[data-theme="dark"] .cluePreview::after {
 .triviaOptionCorrect {
   margin-left: 0.4rem;
   color: var(--success);
+}
+
+/* #156 (operator side): target coordinate authoring + Leaflet map picker/overview. */
+.locationField {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.coordRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.targetOverview {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+.mapFrame {
+  width: 100%;
+  height: 240px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 0.6rem;
+  background: var(--surface-raised);
+}
+
+.mapEmpty {
+  padding: 1rem;
+  border: 1px dashed var(--border-subtle);
+  border-radius: 0.6rem;
+  background: var(--surface-raised);
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  text-align: center;
 }

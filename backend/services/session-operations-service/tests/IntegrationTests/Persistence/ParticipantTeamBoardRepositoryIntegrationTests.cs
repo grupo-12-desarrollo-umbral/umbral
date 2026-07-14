@@ -155,7 +155,14 @@ public sealed class ParticipantTeamBoardRepositoryIntegrationTests
             .Should().OnlyContain(context =>
                 context.PlayMode == SubstagePlayMode.TreasureHunt &&
                 context.TotalActiveTargets == 2 &&
-                context.ResolvedTargets == 0);
+                context.ResolvedTargets == 0 &&
+                context.Targets.Count == 2 &&
+                context.Targets[0].Name == "Target Alpha" &&
+                context.Targets[0].SequenceOrder == 1 &&
+                !context.Targets[0].HasHiddenClue &&
+                context.Targets[1].Name == "Target Bravo" &&
+                context.Targets[1].SequenceOrder == 2 &&
+                context.Targets[1].HasHiddenClue);
     }
 
     [Fact]
@@ -347,7 +354,7 @@ public sealed class ParticipantTeamBoardRepositoryIntegrationTests
                     4.711,
                     -74.0721,
                     "Check the garden",
-                    "AfterPreviousTarget"),
+                    "HiddenUntilOperatorRelease"),
             ],
             []);
 

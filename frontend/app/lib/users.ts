@@ -1,5 +1,5 @@
 import 'server-only'
-import { IdentityError, type PagedResult, type UserAccessCatalogItemDto, type AssignableOperatorDto } from './definitions'
+import { IdentityError, type PagedResult, type UserAccessCatalogItemDto, type AssignableOperatorDto, type InvitableRole, type InviteUserResultDto } from './definitions'
 import { verifySession } from './dal'
 
 // Direct service URL for BFF-to-service calls (bypasses JWT gateway auth)
@@ -115,6 +115,62 @@ export async function listDedupedUsers(
     hasPreviousPage: safePage > 1,
     hasNextPage: safePage < totalPages,
   }
+}
+
+// Reads the RFC 7807 `detail` off a problem+json body so a backend validation message (e.g. a bad
+// email address) can be surfaced verbatim. Falls back to null when the body is absent or unparseable.
+async function readProblemDetail(response: Response): Promise<string | null> {
+  try {
+    const problem = (await response.json()) as { detail?: unknown }
+    return typeof problem.detail === 'string' && problem.detail.trim() ? problem.detail : null
+  } catch {
+    return null
+  }
+}
+
+export async function inviteUser(email: string, role: InvitableRole): Promise<InviteUserResultDto> {
+  const session = await verifySession()
+  const response = await fetch(`${IDENTITY_SERVICE_URL}/api/users/invitations`, {
+    method: 'POST',
+    headers: {
+      ...getIdentityHeaders(session),
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ email, role }),
+  })
+
+  // 400 validation-failed: surface the backend's readable detail (invalid email, unknown role, …).
+  if (response.status === 400) {
+    throw new Error((await readProblemDetail(response)) ?? 'The invitation details are invalid.')
+  }
+
+  if (response.status === 401) {
+    throw new IdentityError('unauthorized', 'Authentication failed.')
+  }
+
+  if (response.status === 403) {
+    throw new IdentityError('unauthorized', 'Forbidden. Administrator role required.')
+  }
+
+  // 409 conflict: an account already exists for this email.
+  if (response.status === 409) {
+    throw new Error((await readProblemDetail(response)) ?? 'A user with this email address already exists.')
+  }
+
+  // 422 unprocessable: role is not invitable (Participant). The form never offers it, but the guard
+  // mirrors the backend contract in case a request is crafted directly.
+  if (response.status === 422) {
+    throw new Error(
+      (await readProblemDetail(response)) ??
+        'Participants self-register and cannot be invited. Only Operator and Administrator accounts can be invited.',
+    )
+  }
+
+  if (!response.ok) {
+    throw new IdentityError('unknown', `inviteUser failed with status ${response.status}`)
+  }
+
+  return response.json()
 }
 
 export async function deactivateUserAccess(id: number): Promise<void> {

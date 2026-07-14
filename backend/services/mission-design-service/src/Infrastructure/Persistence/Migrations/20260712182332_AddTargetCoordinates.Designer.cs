@@ -396,16 +396,12 @@ namespace umbral_backend.Infrastructure.Persistence.Migrations
                             b1.Property<int?>("ScoreValue")
                                 .HasColumnType("integer");
 
-                            b1.Property<int>("SequenceOrder")
-                                .HasColumnType("integer");
-
                             b1.Property<int>("TriviaQuizId")
                                 .HasColumnType("integer");
 
                             b1.HasKey("Id");
 
-                            b1.HasIndex("TriviaQuizId", "SequenceOrder")
-                                .IsUnique();
+                            b1.HasIndex("TriviaQuizId");
 
                             b1.ToTable("TriviaQuestions", (string)null);
 

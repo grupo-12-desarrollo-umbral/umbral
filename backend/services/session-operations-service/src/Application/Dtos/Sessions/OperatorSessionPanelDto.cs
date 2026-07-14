@@ -11,4 +11,6 @@ public sealed record OperatorTeamProgressDto(
     string TeamCode,
     string DisplayName,
     int Score,
+    // Clues visible to this team: manual operator releases + the active substage's initial clues.
+    int ReleasedClueCount,
     ActiveSubstageContextDto? ActiveSubstage);

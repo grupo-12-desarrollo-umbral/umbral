@@ -21,6 +21,8 @@ import { getTriviaQuizzes, getTriviaQuiz } from '@/app/actions/trivias'
 import { TriviaQuestionList } from '../TriviaQuestionList'
 import { nextSequenceOrder } from './NodeControls'
 import { QrPreview } from './QrPreview'
+import { TargetMap } from './TargetMap'
+import { isPlacedCoordinate, type TargetMapMarker } from './target-map-html'
 import {
   PLAY_MODES,
   PLAY_MODE_LABELS,
@@ -29,6 +31,33 @@ import {
   type PlayMode,
 } from './labels'
 import styles from '../dashboard.module.css'
+
+// Parses a coordinate <input> value to a finite number, or null when blank/invalid. null means
+// "unplaced": the request then sends 0 (the backend has no null coordinate — an unplaced target reads
+// as 0,0), and the picker shows no draft pin.
+function parseCoord(value: string): number | null {
+  if (value.trim() === '') return null
+  const n = Number(value)
+  return Number.isFinite(n) ? n : null
+}
+
+// The map pins for a substage's already-placed targets, excluding the one being edited (passed as
+// `excludeId`) since that target's live draft is shown separately as the draft pin. Targets with no
+// location (stored as 0,0) are dropped, so they neither pin the ocean nor anchor the initial view away
+// from the operator's own location.
+function contextMarkers(
+  targets: MissionSubstageDto['targets'],
+  excludeId?: number,
+): TargetMapMarker[] {
+  return targets
+    .filter((t) => t.id !== excludeId && isPlacedCoordinate(t.latitude, t.longitude))
+    .map((t) => ({
+      id: String(t.id),
+      name: t.name,
+      latitude: t.latitude,
+      longitude: t.longitude,
+    }))
+}
 
 type OnMutated = (updated: MissionDto) => void
 
@@ -79,9 +108,21 @@ export function SubstageEditor({
               substageId={substage.id}
               nextOrder={nextSequenceOrder(substage.targets)}
               difficulty={difficulty}
+              siblings={substage.targets}
               onMutated={onMutated}
             />
           </div>
+
+          {substage.targets.length > 0 && (
+            <div className={styles.targetOverview}>
+              <span className={styles.treeSectionLabel}>Map overview</span>
+              <TargetMap
+                markers={contextMarkers(substage.targets)}
+                testId={`target-overview-map-${substage.id}`}
+                label="All targets on the map"
+              />
+            </div>
+          )}
         </div>
       )}
 
@@ -387,6 +428,77 @@ function PlayModeControl({
 // Target authoring (TreasureHunt only).
 // ---------------------------------------------------------------------------
 
+// Coordinate authoring shared by the add and edit forms: two numeric inputs plus a Leaflet picker
+// (clicking the map fills the inputs). Coordinates are display/context for the participant map (#156) —
+// resolution stays QR-based — so placement is optional; an unplaced target sends 0,0.
+function LocationField({
+  latitude,
+  longitude,
+  onChange,
+  markers,
+  testIdPrefix,
+}: {
+  latitude: string
+  longitude: string
+  onChange: (latitude: string, longitude: string) => void
+  markers: TargetMapMarker[]
+  testIdPrefix: string
+}) {
+  const lat = parseCoord(latitude)
+  const lng = parseCoord(longitude)
+  // A target saved without a location reads back as "0"/"0", which parses as a valid coordinate. Treat
+  // it as unplaced so the map falls through to the operator's own location instead of Null Island.
+  const draft =
+    lat !== null && lng !== null && isPlacedCoordinate(lat, lng) ? { latitude: lat, longitude: lng } : null
+
+  return (
+    <div className={styles.locationField}>
+      <span className={styles.fieldLabel}>Map location</span>
+      <div className={styles.coordRow}>
+        <label className={styles.nodeField}>
+          <span className={styles.fieldLabel}>Latitude</span>
+          <input
+            className={styles.inlineInput}
+            data-testid={`${testIdPrefix}-latitude-input`}
+            type="number"
+            step="any"
+            inputMode="decimal"
+            value={latitude}
+            onChange={(e) => onChange(e.target.value, longitude)}
+            placeholder="-90 to 90"
+          />
+        </label>
+        <label className={styles.nodeField}>
+          <span className={styles.fieldLabel}>Longitude</span>
+          <input
+            className={styles.inlineInput}
+            data-testid={`${testIdPrefix}-longitude-input`}
+            type="number"
+            step="any"
+            inputMode="decimal"
+            value={longitude}
+            onChange={(e) => onChange(latitude, e.target.value)}
+            placeholder="-180 to 180"
+          />
+        </label>
+      </div>
+      <TargetMap
+        interactive
+        markers={markers}
+        draft={draft}
+        onPick={(pickedLat, pickedLng) =>
+          onChange(pickedLat.toFixed(6), pickedLng.toFixed(6))
+        }
+        testId={`${testIdPrefix}-map`}
+        label="Pick target location"
+      />
+      <p className={styles.qrHelp}>
+        Click the map to drop the pin, or type coordinates. Leave blank if this target has no location.
+      </p>
+    </div>
+  )
+}
+
 // A target's score is not authored: the backend derives it from the mission's
 // difficulty as BASE_TARGET_SCORE * factor, where the factor is the 1-based tier
 // (Beginner=1, Intermediate=2, Advanced=3). Mirrored here only to preview the value
@@ -405,6 +517,7 @@ function AddTargetControl({
   substageId,
   nextOrder,
   difficulty,
+  siblings,
   onMutated,
 }: {
   missionId: number
@@ -412,11 +525,14 @@ function AddTargetControl({
   substageId: number
   nextOrder: number
   difficulty: string
+  siblings: MissionSubstageDto['targets']
   onMutated: OnMutated
 }) {
   const [open, setOpen] = useState(false)
   const [name, setName] = useState('')
   const [qrCode, setQrCode] = useState('')
+  const [latitude, setLatitude] = useState('')
+  const [longitude, setLongitude] = useState('')
   const [isActive, setIsActive] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
@@ -426,6 +542,8 @@ function AddTargetControl({
   function reset() {
     setName('')
     setQrCode('')
+    setLatitude('')
+    setLongitude('')
     setIsActive(true)
     setError(null)
     setOpen(false)
@@ -439,6 +557,8 @@ function AddTargetControl({
           name: name.trim(),
           qrCode: qrCode.trim(),
           sequenceOrder: nextOrder,
+          latitude: parseCoord(latitude) ?? 0,
+          longitude: parseCoord(longitude) ?? 0,
           isActive,
         })
         onMutated(updated)
@@ -515,6 +635,16 @@ function AddTargetControl({
           <QrPreview code={qrCode} testId="qr-preview-new" />
         </div>
       </div>
+      <LocationField
+        latitude={latitude}
+        longitude={longitude}
+        onChange={(lat, lng) => {
+          setLatitude(lat)
+          setLongitude(lng)
+        }}
+        markers={contextMarkers(siblings)}
+        testIdPrefix="add-target"
+      />
       <div className={styles.nodeFormActions}>
         <button
           className={styles.smallButton}
@@ -546,6 +676,7 @@ function TargetEditForm({
   stageId,
   substageId,
   clues,
+  siblings,
   target,
   onMutated,
   onDone,
@@ -554,6 +685,7 @@ function TargetEditForm({
   stageId: number
   substageId: number
   clues: MissionSubstageDto['clues']
+  siblings: MissionSubstageDto['targets']
   target: MissionSubstageDto['targets'][number]
   onMutated: OnMutated
   onDone: () => void
@@ -561,6 +693,8 @@ function TargetEditForm({
   const [name, setName] = useState(target.name)
   const [qrCode, setQrCode] = useState(target.qrCode)
   const [sequenceOrder, setSequenceOrder] = useState(String(target.sequenceOrder))
+  const [latitude, setLatitude] = useState(String(target.latitude))
+  const [longitude, setLongitude] = useState(String(target.longitude))
   const [isActive, setIsActive] = useState(target.isActive)
   // '' = no clue. Seeded from the current association so a save can change or clear it.
   const [clueId, setClueId] = useState(target.clueId === null ? '' : String(target.clueId))
@@ -580,6 +714,8 @@ function TargetEditForm({
           name: name.trim(),
           qrCode: qrCode.trim(),
           sequenceOrder: seq,
+          latitude: parseCoord(latitude) ?? 0,
+          longitude: parseCoord(longitude) ?? 0,
           isActive,
         })
         // Reconcile the clue association against the picker. Max one clue per target,
@@ -680,6 +816,16 @@ function TargetEditForm({
           <QrPreview code={qrCode} testId={`qr-preview-${target.id}`} />
         </div>
       </div>
+      <LocationField
+        latitude={latitude}
+        longitude={longitude}
+        onChange={(lat, lng) => {
+          setLatitude(lat)
+          setLongitude(lng)
+        }}
+        markers={contextMarkers(siblings, target.id)}
+        testIdPrefix={`edit-target-${target.id}`}
+      />
       <div className={styles.nodeFormActions}>
         <button
           className={styles.smallButton}
@@ -747,6 +893,7 @@ function TargetRow({
         stageId={stageId}
         substageId={substage.id}
         clues={substage.clues}
+        siblings={substage.targets}
         target={target}
         onMutated={onMutated}
         onDone={() => setEditing(false)}
@@ -767,6 +914,11 @@ function TargetRow({
           <span className={styles.qrPreviewCode}>{target.qrCode}</span>
           <span className={styles.treeClueText} data-testid={`target-score-${target.id}`}>
             Score: {target.score} ({difficulty})
+          </span>
+          <span className={styles.treeClueText} data-testid={`target-location-${target.id}`}>
+            {isPlacedCoordinate(target.latitude, target.longitude)
+              ? `📍 ${target.latitude.toFixed(5)}, ${target.longitude.toFixed(5)}`
+              : 'No location set'}
           </span>
           {!target.isActive && (
             <span className={styles.chip} data-tone="muted">

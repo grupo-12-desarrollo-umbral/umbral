@@ -10,5 +10,8 @@ app.UseForwarderErrorProblemDetails();
 app.UseCors(DependencyInjection.FrontendCorsPolicyName);
 app.UseAuthentication();
 app.UseAuthorization();
+// Per-route rate limiting (the register route opts in via its RateLimiterPolicy metadata); must sit
+// before MapReverseProxy so YARP applies the named policy to the matched route.
+app.UseRateLimiter();
 app.MapReverseProxy();
 app.Run();
