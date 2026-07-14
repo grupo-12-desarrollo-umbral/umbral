@@ -11,4 +11,13 @@ public interface IEvidenceIntakeFacade
         Func<LiveSession, TSubmission> registerConcreteForm,
         CancellationToken cancellationToken)
         where TSubmission : EvidenceSubmission;
+
+    Task<TSubmission> RegisterPendingAsync<TSubmission>(
+        EvidenceIntakeValidationContext context,
+        string? origin,
+        Func<LiveSession, TSubmission> registerPending,
+        Func<TSubmission, CancellationToken, Task> validateConcreteForm,
+        Func<TSubmission, CancellationToken, Task> acceptConcreteForm,
+        CancellationToken cancellationToken)
+        where TSubmission : EvidenceSubmission;
 }

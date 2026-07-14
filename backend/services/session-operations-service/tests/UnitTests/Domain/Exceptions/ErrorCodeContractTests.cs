@@ -25,6 +25,7 @@ public sealed class ErrorCodeContractTests
             ["DuplicateTeamAssociationInSessionException"] = "duplicate-team-association-in-session",
             ["DuplicateTeamCodeInSessionException"] = "duplicate-team-code-in-session",
             ["DuplicateTriviaAnswerException"] = "duplicate-trivia-answer",
+            ["EvidenceAlreadyResolvedException"] = "evidence-already-resolved",
             ["EvidenceSubmissionContextRequiredException"] = "evidence-submission-context-required",
             // Overridden slug (does not follow the class name):
             ["InvalidSessionStateTransitionException"] = "invalid-state-transition",

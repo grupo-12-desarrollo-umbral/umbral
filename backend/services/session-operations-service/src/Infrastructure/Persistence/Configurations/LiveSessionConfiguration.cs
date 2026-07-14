@@ -715,6 +715,11 @@ public sealed class LiveSessionConfiguration : IEntityTypeConfiguration<LiveSess
                 .HasMaxLength(32)
                 .IsRequired();
 
+            answerBuilder.Property(answer => answer.RejectionReason)
+                .HasColumnName("rejection_reason")
+                .HasConversion<string>()
+                .HasMaxLength(256);
+
             answerBuilder.Property(answer => answer.QuestionSequenceOrder)
                 .HasColumnName("question_sequence_order")
                 .IsRequired();

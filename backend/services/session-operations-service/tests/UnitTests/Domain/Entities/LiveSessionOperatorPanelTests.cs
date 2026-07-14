@@ -106,6 +106,22 @@ public sealed class LiveSessionOperatorPanelTests
         panel.TeamProgress.Should().OnlyContain(progress => progress.ActiveSubstageContext == null);
     }
 
+    // Value equality: two projections of the same session state are equal, which exercises the
+    // snapshot's GetEqualityComponents enumeration including the per-team progress loop.
+    [Fact]
+    public void ProjectOperatorSessionPanel_TwoProjectionsOfSameState_AreValueEqual()
+    {
+        var session = LiveSessionFactory.CreateScheduledTreasureHunt();
+        session.AssociateTeam(Guid.NewGuid(), "Alpha", "A-01", 4);
+        session.AssociateTeam(Guid.NewGuid(), "Bravo", "B-01", 4);
+
+        var first = session.ProjectOperatorSessionPanel(ActiveAt);
+        var second = session.ProjectOperatorSessionPanel(ActiveAt);
+
+        first.Should().Be(second);
+        first.GetHashCode().Should().Be(second.GetHashCode());
+    }
+
     [Fact]
     public void OperatorSessionPanelSnapshot_ExposesNoLedgerRankingOrWinnerProperties()
     {

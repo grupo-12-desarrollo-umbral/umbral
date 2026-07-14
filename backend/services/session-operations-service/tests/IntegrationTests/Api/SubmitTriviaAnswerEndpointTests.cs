@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Microsoft.AspNetCore.Mvc;
+using umbral_backend.Application.Common.Interfaces;
 using umbral_backend.Domain.Entities;
 using umbral_backend.Domain.Enums;
 using umbral_backend.Domain.Services;
@@ -66,6 +67,36 @@ public sealed class SubmitTriviaAnswerEndpointTests : IAsyncLifetime
             .ToList();
         propertyNames.Should().NotContain(name =>
             name.Contains("correct") || name.Contains("score") || name.Contains("option"));
+    }
+
+    // HU-30 X.4 — the contextual-validation substrate added by HU-30 (the EvidenceValidationChain
+    // wired into EvidenceIntakeFacade + the new nullable rejection_reason column) leaves the trivia
+    // accept path observably unchanged. Trivia registers through EvidenceIntakeFacade.RegisterAsync,
+    // which never engages the contextual chain, so a valid answer still persists as Accepted with a
+    // null RejectionReason, no contextual rejection is recorded, and the internal
+    // EvidenceContextRejectedException carrier never surfaces to the client as an unhandled 500.
+    [Fact]
+    public async Task SubmitAnswer_ValidAnswer_PersistsAcceptedWithNullReasonAndNoContextualLeak()
+    {
+        var seeded = await SeedTriviaSessionAsync(TriviaAnswerSeedState.ActiveQuestion);
+        AddTrustedHeaders(_client, seeded.ParticipantExternalIdentityId.ToString(), "Participant", "participant@example.com");
+
+        var response = await _client.PostAsJsonAsync(BuildAnswersUrl(seeded), CorrectAnswer(seeded));
+
+        // A clean 200 on the only reachable participant write endpoint: the contextual-rejection
+        // carrier is not mapped by ProblemDetailsExceptionHandler, so any leak would surface as a
+        // 500 internal-error — this asserts it does not.
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        await using var scope = _factory.Services.CreateAsyncScope();
+        var repository = scope.ServiceProvider.GetRequiredService<ILiveSessionRepository>();
+        var session = await repository.GetByIdAsync(seeded.LiveSessionId, CancellationToken.None);
+
+        var submission = session!.TriviaAnswerSubmissions.Single();
+        submission.ValidationState.Should().Be(EvidenceValidationState.Accepted,
+            "the trivia accept path stays observably unchanged — HU-30's contextual substrate never rejects it");
+        submission.RejectionReason.Should().BeNull(
+            "an accepted trivia answer records no rejection reason on the new nullable column");
     }
 
     [Fact]
