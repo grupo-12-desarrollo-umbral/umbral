@@ -149,6 +149,7 @@ public sealed class LiveSessionRepositoryBranchTests
     private static LiveSession CreateSessionWithNullSnapshot(DateTimeOffset scheduledAt)
     {
         var sourceMissionId = Guid.NewGuid();
+        var triviaSubstage = SubstageSnapshot.CreateTrivia("Trivia", 1);
         return LiveSession.Create(
             SessionSource.Create(sourceMissionId),
             $"SES-{Guid.NewGuid():N}"[..12],
@@ -159,10 +160,10 @@ public sealed class LiveSessionRepositoryBranchTests
                 sourceMissionId,
                 "Test Mission",
                 MaximumTime.Create(20),
-                [StageSnapshot.Create("Stage One", 1, [SubstageSnapshot.CreateTrivia("Trivia", 1)])],
+                [StageSnapshot.Create("Stage One", 1, [triviaSubstage])],
                 [],
                 [TriviaQuestionSnapshot.Create(
-                    SubstageSnapshot.CreateTrivia("Trivia", 1).SubstageSnapshotId,
+                    triviaSubstage.SubstageSnapshotId,
                     "Question?",
                     1,
                     50,
@@ -214,9 +215,11 @@ public sealed class LiveSessionRepositoryBranchTests
             []);
     }
 
-    private static async Task ResetDatabaseAsync(DbContext context)
+    // Reset by clearing rows, not by dropping the database: the whole class shares one migrated
+    // database via PostgreSqlCollection, so EnsureDeleted/Migrate here races open pooled connections
+    // (Npgsql 55006: cannot drop the currently open database) and would wipe schema other classes need.
+    private static async Task ResetDatabaseAsync(ApplicationDbContext context)
     {
-        await context.Database.EnsureDeletedAsync();
-        await context.Database.MigrateAsync();
+        await context.LiveSessions.ExecuteDeleteAsync();
     }
 }

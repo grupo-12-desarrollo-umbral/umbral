@@ -113,6 +113,7 @@ public sealed class EvidenceSubmissionRegisteredOutboxTests
         services.AddScoped<PublishEvidenceSubmissionRegisteredIntegrationEventHandler>();
         services.AddScoped<PublishQuestionClosedIntegrationEventHandler>();
         services.AddScoped<PublishSessionResultsFinalizedIntegrationEventHandler>();
+        services.AddScoped<PublishSessionStateChangedIntegrationEventHandler>();
         services.AddScoped<IOutboxDomainEventDispatcher, OutboxDomainEventDispatcher>();
         services.AddScoped<IMediator, NoOpMediator>();
 

@@ -1169,16 +1169,6 @@ public sealed class LiveSessionRepositoryIntegrationTests
         return liveSession;
     }
 
-    private static LiveSession CreateActiveTreasureHuntSession(DateTimeOffset activeAt)
-    {
-        var liveSession = CreateSession(activeAt.AddMinutes(-10));
-        var transitionPolicy = new SessionStateTransitionPolicy();
-        liveSession.AssociateTeam(Guid.NewGuid(), "Aurora", "AUR-01", 3);
-        liveSession.MoveTo(SessionState.Preparing, activeAt.AddMinutes(-1), transitionPolicy);
-        liveSession.MoveTo(SessionState.Active, activeAt, transitionPolicy);
-        return liveSession;
-    }
-
     private static MissionRuntimeSnapshot CreateTreasureHuntRuntimeSnapshot(Guid sourceMissionId, int maximumTimeMinutes)
     {
         var treasureHuntSubstage = SubstageSnapshot.CreateTreasureHunt("Treasure Hunt", 1);

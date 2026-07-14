@@ -1,5 +1,4 @@
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Moq;
 using umbral_backend.Application.Common.Interfaces;
@@ -8,6 +7,9 @@ using umbral_backend.Infrastructure.Persistence.Interceptors;
 
 namespace umbral_backend.Infrastructure.IntegrationTests.Infrastructure;
 
+// Drives AuditableEntityInterceptor over a real EF change tracker (in-memory provider) so the
+// interceptor sees genuine EntityEntry<BaseAuditableEntity> instances per EntityState branch —
+// EntityEntry has no public ctor and cannot be mocked by Moq/Castle.
 public sealed class AuditableEntityInterceptorBranchTests
 {
     [Fact]
@@ -47,9 +49,9 @@ public sealed class AuditableEntityInterceptorBranchTests
         var interceptor = new AuditableEntityInterceptor(currentUser.Object, timeProvider);
 
         var entity = new TestAuditableEntity();
-        var context = CreateMockContext(entity, EntityState.Added);
+        await using var context = TrackedContext(entity, EntityState.Added);
 
-        var eventData = new DbContextEventData(null!, null!, context: context.Object);
+        var eventData = new DbContextEventData(null!, null!, context: context);
         var result = default(InterceptionResult<int>);
 
         await interceptor.SavingChangesAsync(eventData, result, CancellationToken.None);
@@ -73,9 +75,9 @@ public sealed class AuditableEntityInterceptorBranchTests
             Created = new DateTimeOffset(2025, 1, 1, 0, 0, 0, TimeSpan.Zero),
             CreatedBy = "original-user"
         };
-        var context = CreateMockContext(entity, EntityState.Modified);
+        await using var context = TrackedContext(entity, EntityState.Modified);
 
-        var eventData = new DbContextEventData(null!, null!, context: context.Object);
+        var eventData = new DbContextEventData(null!, null!, context: context);
         var result = default(InterceptionResult<int>);
 
         await interceptor.SavingChangesAsync(eventData, result, CancellationToken.None);
@@ -94,9 +96,9 @@ public sealed class AuditableEntityInterceptorBranchTests
         var interceptor = new AuditableEntityInterceptor(currentUser.Object, TimeProvider.System);
 
         var entity = new TestAuditableEntity();
-        var context = CreateMockContext(entity, EntityState.Unchanged);
+        await using var context = TrackedContext(entity, EntityState.Unchanged);
 
-        var eventData = new DbContextEventData(null!, null!, context: context.Object);
+        var eventData = new DbContextEventData(null!, null!, context: context);
         var result = default(InterceptionResult<int>);
 
         await interceptor.SavingChangesAsync(eventData, result, CancellationToken.None);
@@ -107,19 +109,27 @@ public sealed class AuditableEntityInterceptorBranchTests
         entity.LastModifiedBy.Should().BeNull();
     }
 
-    private static Mock<DbContext> CreateMockContext(TestAuditableEntity entity, EntityState state)
+    // Tracks a single auditable entity in the requested state on a fresh in-memory context, yielding a
+    // real EntityEntry<BaseAuditableEntity> for the interceptor to walk. Non-Added states need a
+    // non-default key so EF will track them as an existing row.
+    private static TestDbContext TrackedContext(TestAuditableEntity entity, EntityState state)
     {
-        var context = new Mock<DbContext>();
-        var entry = new Mock<EntityEntry<BaseAuditableEntity>>();
-        entry.Setup(e => e.Entity).Returns(entity);
-        entry.Setup(e => e.State).Returns(state);
-        entry.Setup(e => e.References).Returns(Enumerable.Empty<ReferenceEntry>());
+        var context = new TestDbContext(new DbContextOptionsBuilder()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options);
 
-        var entries = new List<EntityEntry<BaseAuditableEntity>> { entry.Object };
-        context.Setup(c => c.ChangeTracker.Entries<BaseAuditableEntity>())
-            .Returns(entries);
+        if (state != EntityState.Added)
+        {
+            entity.Id = 1;
+        }
 
+        context.Entry(entity).State = state;
         return context;
+    }
+
+    private sealed class TestDbContext(DbContextOptions options) : DbContext(options)
+    {
+        public DbSet<TestAuditableEntity> Entities => Set<TestAuditableEntity>();
     }
 
     private sealed class TestAuditableEntity : BaseAuditableEntity { }

@@ -34,6 +34,9 @@ public sealed class OutboxDomainEventDispatcherTests
             new PublishAnswerRegisteredIntegrationEventHandler(
                 publishEndpoint.Object,
                 NullLogger<PublishAnswerRegisteredIntegrationEventHandler>.Instance),
+            new PublishEvidenceSubmissionRegisteredIntegrationEventHandler(
+                publishEndpoint.Object,
+                NullLogger<PublishEvidenceSubmissionRegisteredIntegrationEventHandler>.Instance),
             new PublishQuestionClosedIntegrationEventHandler(
                 publishEndpoint.Object,
                 NullLogger<PublishQuestionClosedIntegrationEventHandler>.Instance),

@@ -1,13 +1,15 @@
 using MediatR;
-using Microsoft.EntityFrameworkCore.ChangeTracking;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Moq;
-using umbral_backend.Application.Common.Interfaces;
 using umbral_backend.Domain.Common;
 using umbral_backend.Infrastructure.Persistence.Interceptors;
 
 namespace umbral_backend.Infrastructure.IntegrationTests.Infrastructure;
 
+// Drives DispatchDomainEventsInterceptor's post-commit fan-out over a real EF change tracker
+// (in-memory provider) so it walks genuine EntityEntry<BaseEntity> instances — EntityEntry has no
+// public ctor and cannot be mocked by Moq/Castle.
 public sealed class DispatchDomainEventsInterceptorBranchTests
 {
     [Fact]
@@ -47,20 +49,15 @@ public sealed class DispatchDomainEventsInterceptorBranchTests
         var entity = new TestEntity();
         entity.AddDomainEvent(domainEvent);
 
-        var context = new Mock<DbContext>();
-        var entry = new Mock<EntityEntry<BaseEntity>>();
-        entry.Setup(e => e.Entity).Returns(entity);
+        await using var context = NewContext();
+        context.Add(entity);
 
-        var entries = new List<EntityEntry<BaseEntity>> { entry.Object };
-        context.Setup(c => c.ChangeTracker.Entries<BaseEntity>())
-            .Returns(entries);
-
-        var eventData = new SaveChangesCompletedEventData(null!, null!, context: context.Object, entitiesSavedCount: 0);
+        var eventData = new SaveChangesCompletedEventData(null!, null!, context: context, entitiesSavedCount: 0);
 
         await interceptor.SavedChangesAsync(eventData, 0, CancellationToken.None);
 
         mediator.Verify(m => m.Publish(
-            It.Is<object>(o => o == domainEvent),
+            It.Is<BaseEvent>(o => o == domainEvent),
             It.IsAny<CancellationToken>()), Times.Once);
     }
 
@@ -73,21 +70,28 @@ public sealed class DispatchDomainEventsInterceptorBranchTests
 
         var entity = new TestEntity();
 
-        var context = new Mock<DbContext>();
-        var entry = new Mock<EntityEntry<BaseEntity>>();
-        entry.Setup(e => e.Entity).Returns(entity);
+        await using var context = NewContext();
+        context.Add(entity);
 
-        var entries = new List<EntityEntry<BaseEntity>> { entry.Object };
-        context.Setup(c => c.ChangeTracker.Entries<BaseEntity>())
-            .Returns(entries);
-
-        var eventData = new SaveChangesCompletedEventData(null!, null!, context: context.Object, entitiesSavedCount: 0);
+        var eventData = new SaveChangesCompletedEventData(null!, null!, context: context, entitiesSavedCount: 0);
 
         await interceptor.SavedChangesAsync(eventData, 0, CancellationToken.None);
 
         mediator.Verify(m => m.Publish(
-            It.IsAny<object>(),
+            It.IsAny<BaseEvent>(),
             It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    private static TestDbContext NewContext()
+    {
+        return new TestDbContext(new DbContextOptionsBuilder()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options);
+    }
+
+    private sealed class TestDbContext(DbContextOptions options) : DbContext(options)
+    {
+        public DbSet<TestEntity> Entities => Set<TestEntity>();
     }
 
     private sealed class TestDomainEvent : BaseEvent { }
