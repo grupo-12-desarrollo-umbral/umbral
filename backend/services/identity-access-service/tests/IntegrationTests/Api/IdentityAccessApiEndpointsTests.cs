@@ -1150,6 +1150,50 @@ public sealed class IdentityAccessApiEndpointsTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task ForgotPassword_WithKnownEmail_ReturnsNoContent()
+    {
+        // Anonymous by design (ADR-0016 §1): no trusted headers, exactly as an unauthenticated caller.
+        ClearTrustedHeaders(_client);
+
+        var response = await _client.PostAsJsonAsync(
+            "/api/users/forgot-password",
+            new { email = "known@example.com" });
+
+        response.StatusCode.Should().Be(HttpStatusCode.NoContent);
+    }
+
+    [Fact]
+    public async Task ForgotPassword_WithUnknownEmail_ReturnsSameNoContentStatus_ToPreventEnumeration()
+    {
+        ClearTrustedHeaders(_client);
+
+        // The fake returns no account for "unknown*"; the endpoint must still answer 204 — identical to
+        // the known-email case — so a caller can never tell which addresses are registered.
+        var response = await _client.PostAsJsonAsync(
+            "/api/users/forgot-password",
+            new { email = "unknown@example.com" });
+
+        response.StatusCode.Should().Be(HttpStatusCode.NoContent);
+    }
+
+    [Fact]
+    public async Task ForgotPassword_WithInvalidBody_ReturnsBadRequest()
+    {
+        ClearTrustedHeaders(_client);
+
+        var response = await _client.PostAsJsonAsync(
+            "/api/users/forgot-password",
+            new { email = "not-an-email" });
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+
+        var problem = await response.Content.ReadFromJsonAsync<ProblemDetails>();
+        problem.Should().NotBeNull();
+        problem!.Status.Should().Be(StatusCodes.Status400BadRequest);
+        problem.Title.Should().Be("Validation failed.");
+    }
+
+    [Fact]
     public async Task DeactivateUserAccess_WithAdministratorHeaders_ReturnsNoContentAndPersistsInactiveState()
     {
         await SeedUserAsync("kc-admin-01", "Admin User", "admin@example.com", Role.Administrator);

@@ -6,6 +6,7 @@ using umbral_backend.Application.Users.Queries.GetUsers;
 using umbral_backend.Application.Users.Commands.AuthenticateUser;
 using umbral_backend.Application.Users.Commands.InviteUser;
 using umbral_backend.Application.Users.Commands.RegisterParticipant;
+using umbral_backend.Application.Users.Commands.ForgotPassword;
 using umbral_backend.Application.Users.Commands.DeactivateUser;
 using umbral_backend.Application.Users.Commands.ReactivateUser;
 using umbral_backend.Application.Users.Queries.GetAuthenticatedActorProfile;
@@ -40,6 +41,20 @@ public sealed class UsersController(ISender sender) : ControllerBase
             cancellationToken);
 
         return StatusCode(StatusCodes.Status201Created, result);
+    }
+
+    // Anonymous forgot-password (ADR-0016 §1). Unauthenticated by design: the caller has no session.
+    // Like register, anonymity is granted at the gateway (dedicated anonymous route + per-IP rate
+    // limiting), not by an attribute here. Returns 204 No Content ALWAYS — the same response whether or
+    // not the email is registered, so the endpoint never discloses account existence.
+    [HttpPost("forgot-password")]
+    public async Task<IActionResult> ForgotPasswordAsync(
+        ForgotPasswordRequest request,
+        CancellationToken cancellationToken)
+    {
+        await sender.Send(new ForgotPasswordCommand(request.Email), cancellationToken);
+
+        return NoContent();
     }
 
     [HttpPost("invitations")]
@@ -103,6 +118,8 @@ public sealed class UsersController(ISender sender) : ControllerBase
     public sealed record BootstrapAuthenticatedUserRequest(string DisplayName);
 
     public sealed record RegisterParticipantRequest(string DisplayName, string Email, string Password);
+
+    public sealed record ForgotPasswordRequest(string Email);
 
     public sealed record InviteUserRequest(string Email, string Role);
 

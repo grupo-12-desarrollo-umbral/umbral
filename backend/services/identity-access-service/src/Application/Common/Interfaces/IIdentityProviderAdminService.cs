@@ -32,6 +32,16 @@ public interface IIdentityProviderAdminService
     // provider's configured SMTP server.
     Task SendVerifyEmailAsync(string externalIdentityId, CancellationToken cancellationToken);
 
+    // Look up the provider subject id for an exact email match, or null if no account exists. Backs the
+    // anonymous forgot-password flow (ADR-0016 §1): the handler stays silent when this returns null, so
+    // the endpoint never reveals whether an address is registered.
+    Task<string?> FindUserIdByEmailAsync(string email, CancellationToken cancellationToken);
+
+    // Ask the identity provider to email an UPDATE_PASSWORD-only action link so the user can reset their
+    // credential. Used by the anonymous forgot-password flow. Sending relies on the provider's
+    // configured SMTP server.
+    Task SendResetPasswordEmailAsync(string externalIdentityId, CancellationToken cancellationToken);
+
     // Compensating delete: remove a provider account created during a failed invitation so no orphan
     // is left behind. Idempotent — a missing account is treated as already removed.
     Task DeleteUserAsync(string externalIdentityId, CancellationToken cancellationToken);

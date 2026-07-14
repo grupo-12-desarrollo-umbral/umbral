@@ -1,14 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { Keyboard, Pressable, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import * as Linking from 'expo-linking';
 import { useRouter, type Href } from 'expo-router';
 import { BrandMark } from '@/components/ui/brand-mark';
 import { Button } from '@/components/ui/button';
 import { Screen } from '@/components/ui/screen';
 import { Text } from '@/components/ui/text';
 import { TextField } from '@/components/ui/text-field';
-import { buildResetCredentialsUrl } from '@/lib/auth/keycloak';
 import { useAuth } from '@/lib/auth/use-auth';
 import { colors, spacing } from '@/constants/theme';
 
@@ -35,7 +33,6 @@ export default function LoginScreen() {
   const [password, setPassword] = useState('');
   const [emailError, setEmailError] = useState('');
   const [passwordError, setPasswordError] = useState('');
-  const [resetError, setResetError] = useState('');
 
   const loading = status === 'authenticating';
   const isNetworkError = errorMessage?.startsWith(NETWORK_ERROR_PREFIX) ?? false;
@@ -58,7 +55,6 @@ export default function LoginScreen() {
 
   async function handleSubmit() {
     Keyboard.dismiss();
-    setResetError('');
 
     let valid = true;
     if (!email.trim()) {
@@ -86,16 +82,10 @@ export default function LoginScreen() {
     await signIn(email.trim(), password);
   }
 
-  async function handleForgotPassword() {
+  function handleForgotPassword() {
     Keyboard.dismiss();
-    setResetError('');
-
-    try {
-      await Linking.openURL(buildResetCredentialsUrl());
-    } catch {
-      setResetError('Could not open the password reset page.');
-      fireHaptic('error');
-    }
+    // Native form (ADR-0016 §1) — no Keycloak hosted page, no browser redirect.
+    router.push('/(auth)/forgot-password' as Href);
   }
 
   function handleCreateAccount() {
@@ -140,16 +130,6 @@ export default function LoginScreen() {
           style={{ color: colors.signalCritical, textAlign: 'center' }}
         >
           {errorMessage}
-        </Text>
-      ) : null}
-
-      {resetError ? (
-        <Text
-          variant="body"
-          selectable
-          style={{ color: colors.signalCritical, textAlign: 'center' }}
-        >
-          {resetError}
         </Text>
       ) : null}
 

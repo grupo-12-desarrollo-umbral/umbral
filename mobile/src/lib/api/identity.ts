@@ -54,3 +54,13 @@ export function registerParticipant(
     password,
   });
 }
+
+// Anonymous forgot-password (ADR-0016 §1): posts the email to the backend, which emails a reset link if
+// an account exists. Always resolves void — the backend returns 202 with no distinguishing body, so the
+// caller (and UI) can never tell whether the address is registered. Real API/network errors still
+// reject; the empty 202 body is expected and ignored.
+export async function requestPasswordReset(email: string): Promise<void> {
+  // The endpoint returns 204 No Content (same response whether or not the email exists); the shared
+  // client resolves void without parsing a body. Real failures still surface as ApiError.
+  await apiClient.post<void>('/api/users/forgot-password', { email });
+}
