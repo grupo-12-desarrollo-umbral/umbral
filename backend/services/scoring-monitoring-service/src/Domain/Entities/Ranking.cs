@@ -34,10 +34,11 @@ public sealed class Ranking : BaseAuditableEntity
         IEnumerable<ScoreEntry> entries,
         DateTimeOffset generatedAt,
         long calculationVersion,
-        IRankingPolicy rankingPolicy)
+        IRankingPolicy rankingPolicy,
+        IReadOnlyDictionary<Guid, string>? teamNames = null)
     {
         var ranking = new Ranking(Guid.NewGuid(), liveSessionId);
-        ranking.Refresh(entries, generatedAt, calculationVersion, rankingPolicy);
+        ranking.Refresh(entries, generatedAt, calculationVersion, rankingPolicy, teamNames);
         return ranking;
     }
 
@@ -45,7 +46,8 @@ public sealed class Ranking : BaseAuditableEntity
         IEnumerable<ScoreEntry> entries,
         DateTimeOffset generatedAt,
         long calculationVersion,
-        IRankingPolicy rankingPolicy)
+        IRankingPolicy rankingPolicy,
+        IReadOnlyDictionary<Guid, string>? teamNames = null)
     {
         ArgumentNullException.ThrowIfNull(entries);
         ArgumentNullException.ThrowIfNull(rankingPolicy);
@@ -58,11 +60,6 @@ public sealed class Ranking : BaseAuditableEntity
 
         if (sessionEntries.Count > 0)
         {
-            // The ledger is the sole source of the tie-break. A team's resolution time is how long it took
-            // them to reach their current total, measured from the session's earliest ledger entry. The
-            // baseline is common to every team in the session, so ordering by this elapsed value is
-            // equivalent to ordering by the absolute timestamp of each team's most recent entry, while
-            // staying a non-negative duration as ResolutionTime requires.
             var sessionStartedAt = sessionEntries.Min(entry => entry.RecordedAt);
 
             foldedRows.AddRange(sessionEntries
@@ -77,7 +74,13 @@ public sealed class Ranking : BaseAuditableEntity
         var rankedRows = rankingPolicy.Rank(foldedRows);
 
         _rows.Clear();
-        _rows.AddRange(rankedRows.Select(row => Row.Create(row.TeamId, row.Position, row.TotalScore, row.ResolutionTime)));
+        _rows.AddRange(rankedRows.Select(row =>
+        {
+            var displayName = teamNames is not null && teamNames.TryGetValue(row.TeamId, out var name)
+                ? name
+                : row.TeamId.ToString();
+            return Row.Create(row.TeamId, row.Position, row.TotalScore, row.ResolutionTime, displayName);
+        }));
 
         GeneratedAt = generatedAt;
         CalculationVersion = calculationVersion;
@@ -90,9 +93,10 @@ public sealed class Ranking : BaseAuditableEntity
         private Row()
         {
             ResolutionTime = null!;
+            TeamDisplayName = string.Empty;
         }
 
-        private Row(Guid teamId, int position, int totalScore, ResolutionTime resolutionTime)
+        private Row(Guid teamId, int position, int totalScore, ResolutionTime resolutionTime, string teamDisplayName)
         {
             if (position <= 0)
             {
@@ -110,6 +114,7 @@ public sealed class Ranking : BaseAuditableEntity
             Position = position;
             TotalScore = totalScore;
             ResolutionTime = resolutionTime;
+            TeamDisplayName = teamDisplayName;
         }
 
         public Guid TeamId { get; private set; }
@@ -120,9 +125,11 @@ public sealed class Ranking : BaseAuditableEntity
 
         public ResolutionTime ResolutionTime { get; private set; }
 
-        internal static Row Create(Guid teamId, int position, int totalScore, ResolutionTime resolutionTime)
+        public string TeamDisplayName { get; private set; }
+
+        internal static Row Create(Guid teamId, int position, int totalScore, ResolutionTime resolutionTime, string teamDisplayName)
         {
-            return new Row(teamId, position, totalScore, resolutionTime);
+            return new Row(teamId, position, totalScore, resolutionTime, teamDisplayName);
         }
     }
 }

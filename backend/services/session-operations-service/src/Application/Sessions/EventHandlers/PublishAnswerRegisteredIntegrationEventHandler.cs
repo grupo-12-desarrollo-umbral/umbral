@@ -35,6 +35,8 @@ public sealed class PublishAnswerRegisteredIntegrationEventHandler
                 new AnswerRegisteredIntegrationEvent(
                     notification.LiveSessionId,
                     notification.TeamId,
+                    notification.ReferenceTeamId,
+                    notification.TeamDisplayName,
                     notification.EvidenceSubmissionId,
                     notification.ActiveSubstageId,
                     notification.QuestionSequenceOrder,

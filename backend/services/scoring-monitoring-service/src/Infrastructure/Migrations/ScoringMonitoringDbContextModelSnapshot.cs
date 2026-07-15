@@ -96,6 +96,11 @@ namespace umbral_backend.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("live_session_id");
 
+                    b.Property<string>("ReasonCode")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("reason_code");
+
                     b.Property<DateTimeOffset>("RecordedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("recorded_at");
@@ -103,11 +108,6 @@ namespace umbral_backend.Infrastructure.Persistence.Migrations
                     b.Property<int?>("RecordedByUserId")
                         .HasColumnType("integer")
                         .HasColumnName("recorded_by_user_id");
-
-                    b.Property<string>("ReasonCode")
-                        .IsRequired()
-                        .HasColumnType("text")
-                        .HasColumnName("reason_code");
 
                     b.Property<int>("ScoreValue")
                         .HasColumnType("integer")
@@ -122,6 +122,12 @@ namespace umbral_backend.Infrastructure.Persistence.Migrations
                         .HasMaxLength(64)
                         .HasColumnType("character varying(64)")
                         .HasColumnName("source_entity_type");
+
+                    b.Property<string>("TeamDisplayName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("team_display_name");
 
                     b.Property<Guid>("TeamId")
                         .HasColumnType("uuid")
@@ -141,7 +147,7 @@ namespace umbral_backend.Infrastructure.Persistence.Migrations
                 {
                     b.OwnsMany("umbral_backend.Domain.Entities.Ranking+Row", "Rows", b1 =>
                         {
-                            b1.Property<Guid>("RankingId")
+                            b1.Property<Guid>("ranking_id")
                                 .HasColumnType("uuid")
                                 .HasColumnName("ranking_id");
 
@@ -157,18 +163,24 @@ namespace umbral_backend.Infrastructure.Persistence.Migrations
                                 .HasColumnType("interval")
                                 .HasColumnName("resolution_time");
 
+                            b1.Property<string>("TeamDisplayName")
+                                .IsRequired()
+                                .HasMaxLength(200)
+                                .HasColumnType("character varying(200)")
+                                .HasColumnName("team_display_name");
+
                             b1.Property<int>("TotalScore")
                                 .HasColumnType("integer")
                                 .HasColumnName("total_score");
 
-                            b1.HasKey("RankingId", "TeamId");
+                            b1.HasKey("ranking_id", "TeamId");
 
-                            b1.HasIndex("RankingId", "Position");
+                            b1.HasIndex("ranking_id", "Position");
 
                             b1.ToTable("ranking_rows", (string)null);
 
                             b1.WithOwner()
-                                .HasForeignKey("RankingId");
+                                .HasForeignKey("ranking_id");
                         });
 
                     b.Navigation("Rows");

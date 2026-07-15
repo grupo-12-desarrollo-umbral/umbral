@@ -7,8 +7,6 @@ namespace umbral_backend.Application.Scores.EventHandlers;
 
 public sealed class PublishScoreEntryRegisteredIntegrationEventHandler : INotificationHandler<ScoreEntryRegistered>
 {
-    private static readonly TimeSpan PublishTimeout = TimeSpan.FromSeconds(5);
-
     private readonly IPublishEndpoint _publishEndpoint;
     private readonly ILogger<PublishScoreEntryRegisteredIntegrationEventHandler> _logger;
 
@@ -24,9 +22,6 @@ public sealed class PublishScoreEntryRegisteredIntegrationEventHandler : INotifi
     {
         try
         {
-            using var publishTimeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            publishTimeout.CancelAfter(PublishTimeout);
-
             await _publishEndpoint.Publish(
                 new ScoreEntryRegisteredIntegrationEvent(
                     notification.ScoreEntryId,
@@ -39,7 +34,7 @@ public sealed class PublishScoreEntryRegisteredIntegrationEventHandler : INotifi
                     notification.SourceEntityType,
                     notification.SourceEntityId,
                     notification.RecordedByUserId),
-                publishTimeout.Token);
+                cancellationToken);
         }
         catch (Exception exception)
         {

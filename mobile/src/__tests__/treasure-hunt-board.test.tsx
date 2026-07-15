@@ -4,6 +4,7 @@ import { act, create } from 'react-test-renderer';
 import { TreasureHuntBoard } from '@/components/treasure-hunt-board';
 import { OperativeCluePortalHost } from '@/components/operative-clue-surface';
 import type { VisibleClueDto } from '@/lib/realtime/team-board-types';
+import type { RankingRowDto } from '@/lib/realtime/ranking-types';
 
 type TreeNode = {
   props?: Record<string, unknown>;
@@ -227,6 +228,128 @@ describe('TreasureHuntBoard', () => {
     expect(texts).toContain('Lantern Foxes');
     expect(texts).toContain('PLACEHOLDER');
     expect(texts.join(' ')).toContain('Sample standings — not live yet');
+  });
+
+  // --- HU-25B ranking integration ---
+
+  const RANKING_ROWS: RankingRowDto[] = [
+    { teamId: 't1', teamDisplayName: 'Compass Rose', position: 1, totalScore: 580, resolutionTime: '00:35:12' },
+    { teamId: 't2', teamDisplayName: 'Ember Foxes', position: 2, totalScore: 555, resolutionTime: '00:38:45' },
+    { teamId: 't3', teamDisplayName: 'Parchment Moths', position: 3, totalScore: 520, resolutionTime: '00:42:10' },
+    { teamId: 'own-team', teamDisplayName: 'Lantern Bearers', position: 4, totalScore: 495, resolutionTime: '00:46:33' },
+  ];
+
+  const LONG_DURATION_ROWS: RankingRowDto[] = [
+    { teamId: 't1', teamDisplayName: 'Compass Rose', position: 1, totalScore: 580, resolutionTime: '03:15:27.95' },
+    { teamId: 'own-team', teamDisplayName: 'Lantern Bearers', position: 2, totalScore: 555, resolutionTime: '00:38:45' },
+  ];
+
+  test('renders real ranking rows on the teams tab', () => {
+    const renderer = renderBoard({
+      rankingRows: RANKING_ROWS,
+      ownTeamId: 'own-team',
+    });
+    switchTab(renderer, 'TEAMS');
+    const texts = allText(renderer.toJSON());
+
+    // All four teams appear.
+    expect(texts).toContain('Compass Rose');
+    expect(texts).toContain('Ember Foxes');
+    expect(texts).toContain('Parchment Moths');
+    expect(texts).toContain('Lantern Bearers');
+    // Scores are rendered.
+    expect(texts).toContain('580');
+    expect(texts).toContain('495');
+    // Resolution times are rendered in compact form.
+    expect(texts).toContain('46m');
+    // Placeholder copy no longer appears.
+    expect(texts).not.toContain('PLACEHOLDER');
+    expect(texts.join(' ')).not.toContain('Sample standings');
+  });
+
+  test('formats long resolution times compactly in the podium', () => {
+    const renderer = renderBoard({
+      rankingRows: LONG_DURATION_ROWS,
+      ownTeamId: 'own-team',
+    });
+    switchTab(renderer, 'TEAMS');
+    const texts = allText(renderer.toJSON());
+
+    expect(texts).toContain('3h 15m');
+    expect(texts.join(' ')).not.toContain('03:15:27.95');
+  });
+
+  test('highlights the own team in the ranking', () => {
+    const renderer = renderBoard({
+      rankingRows: RANKING_ROWS,
+      ownTeamId: 'own-team',
+    });
+    switchTab(renderer, 'TEAMS');
+    const texts = allText(renderer.toJSON());
+
+    // The own team carries the "(You)" suffix.
+    expect(texts).toContain('(You)');
+    // The other teams do not.
+    expect(texts.join(' ')).not.toContain('Compass Rose (You)');
+  });
+
+  test('shows empty ranking state when rows are empty', () => {
+    const renderer = renderBoard({
+      rankingRows: [],
+      ownTeamId: 'own-team',
+    });
+    switchTab(renderer, 'TEAMS');
+    const texts = allText(renderer.toJSON());
+
+    expect(texts).toContain('🏆');
+    expect(texts.join(' ')).toContain('Standings will appear once the round begins.');
+    // No placeholder copy in the empty state.
+    expect(texts).not.toContain('PLACEHOLDER');
+  });
+
+  test('shows a ranking error card (not the placeholder) when the fetch failed with no snapshot', () => {
+    const renderer = renderBoard({ rankingError: 'network-error' });
+    switchTab(renderer, 'TEAMS');
+    const texts = allText(renderer.toJSON());
+
+    // The failure reads as an error, not as "no standings yet" sample data.
+    expect(texts.join(' ')).toContain("Couldn't reach the standings — check your connection.");
+    expect(texts).not.toContain('PLACEHOLDER');
+    expect(texts.join(' ')).not.toContain('Sample standings');
+    // A generic (non-network) failure falls back to the default copy.
+    expect(texts.join(' ')).not.toContain('Standings will appear once the round begins.');
+  });
+
+  test('retry button invokes onRetryRanking', () => {
+    let retries = 0;
+    const renderer = renderBoard({
+      rankingError: 'error',
+      onRetryRanking: () => {
+        retries += 1;
+      },
+    });
+    switchTab(renderer, 'TEAMS');
+
+    const retry = renderer.root.findByProps({ accessibilityLabel: 'Retry loading standings' });
+    act(() => {
+      retry.props.onPress();
+    });
+
+    expect(retries).toBe(1);
+  });
+
+  test('a stale snapshot still renders the podium even when a later fetch errored', () => {
+    // error is ignored while usable rows exist — mirrors the board's still-good-board pattern.
+    const renderer = renderBoard({
+      rankingRows: RANKING_ROWS,
+      ownTeamId: 'own-team',
+      rankingError: 'network-error',
+    });
+    switchTab(renderer, 'TEAMS');
+    const texts = allText(renderer.toJSON());
+
+    expect(texts).toContain('Compass Rose');
+    expect(texts.join(' ')).not.toContain("Couldn't reach the standings");
   });
 
   test('renders the shared session timer label', () => {

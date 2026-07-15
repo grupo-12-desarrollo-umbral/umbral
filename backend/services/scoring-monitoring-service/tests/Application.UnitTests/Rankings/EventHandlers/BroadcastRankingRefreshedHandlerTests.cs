@@ -21,6 +21,7 @@ public sealed class BroadcastRankingRefreshedHandlerTests
                 ScoreEntry.Grant(
                     liveSessionId,
                     Guid.NewGuid(),
+                    "Team A",
                     "trivia-answer-correct",
                     ScoreValue.Create(100),
                     new DateTimeOffset(2026, 7, 14, 17, 0, 0, TimeSpan.Zero),

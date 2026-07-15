@@ -38,6 +38,7 @@ public sealed class RecordScoreEntryCommandHandlerTests
             new RecordScoreEntryCommand(
                 Guid.NewGuid(),
                 Guid.NewGuid(),
+                "Team A",
                 "trivia-answer-correct",
                 100,
                 recordedAt,
@@ -69,6 +70,7 @@ public sealed class RecordScoreEntryCommandHandlerTests
             new RecordScoreEntryCommand(
                 Guid.NewGuid(),
                 Guid.NewGuid(),
+                "Team A",
                 "trivia-answer-correct",
                 100,
                 DateTimeOffset.UtcNow,

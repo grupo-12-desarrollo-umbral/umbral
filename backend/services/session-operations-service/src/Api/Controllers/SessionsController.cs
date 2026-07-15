@@ -18,6 +18,7 @@ using umbral_backend.Application.Sessions.Queries.GetOperatorSessionPanel;
 using umbral_backend.Application.Sessions.Queries.GetOperatorTriviaAnsweredMonitor;
 using umbral_backend.Application.Sessions.Queries.GetParticipantSessionTimerSnapshot;
 using umbral_backend.Application.Sessions.Queries.GetParticipantTeamBoard;
+using umbral_backend.Application.Sessions.Queries.ValidateParticipantSessionMembership;
 using umbral_backend.Application.Sessions.Queries.GetReleasableClues;
 using umbral_backend.Application.Sessions.Queries.GetAssociatedTeamsForSession;
 using umbral_backend.Application.Sessions.Queries.GetSessionTeamLobby;
@@ -250,6 +251,20 @@ public sealed class SessionsController(ISender sender) : ControllerBase
     {
         var result = await sender.Send(
             new GetParticipantTeamBoardQuery(liveSessionId, teamId, token),
+            cancellationToken);
+
+        return Ok(result);
+    }
+
+    [HttpGet("{liveSessionId:guid}/participants/session-membership")]
+    [Authorize(Policy = AuthorizationPolicies.Participant)]
+    public async Task<ActionResult<ParticipantSessionMembershipDto>> ValidateParticipantSessionMembershipAsync(
+        Guid liveSessionId,
+        Guid teamId,
+        CancellationToken cancellationToken)
+    {
+        var result = await sender.Send(
+            new ValidateParticipantSessionMembershipQuery(liveSessionId, teamId),
             cancellationToken);
 
         return Ok(result);

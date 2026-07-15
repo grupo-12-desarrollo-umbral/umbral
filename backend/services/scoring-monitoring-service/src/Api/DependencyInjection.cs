@@ -41,6 +41,7 @@ public static class DependencyInjection
                 policy.RequireRole("Administrator", "Operator");
             });
         });
+        builder.Services.AddExceptionHandler<ProblemDetailsExceptionHandler>();
         builder.Services.Configure<ApiBehaviorOptions>(options => options.SuppressModelStateInvalidFilter = true);
         builder.Services.AddControllers();
         builder.Services.AddOpenApi();

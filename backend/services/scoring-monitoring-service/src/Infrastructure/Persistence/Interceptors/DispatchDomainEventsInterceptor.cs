@@ -24,11 +24,11 @@ public sealed class DispatchDomainEventsInterceptor : SaveChangesInterceptor
         int result,
         CancellationToken cancellationToken = default)
     {
-        await DispatchDomainEventsAsync(eventData.Context);
+        await DispatchDomainEventsAsync(eventData.Context, cancellationToken);
         return await base.SavedChangesAsync(eventData, result, cancellationToken);
     }
 
-    private async Task DispatchDomainEventsAsync(DbContext? context)
+    private async Task DispatchDomainEventsAsync(DbContext? context, CancellationToken cancellationToken = default)
     {
         if (context is null)
         {
@@ -49,7 +49,7 @@ public sealed class DispatchDomainEventsInterceptor : SaveChangesInterceptor
 
         foreach (var domainEvent in domainEvents)
         {
-            await _mediator.Publish(domainEvent);
+            await _mediator.Publish(domainEvent, cancellationToken);
         }
     }
 }

@@ -1,3 +1,4 @@
+using umbral_backend.Application.Common.Exceptions;
 using umbral_backend.Application.Common.Interfaces;
 using umbral_backend.Application.Rankings.Queries.GetRankingSnapshot;
 using umbral_backend.Domain.Entities;
@@ -10,7 +11,7 @@ namespace umbral_backend.ScoringMonitoring.Application.UnitTests.Rankings.Querie
 public sealed class GetRankingSnapshotQueryHandlerTests
 {
     [Fact]
-    public async Task Handle_WhenRankingExists_ReturnsOrderedSnapshot()
+    public async Task Handle_WhenMembershipAllowedAndRankingExists_ReturnsOrderedSnapshot()
     {
         var liveSessionId = Guid.NewGuid();
         var teamId = Guid.NewGuid();
@@ -21,6 +22,7 @@ public sealed class GetRankingSnapshotQueryHandlerTests
                 ScoreEntry.Grant(
                     liveSessionId,
                     teamId,
+                    "Team A",
                     "trivia-answer-correct",
                     ScoreValue.Create(100),
                     new DateTimeOffset(2026, 7, 14, 17, 0, 0, TimeSpan.Zero),
@@ -36,9 +38,13 @@ public sealed class GetRankingSnapshotQueryHandlerTests
             .Setup(repo => repo.GetByLiveSessionIdAsync(liveSessionId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(ranking);
 
-        var handler = new GetRankingSnapshotQueryHandler(rankingRepository.Object);
+        var guard = new Mock<IRankingSessionMembershipGuard>();
+        guard.Setup(g => g.EnsureAllowedAsync(liveSessionId, teamId, It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
 
-        var snapshot = await handler.Handle(new GetRankingSnapshotQuery(liveSessionId), CancellationToken.None);
+        var handler = new GetRankingSnapshotQueryHandler(rankingRepository.Object, guard.Object);
+
+        var snapshot = await handler.Handle(new GetRankingSnapshotQuery(liveSessionId, teamId), CancellationToken.None);
 
         snapshot.LiveSessionId.Should().Be(liveSessionId);
         snapshot.CalculationVersion.Should().Be(2);
@@ -46,19 +52,48 @@ public sealed class GetRankingSnapshotQueryHandlerTests
     }
 
     [Fact]
-    public async Task Handle_WhenRankingDoesNotExist_ReturnsEmptySnapshot()
+    public async Task Handle_WhenMembershipAllowedAndRankingDoesNotExist_ReturnsEmptySnapshot()
     {
         var liveSessionId = Guid.NewGuid();
+        var teamId = Guid.NewGuid();
         var rankingRepository = new Mock<IRankingRepository>();
         rankingRepository
             .Setup(repo => repo.GetByLiveSessionIdAsync(liveSessionId, It.IsAny<CancellationToken>()))
             .ReturnsAsync((Ranking?)null);
 
-        var handler = new GetRankingSnapshotQueryHandler(rankingRepository.Object);
+        var guard = new Mock<IRankingSessionMembershipGuard>();
+        guard.Setup(g => g.EnsureAllowedAsync(liveSessionId, teamId, It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
 
-        var snapshot = await handler.Handle(new GetRankingSnapshotQuery(liveSessionId), CancellationToken.None);
+        var handler = new GetRankingSnapshotQueryHandler(rankingRepository.Object, guard.Object);
+
+        var snapshot = await handler.Handle(new GetRankingSnapshotQuery(liveSessionId, teamId), CancellationToken.None);
 
         snapshot.LiveSessionId.Should().Be(liveSessionId);
         snapshot.Rows.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Handle_WhenMembershipDenied_ThrowsForbiddenAndDoesNotQueryRanking()
+    {
+        var liveSessionId = Guid.NewGuid();
+        var teamId = Guid.NewGuid();
+
+        var rankingRepository = new Mock<IRankingRepository>();
+
+        var guard = new Mock<IRankingSessionMembershipGuard>();
+        guard.Setup(g => g.EnsureAllowedAsync(liveSessionId, teamId, It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new ForbiddenAccessException());
+
+        var handler = new GetRankingSnapshotQueryHandler(rankingRepository.Object, guard.Object);
+
+        var act = async () => await handler.Handle(
+            new GetRankingSnapshotQuery(liveSessionId, teamId),
+            CancellationToken.None);
+
+        await act.Should().ThrowAsync<ForbiddenAccessException>();
+        rankingRepository.Verify(
+            repo => repo.GetByLiveSessionIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()),
+            Times.Never);
     }
 }

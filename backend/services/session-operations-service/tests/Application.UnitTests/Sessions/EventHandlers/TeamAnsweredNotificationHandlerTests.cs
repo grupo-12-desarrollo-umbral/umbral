@@ -24,6 +24,8 @@ public sealed class TeamAnsweredNotificationHandlerTests
         var domainEvent = new AnswerRegisteredEvent(
             liveSessionId: Guid.NewGuid(),
             teamId: Guid.NewGuid(),
+            referenceTeamId: Guid.NewGuid(),
+            teamDisplayName: "Gilded Owls",
             evidenceSubmissionId: Guid.NewGuid(),
             activeSubstageId: Guid.NewGuid(),
             questionSequenceOrder: 3,

@@ -50,6 +50,8 @@ public sealed class MassTransitRemainingIntegrationEventPublishTests
                 Guid.NewGuid(),
                 Guid.NewGuid(),
                 Guid.NewGuid(),
+                "Gilded Owls",
+                Guid.NewGuid(),
                 Guid.NewGuid(),
                 questionSequenceOrder: 3,
                 selectedOptionSequenceOrder: 2,
@@ -63,6 +65,8 @@ public sealed class MassTransitRemainingIntegrationEventPublishTests
             received.Should().Be(new AnswerRegisteredIntegrationEvent(
                 domainEvent.LiveSessionId,
                 domainEvent.TeamId,
+                domainEvent.ReferenceTeamId,
+                domainEvent.TeamDisplayName,
                 domainEvent.EvidenceSubmissionId,
                 domainEvent.ActiveSubstageId,
                 domainEvent.QuestionSequenceOrder,

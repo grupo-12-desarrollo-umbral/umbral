@@ -14,10 +14,11 @@ public sealed class RankingController(ISender sender) : ControllerBase
     [HttpGet("{liveSessionId:guid}/ranking")]
     public async Task<ActionResult<RankingSnapshotDto>> GetRankingAsync(
         Guid liveSessionId,
+        Guid teamId,
         CancellationToken cancellationToken)
     {
         var snapshot = await sender.Send(
-            new GetRankingSnapshotQuery(liveSessionId),
+            new GetRankingSnapshotQuery(liveSessionId, teamId),
             cancellationToken);
 
         return Ok(snapshot);

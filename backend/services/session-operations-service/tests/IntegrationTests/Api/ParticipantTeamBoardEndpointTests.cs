@@ -41,7 +41,7 @@ public sealed class ParticipantTeamBoardEndpointTests : IAsyncLifetime
     public async Task GetTeamBoard_ForAuthorizedParticipant_ReturnsOkWithBoardSnapshot()
     {
         var seeded = await SeedActiveTreasureHuntSessionAsync();
-        AddTrustedHeaders(_client, Guid.NewGuid().ToString(), "Participant", "participant@example.com");
+        AddTrustedHeaders(_client, seeded.ParticipantExternalIdentityId.ToString(), "Participant", "participant@example.com");
 
         var response = await _client.GetAsync(BuildTeamBoardUrl(seeded));
 
@@ -71,7 +71,7 @@ public sealed class ParticipantTeamBoardEndpointTests : IAsyncLifetime
         // First-join view: the session is Active on the first (Trivia) substage; the ordered
         // substage list must carry both substages with play modes/order and the active one flagged.
         var seeded = await SeedMixedSessionAsync(advancePastTrivia: false);
-        AddTrustedHeaders(_client, Guid.NewGuid().ToString(), "Participant", "participant@example.com");
+        AddTrustedHeaders(_client, seeded.ParticipantExternalIdentityId.ToString(), "Participant", "participant@example.com");
 
         var response = await _client.GetAsync(BuildTeamBoardUrl(seeded));
 
@@ -90,7 +90,7 @@ public sealed class ParticipantTeamBoardEndpointTests : IAsyncLifetime
     public async Task GetTeamBoard_AfterAdvancingPastTrivia_MarksTriviaCompletedAndTreasureHuntActive()
     {
         var seeded = await SeedMixedSessionAsync(advancePastTrivia: true);
-        AddTrustedHeaders(_client, Guid.NewGuid().ToString(), "Participant", "participant@example.com");
+        AddTrustedHeaders(_client, seeded.ParticipantExternalIdentityId.ToString(), "Participant", "participant@example.com");
 
         var response = await _client.GetAsync(BuildTeamBoardUrl(seeded));
 
@@ -165,16 +165,24 @@ public sealed class ParticipantTeamBoardEndpointTests : IAsyncLifetime
             maximumTimeMinutes: 45,
             createdAt,
             CreateTreasureHuntSnapshot(sourceMissionId));
-        var team = session.AssociateTeam(Guid.NewGuid(), "Alpha", "A-01", 4);
+        var referenceTeamId = Guid.NewGuid();
+        var team = session.AssociateTeam(referenceTeamId, "Alpha", "A-01", 4);
 
         var policy = new SessionStateTransitionPolicy();
         session.MoveTo(SessionState.Preparing, createdAt.AddMinutes(1), policy);
+        var participantExternalIdentityId = Guid.NewGuid();
+        session.AdmitParticipant(
+            participantExternalIdentityId,
+            "Nora",
+            team.TeamId,
+            createdAt.AddMinutes(2),
+            new JoinPolicy());
         session.MoveTo(SessionState.Active, now, policy);
 
         dbContext.LiveSessions.Add(session);
         await dbContext.SaveChangesAsync();
 
-        return new SeededSession(session.LiveSessionId, team.TeamId);
+        return new SeededSession(session.LiveSessionId, team.TeamId, referenceTeamId, participantExternalIdentityId);
     }
 
     private async Task<SeededSession> SeedMixedSessionAsync(bool advancePastTrivia)
@@ -192,10 +200,18 @@ public sealed class ParticipantTeamBoardEndpointTests : IAsyncLifetime
             maximumTimeMinutes: 45,
             createdAt,
             CreateMixedSnapshot(sourceMissionId));
-        var team = session.AssociateTeam(Guid.NewGuid(), "Alpha", "A-01", 4);
+        var referenceTeamId = Guid.NewGuid();
+        var team = session.AssociateTeam(referenceTeamId, "Alpha", "A-01", 4);
 
         var policy = new SessionStateTransitionPolicy();
         session.MoveTo(SessionState.Preparing, createdAt.AddMinutes(1), policy);
+        var participantExternalIdentityId = Guid.NewGuid();
+        session.AdmitParticipant(
+            participantExternalIdentityId,
+            "Nora",
+            team.TeamId,
+            createdAt.AddMinutes(2),
+            new JoinPolicy());
         session.MoveTo(SessionState.Active, now, policy);
 
         if (advancePastTrivia)
@@ -209,7 +225,7 @@ public sealed class ParticipantTeamBoardEndpointTests : IAsyncLifetime
         dbContext.LiveSessions.Add(session);
         await dbContext.SaveChangesAsync();
 
-        return new SeededSession(session.LiveSessionId, team.TeamId);
+        return new SeededSession(session.LiveSessionId, team.TeamId, referenceTeamId, participantExternalIdentityId);
     }
 
     private static MissionRuntimeSnapshot CreateMixedSnapshot(Guid sourceMissionId)
@@ -278,7 +294,7 @@ public sealed class ParticipantTeamBoardEndpointTests : IAsyncLifetime
 
     private static string BuildTeamBoardUrl(SeededSession seeded)
     {
-        return $"/api/sessions/{seeded.LiveSessionId:D}/participants/team-board?teamId={seeded.TeamId:D}";
+        return $"/api/sessions/{seeded.LiveSessionId:D}/participants/team-board?teamId={seeded.ReferenceTeamId:D}";
     }
 
     private static void AddTrustedHeaders(HttpClient client, string userId, string role, string email)
@@ -291,5 +307,9 @@ public sealed class ParticipantTeamBoardEndpointTests : IAsyncLifetime
         client.DefaultRequestHeaders.Add("X-User-Email", email);
     }
 
-    private sealed record SeededSession(Guid LiveSessionId, Guid TeamId);
+    private sealed record SeededSession(
+        Guid LiveSessionId,
+        Guid TeamId,
+        Guid ReferenceTeamId,
+        Guid ParticipantExternalIdentityId);
 }

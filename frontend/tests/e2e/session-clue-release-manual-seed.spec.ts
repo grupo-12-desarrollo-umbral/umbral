@@ -122,7 +122,7 @@ test('seeds "Clue Release E2E" in Preparing with hidden clues + two teams, ready
   // Sub-keyed admin identity for the gateway-JWT assign path (mirrors the HU-23 seed).
   const adminSub = subOf(admin)
   sql('identity_access', `
-    DELETE FROM users WHERE "ExternalIdentityId"='${adminSub}';
+    DELETE FROM users WHERE "ExternalIdentityId"='${adminSub}' OR "Email"='admin-1@umbral.local';
     INSERT INTO users ("ExternalIdentityId","DisplayName","Email","Role","IsActive","Created","LastModified")
     VALUES ('${adminSub}','Administrator One','admin-1@umbral.local','Administrator',true,NOW(),NOW());
   `)

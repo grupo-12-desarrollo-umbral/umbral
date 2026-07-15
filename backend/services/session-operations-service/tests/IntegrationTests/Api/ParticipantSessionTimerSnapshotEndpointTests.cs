@@ -42,7 +42,7 @@ public sealed class ParticipantSessionTimerSnapshotEndpointTests : IAsyncLifetim
     public async Task GetTimerSnapshot_ForActiveTriviaQuestion_ReturnsAdvancingQuestionWindow()
     {
         var seeded = await SeedTriviaSessionAsync(SessionTimerSeedState.ActiveQuestion);
-        AddTrustedHeaders(_client, Guid.NewGuid().ToString(), "Participant", "participant@example.com");
+        AddTrustedHeaders(_client, seeded.ParticipantExternalIdentityId.ToString(), "Participant", "participant@example.com");
 
         var response = await _client.GetAsync(BuildTimerUrl(seeded));
 
@@ -50,7 +50,7 @@ public sealed class ParticipantSessionTimerSnapshotEndpointTests : IAsyncLifetim
         var payload = await response.Content.ReadFromJsonAsync<SessionTimerSnapshotResponse>();
         payload.Should().NotBeNull();
         payload!.LiveSessionId.Should().Be(seeded.LiveSessionId);
-        payload.TeamId.Should().Be(seeded.TeamId);
+        payload.TeamId.Should().Be(seeded.ReferenceTeamId);
         payload.SessionState.Should().Be(nameof(SessionState.Active));
         payload.TotalSeconds.Should().Be(QuestionTimeLimitSeconds);
         payload.RemainingSeconds.Should().BeInRange(QuestionTimeLimitSeconds - 10, QuestionTimeLimitSeconds);
@@ -67,7 +67,7 @@ public sealed class ParticipantSessionTimerSnapshotEndpointTests : IAsyncLifetim
     public async Task GetTimerSnapshot_ForPausedTriviaQuestion_ReturnsFrozenQuestionWindow()
     {
         var seeded = await SeedTriviaSessionAsync(SessionTimerSeedState.PausedQuestion);
-        AddTrustedHeaders(_client, Guid.NewGuid().ToString(), "Participant", "participant@example.com");
+        AddTrustedHeaders(_client, seeded.ParticipantExternalIdentityId.ToString(), "Participant", "participant@example.com");
 
         var response = await _client.GetAsync(BuildTimerUrl(seeded));
 
@@ -89,7 +89,7 @@ public sealed class ParticipantSessionTimerSnapshotEndpointTests : IAsyncLifetim
     public async Task GetTimerSnapshot_ForResumedTriviaQuestion_ContinuesSameQuestionFromFrozenRemainder()
     {
         var seeded = await SeedTriviaSessionAsync(SessionTimerSeedState.ResumedQuestion);
-        AddTrustedHeaders(_client, Guid.NewGuid().ToString(), "Participant", "participant@example.com");
+        AddTrustedHeaders(_client, seeded.ParticipantExternalIdentityId.ToString(), "Participant", "participant@example.com");
 
         var response = await _client.GetAsync(BuildTimerUrl(seeded));
 
@@ -109,7 +109,7 @@ public sealed class ParticipantSessionTimerSnapshotEndpointTests : IAsyncLifetim
     public async Task GetTimerSnapshot_ForActiveTreasureHunt_ReturnsAdvancingSubstageWindow()
     {
         var seeded = await SeedTreasureHuntSessionAsync();
-        AddTrustedHeaders(_client, Guid.NewGuid().ToString(), "Participant", "participant@example.com");
+        AddTrustedHeaders(_client, seeded.ParticipantExternalIdentityId.ToString(), "Participant", "participant@example.com");
 
         var response = await _client.GetAsync(BuildTimerUrl(seeded));
 
@@ -117,7 +117,7 @@ public sealed class ParticipantSessionTimerSnapshotEndpointTests : IAsyncLifetim
         var payload = await response.Content.ReadFromJsonAsync<SessionTimerSnapshotResponse>();
         payload.Should().NotBeNull();
         payload!.LiveSessionId.Should().Be(seeded.LiveSessionId);
-        payload.TeamId.Should().Be(seeded.TeamId);
+        payload.TeamId.Should().Be(seeded.ReferenceTeamId);
         payload.SessionState.Should().Be(nameof(SessionState.Active));
         payload.TotalSeconds.Should().Be(2700);
         payload.RemainingSeconds.Should().BeGreaterThan(0);
@@ -191,14 +191,16 @@ public sealed class ParticipantSessionTimerSnapshotEndpointTests : IAsyncLifetim
             maximumTimeMinutes: 45,
             createdAt,
             CreateTriviaSnapshot(sourceMissionId));
-        var team = session.AssociateTeam(Guid.NewGuid(), "Red", "RED-01", 4);
+        var referenceTeamId = Guid.NewGuid();
+        var team = session.AssociateTeam(referenceTeamId, "Red", "RED-01", 4);
+        var participantExternalIdentityId = Guid.NewGuid();
 
-        DriveQuestionTimer(session, seedState, createdAt, now);
+        DriveQuestionTimer(session, seedState, createdAt, now, team.TeamId, participantExternalIdentityId);
 
         dbContext.LiveSessions.Add(session);
         await dbContext.SaveChangesAsync();
 
-        return new SeededSession(session.LiveSessionId, team.TeamId);
+        return new SeededSession(session.LiveSessionId, team.TeamId, referenceTeamId, participantExternalIdentityId);
     }
 
     // Advancing windows anchor on the real "now" (endpoint reads the real clock); the frozen window is
@@ -207,11 +209,19 @@ public sealed class ParticipantSessionTimerSnapshotEndpointTests : IAsyncLifetim
         LiveSession session,
         SessionTimerSeedState seedState,
         DateTimeOffset createdAt,
-        DateTimeOffset now)
+        DateTimeOffset now,
+        Guid teamId,
+        Guid participantExternalIdentityId)
     {
         var transitionPolicy = new SessionStateTransitionPolicy();
 
         session.MoveTo(SessionState.Preparing, createdAt.AddMinutes(1), transitionPolicy);
+        session.AdmitParticipant(
+            participantExternalIdentityId,
+            "Red-1",
+            teamId,
+            createdAt.AddMinutes(1).AddSeconds(30),
+            new JoinPolicy());
         session.MoveTo(SessionState.Active, createdAt.AddMinutes(2), transitionPolicy);
 
         if (seedState == SessionTimerSeedState.ActiveQuestion)
@@ -273,16 +283,24 @@ public sealed class ParticipantSessionTimerSnapshotEndpointTests : IAsyncLifetim
             maximumTimeMinutes: 45,
             createdAt,
             CreateTreasureHuntSnapshot(sourceMissionId));
-        var team = session.AssociateTeam(Guid.NewGuid(), "Red", "RED-01", 4);
+        var referenceTeamId = Guid.NewGuid();
+        var team = session.AssociateTeam(referenceTeamId, "Red", "RED-01", 4);
 
         var transitionPolicy = new SessionStateTransitionPolicy();
         session.MoveTo(SessionState.Preparing, createdAt.AddMinutes(1), transitionPolicy);
+        var participantExternalIdentityId = Guid.NewGuid();
+        session.AdmitParticipant(
+            participantExternalIdentityId,
+            "Red-1",
+            team.TeamId,
+            createdAt.AddMinutes(1).AddSeconds(30),
+            new JoinPolicy());
         session.MoveTo(SessionState.Active, createdAt.AddMinutes(2), transitionPolicy);
 
         dbContext.LiveSessions.Add(session);
         await dbContext.SaveChangesAsync();
 
-        return new SeededSession(session.LiveSessionId, team.TeamId);
+        return new SeededSession(session.LiveSessionId, team.TeamId, referenceTeamId, participantExternalIdentityId);
     }
 
     private static MissionRuntimeSnapshot CreateTreasureHuntSnapshot(Guid sourceMissionId)
@@ -314,7 +332,7 @@ public sealed class ParticipantSessionTimerSnapshotEndpointTests : IAsyncLifetim
 
     private static string BuildTimerUrl(SeededSession seeded)
     {
-        return $"/api/sessions/{seeded.LiveSessionId:D}/participants/timer?teamId={seeded.TeamId:D}";
+        return $"/api/sessions/{seeded.LiveSessionId:D}/participants/timer?teamId={seeded.ReferenceTeamId:D}";
     }
 
     private static void AddTrustedHeaders(HttpClient client, string userId, string role, string email)
@@ -334,7 +352,11 @@ public sealed class ParticipantSessionTimerSnapshotEndpointTests : IAsyncLifetim
         ResumedQuestion
     }
 
-    private sealed record SeededSession(Guid LiveSessionId, Guid TeamId);
+    private sealed record SeededSession(
+        Guid LiveSessionId,
+        Guid TeamId,
+        Guid ReferenceTeamId,
+        Guid ParticipantExternalIdentityId);
 
     private sealed record SessionTimerSnapshotResponse(
         Guid LiveSessionId,

@@ -20,6 +20,7 @@ public sealed class ScoreEntryTests
         var entry = ScoreEntry.Grant(
             liveSessionId,
             teamId,
+            "Gilded Owls",
             "trivia-correct-answer",
             awardedScore,
             recordedAt,
@@ -28,6 +29,7 @@ public sealed class ScoreEntryTests
             recordedByUserId: 88);
 
         entry.EntryType.Should().Be(ScoreEntryType.Grant);
+        entry.TeamDisplayName.Should().Be("Gilded Owls");
         entry.ScoreValue.Should().Be(awardedScore);
         entry.DomainEvents.Should().ContainSingle()
             .Which.Should().BeOfType<ScoreEntryRegistered>();

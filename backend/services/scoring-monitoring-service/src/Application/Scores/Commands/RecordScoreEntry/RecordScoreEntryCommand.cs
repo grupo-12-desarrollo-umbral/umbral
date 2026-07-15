@@ -5,6 +5,7 @@ namespace umbral_backend.Application.Scores.Commands.RecordScoreEntry;
 public sealed record RecordScoreEntryCommand(
     Guid LiveSessionId,
     Guid TeamId,
+    string TeamDisplayName,
     string ReasonCode,
     int ScoreValue,
     DateTimeOffset RecordedAt,

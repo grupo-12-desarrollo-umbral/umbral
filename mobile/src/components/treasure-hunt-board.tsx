@@ -1,12 +1,11 @@
 /**
- * Treasure-hunt participant live board (HU-23).
+ * Treasure-hunt participant live board (HU-23 / HU-25B).
  *
  * Lifts the "Focus Tabs" layout from the (now-deleted) dev prototype — a compact
  * sticky header (substage title + score + timer) over a segmented Map / Clues /
  * Teams body, with a persistent "your team" strip — but is fed entirely by props
  * from the live HU-23 snapshot/push. It is TEAM-ONLY: score, target progress and
- * clues are for the participant's own team. Other-team cards are static,
- * clearly-marked placeholders (real standings/ranking is HU-39); the Map tab renders the live target
+ * clues are for the participant's own team. The Map tab renders the live target
  * coordinates (#154) on a real Leaflet map (#156) via TargetMap.
  *
  * Layout: this is a full-viewport surface — sticky header, `flex: 1` body, absolutely-pinned team
@@ -24,10 +23,35 @@ import { TargetMap } from '@/components/target-map';
 import { colors, radii, shadows, spacing, typography } from '@/constants/theme';
 import type { TimerDisplay } from '@/lib/realtime/timer-types';
 import { clueKey, type ActiveTargetDto, type VisibleClueDto } from '@/lib/realtime/team-board-types';
+import type { RankingRowDto } from '@/lib/realtime/ranking-types';
+import type { TimerSnapshotError } from '@/lib/api/sessions';
+import { PodiumLeaderboard } from './podium-leaderboard';
 
-// Other-team cards are static placeholders until HU-39 (real standings/ranking).
-// Each is tagged in the UI so it is unmistakable to sighted users and to
-// assistive tech (PLACEHOLDER badge + "sample standings" hint).
+/**
+ * Copy for a failed ranking fetch (HU-25B). Without a distinct error state a 500
+ * from the ranking endpoint is indistinguishable from "no standings yet" — the
+ * TEAMS tab would silently fall back to placeholder sample cards, hiding the fact
+ * that the standings never loaded. This surfaces the failure so it reads as an
+ * error, not as data.
+ */
+function rankingErrorCopy(error: TimerSnapshotError): string {
+  switch (error) {
+    case 'network-error':
+      return "Couldn't reach the standings — check your connection.";
+    case 'unauthorized':
+      return 'Your session expired — the standings couldn’t load.';
+    case 'forbidden':
+      return "You don't have access to this session's standings.";
+    case 'not-found':
+      return "This session's standings aren't available.";
+    case 'timer-unavailable':
+      return "Standings aren't ready yet — hang tight.";
+    default:
+      return "Couldn't load the standings.";
+  }
+}
+
+// Fallback other-team cards used when real ranking rows have not yet loaded.
 const PLACEHOLDER_OTHER_TEAMS: readonly { name: string }[] = [
   { name: 'Compass Rose' },
   { name: 'Ember Foxes' },
@@ -71,6 +95,20 @@ export type TreasureHuntBoardProps = {
   // exactly when this board renders — so the affordance is inherently scoped to treasure hunts, never
   // trivia. Absent → no scan button (e.g. a board push that predates the scanner).
   onScan?: () => void;
+  // HU-25B: real session ranking rows. When provided the TEAMS tab renders the
+  // live PodiumLeaderboard; when absent it falls back to the participant's own
+  // team card + placeholder other-team cards.
+  rankingRows?: readonly RankingRowDto[];
+  // Per-session team id used to highlight the participant's own team in the
+  // ranking. Must match the `teamId` field carried by `RankingRowDto` rows.
+  ownTeamId?: string;
+  // HU-25B: set when the ranking fetch failed with no usable snapshot. When present
+  // (and there are no rows to show) the TEAMS tab renders an error card + Retry
+  // instead of the placeholder sample cards, so a failed load isn't mistaken for
+  // "no standings yet". Ignored once rows are available (a stale snapshot still renders).
+  rankingError?: TimerSnapshotError | null;
+  // Retry trigger for a failed ranking fetch — wired to `useRanking`'s `refetch`.
+  onRetryRanking?: () => void;
 };
 
 export function TreasureHuntBoard({
@@ -84,6 +122,10 @@ export function TreasureHuntBoard({
   headerSlot,
   onLeave,
   onScan,
+  rankingRows,
+  ownTeamId,
+  rankingError,
+  onRetryRanking,
 }: TreasureHuntBoardProps) {
   const [tab, setTab] = useState<'map' | 'clues' | 'teams'>('map');
 
@@ -226,6 +268,41 @@ export function TreasureHuntBoard({
                 <Text variant="body" muted>No clues yet.</Text>
               </Card>
             )}
+          </Screen>
+        ) : rankingRows && ownTeamId ? (
+          <Screen contentContainerStyle={{ gap: spacing.sm, paddingBottom: 100 }}>
+            <PodiumLeaderboard rows={rankingRows} ownTeamId={ownTeamId} />
+          </Screen>
+        ) : rankingError ? (
+          <Screen contentContainerStyle={{ gap: spacing.sm, paddingBottom: 100 }}>
+            <Card style={{ borderColor: colors.signalCritical, borderWidth: 1 }}>
+              <View style={{ gap: spacing.sm, alignItems: 'center', paddingVertical: spacing.md }}>
+                <Text
+                  variant="body"
+                  style={{ color: colors.signalCritical, textAlign: 'center' }}
+                >
+                  {rankingErrorCopy(rankingError)}
+                </Text>
+                {onRetryRanking ? (
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Retry loading standings"
+                    onPress={onRetryRanking}
+                    style={{
+                      backgroundColor: colors.raisedSurface,
+                      borderRadius: radii.control,
+                      borderCurve: 'continuous',
+                      borderWidth: 1,
+                      borderColor: colors.borderSoft,
+                      paddingHorizontal: spacing.md,
+                      paddingVertical: spacing.xs,
+                    }}
+                  >
+                    <Text variant="label" style={{ color: colors.textInk }}>RETRY</Text>
+                  </Pressable>
+                ) : null}
+              </View>
+            </Card>
           </Screen>
         ) : (
           <Screen contentContainerStyle={{ gap: spacing.sm, paddingBottom: 100 }}>

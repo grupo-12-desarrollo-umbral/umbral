@@ -30,6 +30,7 @@ public sealed class RankingRepositoryIntegrationTests
             ScoreEntry.Grant(
                 liveSessionId,
                 teamAlpha,
+                "Team Alpha",
                 "trivia-answer-correct",
                 ScoreValue.Create(200),
                 sessionStart,
@@ -38,6 +39,7 @@ public sealed class RankingRepositoryIntegrationTests
             ScoreEntry.Grant(
                 liveSessionId,
                 teamBeta,
+                "Team Beta",
                 "trivia-answer-correct",
                 ScoreValue.Create(100),
                 sessionStart.AddSeconds(30),
@@ -80,6 +82,7 @@ public sealed class RankingRepositoryIntegrationTests
             ScoreEntry.Grant(
                 liveSessionId,
                 teamAlpha,
+                "Team Alpha",
                 "trivia-answer-correct",
                 ScoreValue.Create(200),
                 sessionStart,
@@ -88,6 +91,7 @@ public sealed class RankingRepositoryIntegrationTests
             ScoreEntry.Grant(
                 liveSessionId,
                 teamBeta,
+                "Team Beta",
                 "trivia-answer-correct",
                 ScoreValue.Create(300),
                 sessionStart.AddSeconds(30),

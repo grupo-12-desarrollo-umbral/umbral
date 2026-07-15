@@ -17,6 +17,8 @@ public sealed class AnswerRegisteredConsumerTests
             Guid.NewGuid(),
             Guid.NewGuid(),
             Guid.NewGuid(),
+            "Gilded Owls",
+            Guid.NewGuid(),
             Guid.NewGuid(),
             2,
             1,
@@ -34,7 +36,8 @@ public sealed class AnswerRegisteredConsumerTests
             current => current.Send(
                 It.Is<RecordScoreEntryCommand>(command =>
                     command.LiveSessionId == message.LiveSessionId &&
-                    command.TeamId == message.TeamId &&
+                    command.TeamId == message.ReferenceTeamId &&
+                    command.TeamDisplayName == message.TeamDisplayName &&
                     command.ScoreValue == message.ScoreValue &&
                     command.RecordedAt == message.SubmittedAt &&
                     command.SourceEntityType == ScoreSourceType.TriviaAnswerSubmission &&
@@ -52,6 +55,8 @@ public sealed class AnswerRegisteredConsumerTests
             new AnswerRegisteredIntegrationEvent(
                 Guid.NewGuid(),
                 Guid.NewGuid(),
+                Guid.NewGuid(),
+                "Gilded Owls",
                 Guid.NewGuid(),
                 Guid.NewGuid(),
                 2,
