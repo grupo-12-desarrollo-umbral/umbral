@@ -1,5 +1,6 @@
 using System.Reflection;
 using Microsoft.Extensions.Hosting;
+using umbral_backend.Application.Common.Behaviours;
 using umbral_backend.Application.Common.Interfaces;
 using umbral_backend.Application.Rankings.Common;
 using umbral_backend.Application.Scores.Common.Authorization;
@@ -12,7 +13,11 @@ public static class DependencyInjection
     public static void AddApplicationServices(this IHostApplicationBuilder builder)
     {
         builder.Services.AddValidatorsFromAssembly(Assembly.GetExecutingAssembly());
-        builder.Services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(Assembly.GetExecutingAssembly()));
+        builder.Services.AddMediatR(cfg =>
+        {
+            cfg.RegisterServicesFromAssembly(Assembly.GetExecutingAssembly());
+            cfg.AddOpenBehavior(typeof(UnhandledExceptionBehaviour<,>));
+        });
 
         builder.Services.AddScoped<IScorePolicy, SnapshotScorePolicy>();
         builder.Services.AddScoped<IRankingPolicy, ResolutionTimeRankingPolicy>();
