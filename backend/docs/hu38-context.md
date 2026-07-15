@@ -1,59 +1,80 @@
 # HU-38 Context - Aplicación de penalizaciones justificadas
 
 > Paste this section into any agent session that needs context for HU-38.
-> Last updated: 2026-07-12 | Branch: `feature/hu-38-justified-penalties`
+> Last updated: 2026-07-15 | Branch: `feature/hu-38-justified-penalties`
 
 ## State
 
-- DES-53 (HU-38): **Backlog**, labels: `svc:scoring-monitoring-service`, `Feature`, `ready-for-agent`
-- **Resolved mode: feature flow** — DES-53 carries neither `canon-realign` nor `needs-rebuild`. No realignment map exists for `scoring-monitoring-service`; DES-53 is **not** superseded (not folded, not canceled). No superseded predecessor ids were dropped or substituted.
+- DES-53 (HU-38): **Todo**, labels: `svc:scoring-monitoring-service`, `svc:session-operations-service`, `Feature`, `ready-for-agent`.
+  - The **double `svc:` label is intentional and not co-ownership.** Per the ticket's 2026-07-12 clarification, the write is owned **only** by `scoring-monitoring-service` (canonical owner of `Penalty` + the `ScoreEntry` ledger, PRD DES-85 / `bd_umbral_entity_spec.md` §`Penalty`). `svc:session-operations-service` marks **only** the `Proxy` guard: the operator may penalize a team of a session **assigned to him**, and that assignment lives in session-operations. HU-38 does **not** write session-operations.
+- **Resolved mode: feature flow.** DES-53 carries neither `canon-realign` nor `needs-rebuild`. No realignment map exists for `scoring-monitoring-service`; DES-53 is **not** superseded (not folded, not cancelled). No superseded predecessor ids were dropped or substituted.
 - PRD: DES-85 (**Backlog**, `ready-for-agent`, `svc:scoring-monitoring-service`) — local file `backend/docs/prd/DES-85-primera-implementacion-de-scoring-monitoring-service-hu-37-a-hu-40.md` is authoritative.
-- Predecessors (same `svc:scoring-monitoring-service`): none Done or In Progress yet. **DES-51 (HU-37, the `ScoreEntry` ledger) is HU-38's build-on foundation and must merge before HU-38 is built** (resolved: land HU-37 first — see Known quirks). It is currently `Todo`. All other scoring tickets are Backlog/Todo. DES-52/DES-55 are Canceled (folded into DES-54), untouched by this HU.
-- Cross-service blockers declared on the ticket: DES-26 (HU-19, operator↔session assignment) and DES-76 (HU-21A, session state machine) — both `session-operations-service`, both unmerged. These supply the operator-identity / assigned-session facts the Proxy authorization needs.
-- Branch: `feature/hu-38-justified-penalties` — base `develop`. **Do not start X.1 until DES-51/HU-37 has merged to `develop`**; if HU-37 is instead mid-flight on its own feature branch when HU-38 starts, branch from that branch.
+- **Build-on predecessor (same service): DES-99 (HU-37 + HU-39) — Done (2026-07-15).** DES-99 landed the append-only `ScoreEntry` ledger, `ScoreValue`/`ResolutionTime`, `IScorePolicy`/`SnapshotScorePolicy` (**Strategy already present**), the `Ranking` projection, `ScoringMonitoringDbContext` + migration, the MassTransit registration, and the Api composition root (`Program.cs`, controllers, `AuthorizationPolicies`, `ProblemDetailsExceptionHandler`, SignalR). **The service is no longer greenfield.** DES-51 (HU-37) and DES-54 (HU-39) are cancelled — folded into DES-99; they are not predecessors. Its context file is `backend/docs/hu37-39-context.md` (full read done).
+- Cross-service blockers declared on the ticket — **both Done**: DES-26 (HU-19, operator↔session assignment) Done 2026-06-04; DES-76 (HU-21A, session state machine + `LiveSession.AssignedOperatorUserId`) Done 2026-07-05. These own the assigned-operator fact the `Proxy` consumes.
+- Branch: `feature/hu-38-justified-penalties` — base `develop` (DES-99 is merged to `develop`; no same-service predecessor is In Progress). **The "land HU-37 first" gate from the earlier draft is satisfied** — the ledger exists on `develop`.
 
 ## Required design patterns
 
 - `Strategy`
-  - Why: justified penalties are a **score-policy outcome** — `PenaltyPolicy` decides eligibility/justification and `ScorePolicy` decides the deduction impact; scoring variation must not become handler-level branching (`required_patterns_matrix.md` HU-38 row; ADR-0004; `ddd_solution_model.md` §ScoringMonitoring L402-404).
-  - Phase owner: X.1 Domain (policy interfaces + concrete strategies in `Domain/Services/`), selected at runtime in X.2 Application.
-  - Concrete obligation: `IPenaltyPolicy` and `IScorePolicy` as interchangeable Strategy abstractions with `sealed` concrete implementations in `Domain/Services/`; eligibility and score-impact logic live in the strategies, never as `if`/`switch` branches in the handler. Follow the established single-impl convention (one `sealed` impl wired 1:1 in `Application/DependencyInjection.cs`; add a selector/factory only when a second policy variant lands).
+  - Why: a justified penalty is a **score-policy outcome** — `PenaltyPolicy` decides eligibility/justification and `ScorePolicy` decides the deduction magnitude; scoring variation must not become handler-level branching (`required_patterns_matrix.md` HU-38 row; ADR-0004; PRD DES-85 Implementation Decisions; `ddd_solution_model.md` §ScoringMonitoring L470-471).
+  - Phase owner: X.1 Domain (policy interface + concrete `sealed` strategy in `Domain/Services/`), selected at runtime in X.2 Application.
+  - Concrete obligation: **add `IPenaltyPolicy` + one `sealed` `DefaultPenaltyPolicy`** in `Domain/Services/` (eligibility/justification). **Reuse the landed `IScorePolicy`/`SnapshotScorePolicy`** for the deduction magnitude — do **not** recreate it (HU-37 landed it). Eligibility and impact live in the strategies, never as `if`/`switch` in the handler. Single-impl, no selector until a second variant lands (per the overengineering checklist).
 - `Proxy`
   - Why: a penalty may only be applied by the operator **assigned to that session**; access must be guarded at the application boundary, not with ad-hoc role checks (`required_patterns_matrix.md` HU-38 row; ADR-0004 role/policy access guards; ADR-0012 resource-ownership resolver home).
-  - Phase owner: X.2 Application (guarded resolver/decorator) + X.4 Api (endpoint authorization policy).
-  - Concrete obligation: a `ScoringSessionAuthorizationProxy` implementing a small access-resolver interface (mirror `SessionAdministrationAuthorizationProxy`/`ISessionAdministrationAccessResolver`): Administrator unrestricted, Operator only when the actor owns the target session (`AssignedOperatorUserId == actor.UserId`) else `ForbiddenAccessException`. No ad-hoc role/owner `if` in handler, controller, or DI. Endpoint carries `[Authorize(Policy=...)]`.
+  - Phase owner: X.2 Application (guarded access resolver) + X.4 Api (endpoint authorization policy).
+  - Concrete obligation: `IScoringSessionAccessResolver` + `ScoringSessionAuthorizationProxy` (mirror session-operations `ISessionAdministrationAccessResolver` + `SessionAdministrationAuthorizationProxy`): blank actor → `UnauthorizedAccessException`; Administrator → unrestricted; non-Operator → `ForbiddenAccessException`; Operator whose id ≠ the session's assigned operator → `ForbiddenAccessException`. No ad-hoc role/owner `if` in handler, controller, or DI. The endpoint carries the coarse `[Authorize(Policy = AdministratorOrOperator)]`; the Proxy adds the fine per-session ownership check. **The resolver reads a local session-assignment projection (see Known quirks), not an HTTP client.**
 
 _Not applies-where:_ HU-38's `Proxy` is a **mandated** obligation (it appears in HU-38's matrix pattern cell), not the informational applies-where tag reserved for HU-04/05/36B.
 
 ## What predecessors have already landed
 
-`scoring-monitoring-service` is **greenfield** — the service tree is scaffolded but empty. Every `src/` and `tests/` folder holds only a `.gitkeep`; there are **zero `.cs` files** today. The Application layer is pre-seeded with slice-area folders `Scores/`, `Metrics/`, `Alerts/`, and `Common/`. **HU-38 lands after HU-37**, so its `ScoreEntry`/`ScoreValue` ledger core is the build-on surface (mirror/extend, do not recreate); everything else HU-38 needs is net-new, with mirror targets from sibling services (session-operations, mission-design, identity-access).
+`scoring-monitoring-service` is **populated by DES-99 (HU-37 + HU-39)** — the append-only ledger, the ranking projection, persistence, messaging, and the Api host all exist on `develop`. HU-38 is the operator-facing **penalty layer** on top of the landed ledger: it adds the `Penalty` child, the eligibility policy, the apply command, the authorization Proxy, and the endpoint; it **mirrors/extends** the landed scoring code and does **not** recreate the ledger, ranking, DbContext, or Api host. Types tagged _(from HU-37)_ below are build-on surface.
 
-- **Domain / Application / Infrastructure / API:** none landed for scoring. `ScoringMonitoring` owns `ScoreEntry` and `Penalty` (aggregate roots), with `Ranking`/`AuditHistory`/monitoring as derived models (out of scope for HU-38).
-- **DES-51 (HU-37) — the build-on foundation (must land first):** HU-37 "establishes the `ScoreEntry` ledger from validations, answers, and penalties." Canon models `Penalty` as a **child entity of `ScoreEntry`**, so HU-38 builds on the ledger rather than recreating it: `ScoreEntry` and `ScoreValue` come from HU-37, and HU-38 adds the `Penalty` child, the penalty policies, and the penalty-recording behavior. HU-38 X.1 must not begin until HU-37 has landed the ledger.
-- **Cross-service (session-operations, unmerged):** HU-19 assigns operators to sessions; HU-21A owns the session state machine + `LiveSession.AssignedOperatorUserId`. These are the operator-identity/assigned-session facts the Proxy consumes. `session-operations-service` provides the mirror anchors: `SessionAdministrationAuthorizationProxy`, `ISessionAdministrationAccessResolver`, `IAuthenticatedActorProfileAccessClient`, `IQuestionActivationStrategy`/`SequentialQuestionActivationStrategy` (Strategy convention).
+**Domain (landed — build-on)**
+- `ScoreEntry` (`sealed : BaseAuditableEntity`) — append-only ledger root with a **`Grant` factory only**; fields `ScoreEntryId, LiveSessionId, TeamId, EntryType (ScoreEntryType), ReasonCode, ScoreValue, RecordedAt, SourceEntityType (ScoreSourceType), SourceEntityId, RecordedByUserId`; the `Grant` factory raises `ScoreEntryRegistered`. HU-38 **adds a `Penalty` factory** to it.
+- `ScoreValue` VO — **`Create(int)` rejects negatives** (`InvalidScoreValueException`). A penalty deduction is therefore a **non-negative magnitude tagged `EntryType.Penalty`**, not a negative `ScoreValue`; the derived team total **subtracts** Penalty entries.
+- `ScoreEntryType { Grant, Penalty, Correction }` and `ScoreSourceType { TargetResolution, TriviaAnswerSubmission, Penalty }` — **both already carry `Penalty`**; X.1 does **not** add enum members.
+- `IScorePolicy.Award(ScoreValue)` + `SnapshotScorePolicy` (`sealed`) — **Strategy already present**; HU-38 reuses it for the deduction magnitude.
+- `Domain/Events/ScoreEntryRegistered.cs`, `Domain/Common/{BaseEntity,BaseAuditableEntity,BaseEvent,ValueObject}.cs`, `Domain/Exceptions/{DomainException,InvalidScoreValueException,ScoreEntryIsAppendOnlyException}.cs` — mirror anchors for the new penalty types.
 
-**Coverage:** greenfield — no prior aggregate percentage; the ADR-0005 gate is measured fresh at X.4.
+**Application (landed — build-on)**
+- `RecordScoreEntry/` command slice (Command + Handler + Validator) — the mirror shape for `ApplyPenalty/`. Handler injects `IScoreEntryRepository` + `IScorePolicy`, checks idempotency via `IScoreEntryRepository.ExistsForSourceAsync`, awards via the policy, calls the factory, `AddAsync`.
+- MassTransit consume/publish convention: `AnswerRegisteredConsumer : IConsumer<…>` + `Application/Scores/Common/*IntegrationEvent.cs` (`[EntityName]`) + `PublishScoreEntryRegisteredIntegrationEventHandler : INotificationHandler<ScoreEntryRegistered>` (post-commit `IPublishEndpoint.Publish` with a 5 s timeout, failures logged + swallowed). **This publish handler already fires for the Penalty deduction's `ScoreEntryRegistered`** — the ledger-impact publish is already wired.
+- `AuthorizationBehaviour` + `Application/Common/Security/AuthorizeAttribute` — coarse **role** gate applied when a request carries `[Authorize(Roles=…)]`. Exceptions `ForbiddenAccessException`, `NotFoundException`, `ValidationException` exist.
+- Interfaces `IScoreEntryRepository`, `IRankingRepository`, `IRankingBroadcaster`, `ICurrentUser` exist; DI in `Application/DependencyInjection.cs`.
+
+**Infrastructure (landed — build-on)**
+- `ScoringMonitoringDbContext` (**not** `ApplicationDbContext`) + `ScoringMonitoringDbContextFactory`; `ScoreEntryConfiguration` (table `score_entries`, VO conversions, index `(LiveSessionId, TeamId)`, **unique index `(SourceEntityType, SourceEntityId)`**), `RankingConfiguration`; interceptors `AuditableEntityInterceptor`, `DispatchDomainEventsInterceptor`; repos `ScoreEntryRepository`, `RankingRepository`; migration `20260714153000_AddScoringLedgerAndRanking` + `ScoringMonitoringDbContextModelSnapshot.cs`.
+- `Infrastructure/Messaging/{MassTransitMessagingRegistration,RabbitMqOptions}.cs` — the per-type-exchange MassTransit registration to extend with a new consumer.
+
+**Api (landed — build-on)**
+- `Program.cs` composition root, `RankingController` (MVC, `[Route("api/sessions")]`, `[Authorize(Policy = …)]`, `[HttpGet("{liveSessionId:guid}/ranking")]`), `HealthController`, `Api/Services/AuthorizationPolicies.cs` (**`AdministratorOrOperator` and `ParticipantOrOperator` constants already exist**), `ProblemDetailsExceptionHandler.cs`, `CurrentUser`/`CurrentUserContext`, SignalR `ScoringHub`. HU-38's Api phase is small: a new controller + exception mappings + policy wiring.
+
+**Cross-service (session-operations, both blockers Done)**
+- HU-19 (DES-26) assigns operators to sessions; HU-21A (DES-76) owns `LiveSession.AssignedOperatorUserId`. `SessionAdministrationAuthorizationProxy` + `ISessionAdministrationAccessResolver` are the **mirror anchors for the Proxy shape** (in-process there; HU-38 reads a projection instead). `LiveSessionOperatorAssignedEvent` exists as a **domain** event but is **not yet published as an integration event** — see Known quirks.
+
+**Coverage:** DES-99 established the service's ADR-0005 aggregate gate; HU-38 must not regress it and is measured fresh at X.4.
 
 ## What this HU adds
 
 | Concern | New work |
 |---|---|
-| Justified penalty | Operator applies a `Penalty` to a team in a session they supervise, with a mandatory `PenaltyReason` and recorded actor + timestamp. |
-| Ledger deduction | The penalty impacts the score **only** through an append-only `ScoreEntry` deduction — no separate mutable session total. |
-| Eligibility Strategy | `PenaltyPolicy` validates whether a penalty may be applied / what justification is required, as an interchangeable strategy. |
-| Impact Strategy | `ScorePolicy` computes the deduction magnitude of an accepted penalty, as an interchangeable strategy. |
+| Justified penalty | Operator applies a `Penalty` to a team in a session they supervise, with a mandatory `PenaltyReason`, recorded actor (`appliedByUserId`) and timestamp (`appliedAt`). |
+| Ledger deduction | The penalty impacts the score **only** through an append-only `ScoreEntry` of `EntryType.Penalty` (non-negative magnitude; total subtracts it) — no separate mutable total. |
+| Eligibility Strategy | `IPenaltyPolicy` validates whether a penalty may be applied / what justification is required, as an interchangeable strategy (new). |
+| Impact Strategy | `IScorePolicy` (reused from HU-37) computes the deduction magnitude — no new impact policy. |
 | Authorization Proxy | Application-boundary guard restricting the operation to the session's assigned operator (Administrator unrestricted). |
-| Domain event | On transactional success, raise/publish `PenaltyApplied` (and the underlying `ScoreEntryRecorded`) to RabbitMQ for secondary recalculation/audit — the main apply flow must **not** depend on RabbitMQ (ticket AC). |
-| Backend contract | `POST` apply-penalty endpoint (operator-guarded) returning the applied penalty/ledger result. |
-| Frontend flow | Operator UI to apply a justified penalty to a team and see it reflected in score (human-driven; Steps 9/9b). |
+| Assignment projection | scoring-monitoring **consumes** `session-operator-assigned` into a local session→operator read-model the Proxy reads (chosen mechanism; see Known quirks). |
+| Domain event | On transactional success, raise `PenaltyApplied` (+ the ledger's `ScoreEntryRegistered`) → published post-commit for secondary recalc/audit; the apply flow must **not** depend on RabbitMQ (ticket AC). |
+| Backend contract | `POST /api/sessions/{liveSessionId}/penalties` (operator-guarded) returning the applied-penalty result. |
+| Frontend flow | Operator UI to apply a justified penalty and see it reflected in score (human-driven; Steps 9/9b). |
 
 ## Touched surfaces
 
-- `backend/services/scoring-monitoring-service` (all four layers — greenfield)
-- `frontend/` operator penalty-application surface (web)
-- backend/frontend API contract boundary: the apply-penalty request/response shape
-- Cross-service boundary: `ScoringMonitoring` **consumes** operator-identity/assigned-session facts from `SessionOperations`; it does not own session progression. It **publishes** scoring-side `PenaltyApplied` facts only.
+- `backend/services/scoring-monitoring-service` (all four layers — extending the DES-99 baseline).
+- `frontend/` operator penalty-application surface (web).
+- backend/frontend API contract boundary: the apply-penalty request/response shape.
+- Cross-service boundary: `ScoringMonitoring` **consumes** the operator-assignment fact from `SessionOperations` (projection); it does not own session progression. It **publishes** scoring-side `PenaltyApplied` / `ScoreEntryRegistered` facts only.
 
 ## Committed phases
 
@@ -63,91 +84,97 @@ _Not applies-where:_ HU-38's `Proxy` is a **mandated** obligation (it appears in
 
 ## Known quirks / gotchas
 
-- **HU-37 (`ScoreEntry` ledger) is the build-on foundation — land it first (resolved).** Canon makes `Penalty` a child entity of `ScoreEntry`, and the PRD names HU-37 the foundation "before richer surfaces", so **HU-38 is the penalty layer on top of HU-37's landed ledger**: `ScoreEntry` and `ScoreValue` are consumed from HU-37 (build-on), and HU-38 adds only the `Penalty` child, the policies, the penalty-recording behavior, the authorization, and the endpoint. HU-38 X.1 must not begin until DES-51/HU-37 has merged. In the per-phase blocks, types tagged _(from HU-37)_ are build-on surface to mirror/extend, **not** to recreate — do not expand HU-38 to rebuild the ledger.
-- **Cross-service authorization data (resolved — HTTP access client).** The assigned-operator fact lives in `session-operations-service` (`LiveSession.AssignedOperatorUserId`), a different deployable. The scoring Proxy resolves operator↔session ownership through an `ISessionAssignmentAccessClient` abstraction (Application), implemented as a **synchronous HTTP access client** to session-operations in Infrastructure — mirroring the established `IAuthenticatedActorProfileAccessClient` convention. The Application depends only on the interface.
-- **Event names.** Canon (`ddd_solution_model.md` §ScoringMonitoring domain events) defines `PenaltyApplied` and `ScoreEntryRecorded` verbatim — these are the events HU-38 raises (the ticket AC's "PenaltyApplied/ScoreEntryRegistered" maps onto them). The PRD itself names no concrete event; do not invent others.
-- **Endpoint path (fixed).** `POST /api/sessions/{liveSessionId}/penalties` — route-embedding `liveSessionId` so the Proxy resolves ownership from the route; body `{ teamId, reason }`.
-- **Append-only ledger.** No mutation/deletion of `ScoreEntry`; the team total is always derived from entries. A penalty is a deduction entry, never a hidden mutable total (PRD Out-of-Scope).
-- **Structure guard.** Vertical-slice layout is CI-enforced (`scripts/structure-guard.sh`): command slice under `Application/Scores/Commands/ApplyPenalty/` (Command + Handler + Validator co-located, no DTO in the slice folder); DTOs in central `Application/Dtos/Scores/`; the Proxy in `Application/Scores/Common/Authorization/`. No `Handlers/`/`DTOs/`/`Facades/` buckets, no handler base class, no `UseCases/` wrapper.
+- **Cross-service assignment fact — consume→projection (chosen 2026-07-15).** The assigned-operator fact lives only in `session-operations` (`LiveSession.AssignedOperatorUserId`). HU-38 does **not** call session-operations synchronously and does **not** introduce an HTTP access client (the earlier draft's `ISessionAssignmentAccessClient` / `IAuthenticatedActorProfileAccessClient` mirror **does not exist in the repo** — discard it). Instead scoring-monitoring **consumes `LiveSessionOperatorAssignedIntegrationEvent`** (`[EntityName("session-operator-assigned")]`) into a local `SessionOperatorAssignment` read-model, and the `Proxy` reads it in-process — consistent with the service's consume-facts boundary and its existing `IConsumer` stack.
+- **PRIMARY OPEN DEPENDENCY — the assignment integration event is not published yet.** `session-operations` emits `LiveSessionOperatorAssignedEvent` only as a **domain** event; there is **no** outbound integration event / publisher (`grep`: none). Until session-operations publishes `session-operator-assigned` (a **cross-service contract item, gated by GH #164**), the projection stays empty and the `Proxy` denies **all Operators** (Administrator still passes). The scoring side declares its **own** structurally-identical copy of the contract decorated `[EntityName("session-operator-assigned")]` (separate deployable — no shared type). **Flag the producer gap at Stop 2; do not fix session-operations from this service.** This is directly analogous to the `AnswerRegisteredIntegrationEvent [EntityName]` producer gap noted in `hu37-39-context.md`.
+- **Messaging is gated by GH #164** (MassTransit bus bootstrap + RabbitMQ), per the ticket. Both the inbound assignment consume and the outbound `PenaltyApplied` publish depend on it. The **core apply + persist path must not depend on RabbitMQ** (ticket AC): a broker outage never fails or rolls back the ledger write.
+- **`ScoreValue` cannot be negative.** `ScoreValue.Create` throws on `value < 0`. Model the deduction as a **non-negative magnitude** on a `ScoreEntry` with `EntryType.Penalty` + `ScoreSourceType.Penalty`; the derived total subtracts Penalty entries. Do not attempt a negative `ScoreValue`.
+- **`ScoreEntry` is `sealed` with a private ctor and a `Grant` factory only.** HU-38 **edits `ScoreEntry.cs`** to add a sibling **`Penalty(...)` factory** (mirror `Grant`): `EntryType.Penalty`, `ScoreSourceType.Penalty`, `SourceEntityId` = the new `Penalty`'s id, raising `ScoreEntryRegistered` **and** `PenaltyApplied`. Do not fork or subclass the ledger.
+- **The ledger-impact publish is already wired.** `PublishScoreEntryRegisteredIntegrationEventHandler` publishes `ScoreEntryRegisteredIntegrationEvent` for **every** `ScoreEntryRegistered`, so the penalty deduction's secondary-recalc publish is inherited. `PenaltyApplied` is the penalty-specific fact (ddd `§domain events L343`); add its own post-commit publish handler mirroring the score one.
+- **Enums + impact policy already exist — do not recreate.** `ScoreEntryType.Penalty`, `ScoreSourceType.Penalty`, and `IScorePolicy`/`SnapshotScorePolicy` all landed with HU-37. Recreating them is a defect.
+- **DbContext name.** It is `ScoringMonitoringDbContext`, not `ApplicationDbContext`. Register `Penalty` + the projection through it.
+- **Endpoint path (fixed).** `POST /api/sessions/{liveSessionId}/penalties`, body `{ teamId, reason }` — route-embedding `liveSessionId` so the Proxy resolves ownership from the route. Mirror `RankingController` (`[Route("api/sessions")]`).
+- **Structure guard.** Vertical-slice layout is CI-enforced. Command slice under `Application/Scores/Commands/ApplyPenalty/` (Command + Handler + Validator co-located); output DTO in `Application/Dtos/Scores/`; the Proxy + resolver in `Application/Scores/Common/Authorization/`; consumers in `Application/Scores/Consumers/`. No `Handlers/`/`DTOs/`/`Facades/` buckets, no handler base class, no `UseCases/` wrapper (ADR-0011).
 
 ## Per-phase derivation — authoritative for implementation
 
 > Primary source for the phase subagent (per `backend-agent.md` "Read first").
-> Derived from `bd_umbral_entity_spec.md` §ScoringMonitoring (§ScoreEntry L700-733, §Penalty L735-759, VO/policy catalogs L897-915), `ddd_solution_model.md` §ScoringMonitoring (domain events L339-348, repositories L383-389, domain services L464-471, use cases L546-557, Strategy note L402-404), `backend/services/scoring-monitoring-service/CONTEXT.md`, ADR-0004/0011/0012, and DES-53 acceptance criteria.
-> Types tagged _(from HU-37)_ are build-on ledger surface from DES-51 — mirror/extend, do not recreate (HU-38 lands after HU-37). Open a canonical section only to fill a gap a block leaves open.
+> Derived from `bd_umbral_entity_spec.md` §ScoringMonitoring (§ScoreEntry L700-733, §Penalty L735-759, VO/policy catalogs L897-915, RF-11/RB-06 L984/L1002), `ddd_solution_model.md` §ScoringMonitoring (domain events L343-344, repositories L386, domain services L470-471, use cases L549-550), `services/scoring-monitoring-service/CONTEXT.md`, `hu37-39-context.md` (landed build-on surface), ADR-0004/0011/0012, and DES-53 acceptance criteria.
+> Types tagged _(from HU-37)_ are landed build-on surface — mirror/extend, do not recreate. Open a canonical section only to fill a gap a block leaves open.
 
 ### Phase X.1 — Domain
-**Derive** (`bd_umbral_entity_spec.md` §ScoreEntry L700-733 / §Penalty L735-759; `ddd_solution_model.md` §ScoringMonitoring events L339-348, services L464-471; service `CONTEXT.md`):
-- `Penalty` — **child entity of `ScoreEntry`** (`BaseEntity`). Fields: `penaltyId` (PK), `scoreEntryId` (FK → parent), `liveSessionId`, `teamId`, `penaltyReason` (`PenaltyReason` VO), `appliedAt`, `appliedByUserId`. Invariant: **must record `penaltyReason` and `appliedAt`** — enforce via `PenaltyRequiresReasonException`; no public setters.
-- `PenaltyReason` — value object (`ValueObject`, `GetEqualityComponents`): non-empty justification text; reject blank (`PenaltyRequiresReasonException`).
-- `ScoreEntry` _(from HU-37 — extend, do not recreate)_ — append-only ledger aggregate root (`BaseAuditableEntity`) landed by HU-37 with fields `scoreEntryId` (PK), `liveSessionId`, `teamId`, `entryType` (`ScoreEntryType`: Grant/Penalty/Correction), `reasonCode`, `scoreValue` (`ScoreValue` VO), `recordedAt`, `sourceEntityType`, `sourceEntityId`, `recordedByUserId`. HU-38 **adds the penalty-recording behavior** to it: a method that records a penalty deduction, producing the `Penalty` child and raising `PenaltyApplied` + `ScoreEntryRecorded`. Mirror HU-37's actual `entryType`/factory surface — do not fork the ledger.
-- `ScoreValue` _(from HU-37 — consume)_ — value object for a score quantity landed by HU-37; HU-38 uses it to express the deduction magnitude. Do not redefine.
-- `IPenaltyPolicy` (domain service, **Strategy**) — validates penalty eligibility + justification requirement before a deduction is persisted (`PenaltyNotEligibleException` on rejection). One `sealed` concrete impl.
-- `IScorePolicy` (domain service, **Strategy**) — computes the deduction impact of an accepted penalty on the ledger. One `sealed` concrete impl.
-- Domain events (`BaseEvent`, raised via `AddDomainEvent`): `PenaltyApplied`, `ScoreEntryRecorded`.
-- Exceptions: one per invariant — `PenaltyRequiresReasonException`, `PenaltyNotEligibleException`.
+**Derive** (`bd_umbral_entity_spec.md` §ScoreEntry L700-733 / §Penalty L735-759; `ddd_solution_model.md` events L343-344, services L470-471; service `CONTEXT.md`):
+- `Penalty` — entity (`sealed`, mirror `ScoreEntry`): `PenaltyId` (PK), `ScoreEntryId` (FK — **one `Penalty` ↔ exactly one `ScoreEntry`**, spec L755), `LiveSessionId`, `TeamId`, `PenaltyReason` (VO), `AppliedAt`, `AppliedByUserId`. Private ctor + a static factory. Invariant (spec L759): **must record `PenaltyReason` and `AppliedAt`** — reject blank/missing via `PenaltyRequiresReasonException`; no public setters.
+- `PenaltyReason` — value object (`sealed : ValueObject`, `Create` + `GetEqualityComponents`, mirror `ScoreValue`): non-empty justification text; blank → `PenaltyRequiresReasonException`.
+- `ScoreEntry` _(from HU-37 — **edit**, do not recreate)_ — add a `Penalty(...)` static factory mirroring `Grant`: builds a `ScoreEntry` with `EntryType.Penalty`, a **non-negative** deduction `ScoreValue`, `ScoreSourceType.Penalty`, `SourceEntityId` = the `Penalty`'s id, and raises `ScoreEntryRegistered` **and** `PenaltyApplied`.
+- `IScorePolicy` _(from HU-37 — **consume**)_ — reused to compute the deduction magnitude; do not redefine.
+- `IPenaltyPolicy` (domain service, **Strategy** — new) — validates penalty eligibility + justification before a deduction is persisted; rejection → `PenaltyNotEligibleException`. One `sealed` `DefaultPenaltyPolicy`.
+- Domain event `PenaltyApplied` (`BaseEvent`, mirror `ScoreEntryRegistered`): `PenaltyId, ScoreEntryId, LiveSessionId, TeamId, appliedAt/appliedBy, magnitude`. (`PenaltyReverted` is ddd L344 but **out of scope** — HU-38 is apply-only.)
+- Exceptions: `PenaltyRequiresReasonException`, `PenaltyNotEligibleException` (mirror `InvalidScoreValueException`).
 
-**Target files** (create — mirror):
-- edit `Domain/Entities/ScoreEntry.cs` _(from HU-37)_ — add the penalty-recording method; do not recreate the aggregate
-- create `Domain/Entities/Penalty.cs` — child entity; mirror a `BaseEntity` child in a sibling aggregate
-- create `Domain/ValueObjects/PenaltyReason.cs` — mirror an existing `ValueObject` (`ScoreValue` is consumed from HU-37, not recreated)
-- `Domain/Enums/ScoreEntryType.cs` _(from HU-37 — ensure a `Penalty` member exists; add it if HU-37 left it out)_
-- create `Domain/Services/IPenaltyPolicy.cs` + `DefaultPenaltyPolicy.cs`, `Domain/Services/IScorePolicy.cs` + `DefaultScorePolicy.cs` — mirror `session-operations-service/.../Domain/Services/IQuestionActivationStrategy.cs` + `SequentialQuestionActivationStrategy.cs`
-- create `Domain/Events/PenaltyApplied.cs`, `Domain/Events/ScoreEntryRecorded.cs`
-- create `Domain/Exceptions/{PenaltyRequiresReasonException,PenaltyNotEligibleException}.cs`
+**Target files** (create | edit — file to mirror):
+- edit `Domain/Entities/ScoreEntry.cs` _(from HU-37)_ — add the `Penalty(...)` factory beside `Grant`
+- create `Domain/Entities/Penalty.cs` — mirror `Domain/Entities/ScoreEntry.cs`
+- create `Domain/ValueObjects/PenaltyReason.cs` — mirror `Domain/ValueObjects/ScoreValue.cs`
+- create `Domain/Services/IPenaltyPolicy.cs` + `DefaultPenaltyPolicy.cs` — mirror `Domain/Services/IScorePolicy.cs` + `SnapshotScorePolicy.cs`
+- create `Domain/Events/PenaltyApplied.cs` — mirror `Domain/Events/ScoreEntryRegistered.cs`
+- create `Domain/Exceptions/{PenaltyRequiresReasonException,PenaltyNotEligibleException}.cs` — mirror `Domain/Exceptions/InvalidScoreValueException.cs`
+- _(no enum changes — `ScoreEntryType.Penalty` / `ScoreSourceType.Penalty` already exist)_
 
-**Pattern this phase owns:** `Strategy` (`IPenaltyPolicy` + `IScorePolicy` as interface + `sealed` concrete impl in `Domain/Services/`; single-impl, no selector until a second variant lands).
-**Gate:** domain build passes; a unit test per **new/changed** domain type — the `ScoreEntry` penalty-recording behavior (raises `PenaltyApplied`/`ScoreEntryRecorded` as an append-only deduction), `Penalty` reason/appliedAt invariants, `PenaltyReason`, `DefaultPenaltyPolicy`, `DefaultScorePolicy`, each exception (HU-37 already covers base `ScoreEntry`/`ScoreValue`); Strategy realized as interface + `sealed` impl in `Domain/Services/` (no eligibility/impact branching elsewhere); a penalty impacts score only through a `ScoreEntry` deduction — no mutable total.
+**Pattern this phase owns:** `Strategy` — `IPenaltyPolicy` + `sealed DefaultPenaltyPolicy` in `Domain/Services/` (new); `IScorePolicy` reused. Single-impl, no selector until a second variant lands.
+**Gate:** domain build passes; a unit test per **new/changed** type — `ScoreEntry.Penalty` raises `ScoreEntryRegistered` **and** `PenaltyApplied` as an append-only deduction (`EntryType.Penalty`, non-negative magnitude, no mutator); `Penalty` requires non-blank `PenaltyReason` + `AppliedAt`/`AppliedByUserId`; `PenaltyReason` blank rejected; `DefaultPenaltyPolicy` eligibility (accept + reject branches); each new exception; a penalty impacts score **only** through a `ScoreEntry` `Penalty` entry — no mutable total. `IScorePolicy`/enums reused, not recreated.
 
 ### Phase X.2 — Application
-**Derive** (`ddd_solution_model.md` §ScoringMonitoring use cases L546-557, repositories L383-389; ADR-0012 Proxy Application home; `backend-agent.md` Application rules):
-- `ApplyPenalty` command slice: `ApplyPenaltyCommand` (`liveSessionId`, `teamId`, `reason`), `ApplyPenaltyCommandHandler`, `ApplyPenaltyCommandValidator` (FluentValidation — `reason` required/non-blank, ids present).
-- Handler flow: (1) resolve the **authorized** session via the Proxy resolver (operator must own it); (2) evaluate `IPenaltyPolicy` eligibility (reject → rejection branch); (3) compute impact via `IScorePolicy`; (4) append a `ScoreEntry` penalty deduction + `Penalty` child through the repository (raises `PenaltyApplied`); (5) return the result DTO. Policies are **injected and selected at runtime** — no branching.
-- Repository interfaces (`Application/Common/Interfaces/`): `IPenaltyRepository` (new); `IScoreEntryRepository` is consumed from HU-37 (extend only if the penalty append needs a method it lacks).
-- **Proxy**: `IScoringSessionAccessResolver` + `ScoringSessionAuthorizationProxy` (`Application/Scores/Common/Authorization/`) — mirror `ISessionAdministrationAccessResolver` + `SessionAdministrationAuthorizationProxy`: blank actor → `UnauthorizedAccessException`; load session ownership fact; Administrator → unrestricted; non-Operator → `ForbiddenAccessException`; Operator whose id ≠ assigned operator → `ForbiddenAccessException`. Depends on `ISessionAssignmentAccessClient` (`Application/Common/Interfaces/`) — the HTTP access client to session-operations (impl in X.3); the Application depends only on the interface.
+**Derive** (`ddd_solution_model.md` use cases L549-550, repositories L386; ADR-0012 Proxy Application home; `backend-agent.md` Application rules; landed `RecordScoreEntry/` slice):
+- `ApplyPenalty` command slice: `ApplyPenaltyCommand` (`LiveSessionId`, `TeamId`, `Reason`) carrying `[Authorize(Roles = "Administrator,Operator")]` (coarse role gate via the landed `AuthorizationBehaviour`); `ApplyPenaltyCommandHandler`; `ApplyPenaltyCommandValidator` (FluentValidation — `Reason` required/non-blank, ids present).
+- Handler flow (mirror `RecordScoreEntryCommandHandler`): (1) resolve the **authorized** session via `IScoringSessionAccessResolver` (operator must own it — fine ownership check); (2) evaluate `IPenaltyPolicy` eligibility (reject → `PenaltyNotEligibleException`); (3) compute the deduction magnitude via `IScorePolicy` (reused); (4) create `Penalty` + `ScoreEntry.Penalty(...)`, persist both in one unit of work via `IScoreEntryRepository.AddAsync` + `IPenaltyRepository.AddAsync` (raises `PenaltyApplied` + `ScoreEntryRegistered`); (5) return `AppliedPenaltyDto`. Policies **injected + selected at runtime** — no branching.
+- **Proxy:** `IScoringSessionAccessResolver` + `ScoringSessionAuthorizationProxy` (`Application/Scores/Common/Authorization/`) — mirror `session-operations-service/.../Application/Sessions/Common/Authorization/SessionAdministrationAuthorizationProxy.cs` + `Application/Common/Interfaces/ISessionAdministrationAccessResolver.cs`: blank actor → `UnauthorizedAccessException`; Administrator → unrestricted; non-Operator → `ForbiddenAccessException`; Operator id ≠ assigned operator → `ForbiddenAccessException`. Reads ownership from `ISessionAssignmentReadRepository` (local projection) — **not** an HTTP client.
+- **Assignment consume path:** local contract copy `LiveSessionOperatorAssignedIntegrationEvent` (`[EntityName("session-operator-assigned")]`, structurally identical, `Application/Scores/Common/`) + `LiveSessionOperatorAssignedConsumer : IConsumer<…>` (`Application/Scores/Consumers/`) → **idempotent upsert** of a `SessionOperatorAssignment` read-model via `ISessionAssignmentProjectionRepository`. Mirror `AnswerRegisteredConsumer`.
+- **Outbound publish:** `PublishPenaltyAppliedIntegrationEventHandler : INotificationHandler<PenaltyApplied>` (`Application/Scores/EventHandlers/`) + `PenaltyAppliedIntegrationEvent` (`[EntityName("scoring-penalty-applied")]`, `Application/Scores/Common/`) — mirror `PublishScoreEntryRegisteredIntegrationEventHandler` (5 s timeout, failures logged + swallowed). The ledger's `ScoreEntryRegistered` publish is already inherited.
 - DTO: output-only `AppliedPenaltyDto` (`Application/Dtos/Scores/`) — no domain types leak.
-- Wire policies + proxy in `Application/DependencyInjection.cs`.
+- Interfaces (`Application/Common/Interfaces/`): `IPenaltyRepository` (new), `ISessionAssignmentReadRepository` + `ISessionAssignmentProjectionRepository` (new). `IScoreEntryRepository` reused.
+- Wire in `Application/DependencyInjection.cs`: `IPenaltyPolicy` → `DefaultPenaltyPolicy` (1:1), the Proxy/resolver, the consumer.
 
-**Target files** (create — mirror):
-- create `Application/Scores/Commands/ApplyPenalty/{ApplyPenaltyCommand,ApplyPenaltyCommandHandler,ApplyPenaltyCommandValidator}.cs` — mirror `mission-design-service/.../Application/Missions/Commands/CreateMission/`
-- create `Application/Scores/Common/Authorization/{IScoringSessionAccessResolver,ScoringSessionAuthorizationProxy}.cs` — mirror `session-operations-service/.../Application/Sessions/Common/Authorization/SessionAdministrationAuthorizationProxy.cs` + `Application/Common/Interfaces/ISessionAdministrationAccessResolver.cs`
-- create `Application/Common/Interfaces/{IPenaltyRepository,ISessionAssignmentAccessClient}.cs` (consume/extend `IScoreEntryRepository` from HU-37)
+**Target files** (create | edit — file to mirror):
+- create `Application/Scores/Commands/ApplyPenalty/{ApplyPenaltyCommand,ApplyPenaltyCommandHandler,ApplyPenaltyCommandValidator}.cs` — mirror `Application/Scores/Commands/RecordScoreEntry/*`
+- create `Application/Scores/Common/Authorization/{IScoringSessionAccessResolver,ScoringSessionAuthorizationProxy}.cs` — mirror `session-operations-service/.../Authorization/SessionAdministrationAuthorizationProxy.cs` + `ISessionAdministrationAccessResolver.cs`
+- create `Application/Scores/Common/{LiveSessionOperatorAssignedIntegrationEvent,PenaltyAppliedIntegrationEvent}.cs` — mirror `Application/Scores/Common/AnswerRegisteredIntegrationEvent.cs` (`[EntityName]` shape)
+- create `Application/Scores/Consumers/LiveSessionOperatorAssignedConsumer.cs` — mirror `Application/Scores/Consumers/AnswerRegisteredConsumer.cs`
+- create `Application/Scores/EventHandlers/PublishPenaltyAppliedIntegrationEventHandler.cs` — mirror `Application/Scores/EventHandlers/PublishScoreEntryRegisteredIntegrationEventHandler.cs`
+- create `Application/Common/Interfaces/{IPenaltyRepository,ISessionAssignmentReadRepository,ISessionAssignmentProjectionRepository}.cs`
 - create `Application/Dtos/Scores/AppliedPenaltyDto.cs`
-- edit `Application/DependencyInjection.cs` — register policies (1:1) + proxy
+- edit `Application/DependencyInjection.cs` — register policy (1:1) + proxy/resolver + consumer
 
-**Pattern this phase owns:** `Proxy` (operator→assigned-session guard as resolver/decorator, ADR-0012 Application home) + `Strategy` policies consumed here (runtime selection).
-**Gate:** app build; handler tests — valid apply path; **non-owning operator → `ForbiddenAccessException`**; ineligible penalty → rejection; missing/blank reason → validation failure; validator tests (reason required, ids present); access enforced through the Proxy resolver — **no ad-hoc role/owner `if`** in the handler; `PenaltyApplied` raised for post-commit publish; no infrastructure leak.
+**Pattern this phase owns:** `Proxy` (operator→assigned-session guard as access resolver, ADR-0012 Application home) + `Strategy` consumed (`IPenaltyPolicy` + reused `IScorePolicy`, runtime selection).
+**Gate:** app build; handler tests — valid apply path; **non-owning operator → `ForbiddenAccessException`**; Administrator unrestricted; ineligible penalty → `PenaltyNotEligibleException`; missing/blank reason → validation failure; validator tests (reason required, ids present); access enforced through the Proxy resolver — **no ad-hoc role/owner `if`** in the handler; assignment consumer performs an idempotent projection upsert; `PenaltyApplied` raised for post-commit publish; no infrastructure leak.
 
 ### Phase X.3 — Infrastructure
-**Derive** (`ddd_solution_model.md` repositories L383-389; `backend-agent.md` X.3 rules; `rabbitmq-events-dotnet` convention):
-- EF Core config: add `Penalty` as an owned/child collection under the existing `ScoreEntry` mapping — edit `ScoreEntryConfiguration.cs` (from HU-37) and add `PenaltyConfiguration.cs`.
-- Repositories: add `PenaltyRepository`; `ScoreEntryRepository` exists from HU-37 (extend for the penalty append if needed). Append-only semantics.
-- `ApplicationDbContext : IApplicationDbContext` (from HU-37) exposes `DbSet<ScoreEntry>` with `Penalty` reachable through it; interceptors `AuditableEntityInterceptor`, `DispatchDomainEventsInterceptor`.
-- RabbitMQ publisher for `PenaltyApplied` (scoring-monitoring publishes outbound facts) — mirror the session-operations publisher; **publish after commit, best-effort**: a broker failure must not roll back or block the ledger write (ticket AC — main flow independent of RabbitMQ).
-- `ISessionAssignmentAccessClient` implementation — a synchronous HTTP access client to session-operations resolving the assigned-operator fact (mirror `IAuthenticatedActorProfileAccessClient`); Application depends only on the interface.
-- **New EF migration for the `Penalty` child** (HU-37's ledger migration already exists). Grep `ApplicationDbContextModelSnapshot.cs` for `ScoreEntry`/`Penalty` before reading.
+**Derive** (`ddd_solution_model.md` repositories L386; `backend-agent.md` X.3 rules; landed persistence + MassTransit registration):
+- EF Core: add `PenaltyConfiguration.cs` (table `penalties`; key `PenaltyId`; **one-to-one FK to `ScoreEntry`** via `ScoreEntryId`; `PenaltyReason` value conversion; `AppliedAt`/`AppliedByUserId`) — mirror `ScoreEntryConfiguration.cs`. Add `SessionOperatorAssignmentConfiguration.cs` (projection table `session_operator_assignments`; key `LiveSessionId`; `AssignedOperatorUserId`, `UpdatedAt`). Register both `DbSet`s in `ScoringMonitoringDbContext` (**edit**).
+- Repositories: `PenaltyRepository : IPenaltyRepository`; `SessionAssignmentRepository : ISessionAssignmentReadRepository, ISessionAssignmentProjectionRepository` (read for the Proxy + upsert for the consumer). `ScoreEntryRepository` reused (`AddAsync` exists; append-only). Mirror `Infrastructure/Persistence/Repositories/ScoreEntryRepository.cs`.
+- MassTransit: register `LiveSessionOperatorAssignedConsumer` in `MassTransitMessagingRegistration.cs` (**edit**); the per-type exchange `session-operator-assigned` is bound via `[EntityName]`. The outbound `PenaltyApplied`/`ScoreEntryRegistered` publish is handled by the Application event handlers over the existing `IPublishEndpoint`.
+- **New EF migration** `AddPenaltyAndSessionAssignmentProjection`. Grep `ScoringMonitoringDbContextModelSnapshot.cs` for `Penalty`/`SessionOperatorAssignment` before reading it.
 
-**Target files** (create — mirror):
-- edit `Infrastructure/Persistence/Configurations/ScoreEntryConfiguration.cs` (from HU-37) + create `PenaltyConfiguration.cs` — mirror a sibling owned-type config
-- create `Infrastructure/Persistence/Repositories/PenaltyRepository.cs` (extend `ScoreEntryRepository` from HU-37 if needed)
-- edit `Infrastructure/Persistence/ApplicationDbContext.cs` + interceptors (from HU-37)
-- create RabbitMQ publisher — mirror `session-operations-service/.../Infrastructure/...` event publisher
-- create `ISessionAssignmentAccessClient` impl
-- create new migration under `Infrastructure/Persistence/Migrations/`
+**Target files** (create | edit — file to mirror):
+- create `Infrastructure/Persistence/Configurations/{PenaltyConfiguration,SessionOperatorAssignmentConfiguration}.cs` — mirror `Infrastructure/Persistence/Configurations/ScoreEntryConfiguration.cs`
+- create `Infrastructure/Persistence/Repositories/{PenaltyRepository,SessionAssignmentRepository}.cs` — mirror `Infrastructure/Persistence/Repositories/ScoreEntryRepository.cs`
+- edit `Infrastructure/Persistence/ScoringMonitoringDbContext.cs` — add `DbSet<Penalty>` + `DbSet<SessionOperatorAssignment>` + apply configs
+- edit `Infrastructure/Messaging/MassTransitMessagingRegistration.cs` — register `LiveSessionOperatorAssignedConsumer`
+- create migration under `Infrastructure/Migrations/` via `dotnet ef migrations add AddPenaltyAndSessionAssignmentProjection`
 
-**Pattern this phase owns:** none.
-**Gate:** `ef migrations add` succeeds and represents `ScoreEntry` + `Penalty`; repository integration test round-trips an append-only `ScoreEntry` + `Penalty`; `PenaltyApplied` published to RabbitMQ **after commit** and a broker outage does not fail the apply path; no mutable score total persisted.
+**Pattern this phase owns:** none (persistence + messaging wiring).
+**Gate:** infra build; `dotnet ef migrations add` succeeds and represents `Penalty` (one-to-one under `ScoreEntry`) + the `session_operator_assignments` projection; repository integration test round-trips an append-only `ScoreEntry` `Penalty` + its `Penalty` child; the assignment consumer upserts the projection idempotently; `PenaltyApplied` (+ `ScoreEntryRegistered`) published **after commit** and a broker outage does **not** fail the apply path; no mutable score total persisted.
 
 ### Phase X.4 — Api
-**Derive** (`backend-agent.md` X.4 rules; ADR-0001 header auth; ADR-0005 coverage):
-- Endpoint: `POST /api/sessions/{liveSessionId}/penalties`, body `{ teamId, reason }`, dispatching `ApplyPenaltyCommand`; returns the applied-penalty result (201/200).
-- MVC controller (`Api/Controllers/PenaltiesController.cs`), `[ApiController]` + attribute routing; `[Authorize(Policy=...)]` operator policy (constant in `Api/Services/AuthorizationPolicies.cs`).
-- `CurrentUser : ICurrentUser` from gateway headers (`X-User-Id`/`X-User-Role`/`X-User-Email`); `Program.cs` wires Application + Infrastructure + controllers.
-- Map `PenaltyRequiresReasonException`/`PenaltyNotEligibleException`/`ForbiddenAccessException` in `Api/Services/ProblemDetailsExceptionHandler.cs` (RFC 7807).
+**Derive** (`backend-agent.md` X.4 rules; ADR-0001 header auth; ADR-0005 coverage; landed `RankingController`):
+- Endpoint: `POST /api/sessions/{liveSessionId}/penalties`, body `{ teamId, reason }`, dispatching `ApplyPenaltyCommand`; returns `AppliedPenaltyDto` (201/200).
+- `PenaltiesController` — MVC, `[ApiController]`, `[Route("api/sessions")]`, `[Authorize(Policy = AuthorizationPolicies.AdministratorOrOperator)]`, `[HttpPost("{liveSessionId:guid}/penalties")]` — mirror `Api/Controllers/RankingController.cs`. The coarse policy gates role; the Proxy (X.2) enforces per-session ownership.
+- `AdministratorOrOperator` policy constant **already exists** — ensure it is **registered** in `Program.cs`/DI (add the `AddAuthorizationBuilder().AddPolicy(...)` wiring if HU-37 only wired `ParticipantOrOperator`).
+- Map `PenaltyRequiresReasonException` (400) / `PenaltyNotEligibleException` (409/422) / `ForbiddenAccessException` (403) in `Api/Services/ProblemDetailsExceptionHandler.cs` (**edit** — `ForbiddenAccessException` may already map to 403; add the two domain exceptions, RFC 7807).
 
-**Target files** (create — mirror):
-- create `Api/Controllers/PenaltiesController.cs` — mirror a sibling MVC controller
-- create `Api/Services/{AuthorizationPolicies,ProblemDetailsExceptionHandler}.cs`, `Api/CurrentUser.cs`, `Api/Program.cs` (greenfield Api composition root)
+**Target files** (create | edit — file to mirror):
+- create `Api/Controllers/PenaltiesController.cs` — mirror `Api/Controllers/RankingController.cs`
+- edit `Api/Services/ProblemDetailsExceptionHandler.cs` — map the new domain exceptions
+- edit `Api/Program.cs` — register the `AdministratorOrOperator` policy if not already wired (no new composition root — it exists)
 
-**Pattern this phase owns:** `Proxy` (endpoint `[Authorize]` policy + the access resolver enforcing assigned-session ownership; no ad-hoc role `if`).
-**Gate:** endpoint returns success for the **assigned** operator applying a justified penalty; **403 RFC 7807** for a non-owning operator; **400** for a missing/blank reason; the penalty is reflected as a `ScoreEntry` deduction; service reaches the ADR-0005 coverage gate.
+**Pattern this phase owns:** `Proxy` (endpoint `[Authorize]` policy + the X.2 access resolver enforcing assigned-session ownership; no ad-hoc role `if`).
+**Gate:** endpoint returns success for the **assigned** operator applying a justified penalty; **403 RFC 7807** for a non-owning operator; **400** for a missing/blank reason; the penalty is reflected as a `ScoreEntry` `Penalty` deduction; service meets the ADR-0005 coverage gate. _(Assigned-operator success is only observable once the `session-operator-assigned` producer exists — see Known quirks; until then verify Administrator success + the 403/400 branches, and flag the producer gap at Stop 2.)_

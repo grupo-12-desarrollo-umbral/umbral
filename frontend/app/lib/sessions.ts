@@ -17,6 +17,8 @@ import {
   type ReleasableCluesDto,
   type AddOperativeClueRequest,
   type AddOperativeClueResultDto,
+  type ApplyPenaltyRequest,
+  type AppliedPenaltyDto,
 } from './definitions'
 import { verifySession } from './dal'
 import { KeycloakAuthError } from './keycloak'
@@ -392,4 +394,33 @@ export async function addOperativeClue(
   }
 
   return response.json() as Promise<AddOperativeClueResultDto>
+}
+
+// HU-38 operator justified penalty. Mirrors addOperativeClue's gateway POST + auth/status mapping.
+// 403 = a non-owning operator: the scoring ownership Proxy denies (Administrator is unrestricted
+// backend-side, but the action layer keeps this Operator-only). 400 = blank reason (the backend
+// validator is authoritative even though the control disables submit). Success is 201 Created.
+export async function applyPenalty(
+  liveSessionId: string,
+  body: ApplyPenaltyRequest,
+): Promise<AppliedPenaltyDto> {
+  await verifySession()
+  const response = await fetch(
+    `${API_GATEWAY_URL}/api/sessions/${liveSessionId}/penalties`,
+    {
+      method: 'POST',
+      headers: await getGatewayHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ teamId: body.teamId, reason: body.reason }),
+    },
+  )
+
+  if (response.status === 400) throw new Error('invalid_reason')
+  if (response.status === 401) throw new IdentityError('unauthorized', 'Authentication failed.')
+  if (response.status === 403) throw new IdentityError('unauthorized', 'Not the assigned operator.')
+  if (response.status === 404) throw new Error('session_not_found')
+  if (!response.ok) {
+    throw new IdentityError('unknown', `applyPenalty failed with status ${response.status}`)
+  }
+
+  return response.json() as Promise<AppliedPenaltyDto>
 }

@@ -14,6 +14,10 @@ public sealed class ScoringMonitoringDbContext : DbContext
 
     public DbSet<Ranking> Rankings => Set<Ranking>();
 
+    public DbSet<Penalty> Penalties => Set<Penalty>();
+
+    public DbSet<SessionOperatorAssignmentProjection> SessionOperatorAssignments => Set<SessionOperatorAssignmentProjection>();
+
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);

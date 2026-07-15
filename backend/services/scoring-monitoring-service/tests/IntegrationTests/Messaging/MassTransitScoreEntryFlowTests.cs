@@ -1,3 +1,4 @@
+using DotNet.Testcontainers.Builders;
 using MassTransit;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -71,7 +72,7 @@ public sealed class MassTransitScoreEntryFlowTests
             builder.Services.AddLogging(logging => logging.AddDebug().SetMinimumLevel(LogLevel.Debug));
             builder.AddApplicationServices();
             builder.AddInfrastructureServices();
-            builder.Services.AddSingleton<ICurrentUser>(new StubCurrentUser());
+            builder.Services.AddSingleton<ICurrentUser>(StubCurrentUser.Default);
             builder.Services.AddSingleton<IRankingBroadcaster, NoOpRankingBroadcaster>();
 
             using var host = builder.Build();
@@ -147,6 +148,8 @@ public sealed class MassTransitScoreEntryFlowTests
         public string? Id => "integration-test";
         public string? Email => null;
         public string? Role => null;
+
+        public static readonly StubCurrentUser Default = new();
     }
 
     private sealed class ScoreEntryRegisteredProbe

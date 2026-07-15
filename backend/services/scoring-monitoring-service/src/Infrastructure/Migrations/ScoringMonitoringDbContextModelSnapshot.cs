@@ -22,6 +22,37 @@ namespace umbral_backend.Infrastructure.Persistence.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("umbral_backend.Domain.Entities.Penalty", b =>
+                {
+                    b.Property<Guid>("PenaltyId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("AppliedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("applied_at");
+
+                    b.Property<Guid>("AppliedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("applied_by_user_id");
+
+                    b.Property<string>("PenaltyReason")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("penalty_reason");
+
+                    b.Property<Guid>("ScoreEntryId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("score_entry_id");
+
+                    b.HasKey("PenaltyId");
+
+                    b.HasIndex("ScoreEntryId")
+                        .IsUnique();
+
+                    b.ToTable("penalties", (string)null);
+                });
+
             modelBuilder.Entity("umbral_backend.Domain.Entities.Ranking", b =>
                 {
                     b.Property<Guid>("RankingId")
@@ -141,6 +172,30 @@ namespace umbral_backend.Infrastructure.Persistence.Migrations
                         .IsUnique();
 
                     b.ToTable("score_entries", (string)null);
+                });
+
+            modelBuilder.Entity("umbral_backend.Domain.Entities.SessionOperatorAssignmentProjection", b =>
+                {
+                    b.Property<Guid>("LiveSessionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("live_session_id");
+
+                    b.Property<Guid>("AssignedOperatorUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("assigned_operator_user_id");
+
+                    b.HasKey("LiveSessionId");
+
+                    b.ToTable("session_operator_assignments", (string)null);
+                });
+
+            modelBuilder.Entity("umbral_backend.Domain.Entities.Penalty", b =>
+                {
+                    b.HasOne("umbral_backend.Domain.Entities.ScoreEntry", null)
+                        .WithOne()
+                        .HasForeignKey("umbral_backend.Domain.Entities.Penalty", "ScoreEntryId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("umbral_backend.Domain.Entities.Ranking", b =>

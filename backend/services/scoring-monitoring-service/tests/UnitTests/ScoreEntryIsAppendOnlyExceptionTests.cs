@@ -11,4 +11,12 @@ public sealed class ScoreEntryIsAppendOnlyExceptionTests
 
         exception.Message.Should().Contain("append-only");
     }
+
+    [Fact]
+    public void Category_ShouldBeConflict()
+    {
+        var exception = new ScoreEntryIsAppendOnlyException();
+
+        exception.Category.Should().Be(ErrorCategory.Conflict);
+    }
 }

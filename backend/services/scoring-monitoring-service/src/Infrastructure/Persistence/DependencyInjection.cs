@@ -30,5 +30,8 @@ public static class PersistenceServiceExtensions
         builder.Services.AddScoped<IDatabaseHealthCheck, DatabaseHealthCheck>();
         builder.Services.AddScoped<IScoreEntryRepository, ScoreEntryRepository>();
         builder.Services.AddScoped<IRankingRepository, RankingRepository>();
+        builder.Services.AddScoped<IPenaltyRepository, PenaltyRepository>();
+        builder.Services.AddScoped<ISessionAssignmentReadRepository, SessionAssignmentRepository>();
+        builder.Services.AddScoped<ISessionAssignmentProjectionRepository, SessionAssignmentRepository>();
     }
 }

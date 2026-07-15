@@ -114,4 +114,51 @@ public sealed class ScoreEntry : BaseAuditableEntity
 
         return entry;
     }
+
+    public static ScoreEntry Penalty(
+        Guid liveSessionId,
+        Guid teamId,
+        string reason,
+        ScoreValue deductionValue,
+        Guid appliedByUserId)
+    {
+        var scoreEntryId = Guid.NewGuid();
+        var penalty = umbral_backend.Domain.Entities.Penalty.Create(scoreEntryId, reason, appliedByUserId);
+
+        var entry = new ScoreEntry(
+            scoreEntryId,
+            liveSessionId,
+            teamId,
+            ScoreEntryType.Penalty,
+            reason,
+            deductionValue,
+            DateTimeOffset.UtcNow,
+            ScoreSourceType.Penalty,
+            penalty.PenaltyId,
+            null);
+
+        entry.AddDomainEvent(new ScoreEntryRegistered(
+            entry.ScoreEntryId,
+            entry.LiveSessionId,
+            entry.TeamId,
+            entry.EntryType,
+            entry.ReasonCode,
+            entry.ScoreValue.Value,
+            entry.RecordedAt,
+            entry.SourceEntityType,
+            entry.SourceEntityId,
+            entry.RecordedByUserId));
+
+        entry.AddDomainEvent(new PenaltyApplied(
+            penalty.PenaltyId,
+            entry.ScoreEntryId,
+            entry.LiveSessionId,
+            entry.TeamId,
+            entry.ScoreValue.Value,
+            penalty.AppliedAt,
+            penalty.AppliedByUserId,
+            penalty.PenaltyReason.Value));
+
+        return entry;
+    }
 }
