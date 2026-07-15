@@ -1,5 +1,4 @@
 using MassTransit;
-using umbral_backend.Application.Scores.Commands.RecordAnswerReceipt;
 using umbral_backend.Application.Scores.Common;
 
 namespace umbral_backend.Application.UnitTests.Scores.Common;
@@ -45,20 +44,4 @@ public sealed class AnswerRegisteredIntegrationEventTests
         first.ToString().Should().Contain(nameof(AnswerRegisteredIntegrationEvent.LiveSessionId));
     }
 
-    [Fact]
-    public void Command_ValueEquality_HoldsAndDeconstructs()
-    {
-        var teamId = Guid.NewGuid();
-        var command = new RecordAnswerReceiptCommand(
-            Guid.NewGuid(), teamId, Guid.NewGuid(), Guid.NewGuid(), 1, 0, false, 0, DateTimeOffset.UnixEpoch);
-        var copy = command with { };
-
-        command.Should().Be(copy);
-        command.GetHashCode().Should().Be(copy.GetHashCode());
-        command.Should().NotBe(command with { TeamId = Guid.NewGuid() });
-
-        var (_, deconstructedTeamId, _, _, _, _, _, _, _) = command;
-        deconstructedTeamId.Should().Be(teamId);
-        command.ToString().Should().Contain(nameof(RecordAnswerReceiptCommand.TeamId));
-    }
 }

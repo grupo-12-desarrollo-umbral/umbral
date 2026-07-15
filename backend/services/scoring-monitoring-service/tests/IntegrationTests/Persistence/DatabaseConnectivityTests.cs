@@ -2,9 +2,9 @@ using umbral_backend.Infrastructure.Persistence;
 
 namespace umbral_backend.Infrastructure.IntegrationTests.Persistence;
 
-// Exercises the real Npgsql-backed ApplicationDbContext and DatabaseHealthCheck against the shared
-// Postgres Testcontainer (ADR-0008): the empty InitScoringMonitoring migration has been applied by
-// the fixture, so the context connects and reports healthy.
+// Exercises the real Npgsql-backed ScoringMonitoringDbContext and DatabaseHealthCheck against the
+// shared Postgres Testcontainer (ADR-0008): the fixture has applied this context's migrations, so
+// the context connects and reports healthy.
 [Collection(PostgreSqlCollection.Name)]
 public sealed class DatabaseConnectivityTests
 {
@@ -15,12 +15,12 @@ public sealed class DatabaseConnectivityTests
         _fixture = fixture;
     }
 
-    private ApplicationDbContext NewContext()
+    private ScoringMonitoringDbContext NewContext()
     {
-        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+        var options = new DbContextOptionsBuilder<ScoringMonitoringDbContext>()
             .UseNpgsql(_fixture.ConnectionString)
             .Options;
-        return new ApplicationDbContext(options);
+        return new ScoringMonitoringDbContext(options);
     }
 
     [Fact]
@@ -35,12 +35,12 @@ public sealed class DatabaseConnectivityTests
     }
 
     [Fact]
-    public async Task MigrationsHistory_ContainsInitScoringMonitoring()
+    public async Task MigrationsHistory_ContainsScoringLedgerAndRanking()
     {
         await using var context = NewContext();
 
         var applied = await context.Database.GetAppliedMigrationsAsync();
 
-        applied.Should().Contain(migration => migration.EndsWith("InitScoringMonitoring"));
+        applied.Should().Contain(migration => migration.EndsWith("AddScoringLedgerAndRanking"));
     }
 }

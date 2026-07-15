@@ -27,7 +27,6 @@ public sealed class GetRankingSnapshotQueryHandlerTests
                     ScoreSourceType.TriviaAnswerSubmission,
                     Guid.NewGuid())
             },
-            new Dictionary<Guid, ResolutionTime>(),
             new DateTimeOffset(2026, 7, 14, 17, 5, 0, TimeSpan.Zero),
             calculationVersion: 2,
             new ResolutionTimeRankingPolicy());

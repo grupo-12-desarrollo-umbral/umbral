@@ -32,37 +32,47 @@ public sealed class Ranking : BaseAuditableEntity
     public static Ranking Create(
         Guid liveSessionId,
         IEnumerable<ScoreEntry> entries,
-        IReadOnlyDictionary<Guid, ResolutionTime> resolutionTimes,
         DateTimeOffset generatedAt,
         long calculationVersion,
         IRankingPolicy rankingPolicy)
     {
         var ranking = new Ranking(Guid.NewGuid(), liveSessionId);
-        ranking.Refresh(entries, resolutionTimes, generatedAt, calculationVersion, rankingPolicy);
+        ranking.Refresh(entries, generatedAt, calculationVersion, rankingPolicy);
         return ranking;
     }
 
     public void Refresh(
         IEnumerable<ScoreEntry> entries,
-        IReadOnlyDictionary<Guid, ResolutionTime> resolutionTimes,
         DateTimeOffset generatedAt,
         long calculationVersion,
         IRankingPolicy rankingPolicy)
     {
         ArgumentNullException.ThrowIfNull(entries);
-        ArgumentNullException.ThrowIfNull(resolutionTimes);
         ArgumentNullException.ThrowIfNull(rankingPolicy);
 
-        var foldedRows = entries
+        var sessionEntries = entries
             .Where(entry => entry.LiveSessionId == LiveSessionId)
-            .GroupBy(entry => entry.TeamId)
-            .Select(group => (
-                TeamId: group.Key,
-                TotalScore: group.Sum(entry => entry.ScoreValue.Value),
-                ResolutionTime: resolutionTimes.TryGetValue(group.Key, out var resolutionTime)
-                    ? resolutionTime
-                    : ResolutionTime.NonComparable()))
             .ToList();
+
+        var foldedRows = new List<(Guid TeamId, int TotalScore, ResolutionTime ResolutionTime)>();
+
+        if (sessionEntries.Count > 0)
+        {
+            // The ledger is the sole source of the tie-break. A team's resolution time is how long it took
+            // them to reach their current total, measured from the session's earliest ledger entry. The
+            // baseline is common to every team in the session, so ordering by this elapsed value is
+            // equivalent to ordering by the absolute timestamp of each team's most recent entry, while
+            // staying a non-negative duration as ResolutionTime requires.
+            var sessionStartedAt = sessionEntries.Min(entry => entry.RecordedAt);
+
+            foldedRows.AddRange(sessionEntries
+                .GroupBy(entry => entry.TeamId)
+                .Select(group => (
+                    TeamId: group.Key,
+                    TotalScore: group.Sum(entry => entry.ScoreValue.Value),
+                    ResolutionTime: ResolutionTime.Comparable(
+                        group.Max(entry => entry.RecordedAt) - sessionStartedAt))));
+        }
 
         var rankedRows = rankingPolicy.Rank(foldedRows);
 
