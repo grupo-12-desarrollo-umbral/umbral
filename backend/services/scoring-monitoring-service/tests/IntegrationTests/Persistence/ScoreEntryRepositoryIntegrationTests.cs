@@ -30,6 +30,7 @@ public sealed class ScoreEntryRepositoryIntegrationTests
             var scoreEntry = ScoreEntry.Grant(
                 liveSessionId,
                 teamId,
+                "Team A",
                 "trivia-answer-correct",
                 ScoreValue.Create(150),
                 DateTimeOffset.UtcNow,
@@ -61,6 +62,7 @@ public sealed class ScoreEntryRepositoryIntegrationTests
         var duplicateEntry = ScoreEntry.Grant(
             liveSessionId,
             teamId,
+            "Team A",
             "trivia-answer-correct",
             ScoreValue.Create(150),
             DateTimeOffset.UtcNow.AddSeconds(1),

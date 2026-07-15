@@ -23,6 +23,8 @@ import { useActiveQuestion } from '@/lib/realtime/use-active-question';
 import { useSessionTimer } from '@/lib/realtime/use-session-timer';
 import { useSubmitAnswer } from '@/lib/realtime/use-submit-answer';
 import { useTeamBoard } from '@/lib/realtime/use-team-board';
+import { useRanking } from '@/lib/realtime/use-ranking';
+import { createScoringHubConnection, type ScoringHubClient } from '@/lib/realtime/scoring-hub';
 import { TreasureHuntBoard } from '@/components/treasure-hunt-board';
 import { TargetScanner } from '@/components/target-scanner';
 import {
@@ -300,6 +302,19 @@ export function LiveTeamSpace({
   banner?: ReactNode;
 }) {
   const { result } = outcome;
+  // HU-25B Slice 3: one scoring-hub connection per LiveTeamSpace lifecycle.
+  // Started on mount and joined to the session group so `useRanking` receives
+  // live `RankingChanged` pushes. Stopped on unmount. Auto-reconnect re-joins
+  // the group internally via the scoring-hub module's `onreconnected` handler.
+  // Wrapped in try-catch so an unresolvable URL (e.g. test env) degrades to null
+  // (ranking stays REST-only) instead of crashing the component during mount.
+  const [scoringClient] = useState<ScoringHubClient | null>(() => {
+    try {
+      return createScoringHubConnection();
+    } catch {
+      return null;
+    }
+  });
   const [teamsOpen, setTeamsOpen] = useState(false);
   // #223 QR scanner: open state + a board re-fetch trigger bumped on every accepted scan (there is no
   // board push after a scan resolves, so the target-progress numerator is pulled on demand).
@@ -307,6 +322,40 @@ export function LiveTeamSpace({
   const [boardRefreshNonce, setBoardRefreshNonce] = useState(0);
   // A QuestionClosed for the displayed question bumps this to re-fetch the timer snapshot and reconcile.
   const [resyncNonce, setResyncNonce] = useState(0);
+
+  // Manage the scoring-hub connection: start once + join the session group so
+  // `RankingChanged` pushes reach `useRanking`. On unmount the effect tears
+  // down the connection. Transport-level drops are handled by SignalR's
+  // `withAutomaticReconnect` + the scoring-hub internal `onreconnected` handler
+  // (which re-joins `joinedSessionId`).
+  useEffect(() => {
+    if (!scoringClient) {
+      return;
+    }
+
+    const client = scoringClient;
+    let active = true;
+
+    async function setup() {
+      try {
+        await client.start();
+        if (!active) return;
+        // The hub validates session-scoped team membership on join, keyed on the cross-context
+        // ReferenceTeamId (same id the REST ranking guard uses) — pass referenceTeamId, not the
+        // session-scoped board team id.
+        await client.joinSessionGroup(result.liveSessionId, referenceTeamId);
+      } catch {
+        // Scoring hub unavailable — ranking remains REST-only
+      }
+    }
+
+    void setup();
+
+    return () => {
+      active = false;
+      void client.stop();
+    };
+  }, [scoringClient, result.liveSessionId, referenceTeamId]);
   const requestResync = useCallback(() => setResyncNonce(n => n + 1), []);
   const {
     display,
@@ -347,13 +396,36 @@ export function LiveTeamSpace({
     // …and after an accepted target scan, to advance the resolved-target count (#223).
     refreshNonce: boardRefreshNonce,
   });
+  // HU-25B: session ranking snapshot. Fetched in parallel with the board; the TEAMS tab shows the
+  // live PodiumLeaderboard when rows are available, falling back to the own-team-only placeholder.
+  // When `scoringClient` is present (Slice 3), subscribes to live `RankingChanged` push events.
+  const {
+    snapshot: rankingSnapshot,
+    error: rankingError,
+    refetch: refetchRanking,
+  } = useRanking(
+    result.liveSessionId,
+    referenceTeamId,
+    token,
+    scoringClient,
+  );
   const playMode = board?.activeSubstage?.playMode;
   // Only surface an error while it actually masks the board: a still-good board
   // kept from an earlier fetch (a failed re-fetch leaves `board` intact) renders
   // normally; a failed first fetch (`board` null) would otherwise fall silently
   // to the trivia surface.
   const maskedBoardError = board ? null : boardError;
-  const score = 0;
+  // Scoring is owned by the scoring-monitoring ledger (the ranking snapshot), not by the
+  // session-operations board — `Team.CurrentScore` there is never awarded and always projects 0.
+  // So the own-team live score is read from the ranking rows (works for both trivia and treasure
+  // hunt, which both award into the ledger), falling back to the board value only until the first
+  // ranking fetch resolves. The ledger keys on the cross-context `ReferenceTeamId` (see the scoring
+  // service's AnswerRegisteredConsumer), so ranking `row.teamId` is that reference id — match on
+  // `referenceTeamId`, NOT `board.teamId` (the session-scoped id, which never compares equal).
+  const ownScore = rankingSnapshot?.rows.find(
+    (row) => row.teamId === referenceTeamId,
+  )?.totalScore;
+  const score = ownScore ?? board?.currentScore ?? 0;
   const teamMembers = [result.participantDisplayName];
 
   const activeQuestionProps = view.kind === 'active'
@@ -385,7 +457,7 @@ export function LiveTeamSpace({
       <>
         <TreasureHuntBoard
           teamDisplayName={board.teamDisplayName}
-          currentScore={board.currentScore}
+          currentScore={score}
           timerDisplay={display}
           resolvedTargets={progress.resolved}
           totalActiveTargets={progress.total}
@@ -399,6 +471,10 @@ export function LiveTeamSpace({
           }
           onLeave={onLeave}
           onScan={() => setScannerOpen(true)}
+          rankingRows={rankingSnapshot?.rows}
+          ownTeamId={referenceTeamId}
+          rankingError={rankingError}
+          onRetryRanking={refetchRanking}
         />
         {scannerOpen ? (
           <TargetScanner

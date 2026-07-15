@@ -116,6 +116,7 @@ public sealed class RankingTests
         return ScoreEntry.Grant(
             liveSessionId,
             teamId,
+            "Team A",
             "grant",
             ScoreValue.Create(scoreValue),
             recordedAt,

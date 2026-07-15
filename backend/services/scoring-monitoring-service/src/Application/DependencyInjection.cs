@@ -1,5 +1,7 @@
 using System.Reflection;
 using Microsoft.Extensions.Hosting;
+using umbral_backend.Application.Common.Interfaces;
+using umbral_backend.Application.Rankings.Common;
 using umbral_backend.Domain.Services;
 
 namespace Microsoft.Extensions.DependencyInjection;
@@ -13,5 +15,6 @@ public static class DependencyInjection
 
         builder.Services.AddScoped<IScorePolicy, SnapshotScorePolicy>();
         builder.Services.AddScoped<IRankingPolicy, ResolutionTimeRankingPolicy>();
+        builder.Services.AddScoped<IRankingSessionMembershipGuard, RankingSessionMembershipGuard>();
     }
 }

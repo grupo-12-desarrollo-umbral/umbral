@@ -4,6 +4,7 @@ import { apiBaseUrl } from '@/lib/host';
 import { apiClient, ApiError } from './client';
 import type { SessionTimerSnapshotDto } from '@/lib/realtime/timer-types';
 import type { ParticipantTeamBoardDto } from '@/lib/realtime/team-board-types';
+import type { RankingSnapshotDto } from '@/lib/realtime/ranking-types';
 import type {
   SubmitTriviaAnswerRequest,
   SubmitTriviaAnswerResultDto,
@@ -70,6 +71,29 @@ export function getParticipantTeamBoard(
   }
   return apiClient.get<ParticipantTeamBoardDto>(
     `/api/sessions/${encodeURIComponent(liveSessionId)}/participants/team-board?${params.toString()}`,
+    {
+      cache: 'no-store',
+      headers: {
+        'Cache-Control': 'no-cache',
+        Pragma: 'no-cache',
+      },
+    },
+  );
+}
+
+// HU-25B session ranking snapshot. Mirrors getParticipantTeamBoard (same { teamId } query + optional
+// token, same no-store/no-cache), returning RankingSnapshotDto.
+export function getRanking(
+  liveSessionId: string,
+  teamId: string,
+  token?: string | null,
+): Promise<RankingSnapshotDto> {
+  const params = new URLSearchParams({ teamId });
+  if (token) {
+    params.set('token', token);
+  }
+  return apiClient.get<RankingSnapshotDto>(
+    `/api/sessions/${encodeURIComponent(liveSessionId)}/ranking?${params.toString()}`,
     {
       cache: 'no-store',
       headers: {

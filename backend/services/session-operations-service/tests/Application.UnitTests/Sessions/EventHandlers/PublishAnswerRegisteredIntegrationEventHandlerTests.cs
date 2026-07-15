@@ -17,6 +17,8 @@ public sealed class PublishAnswerRegisteredIntegrationEventHandlerTests
     private static AnswerRegisteredEvent Event() => new(
         liveSessionId: Guid.NewGuid(),
         teamId: Guid.NewGuid(),
+        referenceTeamId: Guid.NewGuid(),
+        teamDisplayName: "Gilded Owls",
         evidenceSubmissionId: Guid.NewGuid(),
         activeSubstageId: Guid.NewGuid(),
         questionSequenceOrder: 1,
@@ -39,6 +41,8 @@ public sealed class PublishAnswerRegisteredIntegrationEventHandlerTests
                 new AnswerRegisteredIntegrationEvent(
                     domainEvent.LiveSessionId,
                     domainEvent.TeamId,
+                    domainEvent.ReferenceTeamId,
+                    domainEvent.TeamDisplayName,
                     domainEvent.EvidenceSubmissionId,
                     domainEvent.ActiveSubstageId,
                     1,

@@ -10,26 +10,27 @@ public sealed class RankingControllerTests
     public async Task GetRankingAsync_WhenRankingExists_ReturnsOkWithSnapshot()
     {
         var liveSessionId = Guid.NewGuid();
+        var teamId = Guid.NewGuid();
         var snapshot = new RankingSnapshotDto(
             liveSessionId,
             DateTimeOffset.UtcNow,
             1,
             new[]
             {
-                new RankingRowDto(Guid.NewGuid(), 1, 100, TimeSpan.FromMinutes(5)),
-                new RankingRowDto(Guid.NewGuid(), 2, 80, TimeSpan.FromMinutes(7))
+                new RankingRowDto(Guid.NewGuid(), "Alpha", 1, 100, TimeSpan.FromMinutes(5)),
+                new RankingRowDto(Guid.NewGuid(), "Beta", 2, 80, TimeSpan.FromMinutes(7))
             });
 
         var sender = new Mock<ISender>();
         sender
             .Setup(s => s.Send(
-                It.Is<GetRankingSnapshotQuery>(q => q.LiveSessionId == liveSessionId),
+                It.Is<GetRankingSnapshotQuery>(q => q.LiveSessionId == liveSessionId && q.TeamId == teamId),
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync(snapshot);
 
         var controller = new RankingController(sender.Object);
 
-        var result = await controller.GetRankingAsync(liveSessionId, CancellationToken.None);
+        var result = await controller.GetRankingAsync(liveSessionId, teamId, CancellationToken.None);
 
         var okResult = result.Result.Should().BeOfType<OkObjectResult>().Subject;
         var response = okResult.Value.Should().BeOfType<RankingSnapshotDto>().Subject;
@@ -43,18 +44,19 @@ public sealed class RankingControllerTests
     public async Task GetRankingAsync_WhenRankingDoesNotExist_ReturnsOkWithEmptySnapshot()
     {
         var liveSessionId = Guid.NewGuid();
+        var teamId = Guid.NewGuid();
         var emptySnapshot = RankingSnapshotDto.Empty(liveSessionId);
 
         var sender = new Mock<ISender>();
         sender
             .Setup(s => s.Send(
-                It.Is<GetRankingSnapshotQuery>(q => q.LiveSessionId == liveSessionId),
+                It.Is<GetRankingSnapshotQuery>(q => q.LiveSessionId == liveSessionId && q.TeamId == teamId),
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync(emptySnapshot);
 
         var controller = new RankingController(sender.Object);
 
-        var result = await controller.GetRankingAsync(liveSessionId, CancellationToken.None);
+        var result = await controller.GetRankingAsync(liveSessionId, teamId, CancellationToken.None);
 
         var okResult = result.Result.Should().BeOfType<OkObjectResult>().Subject;
         var response = okResult.Value.Should().BeOfType<RankingSnapshotDto>().Subject;

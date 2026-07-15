@@ -14,6 +14,7 @@ public sealed record RankingSnapshotDto(
 
 public sealed record RankingRowDto(
     Guid TeamId,
+    string TeamDisplayName,
     int Position,
     int TotalScore,
     TimeSpan? ResolutionTime);

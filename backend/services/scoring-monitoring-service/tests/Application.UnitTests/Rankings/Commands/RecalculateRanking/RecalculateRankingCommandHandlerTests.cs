@@ -21,8 +21,8 @@ public sealed class RecalculateRankingCommandHandlerTests
         // teamFast finishes at 18:00, teamSlow a minute later, so teamFast must rank first.
         var scoreEntries = new[]
         {
-            CreateGrant(liveSessionId, teamFast, 100, Guid.NewGuid(), new DateTimeOffset(2026, 7, 14, 18, 0, 0, TimeSpan.Zero)),
-            CreateGrant(liveSessionId, teamSlow, 100, Guid.NewGuid(), new DateTimeOffset(2026, 7, 14, 18, 1, 0, TimeSpan.Zero))
+            CreateGrant(liveSessionId, teamFast, "Fast Team", 100, Guid.NewGuid(), new DateTimeOffset(2026, 7, 14, 18, 0, 0, TimeSpan.Zero)),
+            CreateGrant(liveSessionId, teamSlow, "Slow Team", 100, Guid.NewGuid(), new DateTimeOffset(2026, 7, 14, 18, 1, 0, TimeSpan.Zero))
         };
 
         var scoreEntryRepository = new Mock<IScoreEntryRepository>();
@@ -56,6 +56,11 @@ public sealed class RecalculateRankingCommandHandlerTests
         savedRanking!.Rows.Select(row => (row.TeamId, row.Position)).Should().ContainInOrder(
             (teamFast, 1),
             (teamSlow, 2));
+
+        // Names now derive from the score entries themselves (snapshotted from the integration event),
+        // not from an authenticated cross-service lookup.
+        savedRanking.Rows.Single(row => row.TeamId == teamFast).TeamDisplayName.Should().Be("Fast Team");
+        savedRanking.Rows.Single(row => row.TeamId == teamSlow).TeamDisplayName.Should().Be("Slow Team");
 
         // Guards the regression: before the ledger-derived fix both teams were NonComparable and
         // collapsed to a shared position 1.
@@ -106,6 +111,7 @@ public sealed class RecalculateRankingCommandHandlerTests
     private static ScoreEntry CreateGrant(
         Guid liveSessionId,
         Guid teamId,
+        string teamDisplayName,
         int scoreValue,
         Guid sourceEntityId,
         DateTimeOffset recordedAt)
@@ -113,6 +119,7 @@ public sealed class RecalculateRankingCommandHandlerTests
         return ScoreEntry.Grant(
             liveSessionId,
             teamId,
+            teamDisplayName,
             "trivia-answer-correct",
             ScoreValue.Create(scoreValue),
             recordedAt,

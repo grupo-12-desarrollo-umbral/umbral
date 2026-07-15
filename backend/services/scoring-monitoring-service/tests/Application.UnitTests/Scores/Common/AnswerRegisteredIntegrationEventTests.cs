@@ -11,6 +11,8 @@ public sealed class AnswerRegisteredIntegrationEventTests
     private static AnswerRegisteredIntegrationEvent Sample(Guid sessionId) => new(
         LiveSessionId: sessionId,
         TeamId: Guid.NewGuid(),
+        ReferenceTeamId: Guid.NewGuid(),
+        TeamDisplayName: "Gilded Owls",
         TriviaAnswerSubmissionId: Guid.NewGuid(),
         TriviaSubstageSnapshotId: Guid.NewGuid(),
         QuestionSequenceOrder: 3,

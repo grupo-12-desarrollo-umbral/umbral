@@ -48,6 +48,25 @@ public sealed class PublishScoreEntryRegisteredIntegrationEventHandlerTests
         await act.Should().NotThrowAsync();
     }
 
+    [Fact]
+    public async Task Handle_ForwardsTheCallerCancellationToken()
+    {
+        var publishEndpoint = new Mock<IPublishEndpoint>();
+        var notification = Event();
+        var handler = new PublishScoreEntryRegisteredIntegrationEventHandler(
+            publishEndpoint.Object,
+            NullLogger<PublishScoreEntryRegisteredIntegrationEventHandler>.Instance);
+        using var cts = new CancellationTokenSource();
+
+        await handler.Handle(notification, cts.Token);
+
+        publishEndpoint.Verify(
+            endpoint => endpoint.Publish(
+                It.IsAny<ScoreEntryRegisteredIntegrationEvent>(),
+                cts.Token),
+            Times.Once);
+    }
+
     private static ScoreEntryRegistered Event()
     {
         return new ScoreEntryRegistered(

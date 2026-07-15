@@ -93,7 +93,7 @@ export type ParticipantTeamBoardDto = {
   teamId: string;
   teamDisplayName: string;
   teamCode: string;
-  // Current/session-owned score or 0 — no ledger/ranking (DES-31).
+  // Current/session-owned score from the ledger (DES-99).
   currentScore: number;
   // Nested HU-22 snapshot. The ticking countdown is driven by `useSessionTimer`
   // (top-level snapshot + `SessionTimerUpdated`), not this copy — this carries a

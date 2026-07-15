@@ -26,7 +26,10 @@ public sealed class AnswerRegisteredConsumer : IConsumer<AnswerRegisteredIntegra
         await _sender.Send(
             new RecordScoreEntryCommand(
                 context.Message.LiveSessionId,
-                context.Message.TeamId,
+                // Key scoring/ranking on the cross-context ReferenceTeamId (what mobile + seed use),
+                // not the session-scoped TeamId — otherwise the score lands on a phantom team row.
+                context.Message.ReferenceTeamId,
+                context.Message.TeamDisplayName,
                 TriviaAnswerCorrectReasonCode,
                 context.Message.ScoreValue,
                 context.Message.SubmittedAt,

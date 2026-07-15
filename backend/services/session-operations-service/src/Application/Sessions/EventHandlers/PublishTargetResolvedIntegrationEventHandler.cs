@@ -25,6 +25,8 @@ public sealed class PublishTargetResolvedIntegrationEventHandler
             await _publishEndpoint.Publish(new TargetResolvedIntegrationEvent(
                 notification.LiveSessionId,
                 notification.TeamId,
+                notification.ReferenceTeamId,
+                notification.TeamDisplayName,
                 notification.EvidenceSubmissionId,
                 notification.ActiveSubstageId,
                 notification.TargetSnapshotId,

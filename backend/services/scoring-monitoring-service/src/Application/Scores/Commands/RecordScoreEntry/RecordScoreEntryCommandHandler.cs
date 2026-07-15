@@ -34,6 +34,7 @@ public sealed class RecordScoreEntryCommandHandler : IRequestHandler<RecordScore
         var scoreEntry = ScoreEntry.Grant(
             request.LiveSessionId,
             request.TeamId,
+            request.TeamDisplayName,
             request.ReasonCode,
             awardedScore,
             request.RecordedAt,

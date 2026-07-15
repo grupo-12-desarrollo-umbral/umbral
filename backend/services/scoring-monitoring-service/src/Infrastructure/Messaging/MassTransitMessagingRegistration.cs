@@ -16,6 +16,7 @@ public static class MassTransitMessagingRegistration
         builder.Services.AddMassTransit(bus =>
         {
             bus.AddConsumer<AnswerRegisteredConsumer>();
+            bus.AddConsumer<TargetResolvedConsumer>();
             bus.AddConsumer<ScoreEntryRegisteredConsumer>();
 
             bus.UsingRabbitMq((context, cfg) =>

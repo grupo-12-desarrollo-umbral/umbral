@@ -59,6 +59,15 @@ export default function ParticipantHome() {
         />
       ) : null}
 
+      {/* DEV-ONLY UI prototype: HU-25B ranking view (3 variants, switchable). */}
+      {__DEV__ ? (
+        <Button
+          label="▶ Prototype · ranking view"
+          variant="secondary"
+          onPress={() => router.push('/(app)/ranking-prototype?variant=A' as Href)}
+        />
+      ) : null}
+
       <Button label="Sign out" variant="secondary" onPress={signOut} />
     </Screen>
   );

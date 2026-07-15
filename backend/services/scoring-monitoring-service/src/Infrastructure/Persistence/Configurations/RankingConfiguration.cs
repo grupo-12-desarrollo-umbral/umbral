@@ -80,6 +80,11 @@ public sealed class RankingConfiguration : IEntityTypeConfiguration<Ranking>
                         ? ResolutionTime.Comparable(value.Value)
                         : ResolutionTime.NonComparable());
 
+            rowBuilder.Property(row => row.TeamDisplayName)
+                .HasColumnName("team_display_name")
+                .HasMaxLength(200)
+                .IsRequired();
+
             rowBuilder.HasIndex("ranking_id", nameof(Ranking.Row.Position));
         });
 

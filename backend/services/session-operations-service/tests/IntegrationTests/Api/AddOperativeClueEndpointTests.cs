@@ -53,9 +53,12 @@ public sealed class AddOperativeClueEndpointTests : IAsyncLifetime
         payload.OperativeClueIds.Should().ContainSingle();
         payload.AssignedTeamIds.Should().ContainSingle().Which.Should().Be(seeded.PrimaryTeamId);
 
-        AddTrustedHeaders("kc-participant-1", "Participant", "participant@example.com");
-        var assignedBoard = await GetBoardAsync(seeded.LiveSessionId, seeded.PrimaryTeamId);
-        var unassignedBoard = await GetBoardAsync(seeded.LiveSessionId, seeded.SecondaryTeamId);
+        // Each board is read by the participant who is an active member of that team: membership is now
+        // enforced per session-team, so one participant cannot read another team's board.
+        AddTrustedHeaders(seeded.PrimaryParticipantId.ToString(), "Participant", "participant@example.com");
+        var assignedBoard = await GetBoardAsync(seeded.LiveSessionId, seeded.PrimaryReferenceTeamId);
+        AddTrustedHeaders(seeded.SecondaryParticipantId.ToString(), "Participant", "participant@example.com");
+        var unassignedBoard = await GetBoardAsync(seeded.LiveSessionId, seeded.SecondaryReferenceTeamId);
 
         var assignedClue = assignedBoard.VisibleClues
             .Should().ContainSingle(clue => clue.ClueText == ClueText)
@@ -182,14 +185,23 @@ public sealed class AddOperativeClueEndpointTests : IAsyncLifetime
             45,
             createdAt,
             snapshot);
-        var primaryTeam = session.AssociateTeam(Guid.NewGuid(), "Alpha", "ALP-01", 4);
-        var secondaryTeam = session.AssociateTeam(Guid.NewGuid(), "Bravo", "BRV-01", 4);
+        var primaryReferenceTeamId = Guid.NewGuid();
+        var secondaryReferenceTeamId = Guid.NewGuid();
+        var primaryTeam = session.AssociateTeam(primaryReferenceTeamId, "Alpha", "ALP-01", 4);
+        var secondaryTeam = session.AssociateTeam(secondaryReferenceTeamId, "Bravo", "BRV-01", 4);
         session.AssignOperator(OperatorUserId, createdAt.AddMinutes(1));
+
+        var primaryParticipantId = Guid.NewGuid();
+        var secondaryParticipantId = Guid.NewGuid();
 
         if (state is SessionState.Active or SessionState.Paused)
         {
             var transitionPolicy = new SessionStateTransitionPolicy();
             session.MoveTo(SessionState.Preparing, createdAt.AddMinutes(2), transitionPolicy);
+            session.AdmitParticipant(
+                primaryParticipantId, "Alpha-1", primaryTeam.TeamId, createdAt.AddMinutes(2).AddSeconds(10), new JoinPolicy());
+            session.AdmitParticipant(
+                secondaryParticipantId, "Bravo-1", secondaryTeam.TeamId, createdAt.AddMinutes(2).AddSeconds(20), new JoinPolicy());
             session.MoveTo(SessionState.Active, createdAt.AddMinutes(3), transitionPolicy);
             if (state == SessionState.Paused)
             {
@@ -204,6 +216,10 @@ public sealed class AddOperativeClueEndpointTests : IAsyncLifetime
             session.LiveSessionId,
             primaryTeam.TeamId,
             secondaryTeam.TeamId,
+            primaryReferenceTeamId,
+            secondaryReferenceTeamId,
+            primaryParticipantId,
+            secondaryParticipantId,
             snapshot.StageSnapshots.Single().SubstageSnapshots.Single().SubstageSnapshotId);
     }
 
@@ -254,5 +270,9 @@ public sealed class AddOperativeClueEndpointTests : IAsyncLifetime
         Guid LiveSessionId,
         Guid PrimaryTeamId,
         Guid SecondaryTeamId,
+        Guid PrimaryReferenceTeamId,
+        Guid SecondaryReferenceTeamId,
+        Guid PrimaryParticipantId,
+        Guid SecondaryParticipantId,
         Guid ActiveSubstageSnapshotId);
 }

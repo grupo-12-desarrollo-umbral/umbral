@@ -27,6 +27,11 @@ public sealed class ScoreEntryConfiguration : IEntityTypeConfiguration<ScoreEntr
             .HasColumnName("team_id")
             .IsRequired();
 
+        builder.Property(scoreEntry => scoreEntry.TeamDisplayName)
+            .HasColumnName("team_display_name")
+            .HasMaxLength(200)
+            .IsRequired();
+
         builder.Property(scoreEntry => scoreEntry.EntryType)
             .HasColumnName("entry_type")
             .HasConversion(

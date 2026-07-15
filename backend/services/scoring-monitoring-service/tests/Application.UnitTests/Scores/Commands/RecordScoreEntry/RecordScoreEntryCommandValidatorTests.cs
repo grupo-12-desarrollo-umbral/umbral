@@ -65,6 +65,7 @@ public sealed class RecordScoreEntryCommandValidatorTests
         return new RecordScoreEntryCommand(
             Guid.NewGuid(),
             Guid.NewGuid(),
+            "Team A",
             "trivia-answer-correct",
             100,
             DateTimeOffset.UtcNow,

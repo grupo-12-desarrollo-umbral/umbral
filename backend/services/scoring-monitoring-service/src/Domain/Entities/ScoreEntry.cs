@@ -10,6 +10,7 @@ public sealed class ScoreEntry : BaseAuditableEntity
     {
         ScoreEntryId = Guid.Empty;
         ReasonCode = string.Empty;
+        TeamDisplayName = string.Empty;
         ScoreValue = null!;
     }
 
@@ -17,6 +18,7 @@ public sealed class ScoreEntry : BaseAuditableEntity
         Guid scoreEntryId,
         Guid liveSessionId,
         Guid teamId,
+        string teamDisplayName,
         ScoreEntryType entryType,
         string reasonCode,
         ScoreValue scoreValue,
@@ -40,6 +42,7 @@ public sealed class ScoreEntry : BaseAuditableEntity
         ScoreEntryId = scoreEntryId;
         LiveSessionId = liveSessionId;
         TeamId = teamId;
+        TeamDisplayName = string.IsNullOrWhiteSpace(teamDisplayName) ? teamId.ToString() : teamDisplayName.Trim();
         EntryType = entryType;
         ReasonCode = reasonCode.Trim();
         ScoreValue = scoreValue;
@@ -54,6 +57,10 @@ public sealed class ScoreEntry : BaseAuditableEntity
     public Guid LiveSessionId { get; private set; }
 
     public Guid TeamId { get; private set; }
+
+    // Snapshotted at record time from the integration event so ranking recalculation can name rows
+    // without an authenticated cross-service lookup from its (user-less) message-consumer context.
+    public string TeamDisplayName { get; private set; }
 
     public ScoreEntryType EntryType { get; private set; }
 
@@ -72,6 +79,7 @@ public sealed class ScoreEntry : BaseAuditableEntity
     public static ScoreEntry Grant(
         Guid liveSessionId,
         Guid teamId,
+        string teamDisplayName,
         string reasonCode,
         ScoreValue scoreValue,
         DateTimeOffset recordedAt,
@@ -83,6 +91,7 @@ public sealed class ScoreEntry : BaseAuditableEntity
             Guid.NewGuid(),
             liveSessionId,
             teamId,
+            teamDisplayName,
             ScoreEntryType.Grant,
             reasonCode,
             scoreValue,

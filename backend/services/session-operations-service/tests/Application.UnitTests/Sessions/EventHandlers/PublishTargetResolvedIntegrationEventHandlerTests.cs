@@ -16,14 +16,15 @@ public sealed class PublishTargetResolvedIntegrationEventHandlerTests
             endpoint.Object,
             NullLogger<PublishTargetResolvedIntegrationEventHandler>.Instance);
         var domainEvent = new TargetResolvedEvent(
-            Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), 150,
+            Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), "Gilded Owls", Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), 150,
             new DateTimeOffset(2026, 7, 13, 12, 0, 0, TimeSpan.Zero));
 
         await handler.Handle(domainEvent, CancellationToken.None);
 
         endpoint.Verify(publisher => publisher.Publish(
             new TargetResolvedIntegrationEvent(
-                domainEvent.LiveSessionId, domainEvent.TeamId, domainEvent.EvidenceSubmissionId,
+                domainEvent.LiveSessionId, domainEvent.TeamId, domainEvent.ReferenceTeamId, domainEvent.TeamDisplayName,
+                domainEvent.EvidenceSubmissionId,
                 domainEvent.ActiveSubstageId, domainEvent.TargetSnapshotId, 150, domainEvent.ResolvedAt),
             It.IsAny<CancellationToken>()), Times.Once);
     }
@@ -39,7 +40,7 @@ public sealed class PublishTargetResolvedIntegrationEventHandlerTests
             endpoint.Object,
             NullLogger<PublishTargetResolvedIntegrationEventHandler>.Instance);
         var domainEvent = new TargetResolvedEvent(
-            Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), 100,
+            Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), "Gilded Owls", Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), 100,
             DateTimeOffset.UtcNow);
 
         await FluentActions.Awaiting(() => handler.Handle(domainEvent, CancellationToken.None))

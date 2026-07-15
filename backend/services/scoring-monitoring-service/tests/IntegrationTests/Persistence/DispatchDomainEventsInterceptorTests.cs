@@ -45,6 +45,21 @@ public sealed class DispatchDomainEventsInterceptorTests
     }
 
     [Fact]
+    public async Task SavedChangesAsync_ForwardsTheSaveCancellationToken()
+    {
+        var mediator = new Mock<IMediator>();
+        await using var context = NewContext(new DispatchDomainEventsInterceptor(mediator.Object));
+        var thing = new EventThing();
+        thing.Raise();
+        context.Add(thing);
+        using var cts = new CancellationTokenSource();
+
+        await context.SaveChangesAsync(cts.Token);
+
+        mediator.Verify(m => m.Publish(It.IsAny<BaseEvent>(), cts.Token), Times.Once);
+    }
+
+    [Fact]
     public void SavedChanges_EntityWithEvents_PublishesOnSyncPath()
     {
         var mediator = new Mock<IMediator>();

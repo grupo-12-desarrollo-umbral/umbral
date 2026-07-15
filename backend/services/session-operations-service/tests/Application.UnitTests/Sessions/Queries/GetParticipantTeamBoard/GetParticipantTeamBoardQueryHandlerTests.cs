@@ -122,6 +122,24 @@ public sealed class GetParticipantTeamBoardQueryHandlerTests
         repository.Verify(repo => repo.UpdateAsync(It.IsAny<LiveSession>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
+    [Fact]
+    public async Task Handle_WhenAuthenticatedUserIsNotTeamMember_ThrowsForbidden()
+    {
+        var session = CreateActiveTreasureHuntSession(ActivatedAt);
+        var teamId = session.Teams.Single().TeamId;
+        var handler = CreateHandler(
+            CreateRepository(session),
+            CreateGuard(session.LiveSessionId, teamId, isAllowed: true),
+            ActivatedAt.AddSeconds(5),
+            CreateChecker(isMember: false));
+
+        var act = async () => await handler.Handle(
+            new GetParticipantTeamBoardQuery(session.LiveSessionId, teamId, null),
+            CancellationToken.None);
+
+        await act.Should().ThrowAsync<ForbiddenAccessException>();
+    }
+
     private static GetParticipantTeamBoardQueryHandler CreateHandler(
         LiveSession session,
         Guid teamId,
@@ -137,12 +155,26 @@ public sealed class GetParticipantTeamBoardQueryHandlerTests
     private static GetParticipantTeamBoardQueryHandler CreateHandler(
         Mock<ILiveSessionRepository> repository,
         Mock<IRuntimeParticipationGuard> guard,
-        DateTimeOffset observedAt)
+        DateTimeOffset observedAt,
+        Mock<IParticipantSessionMembershipChecker>? membershipChecker = null)
     {
         return new GetParticipantTeamBoardQueryHandler(
             repository.Object,
             guard.Object,
+            (membershipChecker ?? CreateChecker(isMember: true)).Object,
             new FixedTimeProvider(observedAt));
+    }
+
+    private static Mock<IParticipantSessionMembershipChecker> CreateChecker(bool isMember)
+    {
+        var checker = new Mock<IParticipantSessionMembershipChecker>();
+        checker
+            .Setup(c => c.Check(It.IsAny<LiveSession>(), It.IsAny<Guid>()))
+            .Returns(isMember
+                ? ParticipantSessionMembershipResult.Allowed
+                : ParticipantSessionMembershipResult.Deny("participant-not-assigned-to-team"));
+
+        return checker;
     }
 
     private static Mock<ILiveSessionRepository> CreateRepository(LiveSession session)

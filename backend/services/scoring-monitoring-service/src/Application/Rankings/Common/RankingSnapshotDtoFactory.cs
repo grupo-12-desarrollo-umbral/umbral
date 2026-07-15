@@ -13,6 +13,7 @@ internal static class RankingSnapshotDtoFactory
             ranking.Rows
                 .Select(row => new RankingRowDto(
                     row.TeamId,
+                    row.TeamDisplayName,
                     row.Position,
                     row.TotalScore,
                     row.ResolutionTime.Value))

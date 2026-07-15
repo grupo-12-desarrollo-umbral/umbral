@@ -6,6 +6,8 @@ namespace umbral_backend.Application.Sessions.Common;
 public sealed record TargetResolvedIntegrationEvent(
     Guid LiveSessionId,
     Guid TeamId,
+    Guid ReferenceTeamId,
+    string TeamDisplayName,
     Guid EvidenceSubmissionId,
     Guid ActiveSubstageId,
     Guid TargetSnapshotId,

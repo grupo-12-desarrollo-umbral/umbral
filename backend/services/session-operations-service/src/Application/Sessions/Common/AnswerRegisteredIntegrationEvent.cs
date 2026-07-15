@@ -13,6 +13,8 @@ namespace umbral_backend.Application.Sessions.Common;
 public sealed record AnswerRegisteredIntegrationEvent(
     Guid LiveSessionId,
     Guid TeamId,
+    Guid ReferenceTeamId,
+    string TeamDisplayName,
     Guid TriviaAnswerSubmissionId,
     Guid TriviaSubstageSnapshotId,
     int QuestionSequenceOrder,

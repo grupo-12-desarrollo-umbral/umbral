@@ -622,9 +622,12 @@ public sealed class LiveSession : BaseAuditableEntity
         }
 
         submission.AcceptRegisteredTarget(submittedAt);
+        var resolvedTeam = GetTeam(submission.TeamId);
         AddDomainEvent(new TargetResolvedEvent(
             LiveSessionId,
             submission.TeamId,
+            resolvedTeam.ReferenceTeamId ?? resolvedTeam.TeamId,
+            resolvedTeam.DisplayName,
             submission.EvidenceSubmissionId,
             submission.ActiveSubstageId,
             target!.TargetSnapshotId,
@@ -805,9 +808,12 @@ public sealed class LiveSession : BaseAuditableEntity
     // Step 8 — the accepted-answer fact, raised only on the success path.
     private void RaiseAnswerRegistered(TriviaAnswerSubmission submission)
     {
+        var answeringTeam = GetTeam(submission.TeamId);
         AddDomainEvent(new AnswerRegisteredEvent(
             LiveSessionId,
             submission.TeamId,
+            answeringTeam.ReferenceTeamId ?? answeringTeam.TeamId,
+            answeringTeam.DisplayName,
             submission.EvidenceSubmissionId,
             submission.ActiveSubstageId,
             submission.QuestionSequenceOrder,
