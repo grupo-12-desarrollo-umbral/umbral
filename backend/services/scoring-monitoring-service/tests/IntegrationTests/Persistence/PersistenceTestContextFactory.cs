@@ -1,3 +1,4 @@
+using umbral_backend.Application.Common.Interfaces;
 using umbral_backend.Infrastructure.Persistence;
 using umbral_backend.Infrastructure.Persistence.Interceptors;
 
@@ -18,9 +19,16 @@ internal sealed class PersistenceTestContextFactory
             .UseNpgsql(_connectionString);
 
         optionsBuilder.AddInterceptors(
-            new AuditableEntityInterceptor(TimeProvider.System),
+            new AuditableEntityInterceptor(new StubCurrentUser(), TimeProvider.System),
             new DispatchDomainEventsInterceptor(mediator ?? new NoOpMediator()));
 
         return new ScoringMonitoringDbContext(optionsBuilder.Options);
+    }
+
+    private sealed class StubCurrentUser : ICurrentUser
+    {
+        public string? Id => "integration-test";
+        public string? Email => null;
+        public string? Role => null;
     }
 }

@@ -23,9 +23,6 @@ public sealed class RecalculateRankingCommandHandler : IRequestHandler<Recalcula
     public async Task Handle(RecalculateRankingCommand request, CancellationToken cancellationToken)
     {
         var scoreEntries = await _scoreEntryRepository.ListByLiveSessionIdAsync(request.LiveSessionId, cancellationToken);
-        var resolutionTimes = await _rankingRepository.GetResolutionTimesByLiveSessionIdAsync(
-            request.LiveSessionId,
-            cancellationToken);
         var ranking = await _rankingRepository.GetByLiveSessionIdAsync(request.LiveSessionId, cancellationToken);
 
         if (ranking is null)
@@ -33,7 +30,6 @@ public sealed class RecalculateRankingCommandHandler : IRequestHandler<Recalcula
             ranking = Ranking.Create(
                 request.LiveSessionId,
                 scoreEntries,
-                resolutionTimes,
                 request.GeneratedAt,
                 calculationVersion: 1,
                 _rankingPolicy);
@@ -42,7 +38,6 @@ public sealed class RecalculateRankingCommandHandler : IRequestHandler<Recalcula
         {
             ranking.Refresh(
                 scoreEntries,
-                resolutionTimes,
                 request.GeneratedAt,
                 ranking.CalculationVersion + 1,
                 _rankingPolicy);

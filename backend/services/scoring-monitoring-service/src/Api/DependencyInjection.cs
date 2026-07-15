@@ -14,6 +14,8 @@ public static class DependencyInjection
     public static void AddWebServices(this IHostApplicationBuilder builder)
     {
         builder.Services.AddHttpContextAccessor();
+        builder.Services.AddScoped<CurrentUserContext>();
+        builder.Services.AddScoped<ICurrentUser, CurrentUser>();
         builder.Services.AddSignalR(options =>
         {
             options.EnableDetailedErrors = builder.Environment.IsDevelopment();

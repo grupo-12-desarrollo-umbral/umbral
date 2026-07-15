@@ -10,7 +10,7 @@ namespace umbral_backend.Api.Controllers;
 [Route("api/sessions")]
 public sealed class RankingController(ISender sender) : ControllerBase
 {
-    [AllowAnonymous]
+    [Authorize(Policy = AuthorizationPolicies.ParticipantOrOperator)]
     [HttpGet("{liveSessionId:guid}/ranking")]
     public async Task<ActionResult<RankingSnapshotDto>> GetRankingAsync(
         Guid liveSessionId,

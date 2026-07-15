@@ -9,4 +9,6 @@ public sealed class InvalidScoreValueException : DomainException
     }
 
     public int AttemptedValue { get; }
+
+    public override ErrorCategory Category => ErrorCategory.Validation;
 }

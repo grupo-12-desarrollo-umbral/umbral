@@ -23,6 +23,8 @@ public sealed class RankingRepositoryIntegrationTests
         var teamAlpha = Guid.NewGuid();
         var teamBeta = Guid.NewGuid();
 
+        var sessionStart = new DateTimeOffset(2026, 7, 14, 18, 0, 0, TimeSpan.Zero);
+
         var initialEntries = new[]
         {
             ScoreEntry.Grant(
@@ -30,7 +32,7 @@ public sealed class RankingRepositoryIntegrationTests
                 teamAlpha,
                 "trivia-answer-correct",
                 ScoreValue.Create(200),
-                DateTimeOffset.UtcNow,
+                sessionStart,
                 Domain.Enums.ScoreSourceType.TriviaAnswerSubmission,
                 Guid.NewGuid()),
             ScoreEntry.Grant(
@@ -38,15 +40,9 @@ public sealed class RankingRepositoryIntegrationTests
                 teamBeta,
                 "trivia-answer-correct",
                 ScoreValue.Create(100),
-                DateTimeOffset.UtcNow.AddSeconds(1),
+                sessionStart.AddSeconds(30),
                 Domain.Enums.ScoreSourceType.TriviaAnswerSubmission,
                 Guid.NewGuid())
-        };
-
-        var resolutionTimes = new Dictionary<Guid, ResolutionTime>
-        {
-            [teamAlpha] = ResolutionTime.Comparable(TimeSpan.FromSeconds(30)),
-            [teamBeta] = ResolutionTime.Comparable(TimeSpan.FromSeconds(45))
         };
 
         await using (var writeContext = _contextFactory.Create())
@@ -55,23 +51,28 @@ public sealed class RankingRepositoryIntegrationTests
             var ranking = Ranking.Create(
                 liveSessionId,
                 initialEntries,
-                resolutionTimes,
-                DateTimeOffset.UtcNow,
+                sessionStart.AddMinutes(1),
                 calculationVersion: 1,
                 _rankingPolicy);
 
             await repository.SaveAsync(ranking, CancellationToken.None);
         }
 
-        Ranking rankingToRefresh;
-
         await using (var readContext = _contextFactory.Create())
         {
             var repository = new RankingRepository(readContext);
-            rankingToRefresh = (await repository.GetByLiveSessionIdAsync(liveSessionId, CancellationToken.None))!;
+            var rankingToRefresh = (await repository.GetByLiveSessionIdAsync(liveSessionId, CancellationToken.None))!;
 
             rankingToRefresh.Rows.Should().HaveCount(2);
             rankingToRefresh.Rows.Select(row => row.TeamId).Should().ContainInOrder(teamAlpha, teamBeta);
+
+            // The ledger-derived resolution time must survive the round trip as a real value.
+            // Before the fix this column could only ever be NULL.
+            rankingToRefresh.Rows.Should().OnlyContain(row => row.ResolutionTime.IsComparable);
+            rankingToRefresh.Rows.Single(row => row.TeamId == teamAlpha)
+                .ResolutionTime.Value.Should().Be(TimeSpan.Zero);
+            rankingToRefresh.Rows.Single(row => row.TeamId == teamBeta)
+                .ResolutionTime.Value.Should().Be(TimeSpan.FromSeconds(30));
         }
 
         var refreshedEntries = new[]
@@ -81,7 +82,7 @@ public sealed class RankingRepositoryIntegrationTests
                 teamAlpha,
                 "trivia-answer-correct",
                 ScoreValue.Create(200),
-                DateTimeOffset.UtcNow,
+                sessionStart,
                 Domain.Enums.ScoreSourceType.TriviaAnswerSubmission,
                 Guid.NewGuid()),
             ScoreEntry.Grant(
@@ -89,7 +90,7 @@ public sealed class RankingRepositoryIntegrationTests
                 teamBeta,
                 "trivia-answer-correct",
                 ScoreValue.Create(300),
-                DateTimeOffset.UtcNow.AddSeconds(1),
+                sessionStart.AddSeconds(30),
                 Domain.Enums.ScoreSourceType.TriviaAnswerSubmission,
                 Guid.NewGuid())
         };
@@ -101,8 +102,7 @@ public sealed class RankingRepositoryIntegrationTests
 
             trackedRanking.Refresh(
                 refreshedEntries,
-                resolutionTimes,
-                DateTimeOffset.UtcNow.AddMinutes(1),
+                sessionStart.AddMinutes(1),
                 calculationVersion: 2,
                 _rankingPolicy);
 
