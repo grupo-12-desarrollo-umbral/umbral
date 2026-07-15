@@ -536,6 +536,26 @@ export type AddOperativeClueResultDto = {
   clueText: string
 }
 
+// --- HU-38 justified penalties ---
+// Request of POST /api/sessions/{liveSessionId}/penalties (Operator + ownership Proxy).
+// `reason` must be non-blank — the backend validator rejects whitespace-only with 400.
+export type ApplyPenaltyRequest = {
+  teamId: string // Guid — the penalized team; exactly one, no all-teams form
+  reason: string // the justification; sent trimmed
+}
+
+// 201 response: evidence of the one append-only ScoreEntry deduction that was recorded.
+// `penaltyAmount` is a POSITIVE magnitude (ScoreValue is non-negative by construction); the
+// deduction is carried by the entry's Penalty type, which this DTO does not expose. Render it as
+// a deduction; never treat it as a running total.
+export type AppliedPenaltyDto = {
+  scoreEntryId: string // Guid — the ledger entry
+  teamId: string // Guid
+  penaltyAmount: number // positive magnitude (currently always 100)
+  reason: string
+  appliedAt: string // ISO-8601
+}
+
 // Phases of the automated trivia round, derived from SignalR pushes only.
 export type TriviaRoundPhase =
   | 'idle'

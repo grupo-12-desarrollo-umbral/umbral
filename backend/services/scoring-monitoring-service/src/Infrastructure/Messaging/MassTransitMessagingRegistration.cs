@@ -18,6 +18,7 @@ public static class MassTransitMessagingRegistration
             bus.AddConsumer<AnswerRegisteredConsumer>();
             bus.AddConsumer<TargetResolvedConsumer>();
             bus.AddConsumer<ScoreEntryRegisteredConsumer>();
+            bus.AddConsumer<LiveSessionOperatorAssignedConsumer>();
 
             bus.UsingRabbitMq((context, cfg) =>
             {

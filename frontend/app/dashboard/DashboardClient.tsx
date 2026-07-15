@@ -16,6 +16,7 @@ import { AnsweredMonitorPanel, type AnsweredTeamRow } from './AnsweredMonitorPan
 import { OperatorTeamProgressPanel } from './OperatorTeamProgressPanel'
 import { OperatorClueReleasePanel } from './OperatorClueReleasePanel'
 import { OperativeCluePanel } from './OperativeCluePanel'
+import { PenaltyPanel } from './PenaltyPanel'
 import { isNonLiveQuestionSnapshot } from './timer-snapshot'
 import { createSessionStateRealtimeClient, type SessionRealtimeStatus } from '@/app/lib/realtime/session-state-client'
 import { lifecycleActions, toLifecycleState } from '@/app/lib/session-lifecycle'
@@ -1217,6 +1218,18 @@ export default function DashboardClient({
                     }))}
                     onAdded={(count) =>
                       announce('Operative clue assigned', `Clue assigned to ${count} team${count === 1 ? '' : 's'}.`)
+                    }
+                  />
+
+                  <PenaltyPanel
+                    liveSessionId={selectedOperatorSession.liveSessionId}
+                    state={selectedOperatorState}
+                    teams={(operatorPanelState.panel?.teamProgress ?? []).map((t) => ({
+                      teamId: t.teamId,
+                      displayName: t.displayName,
+                    }))}
+                    onApplied={(teamId, amount) =>
+                      announce('Penalty applied', `−${amount} pts recorded for the selected team.`)
                     }
                   />
                 </div>

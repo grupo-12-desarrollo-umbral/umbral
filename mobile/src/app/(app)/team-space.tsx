@@ -26,6 +26,7 @@ import { useTeamBoard } from '@/lib/realtime/use-team-board';
 import { useRanking } from '@/lib/realtime/use-ranking';
 import { createScoringHubConnection, type ScoringHubClient } from '@/lib/realtime/scoring-hub';
 import { TreasureHuntBoard } from '@/components/treasure-hunt-board';
+import { ScoreDropToast, useScoreDrop } from '@/components/score-drop-toast';
 import { TargetScanner } from '@/components/target-scanner';
 import {
   OperativeCluePortalHost,
@@ -426,6 +427,7 @@ export function LiveTeamSpace({
     (row) => row.teamId === referenceTeamId,
   )?.totalScore;
   const score = ownScore ?? board?.currentScore ?? 0;
+  const { drop: scoreDrop, clear: clearScoreDrop } = useScoreDrop(score);
   const teamMembers = [result.participantDisplayName];
 
   const activeQuestionProps = view.kind === 'active'
@@ -455,6 +457,9 @@ export function LiveTeamSpace({
     // scrollable. Given the viewport it sizes itself, and its body is the only vertical scroller.
     return (
       <>
+        {scoreDrop ? (
+          <ScoreDropToast drop={scoreDrop} onDismiss={clearScoreDrop} />
+        ) : null}
         <TreasureHuntBoard
           teamDisplayName={board.teamDisplayName}
           currentScore={score}
@@ -491,6 +496,9 @@ export function LiveTeamSpace({
 
   return (
     <Screen contentContainerStyle={{ gap: spacing.md }}>
+      {scoreDrop ? (
+        <ScoreDropToast drop={scoreDrop} onDismiss={clearScoreDrop} />
+      ) : null}
       {brandMark}
       {banner}
 

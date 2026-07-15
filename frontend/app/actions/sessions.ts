@@ -16,6 +16,7 @@ import {
   getReleasableClues as getReleasableCluesLib,
   releaseClue as releaseClueLib,
   addOperativeClue as addOperativeClueLib,
+  applyPenalty as applyPenaltyLib,
 } from '@/app/lib/sessions'
 import { listAssignableOperators as listAssignableOperatorsLib } from '@/app/lib/users'
 import { revalidatePath } from 'next/cache'
@@ -38,6 +39,8 @@ import type {
   ReleasableCluesDto,
   AddOperativeClueRequest,
   AddOperativeClueResultDto,
+  ApplyPenaltyRequest,
+  AppliedPenaltyDto,
 } from '@/app/lib/definitions'
 import { IdentityError } from '@/app/lib/definitions'
 
@@ -267,6 +270,37 @@ export async function addOperativeClueAction(
     }
     if (error instanceof Error && error.message === 'not_live') return { notLive: true }
     return { error: 'Could not assign the operative clue. Try again.' }
+  }
+}
+
+// HU-38 operator justified penalty. Outcomes the control renders distinctly (never throws to the
+// client):
+//   { data }          → applied; result carries the appended ScoreEntry's id, magnitude, and appliedAt
+//   { invalidReason } → 400: the backend rejected a blank/whitespace reason
+//   { unauthorized }  → 403 non-owner / 401 / non-Operator → not-authorized state
+//   { error }         → 404 / transient / unexpected → retryable error state
+export async function applyPenaltyAction(
+  liveSessionId: string,
+  body: ApplyPenaltyRequest,
+): Promise<
+  | { data: AppliedPenaltyDto }
+  | { invalidReason: true }
+  | { unauthorized: true }
+  | { error: string }
+> {
+  'use server'
+  const session = await verifySession()
+  if (session.role !== 'Operator') return { unauthorized: true }
+  try {
+    const data = await applyPenaltyLib(liveSessionId, body)
+    return { data }
+  } catch (error) {
+    if (error instanceof IdentityError) {
+      if (error.code === 'unauthorized') return { unauthorized: true }
+      return { error: error.message }
+    }
+    if (error instanceof Error && error.message === 'invalid_reason') return { invalidReason: true }
+    return { error: 'Could not apply the penalty. Try again.' }
   }
 }
 

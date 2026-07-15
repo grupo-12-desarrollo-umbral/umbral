@@ -82,4 +82,15 @@ public sealed class CurrentUserTests
         currentUser.Role.Should().Be("Operator");
         currentUser.Email.Should().Be("context@example.com");
     }
+
+    [Fact]
+    public void Properties_ReturnNullWhenHttpContextIsNullAndContextHasNoPrincipal()
+    {
+        var accessor = new HttpContextAccessor { HttpContext = null };
+        var currentUser = new CurrentUser(accessor, EmptyContext);
+
+        currentUser.Id.Should().BeNull();
+        currentUser.Role.Should().BeNull();
+        currentUser.Email.Should().BeNull();
+    }
 }

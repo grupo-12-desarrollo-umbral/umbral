@@ -54,4 +54,22 @@ public sealed class ResolutionTimeRankingPolicyTests
     {
         typeof(ResolutionTimeRankingPolicy).IsSealed.Should().BeTrue();
     }
+
+    [Fact]
+    public void Rank_ShouldHandleNullResolutionTime_ByTreatingAsNonComparable()
+    {
+        var teamWithNull = Guid.NewGuid();
+        var teamWithTime = Guid.NewGuid();
+        var policy = new ResolutionTimeRankingPolicy();
+
+        var ranked = policy.Rank(
+            new (Guid, int, ResolutionTime?)[]
+            {
+                (teamWithNull, 100, null!),
+                (teamWithTime, 100, ResolutionTime.Comparable(TimeSpan.FromSeconds(30)))
+            }!);
+
+        ranked.Should().HaveCount(2);
+        ranked.All(r => r.Position == 1).Should().BeTrue();
+    }
 }

@@ -2,6 +2,7 @@ global using FluentAssertions;
 global using MediatR;
 global using Microsoft.EntityFrameworkCore;
 global using Microsoft.Extensions.DependencyInjection;
+global using Moq;
 global using umbral_backend.Application.Dtos.Rankings;
 // The shared fixtures (PostgreSqlFixture, PostgreSqlCollection, DockerAvailability) live in the
 // project's RootNamespace, but a number of test files still declare the older

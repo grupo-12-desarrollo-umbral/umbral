@@ -11,4 +11,12 @@ public sealed class InvalidScoreValueExceptionTests
 
         exception.AttemptedValue.Should().Be(-12);
     }
+
+    [Fact]
+    public void Category_ShouldBeValidation()
+    {
+        var exception = new InvalidScoreValueException(0);
+
+        exception.Category.Should().Be(ErrorCategory.Validation);
+    }
 }
