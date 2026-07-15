@@ -101,7 +101,8 @@ public sealed class AssignableSessionOperatorAccessClient : IAssignableSessionOp
             isEligible,
             operatorUserId,
             user.Role,
-            reason);
+            reason,
+            user.ExternalIdentityId);
     }
 
     private sealed record UserCatalogPageResponse(

@@ -80,6 +80,32 @@ public sealed class EvidenceTraceEntry : BaseEntity
             submittedAt);
     }
 
+    // The two facts feeding this projection — registration and resolution — are separate messages that
+    // arrive in either order, so whichever lands first creates the row and the other must fold its
+    // contribution in afterwards. The split is: registration owns the submission context, resolution owns
+    // the terminal state. Neither may clobber the other, so context fills only where still unknown and a
+    // resolved entry never returns to Pending (mirrors "once terminal, always terminal" in the resolution
+    // handler). Without this, whichever message lost the insert silently dropped its half.
+    public void MergeFrom(EvidenceTraceEntry other)
+    {
+        SubmittedByParticipantId ??= other.SubmittedByParticipantId;
+        OriginReference ??= other.OriginReference;
+
+        if (ValidationState != EvidenceValidationState.Pending)
+        {
+            return;
+        }
+
+        if (other.ValidationState == EvidenceValidationState.Accepted)
+        {
+            MarkAccepted(other.ResolvedAt!.Value);
+        }
+        else if (other.ValidationState == EvidenceValidationState.Rejected)
+        {
+            MarkRejected(other.RejectionReason!, other.ResolvedAt!.Value);
+        }
+    }
+
     public void MarkAccepted(DateTimeOffset resolvedAt)
     {
         if (ValidationState == EvidenceValidationState.Accepted)

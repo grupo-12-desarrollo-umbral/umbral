@@ -1224,10 +1224,16 @@ export default function DashboardClient({
                   <PenaltyPanel
                     liveSessionId={selectedOperatorSession.liveSessionId}
                     state={selectedOperatorState}
-                    teams={(operatorPanelState.panel?.teamProgress ?? []).map((t) => ({
-                      teamId: t.teamId,
-                      displayName: t.displayName,
-                    }))}
+                    // Penalties are a SCORING action, keyed on the cross-context referenceTeamId — NOT the
+                    // runtime teamId the clue panels above use. Sending teamId here would file the penalty
+                    // under an id ranking never groups on, so it would never reduce the team's score. Drop
+                    // any team missing a referenceTeamId (can't be penalized) rather than send a bad id.
+                    teams={(operatorPanelState.panel?.teamProgress ?? [])
+                      .filter((t) => t.referenceTeamId != null)
+                      .map((t) => ({
+                        teamId: t.referenceTeamId as string,
+                        displayName: t.displayName,
+                      }))}
                     onApplied={(teamId, amount) =>
                       announce('Penalty applied', `−${amount} pts recorded for the selected team.`)
                     }

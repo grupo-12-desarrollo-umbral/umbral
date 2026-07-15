@@ -18,6 +18,8 @@ public sealed class ScoringMonitoringDbContext : DbContext
 
     public DbSet<SessionOperatorAssignmentProjection> SessionOperatorAssignments => Set<SessionOperatorAssignmentProjection>();
 
+    public DbSet<SessionEvent> SessionEvents => Set<SessionEvent>();
+
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);

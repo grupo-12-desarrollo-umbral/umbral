@@ -1,0 +1,90 @@
+name: backend-tests
+
+on:
+  push:
+    branches: [develop, main]
+  pull_request:
+    branches: [develop, main]
+  workflow_dispatch:
+
+# A newer push to the same branch supersedes an in-flight run.
+concurrency:
+  group: backend-tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    strategy:
+      # Report every service's result, not just the first to break.
+      fail-fast: false
+      matrix:
+        service:
+          - identity-access-service
+          - mission-design-service
+          - scoring-monitoring-service
+          - session-operations-service
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('backend/**/*.csproj') }}
+          restore-keys: nuget-${{ runner.os }}-
+
+      # The Testcontainers suites skip themselves when they cannot reach the
+      # Docker daemon (DockerAvailability.StartOrSkipAsync). A skip is a PASS to
+      # dotnet, so without this the messaging guardrail could silently evaporate
+      # and the job would still be green. Fail loudly and early instead.
+      - name: Verify Docker daemon is reachable
+        run: |
+          if ! docker info > /dev/null 2>&1; then
+            echo "::error::Docker daemon unreachable — Testcontainers suites would skip and the run would be a false green."
+            exit 1
+          fi
+          docker version --format 'Docker {{.Server.Version}}'
+
+      # `make` is the repository's single toolchain entrypoint (see backend/Makefile).
+      # `build` also runs the structure-guard and layer-guard (Clean Architecture
+      # dependency rule); `test` runs the unit + Testcontainers integration projects.
+      - name: Build (includes structure + layer guards)
+        run: make -C backend build SVC=${{ matrix.service }}
+
+      - name: Test
+        run: make -C backend test SVC=${{ matrix.service }}
+
+      # The authoritative guard against a false green. dotnet reports a skipped
+      # test as a pass, so assert the count is zero rather than trusting the exit
+      # code. No test in this repo is skipped by design (no `Skip=` attributes),
+      # so any skip here means the environment degraded — most likely Docker.
+      - name: Assert no tests were skipped
+        run: |
+          log="backend/.make-logs/test-${{ matrix.service }}.log"
+          if [ ! -f "$log" ]; then
+            echo "::error::Expected test log missing: $log"
+            exit 1
+          fi
+          if grep -hE 'Skipped: *[1-9]' "$log"; then
+            echo "::error::Tests were SKIPPED (see the summary lines above). A skip is not a pass — most likely Testcontainers could not reach Docker."
+            exit 1
+          fi
+          echo "No skipped tests."
+          grep -hE 'Passed!' "$log" || true
+
+      - name: Upload make logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: make-logs-${{ matrix.service }}
+          path: backend/.make-logs/
+          if-no-files-found: ignore
+          retention-days: 7

@@ -20,6 +20,7 @@ public sealed class OutboxDomainEventDispatcher : IOutboxDomainEventDispatcher
     private readonly PublishSessionResultsFinalizedIntegrationEventHandler _sessionResultsFinalized;
     private readonly PublishSessionStateChangedIntegrationEventHandler _sessionStateChanged;
     private readonly PublishTargetResolvedIntegrationEventHandler _targetResolved;
+    private readonly PublishLiveSessionOperatorAssignedIntegrationEventHandler _operatorAssigned;
 
     public OutboxDomainEventDispatcher(
         PublishAnswerRegisteredIntegrationEventHandler answerRegistered,
@@ -29,7 +30,8 @@ public sealed class OutboxDomainEventDispatcher : IOutboxDomainEventDispatcher
         PublishQuestionClosedIntegrationEventHandler questionClosed,
         PublishSessionResultsFinalizedIntegrationEventHandler sessionResultsFinalized,
         PublishSessionStateChangedIntegrationEventHandler sessionStateChanged,
-        PublishTargetResolvedIntegrationEventHandler targetResolved)
+        PublishTargetResolvedIntegrationEventHandler targetResolved,
+        PublishLiveSessionOperatorAssignedIntegrationEventHandler operatorAssigned)
     {
         _answerRegistered = answerRegistered;
         _evidenceSubmissionRegistered = evidenceSubmissionRegistered;
@@ -39,6 +41,7 @@ public sealed class OutboxDomainEventDispatcher : IOutboxDomainEventDispatcher
         _sessionResultsFinalized = sessionResultsFinalized;
         _sessionStateChanged = sessionStateChanged;
         _targetResolved = targetResolved;
+        _operatorAssigned = operatorAssigned;
     }
 
     public Task DispatchAsync(BaseEvent domainEvent, CancellationToken cancellationToken) => domainEvent switch
@@ -52,6 +55,8 @@ public sealed class OutboxDomainEventDispatcher : IOutboxDomainEventDispatcher
             _evidenceSubmissionRejected.Handle(evidenceSubmissionRejected, cancellationToken),
         QuestionClosedEvent questionClosed => _questionClosed.Handle(questionClosed, cancellationToken),
         TargetResolvedEvent targetResolved => _targetResolved.Handle(targetResolved, cancellationToken),
+        LiveSessionOperatorAssignedEvent operatorAssigned =>
+            _operatorAssigned.Handle(operatorAssigned, cancellationToken),
         SessionStateChangedEvent sessionStateChanged => DispatchSessionStateChangedAsync(
             sessionStateChanged,
             cancellationToken),

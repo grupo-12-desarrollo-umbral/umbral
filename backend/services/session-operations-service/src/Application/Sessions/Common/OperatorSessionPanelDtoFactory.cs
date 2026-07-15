@@ -13,6 +13,7 @@ public static class OperatorSessionPanelDtoFactory
         var teamProgress = snapshot.TeamProgress
             .Select(progress => new OperatorTeamProgressDto(
                 progress.TeamId,
+                progress.ReferenceTeamId,
                 progress.TeamCode,
                 progress.DisplayName,
                 progress.CurrentScore,

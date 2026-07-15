@@ -5,6 +5,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using umbral_backend.Application.Rankings.Consumers;
 using umbral_backend.Application.Scores.Consumers;
+using umbral_backend.Application.SessionEvents.Consumers;
 
 namespace umbral_backend.Infrastructure.Messaging;
 
@@ -19,6 +20,7 @@ public static class MassTransitMessagingRegistration
             bus.AddConsumer<TargetResolvedConsumer>();
             bus.AddConsumer<ScoreEntryRegisteredConsumer>();
             bus.AddConsumer<LiveSessionOperatorAssignedConsumer>();
+            bus.AddConsumer<SessionEventHistoryConsumer>();
 
             bus.UsingRabbitMq((context, cfg) =>
             {

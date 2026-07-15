@@ -42,7 +42,7 @@ public sealed class ScoreEntry : BaseAuditableEntity
         ScoreEntryId = scoreEntryId;
         LiveSessionId = liveSessionId;
         TeamId = teamId;
-        TeamDisplayName = string.IsNullOrWhiteSpace(teamDisplayName) ? teamId.ToString() : teamDisplayName.Trim();
+        TeamDisplayName = string.IsNullOrWhiteSpace(teamDisplayName) ? string.Empty : teamDisplayName.Trim();
         EntryType = entryType;
         ReasonCode = reasonCode.Trim();
         ScoreValue = scoreValue;
@@ -115,26 +115,31 @@ public sealed class ScoreEntry : BaseAuditableEntity
         return entry;
     }
 
+    // appliedAt is threaded in from the caller that created the sibling Penalty rather than read from
+    // the clock here: the factory no longer mints the Penalty, so a second DateTimeOffset.UtcNow would
+    // let PenaltyApplied.AppliedAt drift from the persisted Penalty.AppliedAt it is meant to describe.
     public static ScoreEntry Penalty(
+        Guid scoreEntryId,
         Guid liveSessionId,
         Guid teamId,
+        string teamDisplayName,
         string reason,
         ScoreValue deductionValue,
-        Guid appliedByUserId)
+        Guid penaltyId,
+        Guid appliedByUserId,
+        DateTimeOffset appliedAt)
     {
-        var scoreEntryId = Guid.NewGuid();
-        var penalty = umbral_backend.Domain.Entities.Penalty.Create(scoreEntryId, reason, appliedByUserId);
-
         var entry = new ScoreEntry(
             scoreEntryId,
             liveSessionId,
             teamId,
+            teamDisplayName,
             ScoreEntryType.Penalty,
             reason,
             deductionValue,
-            DateTimeOffset.UtcNow,
+            appliedAt,
             ScoreSourceType.Penalty,
-            penalty.PenaltyId,
+            penaltyId,
             null);
 
         entry.AddDomainEvent(new ScoreEntryRegistered(
@@ -150,14 +155,14 @@ public sealed class ScoreEntry : BaseAuditableEntity
             entry.RecordedByUserId));
 
         entry.AddDomainEvent(new PenaltyApplied(
-            penalty.PenaltyId,
+            penaltyId,
             entry.ScoreEntryId,
             entry.LiveSessionId,
             entry.TeamId,
             entry.ScoreValue.Value,
-            penalty.AppliedAt,
-            penalty.AppliedByUserId,
-            penalty.PenaltyReason.Value));
+            appliedAt,
+            appliedByUserId,
+            entry.ReasonCode));
 
         return entry;
     }

@@ -23,12 +23,18 @@ public sealed class PenaltyRepositoryIntegrationTests
         var teamId = Guid.NewGuid();
         var appliedByUserId = Guid.NewGuid();
 
+        var scoreEntryId = Guid.NewGuid();
+
         var scoreEntry = ScoreEntry.Penalty(
+            scoreEntryId,
             liveSessionId,
             teamId,
+            "Gilded Owls",
             "Excessive celebration",
             ScoreValue.Create(50),
-            appliedByUserId);
+            Guid.NewGuid(),
+            appliedByUserId,
+            DateTimeOffset.UtcNow);
 
         await using (var writeContext = _contextFactory.Create())
         {
@@ -37,7 +43,7 @@ public sealed class PenaltyRepositoryIntegrationTests
 
             await scoreEntryRepository.AddAsync(scoreEntry, CancellationToken.None);
             await penaltyRepository.AddAsync(
-                Domain.Entities.Penalty.Create(scoreEntry.ScoreEntryId, "Excessive celebration", appliedByUserId),
+                Domain.Entities.Penalty.Create(scoreEntryId, "Excessive celebration", appliedByUserId),
                 CancellationToken.None);
         }
 

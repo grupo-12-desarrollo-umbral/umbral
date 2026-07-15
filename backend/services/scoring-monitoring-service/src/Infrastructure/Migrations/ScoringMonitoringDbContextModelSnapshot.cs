@@ -174,6 +174,53 @@ namespace umbral_backend.Infrastructure.Persistence.Migrations
                     b.ToTable("score_entries", (string)null);
                 });
 
+            modelBuilder.Entity("umbral_backend.Domain.Entities.SessionEvent", b =>
+                {
+                    b.Property<Guid>("SessionEventId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("session_event_id");
+
+                    b.Property<string>("EventType")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)")
+                        .HasColumnName("event_type");
+
+                    b.Property<Guid>("LiveSessionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("live_session_id");
+
+                    b.Property<DateTimeOffset>("OccurredAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("occurred_at");
+
+                    b.Property<string>("PayloadSummary")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("payload_summary");
+
+                    b.Property<int?>("ResponsibleUserId")
+                        .HasColumnType("integer")
+                        .HasColumnName("responsible_user_id");
+
+                    b.Property<string>("SourceEventKey")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("source_event_key");
+
+                    b.HasKey("SessionEventId");
+
+                    b.HasIndex("SourceEventKey")
+                        .IsUnique()
+                        .HasDatabaseName("ux_session_events_source_event_key");
+
+                    b.HasIndex("LiveSessionId", "OccurredAt");
+
+                    b.ToTable("session_events", (string)null);
+                });
+
             modelBuilder.Entity("umbral_backend.Domain.Entities.SessionOperatorAssignmentProjection", b =>
                 {
                     b.Property<Guid>("LiveSessionId")

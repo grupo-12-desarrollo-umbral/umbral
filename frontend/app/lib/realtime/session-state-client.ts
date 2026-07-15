@@ -196,6 +196,7 @@ function normalizeOperatorPanel(raw: unknown): OperatorSessionPanelDto {
       const sub = (t.activeSubstage ?? t.ActiveSubstage ?? null) as Record<string, unknown> | null
       return {
         teamId: (t.teamId ?? t.TeamId ?? '') as string,
+        referenceTeamId: (t.referenceTeamId ?? t.ReferenceTeamId ?? null) as string | null,
         teamCode: (t.teamCode ?? t.TeamCode ?? '') as string,
         displayName: (t.displayName ?? t.DisplayName ?? '') as string,
         score: (t.score ?? t.Score ?? 0) as number,

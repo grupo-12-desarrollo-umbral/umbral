@@ -61,8 +61,13 @@ test.beforeAll(async () => {
   `)
   const opId = Number(sql('identity_access', `SELECT "Id" FROM users WHERE "Email"='op-1@umbral.local'`))
 
+  // Resolve the seeded mission by NAME, not a literal id: seed-all.sh reseeds push mission ids up
+  // across runs, so a hardcoded `missionId: 1` 404s on a reused volume. global-setup guarantees the
+  // 'E2E Seed Mission' row exists and is Ready (see tests/setup/global-setup.ts).
+  const missionId = Number(sql('mission_design', `SELECT "Id" FROM "Missions" WHERE "Name"='E2E Seed Mission' ORDER BY "Id" DESC LIMIT 1`))
+
   const created = await (await api('POST', '/api/sessions', admin, {
-    missionId: 1,
+    missionId,
     title: 'Operator Panel E2E Active',
     maximumTimeMinutes: 60,
     scheduledAt: '2026-07-05T10:00:00Z',
@@ -92,8 +97,9 @@ test('operator opens the session panel: state readout + per-team progress rollup
   await expect(page.locator('[data-testid="panel-session-state"]')).toBeVisible()
   await expect(page.locator('[data-testid="panel-session-state"]')).toHaveText(/Active|Paused|Preparing/)
   await expect(page.locator('[data-testid^="team-progress-score-"]').first()).toBeVisible()
-  // No ranking/events/evidence copy leaks into this slice (HU-24B is out of scope).
-  await expect(page.getByText(/ranking|winner|penalt/i)).toHaveCount(0)
+  // No ranking/winner copy leaks into this slice (HU-24B is out of scope). "Penalt" is deliberately
+  // NOT matched here: the HU-38 PenaltyPanel is a legitimate operator-hero control, not an HU-24B leak.
+  await expect(page.getByText(/ranking|winner/i)).toHaveCount(0)
 })
 
 test('a session-state transition updates the panel state without manual reload', async ({ operatorPage: page }) => {

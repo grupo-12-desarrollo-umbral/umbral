@@ -39,7 +39,8 @@ public sealed class AssignableSessionOperatorAccessClientTests
             true,
             27,
             "Operator",
-            null));
+            null,
+            "kc-operator-27"));
 
         handler.Requests.Should().ContainSingle();
         var request = handler.Requests.Single();

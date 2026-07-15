@@ -473,7 +473,8 @@ export type OperatorActiveSubstageContextDto = {
 }
 
 export type OperatorTeamProgressDto = {
-  teamId: string // runtime team id
+  teamId: string // runtime team id — use for session-ops actions (clue release, operative clues)
+  referenceTeamId: string | null // cross-context catalog id — use for scoring actions (penalties)
   teamCode: string
   displayName: string
   score: number // Team.CurrentScore ?? 0

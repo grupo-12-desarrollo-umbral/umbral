@@ -19,6 +19,7 @@ const panel: OperatorSessionPanelDto = {
   teamProgress: [
     {
       teamId: 'team-a',
+      referenceTeamId: 'ref-team-a',
       teamCode: 'AAA',
       displayName: 'Alpha',
       score: 0,
@@ -35,6 +36,7 @@ const panel: OperatorSessionPanelDto = {
     },
     {
       teamId: 'team-b',
+      referenceTeamId: 'ref-team-b',
       teamCode: 'BBB',
       displayName: 'Bravo',
       score: 15,
