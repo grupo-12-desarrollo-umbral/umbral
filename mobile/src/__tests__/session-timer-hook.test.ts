@@ -5,6 +5,7 @@ import {
   UNAVAILABLE_TIMER_DISPLAY,
   type SessionTimerUpdatedNotificationDto,
 } from '@/lib/realtime/timer-types';
+import type { SessionStateChangedNotificationDto } from '@/lib/realtime/sessions-hub-types';
 import { ApiError } from '@/lib/api/client';
 
 // --- Mocks ---
@@ -22,11 +23,14 @@ jest.mock('@/lib/api/sessions', () => {
 // --- Fake hub client ---
 
 type TimerHandler = (n: SessionTimerUpdatedNotificationDto) => void;
+type StateChangedHandler = (n: SessionStateChangedNotificationDto) => void;
 
 let handlers: Set<TimerHandler>;
+let stateChangedHandlers: Set<StateChangedHandler>;
 
 function makeClient() {
   handlers = new Set();
+  stateChangedHandlers = new Set();
   return {
     connection: {} as never,
     start: jest.fn(),
@@ -36,7 +40,10 @@ function makeClient() {
       handlers.add(cb);
       return () => handlers.delete(cb);
     },
-    onStateChanged: jest.fn(),
+    onStateChanged(cb: StateChangedHandler) {
+      stateChangedHandlers.add(cb);
+      return () => stateChangedHandlers.delete(cb);
+    },
     onQuestionActivated: jest.fn(),
     onQuestionClosed: jest.fn(),
     onSubstageAdvanced: jest.fn(),
@@ -46,6 +53,10 @@ function makeClient() {
 
 function fireEvent(n: SessionTimerUpdatedNotificationDto) {
   handlers.forEach(cb => cb(n));
+}
+
+function fireStateChanged(n: SessionStateChangedNotificationDto) {
+  stateChangedHandlers.forEach(cb => cb(n));
 }
 
 // --- Hook harness ---
@@ -531,6 +542,116 @@ describe('useSessionTimer', () => {
 
     expect(hook.get().timer?.isPaused).toBe(true);
     expect(hook.get().display.tone).toBe('paused');
+
+    hook.unmount();
+  });
+
+  test('SessionStateChanged to Paused freezes the timer and updates sessionState', async () => {
+    mockGetSnapshot.mockResolvedValueOnce(BASE_SNAPSHOT);
+    const client = makeClient();
+
+    const hook = renderHook({
+      client,
+      liveSessionId: 'sess-1',
+      teamId: 'team-1',
+      isReconnected: true,
+      reconnectNonce: 0,
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(hook.get().sessionState).toBe('Active');
+    expect(hook.get().display.tone).toBe('running');
+
+    act(() => {
+      fireStateChanged({
+        liveSessionId: 'sess-1',
+        previousState: 'Active',
+        currentState: 'Paused',
+        changedAt: '2026-07-14T12:00:00Z',
+      });
+    });
+
+    expect(hook.get().sessionState).toBe('Paused');
+    expect(hook.get().timer?.isPaused).toBe(true);
+    expect(hook.get().display.tone).toBe('paused');
+
+    hook.unmount();
+  });
+
+  test('SessionStateChanged to Active from Paused resumes the timer', async () => {
+    mockGetSnapshot.mockResolvedValueOnce(BASE_SNAPSHOT);
+    const client = makeClient();
+
+    const hook = renderHook({
+      client,
+      liveSessionId: 'sess-1',
+      teamId: 'team-1',
+      isReconnected: true,
+      reconnectNonce: 0,
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    act(() => {
+      fireStateChanged({
+        liveSessionId: 'sess-1',
+        previousState: 'Active',
+        currentState: 'Paused',
+        changedAt: '2026-07-14T12:00:00Z',
+      });
+    });
+
+    expect(hook.get().timer?.isPaused).toBe(true);
+    expect(hook.get().display.tone).toBe('paused');
+
+    act(() => {
+      fireStateChanged({
+        liveSessionId: 'sess-1',
+        previousState: 'Paused',
+        currentState: 'Active',
+        changedAt: '2026-07-14T12:01:00Z',
+      });
+    });
+
+    expect(hook.get().sessionState).toBe('Active');
+    expect(hook.get().timer?.isPaused).toBe(false);
+    expect(hook.get().display.tone).toBe('running');
+
+    hook.unmount();
+  });
+
+  test('SessionStateChanged for other session is ignored', async () => {
+    mockGetSnapshot.mockResolvedValueOnce(BASE_SNAPSHOT);
+    const client = makeClient();
+
+    const hook = renderHook({
+      client,
+      liveSessionId: 'sess-1',
+      teamId: 'team-1',
+      isReconnected: true,
+      reconnectNonce: 0,
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    act(() => {
+      fireStateChanged({
+        liveSessionId: 'other-sess',
+        previousState: 'Active',
+        currentState: 'Paused',
+        changedAt: '2026-07-14T12:00:00Z',
+      });
+    });
+
+    expect(hook.get().sessionState).toBe('Active');
+    expect(hook.get().timer?.isPaused).toBe(false);
 
     hook.unmount();
   });

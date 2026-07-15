@@ -25,11 +25,11 @@ export type UseTeamBoardResult = {
  * two never compare equal. It does NOT own the timer countdown — the ticking
  * value stays `useSessionTimer.display`; `board.timer` is only a seed.
  *
- * It also re-fetches when `sessionState` changes. There is no `TeamBoardUpdated`
- * push yet, so a participant who joins while the session is still `Preparing`
- * would otherwise stay stuck on a stale `activeSubstage: null` snapshot when the
- * operator presses Start — the `TimerUpdated` push flips `sessionState` to
- * `Active`, and keying on that value pulls the fresh treasure-hunt board.
+ * It also re-fetches when `sessionState` changes, so a participant who joins while
+ * the session is still `Preparing` doesn't stay stuck on a stale
+ * `activeSubstage: null` snapshot when the operator presses Start — the
+ * `TimerUpdated` push flips `sessionState` to `Active`, and keying on that value
+ * pulls the fresh treasure-hunt board.
  */
 export function useTeamBoard({
   client,
