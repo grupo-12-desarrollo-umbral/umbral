@@ -496,7 +496,10 @@ public sealed class MissionEndpointsTests : IClassFixture<PostgreSqlFixture>, IA
     [Fact]
     public async Task GetMissionRuntimePlan_ReturnsResolvedMixedModeMissionInStrictOrder()
     {
-        AddAdministratorHeaders();
+        // This quiz is built inline rather than via CreatePublishedTriviaQuizAsync because the runtime
+        // plan asserts a specific two-question order. Authoring is still Operator-only, so the role
+        // swaps here the same way the shared helper does it.
+        AddOperatorHeaders();
 
         var createTriviaResponse = await _client.PostAsJsonAsync(
             "/api/trivias/",
@@ -504,21 +507,13 @@ public sealed class MissionEndpointsTests : IClassFixture<PostgreSqlFixture>, IA
             {
                 title = "Runtime Trivia",
                 description = "Resolved quiz for runtime consumers.",
+                // Question order is derived from persistent insertion identity — the author-entered
+                // sequence field was removed — so these are authored in the order the runtime plan is
+                // expected to return them. Options still carry an author-entered sequenceOrder, so the
+                // second question's are deliberately authored out of order to prove that ordering is
+                // still applied to them.
                 questions = new[]
                 {
-                    new
-                    {
-                        prompt = "Second question",
-                        scoreValue = 35,
-                        timeLimitSeconds = 20,
-                        explanation = "Second explanation.",
-                        isActive = true,
-                        options = new[]
-                        {
-                            new { optionText = "Wrong", sequenceOrder = 2, isCorrect = false },
-                            new { optionText = "Right", sequenceOrder = 1, isCorrect = true }
-                        }
-                    },
                     new
                     {
                         prompt = "First question",
@@ -531,6 +526,19 @@ public sealed class MissionEndpointsTests : IClassFixture<PostgreSqlFixture>, IA
                             new { optionText = "First correct", sequenceOrder = 1, isCorrect = true },
                             new { optionText = "First wrong", sequenceOrder = 2, isCorrect = false }
                         }
+                    },
+                    new
+                    {
+                        prompt = "Second question",
+                        scoreValue = 35,
+                        timeLimitSeconds = 20,
+                        explanation = "Second explanation.",
+                        isActive = true,
+                        options = new[]
+                        {
+                            new { optionText = "Wrong", sequenceOrder = 2, isCorrect = false },
+                            new { optionText = "Right", sequenceOrder = 1, isCorrect = true }
+                        }
                     }
                 }
             });
@@ -541,6 +549,8 @@ public sealed class MissionEndpointsTests : IClassFixture<PostgreSqlFixture>, IA
 
         var publishTriviaResponse = await _client.PostAsync($"/api/trivias/{createdTriviaQuiz!.Id}/publish", content: null);
         publishTriviaResponse.EnsureSuccessStatusCode();
+
+        AddAdministratorHeaders();
 
         var missionId = await CreateMissionAsync("Mission Runtime Plan");
 
@@ -737,7 +747,7 @@ public sealed class MissionEndpointsTests : IClassFixture<PostgreSqlFixture>, IA
         readinessBeforeArchive!.IsReady.Should().BeTrue();
 
         // Mission is still Draft (never activated), so archival is allowed.
-        var archiveResponse = await _client.PostAsync($"/api/trivias/{triviaQuizId}/archive", content: null);
+        var archiveResponse = await ArchiveTriviaQuizAsync(triviaQuizId);
         archiveResponse.EnsureSuccessStatusCode();
 
         var readinessAfterArchive = await _client.GetFromJsonAsync<MissionsController.MissionReadinessResponse>(
@@ -770,7 +780,7 @@ public sealed class MissionEndpointsTests : IClassFixture<PostgreSqlFixture>, IA
         var activateResponse = await _client.PostAsync($"/api/missions/{missionId}/activate", content: null);
         activateResponse.EnsureSuccessStatusCode();
 
-        var archiveResponse = await _client.PostAsync($"/api/trivias/{triviaQuizId}/archive", content: null);
+        var archiveResponse = await ArchiveTriviaQuizAsync(triviaQuizId);
         archiveResponse.StatusCode.Should().Be(HttpStatusCode.Conflict);
 
         var problem = await archiveResponse.Content.ReadFromJsonAsync<ProblemDetails>();
@@ -817,7 +827,7 @@ public sealed class MissionEndpointsTests : IClassFixture<PostgreSqlFixture>, IA
         var deactivateResponse = await _client.DeleteAsync($"/api/missions/{missionId}");
         deactivateResponse.EnsureSuccessStatusCode();
 
-        var archiveResponse = await _client.PostAsync($"/api/trivias/{triviaQuizId}/archive", content: null);
+        var archiveResponse = await ArchiveTriviaQuizAsync(triviaQuizId);
         archiveResponse.EnsureSuccessStatusCode();
 
         var quizDetail = await _client.GetFromJsonAsync<TriviasController.TriviaQuizResponse>(
@@ -832,6 +842,26 @@ public sealed class MissionEndpointsTests : IClassFixture<PostgreSqlFixture>, IA
         _client.DefaultRequestHeaders.Remove("X-User-Role");
         _client.DefaultRequestHeaders.Add("X-User-Id", "admin-01");
         _client.DefaultRequestHeaders.Add("X-User-Role", "Administrator");
+    }
+
+    // Every Missions command is Administrator-only and every Trivias command is Operator-only, so a
+    // mission test that needs a quiz as setup has to borrow the operator role for those calls and hand
+    // it back before its mission assertions resume. The trivia helpers below own that swap.
+    private void AddOperatorHeaders()
+    {
+        _client.DefaultRequestHeaders.Remove("X-User-Id");
+        _client.DefaultRequestHeaders.Remove("X-User-Role");
+        _client.DefaultRequestHeaders.Add("X-User-Id", "operator-01");
+        _client.DefaultRequestHeaders.Add("X-User-Role", "Operator");
+    }
+
+    private async Task<HttpResponseMessage> ArchiveTriviaQuizAsync(int triviaQuizId)
+    {
+        AddOperatorHeaders();
+        var response = await _client.PostAsync($"/api/trivias/{triviaQuizId}/archive", content: null);
+        AddAdministratorHeaders();
+
+        return response;
     }
 
     private async Task<int> CreateMissionAsync(string name)
@@ -959,6 +989,8 @@ public sealed class MissionEndpointsTests : IClassFixture<PostgreSqlFixture>, IA
 
     private async Task<int> CreatePublishedTriviaQuizAsync(string title)
     {
+        AddOperatorHeaders();
+
         var createResponse = await _client.PostAsJsonAsync(
             "/api/trivias/",
             new
@@ -990,6 +1022,8 @@ public sealed class MissionEndpointsTests : IClassFixture<PostgreSqlFixture>, IA
 
         var publishResponse = await _client.PostAsync($"/api/trivias/{payload!.Id}/publish", content: null);
         publishResponse.EnsureSuccessStatusCode();
+
+        AddAdministratorHeaders();
 
         return payload.Id;
     }

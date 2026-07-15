@@ -33,5 +33,6 @@ public static class PersistenceServiceExtensions
         builder.Services.AddScoped<IPenaltyRepository, PenaltyRepository>();
         builder.Services.AddScoped<ISessionAssignmentReadRepository, SessionAssignmentRepository>();
         builder.Services.AddScoped<ISessionAssignmentProjectionRepository, SessionAssignmentRepository>();
+        builder.Services.AddScoped<ISessionEventHistoryRepository, SessionEventHistoryRepository>();
     }
 }

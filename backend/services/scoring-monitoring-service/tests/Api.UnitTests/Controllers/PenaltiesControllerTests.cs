@@ -23,7 +23,7 @@ public sealed class PenaltiesControllerTests
     }
 
     [Fact]
-    public async Task ApplyPenaltyAsync_WhenValid_ReturnsCreatedWithAppliedPenaltyDto()
+    public async Task ApplyPenaltyAsync_WhenValid_ReturnsOkWithAppliedPenaltyDto()
     {
         var liveSessionId = Guid.NewGuid();
         var command = new ApplyPenaltyCommand(Guid.Empty, Guid.NewGuid(), "Late arrival");
@@ -50,12 +50,8 @@ public sealed class PenaltiesControllerTests
         var result = await _controller.ApplyPenaltyAsync(
             liveSessionId, command, CancellationToken.None);
 
-        var createdResult = result.Result.Should().BeOfType<CreatedAtActionResult>().Subject;
-        createdResult.ActionName.Should().Be(nameof(PenaltiesController.ApplyPenaltyAsync));
-        createdResult.RouteValues.Should().ContainKey("liveSessionId")
-            .WhoseValue.Should().Be(liveSessionId);
-
-        var response = createdResult.Value.Should().BeOfType<AppliedPenaltyDto>().Subject;
+        var okResult = result.Result.Should().BeOfType<OkObjectResult>().Subject;
+        var response = okResult.Value.Should().BeOfType<AppliedPenaltyDto>().Subject;
         response.ScoreEntryId.Should().Be(expectedResult.ScoreEntryId);
         response.TeamId.Should().Be(expectedResult.TeamId);
         response.PenaltyAmount.Should().Be(expectedResult.PenaltyAmount);

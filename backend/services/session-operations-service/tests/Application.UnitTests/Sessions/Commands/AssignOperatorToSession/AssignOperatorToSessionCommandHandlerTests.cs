@@ -16,7 +16,8 @@ public sealed class AssignOperatorToSessionCommandHandlerTests
     {
         var session = CreateScheduledSession();
         var repository = CreateRepository(session);
-        var eligibilityClient = CreateEligibilityClient(isEligible: true, role: "Operator");
+        var operatorSub = "3f2504e0-4f89-41d3-9a0c-0305e82c3301";
+        var eligibilityClient = CreateEligibilityClient(isEligible: true, role: "Operator", externalIdentityId: operatorSub);
         var currentUser = CreateCurrentUser("99", "Administrator");
         var command = new AssignOperatorToSessionCommand(session.LiveSessionId, 27);
         var handler = CreateHandler(
@@ -30,9 +31,9 @@ public sealed class AssignOperatorToSessionCommandHandlerTests
         result.LiveSessionId.Should().Be(session.LiveSessionId);
         result.AssignedOperatorUserId.Should().Be(27);
         session.AssignedOperatorUserId.Should().Be(27);
-        session.DomainEvents.OfType<LiveSessionOperatorAssignedEvent>()
-            .Last()
-            .PreviousOperatorUserId.Should().BeNull();
+        var assignmentEvent = session.DomainEvents.OfType<LiveSessionOperatorAssignedEvent>().Last();
+        assignmentEvent.PreviousOperatorUserId.Should().BeNull();
+        assignmentEvent.AssignedOperatorExternalId.Should().Be(operatorSub);
         repository.Verify(repo => repo.UpdateAsync(session, It.IsAny<CancellationToken>()), Times.Once);
     }
 
@@ -161,7 +162,10 @@ public sealed class AssignOperatorToSessionCommandHandlerTests
         return repository;
     }
 
-    private static Mock<IAssignableSessionOperatorAccessClient> CreateEligibilityClient(bool isEligible, string role)
+    private static Mock<IAssignableSessionOperatorAccessClient> CreateEligibilityClient(
+        bool isEligible,
+        string role,
+        string? externalIdentityId = null)
     {
         var client = new Mock<IAssignableSessionOperatorAccessClient>();
         client
@@ -171,7 +175,8 @@ public sealed class AssignOperatorToSessionCommandHandlerTests
                 isEligible,
                 operatorUserId,
                 role,
-                isEligible ? null : "Target actor is not assignable."));
+                isEligible ? null : "Target actor is not assignable.",
+                externalIdentityId));
 
         return client;
     }

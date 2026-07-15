@@ -24,9 +24,6 @@ public sealed class PenaltiesController(ISender sender, IScoringSessionAccessRes
 
         var result = await sender.Send(command, cancellationToken);
 
-        return CreatedAtAction(
-            nameof(ApplyPenaltyAsync),
-            new { liveSessionId },
-            result);
+        return Ok(result);
     }
 }

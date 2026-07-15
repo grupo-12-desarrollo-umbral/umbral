@@ -87,5 +87,7 @@ public sealed class PublishEvidenceSubmissionRejectedIntegrationEventHandlerTest
             new PublishSessionStateChangedIntegrationEventHandler(
                 endpoint, NullLogger<PublishSessionStateChangedIntegrationEventHandler>.Instance),
             new PublishTargetResolvedIntegrationEventHandler(
-                endpoint, NullLogger<PublishTargetResolvedIntegrationEventHandler>.Instance));
+                endpoint, NullLogger<PublishTargetResolvedIntegrationEventHandler>.Instance),
+            new PublishLiveSessionOperatorAssignedIntegrationEventHandler(
+                endpoint, NullLogger<PublishLiveSessionOperatorAssignedIntegrationEventHandler>.Instance));
 }

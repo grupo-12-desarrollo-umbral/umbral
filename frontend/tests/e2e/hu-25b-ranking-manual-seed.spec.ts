@@ -20,7 +20,7 @@ const KC = 'http://localhost:8080'
 const GW = 'http://localhost:8000'
 
 // Global-setup seeds these (see tests/e2e/global-setup.ts):
-//   participant-1 / tester123      (sub: a0000000-...-0001)
+//   participant-1 / participant123 (sub: a0000000-...-0001)
 //   op-1          / operator123
 //   Team Gilded Owls                (id: a0000000-...-0001)
 

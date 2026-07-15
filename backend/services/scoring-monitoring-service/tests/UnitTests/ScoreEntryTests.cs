@@ -2,7 +2,6 @@ using System.Reflection;
 using umbral_backend.Domain.Entities;
 using umbral_backend.Domain.Enums;
 using umbral_backend.Domain.Events;
-using umbral_backend.Domain.Exceptions;
 using umbral_backend.Domain.ValueObjects;
 
 namespace umbral_backend.ScoringMonitoring.UnitTests;
@@ -44,28 +43,35 @@ public sealed class ScoreEntryTests
     }
 
     [Fact]
-    public void Penalty_ShouldCreateAppendOnlyPenaltyLedgerFact_AndRaiseBothDomainEvents()
+    public void Penalty_ShouldCreateAppendOnlyPenaltyLedgerFact_AndRaiseDomainEvent()
     {
         var liveSessionId = Guid.NewGuid();
         var teamId = Guid.NewGuid();
         var appliedByUserId = Guid.NewGuid();
         var deductionValue = ScoreValue.Create(50);
+        var scoreEntryId = Guid.NewGuid();
+        var penaltyId = Guid.NewGuid();
+        var appliedAt = new DateTimeOffset(2026, 7, 15, 10, 0, 0, TimeSpan.Zero);
 
         var entry = ScoreEntry.Penalty(
+            scoreEntryId,
             liveSessionId,
             teamId,
+            "Crimson Foxes",
             "Unsportsmanlike conduct",
             deductionValue,
-            appliedByUserId);
+            penaltyId,
+            appliedByUserId,
+            appliedAt);
 
         entry.EntryType.Should().Be(ScoreEntryType.Penalty);
+        entry.TeamDisplayName.Should().Be("Crimson Foxes");
         entry.ScoreValue.Should().Be(deductionValue);
         entry.SourceEntityType.Should().Be(ScoreSourceType.Penalty);
-        entry.SourceEntityId.Should().NotBe(Guid.Empty);
+        entry.SourceEntityId.Should().Be(penaltyId);
         entry.ReasonCode.Should().Be("Unsportsmanlike conduct");
         entry.RecordedByUserId.Should().BeNull();
-
-        entry.DomainEvents.Should().HaveCount(2);
+        entry.RecordedAt.Should().Be(appliedAt);
 
         var registeredEvent = entry.DomainEvents
             .OfType<ScoreEntryRegistered>()
@@ -75,17 +81,46 @@ public sealed class ScoreEntryTests
         registeredEvent.TeamId.Should().Be(teamId);
         registeredEvent.ScoreValue.Should().Be(50);
         registeredEvent.SourceEntityType.Should().Be(ScoreSourceType.Penalty);
+    }
 
-        var penaltyAppliedEvent = entry.DomainEvents
+    [Fact]
+    public void Penalty_ShouldRaiseBothScoreEntryRegisteredAndPenaltyApplied()
+    {
+        // HU-38 AC: the apply flow raises the ledger fact AND the penalty audit event.
+        var liveSessionId = Guid.NewGuid();
+        var teamId = Guid.NewGuid();
+        var appliedByUserId = Guid.NewGuid();
+        var scoreEntryId = Guid.NewGuid();
+        var penaltyId = Guid.NewGuid();
+        var appliedAt = new DateTimeOffset(2026, 7, 15, 10, 0, 0, TimeSpan.Zero);
+
+        var entry = ScoreEntry.Penalty(
+            scoreEntryId,
+            liveSessionId,
+            teamId,
+            "Crimson Foxes",
+            "Unsportsmanlike conduct",
+            ScoreValue.Create(50),
+            penaltyId,
+            appliedByUserId,
+            appliedAt);
+
+        entry.DomainEvents.Should().HaveCount(2);
+        entry.DomainEvents.OfType<ScoreEntryRegistered>().Should().ContainSingle();
+
+        var penaltyEvent = entry.DomainEvents
             .OfType<PenaltyApplied>()
             .Should().ContainSingle().Subject;
-        penaltyAppliedEvent.LiveSessionId.Should().Be(liveSessionId);
-        penaltyAppliedEvent.TeamId.Should().Be(teamId);
-        penaltyAppliedEvent.DeductionMagnitude.Should().Be(50);
-        penaltyAppliedEvent.AppliedByUserId.Should().Be(appliedByUserId);
-        penaltyAppliedEvent.Reason.Should().Be("Unsportsmanlike conduct");
-        penaltyAppliedEvent.ScoreEntryId.Should().Be(entry.ScoreEntryId);
-        penaltyAppliedEvent.PenaltyId.Should().Be(entry.SourceEntityId);
+        penaltyEvent.PenaltyId.Should().Be(penaltyId);
+        penaltyEvent.ScoreEntryId.Should().Be(scoreEntryId);
+        penaltyEvent.LiveSessionId.Should().Be(liveSessionId);
+        penaltyEvent.TeamId.Should().Be(teamId);
+        penaltyEvent.DeductionMagnitude.Should().Be(50);
+        penaltyEvent.AppliedByUserId.Should().Be(appliedByUserId);
+        penaltyEvent.Reason.Should().Be("Unsportsmanlike conduct");
+
+        // The event carries the caller's applied-at verbatim — no second clock read in the factory.
+        penaltyEvent.AppliedAt.Should().Be(appliedAt);
     }
 
     [Fact]
@@ -96,9 +131,13 @@ public sealed class ScoreEntryTests
         var entry = ScoreEntry.Penalty(
             Guid.NewGuid(),
             Guid.NewGuid(),
+            Guid.NewGuid(),
+            string.Empty,
             "Valid reason",
             deductionValue,
-            Guid.NewGuid());
+            Guid.NewGuid(),
+            Guid.NewGuid(),
+            DateTimeOffset.UtcNow);
 
         entry.ScoreValue.Value.Should().BeGreaterOrEqualTo(0);
     }
@@ -111,11 +150,15 @@ public sealed class ScoreEntryTests
         var act = () => ScoreEntry.Penalty(
             Guid.NewGuid(),
             Guid.NewGuid(),
+            Guid.NewGuid(),
+            string.Empty,
             "   ",
             deductionValue,
-            Guid.NewGuid());
+            Guid.NewGuid(),
+            Guid.NewGuid(),
+            DateTimeOffset.UtcNow);
 
-        act.Should().Throw<PenaltyRequiresReasonException>();
+        act.Should().Throw<ArgumentException>();
     }
 
     [Fact]

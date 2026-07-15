@@ -869,6 +869,7 @@ public sealed class LiveSession : BaseAuditableEntity
 
                 return OperatorTeamProgress.Create(
                     team.TeamId,
+                    team.ReferenceTeamId,
                     team.TeamCode.Value,
                     team.DisplayName,
                     team.CurrentScore ?? 0,
@@ -1348,7 +1349,10 @@ public sealed class LiveSession : BaseAuditableEntity
             occurredAt));
     }
 
-    public void AssignOperator(int operatorUserId, DateTimeOffset occurredAt)
+    public void AssignOperator(int operatorUserId, DateTimeOffset occurredAt) =>
+        AssignOperator(operatorUserId, assignedOperatorExternalId: null, occurredAt);
+
+    public void AssignOperator(int operatorUserId, string? assignedOperatorExternalId, DateTimeOffset occurredAt)
     {
         if (operatorUserId <= 0)
         {
@@ -1362,6 +1366,7 @@ public sealed class LiveSession : BaseAuditableEntity
             LiveSessionId,
             previousOperatorUserId,
             AssignedOperatorUserId,
+            assignedOperatorExternalId,
             occurredAt));
     }
 

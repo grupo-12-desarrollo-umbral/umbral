@@ -34,4 +34,25 @@
     <ProjectReference Include="..\..\src\Domain\Domain.csproj" />
     <ProjectReference Include="..\..\src\Infrastructure\Infrastructure.csproj" />
   </ItemGroup>
+
+  <ItemGroup>
+    <!--
+      Compile the publisher-owned contracts themselves into this test assembly. Referencing the
+      session Application project is impossible because both services intentionally use the same
+      Application assembly name. These links keep the broker tests on the real publisher source
+      while exercising the independently declared scoring-side consumer contracts.
+    -->
+    <Compile Include="..\..\..\session-operations-service\src\Application\Sessions\Common\AnswerRegisteredIntegrationEvent.cs"
+             Link="PublisherContracts\AnswerRegisteredIntegrationEvent.cs" />
+    <Compile Include="..\..\..\session-operations-service\src\Application\Sessions\Common\TargetResolvedIntegrationEvent.cs"
+             Link="PublisherContracts\TargetResolvedIntegrationEvent.cs" />
+    <Compile Include="..\..\..\session-operations-service\src\Application\Sessions\Common\LiveSessionOperatorAssignedIntegrationEvent.cs"
+             Link="PublisherContracts\LiveSessionOperatorAssignedIntegrationEvent.cs" />
+    <Compile Include="..\..\..\session-operations-service\src\Application\Sessions\Common\SessionStateChangedIntegrationEvent.cs"
+             Link="PublisherContracts\SessionStateChangedIntegrationEvent.cs" />
+    <Compile Include="..\..\..\session-operations-service\src\Application\Sessions\Common\QuestionClosedIntegrationEvent.cs"
+             Link="PublisherContracts\QuestionClosedIntegrationEvent.cs" />
+    <Compile Include="..\..\..\session-operations-service\src\Application\Sessions\Common\SessionResultsFinalizedIntegrationEvent.cs"
+             Link="PublisherContracts\SessionResultsFinalizedIntegrationEvent.cs" />
+  </ItemGroup>
 </Project>

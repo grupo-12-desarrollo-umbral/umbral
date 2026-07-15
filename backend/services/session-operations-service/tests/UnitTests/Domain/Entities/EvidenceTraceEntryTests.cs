@@ -140,6 +140,81 @@ public sealed class EvidenceTraceEntryTests
         entry.ResolvedAt.Should().Be(acceptedAt);
     }
 
+    [Fact]
+    public void MergeFrom_FillsUnknownContextWithoutDisturbingTerminalState()
+    {
+        // A resolution-first stub: terminal, but with no participant/origin context.
+        var stub = EvidenceTraceEntry.ForRegistration(
+            Guid.NewGuid(),
+            Guid.NewGuid(),
+            Guid.NewGuid(),
+            Guid.NewGuid(),
+            EvidenceSubmissionType.TriviaAnswer,
+            submittedByParticipantId: null,
+            originReference: null,
+            DateTimeOffset.UtcNow);
+        var resolvedAt = new DateTimeOffset(2026, 7, 14, 10, 0, 5, TimeSpan.Zero);
+        stub.MarkAccepted(resolvedAt);
+
+        var registration = NewPendingEntry();
+
+        stub.MergeFrom(registration);
+
+        stub.SubmittedByParticipantId.Should().Be(registration.SubmittedByParticipantId);
+        stub.OriginReference.Should().Be("question:1");
+        stub.ValidationState.Should().Be(EvidenceValidationState.Accepted);
+        stub.ResolvedAt.Should().Be(resolvedAt);
+    }
+
+    [Fact]
+    public void MergeFrom_AdoptsTerminalStateWhenStillPending()
+    {
+        var registration = NewPendingEntry();
+
+        var resolution = NewPendingEntry();
+        var resolvedAt = new DateTimeOffset(2026, 7, 14, 10, 0, 5, TimeSpan.Zero);
+        resolution.MarkRejected("blurry photo", resolvedAt);
+
+        registration.MergeFrom(resolution);
+
+        registration.ValidationState.Should().Be(EvidenceValidationState.Rejected);
+        registration.RejectionReason.Should().Be("blurry photo");
+        registration.ResolvedAt.Should().Be(resolvedAt);
+    }
+
+    [Fact]
+    public void MergeFrom_DoesNotOverwriteKnownContext()
+    {
+        var entry = NewPendingEntry();
+        var originalParticipantId = entry.SubmittedByParticipantId;
+
+        var other = NewPendingEntry();
+
+        entry.MergeFrom(other);
+
+        entry.SubmittedByParticipantId.Should().Be(
+            originalParticipantId, "context already known must win over a later delivery's copy");
+        entry.OriginReference.Should().Be("question:1");
+    }
+
+    [Fact]
+    public void MergeFrom_WhenAlreadyResolved_DoesNotFlipToTheOtherTerminalState()
+    {
+        var entry = NewPendingEntry();
+        var acceptedAt = new DateTimeOffset(2026, 7, 14, 10, 0, 5, TimeSpan.Zero);
+        entry.MarkAccepted(acceptedAt);
+
+        var rejection = NewPendingEntry();
+        rejection.MarkRejected("late", new DateTimeOffset(2026, 7, 14, 10, 0, 9, TimeSpan.Zero));
+
+        entry.MergeFrom(rejection);
+
+        entry.ValidationState.Should().Be(
+            EvidenceValidationState.Accepted, "once terminal, always terminal — the first resolution wins");
+        entry.RejectionReason.Should().BeNull();
+        entry.ResolvedAt.Should().Be(acceptedAt);
+    }
+
     private static EvidenceTraceEntry NewPendingEntry()
     {
         return EvidenceTraceEntry.ForRegistration(

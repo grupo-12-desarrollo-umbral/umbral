@@ -8,6 +8,9 @@ public sealed record OperatorSessionPanelDto(
 
 public sealed record OperatorTeamProgressDto(
     Guid TeamId,
+    // Cross-context reference/catalog team id. Scoring/ranking actions (penalties) key on this, not the
+    // runtime TeamId; nullable because a legacy team may predate the reference association.
+    Guid? ReferenceTeamId,
     string TeamCode,
     string DisplayName,
     int Score,

@@ -4,6 +4,7 @@ public sealed class OperatorTeamProgress : ValueObject
 {
     private OperatorTeamProgress(
         Guid teamId,
+        Guid? referenceTeamId,
         string teamCode,
         string displayName,
         int currentScore,
@@ -11,6 +12,7 @@ public sealed class OperatorTeamProgress : ValueObject
         ActiveSubstageContext? activeSubstageContext)
     {
         TeamId = teamId;
+        ReferenceTeamId = referenceTeamId;
         TeamCode = teamCode;
         DisplayName = displayName;
         CurrentScore = currentScore;
@@ -19,6 +21,10 @@ public sealed class OperatorTeamProgress : ValueObject
     }
 
     public Guid TeamId { get; }
+
+    // The cross-context reference/catalog team id. Distinct from the runtime TeamId: scoring/ranking
+    // (penalties, grants) key on this, so the operator surface must expose it to drive those actions.
+    public Guid? ReferenceTeamId { get; }
 
     public string TeamCode { get; }
 
@@ -34,18 +40,20 @@ public sealed class OperatorTeamProgress : ValueObject
 
     public static OperatorTeamProgress Create(
         Guid teamId,
+        Guid? referenceTeamId,
         string teamCode,
         string displayName,
         int currentScore,
         int releasedClueCount,
         ActiveSubstageContext? activeSubstageContext)
     {
-        return new OperatorTeamProgress(teamId, teamCode, displayName, currentScore, releasedClueCount, activeSubstageContext);
+        return new OperatorTeamProgress(teamId, referenceTeamId, teamCode, displayName, currentScore, releasedClueCount, activeSubstageContext);
     }
 
     protected override IEnumerable<object?> GetEqualityComponents()
     {
         yield return TeamId;
+        yield return ReferenceTeamId;
         yield return TeamCode;
         yield return DisplayName;
         yield return CurrentScore;

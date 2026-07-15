@@ -106,6 +106,82 @@ public sealed class RankingTests
         ranking.Rows.Should().BeEmpty();
     }
 
+    [Fact]
+    public void Refresh_ShouldClampTeamTotalAtZero_WhenPenaltiesExceedGrants()
+    {
+        var liveSessionId = Guid.NewGuid();
+        var teamA = Guid.NewGuid();
+        var sessionStart = new DateTimeOffset(2026, 7, 14, 12, 0, 0, TimeSpan.Zero);
+
+        // 50 granted, 100 deducted: the raw fold is -50, which the Row invariant rejects.
+        var entries = new[]
+        {
+            CreateGrant(liveSessionId, teamA, 50, Guid.NewGuid(), sessionStart),
+            CreatePenalty(liveSessionId, teamA, 100, Guid.NewGuid(), sessionStart.AddSeconds(30))
+        };
+
+        var act = () => Ranking.Create(
+            liveSessionId,
+            entries,
+            new DateTimeOffset(2026, 7, 14, 12, 30, 0, TimeSpan.Zero),
+            calculationVersion: 1,
+            new ResolutionTimeRankingPolicy());
+
+        act.Should().NotThrow();
+
+        var ranking = act();
+        ranking.Rows.Should().ContainSingle();
+        ranking.Rows.Single().TotalScore.Should().Be(0);
+    }
+
+    [Fact]
+    public void Refresh_ShouldRankClampedTeamBelowPositiveScoringTeam()
+    {
+        var liveSessionId = Guid.NewGuid();
+        var clampedTeam = Guid.NewGuid();
+        var positiveTeam = Guid.NewGuid();
+        var sessionStart = new DateTimeOffset(2026, 7, 14, 12, 0, 0, TimeSpan.Zero);
+
+        var entries = new[]
+        {
+            // Penalized before scoring at all: folds to -100, clamps to 0.
+            CreatePenalty(liveSessionId, clampedTeam, 100, Guid.NewGuid(), sessionStart),
+            CreateGrant(liveSessionId, positiveTeam, 30, Guid.NewGuid(), sessionStart.AddSeconds(20))
+        };
+
+        var ranking = Ranking.Create(
+            liveSessionId,
+            entries,
+            new DateTimeOffset(2026, 7, 14, 12, 30, 0, TimeSpan.Zero),
+            calculationVersion: 1,
+            new ResolutionTimeRankingPolicy());
+
+        ranking.Rows.Select(row => (row.TeamId, row.TotalScore)).Should().ContainInOrder(
+            (positiveTeam, 30),
+            (clampedTeam, 0));
+        ranking.Rows.Single(row => row.TeamId == positiveTeam).Position.Should().Be(1);
+        ranking.Rows.Single(row => row.TeamId == clampedTeam).Position.Should().Be(2);
+    }
+
+    private static ScoreEntry CreatePenalty(
+        Guid liveSessionId,
+        Guid teamId,
+        int deductionValue,
+        Guid penaltyId,
+        DateTimeOffset appliedAt)
+    {
+        return ScoreEntry.Penalty(
+            Guid.NewGuid(),
+            liveSessionId,
+            teamId,
+            "Team A",
+            "penalty",
+            ScoreValue.Create(deductionValue),
+            penaltyId,
+            Guid.NewGuid(),
+            appliedAt);
+    }
+
     private static ScoreEntry CreateGrant(
         Guid liveSessionId,
         Guid teamId,

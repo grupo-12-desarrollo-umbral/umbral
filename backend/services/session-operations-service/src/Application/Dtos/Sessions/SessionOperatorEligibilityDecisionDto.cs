@@ -5,4 +5,5 @@ public sealed record SessionOperatorEligibilityDecisionDto(
     bool IsEligible,
     int OperatorUserId,
     string? Role,
-    string? Reason);
+    string? Reason,
+    string? ExternalIdentityId = null);

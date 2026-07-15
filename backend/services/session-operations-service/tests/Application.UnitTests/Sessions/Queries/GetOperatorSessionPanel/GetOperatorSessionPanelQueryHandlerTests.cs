@@ -91,7 +91,7 @@ public sealed class GetOperatorSessionPanelQueryHandlerTests
             .Select(property => property.Name);
 
         rootProperties.Should().BeEquivalentTo("LiveSessionId", "State", "Timer", "TeamProgress");
-        teamProperties.Should().BeEquivalentTo("TeamId", "TeamCode", "DisplayName", "Score", "ReleasedClueCount", "ActiveSubstage");
+        teamProperties.Should().BeEquivalentTo("TeamId", "ReferenceTeamId", "TeamCode", "DisplayName", "Score", "ReleasedClueCount", "ActiveSubstage");
         teamProperties.Should().NotContain(new[] { "Rank", "Winner", "Penalty", "ScoreLedger" });
     }
 

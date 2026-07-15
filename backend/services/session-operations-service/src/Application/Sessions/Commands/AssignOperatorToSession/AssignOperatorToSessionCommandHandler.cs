@@ -40,7 +40,10 @@ public sealed class AssignOperatorToSessionCommandHandler
             throw new IneligibleSessionOperatorException(request.OperatorUserId);
         }
 
-        liveSession.AssignOperator(request.OperatorUserId, _timeProvider.GetUtcNow());
+        liveSession.AssignOperator(
+            request.OperatorUserId,
+            eligibility.ExternalIdentityId,
+            _timeProvider.GetUtcNow());
 
         await _liveSessionRepository.UpdateAsync(liveSession, cancellationToken);
 

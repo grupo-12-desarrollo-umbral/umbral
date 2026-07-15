@@ -1,3 +1,4 @@
+using umbral_backend.Domain.Enums;
 using umbral_backend.Domain.Events;
 using umbral_backend.Domain.Services;
 using umbral_backend.Domain.ValueObjects;
@@ -66,7 +67,15 @@ public sealed class Ranking : BaseAuditableEntity
                 .GroupBy(entry => entry.TeamId)
                 .Select(group => (
                     TeamId: group.Key,
-                    TotalScore: group.Sum(entry => entry.ScoreValue.Value),
+                    // Floor the fold at zero: penalties subtract, so a team penalized before scoring
+                    // (or twice below the penalty magnitude) would otherwise fold negative and trip the
+                    // Row invariant inside the ranking consumer, dead-lettering recalc for the session.
+                    // The floor is a projection rule, not a ledger rule — the ScoreEntry ledger keeps the
+                    // full unclamped deduction; only the displayed total bottoms out at 0. Teams clamped
+                    // to 0 tie on score and are separated by ResolutionTime.
+                    TotalScore: Math.Max(0, group.Sum(entry => entry.EntryType == ScoreEntryType.Penalty
+                        ? -entry.ScoreValue.Value
+                        : entry.ScoreValue.Value)),
                     ResolutionTime: ResolutionTime.Comparable(
                         group.Max(entry => entry.RecordedAt) - sessionStartedAt))));
         }

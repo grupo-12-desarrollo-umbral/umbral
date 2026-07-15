@@ -170,6 +170,7 @@ public sealed class TargetResolvedOutboxTests
         services.AddScoped<PublishQuestionClosedIntegrationEventHandler>();
         services.AddScoped<PublishSessionResultsFinalizedIntegrationEventHandler>();
         services.AddScoped<PublishSessionStateChangedIntegrationEventHandler>();
+        services.AddScoped<PublishLiveSessionOperatorAssignedIntegrationEventHandler>();
         services.AddScoped<IOutboxDomainEventDispatcher, OutboxDomainEventDispatcher>();
         services.AddScoped<IMediator, NoOpMediator>();
 
