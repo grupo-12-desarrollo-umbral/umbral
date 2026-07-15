@@ -592,9 +592,10 @@ export default function DashboardClient({
         )
         if (notification.currentState === 'Finished') {
           completeTriviaRound()
-        } else if (notification.currentState !== 'Active') {
           resetTriviaRound()
-        } else {
+        } else if (notification.currentState === 'Cancelled') {
+          resetTriviaRound()
+        } else if (notification.currentState === 'Active') {
           void loadReleasableClues(selectedRealtimeSessionId)
         }
         setLiveUpdateNote('State updated live from another client or tab.')

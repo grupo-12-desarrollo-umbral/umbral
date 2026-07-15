@@ -11,6 +11,7 @@ import {
   type SessionTimerUpdatedNotificationDto,
   type TimerDisplay,
 } from './timer-types';
+import type { SessionStateChangedNotificationDto } from './sessions-hub-types';
 import type { SessionsHubClient } from './sessions-hub';
 
 type TimerState = {
@@ -136,6 +137,18 @@ export function useSessionTimer({
         lastSyncedAt: notification.emittedAt,
       });
       setSessionState(notification.sessionState);
+    });
+  }, [client, liveSessionId]);
+
+  useEffect(() => {
+    return client.onStateChanged((notification: SessionStateChangedNotificationDto) => {
+      if (notification.liveSessionId !== liveSessionId) return;
+      setSessionState(notification.currentState);
+      if (notification.currentState === 'Paused') {
+        setTimer(prev => (prev ? { ...prev, isPaused: true } : prev));
+      } else if (notification.currentState === 'Active') {
+        setTimer(prev => (prev ? { ...prev, isPaused: false } : prev));
+      }
     });
   }, [client, liveSessionId]);
 
