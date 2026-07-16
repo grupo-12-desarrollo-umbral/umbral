@@ -220,7 +220,10 @@ public sealed class KeycloakAdminServiceTests
         body.Should().Contain("\"enabled\":true");
         body.Should().Contain("\"emailVerified\":false");
         body.Should().Contain("participant@example.com");
-        body.Should().Contain("New Participant");
+        // The whole display name lands on firstName, and no surname is invented for it: Keycloak builds
+        // the `name` claim from firstName + lastName, and that claim is the participant's display name.
+        body.Should().Contain("\"firstName\":\"New Participant\"");
+        body.Should().NotContain("lastName");
         // The chosen password is forwarded as a non-temporary credential (their real password).
         body.Should().Contain("\"type\":\"password\"");
         body.Should().Contain("\"value\":\"sup3rsecret\"");

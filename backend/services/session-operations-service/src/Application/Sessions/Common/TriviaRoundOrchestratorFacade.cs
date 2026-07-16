@@ -9,6 +9,11 @@ namespace umbral_backend.Application.Sessions.Common;
 
 public sealed class TriviaRoundOrchestratorFacade : ITriviaRoundOrchestratorFacade
 {
+    // How long a just-closed trivia question keeps showing its result before the next question
+    // activates (HU-35 reveal window). The mobile reveal + operator review land on the QuestionClosed
+    // push; without this dwell the immediate next-question activation would overwrite the reveal.
+    public static readonly TimeSpan QuestionRevealDuration = TimeSpan.FromSeconds(5);
+
     private readonly ILiveSessionRepository _liveSessionRepository;
     private readonly ISessionQuestionBroadcaster _sessionQuestionBroadcaster;
     private readonly IQuestionActivationStrategy _questionActivationStrategy;
@@ -66,8 +71,15 @@ public sealed class TriviaRoundOrchestratorFacade : ITriviaRoundOrchestratorFaca
         // this substage? Null => the active substage's last question just closed -> advance substage.
         var nextQuestionIndex = _questionActivationStrategy.Next(session);
         var closedQuestionIndex = session.ActiveQuestionIndex.Value;
+        var (closedQuestion, _) = TriviaQuestionSnapshotSelector.GetOrderedTriviaQuestion(
+            session,
+            closedQuestionIndex);
 
-        session.CloseActiveQuestion(now);
+        // Close the question and open the reveal window instead of advancing immediately: the next
+        // question (or substage advance) is deferred to `CompleteQuestionRevealAsync`, fired by the
+        // timer worker once the reveal deadline passes. This gives the HU-35 mobile reveal + HU-36B
+        // operator review a dwell window on the QuestionClosed push before the next question lands.
+        session.CloseActiveQuestionForReveal(now, QuestionRevealDuration, nextQuestionIndex);
         var closedEvent = session.DomainEvents
             .OfType<QuestionClosedEvent>()
             .Last(domainEvent => domainEvent.QuestionIndex == closedQuestionIndex);
@@ -77,11 +89,32 @@ public sealed class TriviaRoundOrchestratorFacade : ITriviaRoundOrchestratorFaca
                 session.LiveSessionId,
                 closedQuestionIndex,
                 now,
-                closedEvent.WasExpiredByTimer),
+                closedEvent.WasExpiredByTimer,
+                closedQuestion.Options.Single(option => option.IsCorrect).SequenceOrder,
+                closedQuestion.Explanation),
             cancellationToken);
+    }
+
+    // Second half of the reveal-windowed close: the deferred activation captured at close now fires.
+    // Called by the timer worker once the reveal deadline elapses. Idempotent — a duplicate/late tick
+    // after the reveal already completed returns without re-advancing.
+    public async Task CompleteQuestionRevealAsync(
+        LiveSession session,
+        DateTimeOffset now,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(session);
+
+        if (!session.IsAwaitingQuestionReveal)
+        {
+            return;
+        }
+
+        var nextQuestionIndex = session.CompleteQuestionRevealAndDequeueNext();
 
         if (nextQuestionIndex.HasValue)
         {
+            // ActivateQuestionAsync persists (clearing the reveal fields too) and broadcasts.
             await ActivateQuestionAsync(session, nextQuestionIndex.Value, now, cancellationToken);
             return;
         }

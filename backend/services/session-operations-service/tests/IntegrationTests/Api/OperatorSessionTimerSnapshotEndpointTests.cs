@@ -68,6 +68,25 @@ public sealed class OperatorSessionTimerSnapshotEndpointTests : IAsyncLifetime
         payload.ActiveQuestion.Should().NotBeNull();
         payload.ActiveQuestion!.QuestionIndex.Should().Be(0);
         payload.ActiveQuestion.TimeLimitSeconds.Should().Be(QuestionTimeLimitSeconds);
+        // While the question is live nothing is awaiting reveal.
+        payload.AwaitingRevealQuestionSequenceOrder.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task GetTimerSnapshot_DuringRevealWindow_ExposesJustClosedSequenceOrder()
+    {
+        var seeded = await SeedTriviaSessionAsync(SessionTimerSeedState.RevealWindow);
+        AddTrustedHeaders(_client, OperatorExternalIdentityId, "Operator", "operator@example.com");
+
+        var response = await _client.GetAsync(BuildTimerUrl(seeded));
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var payload = await response.Content.ReadFromJsonAsync<OperatorSessionTimerSnapshotResponse>();
+        payload.Should().NotBeNull();
+        // Question closed → no live window, but the reveal is in progress and the just-closed sequence
+        // order is surfaced so an operator opening the session mid-reveal can fetch its answer review.
+        payload!.ActiveQuestion.Should().BeNull();
+        payload.AwaitingRevealQuestionSequenceOrder.Should().Be(1);
     }
 
     [Fact]
@@ -214,6 +233,18 @@ public sealed class OperatorSessionTimerSnapshotEndpointTests : IAsyncLifetime
         dbContext.LiveSessions.Add(session);
         await dbContext.SaveChangesAsync();
 
+        if (seedState == SessionTimerSeedState.RevealWindow)
+        {
+            // Two-phase on purpose: a fresh INSERT persists the nullable ActiveQuestionIndex as 0, not
+            // NULL (EF quirk). Close-for-reveal (which nulls it) must therefore ride a second SaveChanges
+            // as an UPDATE, or the reveal state would round-trip as "question 0 still active". The sole
+            // question is the substage's last, so the strategy returns null (advance instead) and the
+            // reveal window exposes the just-closed question.
+            var nextQuestionIndex = new SequentialQuestionActivationStrategy().Next(session);
+            session.CloseActiveQuestionForReveal(now, TimeSpan.FromMinutes(5), nextQuestionIndex);
+            await dbContext.SaveChangesAsync();
+        }
+
         return session.LiveSessionId;
     }
 
@@ -259,7 +290,9 @@ public sealed class OperatorSessionTimerSnapshotEndpointTests : IAsyncLifetime
         session.MoveTo(SessionState.Preparing, createdAt.AddMinutes(1), transitionPolicy);
         session.MoveTo(SessionState.Active, createdAt.AddMinutes(2), transitionPolicy);
 
-        if (seedState == SessionTimerSeedState.ActiveQuestion)
+        // RevealWindow also starts from an active question; SeedTriviaSessionAsync then closes it for
+        // reveal on a second SaveChanges (see the EF-quirk note there).
+        if (seedState is SessionTimerSeedState.ActiveQuestion or SessionTimerSeedState.RevealWindow)
         {
             session.ActivateQuestion(0, now);
             return;
@@ -351,7 +384,8 @@ public sealed class OperatorSessionTimerSnapshotEndpointTests : IAsyncLifetime
     {
         ActiveQuestion,
         PausedQuestion,
-        ResumedQuestion
+        ResumedQuestion,
+        RevealWindow
     }
 
     private sealed record OperatorSessionTimerSnapshotResponse(
@@ -366,7 +400,8 @@ public sealed class OperatorSessionTimerSnapshotEndpointTests : IAsyncLifetime
         DateTimeOffset ObservedAt,
         DateTimeOffset? AdvancingSince,
         DateTimeOffset? ExpiredAt,
-        ActiveQuestionSnapshotResponse? ActiveQuestion);
+        ActiveQuestionSnapshotResponse? ActiveQuestion,
+        int? AwaitingRevealQuestionSequenceOrder);
 
     private sealed record ActiveQuestionSnapshotResponse(
         Guid LiveSessionId,

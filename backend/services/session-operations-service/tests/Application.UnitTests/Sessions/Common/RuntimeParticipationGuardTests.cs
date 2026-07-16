@@ -16,14 +16,14 @@ public sealed class RuntimeParticipationGuardTests
     private static readonly Guid ParticipantIdentity = Guid.NewGuid();
 
     [Fact]
-    public async Task EnsureAllowedAsync_WhenUsersAllows_DoesNotBlockOrEvict()
+    public async Task EnsureAllowedAsync_WhenParticipantIsEligible_DoesNotBlockOrEvict()
     {
         var (session, teamId) = CreateSessionWithParticipant();
         var repository = new Mock<ILiveSessionRepository>();
         var notifier = new Mock<IParticipantBlockNotifier>();
-        var guard = CreateGuard(session, teamId, isAllowed: true, repository, notifier);
+        var guard = CreateGuard(session, isEligible: true, repository, notifier);
 
-        await guard.EnsureAllowedAsync(session.LiveSessionId, teamId, "token", CancellationToken.None);
+        await guard.EnsureAllowedAsync(session.LiveSessionId, CancellationToken.None);
 
         session.Participants.Single().IsBlocked.Should().BeFalse();
         repository.Verify(repo => repo.UpdateAsync(It.IsAny<LiveSession>(), It.IsAny<CancellationToken>()), Times.Never);
@@ -31,15 +31,15 @@ public sealed class RuntimeParticipationGuardTests
     }
 
     [Fact]
-    public async Task EnsureAllowedAsync_WhenUsersDenies_BlocksPersistsEvictsAndThrows()
+    public async Task EnsureAllowedAsync_WhenParticipantIsIneligible_BlocksPersistsEvictsAndThrows()
     {
         var (session, teamId) = CreateSessionWithParticipant();
         var participantId = session.Participants.Single().SessionParticipantId;
         var repository = new Mock<ILiveSessionRepository>();
         var notifier = new Mock<IParticipantBlockNotifier>();
-        var guard = CreateGuard(session, teamId, isAllowed: false, repository, notifier);
+        var guard = CreateGuard(session, isEligible: false, repository, notifier);
 
-        var act = async () => await guard.EnsureAllowedAsync(session.LiveSessionId, teamId, "token", CancellationToken.None);
+        var act = async () => await guard.EnsureAllowedAsync(session.LiveSessionId, CancellationToken.None);
 
         await act.Should().ThrowAsync<ForbiddenAccessException>();
         session.Participants.Single().ParticipantStatus.Should().Be(ParticipantStatus.Blocked);
@@ -54,9 +54,9 @@ public sealed class RuntimeParticipationGuardTests
         session.Participants.Single().Block(DateTimeOffset.UtcNow);
         var repository = new Mock<ILiveSessionRepository>();
         var notifier = new Mock<IParticipantBlockNotifier>();
-        var guard = CreateGuard(session, teamId, isAllowed: false, repository, notifier);
+        var guard = CreateGuard(session, isEligible: false, repository, notifier);
 
-        var act = async () => await guard.EnsureAllowedAsync(session.LiveSessionId, teamId, "token", CancellationToken.None);
+        var act = async () => await guard.EnsureAllowedAsync(session.LiveSessionId, CancellationToken.None);
 
         await act.Should().ThrowAsync<ForbiddenAccessException>();
         repository.Verify(repo => repo.UpdateAsync(It.IsAny<LiveSession>(), It.IsAny<CancellationToken>()), Times.Never);
@@ -69,9 +69,9 @@ public sealed class RuntimeParticipationGuardTests
         var (session, teamId) = CreateSessionWithParticipant();
         var repository = new Mock<ILiveSessionRepository>();
         var notifier = new Mock<IParticipantBlockNotifier>();
-        var guard = CreateGuard(session, teamId, isAllowed: false, repository, notifier, currentUserId: "not-a-guid");
+        var guard = CreateGuard(session, isEligible: false, repository, notifier, currentUserId: "not-a-guid");
 
-        var act = async () => await guard.EnsureAllowedAsync(session.LiveSessionId, teamId, "token", CancellationToken.None);
+        var act = async () => await guard.EnsureAllowedAsync(session.LiveSessionId, CancellationToken.None);
 
         await act.Should().ThrowAsync<ForbiddenAccessException>();
         repository.Verify(repo => repo.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
@@ -87,26 +87,20 @@ public sealed class RuntimeParticipationGuardTests
             .Setup(repo => repo.GetByIdAsync(session.LiveSessionId, It.IsAny<CancellationToken>()))
             .ReturnsAsync((LiveSession?)null);
         var notifier = new Mock<IParticipantBlockNotifier>();
-        var accessClient = new Mock<IParticipantMembershipAccessClient>();
-        accessClient
-            .Setup(client => client.ValidateAsync(session.LiveSessionId, teamId, It.IsAny<string?>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new ParticipantMembershipAccessDecisionDto(
-                "ParticipantExperience",
-                false,
-                "user-access-deactivated",
-                "denied",
-                session.LiveSessionId,
-                teamId));
+        var eligibleTeamsClient = new Mock<IParticipantEligibleTeamsClient>();
+        eligibleTeamsClient
+            .Setup(client => client.GetAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ParticipantEligibleTeamsDto(false, "user-access-deactivated", []));
         var currentUser = new Mock<ICurrentUser>();
         currentUser.SetupGet(user => user.Id).Returns(ParticipantIdentity.ToString());
         var guard = new RuntimeParticipationGuard(
-            accessClient.Object,
+            eligibleTeamsClient.Object,
             repository.Object,
             currentUser.Object,
             notifier.Object,
             TimeProvider.System);
 
-        var act = async () => await guard.EnsureAllowedAsync(session.LiveSessionId, teamId, "token", CancellationToken.None);
+        var act = async () => await guard.EnsureAllowedAsync(session.LiveSessionId, CancellationToken.None);
 
         await act.Should().ThrowAsync<ForbiddenAccessException>();
         repository.Verify(repo => repo.UpdateAsync(It.IsAny<LiveSession>(), It.IsAny<CancellationToken>()), Times.Never);
@@ -128,8 +122,7 @@ public sealed class RuntimeParticipationGuardTests
 
     private static RuntimeParticipationGuard CreateGuard(
         LiveSession session,
-        Guid teamId,
-        bool isAllowed,
+        bool isEligible,
         Mock<ILiveSessionRepository> repository,
         Mock<IParticipantBlockNotifier> notifier,
         string? currentUserId = null)
@@ -144,22 +137,19 @@ public sealed class RuntimeParticipationGuardTests
             .Setup(n => n.NotifyBlockedAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 
-        var accessClient = new Mock<IParticipantMembershipAccessClient>();
-        accessClient
-            .Setup(client => client.ValidateAsync(session.LiveSessionId, teamId, It.IsAny<string?>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new ParticipantMembershipAccessDecisionDto(
-                "ParticipantExperience",
-                isAllowed,
-                isAllowed ? "eligible" : "user-access-deactivated",
-                isAllowed ? "allowed" : "denied",
-                session.LiveSessionId,
-                teamId));
+        var eligibleTeamsClient = new Mock<IParticipantEligibleTeamsClient>();
+        eligibleTeamsClient
+            .Setup(client => client.GetAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ParticipantEligibleTeamsDto(
+                isEligible,
+                isEligible ? "eligible" : "user-access-deactivated",
+                []));
 
         var currentUser = new Mock<ICurrentUser>();
         currentUser.SetupGet(user => user.Id).Returns(currentUserId ?? ParticipantIdentity.ToString());
 
         return new RuntimeParticipationGuard(
-            accessClient.Object,
+            eligibleTeamsClient.Object,
             repository.Object,
             currentUser.Object,
             notifier.Object,

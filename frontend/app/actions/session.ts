@@ -20,13 +20,19 @@ export async function refreshSession(): Promise<{ role: string; isActive: boolea
   )
 
   if (profile.role !== session.role || profile.isActive !== session.isActive) {
-    await createSession({
-      externalIdentityId: profile.externalIdentityId,
-      displayName: profile.displayName,
-      email: profile.email,
-      role: profile.role as Role,
-      isActive: profile.isActive,
-    })
+    // Re-issue with the *existing* expiry: this re-mints the cookie to carry a changed role/status,
+    // not to extend the login. Restarting the window here would push `session` past the Keycloak
+    // refresh token it was cut from, which is the one thing it must never outlive.
+    await createSession(
+      {
+        externalIdentityId: profile.externalIdentityId,
+        displayName: profile.displayName,
+        email: profile.email,
+        role: profile.role as Role,
+        isActive: profile.isActive,
+      },
+      session.expiresAt,
+    )
   }
 
   return { role: profile.role, isActive: profile.isActive }

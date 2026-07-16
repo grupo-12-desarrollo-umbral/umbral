@@ -24,6 +24,8 @@ export type QuestionClosedNotificationDto = {
   questionIndex: number;
   closedAt: string;
   wasExpiredByTimer: boolean;
+  correctOptionSequenceOrder: number; // NEW — DES-101 §1 (HU-35)
+  explanation: string | null;          // NEW — DES-101 §1 (HU-35)
 };
 
 // SignalR `SubstageAdvanced` push to the participant group. Fires only on a substage-to-substage
@@ -76,6 +78,17 @@ export type SubmitTriviaAnswerResultDto = {
   triviaSubstageSnapshotId: string;
   questionSequenceOrder: number;
   answeredAt: string;
+};
+
+// GET /api/sessions/{liveSessionId}/trivia/questions/{sequenceOrder}/my-result (Participant).
+// Reveals the team's own result for a closed question — correctness, points, and the correct answer.
+// Source: Application/Dtos/Sessions/TriviaTeamQuestionResultDto.cs
+export type TriviaTeamQuestionResultDto = {
+  selectedOptionSequenceOrder: number | null; // null if the team never answered
+  isCorrect: boolean | null;
+  scoreValue: number | null;
+  correctOptionSequenceOrder: number;
+  explanation: string | null;
 };
 
 // Stable RFC 7807 `type` slugs a rejected submit can carry (ProblemDetails.type == DomainException

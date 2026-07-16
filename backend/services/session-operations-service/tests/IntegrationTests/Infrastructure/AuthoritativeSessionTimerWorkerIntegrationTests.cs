@@ -34,41 +34,63 @@ public sealed class AuthoritativeSessionTimerWorkerIntegrationTests : IAsyncLife
     }
 
     [Fact]
-    public async Task TickAsync_WhenQuestionTimerElapses_ClosesQuestionAndActivatesNext()
+    public async Task TickAsync_WhenQuestionTimerElapses_OpensRevealThenActivatesNextAfterRevealWindow()
     {
         var scheduledAt = new DateTimeOffset(2026, 6, 4, 12, 0, 0, TimeSpan.Zero);
-        var liveSessionId = await SeedActiveTriviaSessionAsync(scheduledAt, activateQuestionAt: scheduledAt.AddMinutes(2));
+        var activateAt = scheduledAt.AddMinutes(2);
+        var liveSessionId = await SeedActiveTriviaSessionAsync(scheduledAt, activateQuestionAt: activateAt);
 
-        await RunWorkerTickAsync(scheduledAt.AddMinutes(2).AddSeconds(31));
+        // First tick: the question timer has expired — close it and open the reveal window (HU-35).
+        // The next question is NOT activated yet, so participants keep seeing the result.
+        var closeAt = activateAt.AddSeconds(31);
+        await RunWorkerTickAsync(closeAt);
 
-        await using var scope = _factory.Services.CreateAsyncScope();
-        var repository = scope.ServiceProvider.GetRequiredService<ILiveSessionRepository>();
-        var session = await repository.GetByIdAsync(liveSessionId, CancellationToken.None);
+        var revealing = await LoadSessionAsync(liveSessionId);
+        revealing!.ActiveQuestionIndex.Should().BeNull();
+        revealing.IsAwaitingQuestionReveal.Should().BeTrue();
 
-        session.Should().NotBeNull();
-        session!.ActiveQuestionIndex.Should().Be(1);
-        session.State.Should().Be(SessionState.Active);
+        // Second tick after the reveal deadline: the deferred next-question activation fires.
+        await RunWorkerTickAsync(closeAt.Add(TriviaRoundOrchestratorFacade.QuestionRevealDuration).AddSeconds(1));
+
+        var advanced = await LoadSessionAsync(liveSessionId);
+        advanced!.ActiveQuestionIndex.Should().Be(1);
+        advanced.IsAwaitingQuestionReveal.Should().BeFalse();
+        advanced.State.Should().Be(SessionState.Active);
     }
 
     [Fact]
-    public async Task TickAsync_WhenLastQuestionTimerElapses_FinishesSession()
+    public async Task TickAsync_WhenLastQuestionTimerElapses_OpensRevealThenFinishesAfterRevealWindow()
     {
         var scheduledAt = new DateTimeOffset(2026, 6, 4, 14, 0, 0, TimeSpan.Zero);
+        var activateAt = scheduledAt.AddMinutes(2);
         var liveSessionId = await SeedActiveTriviaSessionAsync(
             scheduledAt,
-            activateQuestionAt: scheduledAt.AddMinutes(2),
+            activateQuestionAt: activateAt,
             advanceToLastQuestion: true);
 
-        await RunWorkerTickAsync(scheduledAt.AddMinutes(2).AddSeconds(26));
+        // First tick: close the last question and open the reveal window — not finished yet.
+        var closeAt = activateAt.AddSeconds(26);
+        await RunWorkerTickAsync(closeAt);
 
-        await using var scope = _factory.Services.CreateAsyncScope();
-        var repository = scope.ServiceProvider.GetRequiredService<ILiveSessionRepository>();
-        var session = await repository.GetByIdAsync(liveSessionId, CancellationToken.None);
+        var revealing = await LoadSessionAsync(liveSessionId);
+        revealing!.State.Should().Be(SessionState.Active);
+        revealing.IsAwaitingQuestionReveal.Should().BeTrue();
 
-        session.Should().NotBeNull();
+        // Second tick after the reveal deadline: the substage completes and the session finishes.
+        var finishAt = closeAt.Add(TriviaRoundOrchestratorFacade.QuestionRevealDuration).AddSeconds(1);
+        await RunWorkerTickAsync(finishAt);
+
+        var session = await LoadSessionAsync(liveSessionId);
         session!.ActiveQuestionIndex.Should().BeNull();
         session.State.Should().Be(SessionState.Finished);
-        session.EndedAt.Should().Be(scheduledAt.AddMinutes(2).AddSeconds(26));
+        session.EndedAt.Should().Be(finishAt);
+    }
+
+    private async Task<LiveSession?> LoadSessionAsync(Guid liveSessionId)
+    {
+        await using var scope = _factory.Services.CreateAsyncScope();
+        var repository = scope.ServiceProvider.GetRequiredService<ILiveSessionRepository>();
+        return await repository.GetByIdAsync(liveSessionId, CancellationToken.None);
     }
 
     private async Task<Guid> SeedActiveTriviaSessionAsync(

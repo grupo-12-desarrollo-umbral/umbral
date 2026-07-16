@@ -512,6 +512,18 @@ for _ in $(seq 1 30); do
   sleep 2
 done
 
+# The gateway answering doesn't mean its upstreams are up: mission-design-service
+# runs under `dotnet watch` and needs a full rebuild after being recreated, during
+# which the gateway proxies /api/missions to a dead upstream and returns 502. Part 3
+# authors a mission through that route, so wait for the upstream to actually bind.
+# An unauthenticated GET returns 401 once mission-design is reachable, but 502/503/504
+# (or 000) while it is still building — poll until it is no longer a gateway error.
+echo "    waiting for mission-design upstream (via gateway) …"
+for _ in $(seq 1 60); do
+  code="$(curl -s -o /dev/null -w '%{http_code}' "http://localhost:8000/api/missions" || echo 000)"
+  case "$code" in 000|502|503|504) sleep 2 ;; *) break ;; esac
+done
+
 # ============================================================================
 # Part 3 — Keycloak users, gateway bootstrap, teams
 # ============================================================================
@@ -993,6 +1005,35 @@ psql -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d session_operations -c "
   WHERE session_code LIKE 'SMOKE%';
 "
 echo "  assigned operator (app user $OPERATOR_USER_ID) to SMOKE sessions"
+
+# Mirror that assignment into scoring-monitoring's session_operator_assignments projection. The direct
+# SQL UPDATE above bypasses the app, so it does NOT publish LiveSessionOperatorAssignedIntegrationEvent
+# (only the app PATCH .../operator-assignment path does — see app_assign_operator_to_session, used by
+# the interactive fixtures below). Without this dual-write scoring never learns the SMOKE operator, so
+# ScoringSessionAuthorizationProxy 403s both JoinSessionGroupAsOperatorAsync and the REST operator
+# ranking, and the dashboard shows no live standings. NOTE: scoring keys the projection on the
+# operator's Keycloak *sub* (GUID), NOT the numeric app user id above — decode it from the operator JWT.
+OPERATOR_SUB="$(
+  _p="${OPERATOR_TOKEN#*.}"; _p="${_p%%.*}"
+  case $(( ${#_p} % 4 )) in 2) _p="${_p}==";; 3) _p="${_p}=";; esac
+  printf '%s' "$_p" | tr '_-' '/+' | base64 -d 2>/dev/null | sed -n 's/.*"sub":"\([^"]*\)".*/\1/p'
+)"
+if [[ -z "$OPERATOR_SUB" ]]; then
+  echo "  WARNING: could not decode operator Keycloak sub; SMOKE sessions will 403 on operator live ranking" >&2
+else
+  SMOKE_ASSIGNMENT_ROWS="$(psql -At -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d session_operations -c "
+    SELECT string_agg(format('(%L,%L)', id, '$OPERATOR_SUB'), ',')
+    FROM live_sessions WHERE session_code LIKE 'SMOKE%';
+  ")"
+  if [[ -n "$SMOKE_ASSIGNMENT_ROWS" ]]; then
+    psql -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d scoring_monitoring -c "
+      INSERT INTO session_operator_assignments (live_session_id, assigned_operator_user_id)
+      VALUES $SMOKE_ASSIGNMENT_ROWS
+      ON CONFLICT (live_session_id) DO UPDATE SET assigned_operator_user_id = EXCLUDED.assigned_operator_user_id;
+    "
+    echo "  mirrored SMOKE operator assignment into scoring session_operator_assignments (sub $OPERATOR_SUB)"
+  fi
+fi
 
 SEEDED_LIVE_TRIVIA_ID="$(app_create_session "$APP_ADMIN_TOKEN" "$READY_MISSION_ID" "$SEEDED_LIVE_TRIVIA_TITLE")"
 if [[ -z "$SEEDED_LIVE_TRIVIA_ID" ]]; then

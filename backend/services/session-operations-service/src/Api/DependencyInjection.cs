@@ -32,6 +32,7 @@ public static class DependencyInjection
         builder.Services.AddSingleton<ISessionTimerBroadcaster, SignalRSessionTimerBroadcaster>();
         builder.Services.AddSingleton<ITeamAnsweredBroadcaster, SignalRTeamAnsweredBroadcaster>();
         builder.Services.AddSingleton<ITeamBoardBroadcaster, SignalRTeamBoardBroadcaster>();
+        builder.Services.AddSingleton<IEvidenceSubmissionBroadcaster, SignalREvidenceSubmissionBroadcaster>();
         builder.Services.AddSingleton<IOperatorSessionPanelBroadcaster, SignalROperatorSessionPanelBroadcaster>();
         builder.Services.AddSingleton<IParticipantBlockNotifier, ParticipantBlockNotifier>();
         builder.Services

@@ -4,6 +4,8 @@ import { LiveTeamSpace } from '@/app/(app)/team-space';
 import { useActiveQuestion } from '@/lib/realtime/use-active-question';
 import { useSessionTimer } from '@/lib/realtime/use-session-timer';
 import { useTeamBoard } from '@/lib/realtime/use-team-board';
+import { useRanking } from '@/lib/realtime/use-ranking';
+import type { RankingSnapshotDto } from '@/lib/realtime/ranking-types';
 
 jest.mock('expo-router', () => ({
   useLocalSearchParams: jest.fn(() => ({})),
@@ -31,9 +33,14 @@ jest.mock('@/lib/realtime/use-team-board', () => ({
   useTeamBoard: jest.fn(() => ({ board: null, isLoading: false, error: null })),
 }));
 
+jest.mock('@/lib/realtime/use-ranking', () => ({
+  useRanking: jest.fn(() => ({ snapshot: null, isLoading: false, error: null, refetch: jest.fn() })),
+}));
+
 const mockUseSessionTimer = useSessionTimer as jest.MockedFunction<typeof useSessionTimer>;
 const mockUseActiveQuestion = useActiveQuestion as jest.MockedFunction<typeof useActiveQuestion>;
 const mockUseTeamBoard = useTeamBoard as jest.MockedFunction<typeof useTeamBoard>;
+const mockUseRanking = useRanking as jest.MockedFunction<typeof useRanking>;
 
 const OUTCOME = {
   kind: 'reconnected' as const,
@@ -120,6 +127,9 @@ describe('LiveTeamSpace question stage wiring', () => {
     jest.clearAllMocks();
     primeTimer();
     mockUseTeamBoard.mockReturnValue({ board: null, isLoading: false, error: null });
+    // clearAllMocks does not reset a mockReturnValue, so restore the ranking default each test
+    // (a snapshot set in one ALL-TEAMS test must not leak into the next).
+    mockUseRanking.mockReturnValue({ snapshot: null, isLoading: false, error: null, refetch: jest.fn() });
   });
 
   test('renders active question stage instead of standalone timer and join panel', () => {
@@ -222,6 +232,57 @@ describe('LiveTeamSpace question stage wiring', () => {
     expect(texts).toContain('Lantern Foxes');
     expect(texts).toContain('CLOSE');
   });
+
+  function openTeamsSheet(renderer: ReturnType<typeof renderSpace>) {
+    const footer = renderer.root.findByProps({
+      accessibilityLabel: 'Open all teams for Lantern Foxes',
+    });
+    act(() => {
+      (footer.props.onPress as () => void)();
+    });
+  }
+
+  test('renders live ranking rows in the ALL TEAMS panel (HU-35 AC4)', () => {
+    mockUseActiveQuestion.mockReturnValue({ sessionState: 'Active', isQuestionClosed: false, view: { kind: 'none' } });
+    const snapshot: RankingSnapshotDto = {
+      liveSessionId: 'sess-1',
+      generatedAt: '2026-07-11T10:05:00Z',
+      calculationVersion: 3,
+      rows: [
+        { teamId: 'rival-1', teamDisplayName: 'Ember Owls', position: 1, totalScore: 900, resolutionTime: null },
+        { teamId: 'team-1', teamDisplayName: 'Lantern Foxes', position: 2, totalScore: 640, resolutionTime: null },
+        { teamId: 'rival-2', teamDisplayName: 'Parchment Moths', position: 3, totalScore: 520, resolutionTime: null },
+      ],
+    };
+    mockUseRanking.mockReturnValue({ snapshot, isLoading: false, error: null, refetch: jest.fn() });
+
+    const renderer = renderSpace();
+    openTeamsSheet(renderer);
+
+    const texts = allText(renderer.toJSON());
+    // Real rival teams from the live snapshot, not the old hardcoded placeholder pair.
+    expect(texts).toContain('Ember Owls');
+    expect(texts).toContain('Parchment Moths');
+    expect(texts.map(String)).toContain('900');
+    expect(texts.map(String)).toContain('520');
+  });
+
+  test('shows the ranking error state with retry when the fetch failed with no snapshot', () => {
+    mockUseActiveQuestion.mockReturnValue({ sessionState: 'Active', isQuestionClosed: false, view: { kind: 'none' } });
+    const refetch = jest.fn();
+    mockUseRanking.mockReturnValue({ snapshot: null, isLoading: false, error: 'network-error', refetch });
+
+    const renderer = renderSpace();
+    openTeamsSheet(renderer);
+
+    const texts = allText(renderer.toJSON());
+    expect(texts.join(' ')).toContain("Couldn't reach the standings");
+    const retry = renderer.root.findByProps({ label: 'RETRY' });
+    act(() => {
+      (retry.props.onPress as () => void)();
+    });
+    expect(refetch).toHaveBeenCalledTimes(1);
+  });
 });
 
 // Mixed-play-mode session: an opening Trivia substage (completed) followed by the active
@@ -294,6 +355,7 @@ describe('LiveTeamSpace play-mode branch', () => {
     jest.clearAllMocks();
     primeTimer();
     mockUseActiveQuestion.mockReturnValue({ sessionState: 'Active', isQuestionClosed: false, view: { kind: 'none' } });
+    mockUseRanking.mockReturnValue({ snapshot: null, isLoading: false, error: null, refetch: jest.fn() });
   });
 
   test('TreasureHunt board renders the board and not the trivia stage', () => {

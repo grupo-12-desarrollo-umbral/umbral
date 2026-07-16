@@ -6,10 +6,11 @@
 // AND the DB recalc (350 -> 250, calculation_version bumps, team name preserved).
 //
 // beforeAll ADDS a second admin row keyed by admin-1's Keycloak sub so the gateway-JWT actor
-// resolution on operator-assignment succeeds (mirrors session-operator-panel.spec.ts), and — because
-// session-operations does not yet publish LiveSessionOperatorAssignedIntegrationEvent (handoff
-// Outstanding Issue #1) — patches the scoring-side session_operator_assignments projection directly.
-// Without that row ScoringSessionAuthorizationProxy 403s and the panel shows "not authorized".
+// resolution on operator-assignment succeeds (mirrors session-operator-panel.spec.ts). Assigning
+// through `PATCH .../operator-assignment` publishes LiveSessionOperatorAssignedIntegrationEvent
+// (session-ops outbox, committed 34c203e), which scoring's LiveSessionOperatorAssignedConsumer
+// projects into session_operator_assignments — beforeAll waits for that row rather than hand-patching
+// it. Without the projection ScoringSessionAuthorizationProxy 403s and the panel shows "not authorized".
 import { execSync } from 'child_process'
 import { test, expect } from '../fixtures/auth'
 
@@ -124,14 +125,16 @@ test.beforeAll(async () => {
   await api('PATCH', `/api/sessions/${lsid}/state`, op, { targetState: 'Preparing' })
   await api('PATCH', `/api/sessions/${lsid}/state`, op, { targetState: 'Active' })
 
-  // Interim: no LiveSessionOperatorAssignedIntegrationEvent from session-ops yet (handoff Outstanding
-  // Issue #1). ScoringSessionAuthorizationProxy compares assigned_operator_user_id against the JWT
-  // sub, so patch the projection with op-1's sub or the penalty POST 403s.
-  runSql('scoring_monitoring', `
-    INSERT INTO session_operator_assignments (live_session_id, assigned_operator_user_id)
-    VALUES ('${lsid}', '${subOf(op)}')
-    ON CONFLICT (live_session_id) DO UPDATE SET assigned_operator_user_id = EXCLUDED.assigned_operator_user_id;
-  `)
+  // The assignment above publishes the operator-assigned integration event; ScoringSessionAuthorizationProxy
+  // compares assigned_operator_user_id against the JWT sub, so wait for scoring's consumer to project op-1's
+  // sub (RabbitMQ hop, ~1-3s) instead of hand-patching. If this times out, the running session-ops / scoring
+  // container predates the publisher wiring — `make rewire` both and retry.
+  await expect
+    .poll(
+      () => sql('scoring_monitoring', `SELECT assigned_operator_user_id FROM session_operator_assignments WHERE live_session_id='${lsid}'`),
+      { timeout: 20000, message: 'operator-assignment event never reached the scoring projection' },
+    )
+    .toBe(subOf(op))
 
   seedGrantBaseline(lsid)
 })

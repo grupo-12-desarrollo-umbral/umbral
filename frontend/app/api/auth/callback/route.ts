@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { exchangeCode } from '@/app/lib/keycloak'
+import { exchangeCode, toExpiresAtMs } from '@/app/lib/keycloak'
 import { bootstrapUser } from '@/app/lib/identity'
 import { storeKeycloakTokens } from '@/app/lib/keycloak-tokens'
 import { createSession, deleteSession } from '@/app/lib/session'
@@ -52,19 +52,29 @@ export async function GET(request: NextRequest) {
       return response
     }
 
-    await createSession({
-      externalIdentityId: result.actor.externalIdentityId,
-      displayName: result.actor.displayName,
-      email: result.actor.email,
-      role: result.actor.role as 'Administrator' | 'Operator',
-      isActive: result.actor.isActive,
-    })
-    await storeKeycloakTokens({
-      accessToken,
-      refreshToken,
-      expiresIn,
-      refreshExpiresIn,
-    })
+    // Both cookies are cut from the same instant so `session` expires with the refresh token that
+    // backs it, never after: past that point no access token can be minted and the app can only
+    // fail. `toExpiresAtMs` is the same mapping `storeKeycloakTokens` applies to `kc_session`.
+    const issuedAtMs = Date.now()
+    await createSession(
+      {
+        externalIdentityId: result.actor.externalIdentityId,
+        displayName: result.actor.displayName,
+        email: result.actor.email,
+        role: result.actor.role as 'Administrator' | 'Operator',
+        isActive: result.actor.isActive,
+      },
+      new Date(toExpiresAtMs(refreshExpiresIn, issuedAtMs)),
+    )
+    await storeKeycloakTokens(
+      {
+        accessToken,
+        refreshToken,
+        expiresIn,
+        refreshExpiresIn,
+      },
+      issuedAtMs,
+    )
 
     const response = NextResponse.redirect(new URL('/dashboard', request.url))
     response.cookies.delete('auth_state')

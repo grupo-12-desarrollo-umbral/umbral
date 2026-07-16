@@ -12,4 +12,8 @@ COPY --from=build /app/publish ./
 
 EXPOSE 8080
 
-ENTRYPOINT ["dotnet", "umbral_backend.Api.dll"]
+# Bind to the platform-assigned $PORT (Railway et al.) with an 8080 fallback, while still
+# deferring to an explicitly set ASPNETCORE_URLS — which is what docker-compose provides
+# locally (http://+:8080), so local/compose/test behaviour is unchanged. Keep `+` (binds
+# IPv4 and IPv6): Railway's private network is IPv6-only.
+ENTRYPOINT ["sh", "-c", "export ASPNETCORE_URLS=\"${ASPNETCORE_URLS:-http://+:${PORT:-8080}}\"; exec dotnet umbral_backend.Api.dll"]

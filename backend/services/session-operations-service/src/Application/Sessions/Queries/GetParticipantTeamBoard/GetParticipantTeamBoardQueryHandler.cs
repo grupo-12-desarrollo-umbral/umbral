@@ -32,8 +32,6 @@ public sealed class GetParticipantTeamBoardQueryHandler
     {
         await _runtimeParticipationGuard.EnsureAllowedAsync(
             request.LiveSessionId,
-            request.TeamId,
-            request.Token,
             cancellationToken);
 
         var liveSession = await _liveSessionRepository.GetByIdAsync(request.LiveSessionId, cancellationToken)

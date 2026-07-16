@@ -113,6 +113,7 @@ describe('createSessionStateRealtimeClient — OperatorSessionPanelUpdated', () 
     teamProgress: [
       {
         teamId: 't-1',
+        referenceTeamId: 'ref-1',
         teamCode: 'AAA',
         displayName: 'Alpha',
         score: 0,
@@ -141,6 +142,7 @@ describe('createSessionStateRealtimeClient — OperatorSessionPanelUpdated', () 
       teamProgress: [
         {
           teamId: 't-1',
+          referenceTeamId: 'ref-1',
           teamCode: 'AAA',
           displayName: 'Alpha',
           score: 0,
@@ -175,6 +177,7 @@ describe('createSessionStateRealtimeClient — OperatorSessionPanelUpdated', () 
           TeamCode: 'AAA',
           DisplayName: 'Alpha',
           Score: 0,
+          ReferenceTeamId: 'ref-1',
           ReleasedClueCount: 2,
           ActiveSubstage: {
             SubstageSnapshotId: 'sub-1',
@@ -244,5 +247,152 @@ describe('createSessionStateRealtimeClient — OperatorSessionPanelUpdated', () 
   it('registers no handler when onOperatorPanel is omitted (backward-compatible)', () => {
     createSessionStateRealtimeClient({ ...baseOptions })
     expect(lastConnection.handlers.has('OperatorSessionPanelUpdated')).toBe(false)
+  })
+})
+
+// HU-24B: the operator realtime client subscribes to the two evidence/submission events on the same
+// hub (they ride the operator-only group this connection already joins) and normalizes them from
+// either wire casing.
+describe('createSessionStateRealtimeClient — EvidenceSubmission events', () => {
+  beforeEach(() => { lastConnection = undefined as never })
+
+  const expectedRegistered = {
+    liveSessionId: 's1',
+    evidenceSubmissionId: 'sub-1',
+    teamId: 't-42',
+    activeSubstageId: 'substage-9',
+    submissionType: 'TreasureHuntQrScan',
+    originReference: 'target:9f1c',
+    submittedAt: '2026-07-16T10:01:05Z',
+    validationState: 'Pending',
+  }
+
+  const expectedResolved = {
+    liveSessionId: 's1',
+    evidenceSubmissionId: 'sub-1',
+    teamId: 't-42',
+    activeSubstageId: 'substage-9',
+    submissionType: 'TreasureHuntQrScan',
+    submittedAt: '2026-07-16T10:01:05Z',
+    validationState: 'Rejected',
+    rejectionReason: 'Ya resuelto.',
+    resolvedAt: '2026-07-16T10:01:09Z',
+  }
+
+  it('normalizes a camelCase EvidenceSubmissionRegistered payload', () => {
+    const received: unknown[] = []
+    createSessionStateRealtimeClient({
+      ...baseOptions,
+      onEvidenceSubmissionRegistered: (n) => received.push(n),
+    })
+
+    lastConnection.handlers.get('EvidenceSubmissionRegistered')!({ ...expectedRegistered })
+
+    expect(received).toEqual([expectedRegistered])
+  })
+
+  it('normalizes a PascalCase (C# wire) EvidenceSubmissionRegistered payload', () => {
+    const received: unknown[] = []
+    createSessionStateRealtimeClient({
+      ...baseOptions,
+      onEvidenceSubmissionRegistered: (n) => received.push(n),
+    })
+
+    lastConnection.handlers.get('EvidenceSubmissionRegistered')!({
+      LiveSessionId: 's1',
+      EvidenceSubmissionId: 'sub-1',
+      TeamId: 't-42',
+      ActiveSubstageId: 'substage-9',
+      SubmissionType: 'TreasureHuntQrScan',
+      OriginReference: 'target:9f1c',
+      SubmittedAt: '2026-07-16T10:01:05Z',
+      ValidationState: 'Pending',
+    })
+
+    expect(received).toEqual([expectedRegistered])
+  })
+
+  // A trivia registration contributes no origin; absent and null must both land as null so the
+  // reducer's `existing.originReference ?? incoming.originReference` fill works.
+  it('coalesces an absent origin to null', () => {
+    const received: { originReference: string | null }[] = []
+    createSessionStateRealtimeClient({
+      ...baseOptions,
+      onEvidenceSubmissionRegistered: (n) => received.push(n),
+    })
+
+    lastConnection.handlers.get('EvidenceSubmissionRegistered')!({
+      liveSessionId: 's1',
+      evidenceSubmissionId: 'sub-2',
+      teamId: 't-42',
+      activeSubstageId: 'substage-9',
+      submissionType: 'TriviaAnswer',
+      submittedAt: '2026-07-16T10:01:05Z',
+      validationState: 'Pending',
+    })
+
+    expect(received[0]!.originReference).toBeNull()
+  })
+
+  it('normalizes a camelCase EvidenceSubmissionResolved payload', () => {
+    const received: unknown[] = []
+    createSessionStateRealtimeClient({
+      ...baseOptions,
+      onEvidenceSubmissionResolved: (n) => received.push(n),
+    })
+
+    lastConnection.handlers.get('EvidenceSubmissionResolved')!({ ...expectedResolved })
+
+    expect(received).toEqual([expectedResolved])
+  })
+
+  it('normalizes a PascalCase (C# wire) EvidenceSubmissionResolved payload', () => {
+    const received: unknown[] = []
+    createSessionStateRealtimeClient({
+      ...baseOptions,
+      onEvidenceSubmissionResolved: (n) => received.push(n),
+    })
+
+    lastConnection.handlers.get('EvidenceSubmissionResolved')!({
+      LiveSessionId: 's1',
+      EvidenceSubmissionId: 'sub-1',
+      TeamId: 't-42',
+      ActiveSubstageId: 'substage-9',
+      SubmissionType: 'TreasureHuntQrScan',
+      SubmittedAt: '2026-07-16T10:01:05Z',
+      ValidationState: 'Rejected',
+      RejectionReason: 'Ya resuelto.',
+      ResolvedAt: '2026-07-16T10:01:09Z',
+    })
+
+    expect(received).toEqual([expectedResolved])
+  })
+
+  // An acceptance carries no reason; it must arrive as null rather than undefined.
+  it('coalesces an absent rejection reason to null on an acceptance', () => {
+    const received: { rejectionReason: string | null }[] = []
+    createSessionStateRealtimeClient({
+      ...baseOptions,
+      onEvidenceSubmissionResolved: (n) => received.push(n),
+    })
+
+    lastConnection.handlers.get('EvidenceSubmissionResolved')!({
+      liveSessionId: 's1',
+      evidenceSubmissionId: 'sub-1',
+      teamId: 't-42',
+      activeSubstageId: 'substage-9',
+      submissionType: 'TreasureHuntQrScan',
+      submittedAt: '2026-07-16T10:01:05Z',
+      validationState: 'Accepted',
+      resolvedAt: '2026-07-16T10:01:09Z',
+    })
+
+    expect(received[0]!.rejectionReason).toBeNull()
+  })
+
+  it('registers no evidence handlers when the callbacks are omitted (backward-compatible)', () => {
+    createSessionStateRealtimeClient({ ...baseOptions })
+    expect(lastConnection.handlers.has('EvidenceSubmissionRegistered')).toBe(false)
+    expect(lastConnection.handlers.has('EvidenceSubmissionResolved')).toBe(false)
   })
 })

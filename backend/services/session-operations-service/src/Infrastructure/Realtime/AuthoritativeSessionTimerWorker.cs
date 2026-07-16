@@ -59,6 +59,23 @@ public sealed class AuthoritativeSessionTimerWorker : BackgroundService
         var liveSessions = await repository.ListActiveTimersAsync(cancellationToken);
         foreach (var liveSession in liveSessions)
         {
+            // A just-closed trivia question is in its reveal window (HU-35): the question is closed but
+            // the next activation is deferred so participants see the result. Advance to the next
+            // question / substage once the reveal deadline passes; no timer tick is broadcast meanwhile
+            // (the question timer is already frozen at expired).
+            if (liveSession.IsAwaitingQuestionReveal)
+            {
+                if (liveSession.IsQuestionRevealElapsed(now))
+                {
+                    await triviaRoundOrchestratorFacade.CompleteQuestionRevealAsync(
+                        liveSession,
+                        now,
+                        cancellationToken);
+                }
+
+                continue;
+            }
+
             // A trivia substage ticks the active-question window; a treasure-hunt substage ticks the
             // substage window. ActiveQuestionIndex distinguishes them (only trivia carries one), which
             // matches the ListActiveTimersAsync predicate branches.

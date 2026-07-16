@@ -18,11 +18,69 @@
 # Polling file watcher is forced on: inotify events don't always cross bind
 # mounts, and silent no-reload is worse than a little extra CPU.
 #
-# The container runs as the host uid (DOCKER_UID/GID, default 1000) so the
-# obj/bin `dotnet watch` writes into the bind-mounted source are owned by you,
-# not root — otherwise every background rebuild re-roots the tree and breaks
-# host-side `dotnet build`/`test`. A non-root uid can't write /root, so HOME
-# and the NuGet cache move to /tmp/nuget, backed by the host cache to stay warm.
+# ── KNOWN TRAP: hot reload cannot pick up composition-root changes ────────────
+# Hot Reload patches method bodies in the RUNNING process; it never re-runs
+# startup. The composition root (`AddMassTransitMessaging`, DI registration,
+# `AddConsumer<T>`) executes exactly ONCE, when the host builds its service
+# provider. So a wiring edit either reports "No C# changes to apply" or hot-applies
+# "successfully" — and either way the already-built container keeps the OLD wiring.
+# `dotnet watch` looks healthy while the app runs stale. This cost a debugging
+# session during the SessionEventHistoryConsumer work (see
+# integration-event-wiring-audit.md, Finding 2).
+#
+# The fix is an explicit restart — this always works and takes ~5s:
+#     docker compose restart <service>
+#
+# ── KNOWN TRAP: a restart can lose the race for :8080 and disarm the watcher ──
+# ANY full restart can hit this — it is not specific to a flag. When watch restarts
+# the app (a rude edit, or the process dying), it may launch the replacement before
+# the old one releases :8080; the new process aborts with
+# `Failed to bind to address http://[::]:8080: address already in use` (exit 134)
+# and watch dead-ends at "Waiting for a file to change before restarting". The old
+# process survives, so health stays 200 while the watcher is dead — stale code with
+# no reload at all. Observed 2026-07-16 on all five services at once, with hot
+# reload ON (an earlier note here blamed `--no-hot-reload`; that was wrong — the
+# flag worsens the race, it does not cause it).
+#   Detect:  make doctor            # health cannot see this; nothing else reports it
+#   Fix:     make rewire SVC=<svc>
+#
+# DO NOT "fix" this by adding `--no-hot-reload` to the command below. It was tried
+# (2026-07-15) and is WORSE: it forces a full restart on EVERY file change, so the
+# race above fires constantly instead of occasionally.
+# `DOTNET_WATCH_RESTART_ON_RUDE_EDIT` does not help either: a body edit to a
+# registration method is not a rude edit, so there is nothing for it to trigger on.
+#
+# The container runs as the host uid (DOCKER_UID/GID, default 1000) so anything it
+# writes into the bind-mounted source is owned by you, not root. A non-root uid
+# can't write /root, so HOME and the NuGet cache move to /tmp/nuget, backed by the
+# host cache to stay warm.
+#
+# ── BUILD-OUTPUT ISOLATION: build output leaves the source tree ───────────────
+# The source is bind-mounted, so by default the container's `dotnet watch` and
+# your host `dotnet build`/`test`/EF would write bin+obj into the SAME physical
+# directory. Two toolchains sharing one obj corrupt each other:
+#   • Stale incremental cache — MSBuild reads obj state left by the OTHER build,
+#     decides a project is "up to date", and compiles against stale referenced
+#     metadata. Symptom: the container reports CS1061/CS1501 "does not contain a
+#     definition for …" against members that plainly exist in source (and even in
+#     the freshly-built dependency dll). A `restart` does NOT clear it — obj says
+#     nothing changed — so the service silently stays down and the gateway 502s.
+#     (Diagnosed 2026-07-16, session-operations-service.)
+#   • Ownership churn — the mitigation for which (host-uid mapping above,
+#     `make guard-artifacts` / `clean-artifacts`) only *recovers* after the fact.
+# Fix (lives in code, not here): each service's `src/Directory.Build.props`
+# redirects bin+obj to /tmp/umbral-<svc>/ via BaseOutputPath/BaseIntermediateOutputPath.
+# A container's /tmp is ITS OWN (not shared with the host's /tmp), so the container
+# build and any host build now write to physically separate trees and can never
+# collide. /tmp is writable by the non-root dev uid (HOME=/tmp) — unlike masking
+# obj/bin with Docker volumes, which Docker creates root-owned and the non-root
+# container then can't write (tried 2026-07-16: NuGet.targets "Access to the path
+# …/obj/*.tmp is denied"). This mirrors the pre-existing scoring-monitoring-service
+# setup, now applied uniformly. Host-side effect: these services' bin/obj live
+# under /tmp too, so `make guard-artifacts`/`clean` simply find nothing in-tree
+# (harmless — the redirect removes the very collision they guarded against).
+# NOTE: isolation only — it does NOT change the composition-root hot-reload trap
+# above; a wiring/DI edit still needs `docker compose restart <service>`.
 # ─────────────────────────────────────────────────────────────────────────────
 
 x-dotnet-watch: &dotnet-watch

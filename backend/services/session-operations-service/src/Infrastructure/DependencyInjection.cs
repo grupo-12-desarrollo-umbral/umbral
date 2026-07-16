@@ -29,12 +29,6 @@ public static class DependencyInjection
             .GetValue<string>(nameof(ParticipantMembershipAccessClientOptions.BaseAddress))
             ?? new ParticipantMembershipAccessClientOptions().BaseAddress;
 
-        builder.Services.AddHttpClient<IParticipantMembershipAccessClient, ParticipantMembershipAccessClient>(client =>
-        {
-            client.BaseAddress = new Uri(identityAccessBaseAddress);
-            client.Timeout = TimeSpan.FromSeconds(10);
-        });
-
         builder.Services.AddHttpClient<IAssignableSessionOperatorAccessClient, AssignableSessionOperatorAccessClient>(client =>
         {
             client.BaseAddress = new Uri(identityAccessBaseAddress);

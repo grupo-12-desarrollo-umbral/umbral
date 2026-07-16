@@ -107,6 +107,8 @@ const CLOSED: QuestionClosedNotificationDto = {
   questionIndex: 2,
   closedAt: '2026-07-11T10:02:00Z',
   wasExpiredByTimer: true,
+  correctOptionSequenceOrder: 2,
+  explanation: 'The south lantern is always lit first.',
 };
 
 const ADVANCED: SubstageAdvancedNotificationDto = {
@@ -185,8 +187,14 @@ describe('useActiveQuestion', () => {
     act(() => {
       closedHandlers.forEach(cb => cb(CLOSED));
     });
-    // Close now locks the displayed question rather than blanking it straight to waiting.
-    expect(hook.get().view.kind).toBe('active');
+    // Close now enters reveal instead of blanking straight to waiting (HU-M4).
+    expect(hook.get().view).toEqual({
+      kind: 'reveal',
+      question: expect.objectContaining({ sequenceOrder: 3, prompt: 'Which lantern is lit?' }),
+      correctOptionSequenceOrder: 2,
+      explanation: 'The south lantern is always lit first.',
+      teamResult: null,
+    });
     expect(hook.get().isQuestionClosed).toBe(true);
 
     hook.unmount();
@@ -230,14 +238,15 @@ describe('useActiveQuestion', () => {
     const hook = renderHook({ ...defaultProps(), snapshotActiveQuestion: SNAPSHOT_QUESTION });
 
     act(() => {
-      // Matching close (SNAPSHOT_QUESTION is questionIndex 1) locks the question.
+      // Matching close (SNAPSHOT_QUESTION is questionIndex 1) enters reveal.
       closedHandlers.forEach(cb => cb({ ...CLOSED, questionIndex: 1 }));
     });
-    expect(hook.get().view.kind).toBe('active');
+    expect(hook.get().view.kind).toBe('reveal');
     expect(hook.get().isQuestionClosed).toBe(true);
 
     hook.rerender({ reconnectNonce: 1, snapshotActiveQuestion: SNAPSHOT_QUESTION });
 
+    // Reconnect re-seeds from the snapshot, clearing reveal back to active.
     expect(hook.get().view.kind).toBe('active');
     expect(hook.get().isQuestionClosed).toBe(false);
     expect(hook.get().view).not.toHaveProperty('kind', 'reconnecting');
@@ -306,8 +315,11 @@ describe('useActiveQuestion', () => {
     });
 
     expect(hook.get().view).toEqual({
-      kind: 'active',
+      kind: 'reveal',
       question: expect.objectContaining({ sequenceOrder: 3 }),
+      correctOptionSequenceOrder: 2,
+      explanation: 'The south lantern is always lit first.',
+      teamResult: null,
     });
     expect(hook.get().isQuestionClosed).toBe(true);
     expect(requestResync).toHaveBeenCalledTimes(1);
@@ -363,17 +375,21 @@ describe('useActiveQuestion', () => {
     hook.unmount();
   });
 
-  test('a resync with no active question on a live session resolves to waiting', () => {
+  test('a resync with no active question during the reveal window keeps the reveal', () => {
     const hook = renderHook({ ...defaultProps(), snapshotActiveQuestion: SNAPSHOT_QUESTION });
 
     act(() => {
       closedHandlers.forEach(cb => cb({ ...CLOSED, questionIndex: 1 }));
     });
+    expect(hook.get().view.kind).toBe('reveal');
 
+    // The backend holds the next activation for the reveal duration (HU-35), so a snapshot re-fetch
+    // reports no active question. The reveal must persist until the delayed
+    // QuestionActivated / SubstageAdvanced push drives the transition out — it must NOT drop to waiting.
     hook.rerender({ snapshotVersion: 1, snapshotActiveQuestion: null, snapshotSessionState: 'Active' });
 
-    expect(hook.get().view).toEqual({ kind: 'waiting' });
-    expect(hook.get().isQuestionClosed).toBe(false);
+    expect(hook.get().view.kind).toBe('reveal');
+    expect(hook.get().isQuestionClosed).toBe(true);
 
     hook.unmount();
   });
@@ -394,19 +410,27 @@ describe('useActiveQuestion', () => {
     hook.unmount();
   });
 
-  test('a resync echoing the just-closed question index does not re-open it', () => {
+  test('a resync echoing the just-closed question index stays in reveal', () => {
     const hook = renderHook({ ...defaultProps(), snapshotActiveQuestion: SNAPSHOT_QUESTION });
 
     act(() => {
       closedHandlers.forEach(cb => cb({ ...CLOSED, questionIndex: 1 }));
     });
+    expect(hook.get().view.kind).toBe('reveal');
     expect(hook.get().isQuestionClosed).toBe(true);
 
     // Backend race: the snapshot still reports the same (just-closed) question.
+    // With HU-M4 reveal, we stay in reveal rather than falling to waiting.
     hook.rerender({ snapshotVersion: 1, snapshotActiveQuestion: SNAPSHOT_QUESTION });
 
-    expect(hook.get().view).toEqual({ kind: 'waiting' });
-    expect(hook.get().isQuestionClosed).toBe(false);
+    expect(hook.get().view).toEqual({
+      kind: 'reveal',
+      question: expect.objectContaining({ questionIndex: 1 }),
+      correctOptionSequenceOrder: 2,
+      explanation: 'The south lantern is always lit first.',
+      teamResult: null,
+    });
+    expect(hook.get().isQuestionClosed).toBe(true);
 
     hook.unmount();
   });

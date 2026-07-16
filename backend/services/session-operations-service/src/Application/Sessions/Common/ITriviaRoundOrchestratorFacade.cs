@@ -13,4 +13,9 @@ public interface ITriviaRoundOrchestratorFacade
         LiveSession session,
         DateTimeOffset now,
         CancellationToken cancellationToken);
+
+    Task CompleteQuestionRevealAsync(
+        LiveSession session,
+        DateTimeOffset now,
+        CancellationToken cancellationToken);
 }

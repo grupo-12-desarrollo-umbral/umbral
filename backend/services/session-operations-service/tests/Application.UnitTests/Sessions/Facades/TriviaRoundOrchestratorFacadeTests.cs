@@ -79,7 +79,7 @@ public sealed class TriviaRoundOrchestratorFacadeTests
     }
 
     [Fact]
-    public async Task CloseAndAdvanceAsync_OnNonLastQuestion_BroadcastsClosureThenActivatesNextQuestion()
+    public async Task CloseAndAdvanceAsync_OnNonLastQuestion_BroadcastsClosureAndBeginsRevealWithoutActivatingNext()
     {
         var session = CreateTriviaSession();
         var policy = new SessionStateTransitionPolicy();
@@ -98,19 +98,57 @@ public sealed class TriviaRoundOrchestratorFacadeTests
 
         await facade.CloseAndAdvanceAsync(session, Now, CancellationToken.None);
 
-        session.ActiveQuestionIndex.Should().Be(1);
+        // Close only opens the reveal window — the next question is NOT activated yet (HU-35 dwell).
+        session.ActiveQuestionIndex.Should().BeNull();
+        session.IsAwaitingQuestionReveal.Should().BeTrue();
+        session.QuestionRevealUntil.Should().Be(Now + TriviaRoundOrchestratorFacade.QuestionRevealDuration);
         repository.Verify(
             repo => repo.UpdateAsync(session, It.IsAny<CancellationToken>()),
-            Times.Exactly(2));
+            Times.Once);
         broadcaster.Verify(
             current => current.BroadcastQuestionClosedAsync(
                 It.Is<QuestionClosedNotificationDto>(notification =>
                     notification.LiveSessionId == session.LiveSessionId &&
                     notification.QuestionIndex == 0 &&
                     notification.ClosedAt == Now &&
-                    notification.WasExpiredByTimer),
+                    notification.WasExpiredByTimer &&
+                    notification.CorrectOptionSequenceOrder == 1 &&
+                    notification.Explanation == "Mercury is the closest planet."),
                 It.IsAny<CancellationToken>()),
             Times.Once);
+        broadcaster.Verify(
+            current => current.BroadcastQuestionActivatedAsync(
+                It.IsAny<QuestionActivatedNotificationDto>(),
+                It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Fact]
+    public async Task CompleteQuestionRevealAsync_OnNonLastQuestion_ActivatesNextQuestionAndEndsReveal()
+    {
+        var session = CreateTriviaSession();
+        var policy = new SessionStateTransitionPolicy();
+        session.MoveTo(SessionState.Preparing, Now.AddMinutes(-2), policy);
+        session.MoveTo(SessionState.Active, Now.AddMinutes(-1), policy);
+        session.ActivateQuestion(0, Now.AddMinutes(-1));
+        var repository = CreateRepository();
+        var broadcaster = new Mock<ISessionQuestionBroadcaster>();
+        var strategy = new Mock<IQuestionActivationStrategy>();
+        strategy.Setup(activationStrategy => activationStrategy.Next(session)).Returns(1);
+        var facade = new TriviaRoundOrchestratorFacade(
+            repository.Object,
+            broadcaster.Object,
+            strategy.Object,
+            policy);
+
+        await facade.CloseAndAdvanceAsync(session, Now, CancellationToken.None);
+        await facade.CompleteQuestionRevealAsync(
+            session,
+            Now + TriviaRoundOrchestratorFacade.QuestionRevealDuration,
+            CancellationToken.None);
+
+        session.ActiveQuestionIndex.Should().Be(1);
+        session.IsAwaitingQuestionReveal.Should().BeFalse();
         broadcaster.Verify(
             current => current.BroadcastQuestionActivatedAsync(
                 It.Is<QuestionActivatedNotificationDto>(notification => notification.QuestionIndex == 1),
@@ -119,7 +157,7 @@ public sealed class TriviaRoundOrchestratorFacadeTests
     }
 
     [Fact]
-    public async Task CloseAndAdvanceAsync_OnLastQuestion_TransitionsSessionToFinished()
+    public async Task CompleteQuestionRevealAsync_OnLastQuestion_TransitionsSessionToFinished()
     {
         var session = CreateTriviaSession(questionCount: 1);
         var policy = new SessionStateTransitionPolicy();
@@ -138,11 +176,14 @@ public sealed class TriviaRoundOrchestratorFacadeTests
 
         await facade.CloseAndAdvanceAsync(session, Now, CancellationToken.None);
 
+        // The close alone does NOT finish the session — it holds the reveal.
+        session.State.Should().Be(SessionState.Active);
+        session.IsAwaitingQuestionReveal.Should().BeTrue();
+
+        await facade.CompleteQuestionRevealAsync(session, Now.AddSeconds(5), CancellationToken.None);
+
         session.ActiveQuestionIndex.Should().BeNull();
         session.State.Should().Be(SessionState.Finished);
-        repository.Verify(
-            repo => repo.UpdateAsync(session, It.IsAny<CancellationToken>()),
-            Times.Exactly(2));
         broadcaster.Verify(
             current => current.BroadcastQuestionClosedAsync(
                 It.IsAny<QuestionClosedNotificationDto>(),
@@ -157,7 +198,7 @@ public sealed class TriviaRoundOrchestratorFacadeTests
     }
 
     [Fact]
-    public async Task CloseAndAdvanceAsync_OnLastQuestionOfSubstage_AdvancesToNextTriviaSubstageAndActivatesFirstQuestion()
+    public async Task CompleteQuestionRevealAsync_OnLastQuestionOfSubstage_AdvancesToNextTriviaSubstageAndActivatesFirstQuestion()
     {
         var session = LiveSessionTestFactory.CreateScheduledMultiSubstageTrivia();
         ActivateFirstQuestion(session);
@@ -167,6 +208,8 @@ public sealed class TriviaRoundOrchestratorFacadeTests
         var facade = CreateFacadeWithRealStrategy(repository, broadcaster);
 
         await facade.CloseAndAdvanceAsync(session, Now, CancellationToken.None);
+        session.IsAwaitingQuestionReveal.Should().BeTrue();
+        await facade.CompleteQuestionRevealAsync(session, Now.AddSeconds(5), CancellationToken.None);
 
         session.ActiveSubstageId.Should().Be(substages[1].SubstageSnapshotId);
         session.ActiveQuestionIndex.Should().Be(0);
@@ -178,7 +221,7 @@ public sealed class TriviaRoundOrchestratorFacadeTests
                     notification.FromSubstageId == substages[0].SubstageSnapshotId &&
                     notification.FromPlayMode == "Trivia" &&
                     notification.ToSubstageId == substages[1].SubstageSnapshotId &&
-                    notification.AdvancedAt == Now),
+                    notification.AdvancedAt == Now.AddSeconds(5)),
                 It.IsAny<CancellationToken>()),
             Times.Once);
         broadcaster.Verify(
@@ -189,7 +232,7 @@ public sealed class TriviaRoundOrchestratorFacadeTests
     }
 
     [Fact]
-    public async Task CloseAndAdvanceAsync_WhenNextSubstageIsTreasureHunt_ParksWithoutActivatingOrFinishing()
+    public async Task CompleteQuestionRevealAsync_WhenNextSubstageIsTreasureHunt_ParksWithoutActivatingOrFinishing()
     {
         var session = LiveSessionTestFactory.CreateScheduledTriviaThenTreasureHunt();
         ActivateFirstQuestion(session);
@@ -199,6 +242,7 @@ public sealed class TriviaRoundOrchestratorFacadeTests
         var facade = CreateFacadeWithRealStrategy(repository, broadcaster);
 
         await facade.CloseAndAdvanceAsync(session, Now, CancellationToken.None);
+        await facade.CompleteQuestionRevealAsync(session, Now.AddSeconds(5), CancellationToken.None);
 
         session.ActiveSubstageId.Should().Be(substages[1].SubstageSnapshotId);
         session.ActiveQuestionIndex.Should().BeNull();
@@ -218,7 +262,7 @@ public sealed class TriviaRoundOrchestratorFacadeTests
     }
 
     [Fact]
-    public async Task CloseAndAdvanceAsync_OnLastQuestionOfFinalSubstage_FinishesViaSessionCompletion()
+    public async Task CompleteQuestionRevealAsync_OnLastQuestionOfFinalSubstage_FinishesViaSessionCompletion()
     {
         var session = LiveSessionTestFactory.CreateScheduledTrivia(questionCount: 1);
         ActivateFirstQuestion(session);
@@ -228,6 +272,7 @@ public sealed class TriviaRoundOrchestratorFacadeTests
         var facade = CreateFacadeWithRealStrategy(repository, broadcaster);
 
         await facade.CloseAndAdvanceAsync(session, Now, CancellationToken.None);
+        await facade.CompleteQuestionRevealAsync(session, Now.AddSeconds(5), CancellationToken.None);
 
         session.State.Should().Be(SessionState.Finished);
         session.ActiveQuestionIndex.Should().BeNull();
@@ -255,7 +300,34 @@ public sealed class TriviaRoundOrchestratorFacadeTests
     }
 
     [Fact]
-    public async Task CloseAndAdvanceAsync_WhenTickRepeatsAfterAdvance_DoesNotDoubleAdvanceOrRebroadcast()
+    public async Task CloseAndAdvanceAsync_WhenTickRepeatsDuringReveal_DoesNotReCloseOrAdvanceEarly()
+    {
+        var session = LiveSessionTestFactory.CreateScheduledTriviaThenTreasureHunt();
+        ActivateFirstQuestion(session);
+        var repository = CreateRepository();
+        var broadcaster = new Mock<ISessionQuestionBroadcaster>();
+        var facade = CreateFacadeWithRealStrategy(repository, broadcaster);
+
+        await facade.CloseAndAdvanceAsync(session, Now, CancellationToken.None);
+        // A repeat tick while the reveal is still open (ActiveQuestionIndex is null) is a no-op: the
+        // close guard returns early, so no second closure and no early advance.
+        await facade.CloseAndAdvanceAsync(session, Now.AddSeconds(1), CancellationToken.None);
+
+        session.IsAwaitingQuestionReveal.Should().BeTrue();
+        broadcaster.Verify(
+            current => current.BroadcastQuestionClosedAsync(
+                It.IsAny<QuestionClosedNotificationDto>(),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+        broadcaster.Verify(
+            current => current.BroadcastSubstageAdvancedAsync(
+                It.IsAny<SubstageAdvancedNotificationDto>(),
+                It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Fact]
+    public async Task CompleteQuestionRevealAsync_WhenTickRepeatsAfterReveal_DoesNotDoubleAdvanceOrRebroadcast()
     {
         var session = LiveSessionTestFactory.CreateScheduledTriviaThenTreasureHunt();
         ActivateFirstQuestion(session);
@@ -265,9 +337,12 @@ public sealed class TriviaRoundOrchestratorFacadeTests
         var facade = CreateFacadeWithRealStrategy(repository, broadcaster);
 
         await facade.CloseAndAdvanceAsync(session, Now, CancellationToken.None);
-        await facade.CloseAndAdvanceAsync(session, Now.AddSeconds(1), CancellationToken.None);
+        await facade.CompleteQuestionRevealAsync(session, Now.AddSeconds(5), CancellationToken.None);
+        // A duplicate reveal-completion tick is guarded by IsAwaitingQuestionReveal.
+        await facade.CompleteQuestionRevealAsync(session, Now.AddSeconds(6), CancellationToken.None);
 
         session.ActiveSubstageId.Should().Be(substages[1].SubstageSnapshotId);
+        session.IsAwaitingQuestionReveal.Should().BeFalse();
         broadcaster.Verify(
             current => current.BroadcastSubstageAdvancedAsync(
                 It.IsAny<SubstageAdvancedNotificationDto>(),

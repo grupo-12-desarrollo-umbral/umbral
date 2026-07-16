@@ -1,10 +1,10 @@
 'use client';
 
-import { useCallback, useEffect, useReducer, useRef, useState, useSyncExternalStore, useTransition } from 'react';
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState, useSyncExternalStore, useTransition } from 'react';
 import { logout } from '@/app/actions/auth';
 import { refreshSession } from '@/app/actions/session';
 import { getUsersPage, deactivateUser, assignUserRole, inviteUser } from '@/app/actions/users';
-import { listSessionsForOperator, transitionSessionState, getSessionTimerSnapshotAction, getTriviaAnsweredMonitorAction, getOperatorSessionPanelAction, getReleasableCluesAction } from '@/app/actions/sessions';
+import { listSessionsForOperator, transitionSessionState, getSessionTimerSnapshotAction, getTriviaAnsweredMonitorAction, getOperatorSessionPanelAction, getOperatorRankingAction, getOperatorEvidenceTraceAction, getReleasableCluesAction, getTriviaAnswerReviewAction } from '@/app/actions/sessions';
 import { TeamsPanel } from './TeamsPanel'
 import { TriviasPanel } from './TriviasPanel'
 import { MissionsPanel } from './MissionsPanel'
@@ -13,12 +13,17 @@ import { SessionOperatorPanel } from './SessionOperatorPanel'
 import { OperatorSessionTimerPanel } from './OperatorSessionTimerPanel'
 import { TriviaRoundPanel } from './TriviaRoundPanel'
 import { AnsweredMonitorPanel, type AnsweredTeamRow } from './AnsweredMonitorPanel'
+import { TriviaAnswerReviewPanel, type AnswerReviewTeamRow } from './TriviaAnswerReviewPanel'
 import { OperatorTeamProgressPanel } from './OperatorTeamProgressPanel'
 import { OperatorClueReleasePanel } from './OperatorClueReleasePanel'
 import { OperativeCluePanel } from './OperativeCluePanel'
 import { PenaltyPanel } from './PenaltyPanel'
-import { isNonLiveQuestionSnapshot } from './timer-snapshot'
+import { RankingPanel } from './RankingPanel'
+import { EvidenceSubmissionsPanel } from './EvidenceSubmissionsPanel'
+import { evidenceReducer, emptyEvidence } from './evidence-trace'
+import { isNonLiveQuestionSnapshot, revealAnswerReviewSequenceOrder } from './timer-snapshot'
 import { createSessionStateRealtimeClient, type SessionRealtimeStatus } from '@/app/lib/realtime/session-state-client'
+import { createRankingRealtimeClient } from '@/app/lib/realtime/ranking-client'
 import { lifecycleActions, toLifecycleState } from '@/app/lib/session-lifecycle'
 import { getAccountStatus, accountStatusLabel, accountStatusTone } from '@/app/lib/account-status'
 import { useTriviaRoundState } from '@/app/lib/realtime/use-trivia-round-state'
@@ -32,7 +37,9 @@ import type {
   SessionTimerUpdatedNotificationDto,
   TransitionSessionStateResultDto,
   TriviaAnsweredMonitorDto,
+  TriviaAnswerReviewDto,
   OperatorSessionPanelDto,
+  RankingSnapshotDto,
   ReleasableClueDto,
   UserAccessCatalogItemDto,
 } from '@/app/lib/definitions';
@@ -368,6 +375,93 @@ function operatorPanelReducer(state: OperatorPanelState, action: OperatorPanelAc
   }
 }
 
+// HU-24B ranking state. Like the operator panel, both the REST snapshot and the RankingChanged push
+// carry the full standings (a wholesale re-projection), so `loaded` replaces outright.
+interface RankingState {
+  loading: boolean
+  unauthorized: boolean
+  error: string | null
+  snapshot: RankingSnapshotDto | null
+}
+
+const emptyRanking: RankingState = { loading: false, unauthorized: false, error: null, snapshot: null }
+
+type RankingAction =
+  | { type: 'reset' }
+  | { type: 'load' }
+  | { type: 'loaded'; data: RankingSnapshotDto } // from snapshot fetch OR SignalR push (full re-projection)
+  | { type: 'unauthorized' }
+  | { type: 'failed'; error: string }
+
+function rankingReducer(state: RankingState, action: RankingAction): RankingState {
+  switch (action.type) {
+    case 'reset':
+      return emptyRanking
+    case 'load':
+      return { ...state, loading: true, unauthorized: false, error: null }
+    case 'loaded':
+      return { loading: false, unauthorized: false, error: null, snapshot: action.data }
+    case 'unauthorized':
+      return { ...emptyRanking, unauthorized: true }
+    case 'failed':
+      return { ...state, loading: false, error: action.error }
+  }
+}
+
+// HU-36B operator post-close answer review state. Loaded when a question closes; cleared on
+// question activation / substage advance / session switch. Three outcomes: data, unauthorized, error.
+interface AnswerReviewState {
+  loading: boolean
+  unauthorized: boolean
+  error: string | null
+  questionSequenceOrder: number | null
+  teams: AnswerReviewTeamRow[]
+}
+
+const emptyAnswerReview: AnswerReviewState = {
+  loading: false,
+  unauthorized: false,
+  error: null,
+  questionSequenceOrder: null,
+  teams: [],
+}
+
+type AnswerReviewAction =
+  | { type: 'reset' }
+  | { type: 'load' }
+  | { type: 'loaded'; data: TriviaAnswerReviewDto }
+  | { type: 'unauthorized' }
+  | { type: 'failed'; error: string }
+
+function answerReviewReducer(state: AnswerReviewState, action: AnswerReviewAction): AnswerReviewState {
+  switch (action.type) {
+    case 'reset':
+      return emptyAnswerReview
+    case 'load':
+      return { ...state, loading: true, unauthorized: false, error: null }
+    case 'loaded':
+      return {
+        loading: false,
+        unauthorized: false,
+        error: null,
+        questionSequenceOrder: action.data.questionSequenceOrder,
+        teams: action.data.teams.map((team) => ({
+          teamId: team.teamId,
+          displayName: team.displayName,
+          teamCode: team.teamCode,
+          selectedOptionSequenceOrder: team.selectedOptionSequenceOrder,
+          isCorrect: team.isCorrect,
+          scoreValue: team.scoreValue,
+          answeredAt: team.answeredAt,
+        })),
+      }
+    case 'unauthorized':
+      return { ...emptyAnswerReview, unauthorized: true }
+    case 'failed':
+      return { ...state, loading: false, error: action.error }
+  }
+}
+
 // HU-28 releasable-clues store. A wholesale replace (the GET returns the full active-substage list) or
 // a reset on session switch — no deltas, so a plain replace/reset reducer suffices.
 type ReleasableCluesAction =
@@ -423,6 +517,10 @@ export default function DashboardClient({
   const [operatorSessionsError, setOperatorSessionsError] = useState<string | null>(null);
   const [operatorSessionsRequestState, setOperatorSessionsRequestState] = useState<'idle' | 'loaded' | 'failed'>('idle');
   const [realtimeStatus, setRealtimeStatus] = useState<SessionRealtimeStatus>('Offline');
+  // Status of the SEPARATE scoring hub that feeds live ranking. Kept apart from `realtimeStatus`
+  // (which reports the session transport) so the ranking panel can tell the operator when live
+  // standings have stopped arriving instead of silently showing a stale snapshot.
+  const [rankingRealtimeStatus, setRankingRealtimeStatus] = useState<SessionRealtimeStatus>('Offline');
   const [transitionError, setTransitionError] = useState<string | null>(null);
   const [pendingTransition, setPendingTransition] = useState<SessionLifecycleState | null>(null);
   const [confirmTransition, setConfirmTransition] = useState<SessionLifecycleState | null>(null);
@@ -431,6 +529,20 @@ export default function DashboardClient({
   const [timerState, dispatchTimer] = useReducer(timerReducer, { snapshot: null, error: null, loading: false })
   const [monitorState, dispatchMonitor] = useReducer(answeredMonitorReducer, emptyAnsweredMonitor)
   const [operatorPanelState, dispatchOperatorPanel] = useReducer(operatorPanelReducer, emptyOperatorPanel)
+  const [rankingState, dispatchRanking] = useReducer(rankingReducer, emptyRanking)
+  const [evidenceState, dispatchEvidence] = useReducer(evidenceReducer, emptyEvidence)
+
+  // The evidence trace names teams by runtime teamId only, which is unreadable to an operator, so
+  // resolve display names off the operator panel rollup (same runtime teamId). Until that panel loads
+  // the map is empty and rows fall back to "Unknown team" rather than blocking on it.
+  const evidenceTeamNames = useMemo(
+    () =>
+      Object.fromEntries(
+        (operatorPanelState.panel?.teamProgress ?? []).map((team) => [team.teamId, team.displayName]),
+      ),
+    [operatorPanelState.panel],
+  )
+  const [answerReviewState, dispatchAnswerReview] = useReducer(answerReviewReducer, emptyAnswerReview)
   // HU-28 release-clue picker source: the active substage's still-releasable hidden clues.
   // No SignalR push exists for it, so it is (re)loaded on session select, reconnect, and substage advance.
   // A reducer (not useState) so the session-switch reset dispatches inline in the same effect as the other
@@ -499,6 +611,9 @@ export default function DashboardClient({
   // Latest selected session, read by the async snapshot loaders below to drop a late response that
   // belongs to a previously-selected session (rapid session switch) instead of painting stale data.
   const selectedRealtimeSessionIdRef = useRef(selectedRealtimeSessionId)
+  // Active question sequence order captured at QuestionActivated time so QuestionClosed can
+  // dispatch the review fetch without reading from triviaRound state inside the SignalR effect.
+  const activeQuestionSeqRef = useRef<number | null>(null)
 
   // Answered/not-answered rows: roster enumeration marks each team answered iff it appears in the
   // answered map (seeded by snapshot + filled by live TeamAnswered events) — never by broadcast absence.
@@ -523,6 +638,20 @@ export default function DashboardClient({
     }
   }, [hydrateActiveQuestion, resetTriviaRound])
 
+  const loadAnswerReview = useCallback(async (liveSessionId: string, questionSequenceOrder: number) => {
+    dispatchAnswerReview({ type: 'load' })
+    const result = await getTriviaAnswerReviewAction(liveSessionId, questionSequenceOrder)
+    // Drop a late response for a session the operator has since switched away from.
+    if (selectedRealtimeSessionIdRef.current !== liveSessionId) return
+    if ('data' in result) {
+      dispatchAnswerReview({ type: 'loaded', data: result.data })
+    } else if ('unauthorized' in result) {
+      dispatchAnswerReview({ type: 'unauthorized' })
+    } else {
+      dispatchAnswerReview({ type: 'failed', error: result.error })
+    }
+  }, [])
+
   const loadTimerSnapshot = useCallback(async (liveSessionId: string) => {
     dispatchTimer({ type: 'load' })
     const result = await getSessionTimerSnapshotAction(liveSessionId)
@@ -533,8 +662,16 @@ export default function DashboardClient({
     } else {
       dispatchTimer({ type: 'loaded', data: result.data })
       applyTimerSnapshotToTriviaRound(result.data)
+      // HU-36B AC4: opening/reconnecting into the reveal window (question already closed, no active
+      // question) — with no QuestionActivated push captured — still populates the answer review. The
+      // snapshot carries the just-closed sequence order; the live activate→close path is unaffected
+      // (it fetches via onQuestionClosed and never reloads the snapshot at close).
+      const revealSeq = revealAnswerReviewSequenceOrder(result.data)
+      if (revealSeq != null) {
+        void loadAnswerReview(liveSessionId, revealSeq)
+      }
     }
-  }, [applyTimerSnapshotToTriviaRound])
+  }, [applyTimerSnapshotToTriviaRound, loadAnswerReview])
 
   const loadAnsweredMonitor = useCallback(async (liveSessionId: string) => {
     dispatchMonitor({ type: 'load' })
@@ -560,6 +697,27 @@ export default function DashboardClient({
     if ('data' in result) dispatchOperatorPanel({ type: 'loaded', data: result.data })
     else if ('unauthorized' in result) dispatchOperatorPanel({ type: 'unauthorized' })
     else dispatchOperatorPanel({ type: 'failed', error: result.error })
+  }, [])
+
+  const loadRanking = useCallback(async (liveSessionId: string) => {
+    dispatchRanking({ type: 'load' })
+    const result = await getOperatorRankingAction(liveSessionId)
+    // Drop a late response for a session the operator has since switched away from.
+    if (selectedRealtimeSessionIdRef.current !== liveSessionId) return
+    if ('data' in result) dispatchRanking({ type: 'loaded', data: result.data })
+    else if ('unauthorized' in result) dispatchRanking({ type: 'unauthorized' })
+    else dispatchRanking({ type: 'failed', error: result.error })
+  }, [])
+
+  const loadEvidence = useCallback(async (liveSessionId: string) => {
+    dispatchEvidence({ type: 'load' })
+    const result = await getOperatorEvidenceTraceAction(liveSessionId)
+    // Drop a late response for a session the operator has since switched away from.
+    if (selectedRealtimeSessionIdRef.current !== liveSessionId) return
+    // `snapshot`, not `loaded`: pushes that beat the RabbitMQ-fed projection are merged, not discarded.
+    if ('data' in result) dispatchEvidence({ type: 'snapshot', data: result.data })
+    else if ('unauthorized' in result) dispatchEvidence({ type: 'unauthorized' })
+    else dispatchEvidence({ type: 'failed', error: result.error })
   }, [])
 
   const loadReleasableClues = useCallback(async (liveSessionId: string) => {
@@ -639,12 +797,15 @@ export default function DashboardClient({
       },
       onQuestionActivated: (notification) => {
         if (notification.liveSessionId !== selectedRealtimeSessionId) return
+        activeQuestionSeqRef.current = notification.sequenceOrder
         handleQuestionActivated(notification)
         // New question → same roster, answers cleared (HU-36A: board resets in lockstep). This is an
         // optimistic update; refetch the authoritative roster below so the board is populated even when
         // the operator opened the session before a question was active (mount fetched an empty roster).
         dispatchMonitor({ type: 'questionActivated', order: notification.sequenceOrder })
         void loadAnsweredMonitor(selectedRealtimeSessionId)
+        // A new question activation clears any prior answer review (the old question is history).
+        dispatchAnswerReview({ type: 'reset' })
         // Keep the timer snapshot's active-question window fresh so the panel shows the
         // countdown (not the no-question state) between snapshot reloads. Worker ticks refine it.
         dispatchTimer({
@@ -662,9 +823,15 @@ export default function DashboardClient({
       },
       onQuestionClosed: (notification) => {
         if (notification.liveSessionId !== selectedRealtimeSessionId) return
+        const closedSeq = activeQuestionSeqRef.current
+        activeQuestionSeqRef.current = null
         handleQuestionClosed(notification)
         // Question closed → no active question; the board returns to its empty state.
         dispatchMonitor({ type: 'questionClosed' })
+        // Fetch the post-close answer review for the just-closed question.
+        if (closedSeq !== null) {
+          void loadAnswerReview(selectedRealtimeSessionId, closedSeq)
+        }
         // Question closed → no active question window; panel returns to the no-countdown state.
         dispatchTimer({
           type: 'patched',
@@ -679,11 +846,14 @@ export default function DashboardClient({
       },
       onSubstageAdvanced: (notification) => {
         if (notification.liveSessionId !== selectedRealtimeSessionId) return
+        activeQuestionSeqRef.current = null
         handleSubstageAdvanced(notification)
         // The active substage changed, so its releasable hidden-clue targets did too; refetch the picker.
         void loadReleasableClues(selectedRealtimeSessionId)
         // Substage boundary retires the prior question; clear the board (mirror onQuestionClosed).
         dispatchMonitor({ type: 'questionClosed' })
+        // Substage boundary also clears any prior answer review.
+        dispatchAnswerReview({ type: 'reset' })
         // A substage boundary retires the prior question; drop the active-question window
         // (mirror onQuestionClosed) so the timer panel returns to no-active-question.
         dispatchTimer({
@@ -712,12 +882,26 @@ export default function DashboardClient({
         // Full re-projection (SessionStateChanged / SubstageAdvanced) — replace panel state wholesale.
         dispatchOperatorPanel({ type: 'loaded', data: panel })
       },
+      onEvidenceSubmissionRegistered: (notification) => {
+        if (notification.liveSessionId !== selectedRealtimeSessionId) return
+        // One row, not a re-projection — merged by evidenceSubmissionId. This can land before the REST
+        // trace has the row at all, which is why it inserts rather than patching.
+        dispatchEvidence({ type: 'registered', data: notification })
+      },
+      onEvidenceSubmissionResolved: (notification) => {
+        if (notification.liveSessionId !== selectedRealtimeSessionId) return
+        // May arrive before its own registration; the reducer inserts a row in that case.
+        dispatchEvidence({ type: 'resolved', data: notification })
+      },
       onReconnected: () => {
         if (selectedRealtimeSessionId) {
           void loadTimerSnapshot(selectedRealtimeSessionId)
           void loadAnsweredMonitor(selectedRealtimeSessionId)
           void loadOperatorPanel(selectedRealtimeSessionId)
           void loadReleasableClues(selectedRealtimeSessionId)
+          // Refetch the trace: pushes fired while the hub was down are gone, and only the REST
+          // projection can tell us what we missed.
+          void loadEvidence(selectedRealtimeSessionId)
         }
       },
     })
@@ -733,6 +917,8 @@ export default function DashboardClient({
     loadAnsweredMonitor,
     loadOperatorPanel,
     loadReleasableClues,
+    loadEvidence,
+    loadAnswerReview,
     resetTriviaRound,
     completeTriviaRound,
     handlePregameTimerTick,
@@ -741,20 +927,60 @@ export default function DashboardClient({
     handleSubstageAdvanced,
   ])
 
+  // HU-24B ranking lives on a SECOND hub (/hubs/scoring, scoring-monitoring-service) with its own
+  // connection and lifecycle, so it gets its own effect rather than riding the /hubs/sessions client.
+  // Its status is deliberately not fed into `realtimeStatus`: that badge reports the session transport,
+  // and a scoring-hub blip must not make live session operation look offline.
+  useEffect(() => {
+    if (!selectedRealtimeSessionId) return
+
+    // A superseded client (session switched, or its async stop() still settling) must not write the
+    // new session's live status — gate every callback on this flag, flipped in cleanup.
+    let active = true
+    const client = createRankingRealtimeClient({
+      liveSessionId: selectedRealtimeSessionId,
+      onStatusChange: (status) => {
+        if (active) setRankingRealtimeStatus(status)
+      },
+      onRankingChanged: (snapshot) => {
+        if (!active || snapshot.liveSessionId !== selectedRealtimeSessionId) return
+        // Full standings on every push (the ledger recomputes the whole ranking) — replace wholesale.
+        dispatchRanking({ type: 'loaded', data: snapshot })
+      },
+      onReconnected: () => {
+        if (active && selectedRealtimeSessionId) void loadRanking(selectedRealtimeSessionId)
+      },
+    })
+
+    void client.start()
+    return () => {
+      active = false
+      // Reset so a session switch never leaves the panel showing the prior session's live state.
+      setRankingRealtimeStatus('Offline')
+      void client.stop()
+    }
+  }, [selectedRealtimeSessionId, loadRanking])
+
   useEffect(() => {
     // Update the ref before dispatching loads so any still-in-flight load for the previous
     // session sees the new selection and drops its late response.
     selectedRealtimeSessionIdRef.current = selectedRealtimeSessionId
+    activeQuestionSeqRef.current = null
     dispatchTimer({ type: 'reset' })
     dispatchMonitor({ type: 'reset' })
     dispatchOperatorPanel({ type: 'reset' })
+    dispatchRanking({ type: 'reset' })
+    dispatchEvidence({ type: 'reset' })
+    dispatchAnswerReview({ type: 'reset' })
     dispatchReleasableClues({ type: 'reset' })
     if (!selectedRealtimeSessionId) return
     void loadTimerSnapshot(selectedRealtimeSessionId)
     void loadAnsweredMonitor(selectedRealtimeSessionId)
     void loadOperatorPanel(selectedRealtimeSessionId)
+    void loadRanking(selectedRealtimeSessionId)
+    void loadEvidence(selectedRealtimeSessionId)
     void loadReleasableClues(selectedRealtimeSessionId)
-  }, [selectedRealtimeSessionId, loadTimerSnapshot, loadAnsweredMonitor, loadOperatorPanel, loadReleasableClues])
+  }, [selectedRealtimeSessionId, loadTimerSnapshot, loadAnsweredMonitor, loadOperatorPanel, loadRanking, loadEvidence, loadReleasableClues])
 
   function announce(title: string, body: string) {
     setToast({ title, body });
@@ -1195,6 +1421,25 @@ export default function DashboardClient({
                   loading={operatorPanelState.loading}
                 />
 
+                <RankingPanel
+                  snapshot={rankingState.snapshot}
+                  unauthorized={rankingState.unauthorized}
+                  error={rankingState.error}
+                  loading={rankingState.loading}
+                  live={rankingRealtimeStatus === 'Connected'}
+                />
+
+                <EvidenceSubmissionsPanel
+                  items={evidenceState.items}
+                  teamNames={evidenceTeamNames}
+                  unauthorized={evidenceState.unauthorized}
+                  error={evidenceState.error}
+                  loading={evidenceState.loading}
+                  // Evidence rides /hubs/sessions, so it reports the SESSION transport — unlike the
+                  // ranking above, which has its own scoring-hub status.
+                  live={realtimeStatus === 'Connected'}
+                />
+
                 <div className={styles.cluePanelsRow}>
                   <OperatorClueReleasePanel
                     liveSessionId={selectedOperatorSession.liveSessionId}
@@ -1255,6 +1500,14 @@ export default function DashboardClient({
                   unauthorized={monitorState.unauthorized}
                   error={monitorState.error}
                   loading={monitorState.loading}
+                />
+
+                <TriviaAnswerReviewPanel
+                  questionSequenceOrder={answerReviewState.questionSequenceOrder}
+                  teams={answerReviewState.teams}
+                  unauthorized={answerReviewState.unauthorized}
+                  error={answerReviewState.error}
+                  loading={answerReviewState.loading}
                 />
 
                 {liveUpdateNote && (

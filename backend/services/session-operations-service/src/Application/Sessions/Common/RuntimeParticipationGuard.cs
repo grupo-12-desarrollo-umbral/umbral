@@ -5,37 +5,39 @@ namespace umbral_backend.Application.Sessions.Common;
 
 // Enforces the cross-context Participation Block (#91) synchronously and fail-closed. Blocking is an
 // access decision on the critical gameplay path, so it must not depend on RabbitMQ (roadmap §2.3):
-// the authoritative gate is this per-call re-check of the Users membership-access fact. On deny we
+// the authoritative gate is this per-call re-check of the identity-access eligibility fact. On deny we
 // record the block on the SessionParticipant and evict the live connection, then reject. Recovery is
 // automatic — a later Users re-allow passes here and reconnect refreshes the participant to Active.
 public sealed class RuntimeParticipationGuard : IRuntimeParticipationGuard
 {
-    private readonly IParticipantMembershipAccessClient _participantMembershipAccessClient;
+    private readonly IParticipantEligibleTeamsClient _participantEligibleTeamsClient;
     private readonly ILiveSessionRepository _liveSessionRepository;
     private readonly ICurrentUser _currentUser;
     private readonly IParticipantBlockNotifier _participantBlockNotifier;
     private readonly TimeProvider _timeProvider;
 
     public RuntimeParticipationGuard(
-        IParticipantMembershipAccessClient participantMembershipAccessClient,
+        IParticipantEligibleTeamsClient participantEligibleTeamsClient,
         ILiveSessionRepository liveSessionRepository,
         ICurrentUser currentUser,
         IParticipantBlockNotifier participantBlockNotifier,
         TimeProvider timeProvider)
     {
-        _participantMembershipAccessClient = participantMembershipAccessClient;
+        _participantEligibleTeamsClient = participantEligibleTeamsClient;
         _liveSessionRepository = liveSessionRepository;
         _currentUser = currentUser;
         _participantBlockNotifier = participantBlockNotifier;
         _timeProvider = timeProvider;
     }
 
-    public async Task EnsureAllowedAsync(Guid liveSessionId, Guid teamId, string? token, CancellationToken cancellationToken)
+    public async Task<ParticipantEligibleTeamsDto> EnsureAllowedAsync(
+        Guid liveSessionId,
+        CancellationToken cancellationToken)
     {
-        var decision = await _participantMembershipAccessClient.ValidateAsync(liveSessionId, teamId, token, cancellationToken);
-        if (decision.IsAllowed)
+        var whitelist = await _participantEligibleTeamsClient.GetAsync(cancellationToken);
+        if (whitelist.IsEligible)
         {
-            return;
+            return whitelist;
         }
 
         await ApplyParticipationBlockAsync(liveSessionId, cancellationToken);

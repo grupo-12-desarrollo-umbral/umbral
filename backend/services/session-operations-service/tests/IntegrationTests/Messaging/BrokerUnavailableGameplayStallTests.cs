@@ -95,9 +95,14 @@ public sealed class BrokerUnavailableGameplayStallTests
             new SequentialQuestionActivationStrategy(),
             new SessionStateTransitionPolicy());
 
-        // now is past the 30s question-0 window, so the close is an expiry-driven close.
-        var elapsed = await TimeAsync(
-            () => facade.CloseAndAdvanceAsync(session!, ActiveAt.AddSeconds(31), CancellationToken.None));
+        // now is past the 30s question-0 window, so the close is an expiry-driven close. Both reveal
+        // phases (close + reveal-completion) are driven so question 2 activates (HU-35 reveal window).
+        var closeAt = ActiveAt.AddSeconds(31);
+        var elapsed = await TimeAsync(async () =>
+        {
+            await facade.CloseAndAdvanceAsync(session!, closeAt, CancellationToken.None);
+            await facade.CompleteQuestionRevealAsync(session!, closeAt, CancellationToken.None);
+        });
 
         session!.ActiveQuestionIndex.Should().Be(1);
         broadcaster.Verify(
@@ -151,8 +156,12 @@ public sealed class BrokerUnavailableGameplayStallTests
             new SequentialQuestionActivationStrategy(),
             new SessionStateTransitionPolicy());
 
-        var elapsed = await TimeAsync(
-            () => facade.CloseAndAdvanceAsync(session!, ActiveAt.AddSeconds(31), CancellationToken.None));
+        var closeAt = ActiveAt.AddSeconds(31);
+        var elapsed = await TimeAsync(async () =>
+        {
+            await facade.CloseAndAdvanceAsync(session!, closeAt, CancellationToken.None);
+            await facade.CompleteQuestionRevealAsync(session!, closeAt, CancellationToken.None);
+        });
 
         session!.ActiveQuestionIndex.Should().Be(1);
         (await CountPendingOutboxMessagesAsync(context, nameof(QuestionClosedIntegrationEvent)))

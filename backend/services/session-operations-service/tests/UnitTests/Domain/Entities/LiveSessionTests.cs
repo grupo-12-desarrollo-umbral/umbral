@@ -232,6 +232,114 @@ public sealed class LiveSessionTests
         reconnected.Participant.ParticipantStatus.Should().Be(ParticipantStatus.Active);
     }
 
+    // A first join through AdmitParticipant is a self-assignment, so it clears the same authorized set as
+    // SelectTeam when the caller supplies one.
+    [Fact]
+    public void AdmitParticipant_WhenFirstJoinTargetsTeamOutsideAuthorizedSet_ThrowsTeamNotInAuthorizedSet()
+    {
+        var session = LiveSessionFactory.CreateScheduledTreasureHunt();
+        var alphaReferenceTeamId = Guid.NewGuid();
+        session.AssociateTeam(alphaReferenceTeamId, "Alpha", "A-01", 4);
+        var bravo = session.AssociateTeam(Guid.NewGuid(), "Bravo", "B-01", 4);
+
+        var act = () => session.AdmitParticipant(
+            Guid.NewGuid(),
+            "Mallory",
+            bravo.TeamId,
+            DateTimeOffset.UtcNow,
+            _joinPolicy,
+            new OpenTeamSelectionPolicy(),
+            new HashSet<Guid> { alphaReferenceTeamId });
+
+        act.Should().Throw<TeamNotInAuthorizedSetException>();
+        session.Participants.Should().BeEmpty();
+        bravo.Members.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void AdmitParticipant_WhenFirstJoinTargetsWhitelistedTeam_CreatesMembership()
+    {
+        var session = LiveSessionFactory.CreateScheduledTreasureHunt();
+        var alphaReferenceTeamId = Guid.NewGuid();
+        var alpha = session.AssociateTeam(alphaReferenceTeamId, "Alpha", "A-01", 4);
+
+        var result = session.AdmitParticipant(
+            Guid.NewGuid(),
+            "Nora",
+            alpha.TeamId,
+            DateTimeOffset.UtcNow,
+            _joinPolicy,
+            new OpenTeamSelectionPolicy(),
+            new HashSet<Guid> { alphaReferenceTeamId });
+
+        result.IsReconnect.Should().BeFalse();
+        result.Team.Members.Should().ContainSingle();
+    }
+
+    // An empty authorized set is "unassigned => every attached team", never "denied".
+    [Fact]
+    public void AdmitParticipant_WhenFirstJoinByUnassignedParticipant_CreatesMembership()
+    {
+        var session = LiveSessionFactory.CreateScheduledTreasureHunt();
+        var team = session.AssociateTeam(Guid.NewGuid(), "Alpha", "A-01", 4);
+
+        var result = session.AdmitParticipant(
+            Guid.NewGuid(),
+            "Nora",
+            team.TeamId,
+            DateTimeOffset.UtcNow,
+            _joinPolicy,
+            new OpenTeamSelectionPolicy(),
+            new HashSet<Guid>());
+
+        result.IsReconnect.Should().BeFalse();
+        result.Team.Members.Should().ContainSingle();
+    }
+
+    // Policy supplied, authorized set omitted: the omitted set carries the same "unassigned" meaning as an
+    // empty one, so the caller is admitted rather than refused for want of a whitelist.
+    [Fact]
+    public void AdmitParticipant_WhenFirstJoinWithPolicyButNoAuthorizedSet_TreatsCallerAsUnassigned()
+    {
+        var session = LiveSessionFactory.CreateScheduledTreasureHunt();
+        var team = session.AssociateTeam(Guid.NewGuid(), "Alpha", "A-01", 4);
+
+        var result = session.AdmitParticipant(
+            Guid.NewGuid(),
+            "Nora",
+            team.TeamId,
+            DateTimeOffset.UtcNow,
+            _joinPolicy,
+            new OpenTeamSelectionPolicy());
+
+        result.IsReconnect.Should().BeFalse();
+        result.Team.Members.Should().ContainSingle();
+    }
+
+    // A returning participant is bound to their assigned team by EnsureCanReconnect, so a whitelist that no
+    // longer lists it must not strand them mid-session.
+    [Fact]
+    public void AdmitParticipant_WhenReconnectingToAssignedTeamOutsideAuthorizedSet_StillReconnects()
+    {
+        var session = LiveSessionFactory.CreateScheduledTreasureHunt();
+        var team = session.AssociateTeam(Guid.NewGuid(), "Alpha", "A-01", 4);
+        var identityId = Guid.NewGuid();
+        var joinedAt = new DateTimeOffset(2026, 6, 3, 10, 0, 0, TimeSpan.Zero);
+        session.AdmitParticipant(identityId, "Nora", team.TeamId, joinedAt, _joinPolicy);
+
+        var reconnected = session.AdmitParticipant(
+            identityId,
+            "Nora",
+            team.TeamId,
+            joinedAt.AddMinutes(5),
+            _joinPolicy,
+            new OpenTeamSelectionPolicy(),
+            new HashSet<Guid> { Guid.NewGuid() });
+
+        reconnected.IsReconnect.Should().BeTrue();
+        reconnected.Team.TeamId.Should().Be(team.TeamId);
+    }
+
     [Fact]
     public void AdmitParticipant_WhenSessionIsActive_RejectsLateJoin()
     {
@@ -714,6 +822,61 @@ public sealed class LiveSessionTests
         var act = () => session.CloseActiveQuestion(DateTimeOffset.UtcNow);
 
         act.Should().Throw<NoActiveQuestionException>();
+    }
+
+    [Fact]
+    public void CloseActiveQuestionForReveal_ClosesQuestionAndOpensRevealWindow()
+    {
+        var session = ActivateTriviaSession();
+        var activatedAt = new DateTimeOffset(2026, 6, 3, 10, 1, 0, TimeSpan.Zero);
+        var closedAt = activatedAt.AddSeconds(30);
+        session.ActivateQuestion(0, activatedAt);
+
+        session.CloseActiveQuestionForReveal(closedAt, TimeSpan.FromSeconds(5), nextQuestionIndex: 1);
+
+        session.ActiveQuestionIndex.Should().BeNull();
+        session.IsAwaitingQuestionReveal.Should().BeTrue();
+        session.QuestionRevealUntil.Should().Be(closedAt.AddSeconds(5));
+        session.IsQuestionRevealElapsed(closedAt.AddSeconds(4)).Should().BeFalse();
+        session.IsQuestionRevealElapsed(closedAt.AddSeconds(5)).Should().BeTrue();
+        session.DomainEvents.OfType<QuestionClosedEvent>().Single().QuestionIndex.Should().Be(0);
+    }
+
+    [Fact]
+    public void CompleteQuestionRevealAndDequeueNext_ReturnsPendingIndexAndClearsRevealWindow()
+    {
+        var session = ActivateTriviaSession();
+        var activatedAt = new DateTimeOffset(2026, 6, 3, 10, 1, 0, TimeSpan.Zero);
+        session.ActivateQuestion(0, activatedAt);
+        session.CloseActiveQuestionForReveal(activatedAt.AddSeconds(30), TimeSpan.FromSeconds(5), nextQuestionIndex: 1);
+
+        var next = session.CompleteQuestionRevealAndDequeueNext();
+
+        next.Should().Be(1);
+        session.IsAwaitingQuestionReveal.Should().BeFalse();
+        session.QuestionRevealUntil.Should().BeNull();
+    }
+
+    [Fact]
+    public void CompleteQuestionRevealAndDequeueNext_WhenSubstageExhausted_ReturnsNull()
+    {
+        var session = ActivateTriviaSession();
+        var activatedAt = new DateTimeOffset(2026, 6, 3, 10, 1, 0, TimeSpan.Zero);
+        session.ActivateQuestion(0, activatedAt);
+        session.CloseActiveQuestionForReveal(activatedAt.AddSeconds(30), TimeSpan.FromSeconds(5), nextQuestionIndex: null);
+
+        session.CompleteQuestionRevealAndDequeueNext().Should().BeNull();
+        session.IsAwaitingQuestionReveal.Should().BeFalse();
+    }
+
+    [Fact]
+    public void CompleteQuestionRevealAndDequeueNext_WhenNoRevealPending_ThrowsException()
+    {
+        var session = ActivateTriviaSession();
+
+        var act = () => session.CompleteQuestionRevealAndDequeueNext();
+
+        act.Should().Throw<NoActiveQuestionRevealException>();
     }
 
     [Fact]

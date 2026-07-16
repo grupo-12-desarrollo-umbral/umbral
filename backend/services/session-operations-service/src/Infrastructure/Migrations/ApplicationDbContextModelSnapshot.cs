@@ -322,6 +322,14 @@ namespace umbral_backend.Infrastructure.Migrations
                         .HasColumnType("character varying(200)")
                         .HasColumnName("title_snapshot");
 
+                    b.Property<int?>("_pendingNextQuestionIndex")
+                        .HasColumnType("integer")
+                        .HasColumnName("pending_next_question_index");
+
+                    b.Property<DateTimeOffset?>("_questionRevealUntil")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("question_reveal_until");
+
                     b.Property<DateTimeOffset?>("_questionTimerAdvancingSince")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("question_timer_advancing_since");
@@ -727,7 +735,8 @@ namespace umbral_backend.Infrastructure.Migrations
                                     b2.HasKey("TeamMemberId");
 
                                     b2.HasIndex("TeamId", "SessionParticipantId")
-                                        .IsUnique();
+                                        .IsUnique()
+                                        .HasFilter("membership_status = 'Active'");
 
                                     b2.ToTable("live_session_team_members", (string)null);
 

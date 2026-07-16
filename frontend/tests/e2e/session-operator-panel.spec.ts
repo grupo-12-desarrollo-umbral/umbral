@@ -97,9 +97,12 @@ test('operator opens the session panel: state readout + per-team progress rollup
   await expect(page.locator('[data-testid="panel-session-state"]')).toBeVisible()
   await expect(page.locator('[data-testid="panel-session-state"]')).toHaveText(/Active|Paused|Preparing/)
   await expect(page.locator('[data-testid^="team-progress-score-"]').first()).toBeVisible()
-  // No ranking/winner copy leaks into this slice (HU-24B is out of scope). "Penalt" is deliberately
-  // NOT matched here: the HU-38 PenaltyPanel is a legitimate operator-hero control, not an HU-24B leak.
-  await expect(page.getByText(/ranking|winner/i)).toHaveCount(0)
+  // No "winner" copy leaks into the operator dashboard — there is no winner-declaration feature.
+  // NOTE: "ranking" is deliberately NOT asserted absent anymore. HU-24B landed a real RankingPanel
+  // (heading "Ranking") on this same dashboard; its live behaviour has its own coverage in
+  // session-operator-ranking.spec.ts. "Penalt" is likewise not matched — the HU-38 PenaltyPanel is a
+  // legitimate operator control, not a leak.
+  await expect(page.getByText(/winner/i)).toHaveCount(0)
 })
 
 test('a session-state transition updates the panel state without manual reload', async ({ operatorPage: page }) => {

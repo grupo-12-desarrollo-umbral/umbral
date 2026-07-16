@@ -303,6 +303,104 @@ describe('session gateway auth', () => {
     )
   })
 
+  // HU-36B operator post-close answer review: 200 parse, auth/status mapping, and 409 cause.
+  it('parses the trivia answer review DTO on a 200', async () => {
+    const { getTriviaAnswerReview } = await import('@/app/lib/sessions')
+    const payload = {
+      liveSessionId: 'session-1',
+      questionSequenceOrder: 2,
+      teams: [
+        {
+          teamId: 'team-a',
+          teamCode: 'AAA',
+          displayName: 'Alpha',
+          selectedOptionSequenceOrder: 2,
+          isCorrect: true,
+          scoreValue: 100,
+          answeredAt: '2026-07-10T10:00:00Z',
+        },
+        {
+          teamId: 'team-b',
+          teamCode: 'BBB',
+          displayName: 'Bravo',
+          selectedOptionSequenceOrder: 1,
+          isCorrect: false,
+          scoreValue: 0,
+          answeredAt: '2026-07-10T10:00:01Z',
+        },
+        {
+          teamId: 'team-c',
+          teamCode: 'CCC',
+          displayName: 'Charlie',
+        },
+      ],
+    }
+
+    getValidAccessTokenMock.mockResolvedValue('fresh-access-token')
+    vi.mocked(global.fetch).mockResolvedValue(
+      new Response(JSON.stringify(payload), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    )
+
+    await expect(getTriviaAnswerReview('session-1', 2)).resolves.toEqual(payload)
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      'http://localhost:8000/api/sessions/session-1/trivia/questions/2/answer-review',
+      expect.objectContaining({ cache: 'no-store', headers: expect.any(Headers) }),
+    )
+  })
+
+  it('maps a 409 to question_not_closed', async () => {
+    const { getTriviaAnswerReview } = await import('@/app/lib/sessions')
+
+    getValidAccessTokenMock.mockResolvedValue('token')
+    vi.mocked(global.fetch).mockResolvedValue(new Response('', { status: 409 }))
+
+    await expect(getTriviaAnswerReview('session-1', 2)).rejects.toThrowError('question_not_closed')
+  })
+
+  it('maps a 403 (non-owning operator) to an unauthorized identity error for answer review', async () => {
+    const { getTriviaAnswerReview } = await import('@/app/lib/sessions')
+
+    getValidAccessTokenMock.mockResolvedValue('token')
+    vi.mocked(global.fetch).mockResolvedValue(new Response('', { status: 403 }))
+
+    await expect(getTriviaAnswerReview('session-1', 2)).rejects.toEqual(
+      expect.objectContaining<Partial<IdentityError>>({
+        name: 'IdentityError',
+        code: 'unauthorized',
+      }),
+    )
+  })
+
+  it('maps a 401 to an unauthorized identity error for answer review', async () => {
+    const { getTriviaAnswerReview } = await import('@/app/lib/sessions')
+
+    getValidAccessTokenMock.mockResolvedValue('token')
+    vi.mocked(global.fetch).mockResolvedValue(new Response('', { status: 401 }))
+
+    await expect(getTriviaAnswerReview('session-1', 2)).rejects.toEqual(
+      expect.objectContaining<Partial<IdentityError>>({ name: 'IdentityError', code: 'unauthorized' }),
+    )
+  })
+
+  it('maps a 404 to an unknown identity error (Session not found) for answer review', async () => {
+    const { getTriviaAnswerReview } = await import('@/app/lib/sessions')
+
+    getValidAccessTokenMock.mockResolvedValue('token')
+    vi.mocked(global.fetch).mockResolvedValue(new Response('', { status: 404 }))
+
+    await expect(getTriviaAnswerReview('session-1', 2)).rejects.toEqual(
+      expect.objectContaining<Partial<IdentityError>>({
+        name: 'IdentityError',
+        code: 'unknown',
+        message: 'Session not found',
+      }),
+    )
+  })
+
   it('maps a duplicate association conflict to a stable frontend error', async () => {
     const { associateTeamToSession } = await import('@/app/lib/sessions')
 
@@ -603,5 +701,136 @@ describe('session gateway auth', () => {
     await expect(
       addOperativeClue('s', { clueText: 't', teamIds: ['a'] }),
     ).rejects.toThrowError('clue_conflict')
+  })
+
+  // HU-24B operator ranking snapshot — the REST fallback behind the RankingChanged push.
+  it('fetches the operator ranking through the gateway with a bearer token', async () => {
+    const { getOperatorRanking } = await import('@/app/lib/sessions')
+    getValidAccessTokenMock.mockResolvedValue('token')
+    const snapshot = {
+      liveSessionId: 'session-1',
+      generatedAt: '2026-07-16T10:00:00Z',
+      calculationVersion: 3,
+      rows: [
+        { teamId: 'ref-a', teamDisplayName: 'Alpha', position: 1, totalScore: 300, resolutionTime: '00:05:00' },
+      ],
+    }
+    vi.mocked(global.fetch).mockResolvedValue(
+      new Response(JSON.stringify(snapshot), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    )
+
+    await expect(getOperatorRanking('session-1')).resolves.toEqual(snapshot)
+
+    // The operator route is teamId-less: access is proven by session assignment, not team membership.
+    const [url, init] = vi.mocked(global.fetch).mock.calls[0]
+    expect(url).toBe('http://localhost:8000/api/sessions/session-1/ranking/operator')
+    expect((init?.headers as Headers).get('Authorization')).toBe('Bearer token')
+  })
+
+  it('returns the empty ranking snapshot as data, not as an error', async () => {
+    const { getOperatorRanking } = await import('@/app/lib/sessions')
+    getValidAccessTokenMock.mockResolvedValue('token')
+    // A live session with no score entries yet: the backend well-known empty snapshot.
+    const empty = { liveSessionId: 's', generatedAt: '0001-01-01T00:00:00+00:00', calculationVersion: 0, rows: [] }
+    vi.mocked(global.fetch).mockResolvedValue(
+      new Response(JSON.stringify(empty), { status: 200, headers: { 'Content-Type': 'application/json' } }),
+    )
+
+    await expect(getOperatorRanking('s')).resolves.toEqual(empty)
+  })
+
+  it('maps ranking 401 and 403 to an unauthorized identity error', async () => {
+    const { getOperatorRanking } = await import('@/app/lib/sessions')
+    getValidAccessTokenMock.mockResolvedValue('token')
+
+    vi.mocked(global.fetch).mockResolvedValueOnce(new Response('', { status: 401 }))
+    await expect(getOperatorRanking('s')).rejects.toEqual(
+      expect.objectContaining<Partial<IdentityError>>({ name: 'IdentityError', code: 'unauthorized' }),
+    )
+
+    // 403 = an operator not assigned to this session; the scoring ownership Proxy denies.
+    vi.mocked(global.fetch).mockResolvedValueOnce(new Response('', { status: 403 }))
+    await expect(getOperatorRanking('s')).rejects.toEqual(
+      expect.objectContaining<Partial<IdentityError>>({ name: 'IdentityError', code: 'unauthorized' }),
+    )
+  })
+
+  // HU-24B operator evidence trace — the REST fallback behind the EvidenceSubmission* pushes.
+  it('fetches the operator evidence trace through the gateway with a bearer token', async () => {
+    const { getOperatorEvidenceTrace } = await import('@/app/lib/sessions')
+    getValidAccessTokenMock.mockResolvedValue('token')
+    const trace = {
+      liveSessionId: 'session-1',
+      items: [
+        {
+          evidenceSubmissionId: 'sub-1',
+          teamId: 'team-1',
+          activeSubstageId: 'substage-1',
+          submissionType: 'TreasureHuntQrScan',
+          originReference: 'target:9f1c',
+          submittedAt: '2026-07-16T10:01:05Z',
+          validationState: 'Accepted',
+          rejectionReason: null,
+          resolvedAt: '2026-07-16T10:01:09Z',
+        },
+      ],
+    }
+    vi.mocked(global.fetch).mockResolvedValue(
+      new Response(JSON.stringify(trace), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    )
+
+    await expect(getOperatorEvidenceTrace('session-1')).resolves.toEqual(trace)
+
+    // No teamId filter: the assigned operator is entitled to the whole session's trace, and access is
+    // proven by session assignment rather than team membership.
+    const [url, init] = vi.mocked(global.fetch).mock.calls[0]
+    expect(url).toBe('http://localhost:8000/api/sessions/session-1/evidence-submissions')
+    expect((init?.headers as Headers).get('Authorization')).toBe('Bearer token')
+  })
+
+  it('returns an empty evidence trace as data, not as an error', async () => {
+    const { getOperatorEvidenceTrace } = await import('@/app/lib/sessions')
+    getValidAccessTokenMock.mockResolvedValue('token')
+    // A live session where nobody has submitted anything yet.
+    const empty = { liveSessionId: 's', items: [] }
+    vi.mocked(global.fetch).mockResolvedValue(
+      new Response(JSON.stringify(empty), { status: 200, headers: { 'Content-Type': 'application/json' } }),
+    )
+
+    await expect(getOperatorEvidenceTrace('s')).resolves.toEqual(empty)
+  })
+
+  it('maps evidence trace 401 and 403 to an unauthorized identity error', async () => {
+    const { getOperatorEvidenceTrace } = await import('@/app/lib/sessions')
+    getValidAccessTokenMock.mockResolvedValue('token')
+
+    vi.mocked(global.fetch).mockResolvedValueOnce(new Response('', { status: 401 }))
+    await expect(getOperatorEvidenceTrace('s')).rejects.toEqual(
+      expect.objectContaining<Partial<IdentityError>>({ name: 'IdentityError', code: 'unauthorized' }),
+    )
+
+    // 403 = an operator not assigned to this session; the ownership Proxy denies.
+    vi.mocked(global.fetch).mockResolvedValueOnce(new Response('', { status: 403 }))
+    await expect(getOperatorEvidenceTrace('s')).rejects.toEqual(
+      expect.objectContaining<Partial<IdentityError>>({ name: 'IdentityError', code: 'unauthorized' }),
+    )
+  })
+
+  // A transient 5xx must stay distinguishable from a 403, so the action can avoid telling a
+  // legitimately assigned operator they are not authorized.
+  it('maps an evidence trace 5xx to an unknown identity error, not unauthorized', async () => {
+    const { getOperatorEvidenceTrace } = await import('@/app/lib/sessions')
+    getValidAccessTokenMock.mockResolvedValue('token')
+
+    vi.mocked(global.fetch).mockResolvedValueOnce(new Response('', { status: 503 }))
+    await expect(getOperatorEvidenceTrace('s')).rejects.toEqual(
+      expect.objectContaining<Partial<IdentityError>>({ name: 'IdentityError', code: 'unknown' }),
+    )
   })
 })

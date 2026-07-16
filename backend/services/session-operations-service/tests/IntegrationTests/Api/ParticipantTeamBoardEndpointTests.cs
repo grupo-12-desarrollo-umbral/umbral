@@ -27,7 +27,7 @@ public sealed class ParticipantTeamBoardEndpointTests : IAsyncLifetime
     {
         _factory = new SessionOperationsApiWebApplicationFactory(_fixture.ConnectionString);
         _client = _factory.CreateClient();
-        _factory.AccessClient.IsAllowed = true;
+        _factory.EligibleTeamsClient.IsEligible = true;
         await _factory.ResetDatabaseAsync();
     }
 
@@ -107,7 +107,7 @@ public sealed class ParticipantTeamBoardEndpointTests : IAsyncLifetime
     public async Task GetTeamBoard_WhenAccessFactDenied_ReturnsForbiddenProblemDetails()
     {
         var seeded = await SeedActiveTreasureHuntSessionAsync();
-        _factory.AccessClient.IsAllowed = false;
+        _factory.EligibleTeamsClient.IsEligible = false;
         AddTrustedHeaders(_client, Guid.NewGuid().ToString(), "Participant", "participant@example.com");
 
         var response = await _client.GetAsync(BuildTeamBoardUrl(seeded));

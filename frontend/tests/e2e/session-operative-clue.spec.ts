@@ -87,7 +87,7 @@ BEGIN
   RETURNING "Id" INTO v_substage_id;
 
   INSERT INTO "MissionClues" ("SubstageId", "Title", "SequenceOrder", "Text", "Visibility")
-  VALUES (v_substage_id, 'Clue 1', 1, 'Find landmark #1 and scan its code.', 'Visible')
+  VALUES (v_substage_id, 'Clue 1', 1, 'Find landmark #1 and scan its code.', 'VisibleWhenSubstageStarts')
   RETURNING "Id" INTO v_clue_id;
 
   INSERT INTO "MissionTargets" ("SubstageId", "Name", "QrCode", "SequenceOrder", "IsActive", "Score", "ClueId")

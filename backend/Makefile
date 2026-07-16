@@ -57,7 +57,11 @@ INTEGRATION_PROJECTS := $(shell find $(SVCDIR)/tests -maxdepth 3 -name '*Integra
 # behavioural gate, not a coverlet report).
 GATEABLE_SERVICES := $(sort $(foreach p,$(wildcard services/*/tests/IntegrationTests/*.csproj),$(word 2,$(subst /, ,$(p)))))
 
-.PHONY: help build test gate gate-all clean clean-all clean-artifacts guard-artifacts structure-guard structure-guard-converged layer-guard ef
+.PHONY: help build test gate gate-all clean clean-all clean-artifacts guard-artifacts structure-guard structure-guard-converged layer-guard ef rewire doctor
+
+# Compose service names of the hot-reload dev containers (docker-compose.override.yml):
+# every service/ plus the gateway, which lives outside services/.
+DEV_SERVICES := api-gateway $(notdir $(wildcard services/*))
 
 # Fail fast (before any dotnet call) when this service's bin/obj are owned by
 # someone other than you — the #1 cause of the confusing NuGet "Access to the
@@ -102,6 +106,8 @@ help:
 	@echo "  clean-all remove bin/obj across every service"
 	@echo "  clean-artifacts reclaim stale + foreign-owned (Codex nobody:nogroup) bin/obj incl. api-gateway; uses sudo if needed"
 	@echo "  ef      dotnet ef passthrough — also pass ARGS=\"migrations add ...\""
+	@echo "  rewire  restart SVC's dev container + wait until it serves (after a DI/wiring/startup edit hot reload can't apply)"
+	@echo "  doctor  check the dev stack for disarmed watchers / in-tree binaries — the failures /health cannot see (all services, or SVC=<svc>)"
 	@echo "  structure-guard  enforce the ADR-0011 Application-layer vertical-slice layout (all services, or SVC=<svc>)"
 	@echo "  layer-guard      forbid cross-layer reflection laundering (inner layer naming an Api type by string; all services, or SVC=<svc>)"
 	@echo "  (build/test/gate pre-flight-check bin/obj ownership; foreign-owned → fail fast with the fix)"
@@ -175,6 +181,90 @@ gate-all:
 	done; \
 	if [ -n "$$failed" ]; then echo "Gate FAILED for:$$failed" >&2; exit 1; fi; \
 	echo "All gates GREEN."
+
+# Reload a service's COMPOSITION ROOT after a DI / wiring / middleware / startup
+# edit. `dotnet watch` Hot Reload patches method bodies in the RUNNING process and
+# never re-runs startup, so DI registrations, MassTransit `AddConsumer<T>`, YARP
+# routes, and pipeline changes are silently ignored until the process restarts
+# (full rationale in the header of docker-compose.override.yml). A container
+# restart is the reliable, graceful way to do it: the old process fully exits and
+# frees :8080 before the new one binds, so it avoids the port race that dead-ends
+# the watcher on an ordinary restart (also documented there — `make doctor` detects
+# that state). Pure code/logic edits do NOT need this — they hot-reload instantly.
+#
+# Restarts SVC's container, then polls it via the dynamically-resolved host port
+# (so it is port-map-agnostic) until it serves HTTP again — a definite "back up"
+# signal instead of a guess. Ready = any non-5xx response (services answer /health
+# 200; the gateway has no health route and 404s, which still proves it is serving).
+# SVC is the compose service name, e.g. session-operations-service or api-gateway.
+#   make rewire SVC=session-operations-service
+rewire:
+	@echo "rewire $(SVC): docker compose restart + wait for it to serve …"; \
+	docker compose restart $(SVC) || { echo "  restart failed — is the dev stack up? (docker compose up -d)"; exit 1; }; \
+	hostport=$$(docker compose port $(SVC) 8080 2>/dev/null); \
+	if [ -z "$$hostport" ]; then \
+	  echo "  could not resolve $(SVC)'s host port for container port 8080 (is it running/published?)."; exit 1; \
+	fi; \
+	url="http://$$hostport/health"; \
+	for i in $$(seq 1 60); do \
+	  code=$$(curl -s -o /dev/null -w '%{http_code}' "$$url" 2>/dev/null); \
+	  if [ "$$code" != "000" ] && [ "$$code" -lt 500 ]; then \
+	    echo "  $(SVC) serving again ($$url -> $$code) after ~$$((i*3))s."; exit 0; \
+	  fi; \
+	  sleep 3; \
+	done; \
+	echo "  TIMED OUT after 180s waiting for $(SVC) to serve. Inspect: docker compose logs --tail=60 $(SVC)"; exit 1
+
+# Dev-loop health check. Detects the two ways this stack lies about being healthy —
+# both invisible to /health, which is why they cost whole debugging sessions:
+#   1. Watcher disarmed. A restart lost the race for :8080, watch dead-ended, and
+#      the PREVIOUS app process is still serving. Health 200, code stale (see the
+#      KNOWN TRAP header in docker-compose.override.yml). Signature: an app process
+#      is alive AND watch's last word is "Waiting for a file to change".
+#   2. In-tree binary. The process runs from src/**/bin/ instead of /tmp/umbral-*/,
+#      so it started before the Directory.Build.props redirect and still shares
+#      bin/obj with host builds — the collision that fakes CS1061 "does not contain
+#      a definition for …" errors a restart cannot clear (override header, line ~49).
+# Read-only: reports and names the fix, never restarts (that is `rewire`, which the
+# caller should decide to run). Checks every dev service, or SVC=<svc> for one.
+# Non-zero exit when anything needs attention, so a script can gate on it.
+#   make doctor
+doctor:
+	@svcs="$(DEV_SERVICES)"; \
+	if [ "$(origin SVC)" = "command line" ]; then svcs="$(SVC)"; fi; \
+	bad=""; \
+	for svc in $$svcs; do \
+	  if [ -z "$$(docker compose ps -q $$svc 2>/dev/null)" ]; then \
+	    printf '  ? %-30s not running (dev stack down? docker compose up -d)\n' "$$svc"; continue; \
+	  fi; \
+	  app=$$(docker compose top $$svc 2>/dev/null | awk 'NR>1 && $$NF ~ /bin\/Debug/ {print $$NF}' | head -1); \
+	  watch=$$(docker compose logs $$svc 2>/dev/null | grep 'dotnet watch' | tail -1); \
+	  case "$$watch" in *"Waiting for a file to change"*) waiting=1;; *) waiting=0;; esac; \
+	  if [ -n "$$app" ] && [ $$waiting -eq 1 ]; then \
+	    printf '  ✗ %-30s WATCHER DISARMED — old process still serving, edits will NOT apply\n' "$$svc"; \
+	    bad="$$bad $$svc"; \
+	  elif [ -z "$$app" ] && [ $$waiting -eq 1 ]; then \
+	    printf '  ✗ %-30s app process DOWN — watcher waiting for a change (build broken?)\n' "$$svc"; \
+	    printf '      %s\n' "docker compose logs --tail=60 $$svc"; \
+	    bad="$$bad $$svc"; \
+	  elif [ -z "$$app" ]; then \
+	    printf '  ? %-30s no app process yet (still building — re-run in ~30s)\n' "$$svc"; \
+	  else \
+	    case "$$app" in \
+	      /tmp/*) printf '  ✓ %-30s watcher armed\n' "$$svc";; \
+	      *) printf '  ✗ %-30s IN-TREE binary — shares bin/obj with host builds\n' "$$svc"; \
+	         printf '      %s\n' "$$app"; \
+	         printf '      started before the Directory.Build.props /tmp redirect\n'; \
+	         bad="$$bad $$svc";; \
+	    esac; \
+	  fi; \
+	done; \
+	if [ -n "$$bad" ]; then \
+	  echo; echo "  Fix — restart the affected services:"; \
+	  for svc in $$bad; do echo "        make -C backend rewire SVC=$$svc"; done; \
+	  exit 1; \
+	fi; \
+	echo "  dev stack healthy — every watcher armed, every binary out-of-tree."
 
 # Remove build artifacts so the next build/gate starts from a clean tree. This
 # is the fast recovery path when a sandboxed toolchain run leaves `bin/` or

@@ -7,7 +7,7 @@ public sealed class TrustedHeadersTransform : RequestTransform
     // is always stripped before the gateway conditionally re-adds its own. This matters most for the
     // anonymous /api/users/register route, which now flows through this same pipeline unauthenticated —
     // without the strip, a caller could forge X-User-Role and reach an identity header downstream.
-    private static readonly string[] TrustedIdentityHeaders = { "X-User-Id", "X-User-Role", "X-User-Email" };
+    private static readonly string[] TrustedIdentityHeaders = { "X-User-Id", "X-User-Role", "X-User-Email", "X-User-Name" };
 
     public override ValueTask ApplyAsync(RequestTransformContext context)
     {
@@ -22,6 +22,7 @@ public sealed class TrustedHeadersTransform : RequestTransform
             AddIfPresent(context, "X-User-Id", user.FindFirstValue(ClaimTypes.NameIdentifier) ?? user.FindFirstValue("sub"));
             AddIfPresent(context, "X-User-Role", GetRealmRole(user));
             AddIfPresent(context, "X-User-Email", user.FindFirstValue(ClaimTypes.Email) ?? user.FindFirstValue("email"));
+            AddIfPresent(context, "X-User-Name", GetDisplayName(user));
         }
 
         // Strip the original token; downstream services must not re-validate it. It arrives one of
@@ -41,6 +42,15 @@ public sealed class TrustedHeadersTransform : RequestTransform
             context.ProxyRequest.Headers.TryAddWithoutValidation(header, value);
         }
     }
+
+    // Keycloak's built-in `profile` client scope fills `name` from the user's first/last name. A user
+    // with an empty profile has no `name` at all, so fall back to `preferred_username` (always present)
+    // rather than forward nothing. The raw claim is checked before ClaimTypes.Name because inbound claim
+    // mapping renames `name`, and ClaimTypes.Name can otherwise resolve to `unique_name`.
+    private static string? GetDisplayName(ClaimsPrincipal user) =>
+        user.FindFirstValue("name")
+        ?? user.FindFirstValue(ClaimTypes.Name)
+        ?? user.FindFirstValue("preferred_username");
 
     // The three application roles, most-privileged first. Downstream services only understand these
     // exact names (identity-access-service's GatewayRoleParser rejects anything else), so the header

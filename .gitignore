@@ -4,6 +4,10 @@ coverage/
 .nuget/
 /appsettings.Development.json
 
+# Test-runner caches (vitest, playwright)
+node_modules/
+test-results/
+
 # Ephemeral agent handoff scratch — written per worktree by the handoff skill,
 # never committed (see backend/.agents/skills/handoff/SKILL.md)
 /HANDOFF.md

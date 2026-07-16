@@ -119,6 +119,7 @@ public sealed class TrustedHeadersTransformTests
     [InlineData("X-User-Id")]
     [InlineData("X-User-Role")]
     [InlineData("X-User-Email")]
+    [InlineData("X-User-Name")]
     public async Task StripsForgedIdentityHeadersOnAnUnauthenticatedRequest(string header)
     {
         var context = BuildContext(string.Empty);
@@ -144,6 +145,40 @@ public sealed class TrustedHeadersTransformTests
             .Which.Should().Be("Operator");
     }
 
+    // Keycloak's `profile` scope supplies `name`; it is the display name downstream shows for a
+    // participant, so the gateway forwards it rather than leaving services to re-derive one.
+    [Fact]
+    public async Task ForwardsTheNameClaimAsTheDisplayNameHeader()
+    {
+        var context = BuildAuthenticatedContext("{\"roles\":[\"Participant\"]}");
+
+        await new TrustedHeadersTransform().ApplyAsync(context);
+
+        HeaderValue(context, "X-User-Name").Should().Be("Participant Umbral");
+    }
+
+    // A user whose Keycloak profile has no first/last name gets no `name` claim at all. Falling back
+    // to preferred_username keeps a usable header instead of forwarding none.
+    [Fact]
+    public async Task FallsBackToPreferredUsernameWhenTheNameClaimIsAbsent()
+    {
+        var context = BuildAuthenticatedContext("{\"roles\":[\"Participant\"]}", name: null);
+
+        await new TrustedHeadersTransform().ApplyAsync(context);
+
+        HeaderValue(context, "X-User-Name").Should().Be("participant");
+    }
+
+    [Fact]
+    public async Task OmitsTheNameHeaderWhenNoNameSourceExists()
+    {
+        var context = BuildAuthenticatedContext("{\"roles\":[\"Participant\"]}", name: null, preferredUsername: null);
+
+        await new TrustedHeadersTransform().ApplyAsync(context);
+
+        context.ProxyRequest.Headers.Contains("X-User-Name").Should().BeFalse();
+    }
+
     private static string? HeaderValue(RequestTransformContext context, string name)
     {
         return context.ProxyRequest.Headers.TryGetValues(name, out var values)
@@ -164,18 +199,29 @@ public sealed class TrustedHeadersTransformTests
         };
     }
 
-    private static RequestTransformContext BuildAuthenticatedContext(string realmAccessJson)
+    private static RequestTransformContext BuildAuthenticatedContext(
+        string realmAccessJson,
+        string? name = "Participant Umbral",
+        string? preferredUsername = "participant")
     {
         var httpContext = new DefaultHttpContext();
         httpContext.Request.QueryString = QueryString.Empty;
-        httpContext.User = new ClaimsPrincipal(new ClaimsIdentity(
-            new[]
-            {
-                new Claim(ClaimTypes.NameIdentifier, "external-id"),
-                new Claim("email", "user@umbral.local"),
-                new Claim("realm_access", realmAccessJson),
-            },
-            authenticationType: "Test"));
+        var claims = new List<Claim>
+        {
+            new(ClaimTypes.NameIdentifier, "external-id"),
+            new("email", "user@umbral.local"),
+            new("realm_access", realmAccessJson),
+        };
+        if (name is not null)
+        {
+            claims.Add(new Claim("name", name));
+        }
+        if (preferredUsername is not null)
+        {
+            claims.Add(new Claim("preferred_username", preferredUsername));
+        }
+
+        httpContext.User = new ClaimsPrincipal(new ClaimsIdentity(claims, authenticationType: "Test"));
 
         return new RequestTransformContext
         {

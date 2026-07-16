@@ -70,7 +70,6 @@ public sealed class ScoreEntryRegisteredConsumerIntegrationTests
             "Unsportsmanlike conduct",
             ScoreValue.Create(100),
             penalty.PenaltyId,
-            appliedByUserId,
             penalty.AppliedAt);
 
         await using (var penaltyContext = _contextFactory.Create())

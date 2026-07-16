@@ -376,6 +376,10 @@ export type SessionTimerSnapshotDto = {
   advancingSince: string | null
   expiredAt: string | null
   activeQuestion: ActiveQuestionSnapshotDto | null
+  // Sequence order of the just-closed trivia question during the HU-35 reveal window (activeQuestion
+  // is null but its result is being shown), else null/absent. Lets an operator who opens the session
+  // mid-reveal fetch that question's answer review without a prior QuestionActivated (HU-36B AC4).
+  awaitingRevealQuestionSequenceOrder?: number | null
 }
 
 // SignalR "SessionTimerUpdated" hub event payload — carries the active-substage
@@ -413,6 +417,8 @@ export type QuestionClosedNotificationDto = {
   questionIndex: number
   closedAt: string // ISO 8601 UTC
   wasExpiredByTimer: boolean
+  correctOptionSequenceOrder: number
+  explanation: string | null
 }
 
 // SignalR "SubstageAdvanced" hub event payload (live-session:{id} group).
@@ -443,6 +449,25 @@ export type TriviaAnsweredMonitorDto = {
   substageSnapshotId: string
   questionSequenceOrder: number // one-based active-question order
   teams: TriviaTeamAnsweredStatusDto[]
+}
+
+// Response of GET /api/sessions/{id}/trivia/questions/{seq}/answer-review (Operator, HU-36B).
+// Post-close per-team answer review: selected option, correctness, points awarded, and answer time.
+// A 409 from this endpoint means the question is not yet closed or unavailable.
+export type TriviaTeamAnswerReviewDto = {
+  teamId: string // runtime team id
+  teamCode: string
+  displayName: string
+  selectedOptionSequenceOrder?: number // absent ⇒ no answer submitted
+  isCorrect?: boolean // absent when no answer
+  scoreValue?: number // absent when no answer or incorrect
+  answeredAt?: string // ISO 8601 when answered; absent when no answer
+}
+
+export type TriviaAnswerReviewDto = {
+  liveSessionId: string
+  questionSequenceOrder: number
+  teams: TriviaTeamAnswerReviewDto[]
 }
 
 // SignalR "TeamAnswered" hub event payload — operator-only (live-session-operators:{id} group).
@@ -555,6 +580,86 @@ export type AppliedPenaltyDto = {
   penaltyAmount: number // positive magnitude (currently always 100)
   reason: string
   appliedAt: string // ISO-8601
+}
+
+// --- HU-24B operator ranking (scoring-monitoring ledger) ---
+// Response of GET /api/sessions/{id}/ranking/operator (Administrator or the assigned Operator) AND the
+// SignalR "RankingChanged" push on live-session:{id} — same DTO for both. This is the REAL score: the
+// scoring ledger folds grants and penalties, unlike OperatorTeamProgressDto.score (session-owned, zero).
+export type RankingRowDto = {
+  teamId: string // Guid — the cross-context referenceTeamId the ledger keys on, NOT the runtime teamId
+  teamDisplayName: string
+  position: number // 1-based, backend-assigned (RB-08); render by this — never re-sort client-side
+  totalScore: number // floored at 0 by the ranking projection, even when penalties exceed grants
+  // Raw .NET TimeSpan "[d.]hh:mm:ss[.fffffff]" (e.g. "1.05:05:07.5499560" — NOT always "HH:mm:ss"); the
+  // RB-08 tiebreak, already applied by the backend. Run it through formatResolutionTime before rendering.
+  resolutionTime: string | null
+}
+
+export type RankingSnapshotDto = {
+  liveSessionId: string
+  generatedAt: string // ISO-8601; DateTimeOffset.MinValue on the well-known empty snapshot
+  calculationVersion: number
+  rows: RankingRowDto[] // empty ⇒ no ranking computed yet (no score entries in the session)
+}
+
+// --- HU-24B operator evidence submissions (traceability) ---
+// Response of GET /api/sessions/{id}/evidence-submissions (Operator assigned to the session). One row
+// per registered submission, keyed by evidenceSubmissionId. Covers BOTH evidence forms: a treasure-hunt
+// QR scan and a trivia answer are both submissions (submissionType discriminates them).
+export type EvidenceSubmissionType = 'TreasureHuntQrScan' | 'TriviaAnswer'
+export type EvidenceValidationState = 'Pending' | 'Accepted' | 'Rejected'
+
+export type EvidenceTraceItemDto = {
+  evidenceSubmissionId: string // Guid — the merge key for the two SignalR pushes below
+  teamId: string // runtime team id
+  activeSubstageId: string
+  submissionType: EvidenceSubmissionType
+  // The origin grain: "target:{id}" or "qr:{scannedValue}" for a scan, "question:{sequenceOrder}" for a
+  // trivia answer. On an unmatched scan the qr: form echoes RAW SCANNED INPUT — operator-only, but
+  // render it as text, never as markup. Null only on a row whose registration hasn't arrived yet.
+  originReference: string | null
+  submittedAt: string // ISO-8601
+  validationState: EvidenceValidationState
+  rejectionReason: string | null // already a display message, NOT an enum name — render it, don't map it
+  resolvedAt: string | null // null while Pending
+}
+
+export type EvidenceTraceDto = {
+  liveSessionId: string
+  items: EvidenceTraceItemDto[] // empty ⇒ no submissions yet; not an error
+}
+
+// SignalR "EvidenceSubmissionRegistered" payload — operator-only (live-session-operators:{id} group on
+// /hubs/sessions). Mirrors EvidenceTraceItemDto's registration half field-for-field so a push and a REST
+// row describe the same submission. The REST trace is fed asynchronously over RabbitMQ, so THIS PUSH
+// ROUTINELY ARRIVES BEFORE THE REST ROW EXISTS: merge by evidenceSubmissionId, never assume
+// snapshot-then-deltas.
+export type EvidenceSubmissionRegisteredNotificationDto = {
+  liveSessionId: string
+  evidenceSubmissionId: string
+  teamId: string
+  activeSubstageId: string
+  submissionType: EvidenceSubmissionType
+  originReference: string | null
+  submittedAt: string
+  validationState: EvidenceValidationState
+}
+
+// SignalR "EvidenceSubmissionResolved" payload — operator-only, same group. Accepted and Rejected share
+// this shape; validationState discriminates. Carries NO originReference: neither resolution domain event
+// has one, so a resolution arriving before its registration leaves origin unknown until the registered
+// push or the REST snapshot supplies it.
+export type EvidenceSubmissionResolvedNotificationDto = {
+  liveSessionId: string
+  evidenceSubmissionId: string
+  teamId: string
+  activeSubstageId: string
+  submissionType: EvidenceSubmissionType
+  submittedAt: string
+  validationState: EvidenceValidationState
+  rejectionReason: string | null
+  resolvedAt: string
 }
 
 // Phases of the automated trivia round, derived from SignalR pushes only.

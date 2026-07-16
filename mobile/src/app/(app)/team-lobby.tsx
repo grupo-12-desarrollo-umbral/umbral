@@ -11,8 +11,6 @@ import { Text } from '@/components/ui/text';
 import { evaluateTeamLobbyState } from '@/lib/membership/team-lobby-state';
 import { useTeamJoin } from '@/lib/membership/use-team-join';
 import { useTeamLobby } from '@/lib/membership/use-team-lobby';
-import { useMembershipAccess } from '@/lib/membership/use-membership-access';
-import type { MembershipAccessOutcome } from '@/lib/membership/membership-policy';
 import { useAuth } from '@/lib/auth/use-auth';
 import { saveReconnectContext } from '@/lib/realtime/reconnect-context';
 import { buildReconnectContext } from '@/lib/realtime/reconnect-context-resolution';
@@ -32,23 +30,6 @@ function fireHaptic(type: 'success' | 'error') {
   }
 }
 
-function getJoinOutcomeCopy(outcome: MembershipAccessOutcome): string | null {
-  switch (outcome.kind) {
-    case 'forbidden':
-      return "You don't belong to this team. You can only enter the team you were assigned to.";
-    case 'denied':
-      return outcome.reason;
-    case 'invalid-input':
-      return 'Invalid session or team identifiers. Try again.';
-    case 'network-error':
-      return 'Network error. Check your connection and try again.';
-    case 'error':
-      return 'Something went wrong. Please try again.';
-    default:
-      return null;
-  }
-}
-
 export default function TeamLobbyScreen() {
   const router = useRouter();
   const { profile, signOut } = useAuth();
@@ -63,23 +44,13 @@ export default function TeamLobbyScreen() {
     join,
     reset: resetJoin,
   } = useTeamJoin();
-  const {
-    status: accessStatus,
-    outcome,
-    validate,
-    reset: resetAccess,
-  } = useMembershipAccess();
-
   const [joiningTeamId, setJoiningTeamId] = useState<string | null>(null);
-  const isJoining =
-    joinStatus === 'joining' || accessStatus === 'validating';
+  const isJoining = joinStatus === 'joining';
 
   const banner =
     joinOutcome?.kind === 'failed'
       ? joinOutcome.message
-      : outcome
-        ? getJoinOutcomeCopy(outcome)
-        : null;
+      : null;
 
   useEffect(() => {
     load();
@@ -99,13 +70,11 @@ export default function TeamLobbyScreen() {
     prevBannerRef.current = banner;
   }, [banner]);
 
-  // Two distinct ids per team: the runtime id targets the self-join route; the reference/catalog id
-  // is what identity-access's membership guard validates (registered_teams is keyed by it). Only join
-  // uses the runtime id — validate (and downstream reconnect/answer-submit) must carry the reference id.
+  // Two distinct ids per team: the runtime id targets the self-join route; downstream gameplay and
+  // reconnect use the reference/catalog id that session operations stores on the attached team.
   async function handleTeamSelect(runtimeTeamId: string, referenceTeamId: string) {
     if (isJoining || !liveSessionId) return;
     resetJoin();
-    resetAccess();
     setJoiningTeamId(runtimeTeamId);
     const joinResult = await join(sessionCode, runtimeTeamId);
 
@@ -119,37 +88,23 @@ export default function TeamLobbyScreen() {
       return;
     }
 
-    const accessOutcome = await validate({ liveSessionId, teamId: referenceTeamId });
-
-    if (accessOutcome.kind === 'allowed') {
-      const reconnectContext = buildReconnectContext({
-        liveSessionId: accessOutcome.decision.liveSessionId,
-        teamId: accessOutcome.decision.teamId,
-        displayName: profile?.displayName ?? '',
-      });
-      if (reconnectContext) {
-        await saveReconnectContext(reconnectContext);
-      }
-
-      fireHaptic('success');
-      router.replace({
-        pathname: '/(app)/team-space',
-        params: {
-          liveSessionId: accessOutcome.decision.liveSessionId,
-          teamId: accessOutcome.decision.teamId,
-          reason: accessOutcome.decision.reason,
-        },
-      } as Href);
-      return;
+    const reconnectContext = buildReconnectContext({
+      liveSessionId,
+      teamId: referenceTeamId,
+      displayName: profile?.displayName ?? '',
+    });
+    if (reconnectContext) {
+      await saveReconnectContext(reconnectContext);
     }
 
-    if (accessOutcome.kind === 'unauthorized') {
-      signOut();
-      return;
-    }
-
-    fireHaptic('error');
-    setJoiningTeamId(null);
+    fireHaptic('success');
+    router.replace({
+      pathname: '/(app)/team-space',
+      params: {
+        liveSessionId,
+        teamId: referenceTeamId,
+      },
+    } as Href);
   }
 
   const isLoadingTeams = lobbyStatus === 'idle' || lobbyStatus === 'loading';

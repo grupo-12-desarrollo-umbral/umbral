@@ -122,13 +122,13 @@ public sealed class RegisterTargetScanCommandHandlerTests
 
         var guard = new Mock<IRuntimeParticipationGuard>();
         var guardSetup = guard.Setup(candidate => candidate.EnsureAllowedAsync(
-            It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()));
-        if (runtimeAllowed) guardSetup.Returns(Task.CompletedTask);
+            It.IsAny<Guid>(), It.IsAny<CancellationToken>()));
+        if (runtimeAllowed) guardSetup.ReturnsAsync(new ParticipantEligibleTeamsDto(true, "eligible", []));
         else guardSetup.ThrowsAsync(new ForbiddenAccessException());
 
         var evidenceChain = new EvidenceIntakeValidationChain(new EvidenceIntakeValidationLink[]
         {
-            new RuntimeParticipationLink(guard.Object),
+            new RuntimeParticipationLink(guard.Object, AllowingMembershipChecker()),
             new SessionAdmitsReceptionLink(),
             new ActiveSubstagePresentLink()
         });
@@ -147,6 +147,15 @@ public sealed class RegisterTargetScanCommandHandlerTests
             currentUser.Object,
             new FixedTimeProvider(DateTimeOffset.UtcNow));
         return new(session, teamId, repository, handler);
+    }
+
+    private static IParticipantSessionMembershipChecker AllowingMembershipChecker()
+    {
+        var checker = new Mock<IParticipantSessionMembershipChecker>();
+        checker
+            .Setup(candidate => candidate.Check(It.IsAny<LiveSession>(), It.IsAny<Guid>()))
+            .Returns(ParticipantSessionMembershipResult.Allowed);
+        return checker.Object;
     }
 
     private static LiveSession CreateActiveSession(

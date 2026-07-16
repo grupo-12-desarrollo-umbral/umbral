@@ -18,7 +18,10 @@ export async function encrypt(payload: SessionPayload): Promise<string> {
   })
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
-    .setExpirationTime('7d')
+    // Pin the JWT `exp` to the same instant as the cookie's Expires. A fixed lifetime here would
+    // outlive the cookie for anyone who copies the value out, and — more importantly — would let a
+    // `session` survive the Keycloak refresh token it was minted against.
+    .setExpirationTime(Math.floor(payload.expiresAt.getTime() / 1000))
     .sign(encodedKey)
 }
 
@@ -43,8 +46,16 @@ export async function decrypt(session: string | undefined): Promise<SessionPaylo
   }
 }
 
-export async function createSession(payload: Omit<SessionPayload, 'expiresAt'>): Promise<void> {
-  const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+// `expiresAt` is caller-supplied rather than a fixed window because `session` must never outlive the
+// `kc_session` it was minted alongside: once the Keycloak refresh token is dead no access token can
+// be obtained, so a surviving `session` renders a signed-in shell in which every gateway call throws
+// `unauthorized`. Callers pass the refresh token's expiry (`refreshExpiresIn`); re-issuing an
+// existing session (a role/status change) must carry its current `expiresAt` through untouched, so
+// the window is only ever set at login and never extended past Keycloak's own idle timeout.
+export async function createSession(
+  payload: Omit<SessionPayload, 'expiresAt'>,
+  expiresAt: Date,
+): Promise<void> {
   const session = await encrypt({ ...payload, expiresAt })
   const cookieStore = await cookies()
 
@@ -61,23 +72,4 @@ export async function deleteSession(): Promise<void> {
   const cookieStore = await cookies()
   cookieStore.delete('session')
   await clearKeycloakTokens()
-}
-
-export async function updateSession(): Promise<void> {
-  const cookieStore = await cookies()
-  const session = cookieStore.get('session')?.value
-  const payload = await decrypt(session)
-
-  if (!session || !payload) {
-    return
-  }
-
-  const expires = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
-  cookieStore.set('session', session, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    expires,
-    sameSite: 'lax',
-    path: '/',
-  })
 }

@@ -29,5 +29,7 @@ public sealed class QuestionActivatedNotificationDtoSerializationTests
 
         root.TryGetProperty("triviaSubstageSnapshotId", out var prop).Should().BeTrue();
         prop.GetGuid().Should().Be(substageId);
+        root.TryGetProperty("correctOptionSequenceOrder", out _).Should().BeFalse();
+        root.TryGetProperty("explanation", out _).Should().BeFalse();
     }
 }

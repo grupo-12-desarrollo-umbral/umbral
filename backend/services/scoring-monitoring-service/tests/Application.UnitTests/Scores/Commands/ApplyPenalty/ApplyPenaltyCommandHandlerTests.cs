@@ -93,7 +93,6 @@ public sealed class ApplyPenaltyCommandHandlerTests
         savedEntry.ReasonCode.Should().Be(reason);
         savedEntry.DomainEvents.OfType<ScoreEntryRegistered>().Should().ContainSingle()
             .Which.EntryType.Should().Be(Domain.Enums.ScoreEntryType.Penalty);
-        savedEntry.DomainEvents.OfType<PenaltyApplied>().Should().ContainSingle();
 
         savedPenalty.Should().NotBeNull();
         savedPenalty!.ScoreEntryId.Should().Be(savedEntry.ScoreEntryId);
@@ -104,64 +103,6 @@ public sealed class ApplyPenaltyCommandHandlerTests
         result.PenaltyAmount.Should().Be(deductionValue.Value);
         result.Reason.Should().Be(reason);
         result.AppliedAt.Should().BeAfter(DateTimeOffset.MinValue);
-    }
-
-    [Fact]
-    public async Task Handle_WhenPenaltyIsValid_RaisesPenaltyAppliedCarryingThePersistedPenaltyTimestamp()
-    {
-        var liveSessionId = Guid.NewGuid();
-        var teamId = Guid.NewGuid();
-        var reason = "Unsportsmanlike conduct";
-
-        _accessResolver
-            .Setup(r => r.EnsureAccessAsync(liveSessionId, It.IsAny<CancellationToken>()))
-            .Returns(Task.CompletedTask);
-
-        _scorePolicy
-            .Setup(p => p.Award(It.IsAny<ScoreValue>()))
-            .Returns(ScoreValue.Create(100));
-
-        ScoreEntry? savedEntry = null;
-        _scoreEntryRepository
-            .Setup(r => r.AddAsync(It.IsAny<ScoreEntry>(), It.IsAny<CancellationToken>()))
-            .Callback<ScoreEntry, CancellationToken>((entry, _) => savedEntry = entry)
-            .Returns(Task.CompletedTask);
-
-        Penalty? savedPenalty = null;
-        _penaltyRepository
-            .Setup(r => r.AddAsync(It.IsAny<Penalty>(), It.IsAny<CancellationToken>()))
-            .Callback<Penalty, CancellationToken>((penalty, _) => savedPenalty = penalty)
-            .Returns(Task.CompletedTask);
-
-        var handler = new ApplyPenaltyCommandHandler(
-            _accessResolver.Object,
-            _penaltyPolicy.Object,
-            _scorePolicy.Object,
-            _scoreEntryRepository.Object,
-            _penaltyRepository.Object,
-            _currentUser.Object);
-
-        var result = await handler.Handle(
-            new ApplyPenaltyCommand(liveSessionId, teamId, reason),
-            CancellationToken.None);
-
-        savedEntry.Should().NotBeNull();
-        savedPenalty.Should().NotBeNull();
-
-        var penaltyEvent = savedEntry!.DomainEvents
-            .OfType<PenaltyApplied>()
-            .Should().ContainSingle().Subject;
-
-        // The event describes the persisted Penalty, so its timestamp must be that row's — not a
-        // second clock read that would drift from it.
-        penaltyEvent.AppliedAt.Should().Be(savedPenalty!.AppliedAt);
-        penaltyEvent.PenaltyId.Should().Be(savedPenalty.PenaltyId);
-        penaltyEvent.ScoreEntryId.Should().Be(savedEntry.ScoreEntryId);
-        penaltyEvent.Reason.Should().Be(reason);
-        penaltyEvent.DeductionMagnitude.Should().Be(100);
-
-        // The DTO the operator sees reports that same instant.
-        result.AppliedAt.Should().Be(savedPenalty.AppliedAt);
     }
 
     [Fact]

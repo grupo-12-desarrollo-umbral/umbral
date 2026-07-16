@@ -14,6 +14,10 @@ import type {
   SubstageAdvancedNotificationDto,
   TeamAnsweredNotificationDto,
   OperatorSessionPanelDto,
+  EvidenceSubmissionRegisteredNotificationDto,
+  EvidenceSubmissionResolvedNotificationDto,
+  EvidenceSubmissionType,
+  EvidenceValidationState,
 } from '@/app/lib/definitions'
 
 export type SessionRealtimeStatus =
@@ -32,6 +36,11 @@ type SessionStateClientOptions = {
   onSubstageAdvanced?: (notification: SubstageAdvancedNotificationDto) => void
   onTeamAnswered?: (notification: TeamAnsweredNotificationDto) => void
   onOperatorPanel?: (panel: OperatorSessionPanelDto) => void
+  // HU-24B evidence/submission activity. Operator-only: these ride the live-session-operators:{id}
+  // group, which only JoinLiveSessionAsOperatorAsync (already invoked below) puts this connection in,
+  // so a participant's client subscribes to a signal it will never be sent.
+  onEvidenceSubmissionRegistered?: (notification: EvidenceSubmissionRegisteredNotificationDto) => void
+  onEvidenceSubmissionResolved?: (notification: EvidenceSubmissionResolvedNotificationDto) => void
   onReconnected?: () => void
 }
 
@@ -137,12 +146,16 @@ function normalizeQuestionClosed(raw: unknown): QuestionClosedNotificationDto {
     QuestionIndex?: number
     ClosedAt?: string
     WasExpiredByTimer?: boolean
+    CorrectOptionSequenceOrder?: number
+    Explanation?: string | null
   }
   return {
     liveSessionId: n.liveSessionId ?? n.LiveSessionId ?? '',
     questionIndex: n.questionIndex ?? n.QuestionIndex ?? 0,
     closedAt: n.closedAt ?? n.ClosedAt ?? '',
     wasExpiredByTimer: n.wasExpiredByTimer ?? n.WasExpiredByTimer ?? false,
+    correctOptionSequenceOrder: n.correctOptionSequenceOrder ?? n.CorrectOptionSequenceOrder ?? 0,
+    explanation: n.explanation ?? n.Explanation ?? null,
   }
 }
 
@@ -176,6 +189,37 @@ function normalizeTeamAnswered(raw: unknown): TeamAnsweredNotificationDto {
     triviaSubstageSnapshotId: n.triviaSubstageSnapshotId ?? n.TriviaSubstageSnapshotId ?? '',
     questionSequenceOrder: n.questionSequenceOrder ?? n.QuestionSequenceOrder ?? 0,
     answeredAt: n.answeredAt ?? n.AnsweredAt ?? '',
+  }
+}
+
+function normalizeEvidenceRegistered(raw: unknown): EvidenceSubmissionRegisteredNotificationDto {
+  const n = (raw ?? {}) as Record<string, unknown>
+  return {
+    liveSessionId: (n.liveSessionId ?? n.LiveSessionId ?? '') as string,
+    evidenceSubmissionId: (n.evidenceSubmissionId ?? n.EvidenceSubmissionId ?? '') as string,
+    teamId: (n.teamId ?? n.TeamId ?? '') as string,
+    activeSubstageId: (n.activeSubstageId ?? n.ActiveSubstageId ?? '') as string,
+    submissionType: (n.submissionType ?? n.SubmissionType ?? '') as EvidenceSubmissionType,
+    // absent OR null both mean "the form contributed no origin" — coalesce to null
+    originReference: (n.originReference ?? n.OriginReference ?? null) as string | null,
+    submittedAt: (n.submittedAt ?? n.SubmittedAt ?? '') as string,
+    validationState: (n.validationState ?? n.ValidationState ?? 'Pending') as EvidenceValidationState,
+  }
+}
+
+function normalizeEvidenceResolved(raw: unknown): EvidenceSubmissionResolvedNotificationDto {
+  const n = (raw ?? {}) as Record<string, unknown>
+  return {
+    liveSessionId: (n.liveSessionId ?? n.LiveSessionId ?? '') as string,
+    evidenceSubmissionId: (n.evidenceSubmissionId ?? n.EvidenceSubmissionId ?? '') as string,
+    teamId: (n.teamId ?? n.TeamId ?? '') as string,
+    activeSubstageId: (n.activeSubstageId ?? n.ActiveSubstageId ?? '') as string,
+    submissionType: (n.submissionType ?? n.SubmissionType ?? '') as EvidenceSubmissionType,
+    submittedAt: (n.submittedAt ?? n.SubmittedAt ?? '') as string,
+    validationState: (n.validationState ?? n.ValidationState ?? 'Pending') as EvidenceValidationState,
+    // only ever present on a rejection — absent on Accepted
+    rejectionReason: (n.rejectionReason ?? n.RejectionReason ?? null) as string | null,
+    resolvedAt: (n.resolvedAt ?? n.ResolvedAt ?? '') as string,
   }
 }
 
@@ -239,6 +283,8 @@ export function createSessionStateRealtimeClient({
   onSubstageAdvanced,
   onTeamAnswered,
   onOperatorPanel,
+  onEvidenceSubmissionRegistered,
+  onEvidenceSubmissionResolved,
   onReconnected,
 }: SessionStateClientOptions): SessionStateRealtimeClient {
   const connection = new HubConnectionBuilder()
@@ -286,6 +332,18 @@ export function createSessionStateRealtimeClient({
   if (onOperatorPanel) {
     connection.on('OperatorSessionPanelUpdated', (raw: unknown) => {
       onOperatorPanel(normalizeOperatorPanel(raw))
+    })
+  }
+
+  if (onEvidenceSubmissionRegistered) {
+    connection.on('EvidenceSubmissionRegistered', (raw: unknown) => {
+      onEvidenceSubmissionRegistered(normalizeEvidenceRegistered(raw))
+    })
+  }
+
+  if (onEvidenceSubmissionResolved) {
+    connection.on('EvidenceSubmissionResolved', (raw: unknown) => {
+      onEvidenceSubmissionResolved(normalizeEvidenceResolved(raw))
     })
   }
 

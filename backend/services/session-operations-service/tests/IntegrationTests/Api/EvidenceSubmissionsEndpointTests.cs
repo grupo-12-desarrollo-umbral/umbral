@@ -54,7 +54,7 @@ public sealed class EvidenceSubmissionsEndpointTests : IAsyncLifetime
             _fixture.ConnectionString,
             useRealPublishEndpoint: true);
         _client = _factory.CreateClient();
-        _factory.AccessClient.IsAllowed = true;
+        _factory.EligibleTeamsClient.IsEligible = true;
         await _factory.ResetDatabaseAsync();
     }
 
@@ -290,7 +290,8 @@ public sealed class EvidenceSubmissionsEndpointTests : IAsyncLifetime
             maximumTimeMinutes: 45,
             createdAt,
             snapshot);
-        var team = session.AssociateTeam(Guid.NewGuid(), "Red", "RED-01", 4);
+        var referenceTeamId = Guid.NewGuid();
+        var team = session.AssociateTeam(referenceTeamId, "Red", "RED-01", 4);
         session.AssignOperator(OwnerOperatorUserId, createdAt);
 
         var transitionPolicy = new SessionStateTransitionPolicy();
@@ -310,7 +311,7 @@ public sealed class EvidenceSubmissionsEndpointTests : IAsyncLifetime
         await dbContext.SaveChangesAsync();
 
         return new SeededSession(
-            session.LiveSessionId, team.TeamId, activeSubstage.SubstageSnapshotId, participantExternalIdentityId);
+            session.LiveSessionId, team.TeamId, referenceTeamId, activeSubstage.SubstageSnapshotId, participantExternalIdentityId);
     }
 
     private void SetCurrentActor(int userId, string externalIdentityId)
@@ -338,7 +339,7 @@ public sealed class EvidenceSubmissionsEndpointTests : IAsyncLifetime
     }
 
     private static RegisterTargetScanRequest Scan(SeededSession seeded, string scannedValue) =>
-        new(seeded.TeamId, scannedValue, null);
+        new(seeded.ReferenceTeamId, scannedValue, null);
 
     private static string BuildScansUrl(SeededSession seeded) =>
         $"/api/sessions/{seeded.LiveSessionId:D}/participants/target-scans";
@@ -356,6 +357,7 @@ public sealed class EvidenceSubmissionsEndpointTests : IAsyncLifetime
     private sealed record SeededSession(
         Guid LiveSessionId,
         Guid TeamId,
+        Guid ReferenceTeamId,
         Guid TreasureHuntSubstageSnapshotId,
         Guid ParticipantExternalIdentityId);
 

@@ -33,7 +33,6 @@ public sealed class PenaltyRepositoryIntegrationTests
             "Excessive celebration",
             ScoreValue.Create(50),
             Guid.NewGuid(),
-            appliedByUserId,
             DateTimeOffset.UtcNow);
 
         await using (var writeContext = _contextFactory.Create())

@@ -162,41 +162,21 @@ public sealed class SelectTeamCommandHandlerTests
     }
 
     [Fact]
-    public async Task Handle_WhenEmailIsMissing_FallsBackToDefaultDisplayName()
+    public async Task Handle_JoinsParticipantUnderTheCurrentUserDisplayName()
     {
-        // Null email → ResolveDisplayName's IsNullOrWhiteSpace arm returns the "Participant" default.
+        // The handler no longer derives a name; it forwards ICurrentUser.DisplayName verbatim.
+        // The resolution ladder behind that value is covered by CurrentUserTests.
         var session = CreateScheduledSession();
         var referenceTeamId = Guid.NewGuid();
         var team = session.AssociateTeam(referenceTeamId, "Alpha", "A-01", 4);
         var repository = CreateRepository(session);
         var eligible = CreateEligibleClient(isEligible: true, referenceTeamId);
-        var currentUser = new Mock<ICurrentUser>();
-        currentUser.SetupGet(user => user.Id).Returns(Guid.NewGuid().ToString());
-        currentUser.SetupGet(user => user.Email).Returns((string?)null);
-        currentUser.SetupGet(user => user.Role).Returns("Participant");
+        var currentUser = CreateCurrentUser(Guid.NewGuid(), "nora.smith@example.com");
         var handler = CreateHandler(repository, eligible, currentUser);
 
-        var result = await handler.Handle(new SelectTeamCommand(SessionCode, team.TeamId), CancellationToken.None);
+        await handler.Handle(new SelectTeamCommand(SessionCode, team.TeamId), CancellationToken.None);
 
-        result.TeamId.Should().Be(team.TeamId);
-    }
-
-    [Fact]
-    public async Task Handle_WhenEmailHasBlankLocalPart_FallsBackToWholeEmail()
-    {
-        // An email whose local part is whitespace exercises the ternary's whitespace-local-part arm,
-        // returning the whole email rather than the empty local part.
-        var session = CreateScheduledSession();
-        var referenceTeamId = Guid.NewGuid();
-        var team = session.AssociateTeam(referenceTeamId, "Alpha", "A-01", 4);
-        var repository = CreateRepository(session);
-        var eligible = CreateEligibleClient(isEligible: true, referenceTeamId);
-        var currentUser = CreateCurrentUser(Guid.NewGuid(), "  @example.com");
-        var handler = CreateHandler(repository, eligible, currentUser);
-
-        var result = await handler.Handle(new SelectTeamCommand(SessionCode, team.TeamId), CancellationToken.None);
-
-        result.TeamId.Should().Be(team.TeamId);
+        session.Participants.Single().DisplayName.Should().Be("Nora Smith");
     }
 
     private static SelectTeamCommandHandler CreateHandler(
@@ -240,6 +220,7 @@ public sealed class SelectTeamCommandHandlerTests
         currentUser.SetupGet(user => user.Id).Returns(identity.ToString());
         currentUser.SetupGet(user => user.Email).Returns(email);
         currentUser.SetupGet(user => user.Role).Returns("Participant");
+        currentUser.SetupGet(user => user.DisplayName).Returns("Nora Smith");
         return currentUser;
     }
 

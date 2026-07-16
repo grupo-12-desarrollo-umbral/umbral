@@ -47,6 +47,7 @@ public sealed class ErrorCodeContractTests
             ["MissionRuntimeSnapshotSubstageOrderInvalidException"] = "mission-runtime-snapshot-substage-order-invalid",
             ["MissionRuntimeSnapshotTargetQrCodesMustBeUniqueException"] = "mission-runtime-snapshot-target-qr-codes-must-be-unique",
             ["NoActiveQuestionException"] = "no-active-question",
+            ["NoActiveQuestionRevealException"] = "no-active-question-reveal",
             ["NoActiveSubstageException"] = "no-active-substage",
             ["OpenTeamSelectionClosedException"] = "open-team-selection-closed",
             ["OperatorUserIdMustBePositiveException"] = "operator-user-id-must-be-positive",

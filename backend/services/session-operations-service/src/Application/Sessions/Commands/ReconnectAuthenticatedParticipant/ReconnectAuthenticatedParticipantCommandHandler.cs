@@ -13,6 +13,7 @@ public sealed class ReconnectAuthenticatedParticipantCommandHandler
     private readonly IRuntimeParticipationGuard _runtimeParticipationGuard;
     private readonly ICurrentUser _currentUser;
     private readonly JoinPolicy _joinPolicy;
+    private readonly OpenTeamSelectionPolicy _openTeamSelectionPolicy;
     private readonly TimeProvider _timeProvider;
 
     public ReconnectAuthenticatedParticipantCommandHandler(
@@ -20,12 +21,14 @@ public sealed class ReconnectAuthenticatedParticipantCommandHandler
         IRuntimeParticipationGuard runtimeParticipationGuard,
         ICurrentUser currentUser,
         JoinPolicy joinPolicy,
+        OpenTeamSelectionPolicy openTeamSelectionPolicy,
         TimeProvider timeProvider)
     {
         _liveSessionRepository = liveSessionRepository;
         _runtimeParticipationGuard = runtimeParticipationGuard;
         _currentUser = currentUser;
         _joinPolicy = joinPolicy;
+        _openTeamSelectionPolicy = openTeamSelectionPolicy;
         _timeProvider = timeProvider;
     }
 
@@ -33,10 +36,8 @@ public sealed class ReconnectAuthenticatedParticipantCommandHandler
         ReconnectAuthenticatedParticipantCommand request,
         CancellationToken cancellationToken)
     {
-        await _runtimeParticipationGuard.EnsureAllowedAsync(
+        var whitelist = await _runtimeParticipationGuard.EnsureAllowedAsync(
             request.LiveSessionId,
-            request.TeamId,
-            request.Token,
             cancellationToken);
 
         var liveSession = await _liveSessionRepository.GetByIdAsync(request.LiveSessionId, cancellationToken)
@@ -47,13 +48,20 @@ public sealed class ReconnectAuthenticatedParticipantCommandHandler
             throw new UnauthorizedAccessException();
         }
 
+        // Reference/catalog team ids; empty => unassigned participant, domain treats it as "all attached
+        // selectable". Only the first-join branch consults it — a returning participant is already bound to
+        // their assigned team by JoinPolicy.EnsureCanReconnect.
+        var authorizedReferenceTeamIds = whitelist.Teams.Select(team => team.TeamId).ToHashSet();
+
         var occurredAt = _timeProvider.GetUtcNow();
         var admission = liveSession.AdmitParticipant(
             externalIdentityId,
             request.DisplayName,
             request.TeamId,
             occurredAt,
-            _joinPolicy);
+            _joinPolicy,
+            _openTeamSelectionPolicy,
+            authorizedReferenceTeamIds);
         var timerSnapshot = liveSession.GetAuthoritativeSessionTimerSnapshot(occurredAt);
 
         await _liveSessionRepository.UpdateAsync(liveSession, cancellationToken);

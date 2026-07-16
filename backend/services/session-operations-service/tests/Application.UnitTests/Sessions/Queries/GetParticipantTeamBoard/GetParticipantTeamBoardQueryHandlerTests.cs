@@ -28,8 +28,6 @@ public sealed class GetParticipantTeamBoardQueryHandlerTests
 
         guard.Verify(g => g.EnsureAllowedAsync(
             session.LiveSessionId,
-            teamId,
-            "token",
             It.IsAny<CancellationToken>()), Times.Once);
 
         guard.VerifyNoOtherCalls();
@@ -195,13 +193,11 @@ public sealed class GetParticipantTeamBoardQueryHandlerTests
         var guard = new Mock<IRuntimeParticipationGuard>();
         var setup = guard.Setup(g => g.EnsureAllowedAsync(
             liveSessionId,
-            teamId,
-            It.IsAny<string?>(),
             It.IsAny<CancellationToken>()));
 
         if (isAllowed)
         {
-            setup.Returns(Task.CompletedTask);
+            setup.ReturnsAsync(new ParticipantEligibleTeamsDto(true, "eligible", []));
         }
         else
         {

@@ -5,7 +5,7 @@ import {
   LogLevel,
   type HubConnection,
 } from '@microsoft/signalr';
-import { getAccessToken } from '@/lib/auth/token-store';
+import { getValidAccessToken } from '@/lib/auth/token-provider';
 import { hubBaseUrl } from '@/lib/host';
 import type {
   ReconnectParticipantHubRequest,
@@ -54,7 +54,10 @@ export type SessionsHubClient = {
 export function createSessionsHubConnection(): SessionsHubClient {
   const connection = new HubConnectionBuilder()
     .withUrl(hubBaseUrl(), {
-      accessTokenFactory: async () => (await getAccessToken()) ?? '',
+      // Re-invoked on every automatic reconnect, so it must renew rather than replay the token the
+      // connection was opened with — otherwise a reconnect after the access token's 5-minute
+      // lifespan re-handshakes with a dead token and gives up permanently.
+      accessTokenFactory: async () => (await getValidAccessToken()) ?? '',
       transport: HttpTransportType.WebSockets,
     })
     .withAutomaticReconnect()

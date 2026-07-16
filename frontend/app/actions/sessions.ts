@@ -13,10 +13,13 @@ import {
   getOperatorSessionTimerSnapshot as getOperatorSessionTimerSnapshotLib,
   getOperatorTriviaAnsweredMonitor as getOperatorTriviaAnsweredMonitorLib,
   getOperatorSessionPanel as getOperatorSessionPanelLib,
+  getTriviaAnswerReview as getTriviaAnswerReviewLib,
   getReleasableClues as getReleasableCluesLib,
   releaseClue as releaseClueLib,
   addOperativeClue as addOperativeClueLib,
   applyPenalty as applyPenaltyLib,
+  getOperatorRanking as getOperatorRankingLib,
+  getOperatorEvidenceTrace as getOperatorEvidenceTraceLib,
 } from '@/app/lib/sessions'
 import { listAssignableOperators as listAssignableOperatorsLib } from '@/app/lib/users'
 import { revalidatePath } from 'next/cache'
@@ -33,6 +36,7 @@ import type {
   TransitionSessionStateResultDto,
   SessionTimerSnapshotDto,
   TriviaAnsweredMonitorDto,
+  TriviaAnswerReviewDto,
   OperatorSessionPanelDto,
   ReleaseClueRequest,
   ReleaseClueResultDto,
@@ -41,6 +45,8 @@ import type {
   AddOperativeClueResultDto,
   ApplyPenaltyRequest,
   AppliedPenaltyDto,
+  RankingSnapshotDto,
+  EvidenceTraceDto,
 } from '@/app/lib/definitions'
 import { IdentityError } from '@/app/lib/definitions'
 
@@ -175,6 +181,87 @@ export async function getOperatorSessionPanelAction(
       return { error: error.message }
     }
     return { error: 'Unexpected error fetching operator panel' }
+  }
+}
+
+// HU-24B operator ranking snapshot — the REST fallback behind the RankingChanged push. Same three
+// outcomes, and the same reason for separating them: a transient 5xx must not tell a legitimately
+// assigned operator they are "not authorized". An empty ranking is { data } with rows: [], not an error.
+export async function getOperatorRankingAction(
+  liveSessionId: string,
+): Promise<
+  | { data: RankingSnapshotDto }
+  | { unauthorized: true }
+  | { error: string }
+> {
+  'use server'
+  const session = await verifySession()
+  if (session.role !== 'Operator') return { unauthorized: true }
+  try {
+    const data = await getOperatorRankingLib(liveSessionId)
+    return { data }
+  } catch (error) {
+    if (error instanceof IdentityError) {
+      if (error.code === 'unauthorized') return { unauthorized: true }
+      return { error: error.message }
+    }
+    return { error: 'Unexpected error fetching ranking' }
+  }
+}
+
+// HU-24B operator evidence trace — the REST fallback behind the EvidenceSubmission* pushes. Same three
+// outcomes, and the same reason for separating them: a transient 5xx must not tell a legitimately
+// assigned operator they are "not authorized". A session with no submissions is { data } with
+// items: [], not an error.
+export async function getOperatorEvidenceTraceAction(
+  liveSessionId: string,
+): Promise<
+  | { data: EvidenceTraceDto }
+  | { unauthorized: true }
+  | { error: string }
+> {
+  'use server'
+  const session = await verifySession()
+  if (session.role !== 'Operator') return { unauthorized: true }
+  try {
+    const data = await getOperatorEvidenceTraceLib(liveSessionId)
+    return { data }
+  } catch (error) {
+    if (error instanceof IdentityError) {
+      if (error.code === 'unauthorized') return { unauthorized: true }
+      return { error: error.message }
+    }
+    return { error: 'Unexpected error fetching evidence submissions' }
+  }
+}
+
+// HU-36B operator post-close answer review. Three outcomes the panel renders distinctly:
+//   { data }          → per-team selected option + correctness + points for the closed question
+//   { unauthorized }  → 403 non-owner / 401 auth expired / non-operator → not-authorized state
+//   { error }         → 404 / 409 (not closed) / unexpected / transient backend failure → error state; never throws
+export async function getTriviaAnswerReviewAction(
+  liveSessionId: string,
+  questionSequenceOrder: number,
+): Promise<
+  | { data: TriviaAnswerReviewDto }
+  | { unauthorized: true }
+  | { error: string }
+> {
+  'use server'
+  const session = await verifySession()
+  if (session.role !== 'Operator') return { unauthorized: true }
+  try {
+    const data = await getTriviaAnswerReviewLib(liveSessionId, questionSequenceOrder)
+    return { data }
+  } catch (error) {
+    if (error instanceof IdentityError) {
+      if (error.code === 'unauthorized') return { unauthorized: true }
+      return { error: error.message }
+    }
+    if (error instanceof Error && error.message === 'question_not_closed') {
+      return { error: 'Question results are not available yet.' }
+    }
+    return { error: 'Unexpected error fetching answer review' }
   }
 }
 

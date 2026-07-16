@@ -37,8 +37,14 @@ export const test = base.extend<{
 
   adminPage: async ({ browser }, runPageFixture) => {
     const ctx = await browser.newContext()
+    // externalIdentityId = the Keycloak sub (UUID), not 'admin-1': Keycloak account provisioning
+    // reconciles the identity-access row to the resolved sub the first time admin authenticates via
+    // the gateway, dropping the literal-'admin-1' row global-setup seeded. global-setup's
+    // seedAdminIdentity re-inserts the row keyed by the same sub, so the dashboard's BFF-direct access
+    // check (X-User-Id) resolves it instead of 404ing and redirect-looping — same fix as op-1.
+    const { cookie: keycloakSession, sub } = await createKeycloakSession('admin-1', 'admin123')
     const payload: SessionPayload = {
-      externalIdentityId: 'admin-1',
+      externalIdentityId: sub,
       displayName: 'Administrator One',
       email: 'admin-1@umbral.local',
       role: 'Administrator',
@@ -46,7 +52,6 @@ export const test = base.extend<{
       expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
     }
     const session = await encryptForTest(payload)
-    const { cookie: keycloakSession } = await createKeycloakSession('admin-1', 'admin123')
     await ctx.addCookies([
       { name: 'session', value: session, url: 'http://localhost:3000' },
       { name: 'kc_session', value: keycloakSession, url: 'http://localhost:3000' },

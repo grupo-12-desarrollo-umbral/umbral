@@ -50,6 +50,8 @@ public sealed class AuthPathTests : IClassFixture<ComposeStackFixture>
         probeResponse!.XUserId.Should().Be(subject);
         probeResponse.XUserRole.Should().Be("Administrator");
         probeResponse.XUserEmail.Should().Be("admin@umbral.local");
+        // Keycloak's built-in `profile` scope fills `name` from the seeded first/last name.
+        probeResponse.XUserName.Should().Be("Admin Umbral");
         probeResponse.Authorization.Should().BeNullOrEmpty();
 
         var state = await _fixture.GetProbeStateAsync();
@@ -77,5 +79,6 @@ public sealed class AuthPathTests : IClassFixture<ComposeStackFixture>
         [property: JsonPropertyName("xUserId")] string? XUserId,
         [property: JsonPropertyName("xUserRole")] string? XUserRole,
         [property: JsonPropertyName("xUserEmail")] string? XUserEmail,
+        [property: JsonPropertyName("xUserName")] string? XUserName,
         [property: JsonPropertyName("authorization")] string? Authorization);
 }

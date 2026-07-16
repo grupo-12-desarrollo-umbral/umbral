@@ -38,7 +38,7 @@ public sealed class MultiDeviceTeamSyncHubTests : IAsyncLifetime
     public async Task InitializeAsync()
     {
         _factory = new SessionOperationsApiWebApplicationFactory(_fixture.ConnectionString);
-        _factory.AccessClient.IsAllowed = true;
+        _factory.EligibleTeamsClient.IsEligible = true;
         await _factory.ResetDatabaseAsync();
     }
 

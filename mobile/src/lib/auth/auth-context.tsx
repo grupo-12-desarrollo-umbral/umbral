@@ -5,7 +5,8 @@ import {
   deriveCredentials,
   KeycloakError,
 } from './keycloak';
-import { storeTokens, clearTokens, getAccessToken, getRefreshToken } from './token-store';
+import { storeTokens, clearTokens, getRefreshToken } from './token-store';
+import { getValidAccessToken, onSessionExpired } from './token-provider';
 import {
   bootstrapAuthenticatedUser,
   getAuthenticatedProfile,
@@ -54,8 +55,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     restoreSession();
   }, []);
 
+  // A refresh token Keycloak has rejected ends the session wherever it is noticed — a background API
+  // call or a hub reconnect, not just startup. The provider has already cleared the store by now.
+  useEffect(
+    () =>
+      onSessionExpired(() => {
+        setState({ status: 'idle', profile: null, rejectionReason: null, errorMessage: null });
+      }),
+    [],
+  );
+
   async function restoreSession(): Promise<void> {
-    const token = await getAccessToken();
+    const token = await getValidAccessToken();
     if (!token) {
       setState((s) => ({ ...s, status: 'idle' }));
       return;
@@ -70,9 +81,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         await clearTokens();
         setState({ status: 'rejected', profile: null, rejectionReason: access.reason, errorMessage: null });
       }
-    } catch {
-      await clearTokens();
-      setState({ status: 'idle', profile: null, rejectionReason: null, errorMessage: null });
+    } catch (err) {
+      // Only a rejected token ends the session: the client already refreshed and retried, so a 401
+      // here means the credentials are genuinely gone. Any other failure — a flaky connection above
+      // all — must keep the stored tokens so restoring succeeds once the network returns.
+      if (err instanceof ApiError && err.status === 401) {
+        await clearTokens();
+        setState({ status: 'idle', profile: null, rejectionReason: null, errorMessage: null });
+        return;
+      }
+      setState({
+        status: 'error',
+        profile: null,
+        rejectionReason: null,
+        errorMessage: 'Network error. Check your connection and try again.',
+      });
     }
   }
 
