@@ -93,6 +93,14 @@ public sealed class LiveSessionConfiguration : IEntityTypeConfiguration<LiveSess
         builder.Property<DateTimeOffset?>("_substageTimerExpiredAt")
             .HasColumnName("substage_timer_expired_at");
 
+        // Post-close reveal window (HU-35): deadline for the deferred next-question activation, and the
+        // captured next-question index (null => advance substage) applied when the reveal completes.
+        builder.Property<DateTimeOffset?>("_questionRevealUntil")
+            .HasColumnName("question_reveal_until");
+
+        builder.Property<int?>("_pendingNextQuestionIndex")
+            .HasColumnName("pending_next_question_index");
+
         builder.Property(session => session.AssignedOperatorUserId)
             .HasColumnName("assigned_operator_user_id");
 
@@ -514,8 +522,14 @@ public sealed class LiveSessionConfiguration : IEntityTypeConfiguration<LiveSess
                 memberBuilder.Property(member => member.LeftAt)
                     .HasColumnName("left_at");
 
+                // Filtered on Active because a membership row is per-stint history, not per-participant:
+                // ReleaseParticipant marks the row Removed (keeping left_at) and AssignParticipant adds a
+                // fresh one, so rejoining a team leaves several rows behind for the same pair. The domain
+                // invariant is only that at most one of them is Active — an unfiltered unique index made a
+                // legitimate rejoin fail with 23505.
                 memberBuilder.HasIndex(member => new { member.TeamId, member.SessionParticipantId })
-                    .IsUnique();
+                    .IsUnique()
+                    .HasFilter("membership_status = 'Active'");
             });
 
             teamBuilder.Navigation(team => team.Members)

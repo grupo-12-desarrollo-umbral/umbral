@@ -106,6 +106,47 @@ describe('keycloak token cookie lifecycle', () => {
     expect(stored.refreshExpiresAt).toBe(nowMs + 900_000)
   })
 
+  // `sealKeycloakTokens` sets the JWE's own `exp` to refreshExpiresAt, so an expired refresh token
+  // makes the cookie undecryptable: jwtDecrypt throws ERR_JWT_EXPIRED before the explicit
+  // refreshExpiresAt guard is ever consulted, and the message is 'Invalid kc_session'. The outcome
+  // is what matters and it is identical either way — cookie cleared, KeycloakAuthError raised, no
+  // pointless round trip — so this pins the observable contract rather than the branch taken.
+  it('clears kc_session without calling Keycloak once the refresh token has expired', async () => {
+    const nowMs = Date.now()
+    const sealed = await sealKeycloakTokens({
+      accessToken: 'stale-access',
+      refreshToken: 'refresh-1',
+      accessExpiresAt: nowMs - 5_000,
+      refreshExpiresAt: nowMs - 1_000,
+    })
+    cookieJar.set('kc_session', sealed)
+
+    await expect(getValidAccessToken(nowMs)).rejects.toBeInstanceOf(KeycloakAuthError)
+    // A dead refresh token buys nothing but a round trip and a guaranteed rejection.
+    expect(refreshAccessTokenMock).not.toHaveBeenCalled()
+    // The clear is what the proxy reads: no kc_session beside a live `session` means the Keycloak
+    // session is gone, so the next navigation lands on login instead of a shell that only errors.
+    expect(cookieStore.delete).toHaveBeenCalledWith('kc_session')
+    expect(cookieJar.has('kc_session')).toBe(false)
+  })
+
+  // The refreshExpiresAt guard is only reachable when the injected clock runs ahead of the sealed
+  // `exp` — seal a still-valid cookie, then ask for a token from a moment past the refresh expiry.
+  it('refuses a refresh token that expires before the caller-supplied instant', async () => {
+    const nowMs = Date.now()
+    const sealed = await sealKeycloakTokens({
+      accessToken: 'stale-access',
+      refreshToken: 'refresh-1',
+      accessExpiresAt: nowMs - 5_000,
+      refreshExpiresAt: nowMs + 30_000,
+    })
+    cookieJar.set('kc_session', sealed)
+
+    await expect(getValidAccessToken(nowMs + 60_000)).rejects.toThrow('Refresh token expired')
+    expect(refreshAccessTokenMock).not.toHaveBeenCalled()
+    expect(cookieJar.has('kc_session')).toBe(false)
+  })
+
   it('clears kc_session when refresh fails', async () => {
     const nowMs = Date.now()
     const sealed = await sealKeycloakTokens({

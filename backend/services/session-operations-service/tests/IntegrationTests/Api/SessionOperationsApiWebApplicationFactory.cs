@@ -25,7 +25,7 @@ public sealed class SessionOperationsApiWebApplicationFactory : WebApplicationFa
         Environment.SetEnvironmentVariable(ConnectionStringEnvironmentVariable, _connectionString);
     }
 
-    public FakeParticipantMembershipAccessClient AccessClient { get; } = new();
+    public FakeParticipantEligibleTeamsClient EligibleTeamsClient { get; } = new();
 
     public FakeAssignableSessionOperatorAccessClient AssignableSessionOperatorAccessClient { get; } = new();
 
@@ -55,8 +55,8 @@ public sealed class SessionOperationsApiWebApplicationFactory : WebApplicationFa
                 services.Remove(timerWorkerDescriptor);
             }
 
-            services.RemoveAll<IParticipantMembershipAccessClient>();
-            services.AddScoped<IParticipantMembershipAccessClient>(_ => AccessClient);
+            services.RemoveAll<IParticipantEligibleTeamsClient>();
+            services.AddScoped<IParticipantEligibleTeamsClient>(_ => EligibleTeamsClient);
             services.RemoveAll<IAssignableSessionOperatorAccessClient>();
             services.AddScoped<IAssignableSessionOperatorAccessClient>(_ => AssignableSessionOperatorAccessClient);
             services.RemoveAll<IAuthenticatedActorProfileAccessClient>();

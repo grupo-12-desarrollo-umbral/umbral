@@ -28,7 +28,7 @@ public sealed class ParticipantSessionTimerSnapshotEndpointTests : IAsyncLifetim
     {
         _factory = new SessionOperationsApiWebApplicationFactory(_fixture.ConnectionString);
         _client = _factory.CreateClient();
-        _factory.AccessClient.IsAllowed = true;
+        _factory.EligibleTeamsClient.IsEligible = true;
         await _factory.ResetDatabaseAsync();
     }
 
@@ -144,7 +144,7 @@ public sealed class ParticipantSessionTimerSnapshotEndpointTests : IAsyncLifetim
     public async Task GetTimerSnapshot_WhenAccessFactDenied_ReturnsForbidden()
     {
         var seeded = await SeedTriviaSessionAsync(SessionTimerSeedState.ActiveQuestion);
-        _factory.AccessClient.IsAllowed = false;
+        _factory.EligibleTeamsClient.IsEligible = false;
         AddTrustedHeaders(_client, Guid.NewGuid().ToString(), "Participant", "participant@example.com");
 
         var response = await _client.GetAsync(BuildTimerUrl(seeded));

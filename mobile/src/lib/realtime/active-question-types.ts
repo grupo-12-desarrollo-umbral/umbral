@@ -1,4 +1,8 @@
-import type { ActiveQuestionSnapshotDto, QuestionActivatedNotificationDto } from './trivia-types';
+import type {
+  ActiveQuestionSnapshotDto,
+  QuestionActivatedNotificationDto,
+  TriviaTeamQuestionResultDto,
+} from './trivia-types';
 
 export type ActiveQuestion = {
   questionIndex: number;
@@ -11,6 +15,13 @@ export type ActiveQuestion = {
 
 export type ActiveQuestionView =
   | { kind: 'active'; question: ActiveQuestion }
+  | {
+      kind: 'reveal';
+      question: ActiveQuestion;
+      correctOptionSequenceOrder: number;
+      explanation: string | null;
+      teamResult: TriviaTeamQuestionResultDto | null;
+    }
   | { kind: 'waiting' }
   | { kind: 'none' }
   | { kind: 'closed' };

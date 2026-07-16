@@ -68,6 +68,15 @@ export default function ParticipantHome() {
         />
       ) : null}
 
+      {/* DEV-ONLY UI prototype: HU-M4 result reveal (Option-centric variant). */}
+      {__DEV__ ? (
+        <Button
+          label="▶ Prototype · result reveal"
+          variant="secondary"
+          onPress={() => router.push('/(app)/result-reveal-prototype' as Href)}
+        />
+      ) : null}
+
       <Button label="Sign out" variant="secondary" onPress={signOut} />
     </Screen>
   );

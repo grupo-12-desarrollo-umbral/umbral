@@ -23,7 +23,7 @@ public sealed class ReconnectParticipantEndpointTests : IAsyncLifetime
     {
         _factory = new SessionOperationsApiWebApplicationFactory(_fixture.ConnectionString);
         _client = _factory.CreateClient();
-        _factory.AccessClient.IsAllowed = true;
+        _factory.EligibleTeamsClient.IsEligible = true;
         await _factory.ResetDatabaseAsync();
     }
 
@@ -39,7 +39,7 @@ public sealed class ReconnectParticipantEndpointTests : IAsyncLifetime
         var externalIdentityId = Guid.NewGuid();
         var seeded = await SeedSessionWithDisconnectedParticipantAsync(externalIdentityId, SessionState.Active);
 
-        _factory.AccessClient.IsAllowed = true;
+        _factory.EligibleTeamsClient.IsEligible = true;
         AddTrustedHeaders(_client, externalIdentityId.ToString(), "Participant", "participant@example.com");
 
         var response = await _client.PostAsJsonAsync(
@@ -111,7 +111,7 @@ public sealed class ReconnectParticipantEndpointTests : IAsyncLifetime
         var externalIdentityId = Guid.NewGuid();
         var seeded = await SeedSessionWithDisconnectedParticipantAsync(externalIdentityId, SessionState.Active);
 
-        _factory.AccessClient.IsAllowed = false;
+        _factory.EligibleTeamsClient.IsEligible = false;
         AddTrustedHeaders(_client, externalIdentityId.ToString(), "Participant", "participant@example.com");
 
         var response = await _client.PostAsJsonAsync(
@@ -256,6 +256,88 @@ public sealed class ReconnectParticipantEndpointTests : IAsyncLifetime
         payload.Should().NotBeNull();
         payload!.Status.Should().Be("Alive");
     }
+
+    // The runtime guard admits on the eligibility fact alone, so the eligible-teams whitelist is the only
+    // thing keeping reconnect's first-join branch from minting a membership SelectTeam would refuse.
+    [Fact]
+    public async Task Reconnect_FirstJoinIntoTeamOutsideAuthorizedSet_ReturnsForbidden()
+    {
+        var seeded = await SeedSessionWithTwoAttachedTeamsAsync();
+        var newParticipantIdentity = Guid.NewGuid();
+
+        _factory.EligibleTeamsClient.Teams = [new EligibleTeamDto(seeded.RedReferenceTeamId, "Red", "RED-01")];
+        AddTrustedHeaders(_client, newParticipantIdentity.ToString(), "Participant", "mallory@example.com");
+
+        var response = await _client.PostAsJsonAsync(
+            $"/api/sessions/{seeded.LiveSessionId}/participants/reconnect",
+            new { teamId = seeded.BlueReferenceTeamId, displayName = "Mallory", token = (string?)null });
+
+        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+
+        var problem = await response.Content.ReadFromJsonAsync<ProblemDetails>();
+        problem.Should().NotBeNull();
+        problem!.Status.Should().Be(StatusCodes.Status403Forbidden);
+    }
+
+    [Fact]
+    public async Task Reconnect_FirstJoinIntoWhitelistedTeam_ReturnsOk()
+    {
+        var seeded = await SeedSessionWithTwoAttachedTeamsAsync();
+        var newParticipantIdentity = Guid.NewGuid();
+
+        _factory.EligibleTeamsClient.Teams = [new EligibleTeamDto(seeded.RedReferenceTeamId, "Red", "RED-01")];
+        AddTrustedHeaders(_client, newParticipantIdentity.ToString(), "Participant", "newcomer@example.com");
+
+        var response = await _client.PostAsJsonAsync(
+            $"/api/sessions/{seeded.LiveSessionId}/participants/reconnect",
+            new { teamId = seeded.RedReferenceTeamId, displayName = "Newcomer", token = (string?)null });
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
+    // Open Team Selection: an eligible participant with no registered membership has an empty whitelist,
+    // which means every attached team is selectable — the case the runtime-guard fix exists to unblock.
+    [Fact]
+    public async Task Reconnect_FirstJoinByUnassignedParticipant_ReturnsOk()
+    {
+        var seeded = await SeedSessionWithTwoAttachedTeamsAsync();
+        var newParticipantIdentity = Guid.NewGuid();
+
+        _factory.EligibleTeamsClient.Teams = [];
+        AddTrustedHeaders(_client, newParticipantIdentity.ToString(), "Participant", "unassigned@example.com");
+
+        var response = await _client.PostAsJsonAsync(
+            $"/api/sessions/{seeded.LiveSessionId}/participants/reconnect",
+            new { teamId = seeded.BlueReferenceTeamId, displayName = "Unassigned", token = (string?)null });
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
+    private async Task<SeededOpenSelectionSession> SeedSessionWithTwoAttachedTeamsAsync()
+    {
+        await using var scope = _factory.Services.CreateAsyncScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+        var scheduledAt = DateTimeOffset.UtcNow.AddMinutes(-30);
+        var liveSession = CreateSession(scheduledAt);
+        var redReferenceTeamId = Guid.NewGuid();
+        var blueReferenceTeamId = Guid.NewGuid();
+        liveSession.AssociateTeam(redReferenceTeamId, "Red", "RED-01", 4);
+        liveSession.AssociateTeam(blueReferenceTeamId, "Blue", "BLUE-01", 4);
+
+        dbContext.LiveSessions.Add(liveSession);
+        await dbContext.SaveChangesAsync();
+
+        return new SeededOpenSelectionSession(
+            liveSession.LiveSessionId,
+            redReferenceTeamId,
+            blueReferenceTeamId);
+    }
+
+    private sealed record SeededOpenSelectionSession(
+        Guid LiveSessionId,
+        Guid RedReferenceTeamId,
+        Guid BlueReferenceTeamId);
 
     private async Task<SeededSession> SeedSessionWithDisconnectedParticipantAsync(
         Guid externalIdentityId,

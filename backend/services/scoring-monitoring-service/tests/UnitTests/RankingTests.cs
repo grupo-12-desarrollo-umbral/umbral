@@ -178,7 +178,6 @@ public sealed class RankingTests
             "penalty",
             ScoreValue.Create(deductionValue),
             penaltyId,
-            Guid.NewGuid(),
             appliedAt);
     }
 

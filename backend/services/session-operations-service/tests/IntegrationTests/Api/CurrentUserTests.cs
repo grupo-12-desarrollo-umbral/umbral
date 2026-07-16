@@ -82,4 +82,67 @@ public sealed class CurrentUserTests
         currentUser.Role.Should().Be("Participant");
         currentUser.Email.Should().Be("hub@example.com");
     }
+
+    // DisplayName degrades through four sources; each test below pins one rung of that ladder.
+    [Fact]
+    public void DisplayName_PrefersNameClaimOverEveryFallback()
+    {
+        var httpContext = new DefaultHttpContext();
+        httpContext.Request.Headers["X-User-Name"] = "Header Name";
+        httpContext.Request.Headers["X-User-Email"] = "john.doe@example.com";
+        httpContext.User = new ClaimsPrincipal(
+            new ClaimsIdentity([new Claim("name", "Participant Umbral")], "TrustedHeaders"));
+        var accessor = new HttpContextAccessor { HttpContext = httpContext };
+
+        var currentUser = new CurrentUser(accessor, EmptyContext);
+
+        currentUser.DisplayName.Should().Be("Participant Umbral");
+    }
+
+    [Fact]
+    public void DisplayName_FallsBackToTrustedHeaderWhenNoNameClaim()
+    {
+        var httpContext = new DefaultHttpContext();
+        httpContext.Request.Headers["X-User-Name"] = "Participant Umbral";
+        httpContext.Request.Headers["X-User-Email"] = "john.doe@example.com";
+        var accessor = new HttpContextAccessor { HttpContext = httpContext };
+
+        var currentUser = new CurrentUser(accessor, EmptyContext);
+
+        currentUser.DisplayName.Should().Be("Participant Umbral");
+    }
+
+    [Fact]
+    public void DisplayName_FallsBackToEmailLocalPartWhenNameIsAbsent()
+    {
+        var httpContext = new DefaultHttpContext();
+        httpContext.Request.Headers["X-User-Email"] = "john.doe@example.com";
+        var accessor = new HttpContextAccessor { HttpContext = httpContext };
+
+        var currentUser = new CurrentUser(accessor, EmptyContext);
+
+        currentUser.DisplayName.Should().Be("john.doe");
+    }
+
+    [Fact]
+    public void DisplayName_FallsBackToWholeEmailWhenLocalPartIsBlank()
+    {
+        var httpContext = new DefaultHttpContext();
+        httpContext.Request.Headers["X-User-Email"] = "  @example.com";
+        var accessor = new HttpContextAccessor { HttpContext = httpContext };
+
+        var currentUser = new CurrentUser(accessor, EmptyContext);
+
+        currentUser.DisplayName.Should().Be("  @example.com");
+    }
+
+    [Fact]
+    public void DisplayName_FallsBackToDefaultWhenNoIdentityInformationExists()
+    {
+        var accessor = new HttpContextAccessor { HttpContext = new DefaultHttpContext() };
+
+        var currentUser = new CurrentUser(accessor, EmptyContext);
+
+        currentUser.DisplayName.Should().Be("Participant");
+    }
 }

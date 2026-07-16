@@ -1,17 +1,27 @@
-// HU-25B MANUAL-TEST seed (not a behavior assertion). Seeds a treasure-hunt session
-// with two registered teams and pre-computed ranking data in the scoring database.
-// The session is left in PREPARING, one operator click from Active.
+// HU-25B MANUAL-TEST seed (not a behavior assertion). Seeds a treasure-hunt session with two
+// registered teams and REAL, backend-computed ranking data, then leaves it Active so a human can
+// open it on mobile and see the TEAMS tab already populated.
 //
-// Once Active, the mobile participant joins and sees the TEAMS tab populated with
-// real ranking rows via GET /api/sessions/{id}/ranking (REST) and live
-// RankingChanged pushes over the ScoringHub when new score entries are processed.
+// Why this no longer hand-writes rankings: the previous version INSERTed score_entries + rankings +
+// ranking_rows straight into scoring_monitoring "to bypass RabbitMQ consumers". That made the mobile
+// TEAMS tab render rows the scoring backend never produced — so a human eyeballing it could sign off
+// on ranking while the real grant->score->recalc pipeline was broken (and the seed's reason codes
+// didn't even match production: it wrote 'target-resolved', the real TargetResolvedConsumer writes
+// 'treasure-target-resolved'). Instead this seed drives a real participant target scan through the
+// gateway: POST /participants/target-scans -> TargetResolved (RabbitMQ) -> TargetResolvedConsumer ->
+// RecordScoreEntry -> ScoreEntry.Grant -> ScoreEntryRegistered -> RecalculateRanking -> ranking_rows.
+// The row the tester sees is therefore genuine backend output, and staging this session exercises the
+// grant pipeline end to end.
 //
-// Why a dedicated seed: global-setup only seeds single-team trivia sessions.
-// HU-25B needs a multi-team treasure-hunt session with pre-seeded ranking data
-// so the mobile ranking surface has something to render immediately after join.
+// Trade-off vs. the old seed: producing real ranking requires gameplay, and gameplay requires the
+// session Active — so this hands over an ALREADY-ACTIVE session, not a Preparing one the operator
+// starts by hand. Only Gilded Owls is scored here (global-setup seeds a single participant, on that
+// team); Crimson Foxes is attached so the lobby shows two teams, but stays unscored until a real
+// participant on it plays.
 //
-// The mission is authored directly in mission_design via SQL. Score entries and
-// ranking rows are seeded into scoring_monitoring to bypass RabbitMQ consumers.
+// The mission is still authored directly in mission_design via SQL — that's a precondition (mission
+// AUTHORING is a different service, covered by missions.spec.ts / mission-hierarchy.spec.ts), not the
+// scoring output this seed is about.
 import { execSync } from 'child_process'
 import { test, expect } from '../fixtures/auth'
 
@@ -19,22 +29,22 @@ const DB = 'backend-postgres-1'
 const KC = 'http://localhost:8080'
 const GW = 'http://localhost:8000'
 
-// Global-setup seeds these (see tests/e2e/global-setup.ts):
-//   participant-1 / participant123 (sub: a0000000-...-0001)
+// Global-setup seeds these (see tests/setup/global-setup.ts):
+//   participant-1 / participant123, keyed by its resolved Keycloak sub, with a Gilded Owls membership
 //   op-1          / operator123
-//   Team Gilded Owls                (id: a0000000-...-0001)
+//   Team Gilded Owls               (id: a0000000-...-0001)
 
-const TEAM_A = 'a0000000-0000-0000-0000-000000000001' // Gilded Owls (global-setup)
+const TEAM_A = 'a0000000-0000-0000-0000-000000000001' // Gilded Owls (global-setup); scoring keys on ReferenceTeamId
 const TEAM_B = 'a0000000-0000-0000-0000-000000000002' // Crimson Foxes (upserted here)
-// Canonical team names — used for BOTH the reference-catalog row (identity_access,
-// which the lobby snapshots) and the ranking rows (scoring_monitoring). Keep them in
-// one place so the two contexts can never drift into showing different names for the
-// same team on the TEAMS tab.
 const TEAM_A_NAME = 'Gilded Owls'
 const TEAM_B_NAME = 'Crimson Foxes'
 const MISSION_NAME = 'HU-25B Ranking E2E'
 const STAGE_TITLE = 'Main Stage'
 const SUBSTAGE_TITLE = 'Treasure Hunt'
+// The first, immediately-visible target. Its QR value is what the fake scanner submits; scoring the
+// scan grants its 150-point value to Gilded Owls (SnapshotScorePolicy.Award is identity for grants).
+const ASTROLABE_QR = 'HR-25B-QR-1'
+const ASTROLABE_SCORE = '150'
 
 function sql(db: string, query: string): string {
   return execSync(`docker exec ${DB} psql -U postgres -d ${db} -t -A -c "${query.replace(/"/g, '\\"')}"`)
@@ -71,10 +81,10 @@ async function api(method: string, path: string, tok: string, body?: unknown): P
   })
 }
 
-// Authors a simple treasure-hunt mission: one stage, one TreasureHunt substage,
-// two targets with QR codes (one immediate, one operator-release). No trivia
-// dependency means the mobile board shows the treasure-hunt surface + TEAMS tab
-// immediately on start.
+// Authors a simple treasure-hunt mission: one stage, one TreasureHunt substage, two targets with QR
+// codes (Astrolabe visible-on-start, Tapestry operator-release). Only Astrolabe is scanned by this
+// seed; Tapestry is left for the human to release + resolve on mobile. Precondition only — the mission
+// authoring endpoints are not what this seed verifies.
 function authorTreasureHuntMission(): string {
   const missionId = sql('mission_design', `SELECT "Id" FROM "Missions" WHERE "Name"='${MISSION_NAME}' AND "IsActive"=true LIMIT 1`)
   if (missionId) return missionId
@@ -105,7 +115,7 @@ BEGIN
   RETURNING "Id" INTO v_clue_id;
 
   INSERT INTO "MissionTargets" ("SubstageId", "Name", "QrCode", "SequenceOrder", "IsActive", "Score", "ClueId")
-  VALUES (v_sub_id, 'Astrolabe', 'HR-25B-QR-1', 1, true, 150, v_clue_id);
+  VALUES (v_sub_id, 'Astrolabe', '${ASTROLABE_QR}', 1, true, ${ASTROLABE_SCORE}, v_clue_id);
 
   -- Clue 2: operator release
   INSERT INTO "MissionClues" ("SubstageId", "Title", "SequenceOrder", "Text", "Visibility")
@@ -120,49 +130,9 @@ END $$;
   return sql('mission_design', `SELECT "Id" FROM "Missions" WHERE "Name"='${MISSION_NAME}' AND "IsActive"=true ORDER BY "Id" DESC LIMIT 1`)
 }
 
-// Seeds score entries and a ranking snapshot directly into scoring_monitoring.
-// The REST endpoint and ScoringHub broadcasts read from this database table.
-function seedRankingData(liveSessionId: string): void {
-  runSql('scoring_monitoring', `
-DO $$
-DECLARE
-  v_ranking_id UUID := gen_random_uuid();
-  v_session_id UUID := '${liveSessionId}';
-  v_team_a    UUID := '${TEAM_A}';
-  v_team_b    UUID := '${TEAM_B}';
-BEGIN
-  -- Score entries for Team A (higher score, faster resolution).
-  -- team_display_name is snapshotted on each entry (matches production, where scoring reads the name
-  -- off the integration event); ranking recalculation names rows from it, so it must be populated here.
-  INSERT INTO score_entries (id, live_session_id, team_id, team_display_name, entry_type, reason_code, score_value, recorded_at, source_entity_type, source_entity_id, recorded_by_user_id, created_at, created_by, updated_at, updated_by)
-  VALUES
-    (gen_random_uuid(), v_session_id, v_team_a, '${TEAM_A_NAME}', 'Grant', 'trivia-answer-correct', 200, '2026-07-15T10:00:00Z'::timestamptz, 'TriviaAnswerSubmission', gen_random_uuid(), NULL, NOW(), 'seed', NOW(), 'seed'),
-    (gen_random_uuid(), v_session_id, v_team_a, '${TEAM_A_NAME}', 'Grant', 'target-resolved',      150, '2026-07-15T10:05:00Z'::timestamptz, 'TargetResolution',    gen_random_uuid(), NULL, NOW(), 'seed', NOW(), 'seed');
-
-  -- Score entries for Team B (lower score, slower resolution)
-  INSERT INTO score_entries (id, live_session_id, team_id, team_display_name, entry_type, reason_code, score_value, recorded_at, source_entity_type, source_entity_id, recorded_by_user_id, created_at, created_by, updated_at, updated_by)
-  VALUES
-    (gen_random_uuid(), v_session_id, v_team_b, '${TEAM_B_NAME}', 'Grant', 'trivia-answer-correct', 100, '2026-07-15T10:02:00Z'::timestamptz, 'TriviaAnswerSubmission', gen_random_uuid(), NULL, NOW(), 'seed', NOW(), 'seed'),
-    (gen_random_uuid(), v_session_id, v_team_b, '${TEAM_B_NAME}', 'Grant', 'target-resolved',      100, '2026-07-15T10:10:00Z'::timestamptz, 'TargetResolution',    gen_random_uuid(), NULL, NOW(), 'seed', NOW(), 'seed');
-
-  -- Ranking snapshot
-  INSERT INTO rankings (id, live_session_id, generated_at, calculation_version, created_at, created_by, updated_at, updated_by)
-  VALUES (v_ranking_id, v_session_id, NOW(), 1, NOW(), 'seed', NOW(), 'seed');
-
-  -- Ranking rows (Team A 1st, Team B 2nd).
-  -- team_display_name mirrors what the GET /api/sessions/{id}/ranking endpoint
-  -- returns; the mobile hook reads it from the REST response and SignalR push.
-  INSERT INTO ranking_rows (ranking_id, team_id, position, total_score, resolution_time, team_display_name)
-  VALUES
-    (v_ranking_id, v_team_a, 1, 350, INTERVAL '5 minutes', '${TEAM_A_NAME}'),
-    (v_ranking_id, v_team_b, 2, 200, INTERVAL '8 minutes', '${TEAM_B_NAME}');
-END $$;
-`)
-}
-
 test.setTimeout(120000)
 
-test('seeds "HU-25B Ranking E2E" in Preparing with pre-loaded ranking data', async () => {
+test('seeds "HU-25B Ranking E2E" Active with a real backend-computed ranking row', async () => {
   const admin = await token('admin-1', 'admin123')
   const op = await token('op-1', 'operator123')
 
@@ -185,7 +155,7 @@ test('seeds "HU-25B Ranking E2E" in Preparing with pre-loaded ranking data', asy
     DELETE FROM live_sessions WHERE title_snapshot = '${MISSION_NAME}';
   `)
 
-  // Ensure admin-1 exists in identity_access
+  // Ensure admin-1 exists in identity_access (sub-keyed, for the gateway-JWT operator-assignment path)
   const adminSub = subOf(admin)
   sql('identity_access', `
     DELETE FROM users WHERE "ExternalIdentityId"='${adminSub}' OR "Email"='admin-1@umbral.local';
@@ -197,11 +167,13 @@ test('seeds "HU-25B Ranking E2E" in Preparing with pre-loaded ranking data', asy
   const opId = Number(sql('identity_access', `SELECT "Id" FROM users WHERE "Email"='op-1@umbral.local'`))
   expect(opId).toBeGreaterThan(0)
 
-  // Ensure the second team exists AND carries the canonical name (global-setup only
-  // creates Gilded Owls). An earlier seed may already own this id under a different
-  // name (e.g. "Maple Runners"); a plain WHERE-NOT-EXISTS insert would skip it and
-  // leave the lobby showing that stale name while the ranking rows below say
-  // "Crimson Foxes" — two names for one team. Upsert so the catalog is authoritative.
+  // participant-1's identity (keyed by resolved Keycloak sub) and its Gilded Owls membership are seeded
+  // by global-setup's seedParticipantIdentity — the same reason session-operator-evidence-qr relies on
+  // it rather than re-seeding per spec. The scan below authenticates as that participant.
+
+  // Ensure the second team exists AND carries the canonical name (global-setup only creates Gilded
+  // Owls). Upsert so an earlier seed can't leave the lobby showing a stale name. Crimson Foxes is
+  // attached for a two-team lobby but is not scored by this seed.
   sql('identity_access', `
     INSERT INTO registered_teams (id, display_name, team_code, is_active, created_at, updated_at)
     VALUES ('${TEAM_B}', '${TEAM_B_NAME}', 'CF-01', true, NOW(), NOW())
@@ -215,8 +187,6 @@ test('seeds "HU-25B Ranking E2E" in Preparing with pre-loaded ranking data', asy
   // Author the treasure-hunt mission
   const missionId = Number(authorTreasureHuntMission())
   expect(missionId).toBeGreaterThan(0)
-
-  // Confirm the mission is Ready
   expect(
     sql('mission_design', `SELECT "ActivationState" FROM "Missions" WHERE "Id"=${missionId}`),
   ).toBe('Ready')
@@ -241,21 +211,51 @@ test('seeds "HU-25B Ranking E2E" in Preparing with pre-loaded ranking data', asy
   expect((await api('POST', `/api/sessions/${liveSessionId}/teams`, op, { referenceTeamId: TEAM_A })).ok).toBe(true)
   expect((await api('POST', `/api/sessions/${liveSessionId}/teams`, op, { referenceTeamId: TEAM_B })).ok).toBe(true)
 
-  // Transition to Preparing (operator can Start on demand)
-  expect(
-    (await api('PATCH', `/api/sessions/${liveSessionId}/state`, op, { targetState: 'Preparing' })).ok,
-  ).toBe(true)
+  // Resolve Gilded Owls' runtime id and self-join it as participant-1 while the session is still
+  // Scheduled (self-join freezes once the session leaves Scheduled/Preparing). The scan below submits
+  // with the REFERENCE team id, which satisfies both the domain team resolution and the identity-access
+  // membership guard.
+  const teams = await (await api('GET', `/api/sessions/${liveSessionId}/teams`, op)).json()
+  const teamARuntimeId = teams.teams.find((t: { referenceTeamId: string }) => t.referenceTeamId === TEAM_A)
+    .runtimeTeamId as string
+  const participant = await token('participant-1', 'participant123')
+  const join = await api('POST', `/api/sessions/by-code/${sessionCode}/teams/${teamARuntimeId}/join`, participant)
+  expect(join.status, 'participant self-join should succeed').toBe(200)
 
-  // Seed the ranking data directly into the scoring database
-  seedRankingData(liveSessionId)
+  // Drive to Active. Treasure-hunt has no pre-game countdown: EnterActiveSessionState sets
+  // ActiveSubstageId to the first substage synchronously, so the scan is legal the instant this commits.
+  expect((await api('PATCH', `/api/sessions/${liveSessionId}/state`, op, { targetState: 'Preparing' })).ok).toBe(true)
+  expect((await api('PATCH', `/api/sessions/${liveSessionId}/state`, op, { targetState: 'Active' })).ok).toBe(true)
 
-  console.log(`\n  HU-25B manual-test session ready (Preparing):`)
+  // The real scan: Gilded Owls resolves the Astrolabe target. This is the ONLY thing that puts a score
+  // into scoring_monitoring — no hand-written score_entries/rankings anymore.
+  const scan = await api('POST', `/api/sessions/${liveSessionId}/participants/target-scans`, participant, {
+    teamId: TEAM_A,
+    scannedValue: ASTROLABE_QR,
+    token: null,
+  })
+  expect(scan.status, await scan.text()).toBe(200)
+
+  // Wait for the backend to compute the ranking from that grant (scan -> TargetResolved -> RecordScoreEntry
+  // -> ScoreEntryRegistered -> RecalculateRanking, a couple of RabbitMQ hops). The row the mobile TEAMS
+  // tab renders is exactly this one — genuine backend output, not a seed.
+  await expect
+    .poll(
+      () => sql('scoring_monitoring',
+        `SELECT rr.total_score FROM rankings r JOIN ranking_rows rr ON rr.ranking_id = r.id
+         WHERE r.live_session_id='${liveSessionId}' AND rr.team_id='${TEAM_A}'
+         ORDER BY r.calculation_version DESC LIMIT 1`),
+      { timeout: 25000, message: 'the target scan never produced a backend ranking row' },
+    )
+    .toBe(ASTROLABE_SCORE)
+
+  console.log(`\n  HU-25B manual-test session ready (Active, real ranking):`)
   console.log(`    title: ${MISSION_NAME}`)
   console.log(`    session code: ${sessionCode}`)
   console.log(`    live session id: ${liveSessionId}`)
   console.log(`    teams: ${TEAM_A_NAME} (${TEAM_A}), ${TEAM_B_NAME} (${TEAM_B})`)
-  console.log(`    ranking: pre-seeded (Team A=350, Team B=200)`)
-  console.log(`    -> join on mobile as participant-1 / Gilded Owls,`)
-  console.log(`       then Start as op-1 to activate the treasure-hunt board.`)
-  console.log(`       TEAMS tab shows real ranking rows immediately.\n`)
+  console.log(`    ranking: ${TEAM_A_NAME}=${ASTROLABE_SCORE} (backend-computed from a real Astrolabe scan); ${TEAM_B_NAME} unscored`)
+  console.log(`    -> open on mobile as participant-1 / Gilded Owls (already joined; reconnect into the`)
+  console.log(`       Active session). The TEAMS tab shows the real ranking row immediately. Release +`)
+  console.log(`       scan the Tapestry target to watch it recalculate live.\n`)
 })

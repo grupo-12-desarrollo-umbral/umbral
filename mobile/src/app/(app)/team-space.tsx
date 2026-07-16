@@ -26,6 +26,8 @@ import { useTeamBoard } from '@/lib/realtime/use-team-board';
 import { useRanking } from '@/lib/realtime/use-ranking';
 import { createScoringHubConnection, type ScoringHubClient } from '@/lib/realtime/scoring-hub';
 import { TreasureHuntBoard } from '@/components/treasure-hunt-board';
+import { PodiumLeaderboard } from '@/components/podium-leaderboard';
+import { rankingErrorCopy } from '@/lib/realtime/ranking-error-copy';
 import { ScoreDropToast, useScoreDrop } from '@/components/score-drop-toast';
 import { TargetScanner } from '@/components/target-scanner';
 import {
@@ -427,6 +429,23 @@ export function LiveTeamSpace({
     (row) => row.teamId === referenceTeamId,
   )?.totalScore;
   const score = ownScore ?? board?.currentScore ?? 0;
+  // Hold the header score steady while a trivia question is live. The scoring ledger awards points the
+  // instant an answer is registered, so a `RankingChanged` push lands ~1s after submit and would bump
+  // the header mid-question — the participant should only see their score move at the reveal, next to
+  // the +points chip. Freeze the pre-question score on entering the active view; every other view
+  // (waiting/reveal/none) and the treasure-hunt board fall back to the live score.
+  const frozenScoreRef = useRef(score);
+  const prevViewKindRef = useRef(view.kind);
+  useEffect(() => {
+    if (view.kind === 'active' && prevViewKindRef.current !== 'active') {
+      frozenScoreRef.current = score;
+    }
+    prevViewKindRef.current = view.kind;
+  }, [view.kind, score]);
+  const displayScore = view.kind === 'active' ? frozenScoreRef.current : score;
+  // The penalty toast reads the live `score`, not the frozen `displayScore`: an operator can penalise
+  // mid-question, and against the frozen value the drop is invisible until the reveal — or lost entirely
+  // if the team's answer award nets it back out. The freeze is a header concern only.
   const { drop: scoreDrop, clear: clearScoreDrop } = useScoreDrop(score);
   const teamMembers = [result.participantDisplayName];
 
@@ -444,10 +463,17 @@ export function LiveTeamSpace({
     questionSequenceOrder: activeQuestionProps.questionSequenceOrder,
     token,
   });
-  const otherTeams = [
-    { name: 'Ember Owls', members: ['Ari', 'Sol'] },
-    { name: 'Parchment Moths', members: ['Mira', 'Jules'] },
-  ];
+  // Remember this participant's own pick while the question is live so the reveal can mark it red
+  // immediately (like the prototype, which held the selection in hand). Flipping into the reveal view
+  // empties `activeQuestionProps`, which resets the submit hook's selection to null — so it can't be
+  // read once revealing; capture it here first. Reset to null on each new question (the hook clears
+  // its selection then too) so a stale pick never bleeds into a question the team didn't answer.
+  const submittedSelectionRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (view.kind === 'active') {
+      submittedSelectionRef.current = submitHook.selectedOptionSequenceOrder;
+    }
+  }, [view.kind, submitHook.selectedOptionSequenceOrder]);
 
   if (playMode === 'TreasureHunt' && board) {
     const progress = targetProgress(board.activeSubstage);
@@ -462,7 +488,7 @@ export function LiveTeamSpace({
         ) : null}
         <TreasureHuntBoard
           teamDisplayName={board.teamDisplayName}
-          currentScore={score}
+          currentScore={displayScore}
           timerDisplay={display}
           resolvedTargets={progress.resolved}
           totalActiveTargets={progress.total}
@@ -527,7 +553,7 @@ export function LiveTeamSpace({
           <ActiveQuestionStage
             question={view.question}
             sessionState={sessionState}
-            score={score}
+            score={displayScore}
             timerDisplay={display}
             selectedOptionSequenceOrder={submitHook.selectedOptionSequenceOrder}
             isSubmitting={submitHook.isSubmitting}
@@ -538,9 +564,21 @@ export function LiveTeamSpace({
             onSubmit={submitHook.submit}
             onDismissRejection={submitHook.clearRejection}
           />
+        ) : view.kind === 'reveal' ? (
+          <ActiveQuestionStage
+            question={view.question}
+            sessionState={sessionState}
+            score={displayScore}
+            timerDisplay={display}
+            isClosed={isQuestionClosed}
+            selectedOptionSequenceOrder={submittedSelectionRef.current}
+            correctOptionSequenceOrder={view.correctOptionSequenceOrder}
+            explanation={view.explanation}
+            teamResult={view.teamResult}
+          />
         ) : (
           <View style={{ alignSelf: 'stretch', backgroundColor: colors.ivoryFog }}>
-            <ActiveQuestionStageHeader sessionState={sessionState} score={score} />
+            <ActiveQuestionStageHeader sessionState={sessionState} score={displayScore} />
             <QuestionEmptyState kind={view.kind} sessionState={sessionState} />
           </View>
         )}
@@ -577,25 +615,38 @@ export function LiveTeamSpace({
       {teamsOpen ? (
         <Panel style={{ gap: spacing.md }}>
           <Text variant="headline">ALL TEAMS</Text>
-          <View
-            style={{
-              borderWidth: 1,
-              borderColor: colors.emberAccent,
-              borderRadius: radii.card,
-              borderCurve: 'continuous',
-              padding: spacing.md,
-              gap: spacing.xs,
-            }}
-          >
-            <Text variant="title">{result.teamDisplayName}</Text>
-            <Text muted>{teamMembers.join(', ')}</Text>
-          </View>
-          {otherTeams.map(team => (
-            <View key={team.name} style={{ gap: spacing.xs }}>
-              <Text variant="title">{team.name}</Text>
-              <Text muted>{team.members.join(', ')}</Text>
+          {/* Live standings (HU-35 AC4). The scoring ledger keys ranking rows on the cross-context
+              ReferenceTeamId, so own-team highlighting matches on `referenceTeamId` (same id the podium
+              on the treasure-hunt board uses). PodiumLeaderboard owns the empty state ("Standings will
+              appear once the round begins."); a failed fetch surfaces an error + retry instead of the
+              old placeholder teams, so a real load failure never reads as data. */}
+          {rankingSnapshot ? (
+            <PodiumLeaderboard rows={rankingSnapshot.rows} ownTeamId={referenceTeamId} />
+          ) : rankingError ? (
+            <View style={{ gap: spacing.sm, alignItems: 'center' }}>
+              <Text
+                variant="body"
+                style={{ color: colors.signalCritical, textAlign: 'center' }}
+              >
+                {rankingErrorCopy(rankingError)}
+              </Text>
+              <Button label="RETRY" variant="secondary" onPress={refetchRanking} />
             </View>
-          ))}
+          ) : (
+            <View
+              style={{
+                borderWidth: 1,
+                borderColor: colors.emberAccent,
+                borderRadius: radii.card,
+                borderCurve: 'continuous',
+                padding: spacing.md,
+                gap: spacing.xs,
+              }}
+            >
+              <Text variant="title">{result.teamDisplayName}</Text>
+              <Text muted>{teamMembers.join(', ')}</Text>
+            </View>
+          )}
           <Button label="CLOSE" variant="secondary" onPress={() => setTeamsOpen(false)} />
         </Panel>
       ) : null}

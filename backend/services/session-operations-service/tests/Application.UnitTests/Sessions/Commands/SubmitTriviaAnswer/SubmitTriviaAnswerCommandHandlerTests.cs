@@ -199,10 +199,10 @@ public sealed class SubmitTriviaAnswerCommandHandlerTests
     {
         var guard = new Mock<IRuntimeParticipationGuard>();
         var setup = guard.Setup(g => g.EnsureAllowedAsync(
-            It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()));
+            It.IsAny<Guid>(), It.IsAny<CancellationToken>()));
         if (runtimeAllowed)
         {
-            setup.Returns(Task.CompletedTask);
+            setup.ReturnsAsync(new ParticipantEligibleTeamsDto(true, "eligible", []));
         }
         else
         {
@@ -211,7 +211,7 @@ public sealed class SubmitTriviaAnswerCommandHandlerTests
 
         var evidenceChain = new EvidenceIntakeValidationChain(new EvidenceIntakeValidationLink[]
         {
-            new RuntimeParticipationLink(guard.Object),
+            new RuntimeParticipationLink(guard.Object, AllowingMembershipChecker()),
             new SessionAdmitsReceptionLink(),
             new ActiveSubstagePresentLink()
         });
@@ -236,6 +236,15 @@ public sealed class SubmitTriviaAnswerCommandHandlerTests
             evidenceIntakeFacade,
             currentUser.Object,
             timeProvider);
+    }
+
+    private static IParticipantSessionMembershipChecker AllowingMembershipChecker()
+    {
+        var checker = new Mock<IParticipantSessionMembershipChecker>();
+        checker
+            .Setup(candidate => candidate.Check(It.IsAny<LiveSession>(), It.IsAny<Guid>()))
+            .Returns(ParticipantSessionMembershipResult.Allowed);
+        return checker.Object;
     }
 
     private static Mock<ILiveSessionRepository> CreateRepository(LiveSession session)

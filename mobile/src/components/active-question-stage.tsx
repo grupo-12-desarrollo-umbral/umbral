@@ -1,9 +1,11 @@
 import { ActivityIndicator, Pressable, View } from 'react-native';
 import { colors, radii, spacing, typography } from '@/constants/theme';
+import { Card } from '@/components/ui/card';
 import { Text } from '@/components/ui/text';
 import type { ActiveQuestion } from '@/lib/realtime/active-question-types';
 import type { TriviaAnswerRejectionDisplay } from '@/lib/realtime/use-submit-answer';
 import type { TimerDisplay, TimerTone } from '@/lib/realtime/timer-types';
+import type { TriviaTeamQuestionResultDto } from '@/lib/realtime/trivia-types';
 
 const STATE_DOT_COLORS: Record<string, string> = {
   Scheduled: colors.textMuted,
@@ -144,6 +146,84 @@ function StageHeader({
   );
 }
 
+function RevealOutcome({ teamResult }: { teamResult: TriviaTeamQuestionResultDto | null | undefined }) {
+  if (!teamResult) {
+    // Loading state — show a placeholder so layout doesn't jump.
+    return (
+      <View
+        style={{
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          paddingHorizontal: spacing.lg,
+          paddingVertical: spacing.md,
+        }}
+      >
+        <ActivityIndicator size="small" color={colors.textMuted} />
+        <Text variant="body" muted>
+          Loading result…
+        </Text>
+      </View>
+    );
+  }
+
+  const isCorrect = teamResult.isCorrect === true;
+  const isNoAnswer = teamResult.selectedOptionSequenceOrder === null;
+  const outcomeColor = isCorrect
+    ? colors.signalSuccess
+    : isNoAnswer
+      ? colors.textMuted
+      : colors.signalCritical;
+
+  const outcomeTestId = isCorrect
+    ? 'reveal-team-outcome-correct'
+    : isNoAnswer
+      ? 'reveal-team-outcome-no-answer'
+      : 'reveal-team-outcome-incorrect';
+
+  return (
+    <View
+      style={{
+        paddingHorizontal: spacing.lg,
+        paddingVertical: spacing.md,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+      }}
+      testID={outcomeTestId}
+    >
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
+        <View
+          style={{
+            width: 28,
+            height: 28,
+            borderRadius: 14,
+            backgroundColor: outcomeColor,
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <Text variant="label" style={{ color: colors.ivoryFog, fontSize: 14 }}>
+            {isCorrect ? '✓' : isNoAnswer ? '—' : '✕'}
+          </Text>
+        </View>
+        <Text variant="title" style={{ color: outcomeColor }}>
+          {isCorrect ? 'Correct' : isNoAnswer ? 'No answer' : 'Incorrect'}
+        </Text>
+      </View>
+      <Text
+        variant="headline"
+        style={{ color: outcomeColor, fontVariant: ['tabular-nums'] }}
+        testID="reveal-points"
+      >
+        {teamResult.scoreValue != null && teamResult.scoreValue >= 0
+          ? `+${teamResult.scoreValue}`
+          : `${teamResult.scoreValue}`}
+      </Text>
+    </View>
+  );
+}
+
 export function ActiveQuestionStage({
   question,
   sessionState,
@@ -153,6 +233,10 @@ export function ActiveQuestionStage({
   isSubmitting,
   isLocked,
   isClosed,
+  // Reveal data (HU-M4). When present, the closed branch renders the result reveal UI.
+  correctOptionSequenceOrder,
+  explanation,
+  teamResult,
   rejection,
   onSelectOption,
   onSubmit,
@@ -168,6 +252,9 @@ export function ActiveQuestionStage({
   // Display-only close lock (HU-M3): the question closed and controls settle until the next resolves.
   // Independent of the submit hook's `isLocked` and takes precedence for display.
   isClosed?: boolean;
+  correctOptionSequenceOrder?: number;
+  explanation?: string | null;
+  teamResult?: TriviaTeamQuestionResultDto | null;
   rejection?: TriviaAnswerRejectionDisplay | null;
   onSelectOption?: (sequenceOrder: number) => void;
   onSubmit?: () => void;
@@ -196,20 +283,71 @@ export function ActiveQuestionStage({
         </Text>
       </View>
 
-      <View>
+      <View testID={correctOptionSequenceOrder !== undefined ? 'question-reveal' : undefined}>
         {question.options.map((option, index) => {
-          const isSelected = selected === index + 1;
-          const rowBg = isSelected
-            ? colors.emberAccentSoft
-            : index % 2 === 0
-              ? colors.ivoryFog
-              : colors.warmMist;
-          const pillBorderColor = isSelected ? colors.emberAccentStrong : colors.emberAccent;
-          const pillFillBg = isSelected ? colors.emberAccent : 'transparent';
-          const pillTextColor = isSelected ? colors.ivoryFog : colors.emberAccent;
+          const seq = index + 1;
+          const inReveal = correctOptionSequenceOrder !== undefined;
+          const isCorrectOption = inReveal && seq === correctOptionSequenceOrder;
+          // Mark the team's answer red in the reveal. Prefer this participant's own submitted pick
+          // (`selected`) so the red shows immediately and even when the `my-result` read is slow or
+          // returns no team answer; fall back to the authoritative team answer (e.g. after a
+          // reconnect that lost the local pick). Never marks the correct option red — that stays green.
+          const revealSelectedSeq = inReveal
+            ? (selected ?? teamResult?.selectedOptionSequenceOrder ?? null)
+            : null;
+          const isUserAnswer =
+            inReveal && !isCorrectOption && revealSelectedSeq != null && seq === revealSelectedSeq;
+          const isSelected = !inReveal && selected === seq;
+
+          let rowBg: string;
+          let pillBorderColor: string;
+          let pillFillBg: string;
+          let pillTextColor: string;
+          let textColor: string;
+          let borderBottomColor: string;
+
+          if (isCorrectOption) {
+            rowBg = colors.signalSuccess + '22';
+            pillBorderColor = colors.signalSuccess;
+            pillFillBg = colors.signalSuccess;
+            pillTextColor = colors.ivoryFog;
+            textColor = colors.signalSuccess;
+            borderBottomColor = colors.signalSuccess;
+          } else if (isUserAnswer) {
+            rowBg = colors.signalCritical + '12';
+            pillBorderColor = colors.signalCritical;
+            pillFillBg = colors.signalCritical;
+            pillTextColor = colors.ivoryFog;
+            textColor = colors.signalCritical;
+            borderBottomColor = colors.borderSoft;
+          } else if (isSelected) {
+            rowBg = colors.emberAccentSoft;
+            pillBorderColor = colors.emberAccentStrong;
+            pillFillBg = colors.emberAccent;
+            pillTextColor = colors.ivoryFog;
+            textColor = colors.textInk;
+            borderBottomColor = colors.borderSoft;
+          } else {
+            rowBg = index % 2 === 0 ? colors.ivoryFog : colors.warmMist;
+            pillBorderColor = colors.emberAccent;
+            pillFillBg = 'transparent';
+            pillTextColor = colors.emberAccent;
+            textColor = colors.textInk;
+            borderBottomColor = colors.borderSoft;
+          }
+
+          const chip = isCorrectOption
+            ? 'CORRECT'
+            : isUserAnswer
+              ? 'YOUR ANSWER'
+              : undefined;
 
           const hint = closed
-            ? 'This question is closed.'
+            ? isCorrectOption
+              ? 'This is the correct answer.'
+              : isUserAnswer
+                ? 'This was your team\'s answer.'
+                : 'This question is closed.'
             : locked
               ? 'Answer already submitted.'
               : hasSubmitProps
@@ -236,7 +374,7 @@ export function ActiveQuestionStage({
               style={{
                 backgroundColor: rowBg,
                 borderBottomWidth: 1,
-                borderBottomColor: colors.borderSoft,
+                borderBottomColor: borderBottomColor,
                 flexDirection: 'row' as const,
                 alignItems: 'center' as const,
                 gap: spacing.md,
@@ -261,10 +399,31 @@ export function ActiveQuestionStage({
                 </Text>
               </View>
               <Text
-                style={{ flex: 1, ...typography.headline, fontWeight: '400' as const }}
+                style={{ flex: 1, ...typography.headline, fontWeight: '400' as const, color: textColor }}
+                testID={isCorrectOption ? 'reveal-correct-option' : undefined}
               >
                 {option}
               </Text>
+              {chip ? (
+                <View
+                  style={{
+                    paddingHorizontal: spacing.sm,
+                    paddingVertical: 2,
+                    borderRadius: radii.control,
+                    borderCurve: 'continuous',
+                    backgroundColor: (isCorrectOption ? colors.signalSuccess : colors.signalCritical) + '1A',
+                    borderWidth: 1,
+                    borderColor: isCorrectOption ? colors.signalSuccess : colors.signalCritical,
+                  }}
+                >
+                  <Text
+                    variant="label"
+                    style={{ color: isCorrectOption ? colors.signalSuccess : colors.signalCritical }}
+                  >
+                    {chip}
+                  </Text>
+                </View>
+              ) : null}
             </Row>
           );
         })}
@@ -273,29 +432,57 @@ export function ActiveQuestionStage({
       {hasSubmitProps || closed ? (
         <View style={{ padding: spacing.lg, gap: spacing.md }}>
           {closed ? (
-            // Close affordance — neutral/critical tone, distinct from the green "Answer submitted" chip.
-            <View
-              accessibilityRole="text"
-              style={{
-                flexDirection: 'row',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: spacing.xs,
-                paddingVertical: spacing.sm,
-              }}
-            >
+            correctOptionSequenceOrder !== undefined ? (
+              // HU-M4 result reveal — option-centric inline layout (Variant B winner).
+              <View style={{ gap: spacing.md }}>
+                {/* Compact team outcome */}
+                <RevealOutcome teamResult={teamResult} />
+
+                {/* Explanation */}
+                {explanation ? (
+                  <Card
+                    style={{
+                      backgroundColor: colors.paperSurface,
+                      borderColor: colors.borderSoft,
+                    }}
+                    testID="reveal-explanation"
+                  >
+                    <View style={{ gap: spacing.xs }}>
+                      <Text variant="label" muted>
+                        WHY
+                      </Text>
+                      <Text variant="body" muted>
+                        {explanation}
+                      </Text>
+                    </View>
+                  </Card>
+                ) : null}
+              </View>
+            ) : (
+              // Close affordance — neutral/critical tone, distinct from the green "Answer submitted" chip.
               <View
+                accessibilityRole="text"
                 style={{
-                  width: 8,
-                  height: 8,
-                  borderRadius: radii.pill,
-                  backgroundColor: colors.signalCritical,
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: spacing.xs,
+                  paddingVertical: spacing.sm,
                 }}
-              />
-              <Text variant="label" style={{ color: colors.textMuted }}>
-                Question closed — waiting for the next
-              </Text>
-            </View>
+              >
+                <View
+                  style={{
+                    width: 8,
+                    height: 8,
+                    borderRadius: radii.pill,
+                    backgroundColor: colors.signalCritical,
+                  }}
+                />
+                <Text variant="label" style={{ color: colors.textMuted }}>
+                  Question closed — waiting for the next
+                </Text>
+              </View>
+            )
           ) : locked ? (
             <View
               style={{

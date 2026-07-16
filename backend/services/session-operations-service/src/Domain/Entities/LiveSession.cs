@@ -27,6 +27,12 @@ public sealed class LiveSession : BaseAuditableEntity
     private TimeSpan _substageTimerRemainingDuration;
     private DateTimeOffset? _substageTimerAdvancingSince;
     private DateTimeOffset? _substageTimerExpiredAt;
+    // Post-close reveal window (HU-35): a just-closed trivia question stays "revealing" until this
+    // deadline, so participants see the correct option/result before the next question activates.
+    // Null when no reveal is pending. `_pendingNextQuestionIndex` holds the deferred activation the
+    // reveal end will perform (null => the substage is exhausted and must advance instead).
+    private DateTimeOffset? _questionRevealUntil;
+    private int? _pendingNextQuestionIndex;
 
     private LiveSession()
     {
@@ -109,6 +115,22 @@ public sealed class LiveSession : BaseAuditableEntity
     public bool IsQuestionTimerAdvancing => LiveSessionStateFactory.For(State).IsQuestionTimerAdvancing(this);
 
     public bool IsSubstageTimerAdvancing => LiveSessionStateFactory.For(State).IsSubstageTimerAdvancing(this);
+
+    // True while a just-closed trivia question is showing its result (HU-35 reveal window). During
+    // this window ActiveQuestionIndex is null (the question is closed) but the next activation is
+    // deferred until `_questionRevealUntil`.
+    public bool IsAwaitingQuestionReveal => _questionRevealUntil.HasValue;
+
+    public DateTimeOffset? QuestionRevealUntil => _questionRevealUntil;
+
+    // The activation deferred by the reveal window: the substage-local index of the next question to
+    // open when the reveal ends, or null when the just-closed question was the substage's last (advance
+    // instead). Resolved against the still-active question at close, so mid-substage it is the just-closed
+    // question's index + 1 — which is exactly the exclusive upper bound of the now-readable results.
+    public int? PendingNextQuestionIndex => _pendingNextQuestionIndex;
+
+    public bool IsQuestionRevealElapsed(DateTimeOffset observedAt) =>
+        _questionRevealUntil is { } until && observedAt >= until;
 
     public int? AssignedOperatorUserId { get; private set; }
 
@@ -202,12 +224,19 @@ public sealed class LiveSession : BaseAuditableEntity
         return team;
     }
 
+    // An unknown identity here is a first join, not a reconnect: it self-assigns into the requested team.
+    // That makes it the same decision SelectTeam makes, so it must clear the same authorized set — otherwise
+    // reconnect becomes a way to obtain a membership Open Team Selection would refuse. Callers holding the
+    // participant's whitelist pass it with openTeamSelectionPolicy; an empty/omitted set keeps the documented
+    // "unassigned => every attached team is selectable" semantics.
     public (SessionParticipant Participant, Team Team, bool IsReconnect) AdmitParticipant(
         Guid externalIdentityId,
         string displayName,
         Guid teamId,
         DateTimeOffset occurredAt,
-        JoinPolicy joinPolicy)
+        JoinPolicy joinPolicy,
+        OpenTeamSelectionPolicy? openTeamSelectionPolicy = null,
+        IReadOnlySet<Guid>? authorizedReferenceTeamIds = null)
     {
         ArgumentNullException.ThrowIfNull(joinPolicy);
 
@@ -216,7 +245,13 @@ public sealed class LiveSession : BaseAuditableEntity
 
         if (existingParticipant is null)
         {
+            // Ordered before the authorized-set gate so state/capacity keep reporting late-join and
+            // team-full ahead of a whitelist verdict.
             joinPolicy.EnsureCanJoin(this, team);
+            openTeamSelectionPolicy?.EnsureCanSelfAssign(
+                this,
+                team,
+                authorizedReferenceTeamIds ?? new HashSet<Guid>());
 
             var participant = SessionParticipant.Join(LiveSessionId, externalIdentityId, displayName, occurredAt);
             _participants.Add(participant);
@@ -409,6 +444,36 @@ public sealed class LiveSession : BaseAuditableEntity
             questionIndex,
             occurredAt,
             wasExpiredByTimer));
+    }
+
+    // Close the active question AND open the reveal window (HU-35). The next activation is deferred:
+    // `nextQuestionIndex` (resolved against the still-active question BEFORE this call) is captured so
+    // the reveal end can activate it, or advance the substage when null (the substage is exhausted).
+    // The worker fires `CompleteQuestionReveal` once `occurredAt + revealDuration` elapses.
+    public void CloseActiveQuestionForReveal(
+        DateTimeOffset occurredAt,
+        TimeSpan revealDuration,
+        int? nextQuestionIndex)
+    {
+        CloseActiveQuestion(occurredAt);
+        _questionRevealUntil = occurredAt + revealDuration;
+        _pendingNextQuestionIndex = nextQuestionIndex;
+    }
+
+    // End the reveal window and hand back the deferred activation captured at close. Returns the next
+    // question index to activate, or null when the substage is exhausted and must advance. Idempotent
+    // callers should guard on `IsAwaitingQuestionReveal` first.
+    public int? CompleteQuestionRevealAndDequeueNext()
+    {
+        if (_questionRevealUntil is null)
+        {
+            throw new NoActiveQuestionRevealException();
+        }
+
+        var nextQuestionIndex = _pendingNextQuestionIndex;
+        _questionRevealUntil = null;
+        _pendingNextQuestionIndex = null;
+        return nextQuestionIndex;
     }
 
     public void ReleaseClueToTeam(

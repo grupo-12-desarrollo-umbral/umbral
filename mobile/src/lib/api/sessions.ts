@@ -1,5 +1,5 @@
 import { fetch } from 'expo/fetch';
-import { getAccessToken } from '@/lib/auth/token-store';
+import { getValidAccessToken } from '@/lib/auth/token-provider';
 import { apiBaseUrl } from '@/lib/host';
 import { apiClient, ApiError } from './client';
 import type { SessionTimerSnapshotDto } from '@/lib/realtime/timer-types';
@@ -9,6 +9,7 @@ import type {
   SubmitTriviaAnswerRequest,
   SubmitTriviaAnswerResultDto,
   TriviaAnswerRejectionReasonCode,
+  TriviaTeamQuestionResultDto,
 } from '@/lib/realtime/trivia-types';
 import type {
   RegisterTargetScanRequest,
@@ -104,6 +105,25 @@ export function getRanking(
   );
 }
 
+// HU-M4 participant "my team result" read. Mirrors the existing GET reads (apiClient + bearer + no-cache),
+// returning TriviaTeamQuestionResultDto for a closed question keyed by its sequenceOrder.
+// Source: Api/Controllers/SessionsController.cs line 344 — GET …/trivia/questions/{sequenceOrder}/my-result
+export function getTriviaTeamQuestionResult(
+  liveSessionId: string,
+  sequenceOrder: number,
+): Promise<TriviaTeamQuestionResultDto> {
+  return apiClient.get<TriviaTeamQuestionResultDto>(
+    `/api/sessions/${encodeURIComponent(liveSessionId)}/trivia/questions/${sequenceOrder}/my-result`,
+    {
+      cache: 'no-store',
+      headers: {
+        'Cache-Control': 'no-cache',
+        Pragma: 'no-cache',
+      },
+    },
+  );
+}
+
 // ── Submit trivia answer (HU-34 / DES-46 contract, consumed by HU-M2) ──────────────────────────────
 // The backend rejects a submit with RFC 7807 ProblemDetails whose `type` is the stable rejection slug.
 // The shared `apiClient` only reads `code`/`message`, which ProblemDetails does NOT carry, so this
@@ -148,7 +168,7 @@ export async function submitTriviaAnswer(
   liveSessionId: string,
   request: SubmitTriviaAnswerRequest,
 ): Promise<SubmitTriviaAnswerResultDto> {
-  const token = await getAccessToken();
+  const token = await getValidAccessToken();
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
   if (token) {
     headers['Authorization'] = `Bearer ${token}`;
@@ -234,7 +254,7 @@ export async function registerTargetScan(
   liveSessionId: string,
   request: RegisterTargetScanRequest,
 ): Promise<RegisterTargetScanResultDto> {
-  const token = await getAccessToken();
+  const token = await getValidAccessToken();
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
   if (token) {
     headers['Authorization'] = `Bearer ${token}`;

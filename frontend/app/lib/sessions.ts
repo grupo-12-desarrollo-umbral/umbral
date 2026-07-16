@@ -11,6 +11,7 @@ import {
   type TransitionSessionStateResultDto,
   type SessionTimerSnapshotDto,
   type TriviaAnsweredMonitorDto,
+  type TriviaAnswerReviewDto,
   type OperatorSessionPanelDto,
   type ReleaseClueRequest,
   type ReleaseClueResultDto,
@@ -19,6 +20,8 @@ import {
   type AddOperativeClueResultDto,
   type ApplyPenaltyRequest,
   type AppliedPenaltyDto,
+  type RankingSnapshotDto,
+  type EvidenceTraceDto,
 } from './definitions'
 import { verifySession } from './dal'
 import { KeycloakAuthError } from './keycloak'
@@ -233,6 +236,31 @@ export async function getOperatorSessionPanel(
   return response.json() as Promise<OperatorSessionPanelDto>
 }
 
+// HU-36B operator post-close answer review. Mirrors getOperatorSessionPanel's gateway path + auth/
+// status mapping. 403 = a non-owning operator: the ownership Proxy denies the read.
+// 409 = question not yet closed or unavailable (backend throws Conflict).
+export async function getTriviaAnswerReview(
+  liveSessionId: string,
+  questionSequenceOrder: number,
+): Promise<TriviaAnswerReviewDto> {
+  await verifySession()
+  const response = await fetch(
+    `${API_GATEWAY_URL}/api/sessions/${liveSessionId}/trivia/questions/${questionSequenceOrder}/answer-review`,
+    {
+      headers: await getGatewayHeaders(),
+      cache: 'no-store',
+    },
+  )
+
+  if (response.status === 401) throw new IdentityError('unauthorized', 'Answer review: auth expired')
+  if (response.status === 403) throw new IdentityError('unauthorized', 'Answer review: not assigned operator')
+  if (response.status === 404) throw new IdentityError('unknown', 'Session not found')
+  if (response.status === 409) throw new Error('question_not_closed')
+  if (!response.ok) throw new IdentityError('unknown', `Answer review read failed with status ${response.status}`)
+
+  return response.json() as Promise<TriviaAnswerReviewDto>
+}
+
 // HU-28 operator release-clue picker source. Mirrors getOperatorSessionPanel's gateway path + auth/
 // status mapping. 403 = a non-owning operator: the ownership Proxy denies the read.
 export async function getReleasableClues(
@@ -423,4 +451,53 @@ export async function applyPenalty(
   }
 
   return response.json() as Promise<AppliedPenaltyDto>
+}
+
+// HU-24B operator ranking snapshot. The REST fallback behind the RankingChanged push: fetched on
+// connect/reconnect so the panel is correct even while the hub is down. 403 = an operator not assigned
+// to this session (the scoring ownership Proxy denies). A session with no score entries yet is NOT an
+// error — the backend returns the well-known empty snapshot (rows: []).
+export async function getOperatorRanking(liveSessionId: string): Promise<RankingSnapshotDto> {
+  await verifySession()
+  const response = await fetch(
+    `${API_GATEWAY_URL}/api/sessions/${liveSessionId}/ranking/operator`,
+    {
+      headers: await getGatewayHeaders(),
+      cache: 'no-store',
+    },
+  )
+
+  if (response.status === 401) throw new IdentityError('unauthorized', 'Authentication failed.')
+  if (response.status === 403) throw new IdentityError('unauthorized', 'Not the assigned operator.')
+  if (response.status === 404) throw new Error('session_not_found')
+  if (!response.ok) {
+    throw new IdentityError('unknown', `getOperatorRanking failed with status ${response.status}`)
+  }
+
+  return response.json() as Promise<RankingSnapshotDto>
+}
+
+// HU-24B operator evidence trace snapshot. The REST fallback behind the EvidenceSubmission* pushes:
+// fetched on select/reconnect so the panel is correct even while the hub is down. Deliberately sends no
+// teamId — the operator is entitled to the whole session's trace, and access is proven by session
+// assignment (403 = an operator not assigned to this session). A session with no submissions yet is NOT
+// an error: the backend returns items: [].
+export async function getOperatorEvidenceTrace(liveSessionId: string): Promise<EvidenceTraceDto> {
+  await verifySession()
+  const response = await fetch(
+    `${API_GATEWAY_URL}/api/sessions/${liveSessionId}/evidence-submissions`,
+    {
+      headers: await getGatewayHeaders(),
+      cache: 'no-store',
+    },
+  )
+
+  if (response.status === 401) throw new IdentityError('unauthorized', 'Authentication failed.')
+  if (response.status === 403) throw new IdentityError('unauthorized', 'Not the assigned operator.')
+  if (response.status === 404) throw new Error('session_not_found')
+  if (!response.ok) {
+    throw new IdentityError('unknown', `getOperatorEvidenceTrace failed with status ${response.status}`)
+  }
+
+  return response.json() as Promise<EvidenceTraceDto>
 }

@@ -4,7 +4,10 @@ import { ApiError } from '@/lib/api/client';
 const mockFetch = jest.fn();
 
 jest.mock('expo/fetch', () => ({ fetch: (...args: unknown[]) => mockFetch(...args) }));
-jest.mock('@/lib/auth/token-store', () => ({ getAccessToken: jest.fn().mockResolvedValue(null) }));
+jest.mock('@/lib/auth/token-provider', () => ({
+  getValidAccessToken: jest.fn().mockResolvedValue(null),
+  refreshAccessToken: jest.fn().mockResolvedValue(null),
+}));
 jest.mock('@/lib/host', () => ({ apiBaseUrl: () => 'http://localhost:8000' }));
 
 describe('registerParticipant', () => {

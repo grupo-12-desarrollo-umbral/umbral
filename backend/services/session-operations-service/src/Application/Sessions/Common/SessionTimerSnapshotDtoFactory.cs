@@ -24,7 +24,38 @@ public static class SessionTimerSnapshotDtoFactory
             snapshot.ObservedAt,
             snapshot.AdvancingSince,
             snapshot.ExpiredAt,
-            activeQuestion);
+            activeQuestion,
+            ResolveAwaitingRevealSequenceOrder(liveSession));
+    }
+
+    // During the HU-35 reveal window ActiveQuestionIndex is null (the question closed) but the
+    // just-closed question's result is still readable. Surface its sequence order so a client that
+    // opens the session mid-reveal — with no QuestionActivated push to have captured — can fetch the
+    // answer review. Returns null outside the reveal window (mirrors ClosedTriviaQuestionResultReader's
+    // reveal-window upper bound: the just-closed substage-local position is PendingNextQuestionIndex - 1,
+    // or the substage's last question when the last one just closed).
+    private static int? ResolveAwaitingRevealSequenceOrder(LiveSession liveSession)
+    {
+        if (liveSession.ActiveQuestionIndex is not null ||
+            !liveSession.IsAwaitingQuestionReveal ||
+            liveSession.ActiveSubstageId is not { } activeSubstageId)
+        {
+            return null;
+        }
+
+        var orderedQuestions = liveSession.MissionRuntimeSnapshot.TriviaQuestionSnapshots
+            .Where(question => question.SubstageSnapshotId == activeSubstageId)
+            .OrderBy(question => question.SequenceOrder)
+            .ToArray();
+
+        var justClosedIndex = (liveSession.PendingNextQuestionIndex ?? orderedQuestions.Length) - 1;
+
+        if (justClosedIndex < 0 || justClosedIndex >= orderedQuestions.Length)
+        {
+            return null;
+        }
+
+        return orderedQuestions[justClosedIndex].SequenceOrder;
     }
 
     // Sources the active-substage window straight from the authoritative snapshot the caller

@@ -51,20 +51,38 @@ public static class DependencyInjection
             .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             .AddJwtBearer(options =>
             {
-                options.Authority = builder.Configuration["Keycloak:Authority"];
+                var keycloakAuthority = builder.Configuration["Keycloak:Authority"];
+                options.Authority = keycloakAuthority;
                 options.Audience = builder.Configuration["Keycloak:Audience"];
                 options.RequireHttpsMetadata = !builder.Environment.IsDevelopment();
                 options.BackchannelTimeout = TimeSpan.FromSeconds(5);
                 options.BackchannelHttpHandler = new RewriteLocalhostBackchannelHandler(new SocketsHttpHandler());
-                options.MetadataAddress = $"{builder.Configuration["Keycloak:Authority"]}/.well-known/openid-configuration";
+                options.MetadataAddress = $"{keycloakAuthority}/.well-known/openid-configuration";
+
+                // Accepted token issuers. Configurable via `Keycloak:ValidIssuers` (e.g. the public
+                // Railway Keycloak URL in production); when unset we keep the local dev issuers so
+                // `docker compose` and the test suites behave exactly as before. The configured
+                // Authority is always folded in — a Keycloak realm's issuer IS its realm URL — so a
+                // correct `Keycloak:Authority` alone is enough in production, no separate issuer list
+                // required. Distinct() dedupes the overlap in dev.
+                var configuredIssuers = builder.Configuration
+                    .GetSection("Keycloak:ValidIssuers").Get<string[]>();
+                var validIssuers = (configuredIssuers is { Length: > 0 }
+                        ? configuredIssuers
+                        : new[]
+                        {
+                            "http://localhost:8080/realms/umbral",
+                            "http://keycloak:8080/realms/umbral",
+                        })
+                    .Append(keycloakAuthority)
+                    .Where(issuer => !string.IsNullOrWhiteSpace(issuer))
+                    .Distinct()
+                    .ToArray();
+
                 options.TokenValidationParameters = new Microsoft.IdentityModel.Tokens.TokenValidationParameters
                 {
                     ValidateIssuer = true,
-                    ValidIssuers = new[]
-                    {
-                        "http://localhost:8080/realms/umbral",
-                        "http://keycloak:8080/realms/umbral"
-                    },
+                    ValidIssuers = validIssuers,
                     ValidateAudience = true,
                     ValidAudience = builder.Configuration["Keycloak:Audience"]
                 };

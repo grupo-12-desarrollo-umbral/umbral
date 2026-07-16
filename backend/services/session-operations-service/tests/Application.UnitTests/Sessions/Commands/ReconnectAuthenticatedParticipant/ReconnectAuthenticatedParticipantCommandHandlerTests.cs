@@ -271,6 +271,95 @@ public sealed class ReconnectAuthenticatedParticipantCommandHandlerTests
         await act.Should().ThrowAsync<TeamCapacityReachedException>();
     }
 
+    // Reconnect's first-join branch self-assigns the caller into the requested team, so it must clear the
+    // same authorized set SelectTeam enforces. Otherwise reconnect is a way to obtain a membership that
+    // Open Team Selection would refuse.
+    [Fact]
+    public async Task Handle_WhenFirstJoinTargetsTeamOutsideAuthorizedSet_ThrowsAndPersistsNothing()
+    {
+        var session = CreateScheduledSession();
+        var alphaReferenceTeamId = Guid.NewGuid();
+        var bravoReferenceTeamId = Guid.NewGuid();
+        session.AssociateTeam(alphaReferenceTeamId, "Alpha", "A-01", 4);
+        var bravo = session.AssociateTeam(bravoReferenceTeamId, "Bravo", "B-01", 4);
+
+        var repository = CreateRepository(session);
+        // Whitelisted for Alpha only; Bravo is attached, open, and has room — the authorized set is the
+        // only thing standing between this caller and a Bravo membership.
+        var guard = CreateGuard(
+            session.LiveSessionId,
+            bravo.TeamId,
+            isAllowed: true,
+            eligibleTeams: [new EligibleTeamDto(alphaReferenceTeamId, "Alpha", "A-01")]);
+        var currentUser = CreateCurrentUser(Guid.NewGuid());
+        var command = new ReconnectAuthenticatedParticipantCommand(
+            session.LiveSessionId,
+            bravoReferenceTeamId,
+            "Mallory",
+            null);
+        var handler = CreateHandler(repository, guard, currentUser, new FixedTimeProvider(DateTimeOffset.UtcNow));
+
+        var act = async () => await handler.Handle(command, CancellationToken.None);
+
+        await act.Should().ThrowAsync<TeamNotInAuthorizedSetException>();
+        session.Participants.Should().BeEmpty();
+        repository.Verify(
+            repo => repo.UpdateAsync(It.IsAny<LiveSession>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Fact]
+    public async Task Handle_WhenFirstJoinTargetsWhitelistedTeam_Admits()
+    {
+        var session = CreateScheduledSession();
+        var alphaReferenceTeamId = Guid.NewGuid();
+        var alpha = session.AssociateTeam(alphaReferenceTeamId, "Alpha", "A-01", 4);
+
+        var repository = CreateRepository(session);
+        var guard = CreateGuard(
+            session.LiveSessionId,
+            alpha.TeamId,
+            isAllowed: true,
+            eligibleTeams: [new EligibleTeamDto(alphaReferenceTeamId, "Alpha", "A-01")]);
+        var currentUser = CreateCurrentUser(Guid.NewGuid());
+        var command = new ReconnectAuthenticatedParticipantCommand(
+            session.LiveSessionId,
+            alphaReferenceTeamId,
+            "Nora",
+            null);
+        var handler = CreateHandler(repository, guard, currentUser, new FixedTimeProvider(DateTimeOffset.UtcNow));
+
+        var result = await handler.Handle(command, CancellationToken.None);
+
+        result.IsReconnect.Should().BeFalse();
+        result.TeamId.Should().Be(alpha.TeamId);
+    }
+
+    // The Open Team Selection case the runtime-guard fix exists to unblock: an eligible participant with no
+    // RegisteredTeamMembership has an empty whitelist, which means "every attached team", not "none".
+    [Fact]
+    public async Task Handle_WhenUnassignedParticipantFirstJoins_AdmitsUnderOpenTeamSelection()
+    {
+        var session = CreateScheduledSession();
+        var referenceTeamId = Guid.NewGuid();
+        var team = session.AssociateTeam(referenceTeamId, "Alpha", "A-01", 4);
+
+        var repository = CreateRepository(session);
+        var guard = CreateGuard(session.LiveSessionId, team.TeamId, isAllowed: true, eligibleTeams: []);
+        var currentUser = CreateCurrentUser(Guid.NewGuid());
+        var command = new ReconnectAuthenticatedParticipantCommand(
+            session.LiveSessionId,
+            referenceTeamId,
+            "Nora",
+            null);
+        var handler = CreateHandler(repository, guard, currentUser, new FixedTimeProvider(DateTimeOffset.UtcNow));
+
+        var result = await handler.Handle(command, CancellationToken.None);
+
+        result.IsReconnect.Should().BeFalse();
+        result.TeamId.Should().Be(team.TeamId);
+    }
+
     private static ReconnectAuthenticatedParticipantCommandHandler CreateHandler(
         Mock<ILiveSessionRepository> repository,
         Mock<IRuntimeParticipationGuard> guard,
@@ -282,6 +371,7 @@ public sealed class ReconnectAuthenticatedParticipantCommandHandlerTests
             guard.Object,
             currentUser.Object,
             new JoinPolicy(),
+            new OpenTeamSelectionPolicy(),
             timeProvider);
     }
 
@@ -298,21 +388,22 @@ public sealed class ReconnectAuthenticatedParticipantCommandHandlerTests
         return repository;
     }
 
+    // eligibleTeams is the reference-team whitelist the guard hands back; empty (the default) means an
+    // unassigned participant, for whom every attached team is selectable.
     private static Mock<IRuntimeParticipationGuard> CreateGuard(
         Guid liveSessionId,
         Guid teamId,
-        bool isAllowed)
+        bool isAllowed,
+        IReadOnlyList<EligibleTeamDto>? eligibleTeams = null)
     {
         var guard = new Mock<IRuntimeParticipationGuard>();
         var setup = guard.Setup(g => g.EnsureAllowedAsync(
             liveSessionId,
-            teamId,
-            It.IsAny<string?>(),
             It.IsAny<CancellationToken>()));
 
         if (isAllowed)
         {
-            setup.Returns(Task.CompletedTask);
+            setup.ReturnsAsync(new ParticipantEligibleTeamsDto(true, "eligible", eligibleTeams ?? []));
         }
         else
         {

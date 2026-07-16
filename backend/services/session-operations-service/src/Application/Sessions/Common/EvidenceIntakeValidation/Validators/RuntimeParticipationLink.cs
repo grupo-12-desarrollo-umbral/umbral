@@ -1,3 +1,4 @@
+using umbral_backend.Application.Common.Exceptions;
 using umbral_backend.Application.Common.Interfaces;
 
 namespace umbral_backend.Application.Sessions.Common.EvidenceIntakeValidation.Validators;
@@ -8,20 +9,27 @@ namespace umbral_backend.Application.Sessions.Common.EvidenceIntakeValidation.Va
 public sealed class RuntimeParticipationLink : EvidenceIntakeValidationLink
 {
     private readonly IRuntimeParticipationGuard _runtimeParticipationGuard;
+    private readonly IParticipantSessionMembershipChecker _membershipChecker;
 
-    public RuntimeParticipationLink(IRuntimeParticipationGuard runtimeParticipationGuard)
+    public RuntimeParticipationLink(
+        IRuntimeParticipationGuard runtimeParticipationGuard,
+        IParticipantSessionMembershipChecker membershipChecker)
     {
         _runtimeParticipationGuard = runtimeParticipationGuard;
+        _membershipChecker = membershipChecker;
     }
 
-    protected override Task CheckAsync(
+    protected override async Task CheckAsync(
         EvidenceIntakeValidationContext context,
         CancellationToken cancellationToken)
     {
-        return _runtimeParticipationGuard.EnsureAllowedAsync(
+        await _runtimeParticipationGuard.EnsureAllowedAsync(
             context.Session.LiveSessionId,
-            context.TeamId,
-            context.Token,
             cancellationToken);
+
+        if (!_membershipChecker.Check(context.Session, context.TeamId).IsAllowed)
+        {
+            throw new ForbiddenAccessException();
+        }
     }
 }

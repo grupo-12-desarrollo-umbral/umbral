@@ -15,6 +15,10 @@ const EMPTY_COPY: Record<EmptyKind, { title: string; body: string }> = {
     title: 'No active question yet.',
     body: 'Sit tight - the host will start the round.',
   },
+  reveal: {
+    title: 'Question closed.',
+    body: 'Results are being revealed.',
+  },
   closed: {
     title: 'Session closed.',
     body: 'This session has ended. Thanks for playing.',

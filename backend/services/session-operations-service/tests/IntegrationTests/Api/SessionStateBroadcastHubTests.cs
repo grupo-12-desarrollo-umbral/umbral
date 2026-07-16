@@ -35,7 +35,7 @@ public sealed class SessionStateBroadcastHubTests : IAsyncLifetime
     public async Task InitializeAsync()
     {
         _factory = new SessionOperationsApiWebApplicationFactory(_fixture.ConnectionString);
-        _factory.AccessClient.IsAllowed = true;
+        _factory.EligibleTeamsClient.IsEligible = true;
         _factory.AuthenticatedActorProfileAccessClient.CurrentActor = new AuthenticatedActorProfileLookupDto(
             OperatorUserId,
             OperatorExternalIdentityId,
@@ -228,7 +228,9 @@ public sealed class SessionStateBroadcastHubTests : IAsyncLifetime
                     seeded.LiveSessionId,
                     QuestionIndex: 0,
                     ClosedAt: closedAt,
-                    WasExpiredByTimer: true),
+                    WasExpiredByTimer: true,
+                    CorrectOptionSequenceOrder: 1,
+                    Explanation: "Paris is the capital of France."),
                 CancellationToken.None);
         }
 
@@ -277,15 +279,18 @@ public sealed class SessionStateBroadcastHubTests : IAsyncLifetime
             SignalRSessionQuestionBroadcaster.QuestionActivatedMethod,
             notification => activated.TrySetResult(notification));
 
-        // Drive the authoritative round the way the timer worker does on last-question expiry: the
-        // facade closes the active substage's last question, advances the substage, and activates the
-        // next substage's first question.
+        // Drive the authoritative round the way the timer worker does on last-question expiry, now in
+        // two phases (HU-35 reveal window): the close broadcasts QuestionClosed and opens the reveal;
+        // the reveal completion then advances the substage and activates the next substage's first
+        // question. Both are driven explicitly so the assertions don't race the background worker.
         await using (var scope = _factory.Services.CreateAsyncScope())
         {
             var repository = scope.ServiceProvider.GetRequiredService<ILiveSessionRepository>();
             var facade = scope.ServiceProvider.GetRequiredService<ITriviaRoundOrchestratorFacade>();
+            var now = DateTimeOffset.UtcNow;
             var session = await repository.GetByIdAsync(seeded.LiveSessionId, CancellationToken.None);
-            await facade.CloseAndAdvanceAsync(session!, DateTimeOffset.UtcNow, CancellationToken.None);
+            await facade.CloseAndAdvanceAsync(session!, now, CancellationToken.None);
+            await facade.CompleteQuestionRevealAsync(session!, now, CancellationToken.None);
         }
 
         (await AwaitBroadcast(closed.Task)).QuestionIndex.Should().Be(0);

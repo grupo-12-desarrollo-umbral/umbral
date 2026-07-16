@@ -32,7 +32,7 @@ public sealed class SessionTimerBroadcastHubTests : IAsyncLifetime
     public async Task InitializeAsync()
     {
         _factory = new SessionOperationsApiWebApplicationFactory(_fixture.ConnectionString);
-        _factory.AccessClient.IsAllowed = true;
+        _factory.EligibleTeamsClient.IsEligible = true;
         _factory.AuthenticatedActorProfileAccessClient.CurrentActor = new AuthenticatedActorProfileLookupDto(
             OperatorUserId,
             "kc-operator-77",

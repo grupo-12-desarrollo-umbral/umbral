@@ -66,9 +66,14 @@ test.beforeAll(async () => {
   `)
   const opId = Number(sql('identity_access', `SELECT "Id" FROM users WHERE "Email"='op-1@umbral.local'`))
 
+  // Resolve the trivia seed mission by name: ids are never 1 and drift across reseeds
+  // (see tests/setup/global-setup.ts), so a literal id 404s on session create.
+  const missionId = Number(sql('mission_design', `SELECT "Id" FROM "Missions" WHERE "Name"='E2E Seed Mission' AND "IsActive"=true AND "ActivationState"='Ready' ORDER BY "Id" DESC LIMIT 1`))
+  expect(missionId).toBeGreaterThan(0)
+
   async function makeSession(title: string, activate: boolean): Promise<string> {
     const created = await (await api('POST', '/api/sessions', admin, {
-      missionId: 1,
+      missionId,
       title,
       maximumTimeMinutes: 60,
       scheduledAt: '2026-07-05T10:00:00Z',

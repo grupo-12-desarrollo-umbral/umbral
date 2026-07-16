@@ -21,6 +21,7 @@ app.MapGet("/api/test-auth-probe/inspect", (HttpRequest request) =>
         request.Headers["X-User-Id"].ToString(),
         request.Headers["X-User-Role"].ToString(),
         request.Headers["X-User-Email"].ToString(),
+        request.Headers["X-User-Name"].ToString(),
         request.Headers["Authorization"].ToString()));
 });
 
@@ -43,4 +44,5 @@ internal sealed record ProbeInspectResponse(
     string? XUserId,
     string? XUserRole,
     string? XUserEmail,
+    string? XUserName,
     string? Authorization);

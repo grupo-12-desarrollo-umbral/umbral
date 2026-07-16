@@ -196,13 +196,11 @@ public sealed class GetParticipantSessionTimerSnapshotQueryHandlerTests
         var guard = new Mock<IRuntimeParticipationGuard>();
         var setup = guard.Setup(g => g.EnsureAllowedAsync(
             liveSessionId,
-            teamId,
-            It.IsAny<string?>(),
             It.IsAny<CancellationToken>()));
 
         if (isAllowed)
         {
-            setup.Returns(Task.CompletedTask);
+            setup.ReturnsAsync(new ParticipantEligibleTeamsDto(true, "eligible", []));
         }
         else
         {

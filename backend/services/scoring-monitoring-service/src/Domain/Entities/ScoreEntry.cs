@@ -117,7 +117,8 @@ public sealed class ScoreEntry : BaseAuditableEntity
 
     // appliedAt is threaded in from the caller that created the sibling Penalty rather than read from
     // the clock here: the factory no longer mints the Penalty, so a second DateTimeOffset.UtcNow would
-    // let PenaltyApplied.AppliedAt drift from the persisted Penalty.AppliedAt it is meant to describe.
+    // let the persisted row and ScoreEntryRegistered drift from the persisted Penalty.AppliedAt they
+    // are meant to line up with.
     public static ScoreEntry Penalty(
         Guid scoreEntryId,
         Guid liveSessionId,
@@ -126,7 +127,6 @@ public sealed class ScoreEntry : BaseAuditableEntity
         string reason,
         ScoreValue deductionValue,
         Guid penaltyId,
-        Guid appliedByUserId,
         DateTimeOffset appliedAt)
     {
         var entry = new ScoreEntry(
@@ -153,16 +153,6 @@ public sealed class ScoreEntry : BaseAuditableEntity
             entry.SourceEntityType,
             entry.SourceEntityId,
             entry.RecordedByUserId));
-
-        entry.AddDomainEvent(new PenaltyApplied(
-            penaltyId,
-            entry.ScoreEntryId,
-            entry.LiveSessionId,
-            entry.TeamId,
-            entry.ScoreValue.Value,
-            appliedAt,
-            appliedByUserId,
-            entry.ReasonCode));
 
         return entry;
     }

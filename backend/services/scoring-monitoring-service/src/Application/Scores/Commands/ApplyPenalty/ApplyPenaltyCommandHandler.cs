@@ -48,7 +48,7 @@ public sealed class ApplyPenaltyCommandHandler : IRequestHandler<ApplyPenaltyCom
         var penalty = Penalty.Create(scoreEntryId, request.Reason, appliedByUserId);
 
         // The Penalty is the single source of the applied-at instant: threading its AppliedAt into the
-        // ledger factory keeps the persisted row, ScoreEntryRegistered and PenaltyApplied on one timestamp.
+        // ledger factory keeps the persisted row and ScoreEntryRegistered on one timestamp.
         var scoreEntry = ScoreEntry.Penalty(
             scoreEntryId,
             request.LiveSessionId,
@@ -57,7 +57,6 @@ public sealed class ApplyPenaltyCommandHandler : IRequestHandler<ApplyPenaltyCom
             request.Reason,
             deductionValue,
             penalty.PenaltyId,
-            appliedByUserId,
             penalty.AppliedAt);
 
         await _scoreEntryRepository.AddAsync(scoreEntry, cancellationToken);

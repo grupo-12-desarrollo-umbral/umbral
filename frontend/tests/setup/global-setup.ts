@@ -72,11 +72,11 @@ function seedViaDocker(): void {
   runSql('identity_access', `
 DELETE FROM registered_team_memberships;
 DELETE FROM registered_teams;
--- op-1 is seeded later (seedOperatorIdentity) with its resolved Keycloak sub, not the literal
--- username: only operator session-listing goes gateway→JWT, which keys the actor by sub.
+-- admin-1 and op-1 are seeded later (seedAdminIdentity / seedOperatorIdentity) with their resolved
+-- Keycloak subs, not the literal username: their gateway→JWT paths (session-listing, and Keycloak
+-- account provisioning, which reconciles the row to the sub on first login) key the actor by sub.
 INSERT INTO users ("ExternalIdentityId", "DisplayName", "Email", "Role", "IsActive", "Created", "LastModified")
 VALUES
-  ('admin-1',        'Administrator One', 'admin-1@umbral.local',      'Administrator', true,  NOW(), NOW()),
   ('participant-1',  'Participant One',   'participant-1@umbral.local','Participant',   true,  NOW(), NOW()),
   ('deactivated-1',  'Deactivated User',  'deactivated-1@umbral.local','Operator',      false, NOW(), NOW())
 ON CONFLICT ("ExternalIdentityId") DO UPDATE SET
@@ -255,6 +255,20 @@ BEGIN
   END IF;
 END $$;
 `, 'E2E not-ready mission ensured.')
+}
+
+// Seed admin-1's identity-access row keyed by its resolved Keycloak sub (UUID). Keycloak account
+// provisioning reconciles the row to the sub the first time admin authenticates via the gateway,
+// dropping the literal-'admin-1' row seedViaDocker seeds; seeding by sub up front means the row the
+// adminPage fixture's X-User-Id resolves already exists, so admin BFF-direct calls never 404 and
+// redirect-loop. Deletes any prior admin-1 rows (literal-username or a stale sub) by email first so a
+// persistent DB never accumulates duplicates. Must run after seedKeycloak() so the sub is known.
+function seedAdminIdentity(sub: string): void {
+  runSql('identity_access', `
+DELETE FROM users WHERE "Email" = 'admin-1@umbral.local';
+INSERT INTO users ("ExternalIdentityId", "DisplayName", "Email", "Role", "IsActive", "Created", "LastModified")
+VALUES ('${sub}', 'Administrator One', 'admin-1@umbral.local', 'Administrator', true, NOW(), NOW());
+`, `Admin identity seeded with Keycloak sub ${sub}.`)
 }
 
 // Seed op-1's identity-access row keyed by its resolved Keycloak sub (UUID). Deletes any prior
@@ -516,6 +530,10 @@ async function main() {
 
   try {
     const subsByUsername = await seedKeycloak()
+    const adminSub = subsByUsername.get('admin-1')
+    if (adminSub) {
+      seedAdminIdentity(adminSub)
+    }
     const operatorSub = subsByUsername.get('op-1')
     if (operatorSub) {
       seedOperatorIdentity(operatorSub)

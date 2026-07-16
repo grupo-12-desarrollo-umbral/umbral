@@ -19,7 +19,10 @@ jest.mock('@/lib/api/client', () => {
 });
 
 jest.mock('expo/fetch', () => ({ fetch: (...args: unknown[]) => mockFetch(...args) }));
-jest.mock('@/lib/auth/token-store', () => ({ getAccessToken: jest.fn().mockResolvedValue('test-token') }));
+jest.mock('@/lib/auth/token-provider', () => ({
+  getValidAccessToken: jest.fn().mockResolvedValue('test-token'),
+  refreshAccessToken: jest.fn().mockResolvedValue(null),
+}));
 jest.mock('@/lib/host', () => ({ apiBaseUrl: () => 'http://localhost:8000' }));
 
 describe('getParticipantTimerSnapshot', () => {

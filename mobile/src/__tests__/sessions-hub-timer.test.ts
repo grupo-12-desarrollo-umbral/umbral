@@ -41,8 +41,8 @@ jest.mock('@microsoft/signalr', () => ({
   LogLevel: { Warning: 2 },
 }));
 
-jest.mock('@/lib/auth/token-store', () => ({
-  getAccessToken: jest.fn(() => Promise.resolve('mock-token')),
+jest.mock('@/lib/auth/token-provider', () => ({
+  getValidAccessToken: jest.fn(() => Promise.resolve('mock-token')),
 }));
 
 jest.mock('@/lib/host', () => ({

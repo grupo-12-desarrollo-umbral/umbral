@@ -50,13 +50,10 @@ public sealed class SelectTeamCommandHandler
         // Reference/catalog team ids; empty => unassigned participant, domain treats it as "all attached selectable".
         var authorizedReferenceTeamIds = whitelist.Teams.Select(team => team.TeamId).ToHashSet();
 
-        // ponytail: no display-name claim on the identity token yet; derive from email local-part until one exists.
-        var displayName = ResolveDisplayName(_currentUser.Email);
-
         var occurredAt = _timeProvider.GetUtcNow();
         var (participant, team) = session.SelectTeam(
             externalIdentityId,
-            displayName,
+            _currentUser.DisplayName,
             request.RuntimeTeamId,
             authorizedReferenceTeamIds,
             occurredAt,
@@ -73,16 +70,5 @@ public sealed class SelectTeamCommandHandler
             team.TeamId,
             participant.SessionParticipantId,
             session.State.ToString());
-    }
-
-    private static string ResolveDisplayName(string? email)
-    {
-        if (string.IsNullOrWhiteSpace(email))
-        {
-            return "Participant";
-        }
-
-        var localPart = email.Split('@', 2)[0];
-        return string.IsNullOrWhiteSpace(localPart) ? email : localPart;
     }
 }

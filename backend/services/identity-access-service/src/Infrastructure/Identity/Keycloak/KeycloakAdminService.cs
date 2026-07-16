@@ -71,6 +71,13 @@ public sealed class KeycloakAdminService : IIdentityProviderAdminService
     // Created enabled so Keycloak will send the verification email; the register handler compensates
     // with DeleteUserAsync if a later step fails. Single attempt — a POST is not idempotent. Returns the
     // new user's Keycloak id from the Location header. A 409 surfaces as EmailAlreadyRegisteredException.
+    //
+    // displayName goes to firstName alone, never split into first/last: it is one free-form name that may
+    // be a single word, and Keycloak concatenates firstName + lastName into the `name` claim we use as the
+    // participant's display name — so any invented surname would show up in the UI verbatim. That relies
+    // on the realm import making lastName optional; Keycloak's stock profile requires it and would reject
+    // the resulting account at login with "Account is not fully set up". Covered by
+    // KeycloakAccountProvisioningIntegrationTests against the real realm.
     public async Task<string> CreateParticipantAsync(
         string displayName, string email, string password, CancellationToken cancellationToken)
     {

@@ -356,7 +356,10 @@ public sealed class CreateSessionEndpointTests : IAsyncLifetime
             .OfType<RouteEndpoint>()
             .ToArray();
 
-        routeEndpoints.Should().NotContain(endpoint =>
+        var postEndpoints = routeEndpoints.Where(endpoint =>
+            endpoint.Metadata.GetMetadata<HttpMethodMetadata>()?.HttpMethods.Contains("POST") == true);
+
+        postEndpoints.Should().NotContain(endpoint =>
             (endpoint.RoutePattern.RawText ?? string.Empty)
                 .Contains("quiz", StringComparison.OrdinalIgnoreCase) ||
             (endpoint.RoutePattern.RawText ?? string.Empty)

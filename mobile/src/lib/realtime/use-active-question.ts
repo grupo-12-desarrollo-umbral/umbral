@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
+import { getTriviaTeamQuestionResult } from '@/lib/api/sessions';
 import {
   isTerminalSessionState,
   toActiveQuestion,
+  type ActiveQuestion,
   type ActiveQuestionView,
 } from './active-question-types';
 import type { SessionsHubClient } from './sessions-hub';
@@ -49,7 +51,9 @@ export function useActiveQuestion({
     viewFromSnapshot(snapshotActiveQuestion, snapshotSessionState),
   );
   const [sessionState, setSessionState] = useState(snapshotSessionState);
-  const [isQuestionClosed, setIsQuestionClosed] = useState(false);
+  // Derived from the view kind so it is always consistent (reveal ≡ closed).
+  const isQuestionClosed = view.kind === 'reveal';
+
   const hasSeenQuestionRef = useRef(Boolean(snapshotActiveQuestion));
   const isTerminalRef = useRef(isTerminalSessionState(snapshotSessionState));
   const lastReconnectNonceRef = useRef(reconnectNonce);
@@ -60,6 +64,20 @@ export function useActiveQuestion({
   );
   // Index of the just-closed question while a close reconcile is pending (null otherwise).
   const closedQuestionIndexRef = useRef<number | null>(null);
+  // Track the current active question so we can carry it into reveal without a stale closure.
+  const currentQuestionRef = useRef<ActiveQuestion | null>(
+    snapshotActiveQuestion ? toActiveQuestion(snapshotActiveQuestion) : null,
+  );
+  // Track the current view kind so the reconcile effect can read it without a stale closure.
+  const viewKindRef = useRef<ActiveQuestionView['kind']>(view.kind);
+
+  // Sync refs whenever the view changes.
+  useEffect(() => {
+    viewKindRef.current = view.kind;
+    if (view.kind === 'active') {
+      currentQuestionRef.current = view.question;
+    }
+  }, [view]);
 
   useEffect(() => {
     if (!isReconnected) return;
@@ -79,7 +97,6 @@ export function useActiveQuestion({
       isTerminalRef.current = true;
       displayedQuestionIndexRef.current = null;
       closedQuestionIndexRef.current = null;
-      setIsQuestionClosed(false);
       setView({ kind: 'closed' });
       return;
     }
@@ -87,20 +104,41 @@ export function useActiveQuestion({
     isTerminalRef.current = false;
 
     if (snapshotActiveQuestion) {
+      // If we're currently revealing this exact question, the snapshot echo is expected — stay in reveal.
+      const isRevealingThisQuestion =
+        viewKindRef.current === 'reveal' &&
+        currentQuestionRef.current?.questionIndex === snapshotActiveQuestion.questionIndex;
+      if (
+        closeLanded &&
+        closedQuestionIndexRef.current === snapshotActiveQuestion.questionIndex &&
+        isRevealingThisQuestion
+      ) {
+        closedQuestionIndexRef.current = null;
+        return;
+      }
       // Echo guard: a landed re-fetch that still reports the just-closed question must not re-open
       // it — hold the close and fall to waiting rather than unlocking a dead question.
-      if (closeLanded && closedQuestionIndexRef.current === snapshotActiveQuestion.questionIndex) {
+      if (
+        closeLanded &&
+        closedQuestionIndexRef.current === snapshotActiveQuestion.questionIndex
+      ) {
         displayedQuestionIndexRef.current = null;
         closedQuestionIndexRef.current = null;
-        setIsQuestionClosed(false);
         setView({ kind: 'waiting' });
         return;
       }
       hasSeenQuestionRef.current = true;
       displayedQuestionIndexRef.current = snapshotActiveQuestion.questionIndex;
       closedQuestionIndexRef.current = null;
-      setIsQuestionClosed(false);
       setView({ kind: 'active', question: toActiveQuestion(snapshotActiveQuestion) });
+      return;
+    }
+
+    // Reveal window (HU-35): while a just-closed question is showing its result, the backend holds
+    // the next activation for the reveal duration, so a snapshot re-fetch reports no active question.
+    // Stay in reveal — the transition out is driven by the delayed `QuestionActivated` /
+    // `SubstageAdvanced` push, not by this snapshot. (A terminal state was already handled above.)
+    if (viewKindRef.current === 'reveal') {
       return;
     }
 
@@ -109,7 +147,6 @@ export function useActiveQuestion({
     if (closeLanded) {
       displayedQuestionIndexRef.current = null;
       closedQuestionIndexRef.current = null;
-      setIsQuestionClosed(false);
       setView({ kind: 'waiting' });
       return;
     }
@@ -128,7 +165,6 @@ export function useActiveQuestion({
       hasSeenQuestionRef.current = true;
       displayedQuestionIndexRef.current = notification.questionIndex;
       closedQuestionIndexRef.current = null;
-      setIsQuestionClosed(false);
       setView({ kind: 'active', question: toActiveQuestion(notification) });
     });
 
@@ -139,9 +175,31 @@ export function useActiveQuestion({
       // Index-guarded: ignore a stale close for a superseded question, and any close with no
       // question on screen (keeps the existing none/waiting behavior).
       if (displayedIndex === null || notification.questionIndex !== displayedIndex) return;
-      // Lock, don't blank: keep the question visible, flag it closed, and re-fetch to reconcile.
+      // Lock into reveal: keep the question visible, show the correct option + explanation from the
+      // push, and fire the team-result read (A-2). Controls stay locked until the next reconcile.
+      const question = currentQuestionRef.current;
+      if (!question) return;
       closedQuestionIndexRef.current = displayedIndex;
-      setIsQuestionClosed(true);
+      viewKindRef.current = 'reveal';
+      setView({
+        kind: 'reveal',
+        question,
+        correctOptionSequenceOrder: notification.correctOptionSequenceOrder,
+        explanation: notification.explanation,
+        teamResult: null,
+      });
+      // Fire the my-result GET (A-2). Silently ignored if it resolves after we've left reveal.
+      getTriviaTeamQuestionResult(liveSessionId, question.sequenceOrder)
+        .then(result => {
+          setView(prev => {
+            if (prev.kind !== 'reveal') return prev;
+            return { ...prev, teamResult: result };
+          });
+        })
+        .catch(() => {
+          // Silently fail — the question-level reveal (correct option + explanation) is already
+          // showing from the push; the team result is additive.
+        });
       requestResync?.();
     });
 
@@ -151,14 +209,12 @@ export function useActiveQuestion({
         isTerminalRef.current = true;
         displayedQuestionIndexRef.current = null;
         closedQuestionIndexRef.current = null;
-        setIsQuestionClosed(false);
         setView({ kind: 'closed' });
         return;
       }
       if (isTerminalRef.current) return;
       displayedQuestionIndexRef.current = null;
       closedQuestionIndexRef.current = null;
-      setIsQuestionClosed(false);
       setView(hasSeenQuestionRef.current ? { kind: 'waiting' } : { kind: 'none' });
     });
 
@@ -169,7 +225,6 @@ export function useActiveQuestion({
         isTerminalRef.current = true;
         displayedQuestionIndexRef.current = null;
         closedQuestionIndexRef.current = null;
-        setIsQuestionClosed(false);
         setView({ kind: 'closed' });
       }
     });

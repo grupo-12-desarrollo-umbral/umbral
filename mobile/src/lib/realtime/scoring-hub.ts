@@ -5,7 +5,7 @@ import {
   LogLevel,
   type HubConnection,
 } from '@microsoft/signalr';
-import { getAccessToken } from '@/lib/auth/token-store';
+import { getValidAccessToken } from '@/lib/auth/token-provider';
 import { apiBaseUrl } from '@/lib/host';
 import type { RankingSnapshotDto } from './ranking-types';
 
@@ -28,7 +28,8 @@ export type ScoringHubClient = {
 export function createScoringHubConnection(): ScoringHubClient {
   const connection = new HubConnectionBuilder()
     .withUrl(scoringHubBaseUrl(), {
-      accessTokenFactory: async () => (await getAccessToken()) ?? '',
+      // Renews on every automatic reconnect — see the note in sessions-hub.ts.
+      accessTokenFactory: async () => (await getValidAccessToken()) ?? '',
       transport: HttpTransportType.WebSockets,
     })
     .withAutomaticReconnect()

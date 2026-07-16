@@ -120,6 +120,11 @@ export async function clearKeycloakTokens(): Promise<void> {
   cookieStore.delete(KC_SESSION_COOKIE)
 }
 
+// Depends on the realm keeping `revokeRefreshToken` off (see backend/deploy/keycloak/import/
+// umbral-realm.json, where it is pinned to false explicitly). Parallel server requests can enter
+// this concurrently and each redeem the *same* refresh token; unlimited reuse is what makes that
+// safe. Turning rotation on would make every loser of that race hand Keycloak a spent token and get
+// the whole session revoked — it would need single-flight coordination here first.
 export async function getValidAccessToken(nowMs: number = Date.now()): Promise<string> {
   const cookieStore = await cookies()
   const sealedTokens = cookieStore.get(KC_SESSION_COOKIE)?.value

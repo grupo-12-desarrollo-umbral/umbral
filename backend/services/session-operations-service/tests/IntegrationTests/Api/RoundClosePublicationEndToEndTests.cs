@@ -65,7 +65,7 @@ public sealed class RoundClosePublicationEndToEndTests : IAsyncLifetime
         _factory = new SessionOperationsApiWebApplicationFactory(
             _fixture.ConnectionString,
             useRealPublishEndpoint: true);
-        _factory.AccessClient.IsAllowed = true;
+        _factory.EligibleTeamsClient.IsEligible = true;
         _factory.AuthenticatedActorProfileAccessClient.CurrentActor = new AuthenticatedActorProfileLookupDto(
             OperatorUserId,
             OperatorExternalIdentityId,
@@ -129,16 +129,20 @@ public sealed class RoundClosePublicationEndToEndTests : IAsyncLifetime
             seeded.LiveSessionId,
             new SessionsHub.ReconnectParticipantHubRequest(seeded.TeamId, "Nova", null));
 
-        // Drive the authoritative round exactly as the timer worker does on last-question expiry:
-        // the facade closes the only question, advances past the only substage, and — no substage
-        // remaining — completes the session via SessionCompletion → Finished. The SaveChanges
-        // dispatches run both MassTransit publish handlers; the finalized event is asserted below.
+        // Drive the authoritative round exactly as the timer worker does on last-question expiry, now
+        // in two phases (HU-35 reveal window): the close opens the reveal (QuestionClosed broadcast),
+        // then the reveal completion advances past the only substage and — no substage remaining —
+        // completes the session via SessionCompletion → Finished. Both phases are driven explicitly so
+        // the assertions do not race the background worker's reveal-deadline tick. The completion
+        // SaveChanges runs both MassTransit publish handlers; the finalized event is asserted below.
         await using (var scope = _factory.Services.CreateAsyncScope())
         {
             var repository = scope.ServiceProvider.GetRequiredService<ILiveSessionRepository>();
             var facade = scope.ServiceProvider.GetRequiredService<ITriviaRoundOrchestratorFacade>();
+            var now = DateTimeOffset.UtcNow;
             var session = await repository.GetByIdAsync(seeded.LiveSessionId, CancellationToken.None);
-            await facade.CloseAndAdvanceAsync(session!, DateTimeOffset.UtcNow, CancellationToken.None);
+            await facade.CloseAndAdvanceAsync(session!, now, CancellationToken.None);
+            await facade.CompleteQuestionRevealAsync(session!, now, CancellationToken.None);
         }
 
         // (a) SignalR: HU-33A QuestionClosed + HU-21A SessionStateChanged(→Finished) still reach the group.

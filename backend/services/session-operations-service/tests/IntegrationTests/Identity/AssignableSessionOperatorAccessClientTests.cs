@@ -150,7 +150,11 @@ public sealed class AssignableSessionOperatorAccessClientTests
         };
     }
 
-    private sealed record StubCurrentUser(string? Id, string? Email, string? Role) : umbral_backend.Application.Common.Interfaces.ICurrentUser;
+    private sealed record StubCurrentUser(
+        string? Id,
+        string? Email,
+        string? Role,
+        string DisplayName = "Stub User") : umbral_backend.Application.Common.Interfaces.ICurrentUser;
 
     private sealed class StubHttpMessageHandler : HttpMessageHandler
     {

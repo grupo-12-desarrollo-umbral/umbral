@@ -16,8 +16,10 @@ using umbral_backend.Application.Sessions.Queries.GetOperatorEvidenceTrace;
 using umbral_backend.Application.Sessions.Queries.GetOperatorSessionTimerSnapshot;
 using umbral_backend.Application.Sessions.Queries.GetOperatorSessionPanel;
 using umbral_backend.Application.Sessions.Queries.GetOperatorTriviaAnsweredMonitor;
+using umbral_backend.Application.Sessions.Queries.GetOperatorTriviaAnswerReview;
 using umbral_backend.Application.Sessions.Queries.GetParticipantSessionTimerSnapshot;
 using umbral_backend.Application.Sessions.Queries.GetParticipantTeamBoard;
+using umbral_backend.Application.Sessions.Queries.GetTeamTriviaQuestionResult;
 using umbral_backend.Application.Sessions.Queries.ValidateParticipantSessionMembership;
 using umbral_backend.Application.Sessions.Queries.GetReleasableClues;
 using umbral_backend.Application.Sessions.Queries.GetAssociatedTeamsForSession;
@@ -334,6 +336,34 @@ public sealed class SessionsController(ISender sender) : ControllerBase
     {
         var result = await sender.Send(
             new GetOperatorTriviaAnsweredMonitorQuery(liveSessionId),
+            cancellationToken);
+
+        return Ok(result);
+    }
+
+    [HttpGet("{liveSessionId:guid}/trivia/questions/{sequenceOrder:int}/my-result")]
+    [Authorize(Policy = AuthorizationPolicies.Participant)]
+    public async Task<ActionResult<TriviaTeamQuestionResultDto>> GetTeamTriviaQuestionResultAsync(
+        Guid liveSessionId,
+        int sequenceOrder,
+        CancellationToken cancellationToken)
+    {
+        var result = await sender.Send(
+            new GetTeamTriviaQuestionResultQuery(liveSessionId, sequenceOrder),
+            cancellationToken);
+
+        return Ok(result);
+    }
+
+    [HttpGet("{liveSessionId:guid}/trivia/questions/{sequenceOrder:int}/answer-review")]
+    [Authorize(Policy = AuthorizationPolicies.Operator)]
+    public async Task<ActionResult<TriviaAnswerReviewDto>> GetOperatorTriviaAnswerReviewAsync(
+        Guid liveSessionId,
+        int sequenceOrder,
+        CancellationToken cancellationToken)
+    {
+        var result = await sender.Send(
+            new GetOperatorTriviaAnswerReviewQuery(liveSessionId, sequenceOrder),
             cancellationToken);
 
         return Ok(result);

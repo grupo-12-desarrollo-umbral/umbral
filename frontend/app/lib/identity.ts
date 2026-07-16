@@ -7,12 +7,28 @@ const API_GATEWAY_URL = process.env.API_GATEWAY_URL!
 // The identity-access-service is exposed on port 5002 directly during local dev.
 const IDENTITY_SERVICE_URL = 'http://localhost:5002'
 
+// Cap BFF-to-service calls so a down or unresponsive backend (e.g. running
+// `pnpm dev` for the frontend alone) degrades to /login instead of hanging the
+// RSC render forever. Network failures and timeouts are normalised to
+// IdentityError('unknown') so the existing dal/page guards can redirect.
+const IDENTITY_FETCH_TIMEOUT_MS = 5000
+
+async function identityFetch(input: string, init?: RequestInit): Promise<Response> {
+  try {
+    return await fetch(input, { ...init, signal: AbortSignal.timeout(IDENTITY_FETCH_TIMEOUT_MS) })
+  } catch (err) {
+    if (err instanceof IdentityError) throw err
+    const reason = err instanceof Error && err.name === 'TimeoutError' ? 'timed out' : 'is unreachable'
+    throw new IdentityError('unknown', `Identity backend ${reason} (${input})`)
+  }
+}
+
 export async function getCurrentUserProfile(
   externalIdentityId: string,
   role: string,
   email: string,
 ): Promise<AuthenticatedActorProfileDto> {
-  const response = await fetch(`${IDENTITY_SERVICE_URL}/api/users/me`, {
+  const response = await identityFetch(`${IDENTITY_SERVICE_URL}/api/users/me`, {
     headers: {
       'X-User-Id': externalIdentityId,
       'X-User-Role': role,
@@ -33,7 +49,7 @@ export async function checkPlatformAccess(
   role: string,
   email: string,
 ): Promise<ProtectedAccessDecisionDto> {
-  const response = await fetch(`${IDENTITY_SERVICE_URL}/api/permissions/authenticated-platform-access`, {
+  const response = await identityFetch(`${IDENTITY_SERVICE_URL}/api/permissions/authenticated-platform-access`, {
     headers: {
       'X-User-Id': externalIdentityId,
       'X-User-Role': role,
@@ -56,7 +72,7 @@ export async function bootstrapUser(
   accessToken: string,
   displayName: string
 ): Promise<AuthenticateUserResultDto> {
-  const response = await fetch(`${API_GATEWAY_URL}/api/users/authenticated`, {
+  const response = await identityFetch(`${API_GATEWAY_URL}/api/users/authenticated`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

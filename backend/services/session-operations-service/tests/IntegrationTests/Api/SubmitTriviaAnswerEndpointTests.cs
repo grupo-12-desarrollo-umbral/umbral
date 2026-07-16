@@ -30,7 +30,7 @@ public sealed class SubmitTriviaAnswerEndpointTests : IAsyncLifetime
     {
         _factory = new SessionOperationsApiWebApplicationFactory(_fixture.ConnectionString);
         _client = _factory.CreateClient();
-        _factory.AccessClient.IsAllowed = true;
+        _factory.EligibleTeamsClient.IsEligible = true;
         await _factory.ResetDatabaseAsync();
     }
 
@@ -41,8 +41,9 @@ public sealed class SubmitTriviaAnswerEndpointTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task SubmitAnswer_FirstInTimeAnswer_ReturnsAcceptanceMetadataWithoutCorrectnessOrPoints()
+    public async Task SubmitAnswer_EligibleParticipantWithNoRegisteredTeams_ReturnsAcceptanceMetadataWithoutCorrectnessOrPoints()
     {
+        _factory.EligibleTeamsClient.Teams = [];
         var seeded = await SeedTriviaSessionAsync(TriviaAnswerSeedState.ActiveQuestion);
         AddTrustedHeaders(_client, seeded.ParticipantExternalIdentityId.ToString(), "Participant", "participant@example.com");
 
@@ -154,7 +155,7 @@ public sealed class SubmitTriviaAnswerEndpointTests : IAsyncLifetime
     public async Task SubmitAnswer_WhenParticipationFactDenied_ReturnsForbidden()
     {
         var seeded = await SeedTriviaSessionAsync(TriviaAnswerSeedState.ActiveQuestion);
-        _factory.AccessClient.IsAllowed = false;
+        _factory.EligibleTeamsClient.IsEligible = false;
         AddTrustedHeaders(_client, seeded.ParticipantExternalIdentityId.ToString(), "Participant", "participant@example.com");
 
         var response = await _client.PostAsJsonAsync(BuildAnswersUrl(seeded), CorrectAnswer(seeded));
@@ -164,6 +165,22 @@ public sealed class SubmitTriviaAnswerEndpointTests : IAsyncLifetime
         problem.Should().NotBeNull();
         problem!.Status.Should().Be(StatusCodes.Status403Forbidden);
         problem.Title.Should().Be("Forbidden.");
+    }
+
+    [Fact]
+    public async Task SubmitAnswer_WhenEligibleParticipantSubmitsForForeignTeam_ReturnsForbidden()
+    {
+        var seeded = await SeedTriviaSessionAsync(TriviaAnswerSeedState.ActiveQuestion);
+        AddTrustedHeaders(_client, seeded.ParticipantExternalIdentityId.ToString(), "Participant", "participant@example.com");
+
+        var response = await _client.PostAsJsonAsync(
+            BuildAnswersUrl(seeded),
+            new SubmitTriviaAnswerRequest(seeded.ForeignTeamId, seeded.TriviaSubstageSnapshotId, 1, 1, null));
+
+        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        var problem = await response.Content.ReadFromJsonAsync<ProblemDetails>();
+        problem.Should().NotBeNull();
+        problem!.Status.Should().Be(StatusCodes.Status403Forbidden);
     }
 
     [Fact]
@@ -295,7 +312,8 @@ public sealed class SubmitTriviaAnswerEndpointTests : IAsyncLifetime
             maximumTimeMinutes: 45,
             createdAt,
             snapshot);
-        var team = session.AssociateTeam(Guid.NewGuid(), "Red", "RED-01", 4);
+        var referenceTeamId = Guid.NewGuid();
+        var team = session.AssociateTeam(referenceTeamId, "Red", "RED-01", 4);
 
         var transitionPolicy = new SessionStateTransitionPolicy();
         session.MoveTo(SessionState.Preparing, createdAt.AddMinutes(1), transitionPolicy);
@@ -334,14 +352,19 @@ public sealed class SubmitTriviaAnswerEndpointTests : IAsyncLifetime
         dbContext.LiveSessions.Add(session);
         await dbContext.SaveChangesAsync();
 
-        return new SeededSession(session.LiveSessionId, team.TeamId, triviaSubstage.SubstageSnapshotId, participantExternalIdentityId);
+        return new SeededSession(
+            session.LiveSessionId,
+            team.TeamId,
+            referenceTeamId,
+            triviaSubstage.SubstageSnapshotId,
+            participantExternalIdentityId);
     }
 
     private static SubmitTriviaAnswerRequest CorrectAnswer(SeededSession seeded) =>
-        new(seeded.TeamId, seeded.TriviaSubstageSnapshotId, 1, 1, null);
+        new(seeded.ReferenceTeamId, seeded.TriviaSubstageSnapshotId, 1, 1, null);
 
     private static SubmitTriviaAnswerRequest OtherAnswer(SeededSession seeded) =>
-        new(seeded.TeamId, seeded.TriviaSubstageSnapshotId, 1, 2, null);
+        new(seeded.ReferenceTeamId, seeded.TriviaSubstageSnapshotId, 1, 2, null);
 
     private static string ReasonCode(ProblemDetails problem) => problem.Type ?? string.Empty;
 
@@ -370,7 +393,10 @@ public sealed class SubmitTriviaAnswerEndpointTests : IAsyncLifetime
             maximumTimeMinutes: 45,
             createdAt,
             snapshot);
-        var team = session.AssociateTeam(Guid.NewGuid(), "Red", "RED-01", 4);
+        var referenceTeamId = Guid.NewGuid();
+        var team = session.AssociateTeam(referenceTeamId, "Red", "RED-01", 4);
+        var foreignReferenceTeamId = Guid.NewGuid();
+        session.AssociateTeam(foreignReferenceTeamId, "Blue", "BLUE-01", 4);
 
         var transitionPolicy = new SessionStateTransitionPolicy();
         session.MoveTo(SessionState.Preparing, createdAt.AddMinutes(1), transitionPolicy);
@@ -404,7 +430,13 @@ public sealed class SubmitTriviaAnswerEndpointTests : IAsyncLifetime
         dbContext.LiveSessions.Add(session);
         await dbContext.SaveChangesAsync();
 
-        return new SeededSession(session.LiveSessionId, team.TeamId, triviaSubstage.SubstageSnapshotId, participantExternalIdentityId);
+        return new SeededSession(
+            session.LiveSessionId,
+            team.TeamId,
+            referenceTeamId,
+            triviaSubstage.SubstageSnapshotId,
+            participantExternalIdentityId,
+            foreignReferenceTeamId);
     }
 
     private static MissionRuntimeSnapshot CreateTreasureHuntSnapshot(Guid sourceMissionId)
@@ -482,8 +514,10 @@ public sealed class SubmitTriviaAnswerEndpointTests : IAsyncLifetime
     private sealed record SeededSession(
         Guid LiveSessionId,
         Guid TeamId,
+        Guid ReferenceTeamId,
         Guid TriviaSubstageSnapshotId,
-        Guid ParticipantExternalIdentityId);
+        Guid ParticipantExternalIdentityId,
+        Guid ForeignTeamId = default);
 
     private sealed record SubmitTriviaAnswerRequest(
         Guid TeamId,

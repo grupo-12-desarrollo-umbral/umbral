@@ -138,7 +138,10 @@ public sealed class LiveSessionRepository : ILiveSessionRepository
                 ((session.ActiveQuestionIndex != null &&
                     EF.Property<DateTimeOffset?>(session, "_questionTimerExpiredAt") == null) ||
                  (EF.Property<DateTimeOffset?>(session, "_substageTimerAdvancingSince") != null &&
-                    EF.Property<DateTimeOffset?>(session, "_substageTimerExpiredAt") == null)))
+                    EF.Property<DateTimeOffset?>(session, "_substageTimerExpiredAt") == null) ||
+                 // A reveal-pending session (HU-35) has no active-question / substage window ticking,
+                 // but must still be ticked so the deferred next-question activation fires on time.
+                 EF.Property<DateTimeOffset?>(session, "_questionRevealUntil") != null))
             .Include(session => session.MissionRuntimeSnapshot)
                 .ThenInclude(snapshot => snapshot.StageSnapshots)
                     .ThenInclude(stage => stage.SubstageSnapshots)
@@ -147,7 +150,9 @@ public sealed class LiveSessionRepository : ILiveSessionRepository
 
         return candidates
             .Where(session =>
-                session.ActiveQuestionIndex != null || ActiveSubstageIsTreasureHunt(session))
+                session.ActiveQuestionIndex != null ||
+                session.IsAwaitingQuestionReveal ||
+                ActiveSubstageIsTreasureHunt(session))
             .ToList();
     }
 

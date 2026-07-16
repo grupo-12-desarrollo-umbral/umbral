@@ -26,7 +26,7 @@ public sealed class AddOperativeClueEndpointTests : IAsyncLifetime
     public async Task InitializeAsync()
     {
         _factory = new SessionOperationsApiWebApplicationFactory(_fixture.ConnectionString);
-        _factory.AccessClient.IsAllowed = true;
+        _factory.EligibleTeamsClient.IsEligible = true;
         SetCurrentOperator(OperatorUserId, OperatorExternalIdentityId);
         _client = _factory.CreateClient();
         await _factory.ResetDatabaseAsync();

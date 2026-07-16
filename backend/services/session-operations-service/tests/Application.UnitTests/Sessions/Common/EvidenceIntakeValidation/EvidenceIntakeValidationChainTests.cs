@@ -48,11 +48,11 @@ public sealed class EvidenceIntakeValidationChainTests
     {
         var guard = new Mock<IRuntimeParticipationGuard>();
         guard.Setup(x => x.EnsureAllowedAsync(
-                It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+                It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new ForbiddenAccessException());
         var session = LiveSessionTestFactory.CreateScheduledTrivia();
 
-        var act = () => RealChain(guard.Object).ValidateAsync(
+        var act = () => RealChain(guard.Object, AllowingMembershipChecker().Object).ValidateAsync(
             Context(session, Guid.NewGuid(), Guid.NewGuid()), CancellationToken.None);
 
         await act.Should().ThrowAsync<ForbiddenAccessException>();
@@ -64,7 +64,7 @@ public sealed class EvidenceIntakeValidationChainTests
         var guard = AllowingGuard();
         var session = LiveSessionTestFactory.CreateScheduledTrivia();
 
-        var act = () => RealChain(guard.Object).ValidateAsync(
+        var act = () => RealChain(guard.Object, AllowingMembershipChecker().Object).ValidateAsync(
             Context(session, Guid.NewGuid(), Guid.NewGuid()), CancellationToken.None);
 
         await act.Should().ThrowAsync<TriviaAnswerRequiresActiveSessionException>();
@@ -86,16 +86,33 @@ public sealed class EvidenceIntakeValidationChainTests
     {
         var session = ActiveSession(out var teamId, out var substageId);
 
-        var act = () => RealChain(AllowingGuard().Object).ValidateAsync(
+        var act = () => RealChain(AllowingGuard().Object, AllowingMembershipChecker().Object).ValidateAsync(
             Context(session, teamId, substageId), CancellationToken.None);
 
         await act.Should().NotThrowAsync();
     }
 
-    private static EvidenceIntakeValidationChain RealChain(IRuntimeParticipationGuard guard) =>
+    [Fact]
+    public async Task RealLinks_WhenEligibleParticipantSubmitsForForeignTeam_ThrowsForbidden()
+    {
+        var session = ActiveSession(out var teamId, out var substageId);
+        var membershipChecker = new Mock<IParticipantSessionMembershipChecker>();
+        membershipChecker
+            .Setup(checker => checker.Check(session, teamId))
+            .Returns(ParticipantSessionMembershipResult.Deny("participant-not-assigned-to-team"));
+
+        var act = () => RealChain(AllowingGuard().Object, membershipChecker.Object).ValidateAsync(
+            Context(session, teamId, substageId), CancellationToken.None);
+
+        await act.Should().ThrowAsync<ForbiddenAccessException>();
+    }
+
+    private static EvidenceIntakeValidationChain RealChain(
+        IRuntimeParticipationGuard guard,
+        IParticipantSessionMembershipChecker membershipChecker) =>
         new(new EvidenceIntakeValidationLink[]
         {
-            new RuntimeParticipationLink(guard),
+            new RuntimeParticipationLink(guard, membershipChecker),
             new SessionAdmitsReceptionLink(),
             new ActiveSubstagePresentLink()
         });
@@ -104,9 +121,18 @@ public sealed class EvidenceIntakeValidationChainTests
     {
         var guard = new Mock<IRuntimeParticipationGuard>();
         guard.Setup(x => x.EnsureAllowedAsync(
-                It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
-            .Returns(Task.CompletedTask);
+                It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ParticipantEligibleTeamsDto(true, "eligible", []));
         return guard;
+    }
+
+    private static Mock<IParticipantSessionMembershipChecker> AllowingMembershipChecker()
+    {
+        var membershipChecker = new Mock<IParticipantSessionMembershipChecker>();
+        membershipChecker
+            .Setup(checker => checker.Check(It.IsAny<LiveSession>(), It.IsAny<Guid>()))
+            .Returns(ParticipantSessionMembershipResult.Allowed);
+        return membershipChecker;
     }
 
     private static LiveSession ActiveSession(out Guid teamId, out Guid substageId) =>

@@ -24,32 +24,9 @@ import { colors, radii, shadows, spacing, typography } from '@/constants/theme';
 import type { TimerDisplay } from '@/lib/realtime/timer-types';
 import { clueKey, type ActiveTargetDto, type VisibleClueDto } from '@/lib/realtime/team-board-types';
 import type { RankingRowDto } from '@/lib/realtime/ranking-types';
+import { rankingErrorCopy } from '@/lib/realtime/ranking-error-copy';
 import type { TimerSnapshotError } from '@/lib/api/sessions';
 import { PodiumLeaderboard } from './podium-leaderboard';
-
-/**
- * Copy for a failed ranking fetch (HU-25B). Without a distinct error state a 500
- * from the ranking endpoint is indistinguishable from "no standings yet" — the
- * TEAMS tab would silently fall back to placeholder sample cards, hiding the fact
- * that the standings never loaded. This surfaces the failure so it reads as an
- * error, not as data.
- */
-function rankingErrorCopy(error: TimerSnapshotError): string {
-  switch (error) {
-    case 'network-error':
-      return "Couldn't reach the standings — check your connection.";
-    case 'unauthorized':
-      return 'Your session expired — the standings couldn’t load.';
-    case 'forbidden':
-      return "You don't have access to this session's standings.";
-    case 'not-found':
-      return "This session's standings aren't available.";
-    case 'timer-unavailable':
-      return "Standings aren't ready yet — hang tight.";
-    default:
-      return "Couldn't load the standings.";
-  }
-}
 
 // Fallback other-team cards used when real ranking rows have not yet loaded.
 const PLACEHOLDER_OTHER_TEAMS: readonly { name: string }[] = [

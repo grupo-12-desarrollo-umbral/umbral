@@ -3,7 +3,7 @@
 // just-expired question (remaining 0, not advancing) are NOT — hydrating them froze the first
 // question's countdown at 0 while the authoritative timer ticked (the Start-desync bug).
 import { describe, expect, it } from 'vitest'
-import { isNonLiveQuestionSnapshot } from '@/app/dashboard/timer-snapshot'
+import { isNonLiveQuestionSnapshot, revealAnswerReviewSequenceOrder } from '@/app/dashboard/timer-snapshot'
 import type { SessionTimerSnapshotDto } from '@/app/lib/definitions'
 
 function snapshot(overrides: Partial<SessionTimerSnapshotDto> = {}): SessionTimerSnapshotDto {
@@ -65,5 +65,30 @@ describe('isNonLiveQuestionSnapshot', () => {
 
   it('is false when there is no active question', () => {
     expect(isNonLiveQuestionSnapshot(snapshot({ activeQuestion: null, isAdvancing: false }))).toBe(false)
+  })
+})
+
+describe('revealAnswerReviewSequenceOrder', () => {
+  it('returns the just-closed sequence order during the reveal window (no active question)', () => {
+    expect(
+      revealAnswerReviewSequenceOrder(
+        snapshot({ activeQuestion: null, isAdvancing: false, awaitingRevealQuestionSequenceOrder: 3 }),
+      ),
+    ).toBe(3)
+  })
+
+  it('returns null when a question is active (a fresh activation must win over a stale reveal field)', () => {
+    // Even if the field is somehow present, an active question means we are past the reveal window.
+    expect(revealAnswerReviewSequenceOrder(snapshot({ awaitingRevealQuestionSequenceOrder: 3 }))).toBeNull()
+  })
+
+  it('returns null when no question is active and there is nothing awaiting reveal', () => {
+    expect(
+      revealAnswerReviewSequenceOrder(snapshot({ activeQuestion: null, awaitingRevealQuestionSequenceOrder: null })),
+    ).toBeNull()
+  })
+
+  it('returns null when the field is absent (older backend / non-trivia snapshot)', () => {
+    expect(revealAnswerReviewSequenceOrder(snapshot({ activeQuestion: null }))).toBeNull()
   })
 })

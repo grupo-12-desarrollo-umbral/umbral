@@ -123,19 +123,19 @@ public sealed class TriviaAnswerValidationChainTests
         if (runtimeAllowed)
         {
             guard
-                .Setup(g => g.EnsureAllowedAsync(It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
-                .Returns(Task.CompletedTask);
+                .Setup(g => g.EnsureAllowedAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new ParticipantEligibleTeamsDto(true, "eligible", []));
         }
         else
         {
             guard
-                .Setup(g => g.EnsureAllowedAsync(It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+                .Setup(g => g.EnsureAllowedAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
                 .ThrowsAsync(new ForbiddenAccessException());
         }
 
         var evidenceChain = new EvidenceIntakeValidationChain(new EvidenceIntakeValidationLink[]
         {
-            new RuntimeParticipationLink(guard.Object),
+            new RuntimeParticipationLink(guard.Object, AllowingMembershipChecker()),
             new SessionAdmitsReceptionLink(),
             new ActiveSubstagePresentLink()
         });
@@ -151,6 +151,15 @@ public sealed class TriviaAnswerValidationChainTests
     }
 
     private static EvidenceIntakeValidationChain EmptyEvidenceChain() => new([]);
+
+    private static IParticipantSessionMembershipChecker AllowingMembershipChecker()
+    {
+        var checker = new Mock<IParticipantSessionMembershipChecker>();
+        checker
+            .Setup(candidate => candidate.Check(It.IsAny<LiveSession>(), It.IsAny<Guid>()))
+            .Returns(ParticipantSessionMembershipResult.Allowed);
+        return checker.Object;
+    }
 
     private static TriviaAnswerValidationContext CreateContext(
         LiveSession session,

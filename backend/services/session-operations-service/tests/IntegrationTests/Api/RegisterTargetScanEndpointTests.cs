@@ -32,7 +32,7 @@ public sealed class RegisterTargetScanEndpointTests : IAsyncLifetime
     {
         _factory = new SessionOperationsApiWebApplicationFactory(_fixture.ConnectionString);
         _client = _factory.CreateClient();
-        _factory.AccessClient.IsAllowed = true;
+        _factory.EligibleTeamsClient.IsEligible = true;
         await _factory.ResetDatabaseAsync();
     }
 
@@ -120,7 +120,7 @@ public sealed class RegisterTargetScanEndpointTests : IAsyncLifetime
     public async Task RegisterTargetScan_WhenParticipationFactDenied_ReturnsForbidden()
     {
         var seeded = await SeedActiveTreasureHuntSessionAsync();
-        _factory.AccessClient.IsAllowed = false;
+        _factory.EligibleTeamsClient.IsEligible = false;
         AddTrustedHeaders(_client, seeded.ParticipantExternalIdentityId.ToString(), "Participant", "participant@example.com");
 
         var response = await _client.PostAsJsonAsync(BuildScansUrl(seeded), Scan(seeded, CorrectQr));
@@ -205,7 +205,7 @@ public sealed class RegisterTargetScanEndpointTests : IAsyncLifetime
 
         var response = await _client.PostAsJsonAsync(
             BuildScansUrl(seeded),
-            new RegisterTargetScanRequest(seeded.TeamId, "   ", null));
+            new RegisterTargetScanRequest(seeded.ReferenceTeamId, "   ", null));
 
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
         var problem = await response.Content.ReadFromJsonAsync<ProblemDetails>();
@@ -287,7 +287,7 @@ public sealed class RegisterTargetScanEndpointTests : IAsyncLifetime
     }
 
     private static RegisterTargetScanRequest Scan(SeededSession seeded, string scannedValue) =>
-        new(seeded.TeamId, scannedValue, null);
+        new(seeded.ReferenceTeamId, scannedValue, null);
 
     private static string BuildScansUrl(SeededSession seeded) =>
         $"/api/sessions/{seeded.LiveSessionId:D}/participants/target-scans";
@@ -334,7 +334,8 @@ public sealed class RegisterTargetScanEndpointTests : IAsyncLifetime
             maximumTimeMinutes: 45,
             createdAt,
             snapshot);
-        var team = session.AssociateTeam(Guid.NewGuid(), "Red", "RED-01", 4);
+        var referenceTeamId = Guid.NewGuid();
+        var team = session.AssociateTeam(referenceTeamId, "Red", "RED-01", 4);
 
         var transitionPolicy = new SessionStateTransitionPolicy();
         session.MoveTo(SessionState.Preparing, createdAt.AddMinutes(1), transitionPolicy);
@@ -353,7 +354,7 @@ public sealed class RegisterTargetScanEndpointTests : IAsyncLifetime
         await dbContext.SaveChangesAsync();
 
         return new SeededSession(
-            session.LiveSessionId, team.TeamId, activeSubstage.SubstageSnapshotId, participantExternalIdentityId);
+            session.LiveSessionId, team.TeamId, referenceTeamId, activeSubstage.SubstageSnapshotId, participantExternalIdentityId);
     }
 
     // Seeds a treasure-hunt session in a non-Active state for the session-not-admitting-reception tests.
@@ -386,7 +387,8 @@ public sealed class RegisterTargetScanEndpointTests : IAsyncLifetime
             maximumTimeMinutes: 45,
             createdAt,
             snapshot);
-        var team = session.AssociateTeam(Guid.NewGuid(), "Red", "RED-01", 4);
+        var referenceTeamId = Guid.NewGuid();
+        var team = session.AssociateTeam(referenceTeamId, "Red", "RED-01", 4);
 
         var transitionPolicy = new SessionStateTransitionPolicy();
         session.MoveTo(SessionState.Preparing, createdAt.AddMinutes(1), transitionPolicy);
@@ -421,7 +423,7 @@ public sealed class RegisterTargetScanEndpointTests : IAsyncLifetime
         await dbContext.SaveChangesAsync();
 
         return new SeededSession(
-            session.LiveSessionId, team.TeamId, activeSubstage.SubstageSnapshotId, participantExternalIdentityId);
+            session.LiveSessionId, team.TeamId, referenceTeamId, activeSubstage.SubstageSnapshotId, participantExternalIdentityId);
     }
 
     private static void AddTrustedHeaders(HttpClient client, string userId, string role, string email)
@@ -437,6 +439,7 @@ public sealed class RegisterTargetScanEndpointTests : IAsyncLifetime
     private sealed record SeededSession(
         Guid LiveSessionId,
         Guid TeamId,
+        Guid ReferenceTeamId,
         Guid TreasureHuntSubstageSnapshotId,
         Guid ParticipantExternalIdentityId);
 

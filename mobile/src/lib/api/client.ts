@@ -1,5 +1,5 @@
 import { fetch } from 'expo/fetch';
-import { getAccessToken } from '@/lib/auth/token-store';
+import { getValidAccessToken, refreshAccessToken } from '@/lib/auth/token-provider';
 import { apiBaseUrl } from '@/lib/host';
 
 export class ApiError extends Error {
@@ -13,8 +13,8 @@ export class ApiError extends Error {
   }
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const token = await getAccessToken();
+async function request<T>(path: string, init?: RequestInit, allowRetry = true): Promise<T> {
+  const token = await getValidAccessToken();
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     ...(init?.headers as Record<string, string> | undefined),
@@ -31,6 +31,16 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     });
   } catch {
     throw new ApiError(0, 'network_error', 'Network request failed');
+  }
+
+  // The token looked live when attached yet the gateway disagrees (it died in flight, or the device
+  // clock is skewed): force one refresh and replay. `allowRetry` makes the replay terminal, so a
+  // genuinely unauthorized call surfaces its 401 instead of looping.
+  if (response.status === 401 && allowRetry) {
+    const refreshed = await refreshAccessToken();
+    if (refreshed) {
+      return request<T>(path, init, false);
+    }
   }
 
   if (!response.ok) {

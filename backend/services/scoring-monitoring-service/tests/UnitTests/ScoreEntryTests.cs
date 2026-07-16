@@ -47,7 +47,6 @@ public sealed class ScoreEntryTests
     {
         var liveSessionId = Guid.NewGuid();
         var teamId = Guid.NewGuid();
-        var appliedByUserId = Guid.NewGuid();
         var deductionValue = ScoreValue.Create(50);
         var scoreEntryId = Guid.NewGuid();
         var penaltyId = Guid.NewGuid();
@@ -61,7 +60,6 @@ public sealed class ScoreEntryTests
             "Unsportsmanlike conduct",
             deductionValue,
             penaltyId,
-            appliedByUserId,
             appliedAt);
 
         entry.EntryType.Should().Be(ScoreEntryType.Penalty);
@@ -84,12 +82,11 @@ public sealed class ScoreEntryTests
     }
 
     [Fact]
-    public void Penalty_ShouldRaiseBothScoreEntryRegisteredAndPenaltyApplied()
+    public void Penalty_ShouldRaiseScoreEntryRegistered()
     {
-        // HU-38 AC: the apply flow raises the ledger fact AND the penalty audit event.
+        // HU-38 AC: the apply flow raises the ledger fact.
         var liveSessionId = Guid.NewGuid();
         var teamId = Guid.NewGuid();
-        var appliedByUserId = Guid.NewGuid();
         var scoreEntryId = Guid.NewGuid();
         var penaltyId = Guid.NewGuid();
         var appliedAt = new DateTimeOffset(2026, 7, 15, 10, 0, 0, TimeSpan.Zero);
@@ -102,25 +99,10 @@ public sealed class ScoreEntryTests
             "Unsportsmanlike conduct",
             ScoreValue.Create(50),
             penaltyId,
-            appliedByUserId,
             appliedAt);
 
-        entry.DomainEvents.Should().HaveCount(2);
+        entry.DomainEvents.Should().ContainSingle();
         entry.DomainEvents.OfType<ScoreEntryRegistered>().Should().ContainSingle();
-
-        var penaltyEvent = entry.DomainEvents
-            .OfType<PenaltyApplied>()
-            .Should().ContainSingle().Subject;
-        penaltyEvent.PenaltyId.Should().Be(penaltyId);
-        penaltyEvent.ScoreEntryId.Should().Be(scoreEntryId);
-        penaltyEvent.LiveSessionId.Should().Be(liveSessionId);
-        penaltyEvent.TeamId.Should().Be(teamId);
-        penaltyEvent.DeductionMagnitude.Should().Be(50);
-        penaltyEvent.AppliedByUserId.Should().Be(appliedByUserId);
-        penaltyEvent.Reason.Should().Be("Unsportsmanlike conduct");
-
-        // The event carries the caller's applied-at verbatim — no second clock read in the factory.
-        penaltyEvent.AppliedAt.Should().Be(appliedAt);
     }
 
     [Fact]
@@ -135,7 +117,6 @@ public sealed class ScoreEntryTests
             string.Empty,
             "Valid reason",
             deductionValue,
-            Guid.NewGuid(),
             Guid.NewGuid(),
             DateTimeOffset.UtcNow);
 
@@ -154,7 +135,6 @@ public sealed class ScoreEntryTests
             string.Empty,
             "   ",
             deductionValue,
-            Guid.NewGuid(),
             Guid.NewGuid(),
             DateTimeOffset.UtcNow);
 

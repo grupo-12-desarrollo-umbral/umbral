@@ -140,6 +140,64 @@ public sealed class AuthoritativeSessionTimerWorkerBranchTests
             Times.Never);
     }
 
+    [Fact]
+    public async Task TickAsync_WhenQuestionRevealDeadlineElapsed_CompletesRevealWithoutBroadcastingTimer()
+    {
+        var session = CreateActiveTriviaSession();
+        session.ActivateQuestion(0, Now.AddMinutes(-1));
+        // Open the reveal window with an already-past deadline (closed 1s ago, zero-length window).
+        session.CloseActiveQuestionForReveal(Now.AddSeconds(-1), TimeSpan.Zero, nextQuestionIndex: null);
+        var repository = new Mock<ILiveSessionRepository>();
+        repository
+            .Setup(repo => repo.ListActiveTimersAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync([session]);
+        var broadcaster = new Mock<ISessionTimerBroadcaster>();
+        var facade = new Mock<ITriviaRoundOrchestratorFacade>();
+        var worker = CreateWorker(repository, broadcaster, facade, Now);
+
+        await worker.TickAsync(CancellationToken.None);
+
+        facade.Verify(
+            current => current.CompleteQuestionRevealAsync(session, Now, It.IsAny<CancellationToken>()),
+            Times.Once);
+        facade.Verify(
+            current => current.CloseAndAdvanceAsync(It.IsAny<LiveSession>(), It.IsAny<DateTimeOffset>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+        // No timer tick is broadcast during the reveal window.
+        broadcaster.Verify(
+            current => current.BroadcastTimerUpdatedAsync(
+                It.IsAny<SessionTimerUpdatedNotificationDto>(),
+                It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Fact]
+    public async Task TickAsync_WhenQuestionRevealStillPending_DoesNotCompleteRevealOrBroadcastTimer()
+    {
+        var session = CreateActiveTriviaSession();
+        session.ActivateQuestion(0, Now.AddMinutes(-1));
+        // Reveal window still open: closed now, 30s window — the deadline has not elapsed at Now.
+        session.CloseActiveQuestionForReveal(Now, TimeSpan.FromSeconds(30), nextQuestionIndex: 1);
+        var repository = new Mock<ILiveSessionRepository>();
+        repository
+            .Setup(repo => repo.ListActiveTimersAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync([session]);
+        var broadcaster = new Mock<ISessionTimerBroadcaster>();
+        var facade = new Mock<ITriviaRoundOrchestratorFacade>();
+        var worker = CreateWorker(repository, broadcaster, facade, Now);
+
+        await worker.TickAsync(CancellationToken.None);
+
+        facade.Verify(
+            current => current.CompleteQuestionRevealAsync(It.IsAny<LiveSession>(), It.IsAny<DateTimeOffset>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+        broadcaster.Verify(
+            current => current.BroadcastTimerUpdatedAsync(
+                It.IsAny<SessionTimerUpdatedNotificationDto>(),
+                It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
     private static AuthoritativeSessionTimerWorker CreateWorker(
         Mock<ILiveSessionRepository> repository,
         Mock<ISessionTimerBroadcaster> broadcaster,

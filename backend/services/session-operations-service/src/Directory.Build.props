@@ -4,4 +4,21 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
   </PropertyGroup>
+
+  <!--
+    BUILD-OUTPUT ISOLATION (see backend/docker-compose.override.yml).
+    Redirect bin+obj OUT of the bind-mounted source tree to /tmp/umbral-<svc>/.
+    The containerized `dotnet watch` and any host `dotnet build`/`test`/EF then
+    write to physically separate trees (a container's /tmp is its own namespace),
+    so they can never share obj and corrupt each other with a stale incremental
+    cache or foreign-owned artifacts. /tmp is writable by the non-root dev uid.
+    Mirrors scoring-monitoring-service. Keep this block identical (bar the path)
+    across every service's src/ root.
+  -->
+  <PropertyGroup>
+    <RestoreDisableParallel>true</RestoreDisableParallel>
+    <BaseIntermediateOutputPath>/tmp/umbral-session-operations/$(MSBuildProjectName)/obj/</BaseIntermediateOutputPath>
+    <BaseOutputPath>/tmp/umbral-session-operations/$(MSBuildProjectName)/bin/</BaseOutputPath>
+    <DefaultItemExcludes>$(DefaultItemExcludes);**/bin/**;**/obj/**</DefaultItemExcludes>
+  </PropertyGroup>
 </Project>
