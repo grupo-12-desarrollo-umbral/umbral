@@ -11,12 +11,12 @@ import {
   assignParticipantToTeam,
 } from '@/app/actions/teams'
 import { listSessionsForOperator, associateTeamToSession } from '@/app/actions/sessions'
-import { getUsersPage } from '@/app/actions/users'
+import { getAssignableParticipants } from '@/app/actions/users'
 import type {
+  AssignableParticipantDto,
   PagedResult,
   TeamDto,
   TeamMembershipDto,
-  UserAccessCatalogItemDto,
   SessionAssignmentSummaryDto,
 } from '@/app/lib/definitions'
 import styles from './dashboard.module.css'
@@ -40,7 +40,7 @@ export function TeamsPanel({ role }: { role: DashboardRole }) {
   const [participantsError, setParticipantsError] = useState<string | null>(null)
   const [isAssignPending, startAssignTransition] = useTransition()
   const [showAssignForm, setShowAssignForm] = useState(false)
-  const [participantUsers, setParticipantUsers] = useState<UserAccessCatalogItemDto[]>([])
+  const [participantUsers, setParticipantUsers] = useState<AssignableParticipantDto[]>([])
   const [selectedUserId, setSelectedUserId] = useState<number>(0)
   const [assignError, setAssignError] = useState<string | null>(null)
   const [sessionAssignmentTeam, setSessionAssignmentTeam] = useState<TeamDto | null>(null)
@@ -145,10 +145,7 @@ export function TeamsPanel({ role }: { role: DashboardRole }) {
   function loadParticipantUsers() {
     startAssignTransition(async () => {
       try {
-        const result = await getUsersPage(1, 100)
-        setParticipantUsers(
-          result.items.filter((u) => u.role === 'Participant' && u.isActive),
-        )
+        setParticipantUsers(await getAssignableParticipants())
       } catch {
         // Selector will be empty; user can still try to submit if they know the id
       }

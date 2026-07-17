@@ -344,8 +344,10 @@ public sealed class SubmitTriviaAnswerEndpointTests : IAsyncLifetime
                 session.MoveTo(SessionState.Cancelled, createdAt.AddMinutes(3), transitionPolicy);
                 break;
             case SessionState.Finished:
+                // Finished is reached only via SessionCompletion (never a manual MoveTo); the single
+                // trivia substage above completing with no next substage drives it there.
                 session.MoveTo(SessionState.Active, createdAt.AddMinutes(2), transitionPolicy);
-                session.MoveTo(SessionState.Finished, createdAt.AddMinutes(3), transitionPolicy);
+                session.CompleteActiveSubstageAndAdvance(createdAt.AddMinutes(3), transitionPolicy);
                 break;
         }
 

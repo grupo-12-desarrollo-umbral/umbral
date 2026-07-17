@@ -1,26 +1,12 @@
 import 'server-only'
 import { IdentityError, type TriviaQuizSummaryDto, type TriviaQuizDto, type TriviaQuestionRequest } from './definitions'
 import { verifySession } from './dal'
-
-const MISSION_DESIGN_SERVICE_URL = 'http://localhost:5001'
-
-function getIdentityHeaders(session: {
-  externalIdentityId: string
-  displayName: string
-  email: string
-  role: string
-}) {
-  return {
-    'X-User-Id': session.externalIdentityId,
-    'X-User-Role': session.role,
-    'X-User-Email': session.email,
-  }
-}
+import { API_GATEWAY_URL, getGatewayHeaders } from './gateway'
 
 export async function listTriviaQuizzes(): Promise<TriviaQuizSummaryDto[]> {
-  const session = await verifySession()
-  const response = await fetch(`${MISSION_DESIGN_SERVICE_URL}/api/trivias`, {
-    headers: getIdentityHeaders(session),
+  await verifySession()
+  const response = await fetch(`${API_GATEWAY_URL}/api/trivias`, {
+    headers: await getGatewayHeaders(),
     cache: 'no-store',
   })
   if (response.status === 401) throw new IdentityError('unauthorized', 'Authentication failed.')
@@ -30,9 +16,9 @@ export async function listTriviaQuizzes(): Promise<TriviaQuizSummaryDto[]> {
 }
 
 export async function getTriviaQuizById(id: number): Promise<TriviaQuizDto> {
-  const session = await verifySession()
-  const response = await fetch(`${MISSION_DESIGN_SERVICE_URL}/api/trivias/${id}`, {
-    headers: getIdentityHeaders(session),
+  await verifySession()
+  const response = await fetch(`${API_GATEWAY_URL}/api/trivias/${id}`, {
+    headers: await getGatewayHeaders(),
     cache: 'no-store',
   })
   if (response.status === 401) throw new IdentityError('unauthorized', 'Authentication failed.')
@@ -46,10 +32,10 @@ export async function createTriviaQuiz(
   title: string,
   description: string,
 ): Promise<TriviaQuizDto> {
-  const session = await verifySession()
-  const response = await fetch(`${MISSION_DESIGN_SERVICE_URL}/api/trivias`, {
+  await verifySession()
+  const response = await fetch(`${API_GATEWAY_URL}/api/trivias`, {
     method: 'POST',
-    headers: { ...getIdentityHeaders(session), 'Content-Type': 'application/json' },
+    headers: await getGatewayHeaders({ 'Content-Type': 'application/json' }),
     body: JSON.stringify({ title, description, questions: [] }),
   })
   if (response.status === 400) throw new Error('invalid_fields')
@@ -64,10 +50,10 @@ export async function updateTriviaQuiz(
   title: string,
   description: string,
 ): Promise<TriviaQuizDto> {
-  const session = await verifySession()
-  const response = await fetch(`${MISSION_DESIGN_SERVICE_URL}/api/trivias/${id}`, {
+  await verifySession()
+  const response = await fetch(`${API_GATEWAY_URL}/api/trivias/${id}`, {
     method: 'PUT',
-    headers: { ...getIdentityHeaders(session), 'Content-Type': 'application/json' },
+    headers: await getGatewayHeaders({ 'Content-Type': 'application/json' }),
     body: JSON.stringify({ title, description, questions: [] }),
   })
   if (response.status === 400) throw new Error('invalid_fields')
@@ -83,12 +69,12 @@ export async function addTriviaQuestion(
   triviaQuizId: number,
   question: TriviaQuestionRequest,
 ): Promise<TriviaQuizDto> {
-  const session = await verifySession()
+  await verifySession()
   const response = await fetch(
-    `${MISSION_DESIGN_SERVICE_URL}/api/trivias/${triviaQuizId}/questions`,
+    `${API_GATEWAY_URL}/api/trivias/${triviaQuizId}/questions`,
     {
       method: 'POST',
-      headers: { ...getIdentityHeaders(session), 'Content-Type': 'application/json' },
+      headers: await getGatewayHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify(question),
     },
   )
@@ -105,12 +91,12 @@ export async function updateTriviaQuestion(
   questionId: number,
   question: TriviaQuestionRequest,
 ): Promise<TriviaQuizDto> {
-  const session = await verifySession()
+  await verifySession()
   const response = await fetch(
-    `${MISSION_DESIGN_SERVICE_URL}/api/trivias/${triviaQuizId}/questions/${questionId}`,
+    `${API_GATEWAY_URL}/api/trivias/${triviaQuizId}/questions/${questionId}`,
     {
       method: 'PUT',
-      headers: { ...getIdentityHeaders(session), 'Content-Type': 'application/json' },
+      headers: await getGatewayHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify(question),
     },
   )
@@ -126,12 +112,12 @@ export async function removeTriviaQuestion(
   triviaQuizId: number,
   questionId: number,
 ): Promise<TriviaQuizDto> {
-  const session = await verifySession()
+  await verifySession()
   const response = await fetch(
-    `${MISSION_DESIGN_SERVICE_URL}/api/trivias/${triviaQuizId}/questions/${questionId}`,
+    `${API_GATEWAY_URL}/api/trivias/${triviaQuizId}/questions/${questionId}`,
     {
       method: 'DELETE',
-      headers: getIdentityHeaders(session),
+      headers: await getGatewayHeaders(),
     },
   )
   if (response.status === 401) throw new IdentityError('unauthorized', 'Authentication failed.')
@@ -143,12 +129,12 @@ export async function removeTriviaQuestion(
 }
 
 export async function publishTriviaQuiz(id: number): Promise<TriviaQuizDto> {
-  const session = await verifySession()
+  await verifySession()
   const response = await fetch(
-    `${MISSION_DESIGN_SERVICE_URL}/api/trivias/${id}/publish`,
+    `${API_GATEWAY_URL}/api/trivias/${id}/publish`,
     {
       method: 'POST',
-      headers: getIdentityHeaders(session),
+      headers: await getGatewayHeaders(),
     },
   )
   if (response.status === 401) throw new IdentityError('unauthorized', 'Authentication failed.')
@@ -160,12 +146,12 @@ export async function publishTriviaQuiz(id: number): Promise<TriviaQuizDto> {
 }
 
 export async function archiveTriviaQuiz(id: number): Promise<TriviaQuizDto> {
-  const session = await verifySession()
+  await verifySession()
   const response = await fetch(
-    `${MISSION_DESIGN_SERVICE_URL}/api/trivias/${id}/archive`,
+    `${API_GATEWAY_URL}/api/trivias/${id}/archive`,
     {
       method: 'POST',
-      headers: getIdentityHeaders(session),
+      headers: await getGatewayHeaders(),
     },
   )
   if (response.status === 401) throw new IdentityError('unauthorized', 'Authentication failed.')
@@ -177,12 +163,12 @@ export async function archiveTriviaQuiz(id: number): Promise<TriviaQuizDto> {
 }
 
 export async function duplicateTriviaQuiz(id: number): Promise<TriviaQuizDto> {
-  const session = await verifySession()
+  await verifySession()
   const response = await fetch(
-    `${MISSION_DESIGN_SERVICE_URL}/api/trivias/${id}/duplicate`,
+    `${API_GATEWAY_URL}/api/trivias/${id}/duplicate`,
     {
       method: 'POST',
-      headers: getIdentityHeaders(session),
+      headers: await getGatewayHeaders(),
     },
   )
   if (response.status === 401) throw new IdentityError('unauthorized', 'Authentication failed.')
@@ -194,18 +180,24 @@ export async function duplicateTriviaQuiz(id: number): Promise<TriviaQuizDto> {
 }
 
 export async function retireTriviaQuiz(id: number): Promise<TriviaQuizDto> {
-  const session = await verifySession()
+  await verifySession()
   const response = await fetch(
-    `${MISSION_DESIGN_SERVICE_URL}/api/trivias/${id}/retire`,
+    `${API_GATEWAY_URL}/api/trivias/${id}/retire`,
     {
       method: 'POST',
-      headers: getIdentityHeaders(session),
+      headers: await getGatewayHeaders(),
     },
   )
   if (response.status === 401) throw new IdentityError('unauthorized', 'Authentication failed.')
   if (response.status === 403) throw new IdentityError('unauthorized', 'Forbidden. Operator role required.')
   if (response.status === 404) throw new Error('trivia_not_found')
-  if (response.status === 409) throw new Error('trivia_retire_conflict')
+  if (response.status === 409) {
+    // Two distinct guards land here: the lifecycle state check, and ADR-0003's active-mission
+    // reference check. Only `detail` distinguishes them, so carry it up rather than have the UI
+    // guess at the cause.
+    const problem = (await response.json().catch(() => null)) as { detail?: string } | null
+    throw new Error('trivia_retire_conflict', { cause: problem?.detail })
+  }
   if (!response.ok) throw new IdentityError('unknown', `retireTriviaQuiz failed with status ${response.status}`)
   return response.json()
 }

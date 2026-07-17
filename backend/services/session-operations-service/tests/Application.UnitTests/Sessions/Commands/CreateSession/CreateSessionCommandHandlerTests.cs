@@ -85,6 +85,24 @@ public sealed class CreateSessionCommandHandlerTests
     }
 
     [Fact]
+    public async Task CreateAsync_WhenMissionIsDraftButStructurallyReady_ThrowsNotEligibleAndDoesNotFetchRuntime()
+    {
+        var command = CreateCommand();
+        var repository = new Mock<ILiveSessionRepository>();
+        var runtimeSource = new Mock<IMissionRuntimeSource>();
+        var handler = CreateHandler(
+            repository,
+            MissionSource(new MissionReadinessDto(command.MissionId, "Draft", IsActive: false, IsReady: true, [])),
+            runtimeSource);
+
+        var act = async () => await handler.Handle(command, CancellationToken.None);
+
+        await act.Should().ThrowAsync<MissionNotEligibleForSessionCreationException>();
+        runtimeSource.Verify(source => source.GetByIdAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()), Times.Never);
+        repository.Verify(repo => repo.UpdateAsync(It.IsAny<LiveSession>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
     public async Task CreateAsync_WhenMissionReadinessIsMissing_ThrowsNotFoundException()
     {
         var command = CreateCommand();

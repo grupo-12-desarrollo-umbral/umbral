@@ -1,7 +1,4 @@
-import { fetch } from 'expo/fetch';
-import { getValidAccessToken } from '@/lib/auth/token-provider';
-import { apiBaseUrl } from '@/lib/host';
-import { apiClient, ApiError } from './client';
+import { apiClient, ApiError, authorizedFetch } from './client';
 import type { SessionTimerSnapshotDto } from '@/lib/realtime/timer-types';
 import type { ParticipantTeamBoardDto } from '@/lib/realtime/team-board-types';
 import type { RankingSnapshotDto } from '@/lib/realtime/ranking-types';
@@ -127,7 +124,8 @@ export function getTriviaTeamQuestionResult(
 // ── Submit trivia answer (HU-34 / DES-46 contract, consumed by HU-M2) ──────────────────────────────
 // The backend rejects a submit with RFC 7807 ProblemDetails whose `type` is the stable rejection slug.
 // The shared `apiClient` only reads `code`/`message`, which ProblemDetails does NOT carry, so this
-// helper fetches directly to surface the `type` slug as a typed `reasonCode`. See the contract note.
+// helper maps the response itself to surface the `type` slug as a typed `reasonCode`, going through
+// `authorizedFetch` for the shared bearer/401-replay handling. See the contract note.
 
 // Runtime guard mirroring the TriviaAnswerRejectionReasonCode union: narrows an arbitrary `type`
 // string from the wire to a known slug, falling back to 'unknown' for anything unrecognized.
@@ -168,17 +166,11 @@ export async function submitTriviaAnswer(
   liveSessionId: string,
   request: SubmitTriviaAnswerRequest,
 ): Promise<SubmitTriviaAnswerResultDto> {
-  const token = await getValidAccessToken();
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`;
-  }
-
   let response: Response;
   try {
-    response = await fetch(
-      `${apiBaseUrl()}/api/sessions/${encodeURIComponent(liveSessionId)}/participants/answers`,
-      { method: 'POST', headers, body: JSON.stringify(request) },
+    response = await authorizedFetch(
+      `/api/sessions/${encodeURIComponent(liveSessionId)}/participants/answers`,
+      { method: 'POST', body: JSON.stringify(request) },
     );
   } catch {
     throw new SubmitTriviaAnswerRejection('unknown', 0, 'Network request failed');
@@ -205,8 +197,9 @@ export async function submitTriviaAnswer(
 // 200 acceptance metadata (never the score). A wrong/duplicate/out-of-context scan is retained-rejected
 // as RFC 7807 (422, `type: "target-scan-rejected"`) with the consistent reason in `detail`; pre-intake
 // blocks (non-admitting session, denied participant, etc.) surface as ProblemDetails on other statuses.
-// Like `submitTriviaAnswer`, this fetches directly rather than via `apiClient` so the ProblemDetails
-// `detail`/status — which `apiClient` does not read — reach the UI.
+// Like `submitTriviaAnswer`, this maps the response itself rather than going through `apiClient` so the
+// ProblemDetails `detail`/status — which `apiClient` does not read — reach the UI; the shared
+// bearer/401-replay handling still comes from `authorizedFetch`.
 
 // Typed rejection for a non-2xx scan. `reasonCode` is derived from the HTTP status (see the union);
 // `detail` carries the backend's reason string, which for a retained rejection (422) is the exact
@@ -222,11 +215,16 @@ export class RegisterTargetScanRejection extends Error {
   }
 }
 
-// Maps the HTTP status of a failed scan to a stable reason code. The three retained-rejection reasons
-// (unknown QR, out-of-context target, duplicate) all share status 422 and are distinguished only by the
-// backend's `detail` message, so 422 collapses to a single 'retained-rejection' code that surfaces that
-// message verbatim.
-function toScanRejectionReasonCode(status: number): TargetScanRejectionReasonCode {
+// Maps a failed scan to a stable reason code, keyed off the HTTP status — except at 409, where two
+// unrelated conflicts share the status: a session that is not admitting scans, and a lost write race
+// the participant should simply retry. Only the ProblemDetails `type` tells them apart, so the 409 arm
+// reads it. The three retained-rejection reasons (unknown QR, out-of-context target, duplicate) all
+// share status 422 and are distinguished only by the backend's `detail` message, so 422 collapses to a
+// single 'retained-rejection' code that surfaces that message verbatim.
+function toScanRejectionReasonCode(
+  status: number,
+  type?: unknown,
+): TargetScanRejectionReasonCode {
   switch (status) {
     case 0:
       return 'network';
@@ -239,7 +237,9 @@ function toScanRejectionReasonCode(status: number): TargetScanRejectionReasonCod
     case 404:
       return 'session-not-found';
     case 409:
-      return 'session-not-accepting';
+      return type === 'concurrent-modification'
+        ? 'concurrent-modification'
+        : 'session-not-accepting';
     case 422:
       return 'retained-rejection';
     default:
@@ -254,32 +254,29 @@ export async function registerTargetScan(
   liveSessionId: string,
   request: RegisterTargetScanRequest,
 ): Promise<RegisterTargetScanResultDto> {
-  const token = await getValidAccessToken();
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`;
-  }
-
   let response: Response;
   try {
-    response = await fetch(
-      `${apiBaseUrl()}/api/sessions/${encodeURIComponent(liveSessionId)}/participants/target-scans`,
-      { method: 'POST', headers, body: JSON.stringify(request) },
+    response = await authorizedFetch(
+      `/api/sessions/${encodeURIComponent(liveSessionId)}/participants/target-scans`,
+      { method: 'POST', body: JSON.stringify(request) },
     );
   } catch {
     throw new RegisterTargetScanRejection('network', 0, 'Network request failed');
   }
 
   if (!response.ok) {
+    let type: unknown;
     let detail = `HTTP ${response.status}`;
     try {
-      const problem = (await response.json()) as { detail?: string };
+      const problem = (await response.json()) as { type?: string; detail?: string };
+      type = problem.type;
       detail = problem.detail ?? detail;
     } catch {
-      // Non-JSON error body: keep the status-derived fallback detail.
+      // Non-JSON error body: keep the status-derived fallback detail. A 409 with no readable `type`
+      // stays 'session-not-accepting', the pre-existing reading of a bare 409.
     }
     throw new RegisterTargetScanRejection(
-      toScanRejectionReasonCode(response.status),
+      toScanRejectionReasonCode(response.status, type),
       response.status,
       detail,
     );

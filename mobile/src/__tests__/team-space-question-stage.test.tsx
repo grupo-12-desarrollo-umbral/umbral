@@ -168,6 +168,46 @@ describe('LiveTeamSpace question stage wiring', () => {
     expect(texts.join(' ')).toContain('Waiting for the next question');
   });
 
+  // RF-06 requires the session clock to stay visible for the whole session. The two clocks are
+  // distinct: the question countdown is per-question and correctly disappears between questions,
+  // the session timer must not.
+  test('keeps the session timer between questions and hides only the question countdown', () => {
+    mockUseActiveQuestion.mockReturnValue({ sessionState: 'Active', isQuestionClosed: false, view: { kind: 'waiting' } });
+
+    const renderer = renderSpace();
+    const timerLabels = renderer.root
+      .findAllByProps({ accessibilityRole: 'progressbar' })
+      .map((node) => node.props.accessibilityLabel);
+
+    expect(timerLabels).toContain('Session timer: 00:42');
+    expect(timerLabels.some((label: string) => label.startsWith('Question timer:'))).toBe(false);
+  });
+
+  test('renders the question countdown while a question is active', () => {
+    mockUseActiveQuestion.mockReturnValue({
+      sessionState: 'Active',
+      isQuestionClosed: false,
+      view: {
+        kind: 'active',
+        question: {
+          questionIndex: 0,
+          sequenceOrder: 1,
+          prompt: 'Which lantern is lit?',
+          options: ['North', 'South'],
+          timeLimitSeconds: 45,
+          triviaSubstageSnapshotId: 'substage-abc',
+        },
+      },
+    });
+
+    const renderer = renderSpace();
+    const timerLabels = renderer.root
+      .findAllByProps({ accessibilityRole: 'progressbar' })
+      .map((node) => node.props.accessibilityLabel);
+
+    expect(timerLabels).toContain('Question timer: 00:42');
+  });
+
   test('renders retained question while Paused instead of an empty state', () => {
     mockUseActiveQuestion.mockReturnValue({
       sessionState: 'Paused',

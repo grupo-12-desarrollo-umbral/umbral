@@ -1,0 +1,4 @@
+interface:
+  display_name: "Validate Requirement"
+  short_description: "Validate RF and HU implementation end to end"
+  default_prompt: "Use $validate-requirement to validate RF-01 against the current code."

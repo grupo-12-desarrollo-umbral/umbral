@@ -63,15 +63,74 @@ test('back button from detail returns to list', async ({ adminPage: page }) => {
   await expect(page.locator('[data-testid="teams-panel"]')).toBeVisible()
 })
 
-test('operator can open assign-to-session modal from team row actions', async ({ operatorPage: page }) => {
-  await page.goto('/dashboard')
-  await page.click('[data-testid="nav-teams"]')
+test('operator associates a team to a scheduled session end-to-end', async ({
+  adminPage: admin,
+  operatorPage: operator,
+}) => {
+  // Set up a scheduled session assigned to the operator (op-1 / "Operator One"),
+  // so it shows up as an assignable session in the team row's "assign to session" modal.
+  await admin.goto('/dashboard')
+  await admin.click('[data-testid="nav-sessions"]')
 
-  const actionButton = page.locator('[data-testid^="team-row-session-actions-"]:not([disabled])').first()
-  if (await actionButton.count() === 0) return
+  const missionSelect = admin.locator('[data-testid="session-mission-select"]')
+  await missionSelect.waitFor()
+  const firstMissionOption = missionSelect.locator('option:not([value=""]):not([disabled])').first()
+  await missionSelect.selectOption((await firstMissionOption.getAttribute('value'))!)
 
+  const sessionTitle = 'Team Association E2E Session'
+  await admin.fill('[data-testid="session-title-input"]', sessionTitle)
+  await admin.fill('[data-testid="session-max-time-input"]', '30')
+  await admin.fill('[data-testid="session-scheduled-at-input"]', '2026-12-20T09:00')
+  await admin.click('[data-testid="session-submit-btn"]')
+  await expect(admin.locator('[data-testid="session-operator-list"]')).toContainText(sessionTitle)
+
+  const sessionItem = admin
+    .locator('[data-testid="session-operator-item"]')
+    .filter({ hasText: sessionTitle })
+  await sessionItem.getByRole('button', { name: 'Assign operator' }).click()
+
+  const operatorSelect = admin.locator('[data-testid="operator-select"]')
+  const operatorOptionValue = await operatorSelect
+    .locator('option', { hasText: 'Operator One' })
+    .getAttribute('value')
+  await operatorSelect.selectOption(operatorOptionValue!)
+  await admin.click('[data-testid="assign-operator-btn"]')
+  await expect(admin.locator('[data-testid="assign-operator-error"]')).toHaveCount(0)
+
+  // Create an active team as the operator to associate with that session.
+  await operator.goto('/dashboard')
+  await operator.click('[data-testid="nav-teams"]')
+  await operator.click('[data-testid="create-team-btn"]')
+  const teamName = 'Association E2E Squad'
+  await operator.fill('[data-testid="team-display-name-input"]', teamName)
+  await operator.fill('[data-testid="team-code-input"]', 'ASSOC-E2E-TEAM')
+  await operator.click('[data-testid="team-form-submit"]')
+  await expect(operator.locator('[data-testid="team-detail-panel"]')).toBeVisible()
+  await operator.click('[data-testid="teams-back-btn"]')
+
+  const teamRow = operator.locator('[data-testid^="team-row-"]').filter({ hasText: teamName })
+  const actionButton = teamRow.locator('[data-testid^="team-row-session-actions-"]')
+  await expect(actionButton).toBeEnabled()
   await actionButton.click()
-  await expect(page.getByRole('heading', { name: 'Assign team to session' })).toBeVisible()
+  await expect(operator.getByRole('heading', { name: 'Assign team to session' })).toBeVisible()
+
+  // Confirm the association inside the modal — this is the actual mutation, not just opening it.
+  const sessionCard = operator
+    .locator('[data-testid="team-session-list"] article')
+    .filter({ hasText: sessionTitle })
+  await sessionCard.getByRole('button', { name: 'Assign to session' }).click()
+
+  // Modal closes on a successful association.
+  await expect(operator.getByRole('heading', { name: 'Assign team to session' })).toHaveCount(0)
+
+  // Verify the association actually landed by checking the session's associated-teams list.
+  await operator.click('[data-testid="nav-sessions"]')
+  const sessionButton = operator
+    .locator('[data-testid="assigned-session-button"]')
+    .filter({ hasText: sessionTitle })
+  await sessionButton.click()
+
+  await expect(operator.locator('[data-testid="session-associated-teams-list"]')).toContainText(teamName)
 })
 
 // --- Team deactivation ---

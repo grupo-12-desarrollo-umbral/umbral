@@ -28,7 +28,7 @@ public sealed class SessionEventHistoryRepositoryIntegrationTests
                     SessionState.Scheduled,
                     SessionState.Preparing,
                     changedAt,
-                    42,
+                    Guid.NewGuid(),
                     "Preparing"),
                 CancellationToken.None);
         }
@@ -41,7 +41,7 @@ public sealed class SessionEventHistoryRepositoryIntegrationTests
                     SessionState.Scheduled,
                     SessionState.Preparing,
                     changedAt,
-                    42,
+                    Guid.NewGuid(),
                     "Preparing"),
                 CancellationToken.None);
         }
@@ -77,5 +77,53 @@ public sealed class SessionEventHistoryRepositoryIntegrationTests
             .CountAsync(sessionEvent => sessionEvent.LiveSessionId == liveSessionId);
 
         count.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task GetBySession_AppliesTeamFilterAndOrdersChronologically()
+    {
+        var liveSessionId = Guid.NewGuid();
+        var selectedTeamId = Guid.NewGuid();
+        var otherTeamId = Guid.NewGuid();
+        var occurredAt = DateTimeOffset.UtcNow;
+
+        await using (var context = _contextFactory.Create())
+        {
+            var repository = new SessionEventHistoryRepository(context);
+            await repository.AppendAsync(
+                SessionEvent.ForEvidenceSubmitted(
+                    liveSessionId,
+                    selectedTeamId,
+                    Guid.NewGuid(),
+                    "TriviaAnswer",
+                    occurredAt.AddMinutes(1)),
+                CancellationToken.None);
+            await repository.AppendAsync(
+                SessionEvent.ForEvidenceSubmitted(
+                    liveSessionId,
+                    selectedTeamId,
+                    Guid.NewGuid(),
+                    "TargetScan",
+                    occurredAt),
+                CancellationToken.None);
+            await repository.AppendAsync(
+                SessionEvent.ForEvidenceSubmitted(
+                    liveSessionId,
+                    otherTeamId,
+                    Guid.NewGuid(),
+                    "TargetScan",
+                    occurredAt.AddMinutes(-1)),
+                CancellationToken.None);
+        }
+
+        await using var readContext = _contextFactory.Create();
+        var rows = await new SessionEventHistoryRepository(readContext).GetBySessionAsync(
+            liveSessionId,
+            selectedTeamId,
+            CancellationToken.None);
+
+        rows.Should().HaveCount(2);
+        rows.Should().OnlyContain(sessionEvent => sessionEvent.TeamId == selectedTeamId);
+        rows.Select(sessionEvent => sessionEvent.OccurredAt).Should().BeInAscendingOrder();
     }
 }

@@ -84,6 +84,8 @@ public sealed class Mission : BaseAuditableEntity
 
     public void UpdateDetails(string name, string description, string difficulty, int maximumTimeMinutes)
     {
+        EnsureEditable();
+
         ValidateName(name);
         ValidateDescription(description);
 
@@ -97,10 +99,26 @@ public sealed class Mission : BaseAuditableEntity
         AddDomainEvent(new MissionDetailsUpdatedEvent(this));
     }
 
+    /// <summary>
+    /// Terminal-retirement guard (HU-09): a deactivated mission is frozen and rejects every
+    /// authoring mutation — details, structure, and targets alike — so it never drifts from the
+    /// record the sessions sourced from it were built on. Application code that edits child nodes
+    /// directly (rather than through an aggregate mutator) must call this before mutating.
+    /// </summary>
+    public void EnsureEditable()
+    {
+        if (!IsActive)
+        {
+            throw new MissionNotEditableWhileInactiveException();
+        }
+    }
+
     // ---- Composite authoring -------------------------------------------------
 
     public Stage AddStage(string title, int sequenceOrder)
     {
+        EnsureEditable();
+
         var stage = Stage.Create(title, sequenceOrder);
         _stages.Add(stage);
 
@@ -110,6 +128,7 @@ public sealed class Mission : BaseAuditableEntity
 
     public Substage AddSubstage(int stageId, Substage substage)
     {
+        EnsureEditable();
         ArgumentNullException.ThrowIfNull(substage);
 
         var stage = FindStage(stageId);
@@ -121,6 +140,7 @@ public sealed class Mission : BaseAuditableEntity
 
     public Clue AddClue(int stageId, int substageId, Clue clue)
     {
+        EnsureEditable();
         ArgumentNullException.ThrowIfNull(clue);
 
         var substage = FindSubstage(stageId, substageId);
@@ -132,6 +152,7 @@ public sealed class Mission : BaseAuditableEntity
 
     public void RenameNode(int stageId, string title, int sequenceOrder)
     {
+        EnsureEditable();
         var stage = FindStage(stageId);
         stage.Rename(title, sequenceOrder);
 
@@ -140,6 +161,7 @@ public sealed class Mission : BaseAuditableEntity
 
     public void RemoveStage(int stageId)
     {
+        EnsureEditable();
         var stage = FindStage(stageId);
         _stages.Remove(stage);
 
@@ -150,6 +172,8 @@ public sealed class Mission : BaseAuditableEntity
 
     public Target AddTarget(int stageId, int substageId, string name, string qrCode, int sequenceOrder, double latitude, double longitude, bool isActive = true)
     {
+        EnsureEditable();
+        EnsureQrCodeUniqueWithinMission(qrCode, null);
         var substage = FindSubstage(stageId, substageId);
         var target = substage.AddTarget(name, qrCode, sequenceOrder, DeriveTargetScore(), latitude, longitude, isActive);
 
@@ -160,12 +184,41 @@ public sealed class Mission : BaseAuditableEntity
 
     public Target UpdateTarget(int stageId, int substageId, int targetId, string name, string qrCode, int sequenceOrder, double latitude, double longitude, bool isActive)
     {
+        EnsureEditable();
+        EnsureQrCodeUniqueWithinMission(qrCode, targetId);
         var substage = FindSubstage(stageId, substageId);
         var target = substage.UpdateTarget(targetId, name, qrCode, sequenceOrder, latitude, longitude, isActive, DeriveTargetScore());
 
         AddDomainEvent(new TargetUpdatedEvent(this, substage, target));
         RefreshActivationState();
         return target;
+    }
+
+    // QR uniqueness is mission-scoped, not substage-scoped: SessionOperations resolves a scan against
+    // the whole mission snapshot, so two targets sharing a code anywhere in the mission make the scan
+    // ambiguous at runtime. Only the aggregate root spans every stage/substage, so the invariant lives
+    // here. <paramref name="excludedTargetId"/> lets an update keep its own current code.
+    private void EnsureQrCodeUniqueWithinMission(string qrCode, int? excludedTargetId)
+    {
+        // A blank code is Target's own validation concern (TargetQrCodeRequiredException); do not
+        // pre-empt it with a misleading uniqueness failure.
+        if (string.IsNullOrWhiteSpace(qrCode))
+        {
+            return;
+        }
+
+        var normalized = qrCode.Trim();
+        var clashes = _stages
+            .SelectMany(stage => stage.Substages)
+            .SelectMany(substage => substage.Targets)
+            .Any(target =>
+                target.Id != excludedTargetId &&
+                string.Equals(target.QrCode, normalized, StringComparison.OrdinalIgnoreCase));
+
+        if (clashes)
+        {
+            throw new TargetQrCodeMustBeUniqueWithinMissionException();
+        }
     }
 
     // A target's score is not authored: it is fixed by the mission's difficulty
@@ -185,6 +238,7 @@ public sealed class Mission : BaseAuditableEntity
 
     public void RemoveTarget(int stageId, int substageId, int targetId)
     {
+        EnsureEditable();
         var substage = FindSubstage(stageId, substageId);
         substage.RemoveTarget(targetId);
 
@@ -194,6 +248,7 @@ public sealed class Mission : BaseAuditableEntity
 
     public void AssociateClueWithTarget(int stageId, int substageId, int targetId, Clue clue)
     {
+        EnsureEditable();
         ArgumentNullException.ThrowIfNull(clue);
 
         var substage = FindSubstage(stageId, substageId);
@@ -208,6 +263,7 @@ public sealed class Mission : BaseAuditableEntity
 
     public void SelectTriviaQuiz(int stageId, int substageId, int triviaQuizId)
     {
+        EnsureEditable();
         var substage = FindSubstage(stageId, substageId);
         substage.SelectTriviaQuiz(triviaQuizId);
 
@@ -224,6 +280,13 @@ public sealed class Mission : BaseAuditableEntity
 
     public void Activate()
     {
+        // Deactivation is terminal retirement (HU-09): a retired mission can never be brought back,
+        // so it is not a candidate for activation. This must be checked before the readiness gate.
+        if (!IsActive)
+        {
+            throw new MissionCannotBeReactivatedException();
+        }
+
         if (ActivationState == MissionActivation.Ready)
         {
             throw new MissionAlreadyActiveException();
@@ -236,8 +299,8 @@ public sealed class Mission : BaseAuditableEntity
             throw new MissionNotReadyForActivationException(failures);
         }
 
-        IsActive = true;
-        ArchivedAt = null;
+        // An active mission is already un-archived — retirement is the only route to inactive and it
+        // is terminal — so activation only needs to record readiness.
         ActivationState = MissionActivation.Ready;
 
         AddDomainEvent(new MissionActivatedEvent(this));

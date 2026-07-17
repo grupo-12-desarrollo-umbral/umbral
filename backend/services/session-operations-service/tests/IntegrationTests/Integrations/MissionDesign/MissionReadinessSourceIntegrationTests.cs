@@ -65,6 +65,32 @@ public sealed class MissionReadinessSourceIntegrationTests
     }
 
     [Fact]
+    public async Task GetByIdAsync_WhenMissionIsDraftButStructurallyReady_ReportsNotActive()
+    {
+        using var host = await BuildHostAsync(app =>
+        {
+            app.MapGet("/api/missions/{id:int}/readiness", (int id) =>
+                Results.Ok(new
+                {
+                    MissionId = id,
+                    ActivationState = "Draft",
+                    IsReady = true,
+                    Failures = Array.Empty<string>()
+                }));
+        });
+
+        var source = new MissionReadinessSource(host.GetTestClient(), TestCurrentUser.Default);
+
+        var readiness = await source.GetByIdAsync(11, CancellationToken.None);
+
+        readiness.Should().NotBeNull();
+        readiness!.ActivationState.Should().Be("Draft");
+        readiness.IsActive.Should().BeFalse();
+        readiness.IsReady.Should().BeTrue();
+        readiness.Failures.Should().BeEmpty();
+    }
+
+    [Fact]
     public async Task GetByIdAsync_WhenMissionDoesNotExist_ReturnsNull()
     {
         using var host = await BuildHostAsync(app =>

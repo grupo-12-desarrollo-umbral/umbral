@@ -40,6 +40,37 @@ public class MissionTests
     }
 
     [Fact]
+    public void UpdateDetails_WhenMissionIsInactive_Throws()
+    {
+        var mission = Mission.Create("Mission One", "Briefing", "Advanced", 45);
+        mission.Deactivate(new DateTimeOffset(2026, 5, 31, 12, 0, 0, TimeSpan.Zero));
+        mission.ClearDomainEvents();
+
+        var act = () => mission.UpdateDetails("Mission Two", "Updated Briefing", "Beginner", 30);
+
+        act.Should().Throw<MissionNotEditableWhileInactiveException>();
+        // The retired mission must stay frozen — no mutation, no event.
+        mission.Name.Should().Be("Mission One");
+        mission.Description.Should().Be("Briefing");
+        mission.Difficulty.Value.Should().Be("Advanced");
+        mission.MaximumTime.Minutes.Should().Be(45);
+        mission.DomainEvents.Should().NotContain(e => e is MissionDetailsUpdatedEvent);
+    }
+
+    [Fact]
+    public void UpdateDetails_GuardRunsBeforeFieldValidation_OnInactiveMission()
+    {
+        var mission = Mission.Create("Mission One", "Briefing", "Advanced", 45);
+        mission.Deactivate(new DateTimeOffset(2026, 5, 31, 12, 0, 0, TimeSpan.Zero));
+
+        // An invalid payload on a retired mission still reports the retirement conflict, not a
+        // field error: the mission is closed to edits regardless of what was submitted.
+        var act = () => mission.UpdateDetails(null!, "Updated Briefing", "Beginner", 30);
+
+        act.Should().Throw<MissionNotEditableWhileInactiveException>();
+    }
+
+    [Fact]
     public void RecordStructureChanged_RaisesStructureEventWithoutRevalidatingDetails()
     {
         var mission = Mission.Create("Mission One", "Briefing", "Advanced", 45);
@@ -145,7 +176,7 @@ public class MissionTests
     }
 
     [Fact]
-    public void StructureChange_OnDeactivatedMission_LeavesActivationInactive()
+    public void StructureChange_OnDeactivatedMission_IsRejected()
     {
         var mission = Mission.Create("Mission One", "Briefing", "Advanced", 45);
         var stage = mission.AddStage("Stage 1", 1);
@@ -157,9 +188,36 @@ public class MissionTests
         mission.Deactivate(new DateTimeOffset(2026, 6, 1, 12, 0, 0, TimeSpan.Zero));
         mission.IsActive.Should().BeFalse();
 
-        // An authoring change on a deactivated mission must not resurrect its activation state.
-        mission.AddStage("Stage 2", 2);
+        // HU-09: a retired mission is frozen at every level — structure and target authoring is
+        // rejected just like detail editing, so it never drifts from the record its sessions used.
+        var addStage = () => mission.AddStage("Stage 2", 2);
+        var renameStage = () => mission.RenameNode(stage.Id, "Renamed", 1);
+        var addTarget = () => mission.AddTarget(stage.Id, substage.Id, "Target 2", "QR-2", 2, 4.712, -74.0722);
+        var selectTrivia = () => mission.SelectTriviaQuiz(stage.Id, substage.Id, 7);
 
+        addStage.Should().Throw<MissionNotEditableWhileInactiveException>();
+        renameStage.Should().Throw<MissionNotEditableWhileInactiveException>();
+        addTarget.Should().Throw<MissionNotEditableWhileInactiveException>();
+        selectTrivia.Should().Throw<MissionNotEditableWhileInactiveException>();
+        mission.ActivationState.Should().Be(MissionActivation.Inactive);
+    }
+
+    [Fact]
+    public void Activate_OnDeactivatedMission_IsRejectedAndDoesNotResurrect()
+    {
+        var mission = Mission.Create("Mission One", "Briefing", "Advanced", 45);
+        var stage = mission.AddStage("Stage 1", 1);
+        stage.Id = 10;
+        var substage = mission.AddSubstage(stage.Id, Substage.CreateTreasureHunt("Substage 1", 1));
+        substage.Id = 20;
+        mission.AddTarget(stage.Id, substage.Id, "Target 1", "QR-1", 1, 4.711, -74.0721);
+        mission.Activate();
+        mission.Deactivate(new DateTimeOffset(2026, 6, 1, 12, 0, 0, TimeSpan.Zero));
+
+        // HU-09: deactivation is terminal — a retired mission cannot be brought back.
+        var act = () => mission.Activate();
+
+        act.Should().Throw<MissionCannotBeReactivatedException>();
         mission.IsActive.Should().BeFalse();
         mission.ActivationState.Should().Be(MissionActivation.Inactive);
     }

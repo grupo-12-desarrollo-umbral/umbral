@@ -240,7 +240,9 @@ public sealed class LiveSessionOperativeClueTests
 
         if (state is SessionState.Finished)
         {
-            session.MoveTo(SessionState.Finished, CreatedAt.AddMinutes(-2), policy);
+            // Finished is reached only via SessionCompletion (never a manual MoveTo); the single
+            // treasure-hunt substage above completing with no next substage drives it there.
+            session.CompleteActiveSubstageAndAdvance(CreatedAt.AddMinutes(-2), policy);
         }
         else if (state is SessionState.Cancelled)
         {

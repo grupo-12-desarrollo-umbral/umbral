@@ -22,30 +22,10 @@ import {
   type AppliedPenaltyDto,
   type RankingSnapshotDto,
   type EvidenceTraceDto,
+  type SessionHistoryDto,
 } from './definitions'
 import { verifySession } from './dal'
-import { KeycloakAuthError } from './keycloak'
-import { getValidAccessToken } from './keycloak-tokens'
-
-const API_GATEWAY_URL = process.env.API_GATEWAY_URL!
-
-async function getGatewayHeaders(headers?: HeadersInit): Promise<Headers> {
-  try {
-    const accessToken = await getValidAccessToken()
-    const gatewayHeaders = new Headers(headers)
-    gatewayHeaders.set('Authorization', `Bearer ${accessToken}`)
-    return gatewayHeaders
-  } catch (error) {
-    if (
-      error instanceof KeycloakAuthError ||
-      (error instanceof Error && error.name === 'KeycloakAuthError')
-    ) {
-      throw new IdentityError('unauthorized', 'Authentication failed.')
-    }
-
-    throw error
-  }
-}
+import { API_GATEWAY_URL, getGatewayHeaders } from './gateway'
 
 export async function createSession(
   req: CreateSessionRequest,
@@ -151,15 +131,18 @@ export async function transitionSessionState(
   if (response.status === 404) throw new Error('session_not_found')
   if (response.status === 409) {
     // The backend tags each transition conflict with a stable ProblemDetails `type` so the UI can
-    // show a specific cause (no teams, no assigned operator) rather than one vague message.
-    const problem = (await response.json().catch(() => null)) as { type?: string } | null
+    // show a specific cause (no teams, no assigned operator) rather than one vague message. For the
+    // generic invalid-transition case, `detail` also carries the specific rejected from->to edge
+    // (InvalidSessionStateTransitionException.PublicDetail) — passed through via Error.cause so the
+    // caller can render it instead of a generic "not allowed" message.
+    const problem = (await response.json().catch(() => null)) as { type?: string; detail?: string } | null
     switch (problem?.type) {
       case 'session-no-teams':
         throw new Error('no_teams')
       case 'session-operator-unassigned':
         throw new Error('session_unassigned')
       default:
-        throw new Error('invalid_transition')
+        throw new Error('invalid_transition', { cause: problem?.detail })
     }
   }
   if (!response.ok) {
@@ -475,6 +458,34 @@ export async function getOperatorRanking(liveSessionId: string): Promise<Ranking
   }
 
   return response.json() as Promise<RankingSnapshotDto>
+}
+
+// RF-15 session audit history from scoring-monitoring. Administrator OR Operator — unlike the
+// operator-only reads in this module, so a 403 here is a role failure, not an assignment failure.
+// Optional teamId narrows to one team's events. A session with no recorded events is NOT an error:
+// the backend returns events: [].
+export async function getSessionHistory(
+  liveSessionId: string,
+  teamId?: string,
+): Promise<SessionHistoryDto> {
+  await verifySession()
+  const query = teamId ? `?teamId=${encodeURIComponent(teamId)}` : ''
+  const response = await fetch(
+    `${API_GATEWAY_URL}/api/sessions/${liveSessionId}/history${query}`,
+    {
+      headers: await getGatewayHeaders(),
+      cache: 'no-store',
+    },
+  )
+
+  if (response.status === 401) throw new IdentityError('unauthorized', 'Authentication failed.')
+  if (response.status === 403) throw new IdentityError('unauthorized', 'Administrator or operator role required.')
+  if (response.status === 404) throw new Error('session_not_found')
+  if (!response.ok) {
+    throw new IdentityError('unknown', `getSessionHistory failed with status ${response.status}`)
+  }
+
+  return response.json() as Promise<SessionHistoryDto>
 }
 
 // HU-24B operator evidence trace snapshot. The REST fallback behind the EvidenceSubmission* pushes:

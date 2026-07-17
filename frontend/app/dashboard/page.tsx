@@ -15,7 +15,7 @@ function toDashboardRole(role: Role): 'admin' | 'operator' | 'participant' {
 }
 
 export default async function DashboardPage() {
-  const session = await verifySession()
+  await verifySession()
   await enforceActivePlatformAccess()
 
   // Guard the profile fetch like enforceActivePlatformAccess does: a BFF IdentityError
@@ -24,11 +24,7 @@ export default async function DashboardPage() {
   // subsequent e2e test. Degrade to /login instead of throwing.
   let profile
   try {
-    profile = await getCurrentUserProfile(
-      session.externalIdentityId,
-      session.role,
-      session.email,
-    )
+    profile = await getCurrentUserProfile()
   } catch (err) {
     if (err instanceof IdentityError) {
       if (err.code === 'deactivated') redirect('/login?error=deactivated')

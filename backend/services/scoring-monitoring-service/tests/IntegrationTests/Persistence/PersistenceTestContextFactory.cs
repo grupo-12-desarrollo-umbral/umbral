@@ -1,4 +1,5 @@
 using umbral_backend.Application.Common.Interfaces;
+using umbral_backend.Domain.Common;
 using umbral_backend.Infrastructure.Persistence;
 using umbral_backend.Infrastructure.Persistence.Interceptors;
 
@@ -20,9 +21,24 @@ internal sealed class PersistenceTestContextFactory
 
         optionsBuilder.AddInterceptors(
             new AuditableEntityInterceptor(new StubCurrentUser(), TimeProvider.System),
-            new DispatchDomainEventsInterceptor(mediator ?? new NoOpMediator()));
+            new DispatchDomainEventsInterceptor(
+                mediator ?? new NoOpMediator(),
+                CreateServiceProvider()));
 
         return new ScoringMonitoringDbContext(optionsBuilder.Options);
+    }
+
+    private static IServiceProvider CreateServiceProvider()
+    {
+        var services = new ServiceCollection();
+        services.AddSingleton<IOutboxDomainEventDispatcher, NoOpOutboxDomainEventDispatcher>();
+        return services.BuildServiceProvider();
+    }
+
+    private sealed class NoOpOutboxDomainEventDispatcher : IOutboxDomainEventDispatcher
+    {
+        public Task DispatchAsync(BaseEvent domainEvent, CancellationToken cancellationToken) =>
+            Task.CompletedTask;
     }
 
     private sealed class StubCurrentUser : ICurrentUser

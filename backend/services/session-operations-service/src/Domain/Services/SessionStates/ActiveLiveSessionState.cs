@@ -10,14 +10,17 @@ internal sealed class ActiveLiveSessionState : LiveSessionStateBase
 
     public override bool CanTransitionTo(SessionState nextState)
     {
-        return nextState is SessionState.Paused or SessionState.Finished or SessionState.Cancelled;
+        // Finished is deliberately excluded: it is reached only via SessionCompletion
+        // (LiveSession.CompleteActiveSubstageAndAdvance applies it directly, bypassing this policy
+        // gate), never via manual Operator transition.
+        return nextState is SessionState.Paused or SessionState.Cancelled;
     }
 
     public override void Enter(LiveSession session, DateTimeOffset occurredAt)
     {
         session.EnterActiveSessionState(occurredAt);
         session.EnterActiveQuestionTimerState(occurredAt);
-        session.EnterActiveSubstageTimerState(occurredAt);
+        session.EnterActiveMissionTimerState(occurredAt);
     }
 
     public override AuthoritativeSessionTimerSnapshot GetQuestionTimerSnapshot(LiveSession session, DateTimeOffset observedAt)
@@ -35,19 +38,19 @@ internal sealed class ActiveLiveSessionState : LiveSessionStateBase
         return session.HasAdvancingQuestionTimer();
     }
 
-    public override AuthoritativeSessionTimerSnapshot GetSubstageTimerSnapshot(LiveSession session, DateTimeOffset observedAt)
+    public override AuthoritativeSessionTimerSnapshot GetMissionTimerSnapshot(LiveSession session, DateTimeOffset observedAt)
     {
-        return session.GetAdvancingSubstageTimerSnapshot(observedAt);
+        return session.GetAdvancingMissionTimerSnapshot(observedAt);
     }
 
-    public override AuthoritativeSessionTimerSnapshot MarkSubstageTimerExpiredIfElapsed(LiveSession session, DateTimeOffset occurredAt)
+    public override AuthoritativeSessionTimerSnapshot MarkMissionTimerExpiredIfElapsed(LiveSession session, DateTimeOffset occurredAt)
     {
-        return session.MarkAdvancingSubstageTimerExpiredIfElapsed(occurredAt);
+        return session.MarkAdvancingMissionTimerExpiredIfElapsed(occurredAt);
     }
 
-    public override bool IsSubstageTimerAdvancing(LiveSession session)
+    public override bool IsMissionTimerAdvancing(LiveSession session)
     {
-        return session.HasAdvancingSubstageTimer();
+        return session.HasAdvancingMissionTimer();
     }
 
     public override void EnsureCanAdvanceSubstage(LiveSession session)

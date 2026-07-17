@@ -1,5 +1,4 @@
 using MassTransit;
-using Microsoft.Extensions.Logging.Abstractions;
 using umbral_backend.Application.Scores.Common;
 using umbral_backend.Application.Scores.EventHandlers;
 using umbral_backend.Domain.Enums;
@@ -14,9 +13,7 @@ public sealed class PublishScoreEntryRegisteredIntegrationEventHandlerTests
     {
         var publishEndpoint = new Mock<IPublishEndpoint>();
         var notification = Event();
-        var handler = new PublishScoreEntryRegisteredIntegrationEventHandler(
-            publishEndpoint.Object,
-            NullLogger<PublishScoreEntryRegisteredIntegrationEventHandler>.Instance);
+        var handler = new PublishScoreEntryRegisteredIntegrationEventHandler(publishEndpoint.Object);
 
         await handler.Handle(notification, CancellationToken.None);
 
@@ -32,20 +29,19 @@ public sealed class PublishScoreEntryRegisteredIntegrationEventHandlerTests
     }
 
     [Fact]
-    public async Task Handle_WhenPublishThrows_DoesNotPropagate()
+    public async Task Handle_WhenPublishThrows_Propagates()
     {
         var publishEndpoint = new Mock<IPublishEndpoint>();
         publishEndpoint
             .Setup(endpoint => endpoint.Publish(It.IsAny<ScoreEntryRegisteredIntegrationEvent>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new InvalidOperationException("broker unreachable"));
 
-        var handler = new PublishScoreEntryRegisteredIntegrationEventHandler(
-            publishEndpoint.Object,
-            NullLogger<PublishScoreEntryRegisteredIntegrationEventHandler>.Instance);
+        var handler = new PublishScoreEntryRegisteredIntegrationEventHandler(publishEndpoint.Object);
 
         var act = () => handler.Handle(Event(), CancellationToken.None);
 
-        await act.Should().NotThrowAsync();
+        await act.Should().ThrowAsync<InvalidOperationException>()
+            .WithMessage("broker unreachable");
     }
 
     [Fact]
@@ -53,9 +49,7 @@ public sealed class PublishScoreEntryRegisteredIntegrationEventHandlerTests
     {
         var publishEndpoint = new Mock<IPublishEndpoint>();
         var notification = Event();
-        var handler = new PublishScoreEntryRegisteredIntegrationEventHandler(
-            publishEndpoint.Object,
-            NullLogger<PublishScoreEntryRegisteredIntegrationEventHandler>.Instance);
+        var handler = new PublishScoreEntryRegisteredIntegrationEventHandler(publishEndpoint.Object);
         using var cts = new CancellationTokenSource();
 
         await handler.Handle(notification, cts.Token);

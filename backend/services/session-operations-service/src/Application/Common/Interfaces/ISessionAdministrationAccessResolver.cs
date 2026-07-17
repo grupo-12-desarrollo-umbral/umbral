@@ -6,7 +6,7 @@ public interface ISessionAdministrationAccessResolver
 {
     Task<LiveSession> GetAuthorizedSessionAsync(Guid liveSessionId, CancellationToken cancellationToken);
 
-    Task<(LiveSession Session, int? ResponsibleUserId)> GetAuthorizedSessionWithActorAsync(
+    Task<(LiveSession Session, int? ResponsibleUserId, Guid? ResponsibleUserExternalId)> GetAuthorizedSessionWithActorAsync(
         Guid liveSessionId,
         CancellationToken cancellationToken);
 

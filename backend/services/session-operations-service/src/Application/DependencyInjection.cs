@@ -37,6 +37,9 @@ public static class DependencyInjection
             cfg.AddOpenBehavior(typeof(AuthorizationBehaviour<,>));
             cfg.AddOpenBehavior(typeof(ValidationBehaviour<,>));
             cfg.AddOpenBehavior(typeof(PerformanceBehaviour<,>));
+            // Innermost: a concurrency retry must re-run only the handler, and must sit inside
+            // UnhandledExceptionBehaviour so a retried loss is not logged as an error.
+            cfg.AddOpenBehavior(typeof(ConcurrencyRetryBehaviour<,>));
         });
 
         builder.Services.AddSingleton<JoinPolicy>();
@@ -94,6 +97,9 @@ public static class DependencyInjection
         builder.Services.AddScoped<TriviaAnswerValidationLink, DuplicateTriviaAnswerLink>();
         builder.Services.AddScoped<TriviaAnswerValidationChain>();
 
+        // Ambiguity is checked first: a duplicate QR code resolves to no single target, so the
+        // existence link below would otherwise report it as an unknown code.
+        builder.Services.AddScoped<TargetResolutionLink, ScannedValueResolvesToSingleTargetLink>();
         builder.Services.AddScoped<TargetResolutionLink, TargetExistsForScanLink>();
         builder.Services.AddScoped<TargetResolutionLink, TargetBelongsToActiveSubstageLink>();
         builder.Services.AddScoped<TargetResolutionLink, TargetNotAlreadyResolvedLink>();

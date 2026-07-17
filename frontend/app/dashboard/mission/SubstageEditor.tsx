@@ -67,21 +67,27 @@ export function SubstageEditor({
   substage,
   difficulty,
   onMutated,
+  readOnly = false,
 }: {
   missionId: number
   stageId: number
   substage: MissionSubstageDto
   difficulty: string
   onMutated: OnMutated
+  // On a deactivated mission the editor is inspect-only: content (targets, quiz, map) still
+  // renders, but every authoring affordance is withheld to match the HU-09 backend guard.
+  readOnly?: boolean
 }) {
   return (
     <div className={styles.substageEditor}>
-      <PlayModeControl
-        missionId={missionId}
-        stageId={stageId}
-        substage={substage}
-        onMutated={onMutated}
-      />
+      {!readOnly && (
+        <PlayModeControl
+          missionId={missionId}
+          stageId={stageId}
+          substage={substage}
+          onMutated={onMutated}
+        />
+      )}
 
       {substage.playMode === 'TreasureHunt' && (
         <div className={styles.treeSection}>
@@ -98,20 +104,23 @@ export function SubstageEditor({
                 target={target}
                 difficulty={difficulty}
                 onMutated={onMutated}
+                readOnly={readOnly}
               />
             ))
           )}
-          <div className={styles.treeAddRow}>
-            <AddTargetControl
-              missionId={missionId}
-              stageId={stageId}
-              substageId={substage.id}
-              nextOrder={nextSequenceOrder(substage.targets)}
-              difficulty={difficulty}
-              siblings={substage.targets}
-              onMutated={onMutated}
-            />
-          </div>
+          {!readOnly && (
+            <div className={styles.treeAddRow}>
+              <AddTargetControl
+                missionId={missionId}
+                stageId={stageId}
+                substageId={substage.id}
+                nextOrder={nextSequenceOrder(substage.targets)}
+                difficulty={difficulty}
+                siblings={substage.targets}
+                onMutated={onMutated}
+              />
+            </div>
+          )}
 
           {substage.targets.length > 0 && (
             <div className={styles.targetOverview}>
@@ -134,6 +143,7 @@ export function SubstageEditor({
             stageId={stageId}
             substage={substage}
             onMutated={onMutated}
+            readOnly={readOnly}
           />
         </div>
       )}
@@ -153,11 +163,13 @@ function TriviaSelectionControl({
   stageId,
   substage,
   onMutated,
+  readOnly = false,
 }: {
   missionId: number
   stageId: number
   substage: MissionSubstageDto
   onMutated: OnMutated
+  readOnly?: boolean
 }) {
   const current = substage.triviaQuizSelection?.triviaQuizId ?? null
   const [quizzes, setQuizzes] = useState<TriviaQuizSummaryDto[] | null>(null)
@@ -234,37 +246,43 @@ function TriviaSelectionControl({
   return (
     <div className={styles.triviaSelect}>
       <div className={styles.playModeRow}>
-        <label className={styles.nodeField}>
-          <span className={styles.fieldLabel}>Quiz</span>
-          <select
-            className={styles.inlineInput}
-            data-testid={`trivia-quiz-select-${substage.id}`}
-            value={selected}
-            disabled={isPending || quizzes === null}
-            onChange={(e) => setSelected(e.target.value)}
-          >
-            <option value="">{quizzes === null ? 'Loading…' : 'Select quiz…'}</option>
-            {(quizzes ?? []).map((quiz) => (
-              <option key={quiz.id} value={quiz.id}>
-                {quiz.title}
-              </option>
-            ))}
-          </select>
-        </label>
+        {!readOnly && (
+          <>
+            <label className={styles.nodeField}>
+              <span className={styles.fieldLabel}>Quiz</span>
+              <select
+                className={styles.inlineInput}
+                data-testid={`trivia-quiz-select-${substage.id}`}
+                value={selected}
+                disabled={isPending || quizzes === null}
+                onChange={(e) => setSelected(e.target.value)}
+              >
+                <option value="">{quizzes === null ? 'Loading…' : 'Select quiz…'}</option>
+                {(quizzes ?? []).map((quiz) => (
+                  <option key={quiz.id} value={quiz.id}>
+                    {quiz.title}
+                  </option>
+                ))}
+              </select>
+            </label>
 
-        <button
-          className={styles.smallButton}
-          disabled={isPending || selected === ''}
-          onClick={save}
-          type="button"
-        >
-          {current === null ? 'Select quiz' : 'Change quiz'}
-        </button>
+            <button
+              className={styles.smallButton}
+              disabled={isPending || selected === ''}
+              onClick={save}
+              type="button"
+            >
+              {current === null ? 'Select quiz' : 'Change quiz'}
+            </button>
+          </>
+        )}
 
-        {current !== null && (
+        {current !== null ? (
           <span>
             Selected: {quizzes?.find((q) => q.id === current)?.title ?? `#${current}`}
           </span>
+        ) : (
+          readOnly && <span className={styles.treeClueText}>No quiz selected.</span>
         )}
       </div>
 
@@ -860,6 +878,7 @@ function TargetRow({
   target,
   difficulty,
   onMutated,
+  readOnly = false,
 }: {
   missionId: number
   stageId: number
@@ -867,6 +886,7 @@ function TargetRow({
   target: MissionSubstageDto['targets'][number]
   difficulty: string
   onMutated: OnMutated
+  readOnly?: boolean
 }) {
   const [editing, setEditing] = useState(false)
   const [confirmRemove, setConfirmRemove] = useState(false)
@@ -933,6 +953,7 @@ function TargetRow({
           )}
         </span>
 
+        {!readOnly && (
         <span className={styles.nodeControls}>
         <button
           className={styles.inlineButton}
@@ -980,6 +1001,7 @@ function TargetRow({
           </>
         )}
         </span>
+        )}
       </div>
 
       <QrPreview code={target.qrCode} testId={`qr-preview-${target.id}`} />

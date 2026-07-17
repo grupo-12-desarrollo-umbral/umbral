@@ -6,6 +6,7 @@ using Microsoft.Extensions.Options;
 using umbral_backend.Application.Rankings.Consumers;
 using umbral_backend.Application.Scores.Consumers;
 using umbral_backend.Application.SessionEvents.Consumers;
+using umbral_backend.Infrastructure.Persistence;
 
 namespace umbral_backend.Infrastructure.Messaging;
 
@@ -21,6 +22,14 @@ public static class MassTransitMessagingRegistration
             bus.AddConsumer<ScoreEntryRegisteredConsumer>();
             bus.AddConsumer<LiveSessionOperatorAssignedConsumer>();
             bus.AddConsumer<SessionEventHistoryConsumer>();
+
+            bus.AddEntityFrameworkOutbox<ScoringMonitoringDbContext>(outbox =>
+            {
+                outbox.UsePostgres();
+                outbox.QueryDelay = TimeSpan.FromSeconds(1);
+                outbox.DuplicateDetectionWindow = TimeSpan.FromMinutes(30);
+                outbox.UseBusOutbox();
+            });
 
             bus.UsingRabbitMq((context, cfg) =>
             {

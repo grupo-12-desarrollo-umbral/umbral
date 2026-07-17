@@ -3,11 +3,14 @@ import { lifecycleActions, lifecycleStates, toLifecycleState } from '@/app/lib/s
 
 // The one source of truth for which transitions the operator UI offers. If this drifts from the
 // backend state machine, the operator is shown an edge the API will reject (or hidden a valid one).
+// Finished is deliberately absent from Active's and Paused's targets: it is reached only through
+// automatic SessionCompletion (final-substage completion), never a manual Operator action — the
+// backend rejects a manual Active/Paused -> Finished PATCH.
 const CANONICAL: Record<string, string[]> = {
   Scheduled: ['Preparing', 'Cancelled'],
   Preparing: ['Active', 'Cancelled'],
-  Active: ['Paused', 'Finished', 'Cancelled'],
-  Paused: ['Active', 'Finished', 'Cancelled'],
+  Active: ['Paused', 'Cancelled'],
+  Paused: ['Active', 'Cancelled'],
   Finished: [],
   Cancelled: [],
 }
@@ -38,5 +41,10 @@ describe('session lifecycle transition map', () => {
     expect(toLifecycleState('Active')).toBe('Active')
     expect(toLifecycleState('live')).toBeNull()
     expect(toLifecycleState('draft')).toBeNull()
+  })
+
+  it('never offers a manual Finish action from Active or Paused', () => {
+    expect(lifecycleActions.Active.some((a) => a.targetState === 'Finished')).toBe(false)
+    expect(lifecycleActions.Paused.some((a) => a.targetState === 'Finished')).toBe(false)
   })
 })

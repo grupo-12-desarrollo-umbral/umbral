@@ -20,9 +20,12 @@ let lastConnection: {
   state: number
 }
 
+// The options the client passed to withUrl, so a test can assert the transport pin.
+let lastWithUrlOptions: { transport?: number } | undefined
+
 vi.mock('@microsoft/signalr', () => {
   class HubConnectionBuilder {
-    withUrl() { return this }
+    withUrl(_url: string, options?: { transport?: number }) { lastWithUrlOptions = options; return this }
     withAutomaticReconnect() { return this }
     configureLogging() { return this }
     build() {
@@ -48,6 +51,8 @@ vi.mock('@microsoft/signalr', () => {
     HubConnectionBuilder,
     HubConnectionState: { Connected: 1, Disconnected: 0 },
     LogLevel: { Warning: 3 },
+    // Mirrors the real @microsoft/signalr enum (ITransport: None 0, WebSockets 1, SSE 2, LongPolling 4).
+    HttpTransportType: { None: 0, WebSockets: 1, ServerSentEvents: 2, LongPolling: 4 },
   }
 })
 
@@ -69,7 +74,15 @@ const camelSnapshot = {
 }
 
 describe('createRankingRealtimeClient', () => {
-  beforeEach(() => { lastConnection = undefined as never })
+  beforeEach(() => { lastConnection = undefined as never; lastWithUrlOptions = undefined })
+
+  // RNF-03: negotiation must not silently fall back to SSE/long-polling — a fallback still works,
+  // so it is invisible from the UI and only a pinned transport catches it.
+  it('pins the transport to WebSockets', () => {
+    createRankingRealtimeClient(baseOptions)
+
+    expect(lastWithUrlOptions?.transport).toBe(1) // HttpTransportType.WebSockets
+  })
 
   it('joins with the operator hub method, not the participant one', async () => {
     const client = createRankingRealtimeClient(baseOptions)

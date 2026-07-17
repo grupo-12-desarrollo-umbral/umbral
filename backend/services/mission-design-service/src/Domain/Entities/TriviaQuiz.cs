@@ -239,6 +239,26 @@ public sealed class TriviaQuiz : BaseAuditableEntity
         }
     }
 
+    // Single source of truth for the per-question authoring rules (option count and
+    // exactly-one-correct). Shared so the quiz-authoring path (create/update quiz) and the
+    // single-question authoring path (add/update question) enforce identical invariants and
+    // cannot drift apart.
+    private static void EnsureOptionCount(int count)
+    {
+        if (count is < 2 or > 4)
+        {
+            throw new TriviaQuestionMustHaveBetweenTwoAndFourOptionsException();
+        }
+    }
+
+    private static void EnsureExactlyOneCorrectOption(IEnumerable<TriviaOption> options)
+    {
+        if (options.Count(option => option.IsCorrect) != 1)
+        {
+            throw new TriviaQuestionMustHaveExactlyOneCorrectOptionException();
+        }
+    }
+
     private abstract class TriviaQuizLifecycleTemplate
     {
         public void Apply(TriviaQuiz quiz, DateTimeOffset transitionedAt)
@@ -306,10 +326,14 @@ public sealed class TriviaQuiz : BaseAuditableEntity
             ValidateTitle(title);
             ValidateDescription(description);
             EnsureEditable(status);
+
+            var normalizedQuestions = NormalizeQuestions(questions);
+            EnsureQuestionsSatisfyAuthoringRules(normalizedQuestions);
+
             return new ValidatedTriviaQuizAuthoring(
                 title.Trim(),
                 description.Trim(),
-                NormalizeQuestions(questions));
+                normalizedQuestions);
         }
 
         protected virtual void EnsureEditable(TriviaQuizStatus status)
@@ -335,6 +359,15 @@ public sealed class TriviaQuiz : BaseAuditableEntity
         private static IReadOnlyCollection<TriviaQuestion> NormalizeQuestions(IEnumerable<TriviaQuestion>? questions)
         {
             return questions?.ToArray() ?? [];
+        }
+
+        private static void EnsureQuestionsSatisfyAuthoringRules(IReadOnlyCollection<TriviaQuestion> questions)
+        {
+            foreach (var question in questions)
+            {
+                EnsureOptionCount(question.Options.Count);
+                EnsureExactlyOneCorrectOption(question.Options);
+            }
         }
     }
 
@@ -381,22 +414,6 @@ public sealed class TriviaQuiz : BaseAuditableEntity
         private static IReadOnlyCollection<TriviaOption> NormalizeOptions(IEnumerable<TriviaOption> options)
         {
             return options.ToArray();
-        }
-
-        private static void EnsureOptionCount(int count)
-        {
-            if (count is < 2 or > 4)
-            {
-                throw new TriviaQuestionMustHaveBetweenTwoAndFourOptionsException();
-            }
-        }
-
-        private static void EnsureExactlyOneCorrectOption(IEnumerable<TriviaOption> options)
-        {
-            if (options.Count(option => option.IsCorrect) != 1)
-            {
-                throw new TriviaQuestionMustHaveExactlyOneCorrectOptionException();
-            }
         }
 
         private static void EnsureDistinctOptionSequenceOrders(IEnumerable<TriviaOption> options)

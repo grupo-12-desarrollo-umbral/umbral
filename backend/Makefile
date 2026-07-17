@@ -23,7 +23,11 @@ export DOTNET_CLI_TELEMETRY_OPTOUT := 1
 export DOTNET_NOLOGO := 1
 
 SVC ?= identity-access-service
-SVCDIR := services/$(SVC)
+
+# Services live under services/; the api-gateway does not — it is a YARP reverse
+# proxy with a single flat src/ project, not a Clean Architecture service. Resolving
+# its root here is what lets `SVC=api-gateway` flow through build/test unchanged.
+SVCDIR := $(if $(filter api-gateway,$(SVC)),api-gateway,services/$(SVC))
 
 # Services that have converged onto the ADR-0011 vertical-slice layout. `build`
 # runs the structural guard (scripts/structure-guard.sh) ONLY for these — a service
@@ -41,10 +45,14 @@ CONVERGED_SERVICES := mission-design-service session-operations-service identity
 # turn) multiplies it. Absolute path, because `gate` cd's into the service dir.
 # Gitignored.
 LOGDIR := $(CURDIR)/.make-logs
+COVERAGE_ROOT := $(CURDIR)/coverage
 
 # Project discovery — service-agnostic, mirrors cover.sh. There is no .sln, so
 # Api (the composition root) plus the test projects span the whole build graph.
-API_PROJECT          := $(wildcard $(SVCDIR)/src/Api/*.csproj)
+# The second wildcard is the api-gateway's flat src/ApiGateway.csproj; no service
+# keeps a csproj directly under src/ (theirs sit in src/Api, src/Domain, …), so
+# the two patterns never both match and this stays a single-project variable.
+API_PROJECT          := $(wildcard $(SVCDIR)/src/Api/*.csproj) $(wildcard $(SVCDIR)/src/*.csproj)
 UNIT_PROJECTS        := $(shell find $(SVCDIR)/tests -maxdepth 3 -name '*UnitTests*.csproj'        2>/dev/null | sort)
 INTEGRATION_PROJECTS := $(shell find $(SVCDIR)/tests -maxdepth 3 -name '*IntegrationTests*.csproj' 2>/dev/null | sort)
 
@@ -57,7 +65,7 @@ INTEGRATION_PROJECTS := $(shell find $(SVCDIR)/tests -maxdepth 3 -name '*Integra
 # behavioural gate, not a coverlet report).
 GATEABLE_SERVICES := $(sort $(foreach p,$(wildcard services/*/tests/IntegrationTests/*.csproj),$(word 2,$(subst /, ,$(p)))))
 
-.PHONY: help build test gate gate-all clean clean-all clean-artifacts guard-artifacts structure-guard structure-guard-converged layer-guard ef rewire doctor
+.PHONY: help build test gate gate-all clean clean-all clean-artifacts guard-artifacts structure-guard structure-guard-converged layer-guard layer-guard-layered ef rewire doctor
 
 # Compose service names of the hot-reload dev containers (docker-compose.override.yml):
 # every service/ plus the gateway, which lives outside services/.
@@ -91,15 +99,18 @@ build test gate: guard-artifacts
 build: structure-guard-converged
 
 # `build` also enforces the Clean Architecture dependency rule against cross-layer
-# reflection laundering (scripts/layer-guard.sh). Unlike the structural guard this
-# is UNCONDITIONAL — the prohibition has no per-service migration, so every build
-# runs it (scoped to $(SVC) when set). Extra prerequisite; build recipe unchanged.
-build: layer-guard
+# reflection laundering (scripts/layer-guard.sh). The prohibition has no per-service
+# migration, so every LAYERED service's build runs it (scoped to $(SVC) when set) —
+# see layer-guard-layered for the one exemption. Extra prerequisite; build recipe
+# unchanged.
+build: layer-guard-layered
 
 help:
-	@echo "Targets (pass SVC=<service>):"
+	@echo "Targets (pass SVC=<service>, or SVC=api-gateway):"
 	@echo "  build   compile Api + all test projects"
 	@echo "  test    run unit + integration test projects"
+	@echo "  (SVC=api-gateway builds/tests the gateway; its guards and coverage gate do not apply,"
+	@echo "   and its AuthPath E2E is excluded — run that via api-gateway/tests/docker-compose.auth-tests.yml)"
 	@echo "  gate    ADR-0005 coverage gate (cover-gate.sh, integration project last)"
 	@echo "  gate-all  run gate for every gateable service (one report each)"
 	@echo "  clean   remove bin/obj for SVC (resets stale build artifacts)"
@@ -138,9 +149,8 @@ test:
 	echo "test OK ($(SVC)) — full log: $$log"
 
 # Run from the service directory so cover-gate.sh resolves its relative project
-# paths and writes coverage/gate/ under the service (unchanged from the prior
-# hand-invocation). The integration project is passed last — it enforces the
-# threshold, per ADR-0005.
+# paths, while COVERAGE_DIR centralizes reports under backend/coverage/<service>/.
+# The integration project is passed last — it enforces the threshold, per ADR-0005.
 # Full cover-gate.sh output → log; echo only the per-project pass counts, the
 # Gate GREEN/FAILED verdict, and the line-coverage number. On a red gate, print
 # a bounded failing-test excerpt the driver can hand straight to the subagent
@@ -148,24 +158,25 @@ test:
 # summary is a convenience, never the source of truth.
 gate:
 	@mkdir -p $(LOGDIR); log="$(LOGDIR)/gate-$(SVC).log"; \
+	report_dir="$(COVERAGE_ROOT)/$(SVC)"; \
 	cd $(SVCDIR) && \
 	  units=$$(find tests -maxdepth 3 -name '*UnitTests*.csproj'        2>/dev/null | sort) && \
 	  integ=$$(find tests -maxdepth 3 -name '*IntegrationTests*.csproj' 2>/dev/null | sort) && \
-	  ../../scripts/cover-gate.sh $$units $$integ >"$$log" 2>&1; rc=$$?; \
+	  COVERAGE_DIR="$$report_dir" ../../scripts/cover-gate.sh $$units $$integ >"$$log" 2>&1; rc=$$?; \
 	  grep -hE 'Passed!|Failed!|Gate (GREEN|FAILED)' "$$log" || true; \
-	  [ -f coverage/gate/Summary.txt ] && grep -E 'Line coverage' coverage/gate/Summary.txt | head -n1 || true; \
+	  [ -f "$$report_dir/Summary.txt" ] && grep -E 'Line coverage' "$$report_dir/Summary.txt" | head -n1 || true; \
 	  if [ $$rc -ne 0 ]; then \
 	    echo "── failing tests (excerpt) ──"; \
 	    grep -hE 'Failed |Error Message|Expected:|Actual:|Assert\.' "$$log" | tail -n 60 || true; \
 	    echo "gate FAILED ($(SVC)) — full log: $$log"; \
 	  else \
-	    echo "gate GREEN ($(SVC)) — report: $(SVCDIR)/coverage/gate/index.html, full log: $$log"; \
+	    echo "gate GREEN ($(SVC)) — report: $$report_dir/index.html, full log: $$log"; \
 	  fi; \
 	  exit $$rc
 
 # Automates what the driver runs by hand after each Phase X.4: the same
 # per-service gate (ADR-0005) for every gateable service, one merged report each
-# under <svc>/coverage/gate/. Reuses the `gate` target verbatim — no second copy
+# under backend/coverage/<service>/. Reuses the `gate` target verbatim — no second copy
 # of the coverlet chain. Does NOT stop at the first red: every service runs so
 # you get the full picture, then it exits non-zero if any gate failed (CI uses a
 # per-service matrix instead, so a failure isolates to one job).
@@ -333,11 +344,30 @@ layer-guard:
 	  SVC="" scripts/layer-guard.sh; \
 	fi
 
+# Build-time gate: the dependency rule applies to every service, but NOT to the
+# api-gateway — a reverse proxy with no Domain/Application/Infrastructure trees,
+# where layer-guard.sh exits non-zero precisely because it finds nothing to check.
+# Exempting it here is what keeps `build SVC=api-gateway` from failing on a rule it
+# cannot violate. The standalone `make layer-guard` still scans every service.
+# The origin check mirrors the `layer-guard` target: SVC has a makefile default, so
+# it narrows the scan only when set on the command line.
+layer-guard-layered:
+	@if [ "$(SVCDIR)" = "api-gateway" ]; then \
+	  echo "layer-guard: api-gateway is a reverse proxy with no inner layers — not applicable, skipped."; \
+	elif [ "$(origin SVC)" = "command line" ]; then \
+	  SVC="$(SVC)" scripts/layer-guard.sh; \
+	else \
+	  SVC="" scripts/layer-guard.sh; \
+	fi
+
 # Build-time gate: run the structural guard for $(SVC) only when it has converged
 # (is in CONVERGED_SERVICES). Mid-migration services are skipped with a hint, so
-# their build is never blocked before Phase 2 collapses them.
+# their build is never blocked before Phase 2 collapses them. The api-gateway is
+# exempt for the same reason as layer-guard-layered — it has no Application/ tree.
 structure-guard-converged:
-	@if echo " $(CONVERGED_SERVICES) " | grep -q " $(SVC) "; then \
+	@if [ "$(SVCDIR)" = "api-gateway" ]; then \
+	  echo "structure-guard: api-gateway is a reverse proxy with no Application/ layer — not applicable, skipped."; \
+	elif echo " $(CONVERGED_SERVICES) " | grep -q " $(SVC) "; then \
 	  SVC="$(SVC)" scripts/structure-guard.sh; \
 	else \
 	  echo "structure-guard: $(SVC) not yet converged (ADR-0011) — skipped in build; preview with 'make structure-guard SVC=$(SVC)'."; \

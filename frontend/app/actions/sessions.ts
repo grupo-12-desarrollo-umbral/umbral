@@ -20,6 +20,7 @@ import {
   applyPenalty as applyPenaltyLib,
   getOperatorRanking as getOperatorRankingLib,
   getOperatorEvidenceTrace as getOperatorEvidenceTraceLib,
+  getSessionHistory as getSessionHistoryLib,
 } from '@/app/lib/sessions'
 import { listAssignableOperators as listAssignableOperatorsLib } from '@/app/lib/users'
 import { revalidatePath } from 'next/cache'
@@ -47,6 +48,7 @@ import type {
   AppliedPenaltyDto,
   RankingSnapshotDto,
   EvidenceTraceDto,
+  SessionHistoryDto,
 } from '@/app/lib/definitions'
 import { IdentityError } from '@/app/lib/definitions'
 
@@ -96,16 +98,29 @@ export async function assignSessionOperator(
   return result
 }
 
+// Returns the failure rather than throwing it: an Error thrown here crosses the Server Action
+// boundary, and only `message`/`digest` survive that trip — `cause` is dropped, so the rejected
+// from->to edge (InvalidSessionStateTransitionException.PublicDetail) would never reach the UI.
+export type TransitionSessionStateActionResult =
+  | { data: TransitionSessionStateResultDto }
+  | { error: string; detail?: string }
+
 export async function transitionSessionState(
   liveSessionId: string,
   targetState: SessionLifecycleState,
   reason?: string,
-): Promise<TransitionSessionStateResultDto> {
+): Promise<TransitionSessionStateActionResult> {
   const session = await verifySession()
-  if (session.role !== 'Operator') throw new Error('Forbidden')
-  const result = await transitionSessionStateLib(liveSessionId, targetState, reason)
-  revalidatePath('/dashboard')
-  return result
+  if (session.role !== 'Operator') return { error: 'forbidden' }
+  try {
+    const data = await transitionSessionStateLib(liveSessionId, targetState, reason)
+    revalidatePath('/dashboard')
+    return { data }
+  } catch (error) {
+    if (!(error instanceof Error)) return { error: 'unknown' }
+    const detail = typeof error.cause === 'string' && error.cause.trim() ? error.cause : undefined
+    return { error: error.message, detail }
+  }
 }
 
 export async function getSessionTimerSnapshotAction(
@@ -206,6 +221,31 @@ export async function getOperatorRankingAction(
       return { error: error.message }
     }
     return { error: 'Unexpected error fetching ranking' }
+  }
+}
+
+// RF-15 session audit history. Administrator OR Operator, mirroring SessionHistoryController's
+// policy — the only read here an administrator may perform, so it does not reuse the operator-only
+// guard above. A session with no recorded events is { data } with events: [], not an error.
+export async function getSessionHistoryAction(
+  liveSessionId: string,
+  teamId?: string,
+): Promise<
+  | { data: SessionHistoryDto }
+  | { unauthorized: true }
+  | { error: string }
+> {
+  const session = await verifySession()
+  if (session.role !== 'Administrator' && session.role !== 'Operator') return { unauthorized: true }
+  try {
+    const data = await getSessionHistoryLib(liveSessionId, teamId)
+    return { data }
+  } catch (error) {
+    if (error instanceof IdentityError) {
+      if (error.code === 'unauthorized') return { unauthorized: true }
+      return { error: error.message }
+    }
+    return { error: 'Unexpected error fetching session history' }
   }
 }
 

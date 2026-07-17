@@ -157,8 +157,8 @@ For scoring/ranking (HU-25B): check `score_entries` / `ranking_rows` for the exp
 
 Result of running the checks above against `develop` after the HU-38 fix, **refreshed after the Finding 2
 + Finding 3 fixes landed**. Static checks (S1–S8), the S5 shape-diff on all **six** cross-service pairs,
-and the R1 runtime queue sweep were all run; S8 now reports **no** publish-only exchanges. The one check
-**not** re-run live is R2 for the three history events — see the R2 status note below.
+and the R1 runtime queue sweep were all run; S8 now reports **no** publish-only exchanges. R2 is now
+verified live for **all three** history events — see the R2 status note below.
 **Open items are collected in [Open findings](#open-findings--things-to-fix) below.**
 
 **Coverage.** Only `session-operations-service` and `scoring-monitoring-service` use the message bus,
@@ -176,8 +176,8 @@ this event-wiring doc.
 | `session-target-resolved` | `TargetResolvedIntegrationEvent` | ✅ | ✅ | healthy |
 | `session-operator-assigned` | `LiveSessionOperatorAssignedIntegrationEvent` | ✅ *(fixed HU-38)* | ✅ *(fixed HU-38)* | healthy |
 | `session-state-changed` | `SessionStateChangedIntegrationEvent` | ✅ | ✅ | healthy — consumed by `SessionEventHistoryConsumer` *(Finding 2)*; **R2 verified live** |
-| `session-question-closed` | `QuestionClosedIntegrationEvent` | ✅ | ✅ | healthy — consumed by `SessionEventHistoryConsumer` *(Finding 2)*; bound + harness-covered, not driven live |
-| `session-results-finalized` | `SessionResultsFinalizedIntegrationEvent` | ✅ | ✅ | healthy — consumed by `SessionEventHistoryConsumer` *(Finding 2)*; bound + harness-covered, not driven live |
+| `session-question-closed` | `QuestionClosedIntegrationEvent` | ✅ | ✅ | healthy — consumed by `SessionEventHistoryConsumer` *(Finding 2)*; **R2 verified live** |
+| `session-results-finalized` | `SessionResultsFinalizedIntegrationEvent` | ✅ | ✅ | healthy — consumed by `SessionEventHistoryConsumer` *(Finding 2)*; **R2 verified live** |
 
 All three history events share a **single** `SessionEventHistory` endpoint (one consumer class implementing
 three `IConsumer<T>`), so the live queue is bound to three exchanges — see the R1 sweep below.
@@ -186,7 +186,7 @@ three `IConsumer<T>`), so the live queue is bound to three exchanges — see the
 
 | Exchange | Contract | Owner | Status |
 |---|---|---|---|
-| `scoring-score-entry-registered` | `ScoreEntryRegisteredIntegrationEvent` | scoring → scoring (ranking recalc) | wiring healthy; `_error`=0 |
+| `scoring-score-entry-registered` | `ScoreEntryRegisteredIntegrationEvent` | scoring → scoring (ranking recalc) | wiring healthy; `_error`=0 — but ⚠️ **Finding 4**: published with no outbox, post-commit, exception swallowed (lost-event hole) |
 | `session-evidence-submission-registered` | `EvidenceSubmissionRegisteredIntegrationEvent` | session-ops → session-ops | healthy; `_error` was 10 → **Finding 1 fixed + purged** |
 | `session-evidence-submission-accepted` | `EvidenceSubmissionAcceptedIntegrationEvent` | session-ops → session-ops | healthy; `_error` was 4 → **Finding 1 fixed + purged** |
 | `session-evidence-submission-rejected` | `EvidenceSubmissionRejectedIntegrationEvent` | session-ops → session-ops | healthy; `_error` was 2 → **Finding 1 fixed + purged** |
@@ -234,11 +234,12 @@ session-results-finalized  SessionEventHistory  queue
 session-state-changed      SessionEventHistory  queue
 ```
 
-**R2 status.** ✅ **Live publish→row observed.** Two operator transitions on session
-`7f614460-539c-4f92-a39a-b28c7f1aef2a` (`Active→Paused`, `Paused→Active`, both `200`) each appended a
-`session_events` row carrying the responsible operator (`444`), with R1 clean across both. Details and the
-row dump in Finding 2 below. `QuestionClosed` / `SessionResultsFinalized` have not been driven live —
-they rest on the bindings above plus the Finding 3 harness's real-broker coverage.
+**R2 status.** ✅ **Live publish→row observed for all three history events.** First, two operator
+transitions on session `7f614460-539c-4f92-a39a-b28c7f1aef2a` (`Active→Paused`, `Paused→Active`, both
+`200`) each appended a `session_events` row carrying the responsible operator (`444`). Then a full
+session run-out on `c9ac4367-c62b-4834-a919-6ae37f7505d6` (`7D582A`) drove the remaining two —
+`QuestionClosed` ×3 and `SessionResultsFinalized` — to real rows. R1 stayed clean throughout. Details
+and row dumps in Finding 2 below.
 
 No `[MessageUrn]` carried the `urn:message:` prefix (S6 clean). No consumer reads `ICurrentUser` (S7 clean).
 S5 shape-diff: all three cross-service pairs byte-identical (no F4).
@@ -382,8 +383,38 @@ event**, snapshotted by the publisher, confirming the S7/F6 rule holds here — 
 consumed rather than skipped on a URN mismatch. The session was returned to its original `Active` state
 afterwards.
 
-Only `SessionStateChanged` has been driven live; `QuestionClosed` and `SessionResultsFinalized` rest on
-the harness's real-broker coverage plus the verified bindings above.
+**R2 completed for the other two — 2026-07-15.** `QuestionClosed` and `SessionResultsFinalized` have now
+also been driven live, on session `c9ac4367-c62b-4834-a919-6ae37f7505d6` (`7D582A`).
+
+Reaching `Finished` is **not** an operator action: `LiveSession.CompleteActiveSubstageAndAdvance` is the
+only path to it (`LiveSession.cs:1314` — *"Finished is reached ONLY here, never operator-forced"*), and its
+only production caller is `TriviaRoundOrchestratorFacade.CloseAndAdvanceAsync`, reached from
+`AuthoritativeSessionTimerWorker` when an active trivia question's timer expires. So a `PATCH .../state`
+with `targetState: Finished` cannot produce this event; the session must **run itself out**. `7D582A` was
+suitable because it holds a single Trivia substage of three 30s questions and sat `Paused` at question 0.
+It was reassigned to `op-1` (444) via `PATCH /api/sessions/{id}/operator-assignment` as `admin-1` — an
+Operator may only transition a session assigned to them (`SessionAdministrationAuthorizationProxy.cs:79`),
+which 403s otherwise — then resumed as `op-1` and left to the timer worker. It reached `Finished` 70s later:
+
+```
+event_type              | payload_summary                                                | responsible_user_id
+SessionStateChanged     | Paused→Active: R2 live verification of SessionResultsFinalized |                 444
+QuestionClosed          | Question 0 closed                                              |
+QuestionClosed          | Question 1 closed                                              |
+QuestionClosed          | Question 2 closed                                              |
+SessionStateChanged     | Active→Finished                                                |
+SessionResultsFinalized | Session results finalized                                      |
+```
+
+R1 clean throughout (`SessionEventHistory` = 0 messages / 1 consumer; no `_skipped`/`_error` non-zero), so
+all six were consumed rather than skipped. **All three history events are now R2-verified live.**
+
+Two details worth keeping. The terminal `Active→Finished` and `SessionResultsFinalized` carry a **null**
+`responsible_user_id`, correctly — they are raised by the timer worker, which has no HTTP actor. That is the
+S7/F6 rule holding from the other side: the resume shows `444` because a human did it; the run-out shows
+null because nobody did. And the last question's close raises `QuestionClosed` **and** the substage
+completion in the same tick, which is why the last three rows share an `occurred_at` — the deterministic
+`SourceEventKey` discriminator (question index / state pair) is what keeps them from colliding.
 
 ---
 
@@ -394,6 +425,45 @@ but have **no production `IConsumer`** (only test consumers). Either a consumer 
 forgotten downstream effect) or they are intentionally reserved / consumed off-repo. **Action:** confirm
 intent per event; if truly unused, consider not publishing them (wasted outbox inserts + exchange
 declarations), or document the intended subscriber. Low severity — no data loss, just dead exchanges.
+
+### Finding 4 — scoring publishes `ScoreEntryRegistered` with no outbox and swallows the failure (⚠️ OPEN)
+
+**The two services do not publish the same way, and only one is safe.** `session-operations-service` wires
+the EF transactional outbox (`MassTransitMessagingRegistration.cs:31` — `AddEntityFrameworkOutbox` +
+`UseBusOutbox`), dispatches **pre-commit**, and its publish handlers **rethrow** so a publish failure rolls
+the business transaction back. `scoring-monitoring-service` does **none** of that:
+
+- **No outbox.** Its `AddMassTransitMessaging` has no `AddEntityFrameworkOutbox` call, and
+  `scoring_monitoring` has no `OutboxMessage`/`OutboxState`/`InboxState` tables (verified live). The publish
+  goes straight to the broker.
+- **Post-commit dispatch.** `DispatchDomainEventsInterceptor` overrides **`SavedChanges`/`SavedChangesAsync`**
+  (`Interceptors/DispatchDomainEventsInterceptor.cs:16,22`), so domain events fan out *after* the row is
+  already committed. Session-ops dispatches pre-commit by contrast.
+- **The exception is swallowed.** `PublishScoreEntryRegisteredIntegrationEventHandler.cs:39-46` catches
+  `Exception`, logs, and **does not rethrow**.
+
+**Failure mode.** A score entry is committed; the post-commit publish of `ScoreEntryRegistered` fails
+(broker down/unreachable, or the process dies between commit and publish); the exception is logged and
+swallowed; the event is **gone**. `RecalculateRankingConsumer` never runs, `ranking_rows` stays stale, and
+the score sits in `score_entries` with no ranking reflecting it. There is **no dead-letter** (the message
+never reached the broker), no retry, and no outbox row — the only trace is one log line.
+
+**Why every check reports healthy.** R1 sweeps `_skipped`/`_error` queues, but a message that was never
+published cannot dead-letter. R2 finds the `score_entries` row, because that part committed fine. The
+Testcontainers harness publishes the contract itself, so it never exercises this publisher. This is the
+Finding 1 lesson one level up: *R1 clean + a row present does not prove the event was published.*
+
+**Scope.** One publisher — `ScoreEntryRegistered` (`scoring-score-entry-registered`, the internal
+scoring→scoring ranking recalc). It is the RF-10/RF-12 flow the alignment doc calls the strongest §15
+evidence, which is what makes this worth closing rather than documenting.
+
+**Fix (not applied — needs a decision).** Mirror session-ops: add `AddEntityFrameworkOutbox<ScoringMonitoringDbContext>`
+with `UseBusOutbox()` (requires a migration for the outbox tables), move the dispatch pre-commit
+(`SavingChanges` rather than `SavedChanges`), and **rethrow** from the publish handler so a failure rolls
+back. Cheaper stopgap if the outbox is out of scope: at minimum **rethrow** instead of swallowing, so the
+failure surfaces rather than silently losing the recálculo.
+
+---
 
 ### Finding 3 — no Testcontainers `IConsumer<T>` messaging test (✅ RESOLVED 2026-07-15)
 

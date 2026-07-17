@@ -38,7 +38,12 @@ public class TriviaQuizTests
         var quiz = TriviaQuiz.Create("Intro Quiz", "Warm-up trivia");
         var replacementQuestions = new[]
         {
-            TriviaQuestion.Create("Question 2")
+            TriviaQuestion.Create(
+                "Question 2",
+                [
+                    TriviaOption.Create("Option A", 1, true),
+                    TriviaOption.Create("Option B", 2, false)
+                ])
         };
 
         quiz.ClearDomainEvents();
@@ -103,6 +108,47 @@ public class TriviaQuizTests
         var act = () => TriviaQuiz.Create("Intro Quiz", description!);
 
         act.Should().Throw<TriviaQuizDescriptionRequiredException>();
+    }
+
+    [Theory]
+    [InlineData(1)]
+    [InlineData(5)]
+    public void Create_WhenQuestionOptionCountIsOutsideAcceptedBounds_Throws(int optionCount)
+    {
+        var options = Enumerable.Range(1, optionCount)
+            .Select(index => TriviaOption.Create($"Option {index}", index, index == 1))
+            .ToArray();
+        var questions = new[]
+        {
+            TriviaQuestion.Create("Question 1", 100, 30, null, options)
+        };
+
+        var act = () => TriviaQuiz.Create("Intro Quiz", "Warm-up trivia", questions);
+
+        act.Should().Throw<TriviaQuestionMustHaveBetweenTwoAndFourOptionsException>();
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, true)]
+    public void Create_WhenQuestionCorrectOptionCountIsNotExactlyOne_Throws(bool firstCorrect, bool secondCorrect)
+    {
+        var questions = new[]
+        {
+            TriviaQuestion.Create(
+                "Question 1",
+                100,
+                30,
+                null,
+                [
+                    TriviaOption.Create("Option A", 1, firstCorrect),
+                    TriviaOption.Create("Option B", 2, secondCorrect)
+                ])
+        };
+
+        var act = () => TriviaQuiz.Create("Intro Quiz", "Warm-up trivia", questions);
+
+        act.Should().Throw<TriviaQuestionMustHaveExactlyOneCorrectOptionException>();
     }
 
     [Fact]

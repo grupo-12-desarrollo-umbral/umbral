@@ -46,6 +46,10 @@ internal static class MissionStructureEditor
         string? text,
         ClueVisibilityPolicy? visibility)
     {
+        // Several branches below mutate child nodes directly rather than through an aggregate
+        // mutator, so the terminal-retirement guard (HU-09) must be enforced here at the entry.
+        mission.EnsureEditable();
+
         if (mission.Stages.SingleOrDefault(stage => stage.Id == nodeId) is { } stage)
         {
             mission.RenameNode(stage.Id, title, sequenceOrder);
@@ -84,6 +88,10 @@ internal static class MissionStructureEditor
 
     public static void RemoveNode(Mission mission, int nodeId)
     {
+        // Substage/clue removal below mutates child nodes directly, so enforce the
+        // terminal-retirement guard (HU-09) at the entry rather than per branch.
+        mission.EnsureEditable();
+
         if (mission.Stages.Any(stage => stage.Id == nodeId))
         {
             mission.RemoveStage(nodeId);
@@ -126,6 +134,10 @@ internal static class MissionStructureEditor
         int substageId,
         SubstagePlayMode playMode)
     {
+        // Swapping play mode replaces the substage in place (direct child mutation), so enforce
+        // the terminal-retirement guard (HU-09) here.
+        mission.EnsureEditable();
+
         var stage = FindStage(mission, stageId);
         var existing = stage.Substages.SingleOrDefault(substage => substage.Id == substageId)
             ?? throw new ApplicationNotFoundException("MissionNode", substageId);
@@ -152,6 +164,10 @@ internal static class MissionStructureEditor
 
     public static void UnassociateClueFromTarget(Mission mission, int stageId, int substageId, int targetId)
     {
+        // Unassociation rebuilds the target in place (direct child mutation), so enforce the
+        // terminal-retirement guard (HU-09) here.
+        mission.EnsureEditable();
+
         var substage = FindSubstage(mission, stageId, substageId);
         var existing = substage.Targets.SingleOrDefault(target => target.Id == targetId)
             ?? throw new ApplicationNotFoundException("Target", targetId);

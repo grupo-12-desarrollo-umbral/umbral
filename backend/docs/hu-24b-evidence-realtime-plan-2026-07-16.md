@@ -142,8 +142,8 @@ Don't invent a field the event can't fill.
 ## Out of scope
 
 - Work item C (consolidated feed) and D (panel freshness) — separate steps of the frontend plan.
-- The RF-15 read path: `SessionEventHistory` in scoring-monitoring stays write-only. RF-15's existence
-  is satisfied; broadening it is a separate ticket.
+- The RF-15 read path is owned by DES-100 / HU-40. Its first delivery makes
+  `SessionEventHistory` queryable through scoring-monitoring; a write-only table does not satisfy RF-15.
 - The admin/hub policy inconsistency: `RankingController` allows `AdministratorOrOperator` and
   `ScoringSessionAuthorizationProxy` grants Administrator, but `/hubs/scoring` is mapped
   `ParticipantOrOperator` (`scoring Program.cs:31-32`), so an admin can read ranking over REST yet fails

@@ -25,4 +25,9 @@
   <ItemGroup>
     <ProjectReference Include="../../src/ApiGateway.csproj" />
   </ItemGroup>
+
+  <ItemGroup>
+    <None Include="../../src/appsettings.json" Link="Configuration/appsettings.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../../src/appsettings.Development.json" Link="Configuration/appsettings.Development.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
 </Project>

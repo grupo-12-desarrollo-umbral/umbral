@@ -9,13 +9,16 @@ internal sealed class PausedLiveSessionState : LiveSessionStateBase
 
     public override bool CanTransitionTo(SessionState nextState)
     {
-        return nextState is SessionState.Active or SessionState.Finished or SessionState.Cancelled;
+        // Finished is deliberately excluded: it is reached only via SessionCompletion, which fires
+        // only while Active (substage completion is timer-driven), never via manual Operator
+        // transition from Paused.
+        return nextState is SessionState.Active or SessionState.Cancelled;
     }
 
     public override void Enter(LiveSession session, DateTimeOffset occurredAt)
     {
         session.EnterPausedSessionState(occurredAt);
         session.EnterPausedQuestionTimerState(occurredAt);
-        session.EnterPausedSubstageTimerState(occurredAt);
+        session.EnterPausedMissionTimerState(occurredAt);
     }
 }

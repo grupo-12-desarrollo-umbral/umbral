@@ -272,24 +272,25 @@ export function TriviasPanel({ role }: { role: DashboardRole }) {
     if (!selectedQuiz) return
     startTransition(async () => {
       setLifecycleError(null)
-      try {
-        const updated = await retireTriviaQuiz(selectedQuiz.id)
-        setSelectedQuiz(updated)
+      const result = await retireTriviaQuiz(selectedQuiz.id)
+      if ('data' in result) {
+        setSelectedQuiz(result.data)
         setConfirmRetire(false)
         setRefreshKey((k) => k + 1)
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : ''
-        if (msg === 'trivia_retire_conflict') {
-          setLifecycleError(
-            'This quiz cannot be retired. It may already be archived or have no usage history.',
-          )
-        } else if (msg === 'trivia_not_found') {
-          setLifecycleError('Trivia quiz no longer exists.')
-        } else {
-          setLifecycleError('Failed to retire quiz. Try again.')
-        }
-        setConfirmRetire(false)
+        return
       }
+      if (result.error === 'trivia_retire_conflict') {
+        // `detail` names the actual blocker — an active mission still referencing the quiz, or its
+        // current lifecycle state. Prefer it; the generic line is only for an unreadable body.
+        setLifecycleError(
+          result.detail ?? 'This quiz cannot be retired in its current state.',
+        )
+      } else if (result.error === 'trivia_not_found') {
+        setLifecycleError('Trivia quiz no longer exists.')
+      } else {
+        setLifecycleError('Failed to retire quiz. Try again.')
+      }
+      setConfirmRetire(false)
     })
   }
 

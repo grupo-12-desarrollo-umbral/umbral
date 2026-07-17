@@ -16,6 +16,7 @@ public sealed class PublishSessionStateChangedIntegrationEventHandlerTests
     public async Task Handle_PublishesExactlyOneMappedSessionStateChangedIntegrationEvent()
     {
         var sessionId = Guid.NewGuid();
+        var responsibleUserExternalId = Guid.NewGuid();
         var publishEndpoint = new Mock<IPublishEndpoint>();
         var handler = NewHandler(publishEndpoint.Object);
 
@@ -27,7 +28,8 @@ public sealed class PublishSessionStateChangedIntegrationEventHandlerTests
                 ChangedAt,
                 responsibleUserId: 42,
                 reason: "Doors open",
-                actorType: SessionEventActorType.Operator),
+                actorType: SessionEventActorType.Operator,
+                responsibleUserExternalId: responsibleUserExternalId),
             CancellationToken.None);
 
         publishEndpoint.Verify(
@@ -37,7 +39,7 @@ public sealed class PublishSessionStateChangedIntegrationEventHandlerTests
                     SessionState.Scheduled,
                     SessionState.Preparing,
                     ChangedAt,
-                    42,
+                    responsibleUserExternalId,
                     "Doors open"),
                 It.IsAny<CancellationToken>()),
             Times.Once);

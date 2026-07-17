@@ -1,4 +1,6 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using umbral_backend.Api.Services;
 using umbral_backend.Application.Dtos.Users;
 using umbral_backend.Application.Common.Models;
 using umbral_backend.Application.Users.Commands.AssignUserRole;
@@ -13,8 +15,11 @@ using umbral_backend.Application.Users.Queries.GetAuthenticatedActorProfile;
 
 namespace umbral_backend.Api.Controllers;
 
+// Role requirements vary per route, so the controller-level policy is only the baseline "any
+// authenticated user"; each route tightens it, and the two anonymous routes opt out explicitly.
 [ApiController]
 [Route("api/users")]
+[Authorize]
 public sealed class UsersController(ISender sender) : ControllerBase
 {
     [HttpPost("authenticated")]
@@ -31,6 +36,7 @@ public sealed class UsersController(ISender sender) : ControllerBase
     // no account yet. The gateway exposes this single /api/users/register route without auth and behind
     // per-IP rate limiting; every other /api/users/* route stays authenticated. The role is server-fixed
     // to Participant in the command handler and never read from the request body.
+    [AllowAnonymous]
     [HttpPost("register")]
     public async Task<ActionResult<RegisterParticipantResultDto>> RegisterParticipantAsync(
         RegisterParticipantRequest request,
@@ -47,6 +53,7 @@ public sealed class UsersController(ISender sender) : ControllerBase
     // Like register, anonymity is granted at the gateway (dedicated anonymous route + per-IP rate
     // limiting), not by an attribute here. Returns 204 No Content ALWAYS — the same response whether or
     // not the email is registered, so the endpoint never discloses account existence.
+    [AllowAnonymous]
     [HttpPost("forgot-password")]
     public async Task<IActionResult> ForgotPasswordAsync(
         ForgotPasswordRequest request,
@@ -57,6 +64,7 @@ public sealed class UsersController(ISender sender) : ControllerBase
         return NoContent();
     }
 
+    [Authorize(Policy = AuthorizationPolicies.Administrator)]
     [HttpPost("invitations")]
     public async Task<ActionResult<InviteUserResultDto>> InviteUserAsync(
         InviteUserRequest request,
@@ -75,6 +83,7 @@ public sealed class UsersController(ISender sender) : ControllerBase
         return Ok(result);
     }
 
+    [Authorize(Policy = AuthorizationPolicies.AdminOrOperator)]
     [HttpGet]
     public async Task<ActionResult<PagedResult<UserAccessCatalogItemDto>>> GetUsersAsync(
         [FromQuery] GetUsersRequest request,
@@ -87,6 +96,7 @@ public sealed class UsersController(ISender sender) : ControllerBase
         return Ok(result);
     }
 
+    [Authorize(Policy = AuthorizationPolicies.Administrator)]
     [HttpDelete("{id:int}/access")]
     public async Task<IActionResult> DeactivateUserAccessAsync(
         int id,
@@ -96,6 +106,7 @@ public sealed class UsersController(ISender sender) : ControllerBase
         return NoContent();
     }
 
+    [Authorize(Policy = AuthorizationPolicies.Administrator)]
     [HttpPost("{id:int}/access")]
     public async Task<IActionResult> ReactivateUserAccessAsync(
         int id,
@@ -105,6 +116,7 @@ public sealed class UsersController(ISender sender) : ControllerBase
         return NoContent();
     }
 
+    [Authorize(Policy = AuthorizationPolicies.Administrator)]
     [HttpPatch("{id:int}/role")]
     public async Task<IActionResult> AssignUserRoleAsync(
         int id,

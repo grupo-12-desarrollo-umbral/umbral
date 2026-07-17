@@ -46,6 +46,10 @@ public sealed class AddMissionNodeCommandHandler
                         request.ClueText ?? string.Empty,
                         ParseClueVisibility(request.ClueVisibilityPolicy)));
                 break;
+            default:
+                throw MissionStructureEditor.ValidationFailure(
+                    nameof(request.NodeType),
+                    $"Unrecognized node type '{request.NodeType}'.");
         }
 
         await _missionRepository.UpdateAsync(mission, cancellationToken);

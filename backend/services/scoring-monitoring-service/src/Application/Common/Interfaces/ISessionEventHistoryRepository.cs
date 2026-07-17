@@ -5,4 +5,9 @@ namespace umbral_backend.Application.Common.Interfaces;
 public interface ISessionEventHistoryRepository
 {
     Task AppendAsync(SessionEvent sessionEvent, CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<SessionEvent>> GetBySessionAsync(
+        Guid liveSessionId,
+        Guid? teamId,
+        CancellationToken cancellationToken);
 }

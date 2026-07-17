@@ -1,6 +1,7 @@
 using MediatR;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Moq;
+using umbral_backend.Application.Common.Interfaces;
 using umbral_backend.Domain.Common;
 using umbral_backend.Infrastructure.Persistence.Interceptors;
 
@@ -29,11 +30,24 @@ public sealed class DispatchDomainEventsInterceptorTests
             .AddInterceptors(interceptor)
             .Options);
 
+    private static DispatchDomainEventsInterceptor NewInterceptor(
+        IMediator mediator,
+        Mock<IOutboxDomainEventDispatcher>? outboxDispatcher = null)
+    {
+        outboxDispatcher ??= new Mock<IOutboxDomainEventDispatcher>();
+        var serviceProvider = new Mock<IServiceProvider>();
+        serviceProvider
+            .Setup(provider => provider.GetService(typeof(IOutboxDomainEventDispatcher)))
+            .Returns(outboxDispatcher.Object);
+
+        return new DispatchDomainEventsInterceptor(mediator, serviceProvider.Object);
+    }
+
     [Fact]
     public async Task SavedChangesAsync_EntityWithEvents_PublishesAndClears()
     {
         var mediator = new Mock<IMediator>();
-        await using var context = NewContext(new DispatchDomainEventsInterceptor(mediator.Object));
+        await using var context = NewContext(NewInterceptor(mediator.Object));
         var thing = new EventThing();
         thing.Raise();
         context.Add(thing);
@@ -48,7 +62,7 @@ public sealed class DispatchDomainEventsInterceptorTests
     public async Task SavedChangesAsync_ForwardsTheSaveCancellationToken()
     {
         var mediator = new Mock<IMediator>();
-        await using var context = NewContext(new DispatchDomainEventsInterceptor(mediator.Object));
+        await using var context = NewContext(NewInterceptor(mediator.Object));
         var thing = new EventThing();
         thing.Raise();
         context.Add(thing);
@@ -63,7 +77,7 @@ public sealed class DispatchDomainEventsInterceptorTests
     public void SavedChanges_EntityWithEvents_PublishesOnSyncPath()
     {
         var mediator = new Mock<IMediator>();
-        using var context = NewContext(new DispatchDomainEventsInterceptor(mediator.Object));
+        using var context = NewContext(NewInterceptor(mediator.Object));
         var thing = new EventThing();
         thing.Raise();
         context.Add(thing);
@@ -77,7 +91,7 @@ public sealed class DispatchDomainEventsInterceptorTests
     public async Task SavedChangesAsync_EntityWithoutEvents_PublishesNothing()
     {
         var mediator = new Mock<IMediator>();
-        await using var context = NewContext(new DispatchDomainEventsInterceptor(mediator.Object));
+        await using var context = NewContext(NewInterceptor(mediator.Object));
         context.Add(new EventThing());
 
         await context.SaveChangesAsync();
@@ -89,7 +103,7 @@ public sealed class DispatchDomainEventsInterceptorTests
     public async Task NullContext_IsIgnoredOnBothEntryPoints()
     {
         var mediator = new Mock<IMediator>();
-        var interceptor = new DispatchDomainEventsInterceptor(mediator.Object);
+        var interceptor = NewInterceptor(mediator.Object);
         var eventData = new SaveChangesCompletedEventData(null!, null!, context: null, entitiesSavedCount: 0);
 
         var sync = interceptor.SavedChanges(eventData, 0);
@@ -98,5 +112,25 @@ public sealed class DispatchDomainEventsInterceptorTests
         sync.Should().Be(0);
         async.Should().Be(0);
         mediator.Verify(m => m.Publish(It.IsAny<object>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task SavingChangesAsync_EntityWithEvents_EnqueuesBeforePostCommitPublication()
+    {
+        var mediator = new Mock<IMediator>();
+        var outboxDispatcher = new Mock<IOutboxDomainEventDispatcher>();
+        await using var context = NewContext(NewInterceptor(mediator.Object, outboxDispatcher));
+        var thing = new EventThing();
+        thing.Raise();
+        context.Add(thing);
+
+        await context.SaveChangesAsync();
+
+        outboxDispatcher.Verify(
+            dispatcher => dispatcher.DispatchAsync(It.IsAny<Ping>(), It.IsAny<CancellationToken>()),
+            Times.Once);
+        mediator.Verify(
+            dispatcher => dispatcher.Publish(It.IsAny<BaseEvent>(), It.IsAny<CancellationToken>()),
+            Times.Once);
     }
 }

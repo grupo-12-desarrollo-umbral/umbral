@@ -30,17 +30,17 @@ internal abstract class LiveSessionStateBase : ILiveSessionState
         return false;
     }
 
-    public virtual AuthoritativeSessionTimerSnapshot GetSubstageTimerSnapshot(LiveSession session, DateTimeOffset observedAt)
+    public virtual AuthoritativeSessionTimerSnapshot GetMissionTimerSnapshot(LiveSession session, DateTimeOffset observedAt)
     {
-        return session.GetFrozenSubstageTimerSnapshot(observedAt);
+        return session.GetFrozenMissionTimerSnapshot(observedAt);
     }
 
-    public virtual AuthoritativeSessionTimerSnapshot MarkSubstageTimerExpiredIfElapsed(LiveSession session, DateTimeOffset occurredAt)
+    public virtual AuthoritativeSessionTimerSnapshot MarkMissionTimerExpiredIfElapsed(LiveSession session, DateTimeOffset occurredAt)
     {
-        return GetSubstageTimerSnapshot(session, occurredAt);
+        return GetMissionTimerSnapshot(session, occurredAt);
     }
 
-    public virtual bool IsSubstageTimerAdvancing(LiveSession session)
+    public virtual bool IsMissionTimerAdvancing(LiveSession session)
     {
         return false;
     }

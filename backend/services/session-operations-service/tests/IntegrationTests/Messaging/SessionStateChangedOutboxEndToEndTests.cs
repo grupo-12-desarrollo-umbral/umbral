@@ -27,6 +27,7 @@ namespace umbral_backend.Infrastructure.IntegrationTests.Messaging;
 public sealed class SessionStateChangedOutboxEndToEndTests
 {
     private static readonly TimeSpan PromptBudget = TimeSpan.FromSeconds(2);
+    private static readonly Guid OperatorExternalId = Guid.Parse("06cdd74a-c80e-4f8b-9788-a0eef85d05f2");
 
     private readonly string _connectionString;
     private readonly PersistenceTestContextFactory _contextFactory;
@@ -106,7 +107,7 @@ public sealed class SessionStateChangedOutboxEndToEndTests
                 received.LiveSessionId.Should().Be(seeded.LiveSessionId);
                 received.PreviousState.Should().Be(SessionState.Scheduled);
                 received.CurrentState.Should().Be(SessionState.Preparing);
-                received.ResponsibleUserId.Should().Be(seeded.OperatorUserId);
+                received.ResponsibleUserExternalId.Should().Be(OperatorExternalId);
                 received.Reason.Should().Be("Phase 1 transition");
 
                 await AssertOutboxRowDrainedAsync();
@@ -186,7 +187,8 @@ public sealed class SessionStateChangedOutboxEndToEndTests
                 DateTimeOffset.UtcNow,
                 new SessionStateTransitionPolicy(),
                 "Phase 1 transition",
-                seeded.OperatorUserId);
+                seeded.OperatorUserId,
+                OperatorExternalId);
             await repository.UpdateAsync(session, CancellationToken.None);
         }
         finally

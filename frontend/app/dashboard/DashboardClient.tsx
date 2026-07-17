@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useReducer, useRef, useState, useSyncE
 import { logout } from '@/app/actions/auth';
 import { refreshSession } from '@/app/actions/session';
 import { getUsersPage, deactivateUser, assignUserRole, inviteUser } from '@/app/actions/users';
-import { listSessionsForOperator, transitionSessionState, getSessionTimerSnapshotAction, getTriviaAnsweredMonitorAction, getOperatorSessionPanelAction, getOperatorRankingAction, getOperatorEvidenceTraceAction, getReleasableCluesAction, getTriviaAnswerReviewAction } from '@/app/actions/sessions';
+import { listSessionsForOperator, transitionSessionState, getSessionTimerSnapshotAction, getTriviaAnsweredMonitorAction, getOperatorSessionPanelAction, getOperatorRankingAction, getOperatorEvidenceTraceAction, getSessionHistoryAction, getReleasableCluesAction, getTriviaAnswerReviewAction } from '@/app/actions/sessions';
 import { TeamsPanel } from './TeamsPanel'
 import { TriviasPanel } from './TriviasPanel'
 import { MissionsPanel } from './MissionsPanel'
@@ -20,6 +20,7 @@ import { OperativeCluePanel } from './OperativeCluePanel'
 import { PenaltyPanel } from './PenaltyPanel'
 import { RankingPanel } from './RankingPanel'
 import { EvidenceSubmissionsPanel } from './EvidenceSubmissionsPanel'
+import { SessionHistoryPanel } from './SessionHistoryPanel'
 import { evidenceReducer, emptyEvidence } from './evidence-trace'
 import { isNonLiveQuestionSnapshot, revealAnswerReviewSequenceOrder } from './timer-snapshot'
 import { createSessionStateRealtimeClient, type SessionRealtimeStatus } from '@/app/lib/realtime/session-state-client'
@@ -31,6 +32,7 @@ import type {
   InvitableRole,
   PagedResult,
   SessionAssignmentSummaryDto,
+  SessionHistoryRowDto,
   SessionLifecycleState,
   SessionStateChangedNotificationDto,
   SessionTimerSnapshotDto,
@@ -375,6 +377,39 @@ function operatorPanelReducer(state: OperatorPanelState, action: OperatorPanelAc
   }
 }
 
+// RF-15 session audit history. REST-only — no push feeds it, so unlike the evidence trace there is no
+// merge case: `loaded` replaces outright, and the list is only as fresh as the last read.
+interface SessionHistoryState {
+  loading: boolean
+  unauthorized: boolean
+  error: string | null
+  events: SessionHistoryRowDto[]
+}
+
+const emptySessionHistory: SessionHistoryState = { loading: false, unauthorized: false, error: null, events: [] }
+
+type SessionHistoryAction =
+  | { type: 'reset' }
+  | { type: 'load' }
+  | { type: 'loaded'; events: SessionHistoryRowDto[] }
+  | { type: 'unauthorized' }
+  | { type: 'failed'; error: string }
+
+function sessionHistoryReducer(state: SessionHistoryState, action: SessionHistoryAction): SessionHistoryState {
+  switch (action.type) {
+    case 'reset':
+      return emptySessionHistory
+    case 'load':
+      return { ...state, loading: true, unauthorized: false, error: null }
+    case 'loaded':
+      return { loading: false, unauthorized: false, error: null, events: action.events }
+    case 'unauthorized':
+      return { ...emptySessionHistory, unauthorized: true }
+    case 'failed':
+      return { ...state, loading: false, error: action.error }
+  }
+}
+
 // HU-24B ranking state. Like the operator panel, both the REST snapshot and the RankingChanged push
 // carry the full standings (a wholesale re-projection), so `loaded` replaces outright.
 interface RankingState {
@@ -542,6 +577,7 @@ export default function DashboardClient({
       ),
     [operatorPanelState.panel],
   )
+  const [sessionHistoryState, dispatchSessionHistory] = useReducer(sessionHistoryReducer, emptySessionHistory)
   const [answerReviewState, dispatchAnswerReview] = useReducer(answerReviewReducer, emptyAnswerReview)
   // HU-28 release-clue picker source: the active substage's still-releasable hidden clues.
   // No SignalR push exists for it, so it is (re)loaded on session select, reconnect, and substage advance.
@@ -718,6 +754,17 @@ export default function DashboardClient({
     if ('data' in result) dispatchEvidence({ type: 'snapshot', data: result.data })
     else if ('unauthorized' in result) dispatchEvidence({ type: 'unauthorized' })
     else dispatchEvidence({ type: 'failed', error: result.error })
+  }, [])
+
+  const loadSessionHistory = useCallback(async (liveSessionId: string) => {
+    dispatchSessionHistory({ type: 'load' })
+    const result = await getSessionHistoryAction(liveSessionId)
+    // Drop a late response for a session the operator has since switched away from.
+    if (selectedRealtimeSessionIdRef.current !== liveSessionId) return
+    // Rendered in the server's order — the repository already sorts by OccurredAt.
+    if ('data' in result) dispatchSessionHistory({ type: 'loaded', events: result.data.events })
+    else if ('unauthorized' in result) dispatchSessionHistory({ type: 'unauthorized' })
+    else dispatchSessionHistory({ type: 'failed', error: result.error })
   }, [])
 
   const loadReleasableClues = useCallback(async (liveSessionId: string) => {
@@ -902,6 +949,10 @@ export default function DashboardClient({
           // Refetch the trace: pushes fired while the hub was down are gone, and only the REST
           // projection can tell us what we missed.
           void loadEvidence(selectedRealtimeSessionId)
+          // No push feeds the history, so a hub reconnect is not itself a staleness signal for it —
+          // but the outage that dropped the hub is what leaves the panel stranded in its error state,
+          // whose copy promises an automatic refresh. This is the only thing that keeps that promise.
+          void loadSessionHistory(selectedRealtimeSessionId)
         }
       },
     })
@@ -918,6 +969,7 @@ export default function DashboardClient({
     loadOperatorPanel,
     loadReleasableClues,
     loadEvidence,
+    loadSessionHistory,
     loadAnswerReview,
     resetTriviaRound,
     completeTriviaRound,
@@ -971,6 +1023,7 @@ export default function DashboardClient({
     dispatchOperatorPanel({ type: 'reset' })
     dispatchRanking({ type: 'reset' })
     dispatchEvidence({ type: 'reset' })
+    dispatchSessionHistory({ type: 'reset' })
     dispatchAnswerReview({ type: 'reset' })
     dispatchReleasableClues({ type: 'reset' })
     if (!selectedRealtimeSessionId) return
@@ -979,8 +1032,9 @@ export default function DashboardClient({
     void loadOperatorPanel(selectedRealtimeSessionId)
     void loadRanking(selectedRealtimeSessionId)
     void loadEvidence(selectedRealtimeSessionId)
+    void loadSessionHistory(selectedRealtimeSessionId)
     void loadReleasableClues(selectedRealtimeSessionId)
-  }, [selectedRealtimeSessionId, loadTimerSnapshot, loadAnsweredMonitor, loadOperatorPanel, loadRanking, loadEvidence, loadReleasableClues])
+  }, [selectedRealtimeSessionId, loadTimerSnapshot, loadAnsweredMonitor, loadOperatorPanel, loadRanking, loadEvidence, loadSessionHistory, loadReleasableClues])
 
   function announce(title: string, body: string) {
     setToast({ title, body });
@@ -1013,8 +1067,13 @@ export default function DashboardClient({
     )
   }
 
-  function mapTransitionError(err: unknown) {
-    if (!(err instanceof Error)) return 'State transition failed. Try again.'
+  function mapTransitionError(code: string, detail?: string) {
+    // invalid_transition carries the specific rejected from->to edge in `detail`
+    // (InvalidSessionStateTransitionException.PublicDetail, returned by transitionSessionState)
+    // when the backend supplied one; fall back to the generic message otherwise.
+    if (code === 'invalid_transition' && detail?.trim()) {
+      return detail
+    }
 
     return (
       {
@@ -1024,8 +1083,9 @@ export default function DashboardClient({
         session_unassigned: 'This session has no assigned operator. Ask an administrator to assign one before changing its state.',
         invalid_transition: 'That state change is not allowed from the current session state.',
         invalid_payload: 'Invalid state change payload. Reload the page and try again.',
+        forbidden: 'Only an operator can change a session state.',
       } satisfies Record<string, string>
-    )[err.message] ?? 'State transition failed. Try again.'
+    )[code] ?? 'State transition failed. Try again.'
   }
 
   function requestTransition(targetState: SessionLifecycleState) {
@@ -1049,11 +1109,16 @@ export default function DashboardClient({
     setPendingTransition(targetState)
     setTransitionError(null)
     try {
-      const result = await transitionSessionState(
+      const outcome = await transitionSessionState(
         selectedOperatorSession.liveSessionId,
         targetState,
         targetState === 'Cancelled' ? cancelReason : undefined,
       )
+      if ('error' in outcome) {
+        setTransitionError(mapTransitionError(outcome.error, outcome.detail))
+        return
+      }
+      const result = outcome.data
       applyTransitionResult(result)
       setConfirmTransition(null)
       setCancelReason('')
@@ -1068,8 +1133,9 @@ export default function DashboardClient({
       } else {
         void loadTimerSnapshot(selectedOperatorSession.liveSessionId)
       }
-    } catch (err) {
-      setTransitionError(mapTransitionError(err))
+    } catch {
+      // Only unexpected faults reach here now — expected failures come back as { error }.
+      setTransitionError('State transition failed. Try again.')
     } finally {
       setPendingTransition(null)
     }
@@ -1438,6 +1504,14 @@ export default function DashboardClient({
                   // Evidence rides /hubs/sessions, so it reports the SESSION transport — unlike the
                   // ranking above, which has its own scoring-hub status.
                   live={realtimeStatus === 'Connected'}
+                />
+
+                <SessionHistoryPanel
+                  events={sessionHistoryState.events}
+                  teamNames={evidenceTeamNames}
+                  unauthorized={sessionHistoryState.unauthorized}
+                  error={sessionHistoryState.error}
+                  loading={sessionHistoryState.loading}
                 />
 
                 <div className={styles.cluePanelsRow}>

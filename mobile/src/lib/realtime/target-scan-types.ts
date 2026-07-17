@@ -25,15 +25,18 @@ export type RegisterTargetScanResultDto = {
   submittedAt: string;
 };
 
-// Why a scan was not accepted, keyed off the HTTP status of the failure. A retained rejection (422,
-// `type: "target-scan-rejected"`) is the treasure-hunt reject path — wrong/unknown QR, target outside
-// the active substage, or a duplicate/already-resolved target — with the consistent reason carried in
-// ProblemDetails `detail`. The remaining codes are pre-intake blocks the backend raises the same way it
-// does for a trivia answer: a non-admitting session (409), a denied/unattributable participant (403),
-// an expired credential (401), an unknown session (404), a blank scan (400), or a network failure (0).
+// Why a scan was not accepted, keyed off the HTTP status of the failure — except at 409, where two
+// unrelated conflicts share the status and only the ProblemDetails `type` separates them. A retained
+// rejection (422, `type: "target-scan-rejected"`) is the treasure-hunt reject path — wrong/unknown QR,
+// target outside the active substage, or a duplicate/already-resolved target — with the consistent
+// reason carried in ProblemDetails `detail`. The remaining codes are pre-intake blocks the backend
+// raises the same way it does for a trivia answer: a non-admitting session or a lost write race (409),
+// a denied/unattributable participant (403), an expired credential (401), an unknown session (404), a
+// blank scan (400), or a network failure (0).
 export type TargetScanRejectionReasonCode =
   | 'retained-rejection' // 422 — registered for audit but not resolved; reason in `detail`
   | 'session-not-accepting' // 409 — session is Paused/Preparing/Finished/Cancelled
+  | 'concurrent-modification' // 409 `type: "concurrent-modification"` — write race, retryable
   | 'not-a-participant' // 403 — participation denied or caller is not an admitted participant
   | 'unauthorized' // 401 — missing/expired credential
   | 'session-not-found' // 404 — no such live session

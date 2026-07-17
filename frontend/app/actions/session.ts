@@ -13,11 +13,7 @@ export async function refreshSession(): Promise<{ role: string; isActive: boolea
   const session = await decrypt(sessionCookie)
   if (!session) return null
 
-  const profile = await getCurrentUserProfile(
-    session.externalIdentityId,
-    session.role,
-    session.email,
-  )
+  const profile = await getCurrentUserProfile()
 
   if (profile.role !== session.role || profile.isActive !== session.isActive) {
     // Re-issue with the *existing* expiry: this re-mints the cookie to carry a changed role/status,

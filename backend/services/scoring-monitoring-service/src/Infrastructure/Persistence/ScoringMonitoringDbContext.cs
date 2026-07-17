@@ -1,4 +1,5 @@
 using System.Reflection;
+using MassTransit;
 using umbral_backend.Domain.Entities;
 
 namespace umbral_backend.Infrastructure.Persistence;
@@ -24,5 +25,6 @@ public sealed class ScoringMonitoringDbContext : DbContext
     {
         base.OnModelCreating(builder);
         builder.ApplyConfigurationsFromAssembly(Assembly.GetExecutingAssembly());
+        builder.AddTransactionalOutboxEntities();
     }
 }

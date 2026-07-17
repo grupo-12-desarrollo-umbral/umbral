@@ -52,7 +52,7 @@ public sealed class ReconnectAuthenticatedParticipantCommandHandlerTests
     }
 
     [Fact]
-    public async Task Handle_WhenParticipantReconnectsToActiveQuestion_ReturnsAuthoritativeSubstageTimer()
+    public async Task Handle_WhenParticipantReconnectsToActiveQuestion_ReturnsAuthoritativeQuestionTimer()
     {
         // HU-22 / US16: a reconnecting participant gets the trustworthy active-substage
         // (trivia-question) remaining time immediately.
@@ -239,7 +239,9 @@ public sealed class ReconnectAuthenticatedParticipantCommandHandlerTests
             new DateTimeOffset(2026, 6, 3, 10, 6, 0, TimeSpan.Zero));
         session.MoveTo(SessionState.Preparing, new DateTimeOffset(2026, 6, 3, 10, 7, 0, TimeSpan.Zero), transitionPolicy);
         session.MoveTo(SessionState.Active, new DateTimeOffset(2026, 6, 3, 10, 8, 0, TimeSpan.Zero), transitionPolicy);
-        session.MoveTo(SessionState.Finished, new DateTimeOffset(2026, 6, 3, 10, 9, 0, TimeSpan.Zero), transitionPolicy);
+        // Finished is reached only via SessionCompletion (never a manual MoveTo); the single
+        // treasure-hunt substage above completing with no next substage drives it there.
+        session.CompleteActiveSubstageAndAdvance(new DateTimeOffset(2026, 6, 3, 10, 9, 0, TimeSpan.Zero), transitionPolicy);
 
         var repository = CreateRepository(session);
         var guard = CreateGuard(session.LiveSessionId, team.TeamId, isAllowed: true);

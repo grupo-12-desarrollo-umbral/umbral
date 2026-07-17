@@ -466,18 +466,44 @@ public sealed class LiveSessionTests
         var preparingAt = new DateTimeOffset(2026, 6, 3, 10, 0, 0, TimeSpan.Zero);
         var activeAt = preparingAt.AddMinutes(1);
         var pausedAt = activeAt.AddMinutes(5);
-        var finishedAt = pausedAt.AddMinutes(3);
 
         session.MoveTo(SessionState.Preparing, preparingAt, policy, "  ready  ");
         session.MoveTo(SessionState.Active, activeAt, policy);
-        session.MoveTo(SessionState.Paused, pausedAt, policy);
-        session.MoveTo(SessionState.Finished, finishedAt, policy, "  complete  ");
+        session.MoveTo(SessionState.Paused, pausedAt, policy, "  taking a break  ");
 
         session.StartedAt.Should().Be(activeAt);
         session.PausedAt.Should().Be(pausedAt);
-        session.EndedAt.Should().Be(finishedAt);
-        session.StateReason.Should().Be("complete");
-        session.LastStateChangedAt.Should().Be(finishedAt);
+        session.EndedAt.Should().BeNull();
+        session.StateReason.Should().Be("taking a break");
+        session.LastStateChangedAt.Should().Be(pausedAt);
+    }
+
+    // Finished is reached ONLY via SessionCompletion, never via the manual/generic MoveTo path used
+    // by the Operator PATCH endpoint (Issue: manual Active/Paused -> Finished must be rejected).
+    // EndedAt tracking for the automatic path is covered by
+    // CompleteActiveSubstageAndAdvance_WhenNoNextSubstage_FinishesViaSessionCompletion.
+    [Theory]
+    [InlineData(SessionState.Active)]
+    [InlineData(SessionState.Paused)]
+    public void MoveTo_ManualToFinished_ThrowsAndRaisesNoStateChangedEvent(SessionState from)
+    {
+        var session = LiveSessionFactory.CreateScheduledTreasureHunt();
+        session.AssociateTeam(Guid.NewGuid(), "Alpha", "A-01", 4);
+        var policy = new SessionStateTransitionPolicy();
+        var now = new DateTimeOffset(2026, 6, 3, 10, 0, 0, TimeSpan.Zero);
+        session.MoveTo(SessionState.Preparing, now, policy);
+        session.MoveTo(SessionState.Active, now.AddMinutes(1), policy);
+        if (from == SessionState.Paused)
+        {
+            session.MoveTo(SessionState.Paused, now.AddMinutes(2), policy);
+        }
+
+        session.ClearDomainEvents();
+        var act = () => session.MoveTo(SessionState.Finished, now.AddMinutes(3), policy, responsibleUserId: 27);
+
+        act.Should().Throw<InvalidSessionStateTransitionException>();
+        session.State.Should().Be(from);
+        session.DomainEvents.OfType<SessionStateChangedEvent>().Should().BeEmpty();
     }
 
     // HU-22 / OD-1/2/3: authoritative remaining time = the active trivia-question window;
@@ -546,7 +572,7 @@ public sealed class LiveSessionTests
         snapshot.IsAdvancing.Should().BeTrue();
         snapshot.IsExpired.Should().BeFalse();
         snapshot.AdvancingSince.Should().Be(activeAt);
-        session.IsSubstageTimerAdvancing.Should().BeTrue();
+        session.IsMissionTimerAdvancing.Should().BeTrue();
     }
 
     [Fact]
@@ -574,7 +600,7 @@ public sealed class LiveSessionTests
     }
 
     [Fact]
-    public void MarkSubstageTimerExpiredIfElapsed_WhenTreasureHuntWindowElapsed_ExpiresWithoutAdvancing()
+    public void MarkMissionTimerExpiredIfElapsed_WhenTreasureHuntWindowElapsed_ExpiresWithoutAdvancing()
     {
         var session = LiveSessionFactory.CreateScheduledMultiTargetTreasureHunt(maximumTimeMinutes: 5);
         var activeAt = new DateTimeOffset(2026, 6, 3, 10, 1, 0, TimeSpan.Zero);
@@ -582,16 +608,65 @@ public sealed class LiveSessionTests
         var activeSubstageId = session.ActiveSubstageId;
         session.ClearDomainEvents();
 
-        var snapshot = session.MarkSubstageTimerExpiredIfElapsed(activeAt.AddMinutes(5));
+        var snapshot = session.MarkMissionTimerExpiredIfElapsed(activeAt.AddMinutes(5));
 
         snapshot.RemainingDuration.Should().Be(TimeSpan.Zero);
         snapshot.IsExpired.Should().BeTrue();
         snapshot.IsAdvancing.Should().BeFalse();
         snapshot.ExpiredAt.Should().Be(activeAt.AddMinutes(5));
-        session.IsSubstageTimerAdvancing.Should().BeFalse();
+        session.IsMissionTimerAdvancing.Should().BeFalse();
         session.ActiveSubstageId.Should().Be(activeSubstageId);
         session.State.Should().Be(SessionState.Active);
         session.DomainEvents.Should().BeEmpty();
+    }
+
+    // The mission deadline covers both play modes (D-4), so a trivia-only session is seeded too even
+    // though nothing displays it as the primary window there.
+    [Fact]
+    public void GetMissionTimerSnapshot_WhenTriviaSessionStarts_TicksTheMissionDeadline()
+    {
+        var session = ActivateTriviaSession();
+        var activeAt = new DateTimeOffset(2026, 6, 3, 10, 1, 0, TimeSpan.Zero);
+
+        var snapshot = session.GetMissionTimerSnapshot(activeAt.AddMinutes(1));
+
+        session.HasMissionDeadline.Should().BeTrue();
+        snapshot.TotalDuration.Should().Be(TimeSpan.FromMinutes(session.MaximumTime.Minutes));
+        snapshot.RemainingDuration.Should().Be(TimeSpan.FromMinutes(session.MaximumTime.Minutes - 1));
+        snapshot.IsAdvancing.Should().BeTrue();
+        snapshot.AdvancingSince.Should().Be(activeAt);
+    }
+
+    // Paused time cannot burn the mission budget, and resuming must not restart it.
+    [Fact]
+    public void GetMissionTimerSnapshot_WhenTriviaSessionPausedThenResumed_FreezesTheMissionDeadline()
+    {
+        var session = ActivateTriviaSession();
+        var activeAt = new DateTimeOffset(2026, 6, 3, 10, 1, 0, TimeSpan.Zero);
+        var pausedAt = activeAt.AddMinutes(1);
+        var resumedAt = pausedAt.AddMinutes(10);
+        var total = TimeSpan.FromMinutes(session.MaximumTime.Minutes);
+
+        session.MoveTo(SessionState.Paused, pausedAt, new SessionStateTransitionPolicy());
+        var frozen = session.GetMissionTimerSnapshot(pausedAt.AddMinutes(5));
+
+        session.MoveTo(SessionState.Active, resumedAt, new SessionStateTransitionPolicy());
+        var resumed = session.GetMissionTimerSnapshot(resumedAt.AddMinutes(1));
+
+        // 10 minutes paused burn nothing: only the 1m before and the 1m after the pause count.
+        frozen.RemainingDuration.Should().Be(total - TimeSpan.FromMinutes(1));
+        frozen.IsAdvancing.Should().BeFalse();
+        resumed.RemainingDuration.Should().Be(total - TimeSpan.FromMinutes(2));
+        resumed.IsAdvancing.Should().BeTrue();
+        resumed.TotalDuration.Should().Be(total);
+    }
+
+    [Fact]
+    public void HasMissionDeadline_WhenSessionHasNotStarted_IsFalse()
+    {
+        var session = LiveSessionFactory.CreateScheduledTrivia();
+
+        session.HasMissionDeadline.Should().BeFalse();
     }
 
     // Pause freezes the active-substage timer; Active resumes the SAME question at the frozen remainder.
@@ -1007,11 +1082,14 @@ public sealed class LiveSessionTests
         new SequentialQuestionActivationStrategy().Next(session).Should().Be(0);
     }
 
+    // Advancing into a treasure hunt must not restart the clock: MaximumTime is one budget for the
+    // whole mission (D-4), seeded at start, so the hunt inherits whatever is left of it.
     [Fact]
-    public void CompleteActiveSubstageAndAdvance_WhenNextSubstageIsTreasureHunt_ParksWithoutFinishing()
+    public void CompleteActiveSubstageAndAdvance_WhenNextSubstageIsTreasureHunt_KeepsTheRunningMissionDeadline()
     {
         var session = LiveSessionFactory.CreateScheduledTriviaThenTreasureHunt();
         Activate(session);
+        var activeAt = new DateTimeOffset(2026, 6, 3, 10, 1, 0, TimeSpan.Zero);
         var substages = OrderedSubstages(session);
         var advancedAt = new DateTimeOffset(2026, 6, 3, 10, 2, 0, TimeSpan.Zero);
         session.ActivateQuestion(0, advancedAt);
@@ -1028,11 +1106,13 @@ public sealed class LiveSessionTests
         advancedEvent.FromPlayMode.Should().Be(SubstagePlayMode.Trivia);
         advancedEvent.ToSubstageId.Should().Be(substages[1].SubstageSnapshotId);
 
+        // Observed 2m30s after the session started, so the deadline reads 42m30s left — not the full
+        // 45m a per-substage reseed would have shown.
         var timer = session.GetAuthoritativeSessionTimerSnapshot(advancedAt.AddSeconds(30).AddMinutes(1));
         timer.TotalDuration.Should().Be(TimeSpan.FromMinutes(45));
-        timer.RemainingDuration.Should().Be(TimeSpan.FromMinutes(44));
+        timer.RemainingDuration.Should().Be(TimeSpan.FromMinutes(42.5));
         timer.IsAdvancing.Should().BeTrue();
-        timer.AdvancingSince.Should().Be(advancedAt.AddSeconds(30));
+        timer.AdvancingSince.Should().Be(activeAt);
     }
 
     [Fact]

@@ -15,9 +15,11 @@ Plan shape follows `frontend/plans/hu-03-*.md` (small, code-complete surface).
 
 - `frontend/` is the single-page operator/admin dashboard (`app/dashboard/DashboardClient.tsx`),
   already connected to `/hubs/sessions` via `createSessionStateRealtimeClient`
-  (`app/lib/realtime/session-state-client.ts:231`) with `QuestionClosed` already a handled
-  client method (line 268) and the operator already joined to the group
-  (`DashboardClient.tsx:577-729`).
+  (`app/lib/realtime/session-state-client.ts:232`) with `QuestionClosed` already a handled
+  client method (line 268). The operator realtime client is constructed and started in the
+  `DashboardClient.tsx:577-727` block; the group join itself
+  (`JoinLiveSessionAsOperatorAsync`) happens inside the client
+  (`session-state-client.ts:297/309`), not in DashboardClient.
 - HU-36A shipped the **pre-close** answered board (`AnsweredMonitorPanel.tsx`), which
   deliberately omits option/correctness/points. HU-36B adds the **post-close** review that
   shows them — a sibling panel, same shape.
@@ -76,7 +78,7 @@ _Endpoint path is a proposal — confirm against the controller once backend §4
   mirror `AnsweredMonitorPanel.tsx`: per-team rows with option + correctness badge + points,
   loading/unauthorized states, the testids above.
 - `app/dashboard/DashboardClient.tsx` — in the already-wired operator realtime block
-  (577-729), add an `onQuestionClosed` callback dispatching `getTriviaAnswerReviewAction` for
+  (577-727), add an `onQuestionClosed` callback dispatching `getTriviaAnswerReviewAction` for
   the just-closed question; store in reducer state; render the panel in the operator branch.
 
 **Gate**

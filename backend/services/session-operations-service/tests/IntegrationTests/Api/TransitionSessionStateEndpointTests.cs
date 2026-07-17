@@ -19,7 +19,7 @@ namespace umbral_backend.Infrastructure.IntegrationTests.Api;
 public sealed class TransitionSessionStateEndpointTests : IAsyncLifetime
 {
     private const int OperatorUserId = 42;
-    private const string OperatorExternalIdentityId = "kc-operator-42";
+    private const string OperatorExternalIdentityId = "7909a3df-6e67-48dd-adf1-2a528e586fa0";
 
     private readonly PostgreSqlFixture _fixture;
     private SessionOperationsApiWebApplicationFactory _factory = null!;
@@ -116,6 +116,32 @@ public sealed class TransitionSessionStateEndpointTests : IAsyncLifetime
 
         var problem = await response.Content.ReadFromJsonAsync<ProblemDetails>();
         problem!.Type.Should().Be("invalid-state-transition");
+    }
+
+    // Issue-1 fix: Finished is reached only via SessionCompletion, never a manual Operator PATCH —
+    // even from Active, where the automatic path is legitimately allowed to land.
+    [Fact]
+    public async Task Transition_FromActiveToFinished_ReturnsConflict()
+    {
+        var liveSession = await SeedSessionAsync(
+            mutate: session =>
+            {
+                var policy = new SessionStateTransitionPolicy();
+                session.MoveTo(SessionState.Preparing, DateTimeOffset.UtcNow, policy);
+                session.MoveTo(SessionState.Active, DateTimeOffset.UtcNow, policy);
+            });
+        AddTrustedHeaders(_client, OperatorExternalIdentityId, "Operator", "operator@example.com");
+
+        var response = await _client.PatchAsJsonAsync(
+            $"/api/sessions/{liveSession.LiveSessionId:D}/state",
+            new { targetState = "Finished", reason = (string?)null });
+
+        response.StatusCode.Should().Be(HttpStatusCode.Conflict);
+
+        var problem = await response.Content.ReadFromJsonAsync<ProblemDetails>();
+        problem!.Type.Should().Be("invalid-state-transition");
+        // Issue-3 fix: the specific rejected edge is now surfaced, not a generic message.
+        problem.Detail.Should().Be("Session cannot transition from 'Active' to 'Finished'.");
     }
 
     [Fact]

@@ -1,6 +1,7 @@
 using umbral_backend.Domain.Entities;
 using umbral_backend.Domain.Enums;
 using umbral_backend.Domain.Events;
+using umbral_backend.Domain.Exceptions;
 
 namespace umbral_backend.SessionOperations.UnitTests.Domain.Entities;
 
@@ -79,6 +80,7 @@ public sealed class TreasureEvidenceSubmissionTests
     [InlineData(TargetResolutionRejectionReason.ScannedValueDoesNotResolveToTarget, 1, "The scanned value does not resolve to a target.")]
     [InlineData(TargetResolutionRejectionReason.TargetOutsideActiveSubstage, 2, "The resolved target does not belong to the active treasure-hunt substage.")]
     [InlineData(TargetResolutionRejectionReason.TargetAlreadyResolvedByTeam, 3, "The target has already been resolved by this team.")]
+    [InlineData(TargetResolutionRejectionReason.ScannedValueResolvesToMultipleTargets, 4, "The scanned value matches more than one target in this mission and cannot be resolved.")]
     public void TargetResolutionRejectionReason_HasStableValueAndMessage(
         TargetResolutionRejectionReason reason,
         int expectedValue,
@@ -86,6 +88,36 @@ public sealed class TreasureEvidenceSubmissionTests
     {
         ((int)reason).Should().Be(expectedValue);
         reason.ToMessage().Should().Be(expectedMessage);
+    }
+
+    [Fact]
+    public void Accept_WithUnsetSubmittedAt_IsRejectedByTheSharedBase()
+    {
+        var act = () => TreasureEvidenceSubmission.Accept(
+            Guid.NewGuid(),
+            Guid.NewGuid(),
+            Guid.NewGuid(),
+            "QR-001",
+            Guid.NewGuid(),
+            Guid.NewGuid(),
+            default);
+
+        act.Should().Throw<EvidenceSubmissionTimestampRequiredException>();
+    }
+
+    [Fact]
+    public void Begin_WithUnsetSubmittedAt_IsRejectedByTheSharedBase()
+    {
+        var act = () => TreasureEvidenceSubmission.Begin(
+            Guid.NewGuid(),
+            Guid.NewGuid(),
+            Guid.NewGuid(),
+            "WRONG-QR",
+            targetSnapshotId: null,
+            Guid.NewGuid(),
+            default);
+
+        act.Should().Throw<EvidenceSubmissionTimestampRequiredException>();
     }
 
     [Fact]

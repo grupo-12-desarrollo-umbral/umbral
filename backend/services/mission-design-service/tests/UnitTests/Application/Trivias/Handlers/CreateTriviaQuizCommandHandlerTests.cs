@@ -11,6 +11,7 @@ using umbral_backend.Application.Trivias.Commands.UpdateTriviaQuiz;
 using umbral_backend.Application.Trivias.Queries.GetTriviaCatalog;
 using umbral_backend.Application.Trivias.Queries.GetTriviaDetail;
 using umbral_backend.Application.UnitTests.Application.Trivias.TestDoubles;
+using umbral_backend.Domain.Exceptions;
 
 namespace umbral_backend.Application.UnitTests.Application.Trivias.Handlers;
 
@@ -50,5 +51,58 @@ public sealed class CreateTriviaQuizCommandHandlerTests
         result.Questions[0].TimeLimitSeconds.Should().Be(30);
         result.Questions[0].Explanation.Should().Be("Geography baseline");
         result.Questions[0].Options.Should().ContainSingle(option => option.IsCorrect);
+    }
+
+    [Fact]
+    public async Task Handle_WhenQuestionHasNoCorrectOption_PropagatesDomainRejection()
+    {
+        var repository = new InMemoryTriviaQuizRepository();
+        var handler = new CreateTriviaQuizCommandHandler(repository);
+        var command = new CreateTriviaQuizCommand(
+            "Intro Quiz",
+            "Warm-up trivia",
+            [
+                new TriviaQuestionInput(
+                    "First question?",
+                    true,
+                    [
+                        new TriviaOptionInput("A", 1, false),
+                        new TriviaOptionInput("B", 2, false)
+                    ],
+                    100,
+                    30,
+                    "Geography baseline")
+            ]);
+
+        var act = () => handler.Handle(command, CancellationToken.None);
+
+        await act.Should().ThrowAsync<TriviaQuestionMustHaveExactlyOneCorrectOptionException>();
+        repository.LastAddedTriviaQuiz.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task Handle_WhenQuestionHasSingleOption_PropagatesDomainRejection()
+    {
+        var repository = new InMemoryTriviaQuizRepository();
+        var handler = new CreateTriviaQuizCommandHandler(repository);
+        var command = new CreateTriviaQuizCommand(
+            "Intro Quiz",
+            "Warm-up trivia",
+            [
+                new TriviaQuestionInput(
+                    "First question?",
+                    true,
+                    [
+                        new TriviaOptionInput("A", 1, true)
+                    ],
+                    100,
+                    30,
+                    "Geography baseline")
+            ]);
+
+        var act = () => handler.Handle(command, CancellationToken.None);
+
+        await act.Should().ThrowAsync<TriviaQuestionMustHaveBetweenTwoAndFourOptionsException>();
+        repository.LastAddedTriviaQuiz.Should().BeNull();
     }
 }

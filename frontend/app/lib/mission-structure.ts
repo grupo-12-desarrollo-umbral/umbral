@@ -10,21 +10,7 @@ import {
   type UpdateTargetRequest,
 } from './definitions'
 import { verifySession } from './dal'
-
-const MISSION_DESIGN_SERVICE_URL = 'http://localhost:5001'
-
-function getIdentityHeaders(session: {
-  externalIdentityId: string
-  displayName: string
-  email: string
-  role: string
-}) {
-  return {
-    'X-User-Id': session.externalIdentityId,
-    'X-User-Role': session.role,
-    'X-User-Email': session.email,
-  }
-}
+import { API_GATEWAY_URL, getGatewayHeaders } from './gateway'
 
 // 400 (invalid fields) and 409 (containment / state conflict) both carry a ProblemDetails
 // `detail` the UI surfaces verbatim — it never invents placement copy (Architecture Decision 5).
@@ -53,10 +39,10 @@ export async function addMissionNode(
   missionId: number,
   body: AddMissionNodeRequest,
 ): Promise<MissionDto> {
-  const session = await verifySession()
-  const response = await fetch(`${MISSION_DESIGN_SERVICE_URL}/api/missions/${missionId}/nodes`, {
+  await verifySession()
+  const response = await fetch(`${API_GATEWAY_URL}/api/missions/${missionId}/nodes`, {
     method: 'POST',
-    headers: { ...getIdentityHeaders(session), 'Content-Type': 'application/json' },
+    headers: await getGatewayHeaders({ 'Content-Type': 'application/json' }),
     body: JSON.stringify(body),
   })
   if (!response.ok) await mapStructureError(response, 'addMissionNode')
@@ -68,12 +54,12 @@ export async function updateMissionNode(
   nodeId: number,
   body: UpdateMissionNodeRequest,
 ): Promise<MissionDto> {
-  const session = await verifySession()
+  await verifySession()
   const response = await fetch(
-    `${MISSION_DESIGN_SERVICE_URL}/api/missions/${missionId}/nodes/${nodeId}`,
+    `${API_GATEWAY_URL}/api/missions/${missionId}/nodes/${nodeId}`,
     {
       method: 'PUT',
-      headers: { ...getIdentityHeaders(session), 'Content-Type': 'application/json' },
+      headers: await getGatewayHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify(body),
     },
   )
@@ -82,10 +68,10 @@ export async function updateMissionNode(
 }
 
 export async function removeMissionNode(missionId: number, nodeId: number): Promise<MissionDto> {
-  const session = await verifySession()
+  await verifySession()
   const response = await fetch(
-    `${MISSION_DESIGN_SERVICE_URL}/api/missions/${missionId}/nodes/${nodeId}`,
-    { method: 'DELETE', headers: getIdentityHeaders(session) },
+    `${API_GATEWAY_URL}/api/missions/${missionId}/nodes/${nodeId}`,
+    { method: 'DELETE', headers: await getGatewayHeaders() },
   )
   if (!response.ok) await mapStructureError(response, 'removeMissionNode')
   return response.json() // DELETE returns the full MissionResponse
@@ -96,7 +82,7 @@ export async function removeMissionNode(missionId: number, nodeId: number): Prom
 // MissionsEndpoints.cs); the plan's `.../substages/{ssid}/...` is an abbreviation.
 
 const substageBase = (missionId: number, stageId: number, substageId: number) =>
-  `${MISSION_DESIGN_SERVICE_URL}/api/missions/${missionId}/stages/${stageId}/substages/${substageId}`
+  `${API_GATEWAY_URL}/api/missions/${missionId}/stages/${stageId}/substages/${substageId}`
 
 export async function assignSubstagePlayMode(
   missionId: number,
@@ -104,10 +90,10 @@ export async function assignSubstagePlayMode(
   substageId: number,
   body: AssignPlayModeRequest,
 ): Promise<MissionDto> {
-  const session = await verifySession()
+  await verifySession()
   const response = await fetch(`${substageBase(missionId, stageId, substageId)}/play-mode`, {
     method: 'PUT',
-    headers: { ...getIdentityHeaders(session), 'Content-Type': 'application/json' },
+    headers: await getGatewayHeaders({ 'Content-Type': 'application/json' }),
     body: JSON.stringify(body),
   })
   if (!response.ok) await mapStructureError(response, 'assignSubstagePlayMode')
@@ -120,10 +106,10 @@ export async function addTarget(
   substageId: number,
   body: AddTargetRequest,
 ): Promise<MissionDto> {
-  const session = await verifySession()
+  await verifySession()
   const response = await fetch(`${substageBase(missionId, stageId, substageId)}/targets`, {
     method: 'POST',
-    headers: { ...getIdentityHeaders(session), 'Content-Type': 'application/json' },
+    headers: await getGatewayHeaders({ 'Content-Type': 'application/json' }),
     body: JSON.stringify(body),
   })
   if (!response.ok) await mapStructureError(response, 'addTarget')
@@ -137,12 +123,12 @@ export async function updateTarget(
   targetId: number,
   body: UpdateTargetRequest,
 ): Promise<MissionDto> {
-  const session = await verifySession()
+  await verifySession()
   const response = await fetch(
     `${substageBase(missionId, stageId, substageId)}/targets/${targetId}`,
     {
       method: 'PUT',
-      headers: { ...getIdentityHeaders(session), 'Content-Type': 'application/json' },
+      headers: await getGatewayHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify(body),
     },
   )
@@ -156,10 +142,10 @@ export async function removeTarget(
   substageId: number,
   targetId: number,
 ): Promise<MissionDto> {
-  const session = await verifySession()
+  await verifySession()
   const response = await fetch(
     `${substageBase(missionId, stageId, substageId)}/targets/${targetId}`,
-    { method: 'DELETE', headers: getIdentityHeaders(session) },
+    { method: 'DELETE', headers: await getGatewayHeaders() },
   )
   if (!response.ok) await mapStructureError(response, 'removeTarget')
   return response.json()
@@ -172,12 +158,12 @@ export async function associateClueWithTarget(
   targetId: number,
   clueId: number,
 ): Promise<MissionDto> {
-  const session = await verifySession()
+  await verifySession()
   const response = await fetch(
     `${substageBase(missionId, stageId, substageId)}/targets/${targetId}/clue-association`,
     {
       method: 'POST',
-      headers: { ...getIdentityHeaders(session), 'Content-Type': 'application/json' },
+      headers: await getGatewayHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ clueId }),
     },
   )
@@ -191,10 +177,10 @@ export async function unassociateClueFromTarget(
   substageId: number,
   targetId: number,
 ): Promise<MissionDto> {
-  const session = await verifySession()
+  await verifySession()
   const response = await fetch(
     `${substageBase(missionId, stageId, substageId)}/targets/${targetId}/clue-association`,
-    { method: 'DELETE', headers: getIdentityHeaders(session) },
+    { method: 'DELETE', headers: await getGatewayHeaders() },
   )
   if (!response.ok) await mapStructureError(response, 'unassociateClueFromTarget')
   return response.json()
@@ -211,12 +197,12 @@ export async function setTriviaQuizSelection(
   substageId: number,
   triviaQuizId: number,
 ): Promise<MissionDto> {
-  const session = await verifySession()
+  await verifySession()
   const response = await fetch(
     `${substageBase(missionId, stageId, substageId)}/trivia-quiz-selection`,
     {
       method: 'POST',
-      headers: { ...getIdentityHeaders(session), 'Content-Type': 'application/json' },
+      headers: await getGatewayHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ triviaQuizId }),
     },
   )
@@ -230,12 +216,12 @@ export async function updateTriviaQuizSelection(
   substageId: number,
   triviaQuizId: number,
 ): Promise<MissionDto> {
-  const session = await verifySession()
+  await verifySession()
   const response = await fetch(
     `${substageBase(missionId, stageId, substageId)}/trivia-quiz-selection`,
     {
       method: 'PUT',
-      headers: { ...getIdentityHeaders(session), 'Content-Type': 'application/json' },
+      headers: await getGatewayHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ triviaQuizId }),
     },
   )
@@ -244,10 +230,10 @@ export async function updateTriviaQuizSelection(
 }
 
 export async function getMissionReadiness(missionId: number): Promise<MissionReadinessDto> {
-  const session = await verifySession()
+  await verifySession()
   const response = await fetch(
-    `${MISSION_DESIGN_SERVICE_URL}/api/missions/${missionId}/readiness`,
-    { headers: getIdentityHeaders(session), cache: 'no-store' },
+    `${API_GATEWAY_URL}/api/missions/${missionId}/readiness`,
+    { headers: await getGatewayHeaders(), cache: 'no-store' },
   )
   if (!response.ok) await mapStructureError(response, 'getMissionReadiness')
   return response.json()

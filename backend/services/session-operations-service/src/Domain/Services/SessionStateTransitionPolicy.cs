@@ -8,14 +8,17 @@ public sealed class SessionStateTransitionPolicy
 {
     public void EnsureCanTransition(SessionState currentState, SessionState nextState, int associatedTeamCount)
     {
-        if (nextState == SessionState.Active && associatedTeamCount <= 0)
-        {
-            throw new LiveSessionRequiresAtLeastOneTeamException();
-        }
-
+        // Structural reachability is checked first — it's the more fundamental gate — so this
+        // matches the Application-layer CurrentStateGate's order and a rejected request reports the
+        // same reason regardless of entry path.
         if (!IsTransitionAllowed(currentState, nextState))
         {
             throw new InvalidSessionStateTransitionException(currentState, nextState);
+        }
+
+        if (nextState == SessionState.Active && associatedTeamCount <= 0)
+        {
+            throw new LiveSessionRequiresAtLeastOneTeamException();
         }
     }
 

@@ -55,12 +55,23 @@ jobs:
 
       # `make` is the repository's single toolchain entrypoint (see backend/Makefile).
       # `build` also runs the structure-guard and layer-guard (Clean Architecture
-      # dependency rule); `test` runs the unit + Testcontainers integration projects.
+      # dependency rule); `gate` runs the unit + Testcontainers integration projects
+      # and enforces aggregate coverage.
       - name: Build (includes structure + layer guards)
         run: make -C backend build SVC=${{ matrix.service }}
 
-      - name: Test
-        run: make -C backend test SVC=${{ matrix.service }}
+      - name: Install coverage report generator
+        run: |
+          dotnet tool install dotnet-reportgenerator-globaltool \
+            --version 5.5.10 \
+            --tool-path "$RUNNER_TEMP/reportgenerator"
+          echo "$RUNNER_TEMP/reportgenerator" >> "$GITHUB_PATH"
+
+      # `gate` runs the unit + integration projects, merges their Coverlet data,
+      # enforces the repository's line/branch thresholds, and renders the HTML
+      # report when ReportGenerator is available.
+      - name: Test with coverage gate
+        run: make -C backend gate SVC=${{ matrix.service }}
 
       # The authoritative guard against a false green. dotnet reports a skipped
       # test as a pass, so assert the count is zero rather than trusting the exit
@@ -68,7 +79,7 @@ jobs:
       # so any skip here means the environment degraded — most likely Docker.
       - name: Assert no tests were skipped
         run: |
-          log="backend/.make-logs/test-${{ matrix.service }}.log"
+          log="backend/.make-logs/gate-${{ matrix.service }}.log"
           if [ ! -f "$log" ]; then
             echo "::error::Expected test log missing: $log"
             exit 1
@@ -80,6 +91,19 @@ jobs:
           echo "No skipped tests."
           grep -hE 'Passed!' "$log" || true
 
+      - name: Upload HTML coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-${{ matrix.service }}
+          # Upload from the common root so the service directory is retained
+          # when the post-matrix job merges all four artifacts.
+          path: backend/coverage/
+          # A compile/test failure can occur before Coverlet emits a report;
+          # preserve that original failure instead of replacing it here.
+          if-no-files-found: warn
+          retention-days: 14
+
       - name: Upload make logs
         if: always()
         uses: actions/upload-artifact@v4
@@ -88,3 +112,81 @@ jobs:
           path: backend/.make-logs/
           if-no-files-found: ignore
           retention-days: 7
+
+  # The api-gateway is a separate job, not a fifth matrix entry: it needs no Docker
+  # (its unit tests are in-process) and has no coverage gate. `make` discovers only
+  # *UnitTests* and *IntegrationTests* projects, so the gateway's AuthPath E2E —
+  # which boots Keycloak and the whole compose stack — is excluded by name and stays
+  # a local/manual gate. See backend/api-gateway/tests/docker-compose.auth-tests.yml.
+  gateway:
+    name: Build + test the API gateway
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('backend/**/*.csproj') }}
+          restore-keys: nuget-${{ runner.os }}-
+
+      - name: Build
+        run: make -C backend build SVC=api-gateway
+
+      - name: Test
+        run: make -C backend test SVC=api-gateway
+
+      # Same false-green guard as the service matrix: dotnet reports a skipped test
+      # as a pass, so assert the count rather than trusting the exit code.
+      - name: Assert no tests were skipped
+        run: |
+          log="backend/.make-logs/test-api-gateway.log"
+          if [ ! -f "$log" ]; then
+            echo "::error::Expected test log missing: $log"
+            exit 1
+          fi
+          if grep -hE 'Skipped: *[1-9]' "$log"; then
+            echo "::error::Tests were SKIPPED (see the summary lines above). A skip is not a pass."
+            exit 1
+          fi
+          echo "No skipped tests."
+          grep -hE 'Passed!' "$log" || true
+
+      - name: Upload make logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: make-logs-api-gateway
+          path: backend/.make-logs/
+          if-no-files-found: ignore
+          retention-days: 7
+
+  coverage-report:
+    name: Aggregate backend coverage reports
+    if: ${{ always() }}
+    needs: test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download service coverage reports
+        uses: actions/download-artifact@v4
+        with:
+          pattern: coverage-*
+          path: backend/coverage/
+          merge-multiple: true
+
+      - name: Upload consolidated backend coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-coverage-reports
+          path: backend/coverage/
+          if-no-files-found: warn
+          retention-days: 14

@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using umbral_backend.Application.Dtos.Permissions;
 using umbral_backend.Application.Permissions.Queries.CheckProtectedCapabilityAccess;
@@ -7,8 +8,12 @@ using umbral_backend.Domain.Enums;
 
 namespace umbral_backend.Api.Controllers;
 
+// Authenticated-user check only, deliberately not a role policy: these routes answer "is this actor
+// eligible" with a reason-coded 200 (e.g. `UserNotParticipant`), which callers depend on to
+// distinguish a denied user from an empty result. A role gate would collapse that into a 403.
 [ApiController]
 [Route("api/permissions")]
+[Authorize]
 public sealed class PermissionsController(ISender sender) : ControllerBase
 {
     [HttpGet("authenticated-platform-access")]

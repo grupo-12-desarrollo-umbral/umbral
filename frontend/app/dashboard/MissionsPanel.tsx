@@ -177,7 +177,14 @@ export function MissionsPanel(_props: { role: DashboardRole }) {
           </span>
         </div>
 
-        <MissionTree mission={selectedMission} onMutated={setSelectedMission} />
+        {/* A deactivated mission is terminally retired (HU-09): the tree stays visible for
+            inspection, but all authoring is removed to match the disabled Edit button and the
+            backend guard that rejects structure edits on an inactive mission. */}
+        <MissionTree
+          mission={selectedMission}
+          onMutated={setSelectedMission}
+          readOnly={!selectedMission.isActive}
+        />
 
         <ActivationBar
           mission={selectedMission}

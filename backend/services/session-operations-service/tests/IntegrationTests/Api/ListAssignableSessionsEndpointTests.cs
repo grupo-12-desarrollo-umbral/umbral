@@ -215,9 +215,11 @@ public sealed class ListAssignableSessionsEndpointTests : IAsyncLifetime
                 session.MoveTo(SessionState.Paused, occurredAt.AddMinutes(2), policy);
                 break;
             case SessionState.Finished:
+                // Finished is reached only via SessionCompletion (never a manual MoveTo); the single
+                // treasure-hunt substage above completing with no next substage drives it there.
                 session.MoveTo(SessionState.Preparing, occurredAt, policy);
                 session.MoveTo(SessionState.Active, occurredAt.AddMinutes(1), policy);
-                session.MoveTo(SessionState.Finished, occurredAt.AddMinutes(2), policy);
+                session.CompleteActiveSubstageAndAdvance(occurredAt.AddMinutes(2), policy);
                 break;
             case SessionState.Cancelled:
                 session.MoveTo(SessionState.Cancelled, occurredAt, policy);

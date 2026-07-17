@@ -26,6 +26,11 @@ app.MapOpenApi();
 
 app.UseExceptionHandler(options => { });
 
+app.UseStatusCodePages();
+
+app.UseAuthentication();
+app.UseAuthorization();
+
 app.MapControllers();
 
 app.Run();

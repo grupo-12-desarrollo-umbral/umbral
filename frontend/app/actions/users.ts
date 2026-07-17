@@ -1,9 +1,9 @@
 'use server'
 
 import { verifySession } from '@/app/lib/dal'
-import { listDedupedUsers, deactivateUserAccess, assignUserRole as assignUserRoleLib, inviteUser as inviteUserLib } from '@/app/lib/users'
+import { listDedupedUsers, listAssignableParticipants, deactivateUserAccess, assignUserRole as assignUserRoleLib, inviteUser as inviteUserLib } from '@/app/lib/users'
 import { revalidatePath } from 'next/cache'
-import type { InvitableRole, InviteUserResultDto, PagedResult, UserAccessCatalogItemDto } from '@/app/lib/definitions'
+import type { AssignableParticipantDto, InvitableRole, InviteUserResultDto, PagedResult, UserAccessCatalogItemDto } from '@/app/lib/definitions'
 
 export async function getUsersPage(
   page: number,
@@ -16,6 +16,17 @@ export async function getUsersPage(
     throw new Error('Forbidden')
   }
   return listDedupedUsers(page, pageSize)
+}
+
+// Operators manage teams, so they may list the participants they can assign — but not the
+// full users catalog, which stays Administrator-only above (#148). Mirrors the backend's
+// AdminOrOperator policy on GET /api/users.
+export async function getAssignableParticipants(): Promise<AssignableParticipantDto[]> {
+  const session = await verifySession()
+  if (session.role !== 'Administrator' && session.role !== 'Operator') {
+    throw new Error('Forbidden')
+  }
+  return listAssignableParticipants()
 }
 
 export async function deactivateUser(id: number): Promise<void> {

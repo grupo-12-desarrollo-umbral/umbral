@@ -19,6 +19,7 @@ using umbral_backend.Application.Missions.Queries.GetMissionReadiness;
 using umbral_backend.Application.Missions.Queries.GetMissionRuntimePlan;
 using umbral_backend.Application.UnitTests.Application.Missions.TestDoubles;
 using umbral_backend.Domain.Entities;
+using umbral_backend.Domain.Exceptions;
 
 namespace umbral_backend.Application.UnitTests.Application.Missions.Handlers;
 
@@ -57,5 +58,23 @@ public sealed class UpdateMissionCommandHandlerTests
 
         await act.Should().ThrowAsync<NotFoundException>()
             .WithMessage("Entity \"Mission\" (99) was not found.");
+    }
+
+    [Fact]
+    public async Task Handle_WhenMissionIsInactive_ThrowsAndDoesNotPersist()
+    {
+        var repository = new InMemoryMissionRepository();
+        var mission = Mission.Create("Mission One", "Briefing", "Advanced", 45);
+        mission.Deactivate(new DateTimeOffset(2026, 5, 31, 13, 0, 0, TimeSpan.Zero));
+        repository.Seed(mission);
+        var handler = new UpdateMissionCommandHandler(repository);
+
+        var act = () => handler.Handle(
+            new UpdateMissionCommand(mission.Id, "Mission Two", "Updated", "Beginner", 30),
+            CancellationToken.None);
+
+        await act.Should().ThrowAsync<MissionNotEditableWhileInactiveException>();
+        repository.LastUpdatedMission.Should().BeNull();
+        mission.Name.Should().Be("Mission One");
     }
 }

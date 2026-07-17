@@ -11,6 +11,8 @@ import {
 
 const mockGet = jest.fn();
 const mockFetch = jest.fn();
+const mockGetValidAccessToken = jest.fn();
+const mockRefreshAccessToken = jest.fn();
 
 jest.mock('@/lib/api/client', () => {
   const actual =
@@ -20,10 +22,21 @@ jest.mock('@/lib/api/client', () => {
 
 jest.mock('expo/fetch', () => ({ fetch: (...args: unknown[]) => mockFetch(...args) }));
 jest.mock('@/lib/auth/token-provider', () => ({
-  getValidAccessToken: jest.fn().mockResolvedValue('test-token'),
-  refreshAccessToken: jest.fn().mockResolvedValue(null),
+  getValidAccessToken: (...args: unknown[]) => mockGetValidAccessToken(...args),
+  refreshAccessToken: (...args: unknown[]) => mockRefreshAccessToken(...args),
 }));
 jest.mock('@/lib/host', () => ({ apiBaseUrl: () => 'http://localhost:8000' }));
+
+beforeEach(() => {
+  mockGetValidAccessToken.mockResolvedValue('test-token');
+  mockRefreshAccessToken.mockResolvedValue(null);
+});
+
+// A gateway 401 carries no ProblemDetails `type` — the shared 401 refresh-and-replay path is what the
+// POST helpers rely on before this ever reaches their typed rejections.
+function unauthorized() {
+  return { ok: false, status: 401, json: () => Promise.resolve({ title: 'Unauthorized' }) };
+}
 
 describe('getParticipantTimerSnapshot', () => {
   beforeEach(() => jest.clearAllMocks());
@@ -251,6 +264,60 @@ describe('submitTriviaAnswer', () => {
       expect(rejection.status).toBe(0);
     }
   });
+
+  test('401 → refreshes once, replays the POST unchanged and resolves', async () => {
+    const result = { liveSessionId: 'sess-1', teamId: 'team-1', questionSequenceOrder: 1 };
+    mockFetch
+      .mockResolvedValueOnce(unauthorized())
+      .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve(result) });
+    mockRefreshAccessToken.mockResolvedValueOnce('acc_fresh');
+
+    await expect(submitTriviaAnswer('sess-1', REQUEST)).resolves.toEqual(result);
+
+    expect(mockRefreshAccessToken).toHaveBeenCalledTimes(1);
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+    const [, init] = mockFetch.mock.calls[1] as [string, RequestInit];
+    expect(init.method).toBe('POST');
+    expect(JSON.parse(init.body as string)).toEqual(REQUEST);
+  });
+
+  test('401 with an unrefreshable session rejects with unknown reasonCode and status 401', async () => {
+    mockFetch.mockResolvedValueOnce(unauthorized());
+    mockRefreshAccessToken.mockResolvedValueOnce(null);
+
+    await expect(submitTriviaAnswer('sess-1', REQUEST)).rejects.toMatchObject({
+      reasonCode: 'unknown',
+      status: 401,
+    });
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+  });
+
+  test('a second 401 after refresh surfaces the rejection instead of looping', async () => {
+    mockFetch.mockResolvedValueOnce(unauthorized()).mockResolvedValueOnce(unauthorized());
+    mockRefreshAccessToken.mockResolvedValueOnce('acc_fresh');
+
+    await expect(submitTriviaAnswer('sess-1', REQUEST)).rejects.toMatchObject({
+      reasonCode: 'unknown',
+      status: 401,
+    });
+    expect(mockRefreshAccessToken).toHaveBeenCalledTimes(1);
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+  });
+
+  test('409 rejection does not trigger a refresh', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status: 409,
+      json: () => Promise.resolve({ type: 'duplicate-trivia-answer', detail: 'Already answered' }),
+    });
+
+    await expect(submitTriviaAnswer('sess-1', REQUEST)).rejects.toMatchObject({
+      reasonCode: 'duplicate-trivia-answer',
+      detail: 'Already answered',
+    });
+    expect(mockRefreshAccessToken).not.toHaveBeenCalled();
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe('registerTargetScan', () => {
@@ -322,6 +389,43 @@ describe('registerTargetScan', () => {
     });
   });
 
+  // Two unrelated conflicts share status 409; only the ProblemDetails `type` separates them, and
+  // reading a lost write race as "session paused" tells the participant the wrong thing.
+  test('409 concurrent-modification maps to its own reasonCode, not session-not-accepting', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status: 409,
+      json: () =>
+        Promise.resolve({
+          type: 'concurrent-modification',
+          detail: 'The session changed while the request was in flight. Try again.',
+        }),
+    });
+
+    await expect(registerTargetScan('sess-1', REQUEST)).rejects.toMatchObject({
+      reasonCode: 'concurrent-modification',
+      status: 409,
+      detail: 'The session changed while the request was in flight. Try again.',
+    });
+  });
+
+  test('409 with any other type stays session-not-accepting', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status: 409,
+      json: () =>
+        Promise.resolve({
+          type: 'target-scan-requires-active-session',
+          detail: 'The session is not accepting scans.',
+        }),
+    });
+
+    await expect(registerTargetScan('sess-1', REQUEST)).rejects.toMatchObject({
+      reasonCode: 'session-not-accepting',
+      status: 409,
+    });
+  });
+
   test('non-JSON error body falls back to a status detail', async () => {
     mockFetch.mockResolvedValueOnce({
       ok: false,
@@ -351,5 +455,61 @@ describe('registerTargetScan', () => {
 
     const [url] = mockFetch.mock.calls[0] as [string, ...unknown[]];
     expect(url).toContain('sess%2Fwith%2Fslash');
+  });
+
+  test('401 → refreshes once, replays the POST unchanged and resolves', async () => {
+    const result = { liveSessionId: 'sess-1', teamId: 'team-1', isResolved: true };
+    mockFetch
+      .mockResolvedValueOnce(unauthorized())
+      .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve(result) });
+    mockRefreshAccessToken.mockResolvedValueOnce('acc_fresh');
+
+    await expect(registerTargetScan('sess-1', REQUEST)).resolves.toEqual(result);
+
+    expect(mockRefreshAccessToken).toHaveBeenCalledTimes(1);
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+    const [, init] = mockFetch.mock.calls[1] as [string, RequestInit];
+    expect(init.method).toBe('POST');
+    expect(JSON.parse(init.body as string)).toEqual(REQUEST);
+  });
+
+  test('401 with an unrefreshable session rejects as unauthorized without replaying', async () => {
+    mockFetch.mockResolvedValueOnce(unauthorized());
+    mockRefreshAccessToken.mockResolvedValueOnce(null);
+
+    await expect(registerTargetScan('sess-1', REQUEST)).rejects.toMatchObject({
+      reasonCode: 'unauthorized',
+      status: 401,
+    });
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+  });
+
+  test('a second 401 after refresh surfaces the rejection instead of looping', async () => {
+    mockFetch.mockResolvedValueOnce(unauthorized()).mockResolvedValueOnce(unauthorized());
+    mockRefreshAccessToken.mockResolvedValueOnce('acc_fresh');
+
+    await expect(registerTargetScan('sess-1', REQUEST)).rejects.toMatchObject({
+      reasonCode: 'unauthorized',
+      status: 401,
+    });
+    expect(mockRefreshAccessToken).toHaveBeenCalledTimes(1);
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+  });
+
+  test('422 retained rejection surfaces detail verbatim without a refresh', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status: 422,
+      json: () =>
+        Promise.resolve({ type: 'target-scan-rejected', detail: 'That QR is not a target here.' }),
+    });
+
+    await expect(registerTargetScan('sess-1', REQUEST)).rejects.toMatchObject({
+      reasonCode: 'retained-rejection',
+      status: 422,
+      detail: 'That QR is not a target here.',
+    });
+    expect(mockRefreshAccessToken).not.toHaveBeenCalled();
+    expect(mockFetch).toHaveBeenCalledTimes(1);
   });
 });

@@ -42,20 +42,11 @@ public abstract class TriviaQuizAuthoringCommandValidator<TCommand> : AbstractVa
             RuleFor(question => question.Options)
                 .Must(HaveDistinctOptionSequenceOrders)
                 .WithMessage("Option sequence orders must be unique within the question.");
-
-            RuleFor(question => question.Options)
-                .Must(HaveAtMostOneCorrectOption)
-                .WithMessage("A trivia question cannot declare more than one correct option.");
         }
 
         private static bool HaveDistinctOptionSequenceOrders(IReadOnlyCollection<TriviaOptionInput> options)
         {
             return options.Count == options.Select(option => option.SequenceOrder).Distinct().Count();
-        }
-
-        private static bool HaveAtMostOneCorrectOption(IReadOnlyCollection<TriviaOptionInput> options)
-        {
-            return options.Count(option => option.IsCorrect) <= 1;
         }
     }
 

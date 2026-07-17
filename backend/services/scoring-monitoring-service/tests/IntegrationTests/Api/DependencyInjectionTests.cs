@@ -6,7 +6,10 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using umbral_backend.Api.Services;
+using umbral_backend.Application.Common.Exceptions;
 using umbral_backend.Application.Common.Interfaces;
+using umbral_backend.Application.Scores.Commands.RecordScoreEntry;
+using umbral_backend.Domain.Enums;
 
 namespace umbral_backend.Infrastructure.IntegrationTests.Api;
 
@@ -42,6 +45,35 @@ public sealed class DependencyInjectionTests
         provider.GetServices<IExceptionHandler>()
             .Should().ContainSingle()
             .Which.Should().BeOfType<ProblemDetailsExceptionHandler>();
+    }
+
+    [Fact]
+    public async Task AddApplicationServices_MediatorExecutesRegisteredValidators()
+    {
+        var builder = Host.CreateApplicationBuilder();
+        var repository = new Mock<IScoreEntryRepository>();
+
+        builder.AddApplicationServices();
+        builder.Services.AddSingleton(repository.Object);
+        builder.Services.AddSingleton(Mock.Of<ICurrentUser>());
+
+        using var provider = builder.Services.BuildServiceProvider();
+        using var scope = provider.CreateScope();
+        var sender = scope.ServiceProvider.GetRequiredService<ISender>();
+        var command = new RecordScoreEntryCommand(
+            Guid.Empty,
+            Guid.NewGuid(),
+            "Team",
+            "target-resolved",
+            100,
+            DateTimeOffset.UtcNow,
+            ScoreSourceType.TargetResolution,
+            Guid.NewGuid());
+
+        var act = () => sender.Send(command);
+
+        await act.Should().ThrowAsync<ValidationException>();
+        repository.VerifyNoOtherCalls();
     }
 
     [Fact]

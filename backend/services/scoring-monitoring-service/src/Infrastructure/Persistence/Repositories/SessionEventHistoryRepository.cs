@@ -42,4 +42,24 @@ public sealed class SessionEventHistoryRepository : ISessionEventHistoryReposito
             _context.Entry(sessionEvent).State = EntityState.Detached;
         }
     }
+
+    public async Task<IReadOnlyList<SessionEvent>> GetBySessionAsync(
+        Guid liveSessionId,
+        Guid? teamId,
+        CancellationToken cancellationToken)
+    {
+        var query = _context.SessionEvents
+            .AsNoTracking()
+            .Where(sessionEvent => sessionEvent.LiveSessionId == liveSessionId);
+
+        if (teamId.HasValue)
+        {
+            query = query.Where(sessionEvent => sessionEvent.TeamId == teamId);
+        }
+
+        return await query
+            .OrderBy(sessionEvent => sessionEvent.OccurredAt)
+            .ThenBy(sessionEvent => sessionEvent.SessionEventId)
+            .ToListAsync(cancellationToken);
+    }
 }

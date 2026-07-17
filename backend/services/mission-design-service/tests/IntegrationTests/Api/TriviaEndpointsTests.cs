@@ -75,7 +75,7 @@ public sealed class TriviaEndpointsTests : IClassFixture<PostgreSqlFixture>, IAs
     }
 
     [Fact]
-    public async Task GetTriviaCatalogAndDetail_ReturnPersistedDraftChanges()
+    public async Task GetTriviaCatalogAndDetail_ReturnPersistedDraftChangesAndRejectParticipant()
     {
         AddOperatorHeaders();
 
@@ -101,6 +101,11 @@ public sealed class TriviaEndpointsTests : IClassFixture<PostgreSqlFixture>, IAs
         detail.IsSourceReady.Should().BeFalse();
         detail.Questions.Should().ContainSingle();
         detail.Questions[0].Options.Should().HaveCount(2);
+
+        AddParticipantHeaders();
+
+        var participantResponse = await _client.GetAsync($"/api/trivias/{triviaId}");
+        participantResponse.StatusCode.Should().Be(HttpStatusCode.Forbidden);
     }
 
     [Fact]
@@ -753,6 +758,14 @@ public sealed class TriviaEndpointsTests : IClassFixture<PostgreSqlFixture>, IAs
         _client.DefaultRequestHeaders.Remove("X-User-Role");
         _client.DefaultRequestHeaders.Add("X-User-Id", "operator-01");
         _client.DefaultRequestHeaders.Add("X-User-Role", "Operator");
+    }
+
+    private void AddParticipantHeaders()
+    {
+        _client.DefaultRequestHeaders.Remove("X-User-Id");
+        _client.DefaultRequestHeaders.Remove("X-User-Role");
+        _client.DefaultRequestHeaders.Add("X-User-Id", "participant-01");
+        _client.DefaultRequestHeaders.Add("X-User-Role", "Participant");
     }
 
     private async Task<int> CreateTriviaQuizAsync(string title)

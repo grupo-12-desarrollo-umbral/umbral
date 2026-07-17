@@ -9,12 +9,14 @@ public sealed class SessionTransitionContext
         LiveSession session,
         SessionState targetState,
         string? reason,
-        int? responsibleUserId = null)
+        int? responsibleUserId = null,
+        Guid? responsibleUserExternalId = null)
     {
         Session = session;
         TargetState = targetState;
         Reason = reason;
         ResponsibleUserId = responsibleUserId;
+        ResponsibleUserExternalId = responsibleUserExternalId;
     }
 
     public LiveSession Session { get; }
@@ -24,4 +26,6 @@ public sealed class SessionTransitionContext
     public string? Reason { get; }
 
     public int? ResponsibleUserId { get; }
+
+    public Guid? ResponsibleUserExternalId { get; }
 }

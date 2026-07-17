@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using umbral_backend.Domain.Entities;
 
@@ -8,6 +9,21 @@ public sealed class LiveSessionConfiguration : IEntityTypeConfiguration<LiveSess
     public void Configure(EntityTypeBuilder<LiveSession> builder)
     {
         builder.ToTable("live_sessions");
+
+        // Optimistic concurrency over Postgres's xmin system column — no stored column, no data
+        // migration. Guards the principal row only: state transitions, timer fields and the substage
+        // reveal window. An owned-collection insert (an answer, a scan) touches no principal column,
+        // emits no UPDATE, and is therefore guarded by that collection's unique index instead — see
+        // the TriviaAnswerSubmissions and TreasureEvidenceSubmissions blocks below.
+        //
+        // Mapped by hand because Npgsql dropped UseXminAsConcurrencyToken() in v9; this is the
+        // mapping that helper used to generate. xmin already exists on every table as a system
+        // column, so the migration must NOT emit an AddColumn for it.
+        builder.Property<uint>("xmin")
+            .HasColumnName("xmin")
+            .HasColumnType("xid")
+            .ValueGeneratedOnAddOrUpdate()
+            .IsConcurrencyToken();
 
         builder.Ignore(session => session.Id);
         builder.Ignore(session => session.CreatedBy);
@@ -79,19 +95,21 @@ public sealed class LiveSessionConfiguration : IEntityTypeConfiguration<LiveSess
         builder.Property<DateTimeOffset?>("_questionTimerExpiredAt")
             .HasColumnName("question_timer_expired_at");
 
-        builder.Property<TimeSpan>("_substageTimerTotalDuration")
-            .HasColumnName("substage_timer_total_duration")
+        // The mission deadline (MaximumTime), seeded once at start and frozen while paused. Columns
+        // renamed from substage_timer_* in AddMissionTimerColumns: same machinery, mission-wide budget.
+        builder.Property<TimeSpan>("_missionTimerTotalDuration")
+            .HasColumnName("mission_timer_total_duration")
             .IsRequired();
 
-        builder.Property<TimeSpan>("_substageTimerRemainingDuration")
-            .HasColumnName("substage_timer_remaining_duration")
+        builder.Property<TimeSpan>("_missionTimerRemainingDuration")
+            .HasColumnName("mission_timer_remaining_duration")
             .IsRequired();
 
-        builder.Property<DateTimeOffset?>("_substageTimerAdvancingSince")
-            .HasColumnName("substage_timer_advancing_since");
+        builder.Property<DateTimeOffset?>("_missionTimerAdvancingSince")
+            .HasColumnName("mission_timer_advancing_since");
 
-        builder.Property<DateTimeOffset?>("_substageTimerExpiredAt")
-            .HasColumnName("substage_timer_expired_at");
+        builder.Property<DateTimeOffset?>("_missionTimerExpiredAt")
+            .HasColumnName("mission_timer_expired_at");
 
         // Post-close reveal window (HU-35): deadline for the deferred next-question activation, and the
         // captured next-question index (null => advance substage) applied when the reveal completes.
@@ -941,6 +959,30 @@ public sealed class LiveSessionConfiguration : IEntityTypeConfiguration<LiveSess
                 .HasColumnName("resolution_rejection_reason")
                 .HasConversion<string>()
                 .HasMaxLength(64);
+
+            // First-resolution-wins enforced at the DB boundary: exactly one *accepted* resolution per
+            // team per snapshotted target. Mirrors DetermineTargetResolutionRejection's alreadyResolved
+            // check, which two concurrent scans of the same QR can both pass — read-then-Add is not
+            // atomic — double-counting the target.
+            //
+            // The Accepted filter is load-bearing, not an optimisation: a rejected scan keeps the
+            // target_snapshot_id it resolved to, so a team re-scanning an already-resolved code writes
+            // repeated rejected rows that an unfiltered index would collide on.
+            treasureBuilder.HasIndex(treasure => new
+                {
+                    treasure.LiveSessionId,
+                    treasure.TeamId,
+                    treasure.TargetSnapshotId,
+                })
+                .IsUnique()
+                .HasFilter("validation_state = 'Accepted'")
+                .HasDatabaseName("ux_treasure_evidence_accepted_target");
+
+            // Redeclares the FK index the conventions would otherwise drop as redundant: they see the
+            // unique index above starting with live_session_id and treat it as covering this prefix,
+            // but it is partial, so it cannot serve the unfiltered by-session load that hydrates an
+            // aggregate's submissions.
+            treasureBuilder.HasIndex(treasure => treasure.LiveSessionId);
         });
 
         builder.Navigation(session => session.TreasureEvidenceSubmissions)
