@@ -83,6 +83,8 @@ public sealed class TriviaQuiz : BaseAuditableEntity
         return quiz;
     }
 
+    // A null `questions` means the caller is editing details only and the existing questions
+    // stand. Callers that pass a collection — including an empty one — replace them wholesale.
     public void UpdateDetails(
         string title,
         string description,
@@ -92,7 +94,11 @@ public sealed class TriviaQuiz : BaseAuditableEntity
 
         Title = validated.Title;
         Description = validated.Description;
-        ReplaceQuestions(validated.Questions);
+
+        if (questions is not null)
+        {
+            ReplaceQuestions(validated.Questions);
+        }
 
         AddDomainEvent(new TriviaQuizDetailsUpdatedEvent(this));
     }

@@ -5,7 +5,7 @@
  * Mode switcher tabs to preview all states: active, waiting, empty, finished,
  * cancelled, selected option, right answer, wrong answer, go to next.
  */
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Animated, Pressable, ScrollView, View } from 'react-native';
 import { Text } from '@/components/ui/text';
 import { Card } from '@/components/ui/card';
@@ -68,15 +68,17 @@ const MODE_ROWS: PreviewMode[][] = [
 ];
 
 function TeamsSheet({ onClose }: { onClose: () => void }) {
-  const fadeAnim = useRef(new Animated.Value(0)).current;
-  const slideAnim = useRef(new Animated.Value(20)).current;
+  // Lazy state initializer keeps these Animated.Values stable and off the render
+  // path (reading `useRef(...).current` during render is disallowed).
+  const [fadeAnim] = useState(() => new Animated.Value(0));
+  const [slideAnim] = useState(() => new Animated.Value(20));
 
   useEffect(() => {
     Animated.parallel([
       Animated.timing(fadeAnim, { toValue: 1, duration: 250, useNativeDriver: true }),
       Animated.timing(slideAnim, { toValue: 0, duration: 250, useNativeDriver: true }),
     ]).start();
-  }, []);
+  }, [fadeAnim, slideAnim]);
 
   return (
     <Animated.View
@@ -200,10 +202,12 @@ export default function ActiveQuestionPrototypeScreen() {
   const bonus = mode === 'right' ? 20 : mode === 'wrong' ? -10 : 0;
   const targetScore = baseScore + bonus;
 
-  const bonusFade = useRef(new Animated.Value(mode === 'right' ? 1 : 0)).current;
-  const bonusSlide = useRef(new Animated.Value(mode === 'right' ? 0 : 8)).current;
-  const penaltyFade = useRef(new Animated.Value(mode === 'wrong' ? 1 : 0)).current;
-  const penaltySlide = useRef(new Animated.Value(mode === 'wrong' ? 0 : 8)).current;
+  // Lazy state initializers keep these Animated.Values stable and off the render
+  // path (reading `useRef(...).current` during render is disallowed).
+  const [bonusFade] = useState(() => new Animated.Value(mode === 'right' ? 1 : 0));
+  const [bonusSlide] = useState(() => new Animated.Value(mode === 'right' ? 0 : 8));
+  const [penaltyFade] = useState(() => new Animated.Value(mode === 'wrong' ? 1 : 0));
+  const [penaltySlide] = useState(() => new Animated.Value(mode === 'wrong' ? 0 : 8));
 
   useEffect(() => {
     if (mode === 'right') {
@@ -214,7 +218,7 @@ export default function ActiveQuestionPrototypeScreen() {
     } else {
       Animated.timing(bonusFade, { toValue: 0, duration: 150, useNativeDriver: true }).start();
     }
-  }, [mode]);
+  }, [mode, bonusFade, bonusSlide]);
 
   useEffect(() => {
     if (mode === 'wrong') {
@@ -225,7 +229,7 @@ export default function ActiveQuestionPrototypeScreen() {
     } else {
       Animated.timing(penaltyFade, { toValue: 0, duration: 150, useNativeDriver: true }).start();
     }
-  }, [mode]);
+  }, [mode, penaltyFade, penaltySlide]);
 
   const sessionState =
     mode === 'active' || mode === 'selected' || mode === 'right' || mode === 'wrong' ? 'Active'
@@ -237,7 +241,6 @@ export default function ActiveQuestionPrototypeScreen() {
   const isActive = mode === 'active' || mode === 'selected' || mode === 'right' || mode === 'wrong';
   const isWaiting = mode === 'waiting' || mode === 'next';
   const isEmpty = mode === 'none';
-  const isClosed = mode === 'finished' || mode === 'cancelled';
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.ivoryFog }}>

@@ -44,7 +44,8 @@ public sealed class SessionsHub : Hub
                 liveSessionId,
                 request.TeamId,
                 request.DisplayName,
-                request.Token),
+                request.Token,
+                Context.ConnectionId),
             cancellationToken);
 
         _connectionTracker.Add(Context.ConnectionId, result.LiveSessionId, result.SessionParticipantId);
@@ -59,16 +60,18 @@ public sealed class SessionsHub : Hub
     {
         _userContext.Principal = Context.User;
 
-        if (_connectionTracker.TryRemove(
-            Context.ConnectionId,
-            out var participant,
-            out var hasRemainingConnections) &&
-            !hasRemainingConnections)
+        // The in-memory tracker is only a ConnectionId -> (session, participant) lookup now, not the
+        // disconnect authority: the aggregate owns the connection leases and makes the decrement
+        // decision (idempotent + guarded on the last connection). So we always dispatch the
+        // connection-keyed disconnect and let the aggregate decide, rather than gating on a
+        // process-local count that a connection landing on another replica would not see.
+        if (_connectionTracker.TryRemove(Context.ConnectionId, out var participant, out _))
         {
             await _sender.Send(
                 new DisconnectParticipantCommand(
                     participant.LiveSessionId,
-                    participant.SessionParticipantId),
+                    participant.SessionParticipantId,
+                    Context.ConnectionId),
                 CancellationToken.None);
         }
 

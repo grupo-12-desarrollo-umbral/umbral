@@ -11,6 +11,13 @@ public sealed class LiveSession : BaseAuditableEntity
 {
     private const string HiddenUntilOperatorReleasePolicy = "HiddenUntilOperatorRelease";
 
+    // How long every substage's ranking stays on screen before the session advances or finishes (D-3).
+    // Lives on the domain, not on TriviaRoundOrchestratorFacade beside QuestionRevealDuration: this
+    // window is mode-agnostic and a treasure hunt opens it from RegisterTargetScan, with no facade in
+    // the call path. The two reveals are different mechanisms at different granularities and both
+    // survive — 5s per question (trivia only), then 10s per substage (both modes).
+    public static readonly TimeSpan SubstageRankingRevealDuration = TimeSpan.FromSeconds(10);
+
     private readonly List<Team> _teams = new();
     private readonly List<SessionParticipant> _participants = new();
     private readonly List<JoinContext> _joinContexts = new();
@@ -33,6 +40,13 @@ public sealed class LiveSession : BaseAuditableEntity
     // reveal end will perform (null => the substage is exhausted and must advance instead).
     private DateTimeOffset? _questionRevealUntil;
     private int? _pendingNextQuestionIndex;
+    // Substage-end ranking reveal (D-3): the substage has ended — cleared by a team (treasure hunt) or
+    // out of questions (trivia) — and every team sees the ranking until this deadline, after which the
+    // session advances or finishes. Null when no substage reveal is pending. Distinct from
+    // `_questionRevealUntil` above: that one is per-question and trivia-only, this one is per-substage
+    // and mode-agnostic. An absolute deadline, so a pause does not extend it (see the spec's step-3
+    // decision 2) — a paused session is simply not ticked and advances on the first tick after resume.
+    private DateTimeOffset? _substageRevealUntil;
 
     private LiveSession()
     {
@@ -127,6 +141,13 @@ public sealed class LiveSession : BaseAuditableEntity
 
     public DateTimeOffset? QuestionRevealUntil => _questionRevealUntil;
 
+    // True while a just-ended substage is showing its ranking (D-3). Both play modes reach this: a
+    // treasure hunt when the first team clears (D-1), a trivia substage when its last question's own
+    // reveal completes. The substage pointer does not move until the reveal ends.
+    public bool IsAwaitingSubstageRankingReveal => _substageRevealUntil.HasValue;
+
+    public DateTimeOffset? SubstageRevealUntil => _substageRevealUntil;
+
     // The activation deferred by the reveal window: the substage-local index of the next question to
     // open when the reveal ends, or null when the just-closed question was the substage's last (advance
     // instead). Resolved against the still-active question at close, so mid-substage it is the just-closed
@@ -135,6 +156,9 @@ public sealed class LiveSession : BaseAuditableEntity
 
     public bool IsQuestionRevealElapsed(DateTimeOffset observedAt) =>
         _questionRevealUntil is { } until && observedAt >= until;
+
+    public bool IsSubstageRevealElapsed(DateTimeOffset observedAt) =>
+        _substageRevealUntil is { } until && observedAt >= until;
 
     public int? AssignedOperatorUserId { get; private set; }
 
@@ -324,10 +348,29 @@ public sealed class LiveSession : BaseAuditableEntity
         return (participant, target);
     }
 
+    // Hard disconnect (operator/seed): forces the participant offline and clears every held connection.
     public void DisconnectParticipant(Guid participantId, DateTimeOffset occurredAt)
     {
         var participant = _participants.Single(participant => participant.SessionParticipantId == participantId);
         participant.Disconnect(occurredAt);
+    }
+
+    // Registers a socket (ConnectionId) under a participant as part of the serialized aggregate write.
+    // Because every UpdateAsync forces a principal-row xmin bump (Phase 2), this admission and any
+    // overlapping disconnect of another socket are serialized against each other rather than racing.
+    public void RegisterParticipantConnection(Guid participantId, string connectionId, DateTimeOffset occurredAt)
+    {
+        var participant = _participants.Single(participant => participant.SessionParticipantId == participantId);
+        participant.RegisterConnection(connectionId, occurredAt);
+    }
+
+    // Socket-lifecycle disconnect, keyed on ConnectionId: idempotent and decrement-guarded (see
+    // SessionParticipant.DropConnection). Tolerant of an absent participant so a late disconnect
+    // callback for a participant that was already removed is a harmless no-op.
+    public void DisconnectParticipantConnection(Guid participantId, string connectionId, DateTimeOffset occurredAt)
+    {
+        var participant = _participants.SingleOrDefault(participant => participant.SessionParticipantId == participantId);
+        participant?.DropConnection(connectionId, occurredAt);
     }
 
     public JoinContext OpenJoinContext(Guid? teamId, Guid? joinTokenId, DateTimeOffset createdAt, DateTimeOffset expiresAt)
@@ -729,6 +772,13 @@ public sealed class LiveSession : BaseAuditableEntity
             target.Score,
             submission.SubmittedAt));
 
+        // D-1: this scan may have just cleared the substage for everyone. Checked after the accept
+        // above, so the target that completes the set is counted and scored like any other.
+        if (IsSubstageClearedBy(submission.TeamId, submission.ActiveSubstageId))
+        {
+            BeginSubstageRankingReveal(submittedAt, SubstageRankingRevealDuration);
+        }
+
         return submission;
     }
 
@@ -779,9 +829,25 @@ public sealed class LiveSession : BaseAuditableEntity
             existing.TargetSnapshotId == target.TargetSnapshotId &&
             existing.ValidationState == EvidenceValidationState.Accepted);
 
-        return alreadyResolved
-            ? TargetResolutionRejectionReason.TargetAlreadyResolvedByTeam
-            : null;
+        if (alreadyResolved)
+        {
+            return TargetResolutionRejectionReason.TargetAlreadyResolvedByTeam;
+        }
+
+        // D-2 — hard cut. The substage is closed and its ranking is on screen, so a scan that would
+        // otherwise have resolved cannot: this is the in-flight scan the clearing team beat. Retained
+        // for audit like any rejection, and every already-accepted target keeps its score.
+        //
+        // Checked LAST so the more specific diagnoses above still win. This is also what makes the
+        // reason truthful rather than merely close: the team that cleared resolved every target, so its
+        // own later scans are duplicates caught above — only a team that did NOT clear can reach here,
+        // which is exactly what "another team already completed this stage" claims.
+        if (_substageRevealUntil.HasValue)
+        {
+            return TargetResolutionRejectionReason.SubstageAlreadyCleared;
+        }
+
+        return null;
     }
 
     // Step 1 — session-state gate, delegated to the State type (Active is the only state that admits
@@ -1128,6 +1194,29 @@ public sealed class LiveSession : BaseAuditableEntity
             : BuildTriviaContext(activeSubstage);
     }
 
+    // D-1: a treasure-hunt substage is cleared by the first team to resolve every one of its active
+    // targets. The two counts below are the same pair the team board reads (BuildTreasureHuntContext),
+    // shared from here so a clear can never disagree with the board that displays it.
+    //
+    // Zero active targets deliberately does NOT count as cleared: such a substage is unreachable by
+    // scanning and must be rejected at authoring instead (D-7). A "zero => instantly cleared" fallback
+    // here would silently paper over a mission that a human should be told to fix.
+    public bool IsSubstageClearedBy(Guid teamId, Guid substageId)
+    {
+        var activeTargets = CountActiveTargets(substageId);
+        return activeTargets > 0 && CountResolvedTargets(teamId, substageId) == activeTargets;
+    }
+
+    private int CountActiveTargets(Guid substageId) =>
+        MissionRuntimeSnapshot.TargetSnapshots
+            .Count(target => target.SubstageSnapshotId == substageId && target.IsActive);
+
+    private int CountResolvedTargets(Guid teamId, Guid substageId) =>
+        _treasureEvidenceSubmissions.Count(submission =>
+            submission.TeamId == teamId &&
+            submission.ActiveSubstageId == substageId &&
+            submission.ValidationState == EvidenceValidationState.Accepted);
+
     private ActiveSubstageContext BuildTreasureHuntContext(SubstageSnapshot substage, Guid teamId)
     {
         var activeTargets = MissionRuntimeSnapshot.TargetSnapshots
@@ -1143,10 +1232,7 @@ public sealed class LiveSession : BaseAuditableEntity
                     StringComparison.OrdinalIgnoreCase)))
             .ToArray();
 
-        var resolvedTargets = _treasureEvidenceSubmissions.Count(submission =>
-            submission.TeamId == teamId &&
-            submission.ActiveSubstageId == substage.SubstageSnapshotId &&
-            submission.ValidationState == EvidenceValidationState.Accepted);
+        var resolvedTargets = CountResolvedTargets(teamId, substage.SubstageSnapshotId);
 
         return ActiveSubstageContext.CreateTreasureHunt(
             substage.SubstageSnapshotId,
@@ -1411,12 +1497,15 @@ public sealed class LiveSession : BaseAuditableEntity
             .ToList();
     }
 
-    // Timer-driven, generic substage advancement (ADR-0005): once the active substage's last
-    // question has closed, walk to the next substage in strict stage->substage order. A next
-    // substage exists -> move the pointer and raise SubstageAdvancedEvent (the facade activates the
-    // first question for a trivia substage). The mission timer is untouched here: MaximumTime is one
-    // budget for the whole mission, seeded at start and ticking straight through. No next substage
-    // -> SessionCompletion: Finished is reached ONLY here, never operator-forced. EnsureCanAdvanceSubstage
+    // Generic substage advancement (ADR-0005): once the active substage has ended and its 10s ranking
+    // reveal has played out (D-3), walk to the next substage in strict stage->substage order. Both play
+    // modes reach this through SubstageAdvanceCoordinator — a trivia substage out of questions and a
+    // treasure hunt cleared by its first team (D-1) are the same event here. A next substage exists ->
+    // move the pointer and raise SubstageAdvancedEvent (the coordinator activates the first question
+    // for a trivia substage; a treasure hunt needs no activation, its targets are already live). The
+    // mission timer is untouched here: MaximumTime is one budget for the whole mission, seeded at start
+    // and ticking straight through. No next substage -> SessionCompletion: Finished is reached ONLY
+    // here and in FinishOnMissionDeadline, never operator-forced. EnsureCanAdvanceSubstage
     // above only permits this method while State is Active, so the Finished branch below applies the
     // state change directly (ApplyStateChange) rather than through MoveTo/the transition policy —
     // Active/PausedLiveSessionState.CanTransitionTo deliberately no longer allow Finished, since that
@@ -1460,6 +1549,113 @@ public sealed class LiveSession : BaseAuditableEntity
             fromSubstage.PlayMode,
             nextSubstage.SubstageSnapshotId,
             occurredAt));
+    }
+
+    // D-4: MaximumTime ran out, wherever play happened to be. The mission ends immediately on the
+    // ranking, in either play mode — mission expiry is not a substage end, so it gets no 10s reveal of
+    // its own (the finished screen already IS the ranking; see the spec's step-3 decision 3). The
+    // active substage is left pointing where it was: it did not complete, and SubstageAdvancedEvent
+    // would claim it did.
+    //
+    // Like the Finished branch of CompleteActiveSubstageAndAdvance this applies the state change
+    // directly rather than through the transition policy, for the same reason: Active/Paused ->
+    // Finished stays closed to operator-facing paths.
+    public void FinishOnMissionDeadline(DateTimeOffset occurredAt)
+    {
+        LiveSessionStateFactory.For(State).EnsureCanAdvanceSubstage(this);
+
+        AddDomainEvent(new MissionDeadlineReachedEvent(
+            LiveSessionId,
+            ActiveSubstageId,
+            occurredAt));
+
+        ApplyStateChange(
+            SessionState.Finished,
+            occurredAt,
+            reason: null,
+            responsibleUserId: null,
+            responsibleUserExternalId: null);
+    }
+
+    // D-3: open the substage-end ranking reveal. Both play modes land here — a treasure hunt from
+    // RegisterTargetScan on first clear (D-1), a trivia substage from the coordinator when its last
+    // question's reveal completes.
+    //
+    // Idempotent by design: two teams can clear in the same tick, and the loser of that race must not
+    // restart the window or re-raise the event. D-2 depends on this — the ranking on screen is the
+    // settled result and must not move while displayed. (The `xmin` token guards the same race at the
+    // DB; this guards it in the aggregate. Both are needed — see the concurrency section of the spec.)
+    public void BeginSubstageRankingReveal(DateTimeOffset occurredAt, TimeSpan revealDuration)
+    {
+        LiveSessionStateFactory.For(State).EnsureCanAdvanceSubstage(this);
+
+        if (ActiveSubstageId is null)
+        {
+            throw new NoActiveSubstageException();
+        }
+
+        if (_substageRevealUntil.HasValue)
+        {
+            return;
+        }
+
+        var orderedSubstages = GetOrderedSubstages();
+        var currentIndex = Array.FindIndex(
+            orderedSubstages,
+            substage => substage.SubstageSnapshotId == ActiveSubstageId.Value);
+        var currentSubstage = orderedSubstages[currentIndex];
+
+        _substageRevealUntil = occurredAt + revealDuration;
+
+        AddDomainEvent(new SubstageRevealStartedEvent(
+            LiveSessionId,
+            currentSubstage.SubstageSnapshotId,
+            currentSubstage.PlayMode,
+            _substageRevealUntil.Value,
+            isTerminal: currentIndex + 1 >= orderedSubstages.Length,
+            occurredAt));
+    }
+
+    // End the reveal window. Separate from CompleteActiveSubstageAndAdvance so the advance keeps its
+    // single meaning and stays callable on its own; the coordinator pairs them. Idempotent callers
+    // should guard on `IsAwaitingSubstageRankingReveal` first.
+    public void CompleteSubstageRankingReveal()
+    {
+        if (_substageRevealUntil is null)
+        {
+            throw new NoActiveSubstageRevealException();
+        }
+
+        _substageRevealUntil = null;
+    }
+
+    // The reveal on screen right now (D-3), rebuilt from persisted state — not a transient event — so a
+    // client reconnecting mid-reveal can restore the ranking. Null when none is active. During a reveal
+    // the substage pointer has not moved, so ActiveSubstageId still names the revealed substage; the play
+    // mode and terminal marker come from its position in the ordered substages. Present while paused too
+    // (the field only clears on committed advancement/finish), even once the wall-clock RevealUntil has
+    // passed — paused sessions are excluded from worker progression, so the reveal deliberately persists.
+    public ActiveSubstageRankingReveal? GetActiveSubstageRankingReveal()
+    {
+        if (_substageRevealUntil is not { } revealUntil || ActiveSubstageId is null)
+        {
+            return null;
+        }
+
+        // _substageRevealUntil is only ever set (BeginSubstageRankingReveal) with ActiveSubstageId
+        // pointing at a live substage, so the pointer always resolves here — same as that method.
+        var orderedSubstages = GetOrderedSubstages();
+        var currentIndex = Array.FindIndex(
+            orderedSubstages,
+            substage => substage.SubstageSnapshotId == ActiveSubstageId.Value);
+
+        var currentSubstage = orderedSubstages[currentIndex];
+        return new ActiveSubstageRankingReveal(
+            currentSubstage.SubstageSnapshotId,
+            currentSubstage.PlayMode,
+            revealUntil,
+            IsTerminal: currentIndex + 1 >= orderedSubstages.Length,
+            EmittedAt: revealUntil - SubstageRankingRevealDuration);
     }
 
     public void AssignOperator(int operatorUserId, DateTimeOffset occurredAt) =>

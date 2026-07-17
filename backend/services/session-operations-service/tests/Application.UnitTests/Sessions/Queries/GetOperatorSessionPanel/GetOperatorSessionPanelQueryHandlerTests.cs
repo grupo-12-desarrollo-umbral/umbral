@@ -32,6 +32,7 @@ public sealed class GetOperatorSessionPanelQueryHandlerTests
             CancellationToken.None);
 
         result.LiveSessionId.Should().Be(session.LiveSessionId);
+        result.MissionTitle.Should().Be("Museum Hunt");
         result.State.Should().Be(nameof(SessionState.Active));
         result.Timer.SessionState.Should().Be(nameof(SessionState.Active));
         result.TeamProgress.Should().HaveCount(2);
@@ -90,7 +91,7 @@ public sealed class GetOperatorSessionPanelQueryHandlerTests
             .GetProperties()
             .Select(property => property.Name);
 
-        rootProperties.Should().BeEquivalentTo("LiveSessionId", "State", "Timer", "TeamProgress");
+        rootProperties.Should().BeEquivalentTo("LiveSessionId", "MissionTitle", "State", "Timer", "TeamProgress");
         teamProperties.Should().BeEquivalentTo("TeamId", "ReferenceTeamId", "TeamCode", "DisplayName", "Score", "ReleasedClueCount", "ActiveSubstage");
         teamProperties.Should().NotContain(new[] { "Rank", "Winner", "Penalty", "ScoreLedger" });
     }

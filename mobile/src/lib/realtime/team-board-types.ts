@@ -90,6 +90,9 @@ export type ActiveTargetDto = {
 
 export type ParticipantTeamBoardDto = {
   liveSessionId: string;
+  // The mission's name (session-level), shown to the participant alongside the substage for every
+  // play mode. Session-scoped, so it rides the board itself, not the nullable activeSubstage.
+  missionTitle: string;
   teamId: string;
   teamDisplayName: string;
   teamCode: string;

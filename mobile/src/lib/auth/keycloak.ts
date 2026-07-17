@@ -75,9 +75,9 @@ export function parseJwt(token: string): Record<string, unknown> {
 export function deriveCredentials(idToken: string): AuthCredentials {
   const claims = parseJwt(idToken);
   const displayName =
-    (claims.preferred_username as string | undefined) ??
     (claims.name as string | undefined) ??
     (claims.given_name as string | undefined) ??
+    (claims.preferred_username as string | undefined) ??
     (claims.email as string | undefined) ??
     'User';
   return {

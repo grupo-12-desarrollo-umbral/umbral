@@ -90,6 +90,8 @@ function normalizeTimerNotification(raw: unknown): SessionTimerUpdatedNotificati
     TotalMilliseconds?: number
     IsExpired?: boolean
     SessionState?: string
+    MissionRemainingMilliseconds?: number | null
+    MissionTotalMilliseconds?: number | null
   }
   return {
     liveSessionId: n.liveSessionId ?? n.LiveSessionId ?? '',
@@ -99,6 +101,9 @@ function normalizeTimerNotification(raw: unknown): SessionTimerUpdatedNotificati
     totalMilliseconds: n.totalMilliseconds ?? n.TotalMilliseconds ?? 0,
     isExpired: n.isExpired ?? n.IsExpired ?? false,
     sessionState: n.sessionState ?? n.SessionState ?? '',
+    // absent OR null both mean "no mission deadline seeded yet" — coalesce to null
+    missionRemainingMilliseconds: n.missionRemainingMilliseconds ?? n.MissionRemainingMilliseconds ?? null,
+    missionTotalMilliseconds: n.missionTotalMilliseconds ?? n.MissionTotalMilliseconds ?? null,
   }
 }
 
@@ -232,6 +237,7 @@ function normalizeOperatorPanel(raw: unknown): OperatorSessionPanelDto {
   const rawTeams = (p.teamProgress ?? p.TeamProgress ?? []) as unknown[]
   return {
     liveSessionId: (p.liveSessionId ?? p.LiveSessionId ?? '') as string,
+    missionTitle: (p.missionTitle ?? p.MissionTitle ?? '') as string,
     state: (p.state ?? p.State ?? '') as string,
     // The panel's countdown is driven by the dedicated SessionTimerUpdated path (HU-22); this timer
     // field is passed through typed but not re-rendered as a second clock (Architecture Decision 4).

@@ -28,7 +28,7 @@ function runSql(db: string, sqlText: string): void {
 // Idempotently authors the mission: one stage, one TreasureHunt substage (first, so it becomes active on
 // Start), three active targets each linked to a clue. Rebuilds the hierarchy on every run (DELETE cascades
 // stages -> substages -> targets/clues) so a persistent DB stays clean and the mission id survives.
-// Difficulty 'Easy' matches global-setup's SQL seeds; per-target Score is supplied explicitly (50) because
+// Difficulty 'Beginner' matches global-setup's SQL seeds; per-target Score is supplied explicitly (50) because
 // it is NOT NULL and, unlike API authoring, is not derived from difficulty.
 //
 // Pass a missionName unique to your spec: the DELETE above rebuilds by name, so two specs sharing a name
@@ -54,7 +54,7 @@ BEGIN
 
   IF v_mission_id IS NULL THEN
     INSERT INTO "Missions" ("Name", "Description", "Difficulty", "MaximumTimeMinutes", "IsActive", "ActivationState", "Created", "LastModified")
-    VALUES ('${missionName}', 'Seeded runtime-ready treasure-hunt mission for e2e — do not delete', 'Easy', 60, true, 'Ready', NOW(), NOW())
+    VALUES ('${missionName}', 'Seeded runtime-ready treasure-hunt mission for e2e — do not delete', 'Beginner', 60, true, 'Ready', NOW(), NOW())
     RETURNING "Id" INTO v_mission_id;
   ELSE
     UPDATE "Missions" SET "IsActive" = true, "ActivationState" = 'Ready', "LastModified" = NOW() WHERE "Id" = v_mission_id;

@@ -153,9 +153,12 @@ consistency with the existing `getIdentityHeaders` helper and silently ignored b
 
 ### `PUT /api/trivias/{id}`
 
-Identical request body shape to `POST /api/trivias` (title, description, questions).
-Full question/option array replacement — the backend discards previous questions and
-persists the incoming set.
+Same request body shape as `POST /api/trivias` (title, description, questions), but
+`questions` is optional and its omission is meaningful:
+- **`questions` omitted** — details-only edit; the quiz's existing questions are preserved.
+  The title/description edit form takes this path.
+- **`questions` present** (including `[]`) — full question/option array replacement; the
+  backend discards previous questions and persists the incoming set (an empty array clears them).
 
 **Response `200 OK`** — `TriviaQuizResponse` (same shape as GET detail)
 
@@ -346,7 +349,9 @@ export async function updateTriviaQuiz(
   const response = await fetch(`${MISSION_DESIGN_SERVICE_URL}/api/trivias/${id}`, {
     method: 'PUT',
     headers: { ...getIdentityHeaders(session), 'Content-Type': 'application/json' },
-    body: JSON.stringify({ title, description, questions: [] }),
+    // `questions` is omitted on purpose: this edits details only, and sending a collection
+    // would replace the quiz's questions. Question authoring goes through HU-14A's routes.
+    body: JSON.stringify({ title, description }),
   })
   if (response.status === 400) throw new Error('invalid_fields')
   if (response.status === 401) throw new IdentityError('unauthorized', 'Authentication failed.')
@@ -358,8 +363,9 @@ export async function updateTriviaQuiz(
 }
 ```
 
-Note: create and update pass `questions: []` because HU-14A owns question authoring. The
-backend accepts an empty array without error, as confirmed by the contract.
+Note: create passes `questions: []` and update omits `questions` because HU-14A owns
+question authoring. On update, omitting the field preserves the quiz's existing questions
+(sending a collection — including `[]` — would replace them); create seeds an empty set.
 
 **`app/actions/trivias.ts`**
 ```ts
@@ -873,5 +879,6 @@ Ref: HU-11
 - **Pagination.** `GET /api/trivias` returns a flat list. If the catalog grows, pagination
   can be added in a follow-on HU without changing this plan's data contracts.
 - **Self-contained quiz creation with questions.** The backend supports submitting questions
-  in the create/update body. This plan defers that to HU-14A and passes `questions: []`.
-  The form shape does not expose question fields.
+  in the create/update body. This plan defers that to HU-14A: create passes `questions: []`
+  and update omits `questions` (preserving existing ones). The form shape does not expose
+  question fields.

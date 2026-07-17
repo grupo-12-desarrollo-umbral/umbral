@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import {
   signInWithPassword,
   signOut as kcSignOut,
@@ -51,27 +51,16 @@ const INITIAL_STATE: AuthState = {
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<AuthState>(INITIAL_STATE);
 
-  useEffect(() => {
-    restoreSession();
-  }, []);
-
-  // A refresh token Keycloak has rejected ends the session wherever it is noticed — a background API
-  // call or a hub reconnect, not just startup. The provider has already cleared the store by now.
-  useEffect(
-    () =>
-      onSessionExpired(() => {
-        setState({ status: 'idle', profile: null, rejectionReason: null, errorMessage: null });
-      }),
-    [],
-  );
-
-  async function restoreSession(): Promise<void> {
-    const token = await getValidAccessToken();
-    if (!token) {
-      setState((s) => ({ ...s, status: 'idle' }));
-      return;
-    }
+  const restoreSession = useCallback(async (): Promise<void> => {
     try {
+      // Inside the try: a SecureStore rejection here (e.g. a locked keychain) must resolve into the
+      // error state below, not reject `restoreSession` unhandled and strand the mount-time splash on
+      // 'authenticating' forever.
+      const token = await getValidAccessToken();
+      if (!token) {
+        setState((s) => ({ ...s, status: 'idle' }));
+        return;
+      }
       const profile = await getAuthenticatedProfile();
       const bootstrapResult = await bootstrapAuthenticatedUser(profile.displayName);
       const access = evaluateAccess(bootstrapResult);
@@ -97,7 +86,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         errorMessage: 'Network error. Check your connection and try again.',
       });
     }
-  }
+  }, []);
+
+  useEffect(() => {
+    // Mount-time session restore: kicks off async token validation that resolves the auth
+    // state via setState in its own callbacks. Genuine external-sync effect.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    restoreSession();
+  }, [restoreSession]);
+
+  // A refresh token Keycloak has rejected ends the session wherever it is noticed — a background API
+  // call or a hub reconnect, not just startup. The provider has already cleared the store by now.
+  useEffect(
+    () =>
+      onSessionExpired(() => {
+        setState({ status: 'idle', profile: null, rejectionReason: null, errorMessage: null });
+      }),
+    [],
+  );
 
   async function signIn(email: string, password: string): Promise<void> {
     setState((s) => ({ ...s, status: 'authenticating', errorMessage: null }));

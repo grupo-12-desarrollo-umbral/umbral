@@ -121,6 +121,7 @@ describe('createSessionStateRealtimeClient — OperatorSessionPanelUpdated', () 
 
   const expectedPanel = {
     liveSessionId: 's1',
+    missionTitle: 'City Quest',
     state: 'Active',
     timer: { liveSessionId: 's1', teamId: null },
     teamProgress: [
@@ -150,6 +151,7 @@ describe('createSessionStateRealtimeClient — OperatorSessionPanelUpdated', () 
 
     lastConnection.handlers.get('OperatorSessionPanelUpdated')!({
       liveSessionId: 's1',
+      missionTitle: 'City Quest',
       state: 'Active',
       timer: { liveSessionId: 's1', teamId: null },
       teamProgress: [
@@ -182,6 +184,7 @@ describe('createSessionStateRealtimeClient — OperatorSessionPanelUpdated', () 
 
     lastConnection.handlers.get('OperatorSessionPanelUpdated')!({
       LiveSessionId: 's1',
+      MissionTitle: 'City Quest',
       State: 'Active',
       Timer: { liveSessionId: 's1', teamId: null },
       TeamProgress: [
@@ -407,5 +410,81 @@ describe('createSessionStateRealtimeClient — EvidenceSubmission events', () =>
     createSessionStateRealtimeClient({ ...baseOptions })
     expect(lastConnection.handlers.has('EvidenceSubmissionRegistered')).toBe(false)
     expect(lastConnection.handlers.has('EvidenceSubmissionResolved')).toBe(false)
+  })
+})
+
+// D-4/D-5: the SessionTimerUpdated tick carries the whole-mission countdown alongside the
+// active-substage window; the normalizer must surface (not discard) the mission* fields from either
+// wire casing, and coalesce an absent deadline to null so a pre-start tick reads as "no mission clock".
+describe('createSessionStateRealtimeClient — SessionTimerUpdated', () => {
+  beforeEach(() => { lastConnection = undefined as never })
+
+  it('normalizes a camelCase payload and carries the mission fields', () => {
+    const received: unknown[] = []
+    createSessionStateRealtimeClient({ ...baseOptions, onTimerUpdated: (n) => received.push(n) })
+
+    lastConnection.handlers.get('SessionTimerUpdated')!({
+      liveSessionId: 's1',
+      remainingMilliseconds: 30_000,
+      isPaused: false,
+      emittedAt: '2026-07-10T10:00:00Z',
+      totalMilliseconds: 60_000,
+      isExpired: false,
+      sessionState: 'Active',
+      missionRemainingMilliseconds: 600_000,
+      missionTotalMilliseconds: 1_800_000,
+    })
+
+    expect(received).toEqual([
+      {
+        liveSessionId: 's1',
+        remainingMilliseconds: 30_000,
+        isPaused: false,
+        emittedAt: '2026-07-10T10:00:00Z',
+        totalMilliseconds: 60_000,
+        isExpired: false,
+        sessionState: 'Active',
+        missionRemainingMilliseconds: 600_000,
+        missionTotalMilliseconds: 1_800_000,
+      },
+    ])
+  })
+
+  it('normalizes a PascalCase (C# wire) payload and carries the mission fields', () => {
+    const received: Array<{ missionRemainingMilliseconds?: number | null; missionTotalMilliseconds?: number | null }> = []
+    createSessionStateRealtimeClient({ ...baseOptions, onTimerUpdated: (n) => received.push(n) })
+
+    lastConnection.handlers.get('SessionTimerUpdated')!({
+      LiveSessionId: 's1',
+      RemainingMilliseconds: 30_000,
+      IsPaused: false,
+      EmittedAt: '2026-07-10T10:00:00Z',
+      TotalMilliseconds: 60_000,
+      IsExpired: false,
+      SessionState: 'Active',
+      MissionRemainingMilliseconds: 600_000,
+      MissionTotalMilliseconds: 1_800_000,
+    })
+
+    expect(received[0]!.missionRemainingMilliseconds).toBe(600_000)
+    expect(received[0]!.missionTotalMilliseconds).toBe(1_800_000)
+  })
+
+  it('coalesces absent mission fields to null (pre-start tick, no deadline seeded)', () => {
+    const received: Array<{ missionRemainingMilliseconds?: number | null; missionTotalMilliseconds?: number | null }> = []
+    createSessionStateRealtimeClient({ ...baseOptions, onTimerUpdated: (n) => received.push(n) })
+
+    lastConnection.handlers.get('SessionTimerUpdated')!({
+      liveSessionId: 's1',
+      remainingMilliseconds: 0,
+      isPaused: true,
+      emittedAt: '2026-07-10T10:00:00Z',
+      totalMilliseconds: 0,
+      isExpired: false,
+      sessionState: 'Scheduled',
+    })
+
+    expect(received[0]!.missionRemainingMilliseconds).toBeNull()
+    expect(received[0]!.missionTotalMilliseconds).toBeNull()
   })
 })

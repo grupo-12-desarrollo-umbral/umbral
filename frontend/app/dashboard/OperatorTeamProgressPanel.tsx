@@ -1,15 +1,20 @@
-import type { OperatorSessionPanelDto, OperatorTeamProgressDto } from '@/app/lib/definitions'
+import type {
+  OperatorSessionPanelDto,
+  OperatorTeamProgressDto,
+  RankingSnapshotDto,
+} from '@/app/lib/definitions'
 import styles from './operatorTeamProgressPanel.module.css'
 
 type OperatorTeamProgressPanelProps = {
   panel: OperatorSessionPanelDto | null
+  ranking: RankingSnapshotDto | null
   unauthorized: boolean // true ⇒ not-authorized state, no team data
   error: string | null // non-null ⇒ transient/unexpected read failure (not an auth problem)
   loading: boolean
 }
 
 // Target-based progress for treasure-hunt / no-question; active-question order for trivia — never
-// clue-based. Score is rendered verbatim (session-owned or zero) — no ranking, no ledger (HU-24B).
+// clue-based. Score comes from scoring-monitoring's ranking, keyed by cross-context referenceTeamId.
 // A separate released-clue tally (manual releases + active-substage initial clues) rides alongside.
 function ProgressCell({ team }: { team: OperatorTeamProgressDto }) {
   const sub = team.activeSubstage
@@ -31,6 +36,7 @@ function ProgressCell({ team }: { team: OperatorTeamProgressDto }) {
 
 export function OperatorTeamProgressPanel({
   panel,
+  ranking,
   unauthorized,
   error,
   loading,
@@ -74,6 +80,11 @@ export function OperatorTeamProgressPanel({
   // dimension the per-team tally naturally rolls up to). No distinct-clue total — the same initial
   // clue counts once per team, so summing would double-count.
   const teamsWithClues = panel.teamProgress.filter((team) => team.releasedClueCount > 0).length
+  // `null` means ranking has not loaded, so retain the session projection as a temporary fallback.
+  // Once an authoritative snapshot exists, a missing row means no score entries yet: zero points.
+  const rankingScores = ranking === null
+    ? null
+    : new Map(ranking.rows.map((row) => [row.teamId, row.totalScore]))
 
   return (
     <section className={styles.panel} data-testid="operator-session-panel" aria-labelledby="operator-session-panel-title">
@@ -92,21 +103,37 @@ export function OperatorTeamProgressPanel({
         <p className={styles.stateNote} data-testid="panel-no-teams">No teams associated yet.</p>
       ) : (
         <ul className={styles.list}>
-          {panel.teamProgress.map((team) => (
+          {panel.teamProgress.map((team) => {
+            const score = rankingScores === null || team.referenceTeamId === null
+              ? team.score
+              : rankingScores.get(team.referenceTeamId) ?? 0
+
+            return (
             <li key={team.teamId} className={styles.row} data-testid={`team-progress-${team.teamId}`}>
-              <span className={styles.teamName}>{team.displayName}</span>
-              <span className={styles.teamCode}>{team.teamCode}</span>
-              {team.releasedClueCount > 0 && (
-                <span className={styles.clues} data-testid={`team-progress-clues-${team.teamId}`}>
-                  {team.releasedClueCount} clue{team.releasedClueCount === 1 ? '' : 's'}
+              <div className={styles.rowMain}>
+                <span className={styles.teamName}>{team.displayName}</span>
+                <span className={styles.teamCode}>{team.teamCode}</span>
+                {team.releasedClueCount > 0 && (
+                  <span className={styles.clues} data-testid={`team-progress-clues-${team.teamId}`}>
+                    {team.releasedClueCount} clue{team.releasedClueCount === 1 ? '' : 's'}
+                  </span>
+                )}
+                <span className={styles.score} data-testid={`team-progress-score-${team.teamId}`}>
+                  {score} pts
                 </span>
-              )}
-              <span className={styles.score} data-testid={`team-progress-score-${team.teamId}`}>
-                {team.score} pts
-              </span>
-              <ProgressCell team={team} />
+                <ProgressCell team={team} />
+              </div>
+              {team.activeSubstage?.title ? (
+                <span
+                  className={styles.substageTitle}
+                  data-testid={`team-progress-substage-${team.teamId}`}
+                >
+                  {team.activeSubstage.title}
+                </span>
+              ) : null}
             </li>
-          ))}
+            )
+          })}
         </ul>
       )}
     </section>

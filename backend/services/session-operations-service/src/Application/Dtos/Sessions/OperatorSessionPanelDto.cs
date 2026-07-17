@@ -2,6 +2,9 @@ namespace umbral_backend.Application.Dtos.Sessions;
 
 public sealed record OperatorSessionPanelDto(
     Guid LiveSessionId,
+    // The mission's name (session-level), shown in the operator hero. Session-scoped, so it rides the
+    // panel itself, not the per-team nullable active-substage context.
+    string MissionTitle,
     string State,
     SessionTimerSnapshotDto Timer,
     IReadOnlyList<OperatorTeamProgressDto> TeamProgress);

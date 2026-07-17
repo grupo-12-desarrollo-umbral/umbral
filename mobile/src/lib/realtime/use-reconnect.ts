@@ -52,6 +52,9 @@ export function useReconnect() {
   const [reconnectNonce, setReconnectNonce] = useState(0);
   const contextRef = useRef<ReconnectContext | null>(null);
   const reconnectAttemptRef = useRef(0);
+  // Set when the app deliberately tears the connection down (stop() or unmount), so the transport's
+  // `onclose` can tell an intentional close apart from an exhausted-reconnect failure.
+  const intentionalStopRef = useRef(false);
 
   async function handleReconnectAttempt(
     context: ReconnectContext,
@@ -80,6 +83,13 @@ export function useReconnect() {
 
       const nextOutcome = toReconnectedOutcome(result);
       await saveReconnectContext(toUpdatedReconnectContext(context, result));
+
+      // A newer attempt (or a reset()) may have superseded this one during the awaited persist above.
+      // Re-check ownership so a stale completion can never publish its outcome over newer state.
+      if (reconnectAttemptRef.current !== attemptId) {
+        return { kind: 'error' };
+      }
+
       setOutcome(nextOutcome);
       setStatus('reconnected');
       return nextOutcome;
@@ -111,6 +121,7 @@ export function useReconnect() {
       onreconnected?: (
         callback: (connectionId?: string) => void | Promise<void>,
       ) => void;
+      onclose?: (callback: (error?: Error) => void) => void;
     };
     if (typeof connection.onreconnecting === 'function') {
       connection.onreconnecting(() => setIsHubReconnecting(true));
@@ -127,10 +138,27 @@ export function useReconnect() {
         setReconnectNonce(n => n + 1);
       });
     }
+    if (typeof connection.onclose === 'function') {
+      connection.onclose(() => {
+        // `withAutomaticReconnect()` has exhausted its retries (or the transport closed unexpectedly).
+        // Without this, `isHubReconnecting`/`status` would stay frozen at their last live values and keep
+        // the play surface on screen over a dead connection whose backend lease is gone. A deliberate
+        // stop()/unmount sets `intentionalStopRef`, so normal teardown is not surfaced as an error.
+        if (intentionalStopRef.current) return;
+        setIsHubReconnecting(false);
+        setOutcome({ kind: 'network-error' });
+        setStatus('error');
+      });
+    }
+    // Register the transport callbacks exactly once per stable `client`. `handleReconnectAttempt`
+    // is redefined each render; adding it here would re-subscribe (and leak listeners) on every
+    // render. It only reads refs and stable setters, so the once-captured closure stays correct.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [client]);
 
   useEffect(() => {
     return () => {
+      intentionalStopRef.current = true;
       void client.stop();
     };
   }, [client]);
@@ -140,10 +168,15 @@ export function useReconnect() {
   }
 
   async function stop(): Promise<void> {
+    intentionalStopRef.current = true;
     await client.stop();
   }
 
   function reset(): void {
+    // Invalidate any in-flight attempt: bumping the generation makes a late completion fail its
+    // ownership re-checks, so it can neither clear the guard nor publish an outcome over the idle
+    // state we set here.
+    reconnectAttemptRef.current += 1;
     setStatus('idle');
     setOutcome(null);
   }

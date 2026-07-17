@@ -18,7 +18,10 @@ let mockPermission: { granted: boolean; canAskAgain: boolean } | null = {
 };
 jest.mock('expo-camera', () => ({
   CameraView: (props: Record<string, unknown>) => {
+    // require() inside the hoisted jest.mock factory — top-level imports aren't in scope here.
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const rn = require('react-native');
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     return require('react').createElement(rn.View, props);
   },
   useCameraPermissions: () => [mockPermission, mockRequestPermission],

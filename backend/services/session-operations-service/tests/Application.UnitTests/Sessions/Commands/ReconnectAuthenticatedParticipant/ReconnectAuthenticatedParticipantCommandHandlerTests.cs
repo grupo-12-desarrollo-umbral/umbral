@@ -52,6 +52,43 @@ public sealed class ReconnectAuthenticatedParticipantCommandHandlerTests
     }
 
     [Fact]
+    public async Task Handle_WhenConnectionIdSupplied_RegistersConnectionLeaseUnderParticipant()
+    {
+        // Finding 5: the hub reconnect passes Context.ConnectionId; the aggregate registers it as a
+        // presence lease inside the same serialized write, so the matching disconnect can be
+        // decrement-guarded on that ConnectionId.
+        var session = CreateScheduledSession();
+        var referenceTeamId = Guid.NewGuid();
+        var team = session.AssociateTeam(referenceTeamId, "Alpha", "A-01", 4);
+        var participantIdentity = Guid.NewGuid();
+        var admission = session.AdmitParticipant(
+            participantIdentity,
+            "Nora",
+            team.TeamId,
+            new DateTimeOffset(2026, 6, 3, 10, 5, 0, TimeSpan.Zero),
+            new JoinPolicy());
+        session.DisconnectParticipant(
+            admission.Participant.SessionParticipantId,
+            new DateTimeOffset(2026, 6, 3, 10, 6, 0, TimeSpan.Zero));
+
+        var repository = CreateRepository(session);
+        var guard = CreateGuard(session.LiveSessionId, team.TeamId, isAllowed: true);
+        var currentUser = CreateCurrentUser(participantIdentity);
+        var reconnectAt = new DateTimeOffset(2026, 6, 3, 10, 7, 0, TimeSpan.Zero);
+        var command = new ReconnectAuthenticatedParticipantCommand(
+            session.LiveSessionId, team.TeamId, "Nora", "join-token", "conn-1");
+        var handler = CreateHandler(repository, guard, currentUser, new FixedTimeProvider(reconnectAt));
+
+        var result = await handler.Handle(command, CancellationToken.None);
+
+        var participant = session.Participants.Single(
+            candidate => candidate.SessionParticipantId == result.SessionParticipantId);
+        participant.ActiveConnectionCount.Should().Be(1);
+        participant.Connections.Single().ConnectionId.Should().Be("conn-1");
+        participant.IsDisconnected.Should().BeFalse();
+    }
+
+    [Fact]
     public async Task Handle_WhenParticipantReconnectsToActiveQuestion_ReturnsAuthoritativeQuestionTimer()
     {
         // HU-22 / US16: a reconnecting participant gets the trustworthy active-substage

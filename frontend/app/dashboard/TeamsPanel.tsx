@@ -168,7 +168,6 @@ export function TeamsPanel({ role }: { role: DashboardRole }) {
             userId: selectedUserId,
             email: assignedUser?.email ?? '',
             displayName: assignedUser?.displayName ?? '',
-            assignedAt: new Date().toISOString(),
           },
         ])
         setShowAssignForm(false)
@@ -447,15 +446,13 @@ export function TeamsPanel({ role }: { role: DashboardRole }) {
                 <tr>
                   <th>User</th>
                   <th>Email</th>
-                  <th>Assigned</th>
                 </tr>
               </thead>
               <tbody>
                 {participants.map((m) => (
                   <tr key={m.teamMembershipId} data-testid={`participant-row-${m.teamMembershipId}`}>
-                    <td data-label="User" data-testid={`participant-user-${m.userId}`}>{m.userId}</td>
+                    <td data-label="User" data-testid={`participant-user-${m.userId}`}>{m.displayName}</td>
                     <td data-label="Email" data-testid={`participant-email-${m.userId}`}>{m.email}</td>
-                    <td data-label="Assigned">{new Date(m.assignedAt).toLocaleDateString()}</td>
                   </tr>
                 ))}
               </tbody>

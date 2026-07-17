@@ -13,6 +13,7 @@ public sealed class SignalRSessionQuestionBroadcaster : ISessionQuestionBroadcas
     public const string QuestionActivatedMethod = "QuestionActivated";
     public const string QuestionClosedMethod = "QuestionClosed";
     public const string SubstageAdvancedMethod = "SubstageAdvanced";
+    public const string SubstageRankingRevealStartedMethod = "SubstageRankingRevealStarted";
 
     private readonly IHubContext<SessionsHub> _hubContext;
 
@@ -46,5 +47,14 @@ public sealed class SignalRSessionQuestionBroadcaster : ISessionQuestionBroadcas
         return _hubContext.Clients
             .Group($"live-session:{notification.LiveSessionId:D}")
             .SendAsync(SubstageAdvancedMethod, notification, cancellationToken);
+    }
+
+    public Task BroadcastSubstageRankingRevealStartedAsync(
+        SubstageRankingRevealStartedNotificationDto notification,
+        CancellationToken cancellationToken)
+    {
+        return _hubContext.Clients
+            .Group($"live-session:{notification.LiveSessionId:D}")
+            .SendAsync(SubstageRankingRevealStartedMethod, notification, cancellationToken);
     }
 }

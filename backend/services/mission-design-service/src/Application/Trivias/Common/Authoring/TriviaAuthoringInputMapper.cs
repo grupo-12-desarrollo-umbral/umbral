@@ -8,9 +8,11 @@ namespace umbral_backend.Application.Trivias.Common.Authoring;
 /// </summary>
 internal static class TriviaAuthoringInputMapper
 {
-    public static IReadOnlyCollection<TriviaQuestion> MapQuestions(IReadOnlyCollection<TriviaQuestionInput> questions)
+    // Null flows through to the domain, which reads it as "no questions supplied" — create
+    // starts empty, update keeps what the quiz already has.
+    public static IReadOnlyCollection<TriviaQuestion>? MapQuestions(IReadOnlyCollection<TriviaQuestionInput>? questions)
     {
-        return questions
+        return questions?
             .Select(question => TriviaQuestion.Create(
                 question.Prompt,
                 question.ScoreValue,

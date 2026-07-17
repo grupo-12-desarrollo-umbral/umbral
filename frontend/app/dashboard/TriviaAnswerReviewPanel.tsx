@@ -2,14 +2,14 @@ import styles from './triviaAnswerReviewPanel.module.css'
 
 // One row of the operator's post-close answer review board. Carries the reveal fields
 // that AnsweredMonitorPanel deliberately withholds: selected option, correctness, and points.
+// The nullable fields mirror the wire shape: a team that never answered arrives as explicit nulls.
 export type AnswerReviewTeamRow = {
   teamId: string
   displayName: string
   teamCode: string
-  selectedOptionSequenceOrder?: number
-  isCorrect?: boolean
-  scoreValue?: number
-  answeredAt?: string
+  selectedOptionSequenceOrder: number | null
+  isCorrect: boolean | null
+  scoreValue: number | null
 }
 
 type TriviaAnswerReviewPanelProps = {
@@ -104,7 +104,7 @@ export function TriviaAnswerReviewPanel({
       </div>
       <ul className={styles.list}>
         {teams.map((team) => {
-          const hasAnswer = team.selectedOptionSequenceOrder !== undefined
+          const hasAnswer = team.selectedOptionSequenceOrder != null
           const badgeLabel = team.isCorrect === true
             ? 'Correct'
             : team.isCorrect === false
@@ -136,7 +136,7 @@ export function TriviaAnswerReviewPanel({
                 {badgeLabel}
               </span>
               <span className={styles.points}>
-                {team.scoreValue !== undefined ? `${team.scoreValue} pts` : '—'}
+                {team.scoreValue != null ? `${team.scoreValue} pts` : '—'}
               </span>
             </li>
           )

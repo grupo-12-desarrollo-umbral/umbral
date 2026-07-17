@@ -362,6 +362,10 @@ namespace umbral_backend.Infrastructure.Migrations
                         .HasColumnType("interval")
                         .HasColumnName("question_timer_total_duration");
 
+                    b.Property<DateTimeOffset?>("_substageRevealUntil")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("substage_reveal_until");
+
                     b.Property<uint>("xmin")
                         .IsConcurrencyToken()
                         .ValueGeneratedOnAddOrUpdate()
@@ -639,6 +643,37 @@ namespace umbral_backend.Infrastructure.Migrations
 
                             b1.WithOwner()
                                 .HasForeignKey("LiveSessionId");
+
+                            b1.OwnsMany("umbral_backend.Domain.Entities.ParticipantConnection", "Connections", b2 =>
+                                {
+                                    b2.Property<string>("ConnectionId")
+                                        .HasMaxLength(200)
+                                        .HasColumnType("character varying(200)")
+                                        .HasColumnName("connection_id");
+
+                                    b2.Property<DateTimeOffset>("LastSeenAt")
+                                        .HasColumnType("timestamp with time zone")
+                                        .HasColumnName("last_seen_at");
+
+                                    b2.Property<DateTimeOffset>("OpenedAt")
+                                        .HasColumnType("timestamp with time zone")
+                                        .HasColumnName("opened_at");
+
+                                    b2.Property<Guid>("SessionParticipantId")
+                                        .HasColumnType("uuid")
+                                        .HasColumnName("session_participant_id");
+
+                                    b2.HasKey("ConnectionId");
+
+                                    b2.HasIndex("SessionParticipantId");
+
+                                    b2.ToTable("live_session_participant_connections", (string)null);
+
+                                    b2.WithOwner()
+                                        .HasForeignKey("SessionParticipantId");
+                                });
+
+                            b1.Navigation("Connections");
                         });
 
                     b.OwnsMany("umbral_backend.Domain.Entities.Team", "Teams", b1 =>
@@ -739,6 +774,11 @@ namespace umbral_backend.Infrastructure.Migrations
                                         .HasColumnName("team_id");
 
                                     b2.HasKey("TeamMemberId");
+
+                                    b2.HasIndex("SessionParticipantId")
+                                        .IsUnique()
+                                        .HasDatabaseName("ux_team_member_one_active_team_per_participant")
+                                        .HasFilter("membership_status = 'Active'");
 
                                     b2.HasIndex("TeamId", "SessionParticipantId")
                                         .IsUnique()

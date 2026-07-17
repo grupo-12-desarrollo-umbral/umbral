@@ -8,7 +8,7 @@
  * Resolution logic and the reject reasons live entirely in the backend (`useTargetScan` just renders the
  * verified result). No geofencing / GPS proximity — coordinates stay display-only (per #156).
  */
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { ActivityIndicator, Modal, Pressable, View } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { Button } from '@/components/ui/button';
@@ -40,8 +40,14 @@ export function TargetScanner({
 
   // Ask once on mount when the OS still allows a prompt. A hard denial (`canAskAgain === false`) is left
   // to the settings-hint branch below — re-requesting there is a silent no-op that only confuses.
+  // The ref makes "once" real: this effect reruns on every `permission` change, and on platforms where a
+  // denial still returns `canAskAgain: true` (Android without "don't ask again"), re-requesting would
+  // immediately re-prompt in a loop instead of landing on the manual retry screen.
+  const hasRequestedRef = useRef(false);
   useEffect(() => {
+    if (hasRequestedRef.current) return;
     if (permission && !permission.granted && permission.canAskAgain) {
+      hasRequestedRef.current = true;
       void requestPermission();
     }
   }, [permission, requestPermission]);

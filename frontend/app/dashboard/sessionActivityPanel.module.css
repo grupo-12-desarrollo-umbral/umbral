@@ -1,0 +1,101 @@
+.panel {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.eyebrow {
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.stateNote {
+  margin: 0.5rem 0 0;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.list {
+  list-style: none;
+  margin: 0.75rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 0.6rem;
+  border-radius: 0.5rem;
+  background: color-mix(in oklab, var(--surface-raised) 85%, var(--border-subtle));
+}
+
+/* The kind badge. Fixed width so the summary column aligns regardless of the label length. */
+.badge {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 5.5rem;
+  min-height: 2.4rem;
+  border: 1px solid color-mix(in oklab, var(--accent) 18%, var(--border-subtle));
+  border-radius: 0.6rem;
+  background:
+    linear-gradient(135deg, color-mix(in oklab, var(--surface-raised) 88%, var(--accent-soft)) 0%, color-mix(in oklab, var(--surface) 84%, var(--bg-muted)) 100%);
+  color: var(--accent-strong);
+  font-size: 0.68rem;
+  font-weight: 600;
+  text-align: center;
+  padding: 0.3rem;
+}
+
+/* Evidence resolutions and state changes tint the badge so a scan of the feed separates outcomes
+   from routine progress without reading every line. */
+.badge[data-kind='evidenceResolved'] {
+  border-color: color-mix(in oklab, var(--success, #3fb950) 30%, var(--border-subtle));
+  color: color-mix(in oklab, var(--success, #3fb950) 80%, var(--text-primary));
+}
+
+.badge[data-kind='state'] {
+  border-color: color-mix(in oklab, var(--warning, #d29922) 30%, var(--border-subtle));
+  color: color-mix(in oklab, var(--warning, #d29922) 80%, var(--text-primary));
+}
+
+.details {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+  flex: 1;
+}
+
+.teamName {
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+/* Summaries are short client-composed strings, but a rejection reason can be long — let it wrap
+   rather than truncate so an operator never loses the tail. */
+.summary {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+}
+
+.occurredAt {
+  flex: none;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}

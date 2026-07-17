@@ -172,8 +172,7 @@ public sealed class TeamReferenceCatalogClientTests
             teamId = TeamId,
             userId = 27,
             email,
-            displayName,
-            assignedAt = DateTimeOffset.Parse("2026-01-07T09:15:00Z")
+            displayName
         };
     }
 

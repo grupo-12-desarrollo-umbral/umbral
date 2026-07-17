@@ -130,19 +130,24 @@ public sealed class RoundClosePublicationEndToEndTests : IAsyncLifetime
             new SessionsHub.ReconnectParticipantHubRequest(seeded.TeamId, "Nova", null));
 
         // Drive the authoritative round exactly as the timer worker does on last-question expiry, now
-        // in two phases (HU-35 reveal window): the close opens the reveal (QuestionClosed broadcast),
-        // then the reveal completion advances past the only substage and — no substage remaining —
-        // completes the session via SessionCompletion → Finished. Both phases are driven explicitly so
-        // the assertions do not race the background worker's reveal-deadline tick. The completion
+        // in three phases: the close opens the 5s answer reveal (QuestionClosed broadcast), its
+        // completion opens the 10s ranking reveal (D-3), and the ranking's completion advances past the
+        // only substage and — no substage remaining — completes the session via SessionCompletion →
+        // Finished. All three are driven explicitly so the assertions do not race the background
+        // worker's reveal-deadline ticks. The completion
         // SaveChanges runs both MassTransit publish handlers; the finalized event is asserted below.
         await using (var scope = _factory.Services.CreateAsyncScope())
         {
             var repository = scope.ServiceProvider.GetRequiredService<ILiveSessionRepository>();
             var facade = scope.ServiceProvider.GetRequiredService<ITriviaRoundOrchestratorFacade>();
+            var coordinator = scope.ServiceProvider.GetRequiredService<ISubstageAdvanceCoordinator>();
             var now = DateTimeOffset.UtcNow;
             var session = await repository.GetByIdAsync(seeded.LiveSessionId, CancellationToken.None);
             await facade.CloseAndAdvanceAsync(session!, now, CancellationToken.None);
             await facade.CompleteQuestionRevealAsync(session!, now, CancellationToken.None);
+            // Third phase (D-3): the last question's answer reveal now opens a 10s ranking, and the
+            // substage advance/finish happens when THAT elapses — not on the answer reveal.
+            await coordinator.CompleteRankingRevealAsync(session!, now, CancellationToken.None);
         }
 
         // (a) SignalR: HU-33A QuestionClosed + HU-21A SessionStateChanged(→Finished) still reach the group.

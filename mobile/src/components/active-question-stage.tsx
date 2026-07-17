@@ -65,16 +65,44 @@ export function CountdownBar({ display }: { display: TimerDisplay }) {
   );
 }
 
+function MissionDeadlineLine({ display }: { display: TimerDisplay }) {
+  const timeColor =
+    display.tone === 'paused'
+      ? colors.signalWarning
+      : display.tone === 'expired'
+        ? colors.signalCritical
+        : colors.textMuted;
+
+  return (
+    <View
+      accessibilityRole="text"
+      accessibilityLabel={`Mission timer: ${display.label}`}
+      style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.xs }}
+    >
+      <Text variant="label" muted>
+        MISSION
+      </Text>
+      <Text variant="mono" style={{ color: timeColor, fontVariant: ['tabular-nums'] }}>
+        {display.label}
+      </Text>
+    </View>
+  );
+}
+
 function StageHeader({
   sessionState,
   score,
   questionSequenceOrder,
   timerDisplay,
+  missionDisplay,
 }: {
   sessionState: string;
   score: number;
   questionSequenceOrder?: number;
   timerDisplay?: TimerDisplay;
+  // The whole-mission deadline, shown beneath the per-question countdown so the two clocks read as
+  // distinct. Null/absent before the deadline is seeded or on an older backend.
+  missionDisplay?: TimerDisplay | null;
 }) {
   const dotColor = STATE_DOT_COLORS[sessionState] ?? colors.textMuted;
   const showTimer = questionSequenceOrder !== undefined && timerDisplay !== undefined;
@@ -122,6 +150,8 @@ function StageHeader({
               <CountdownBar display={timerDisplay} />
             </>
           ) : null}
+
+          {missionDisplay ? <MissionDeadlineLine display={missionDisplay} /> : null}
         </View>
 
         {/* Right column: score */}
@@ -229,6 +259,7 @@ export function ActiveQuestionStage({
   sessionState,
   score,
   timerDisplay,
+  missionDisplay,
   selectedOptionSequenceOrder,
   isSubmitting,
   isLocked,
@@ -246,6 +277,8 @@ export function ActiveQuestionStage({
   sessionState: string;
   score: number;
   timerDisplay: TimerDisplay;
+  // The whole-mission deadline, rendered under the question countdown. Absent on older callers.
+  missionDisplay?: TimerDisplay | null;
   selectedOptionSequenceOrder?: number | null;
   isSubmitting?: boolean;
   isLocked?: boolean;
@@ -275,6 +308,7 @@ export function ActiveQuestionStage({
         score={score}
         questionSequenceOrder={question.sequenceOrder}
         timerDisplay={timerDisplay}
+        missionDisplay={missionDisplay}
       />
 
       <View style={{ padding: spacing.lg, borderBottomWidth: 1, borderBottomColor: colors.borderSoft }}>

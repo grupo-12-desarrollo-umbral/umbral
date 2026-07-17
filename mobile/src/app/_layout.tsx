@@ -37,7 +37,7 @@ function AuthGuard() {
     ) {
       router.replace('/(auth)/login' as Href);
     }
-  }, [status, segments]);
+  }, [status, segments, router]);
 
   return null;
 }

@@ -34,17 +34,18 @@ export function resolveReconnectContext(
 
   if (!persisted) return null;
 
-  const hasRouteIdentity =
-    seed.liveSessionId.length > 0 &&
-    seed.teamId.length > 0 &&
-    seed.displayName.length > 0;
+  // The route is incomplete (a complete one returned above), so we fall back to the persisted
+  // session. Guard against a *partial* route that names a different session/team than the stored
+  // one: honouring persisted then would silently reconnect the wrong session. Any session/team
+  // field the route does supply must match persisted; empty fields (a bare resume) place no
+  // constraint. (A previous all-fields check here was dead code — a fully-populated route can
+  // never reach this branch — so a conflicting partial route slipped straight through.)
+  if (seed.liveSessionId.length > 0 && seed.liveSessionId !== persisted.liveSessionId) {
+    return null;
+  }
+  if (seed.teamId.length > 0 && seed.teamId !== persisted.teamId) {
+    return null;
+  }
 
-  if (!hasRouteIdentity) return persisted;
-
-  const matchesPersistedIdentity =
-    persisted.liveSessionId === seed.liveSessionId &&
-    persisted.teamId === seed.teamId &&
-    persisted.displayName === seed.displayName;
-
-  return matchesPersistedIdentity ? persisted : null;
+  return persisted;
 }

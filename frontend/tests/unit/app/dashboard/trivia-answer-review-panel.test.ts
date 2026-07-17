@@ -11,9 +11,11 @@ vi.mock('@/app/dashboard/triviaAnswerReviewPanel.module.css', () => ({
 import { TriviaAnswerReviewPanel, type AnswerReviewTeamRow } from '@/app/dashboard/TriviaAnswerReviewPanel'
 
 const fixtureTeams: AnswerReviewTeamRow[] = [
-  { teamId: 'team-a', displayName: 'Alpha', teamCode: 'AAA', selectedOptionSequenceOrder: 2, isCorrect: true, scoreValue: 100, answeredAt: '2026-07-10T10:00:00Z' },
-  { teamId: 'team-b', displayName: 'Bravo', teamCode: 'BBB', selectedOptionSequenceOrder: 1, isCorrect: false, scoreValue: 0, answeredAt: '2026-07-10T10:00:01Z' },
-  { teamId: 'team-c', displayName: 'Charlie', teamCode: 'CCC' },
+  { teamId: 'team-a', displayName: 'Alpha', teamCode: 'AAA', selectedOptionSequenceOrder: 2, isCorrect: true, scoreValue: 100 },
+  { teamId: 'team-b', displayName: 'Bravo', teamCode: 'BBB', selectedOptionSequenceOrder: 1, isCorrect: false, scoreValue: 0 },
+  // Explicit nulls, not omitted keys: this is what the backend actually sends for a team that
+  // never answered, and reading it as `undefined` used to render "Option null" / "null pts".
+  { teamId: 'team-c', displayName: 'Charlie', teamCode: 'CCC', selectedOptionSequenceOrder: null, isCorrect: null, scoreValue: null },
 ]
 
 function render(props: Partial<Parameters<typeof TriviaAnswerReviewPanel>[0]> = {}): string {
@@ -81,6 +83,16 @@ describe('TriviaAnswerReviewPanel', () => {
     const rowCEnd = html.indexOf('</li>', rowCStart)
     const rowCHtml = html.slice(rowCStart, rowCEnd)
     expect(rowCHtml).toContain('—')
+  })
+
+  it('renders the unanswered fields without exposing their nullable values', () => {
+    const html = render()
+    const rowCStart = html.indexOf('data-testid="trivia-answer-review-row-team-c"')
+    const rowCHtml = html.slice(rowCStart, html.indexOf('</li>', rowCStart))
+    expect(rowCHtml).toContain('data-has-answer="false"')
+    expect(rowCHtml).toContain('<span class="option">—</span>')
+    expect(rowCHtml).toMatch(/data-testid="trivia-answer-review-correct-team-c"[^>]*>No answer</)
+    expect(rowCHtml).toContain('<span class="points">—</span>')
   })
 
   it('renders the empty state when no question sequence order is provided', () => {

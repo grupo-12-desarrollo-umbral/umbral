@@ -38,6 +38,7 @@ function makeClient() {
       handlers.add(cb);
       return () => handlers.delete(cb);
     },
+    onSubstageRankingRevealStarted: jest.fn(() => () => {}),
   };
 }
 
@@ -85,6 +86,7 @@ const PER_SESSION_TEAM_ID = 'session-team-d7f15865';
 
 const BASE_BOARD: ParticipantTeamBoardDto = {
   liveSessionId: 'sess-1',
+  missionTitle: 'Test Mission',
   teamId: PER_SESSION_TEAM_ID,
   teamDisplayName: 'Lantern Foxes',
   teamCode: 'LF-01',

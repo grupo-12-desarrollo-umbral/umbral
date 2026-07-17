@@ -62,6 +62,18 @@ public sealed class ReconnectAuthenticatedParticipantCommandHandler
             _joinPolicy,
             _openTeamSelectionPolicy,
             authorizedReferenceTeamIds);
+        // Register the socket as a presence lease inside the same serialized write. Keying presence on
+        // the ConnectionId here is what lets the matching disconnect be decrement-guarded: an old
+        // socket dropping after this commit removes only its own lease and never disconnects the
+        // participant (Finding 5). The HTTP reconnect path carries no ConnectionId and only refreshes.
+        if (!string.IsNullOrWhiteSpace(request.ConnectionId))
+        {
+            liveSession.RegisterParticipantConnection(
+                admission.Participant.SessionParticipantId,
+                request.ConnectionId,
+                occurredAt);
+        }
+
         var timerSnapshot = liveSession.GetAuthoritativeSessionTimerSnapshot(occurredAt);
 
         await _liveSessionRepository.UpdateAsync(liveSession, cancellationToken);

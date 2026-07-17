@@ -56,11 +56,12 @@ const CLIENT = {
   stop: jest.fn(),
   reconnect: jest.fn(),
   onTimerUpdated: jest.fn(),
-  onStateChanged: jest.fn(),
+  onStateChanged: jest.fn(() => () => {}),
   onQuestionActivated: jest.fn(),
   onQuestionClosed: jest.fn(),
-  onSubstageAdvanced: jest.fn(),
+  onSubstageAdvanced: jest.fn(() => () => {}),
   onTeamBoardUpdated: jest.fn(),
+  onSubstageRankingRevealStarted: jest.fn(() => () => {}),
 };
 
 type TreeNode = { children?: (TreeNode | string)[] | null };
@@ -159,7 +160,9 @@ describe('LiveTeamSpace header score freeze', () => {
       isLoading: false,
       error: null,
       display: { label: '00:42', pct: 70, tone: 'running' },
+      missionDisplay: null,
       activeQuestion: null,
+      revealReconciliation: null,
       sessionState: 'Active',
       pregameSecondsLeft: null,
       snapshotVersion: 1,

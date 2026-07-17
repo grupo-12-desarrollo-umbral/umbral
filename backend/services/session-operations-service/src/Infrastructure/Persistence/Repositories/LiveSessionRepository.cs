@@ -142,7 +142,10 @@ public sealed class LiveSessionRepository : ILiveSessionRepository
                     EF.Property<DateTimeOffset?>(session, "_missionTimerExpiredAt") == null) ||
                  // A reveal-pending session (HU-35) has no active-question window ticking,
                  // but must still be ticked so the deferred next-question activation fires on time.
-                 EF.Property<DateTimeOffset?>(session, "_questionRevealUntil") != null))
+                 EF.Property<DateTimeOffset?>(session, "_questionRevealUntil") != null ||
+                 // Likewise a substage-end ranking reveal (D-3): nothing is ticking behind it, but the
+                 // deferred advance/finish fires when its deadline elapses.
+                 EF.Property<DateTimeOffset?>(session, "_substageRevealUntil") != null))
             .Include(session => session.MissionRuntimeSnapshot)
                 .ThenInclude(snapshot => snapshot.StageSnapshots)
                     .ThenInclude(stage => stage.SubstageSnapshots)
@@ -153,6 +156,7 @@ public sealed class LiveSessionRepository : ILiveSessionRepository
             .Where(session =>
                 session.ActiveQuestionIndex != null ||
                 session.IsAwaitingQuestionReveal ||
+                session.IsAwaitingSubstageRankingReveal ||
                 ActiveSubstageIsTreasureHunt(session))
             .ToList();
     }
@@ -172,9 +176,22 @@ public sealed class LiveSessionRepository : ILiveSessionRepository
 
     public async Task UpdateAsync(LiveSession liveSession, CancellationToken cancellationToken)
     {
-        if (_context.Entry(liveSession).State == EntityState.Detached)
+        var entry = _context.Entry(liveSession);
+        if (entry.State == EntityState.Detached)
         {
             _context.LiveSessions.Add(liveSession);
+        }
+        else
+        {
+            // Force a principal-row UPDATE on every save so the aggregate root's xmin token guards the
+            // whole aggregate, not only mutations that happen to touch a principal column. A child-only
+            // write — a target scan, a team join, an answer — otherwise emits no UPDATE on live_sessions,
+            // so xmin is never compared and two writers loaded from the same token both win. Marking
+            // LastModified modified makes EF emit `UPDATE live_sessions SET last_modified = @now WHERE
+            // id = @id AND xmin = @original`; the audit interceptor then overwrites @now with the real
+            // timestamp during SaveChanges. Only the second writer's stale xmin matches no row, surfacing
+            // as the DbUpdateConcurrencyException the catch below turns into a recoverable conflict.
+            entry.Property(session => session.LastModified).IsModified = true;
         }
 
         try
@@ -183,19 +200,21 @@ public sealed class LiveSessionRepository : ILiveSessionRepository
         }
         catch (DbUpdateConcurrencyException exception)
         {
-            // The xmin token moved: someone committed to live_sessions between our read and our
-            // write. Only mutations touching a principal column reach this arm — an owned-collection
-            // insert alone emits no UPDATE, so it is caught by the unique-violation arm below instead.
+            // The xmin token moved: someone committed to live_sessions between our read and our write.
+            // Since UpdateAsync now forces a principal-row UPDATE on every save, this arm catches every
+            // cross-writer race on the aggregate, including child-only mutations that touch no principal
+            // column of their own.
             throw new ConcurrentModificationException(exception);
         }
         catch (DbUpdateException exception)
             when (exception.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation })
         {
-            // Every uniqueness rule on this aggregate is enforced in the domain first, so a
-            // duplicate that reaches Postgres is by definition one that was not visible when the
-            // domain checked — i.e. a concurrent writer won. Translating to a concurrency loss lets
-            // the retry re-read and reach the domain's own verdict (a 409 for a duplicate answer, a
-            // rejected submission for a duplicate scan) rather than surfacing the raw 23505 as a 500.
+            // Defense-in-depth beneath the xmin token: every uniqueness rule on this aggregate is
+            // enforced in the domain first, so a duplicate that reaches Postgres is by definition one
+            // that was not visible when the domain checked — i.e. a concurrent writer won. Translating
+            // to a concurrency loss lets the retry re-read and reach the domain's own verdict (a 409 for
+            // a duplicate answer, a rejected submission for a duplicate scan) rather than surfacing the
+            // raw 23505 as a 500.
             throw new ConcurrentModificationException(exception);
         }
     }

@@ -51,6 +51,7 @@ public sealed class ErrorCodeContractTests
             ["NoActiveQuestionException"] = "no-active-question",
             ["NoActiveQuestionRevealException"] = "no-active-question-reveal",
             ["NoActiveSubstageException"] = "no-active-substage",
+            ["NoActiveSubstageRevealException"] = "no-active-substage-reveal",
             ["OpenTeamSelectionClosedException"] = "open-team-selection-closed",
             ["OperatorUserIdMustBePositiveException"] = "operator-user-id-must-be-positive",
             ["OperativeClueRequiresAtLeastOneTeamException"] = "operative-clue-requires-at-least-one-team",

@@ -279,6 +279,7 @@ public sealed class MultiDeviceTeamSyncHubTests : IAsyncLifetime
 
         return new ParticipantTeamBoardDto(
             liveSessionId,
+            "Test Mission",
             teamId,
             "Alpha",
             "A-01",

@@ -21,6 +21,7 @@ const mockReconnectClient = jest.fn<
 let reconnectingHandler: ((error?: Error) => void) | null = null;
 let reconnectedHandler: ((connectionId?: string) => void | Promise<void>) | null =
   null;
+let closeHandler: ((error?: Error) => void) | null = null;
 
 jest.mock('@/lib/auth/use-auth', () => ({
   useAuth: () => ({ signOut: mockSignOut }),
@@ -43,6 +44,9 @@ jest.mock('@/lib/realtime/sessions-hub', () => ({
       ) => {
         reconnectedHandler = callback;
       },
+      onclose: (callback: (error?: Error) => void) => {
+        closeHandler = callback;
+      },
     },
     start: mockStart,
     stop: mockStop,
@@ -56,6 +60,7 @@ type HookSnapshot = {
   isHubReconnecting: ReturnType<typeof useReconnect>['isHubReconnecting'];
   reconnect: ReturnType<typeof useReconnect>['reconnect'];
   reset: ReturnType<typeof useReconnect>['reset'];
+  stop: ReturnType<typeof useReconnect>['stop'];
 };
 
 function createDeferred<T>() {
@@ -123,6 +128,7 @@ describe('useReconnect', () => {
     jest.clearAllMocks();
     reconnectingHandler = null;
     reconnectedHandler = null;
+    closeHandler = null;
   });
 
   test('runs the reconnect happy path and persists the refreshed context', async () => {
@@ -344,5 +350,92 @@ describe('useReconnect', () => {
     hook.unmount();
 
     expect(mockStop).toHaveBeenCalled();
+  });
+
+  test('a transport close after exhausted reconnects surfaces a disconnect', async () => {
+    mockStart.mockResolvedValueOnce(undefined);
+    mockReconnectClient.mockResolvedValueOnce(result);
+
+    const hook = renderUseReconnect();
+
+    await act(async () => {
+      await hook.getSnapshot().reconnect(context);
+    });
+    expect(hook.getSnapshot().status).toBe('reconnected');
+
+    // A transient drop: withAutomaticReconnect starts retrying, so the banner shows.
+    act(() => {
+      reconnectingHandler?.(new Error('dropped'));
+    });
+    expect(hook.getSnapshot().isHubReconnecting).toBe(true);
+
+    // Retries are exhausted and the transport closes for good. The surface must reflect the dead
+    // connection rather than stay frozen on the last live state.
+    act(() => {
+      closeHandler?.(new Error('connection lost'));
+    });
+
+    expect(hook.getSnapshot().isHubReconnecting).toBe(false);
+    expect(hook.getSnapshot().status).toBe('error');
+    expect(hook.getSnapshot().outcome).toEqual({ kind: 'network-error' });
+
+    hook.unmount();
+  });
+
+  test('an intentional stop() close is not surfaced as an error', async () => {
+    mockStart.mockResolvedValueOnce(undefined);
+    mockReconnectClient.mockResolvedValueOnce(result);
+
+    const hook = renderUseReconnect();
+
+    await act(async () => {
+      await hook.getSnapshot().reconnect(context);
+    });
+    expect(hook.getSnapshot().status).toBe('reconnected');
+
+    await act(async () => {
+      await hook.getSnapshot().stop();
+    });
+
+    // stop() closes the transport too, but a deliberate teardown must not flip the surface into error.
+    act(() => {
+      closeHandler?.();
+    });
+
+    expect(hook.getSnapshot().status).toBe('reconnected');
+    expect(hook.getSnapshot().outcome).toEqual({ kind: 'reconnected', result });
+
+    hook.unmount();
+  });
+
+  test('a reset during the context persist keeps a stale completion from overwriting idle', async () => {
+    const saveDeferred = createDeferred<void>();
+    mockStart.mockResolvedValueOnce(undefined);
+    mockReconnectClient.mockResolvedValueOnce(result);
+    mockSaveReconnectContext.mockImplementationOnce(() => saveDeferred.promise);
+
+    const hook = renderUseReconnect();
+
+    let pending: Promise<unknown>;
+    await act(async () => {
+      pending = hook.getSnapshot().reconnect(context);
+    });
+
+    // The completion is parked awaiting the context persist; a reset() now invalidates this attempt.
+    act(() => {
+      hook.getSnapshot().reset();
+    });
+    expect(hook.getSnapshot().status).toBe('idle');
+
+    // The persist resolves and the superseded attempt runs its tail — it must not republish over idle.
+    await act(async () => {
+      saveDeferred.resolve();
+      await pending;
+    });
+
+    expect(hook.getSnapshot().status).toBe('idle');
+    expect(hook.getSnapshot().outcome).toBeNull();
+
+    hook.unmount();
   });
 });

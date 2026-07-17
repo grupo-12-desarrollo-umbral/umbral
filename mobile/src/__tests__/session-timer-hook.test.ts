@@ -48,6 +48,7 @@ function makeClient() {
     onQuestionClosed: jest.fn(),
     onSubstageAdvanced: jest.fn(),
     onTeamBoardUpdated: jest.fn(),
+    onSubstageRankingRevealStarted: jest.fn(() => () => {}),
   };
 }
 
@@ -255,6 +256,72 @@ describe('useSessionTimer', () => {
 
     expect(hook.get().pregameSecondsLeft).toBe(5);
     // The session clock is NOT clobbered by the countdown tick.
+    expect(hook.get().timer?.remainingSeconds).toBe(180);
+
+    hook.unmount();
+  });
+
+  test('a short-window tick flagged isPregameCountdown:false updates the question clock, not the countdown', async () => {
+    mockGetSnapshot.mockResolvedValueOnce(BASE_SNAPSHOT);
+    const client = makeClient();
+
+    const hook = renderHook({
+      client,
+      liveSessionId: 'sess-1',
+      teamId: 'team-1',
+      isReconnected: true,
+      reconnectNonce: 0,
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    // A 5s trivia question window is byte-identical to the pre-game total, but the explicit flag
+    // disambiguates: it is a real question window and must drive the session clock, not the numeral.
+    act(() => {
+      fireEvent({
+        ...BASE_EVENT,
+        remainingMilliseconds: 5_000,
+        totalMilliseconds: 5_000,
+        isPregameCountdown: false,
+      });
+    });
+
+    expect(hook.get().pregameSecondsLeft).toBeNull();
+    expect(hook.get().timer?.remainingSeconds).toBe(5);
+    expect(hook.get().timer?.totalSeconds).toBe(5);
+
+    hook.unmount();
+  });
+
+  test('a tick flagged isPregameCountdown:true routes to the countdown even on a non-short window', async () => {
+    mockGetSnapshot.mockResolvedValueOnce(BASE_SNAPSHOT);
+    const client = makeClient();
+
+    const hook = renderHook({
+      client,
+      liveSessionId: 'sess-1',
+      teamId: 'team-1',
+      isReconnected: true,
+      reconnectNonce: 0,
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    // The explicit flag is authoritative regardless of window size; the session clock stays untouched.
+    act(() => {
+      fireEvent({
+        ...BASE_EVENT,
+        remainingMilliseconds: 4_000,
+        totalMilliseconds: 5_000,
+        isPregameCountdown: true,
+      });
+    });
+
+    expect(hook.get().pregameSecondsLeft).toBe(4);
     expect(hook.get().timer?.remainingSeconds).toBe(180);
 
     hook.unmount();
@@ -621,6 +688,276 @@ describe('useSessionTimer', () => {
     expect(hook.get().sessionState).toBe('Active');
     expect(hook.get().timer?.isPaused).toBe(false);
     expect(hook.get().display.tone).toBe('running');
+
+    hook.unmount();
+  });
+
+  test('surfaces the mission deadline from the snapshot, distinct from the question window', async () => {
+    mockGetSnapshot.mockResolvedValueOnce({
+      ...BASE_SNAPSHOT,
+      totalSeconds: 30,
+      remainingSeconds: 20,
+      missionTotalSeconds: 600,
+      missionRemainingSeconds: 540,
+    });
+    const client = makeClient();
+
+    const hook = renderHook({
+      client,
+      liveSessionId: 'sess-1',
+      teamId: 'team-1',
+      isReconnected: true,
+      reconnectNonce: 0,
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    // The primary display is the 30s question window; the mission display is the 10-minute deadline.
+    expect(hook.get().display.label).toBe('00:20');
+    expect(hook.get().missionDisplay?.label).toBe('09:00');
+    expect(hook.get().missionDisplay?.tone).toBe('running');
+
+    hook.unmount();
+  });
+
+  test('missionDisplay is null when the snapshot carries no deadline', async () => {
+    mockGetSnapshot.mockResolvedValueOnce(BASE_SNAPSHOT);
+    const client = makeClient();
+
+    const hook = renderHook({
+      client,
+      liveSessionId: 'sess-1',
+      teamId: 'team-1',
+      isReconnected: true,
+      reconnectNonce: 0,
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(hook.get().missionDisplay).toBeNull();
+
+    hook.unmount();
+  });
+
+  test('a live event updates the mission deadline alongside the question window', async () => {
+    mockGetSnapshot.mockResolvedValueOnce(BASE_SNAPSHOT);
+    const client = makeClient();
+
+    const hook = renderHook({
+      client,
+      liveSessionId: 'sess-1',
+      teamId: 'team-1',
+      isReconnected: true,
+      reconnectNonce: 0,
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    act(() => {
+      fireEvent({
+        ...BASE_EVENT,
+        remainingMilliseconds: 20_000,
+        totalMilliseconds: 30_000,
+        missionRemainingMilliseconds: 480_000,
+        missionTotalMilliseconds: 600_000,
+      });
+    });
+
+    expect(hook.get().display.label).toBe('00:20');
+    expect(hook.get().missionDisplay?.label).toBe('08:00');
+
+    hook.unmount();
+  });
+
+  test('a live tick that omits the mission fields preserves the current deadline', async () => {
+    mockGetSnapshot.mockResolvedValueOnce({
+      ...BASE_SNAPSHOT,
+      missionTotalSeconds: 600,
+      missionRemainingSeconds: 540,
+    });
+    const client = makeClient();
+
+    const hook = renderHook({
+      client,
+      liveSessionId: 'sess-1',
+      teamId: 'team-1',
+      isReconnected: true,
+      reconnectNonce: 0,
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(hook.get().missionDisplay?.label).toBe('09:00');
+
+    // A full-window tick from an older replica (mid rolling deploy) carries no mission fields. It must
+    // update the primary clock but leave the mission deadline standing rather than blank it.
+    act(() => {
+      fireEvent({ ...BASE_EVENT, remainingMilliseconds: 120_000, totalMilliseconds: 300_000 });
+    });
+
+    expect(hook.get().missionDisplay?.label).toBe('09:00');
+
+    // An explicit null still clears the deadline (e.g. a substage with no mission window).
+    act(() => {
+      fireEvent({
+        ...BASE_EVENT,
+        remainingMilliseconds: 120_000,
+        totalMilliseconds: 300_000,
+        missionRemainingMilliseconds: null,
+        missionTotalMilliseconds: null,
+      });
+    });
+
+    expect(hook.get().missionDisplay).toBeNull();
+
+    hook.unmount();
+  });
+
+  test('a pre-game countdown tick leaves the mission deadline intact', async () => {
+    mockGetSnapshot.mockResolvedValueOnce({
+      ...BASE_SNAPSHOT,
+      missionTotalSeconds: 600,
+      missionRemainingSeconds: 540,
+    });
+    const client = makeClient();
+
+    const hook = renderHook({
+      client,
+      liveSessionId: 'sess-1',
+      teamId: 'team-1',
+      isReconnected: true,
+      reconnectNonce: 0,
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(hook.get().missionDisplay?.label).toBe('09:00');
+
+    // The short-window pre-game tick routes to the countdown numeral and must not clobber the mission clock.
+    act(() => {
+      fireEvent({ ...BASE_EVENT, remainingMilliseconds: 5_000, totalMilliseconds: 5_000 });
+    });
+
+    expect(hook.get().pregameSecondsLeft).toBe(5);
+    expect(hook.get().missionDisplay?.label).toBe('09:00');
+
+    hook.unmount();
+  });
+
+  test('SessionStateChanged to Paused flips the mission clock to paused too', async () => {
+    mockGetSnapshot.mockResolvedValueOnce({
+      ...BASE_SNAPSHOT,
+      missionTotalSeconds: 600,
+      missionRemainingSeconds: 540,
+    });
+    const client = makeClient();
+
+    const hook = renderHook({
+      client,
+      liveSessionId: 'sess-1',
+      teamId: 'team-1',
+      isReconnected: true,
+      reconnectNonce: 0,
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(hook.get().missionDisplay?.tone).toBe('running');
+
+    act(() => {
+      fireStateChanged({
+        liveSessionId: 'sess-1',
+        previousState: 'Active',
+        currentState: 'Paused',
+        changedAt: '2026-07-14T12:00:00Z',
+      });
+    });
+
+    expect(hook.get().missionDisplay?.tone).toBe('paused');
+
+    hook.unmount();
+  });
+
+  const SNAPSHOT_REVEAL = {
+    substageSnapshotId: 'sub-2',
+    playMode: 'TreasureHunt',
+    revealUntil: '2026-06-04T10:00:10Z',
+    isTerminal: false,
+    emittedAt: '2026-06-04T10:00:00Z',
+  };
+
+  test('pairs the reveal with the snapshot observedAt and bumps the reveal version on success', async () => {
+    mockGetSnapshot.mockResolvedValueOnce({
+      ...BASE_SNAPSHOT,
+      activeRankingReveal: SNAPSHOT_REVEAL,
+    });
+    const client = makeClient();
+
+    const hook = renderHook({
+      client,
+      liveSessionId: 'sess-1',
+      teamId: 'team-1',
+      isReconnected: true,
+      reconnectNonce: 0,
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    // The reveal and the server time that orders it describe the same response.
+    expect(hook.get().revealReconciliation).toEqual({
+      reveal: SNAPSHOT_REVEAL,
+      observedAt: BASE_SNAPSHOT.observedAt,
+      version: 1,
+    });
+
+    hook.unmount();
+  });
+
+  test('a failed re-fetch does not bump the reveal reconciliation (no cached-reveal replay)', async () => {
+    mockGetSnapshot
+      .mockResolvedValueOnce({ ...BASE_SNAPSHOT, activeRankingReveal: SNAPSHOT_REVEAL })
+      .mockRejectedValueOnce(new ApiError(0, 'network_error', 'Network request failed'));
+    const client = makeClient();
+
+    const hook = renderHook({
+      client,
+      liveSessionId: 'sess-1',
+      teamId: 'team-1',
+      isReconnected: true,
+      reconnectNonce: 0,
+      resyncNonce: 0,
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const afterSuccess = hook.get().revealReconciliation;
+    expect(afterSuccess?.version).toBe(1);
+
+    await hook.rerender({ resyncNonce: 1 });
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    // The failed fetch left the reconciliation untouched (same object, same version) so no stale reveal
+    // is replayed downstream — but the generic snapshot version still advanced for the question reconcile.
+    expect(hook.get().revealReconciliation).toBe(afterSuccess);
+    expect(hook.get().error).not.toBeNull();
 
     hook.unmount();
   });

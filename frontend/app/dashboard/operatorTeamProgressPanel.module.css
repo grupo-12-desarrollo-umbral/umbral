@@ -42,11 +42,27 @@
 
 .row {
   display: flex;
-  align-items: center;
-  gap: 0.75rem;
+  flex-direction: column;
+  gap: 0.25rem;
   padding: 0.5rem 0.6rem;
   border-radius: 0.5rem;
   background: color-mix(in oklab, var(--surface-raised) 85%, var(--border-subtle));
+}
+
+.rowMain {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+/* The active substage's title for this team — shown for every play mode (trivia and
+   treasure hunt). Teams may sit on different substages, so it rides each row, not the header. */
+.substageTitle {
+  font-size: 0.78rem;
+  color: var(--text-secondary, var(--text-muted));
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .teamName {

@@ -126,15 +126,26 @@ export function TreasureHuntBoard({
   // are "new". Prop-diff bookkeeping only — never owns board state.
   const seenClueIds = useRef<Set<string>>(new Set(visibleClues.map(clueKey)));
 
-  // Acknowledge (mark current clues seen) whenever the participant is on the CLUES tab.
+  // Reveal-badge state, recomputed from the seen-set baseline whenever the tab or the
+  // clue list changes. Kept in state (not derived at render) because the source is a ref,
+  // and reading a ref's value during render is disallowed.
+  const [hasNewClues, setHasNewClues] = useState(false);
+
+  // Acknowledge (mark current clues seen) whenever the participant is on the CLUES tab;
+  // otherwise flag any visible clue not yet in the seen-set as new.
   useEffect(() => {
+    // Reconciles the reveal badge against the seen-set ref whenever tab/clues change. The
+    // baseline lives in a ref (mount snapshot, mutated on ack), so this derivation can only
+    // run in an effect, not at render.
+    /* eslint-disable react-hooks/set-state-in-effect */
     if (tab === 'clues') {
       for (const c of visibleClues) seenClueIds.current.add(clueKey(c));
+      setHasNewClues(false);
+    } else {
+      setHasNewClues(visibleClues.some((c) => !seenClueIds.current.has(clueKey(c))));
     }
+    /* eslint-enable react-hooks/set-state-in-effect */
   }, [tab, visibleClues]);
-
-  const hasNewClues =
-    tab !== 'clues' && visibleClues.some((c) => !seenClueIds.current.has(clueKey(c)));
 
   return (
     <View

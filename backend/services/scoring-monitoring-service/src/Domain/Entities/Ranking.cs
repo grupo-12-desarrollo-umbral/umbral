@@ -91,7 +91,11 @@ public sealed class Ranking : BaseAuditableEntity
             return Row.Create(row.TeamId, row.Position, row.TotalScore, row.ResolutionTime, displayName);
         }));
 
-        GeneratedAt = generatedAt;
+        // Monotonic: score events can be consumed out of order (a retry, a redelivery, or two events
+        // racing), and an older event recomputing after a newer one must not walk the projection's
+        // timestamp backward. The fold over score entries is order-independent, so only the displayed
+        // GeneratedAt needs the clamp — CalculationVersion still advances from the freshly loaded row.
+        GeneratedAt = generatedAt > GeneratedAt ? generatedAt : GeneratedAt;
         CalculationVersion = calculationVersion;
 
         AddDomainEvent(new RankingRefreshed(RankingId, LiveSessionId, GeneratedAt, CalculationVersion));

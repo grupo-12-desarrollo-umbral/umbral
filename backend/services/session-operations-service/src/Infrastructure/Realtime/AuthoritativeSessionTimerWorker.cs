@@ -55,6 +55,7 @@ public sealed class AuthoritativeSessionTimerWorker : BackgroundService
         var repository = scope.ServiceProvider.GetRequiredService<ILiveSessionRepository>();
         var broadcaster = scope.ServiceProvider.GetRequiredService<ISessionTimerBroadcaster>();
         var triviaRoundOrchestratorFacade = scope.ServiceProvider.GetRequiredService<ITriviaRoundOrchestratorFacade>();
+        var substageAdvanceCoordinator = scope.ServiceProvider.GetRequiredService<ISubstageAdvanceCoordinator>();
         var now = _timeProvider.GetUtcNow();
 
         var liveSessions = await repository.ListActiveTimersAsync(cancellationToken);
@@ -67,6 +68,7 @@ public sealed class AuthoritativeSessionTimerWorker : BackgroundService
                     repository,
                     broadcaster,
                     triviaRoundOrchestratorFacade,
+                    substageAdvanceCoordinator,
                     now,
                     cancellationToken);
             }
@@ -95,9 +97,30 @@ public sealed class AuthoritativeSessionTimerWorker : BackgroundService
         ILiveSessionRepository repository,
         ISessionTimerBroadcaster broadcaster,
         ITriviaRoundOrchestratorFacade triviaRoundOrchestratorFacade,
+        ISubstageAdvanceCoordinator substageAdvanceCoordinator,
         DateTimeOffset now,
         CancellationToken cancellationToken)
     {
+        // A substage has ended and its ranking is on screen (D-3). Checked FIRST, ahead of mission
+        // expiry, which is what implements D-6: a deadline landing mid-reveal lets the reveal play out
+        // and the session ends on it, rather than flashing a screen for a fraction of a second. The
+        // ranking is already the terminal display, so that is visually identical to a normal end.
+        //
+        // No timer tick is broadcast meanwhile: the ranking must not move while displayed (D-2), and
+        // both clocks are frozen or irrelevant behind it.
+        if (liveSession.IsAwaitingSubstageRankingReveal)
+        {
+            if (liveSession.IsSubstageRevealElapsed(now))
+            {
+                await substageAdvanceCoordinator.CompleteRankingRevealAsync(
+                    liveSession,
+                    now,
+                    cancellationToken);
+            }
+
+            return;
+        }
+
         // A just-closed trivia question is in its reveal window (HU-35): the question is closed but
         // the next activation is deferred so participants see the result. Advance to the next
         // question / substage once the reveal deadline passes; no timer tick is broadcast meanwhile
@@ -115,23 +138,32 @@ public sealed class AuthoritativeSessionTimerWorker : BackgroundService
             return;
         }
 
-        // A trivia substage ticks the active-question window; a treasure-hunt substage has no window of
-        // its own and ticks the mission deadline. ActiveQuestionIndex distinguishes them (only trivia
-        // carries one), which matches the ListActiveTimersAsync predicate branches.
-        var isTriviaQuestion = liveSession.ActiveQuestionIndex is not null;
-        var wasAdvancing = isTriviaQuestion
-            ? liveSession.IsQuestionTimerAdvancing
-            : liveSession.IsMissionTimerAdvancing;
+        var wasQuestionAdvancing = liveSession.IsQuestionTimerAdvancing;
+        var wasMissionAdvancing = liveSession.IsMissionTimerAdvancing;
 
+        // The mission deadline ticks unconditionally, in both play modes (D-4): it is one budget for
+        // the whole mission and expires wherever play happens to be.
+        var missionSnapshot = liveSession.HasMissionDeadline
+            ? liveSession.MarkMissionTimerExpiredIfElapsed(now)
+            : null;
+
+        // ActiveQuestionIndex distinguishes the play modes (only trivia carries one) and now selects
+        // only WHICH window fills RemainingMilliseconds — not which clock ticks. A trivia substage
+        // reports its active-question window; a treasure hunt has none of its own and mirrors the
+        // mission deadline (D-5).
+        var isTriviaQuestion = liveSession.ActiveQuestionIndex is not null;
         var snapshot = isTriviaQuestion
             ? liveSession.MarkQuestionTimerExpiredIfElapsed(now)
-            : liveSession.MarkMissionTimerExpiredIfElapsed(now);
+            : missionSnapshot ?? liveSession.GetMissionTimerSnapshot(now);
 
         await broadcaster.BroadcastTimerUpdatedAsync(
-            CreateNotification(liveSession, snapshot, now),
+            CreateNotification(liveSession, snapshot, missionSnapshot, now),
             cancellationToken);
 
-        if (!wasAdvancing || !snapshot.IsExpired)
+        var missionExpired = wasMissionAdvancing && missionSnapshot is { IsExpired: true };
+        var questionExpired = isTriviaQuestion && wasQuestionAdvancing && snapshot.IsExpired;
+
+        if (!missionExpired && !questionExpired)
         {
             return;
         }
@@ -139,11 +171,16 @@ public sealed class AuthoritativeSessionTimerWorker : BackgroundService
         // Persist the freshly-expired window so an exhausted timer stops re-ticking every second.
         await repository.UpdateAsync(liveSession, cancellationToken);
 
-        // Report-only on expiry for treasure-hunt: those substages advance by target resolution
-        // (HU-29..32), not by the timer, so we broadcast Expired and stop. Only a trivia active
-        // question auto-closes and advances.
-        if (!isTriviaQuestion)
+        // MaximumTime ran out: the mission ends where it stands, in either play mode (D-4). This
+        // replaces the report-only dead end that made a treasure-hunt substage's pointer immovable —
+        // and it takes precedence over the question close below, since there is no next question to
+        // open on a mission that is over.
+        if (missionExpired)
         {
+            await substageAdvanceCoordinator.FinishOnMissionDeadlineAsync(
+                liveSession,
+                now,
+                cancellationToken);
             return;
         }
 
@@ -159,12 +196,9 @@ public sealed class AuthoritativeSessionTimerWorker : BackgroundService
     private static SessionTimerUpdatedNotificationDto CreateNotification(
         LiveSession liveSession,
         AuthoritativeSessionTimerSnapshot snapshot,
+        AuthoritativeSessionTimerSnapshot? missionSnapshot,
         DateTimeOffset emittedAt)
     {
-        var missionSnapshot = liveSession.HasMissionDeadline
-            ? liveSession.GetMissionTimerSnapshot(emittedAt)
-            : null;
-
         return new SessionTimerUpdatedNotificationDto(
             liveSession.LiveSessionId,
             ToWholeMilliseconds(snapshot.RemainingDuration),
@@ -174,7 +208,10 @@ public sealed class AuthoritativeSessionTimerWorker : BackgroundService
             snapshot.IsExpired,
             liveSession.State.ToString(),
             missionSnapshot is null ? null : ToWholeMilliseconds(missionSnapshot.RemainingDuration),
-            missionSnapshot is null ? null : ToWholeMilliseconds(missionSnapshot.TotalDuration));
+            missionSnapshot is null ? null : ToWholeMilliseconds(missionSnapshot.TotalDuration),
+            // A real substage/deadline window, never the pre-game countdown — so a short (5–10s)
+            // question window is not mistaken for the pre-round numeral by clients.
+            IsPregameCountdown: false);
     }
 
     private static long ToWholeMilliseconds(TimeSpan duration)

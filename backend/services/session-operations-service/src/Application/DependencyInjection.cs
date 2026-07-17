@@ -54,6 +54,8 @@ public static class DependencyInjection
         builder.Services.AddScoped<IClueReleaseFacade, ClueReleaseFacade>();
         builder.Services.AddScoped<ISessionTeamAssociationFacade, SessionTeamAssociationFacade>();
         builder.Services.AddScoped<ITriviaRoundOrchestratorFacade, TriviaRoundOrchestratorFacade>();
+        builder.Services.AddScoped<IQuestionActivator, QuestionActivator>();
+        builder.Services.AddScoped<ISubstageAdvanceCoordinator, SubstageAdvanceCoordinator>();
         builder.Services.AddScoped<IEvidenceIntakeFacade, EvidenceIntakeFacade>();
         builder.Services.AddScoped<IQuestionActivationStrategy, SequentialQuestionActivationStrategy>();
 

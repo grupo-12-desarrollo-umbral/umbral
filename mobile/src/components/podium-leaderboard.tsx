@@ -1,7 +1,7 @@
 import { View } from 'react-native';
 import { Card } from '@/components/ui/card';
 import { Text } from '@/components/ui/text';
-import { colors, radii, shadows, spacing, typography } from '@/constants/theme';
+import { colors, radii, shadows, spacing } from '@/constants/theme';
 import type { RankingRowDto } from '@/lib/realtime/ranking-types';
 
 export type PodiumLeaderboardProps = {

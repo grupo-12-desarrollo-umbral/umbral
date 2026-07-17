@@ -61,8 +61,8 @@ The `SessionState` entered only from `Active`, in which live progression is temp
 _Avoid_: on hold, stopped
 
 **Finished**:
-The terminal `SessionState` reached only through `SessionCompletion` when the final `Substage` completes normally.
-_Avoid_: completed, closed, manually finished
+The terminal `SessionState` reached either through `SessionCompletion` when the final `Substage` completes normally, or when the `MissionDeadline` is reached during any `Substage` of either play mode.
+_Avoid_: completed, closed, manually finished, timed out
 
 **Cancelled**:
 The terminal `SessionState` in which the session is terminated without normal completion from `Scheduled`, `Preparing`, `Active`, or `Paused`. Cancelled sessions accept no target submissions or trivia answers, do not advance substages, and do not calculate a `SessionTeamWinner`; existing score history remains visible for audit.
@@ -115,8 +115,12 @@ A later resolution attempt for a `Target` after the same `Team` already has one 
 _Avoid_: target retry, repeated checkpoint
 
 **TargetProgression**:
-The treasure-hunt progression model where all targets in the active treasure-hunt `Substage` are active immediately and a `Team` advances by resolving them in any order; resolving all targets in that substage is required before the team can win that substage. Target resolution does not require clue visibility.
-_Avoid_: clue progression, clue completion
+The treasure-hunt progression model where every active `Target` in the live treasure-hunt `Substage` is resolvable from the moment that substage begins, and a `Team` advances by resolving them in any order; resolving all of them is required before the team can win that substage. Target resolution does not require clue visibility.
+_Avoid_: clue progression, clue completion, sequential targets, unlocking
+
+**Active Target**:
+A snapshotted `Target` the mission author left active, and the only kind that counts toward `TargetProgression` or the `TreasureHuntSubstageWinner`. A `MissionRuntimeSnapshot` may also carry targets the author deactivated; those are never resolvable and never counted. A treasure-hunt `Substage` with no active target cannot be cleared at all, which is why mission readiness rejects one before the mission can be activated — the runtime has no "no targets means already cleared" fallback.
+_Avoid_: enabled target, valid target, live target. Note "active" is overloaded in this context and this is the narrowest sense: it describes the author's flag on a `Target`, **not** the live `Substage` and **not** the `Active` `SessionState`.
 
 **TreasureHuntSubstageWinner**:
 The first `Team` to resolve all targets in a treasure-hunt `Substage`.
@@ -127,8 +131,16 @@ The snapshotted `ScoreValue` awarded per resolved `Target` in a treasure-hunt `S
 _Avoid_: winner lump score, clue score
 
 **SubstageAdvancement**:
-The runtime transition that moves teams from one `Substage` to the next by strict mission order and play-mode rules. In a treasure-hunt `Substage`, all teams advance when the `TreasureHuntSubstageWinner` is decided; operators cannot manually force substage advancement.
-_Avoid_: manual skip, operator-forced advancement, team-only progression
+The runtime transition that moves teams from one `Substage` to the next by strict mission order, uniformly across play modes. In a treasure-hunt `Substage`, all teams advance when the `TreasureHuntSubstageWinner` is decided; in a trivia `Substage`, on `TriviaSubstageCompletion`. Every advancement happens off the end of a `SubstageReveal`, never directly on the end condition. Operators cannot manually force substage advancement.
+_Avoid_: manual skip, operator-forced advancement, team-only progression, per-play-mode advancement
+
+**SubstageReveal**:
+The fixed window opened when a `Substage` ends by either end condition, held before `SubstageAdvancement` occurs. Its purpose is to give clients a settled moment to present the ranking derived by `Scoring Monitoring` — this context opens and closes the window and owns no ranking of its own. On the final `Substage` the reveal is terminal: the session reaches `Finished` on it rather than advancing off it. A `MissionDeadline` reached during a reveal lets that reveal finish; a `MissionDeadline` reached at any other time opens no reveal of its own.
+_Avoid_: ranking reveal, podium window, results screen, scoreboard
+
+**MissionDeadline**:
+The single mission-wide time budget a `LiveSession` runs under, fixed once when the session becomes `Active` and shared by every `Substage` of both play modes. It does not elapse while `Paused`. Reaching it ends the session wherever play stands.
+_Avoid_: substage timer, per-substage budget, wall-clock deadline, timeout
 
 **TriviaQuestionTimer**:
 The authoritative runtime duration for one snapshotted `TriviaQuestion` during a trivia `Substage`.
@@ -143,7 +155,7 @@ The single active snapshotted `TriviaQuestion` presented to all teams during the
 _Avoid_: team-specific active question, participant-paced question
 
 **TriviaSubstageCompletion**:
-The runtime completion of a trivia `Substage` when the final snapshotted `TriviaQuestion` timer expires. All teams advance to the next `Substage` when one exists.
+The runtime completion of a trivia `Substage` when the final snapshotted `TriviaQuestion` timer expires. It opens a `SubstageReveal`, off which all teams advance to the next `Substage` when one exists.
 _Avoid_: team-completed trivia, participant-paced completion
 
 **TriviaAnswerSubmission**:

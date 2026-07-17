@@ -6,7 +6,9 @@ public interface ITriviaQuizAuthoringCommand
 
     string Description { get; }
 
-    IReadOnlyCollection<TriviaQuestionInput> Questions { get; }
+    // Null means "questions were not part of this request": the update slice leaves the
+    // existing questions untouched. An empty collection is an explicit "no questions".
+    IReadOnlyCollection<TriviaQuestionInput>? Questions { get; }
 }
 
 public sealed record TriviaQuestionInput(

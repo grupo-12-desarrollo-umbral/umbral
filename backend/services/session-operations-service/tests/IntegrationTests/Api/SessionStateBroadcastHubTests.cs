@@ -287,10 +287,14 @@ public sealed class SessionStateBroadcastHubTests : IAsyncLifetime
         {
             var repository = scope.ServiceProvider.GetRequiredService<ILiveSessionRepository>();
             var facade = scope.ServiceProvider.GetRequiredService<ITriviaRoundOrchestratorFacade>();
+            var coordinator = scope.ServiceProvider.GetRequiredService<ISubstageAdvanceCoordinator>();
             var now = DateTimeOffset.UtcNow;
             var session = await repository.GetByIdAsync(seeded.LiveSessionId, CancellationToken.None);
             await facade.CloseAndAdvanceAsync(session!, now, CancellationToken.None);
             await facade.CompleteQuestionRevealAsync(session!, now, CancellationToken.None);
+            // Third phase (D-3): the last question's answer reveal now opens a 10s ranking, and the
+            // substage advance/finish happens when THAT elapses — not on the answer reveal.
+            await coordinator.CompleteRankingRevealAsync(session!, now, CancellationToken.None);
         }
 
         (await AwaitBroadcast(closed.Task)).QuestionIndex.Should().Be(0);

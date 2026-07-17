@@ -188,11 +188,15 @@ export function useActiveQuestion({
         explanation: notification.explanation,
         teamResult: null,
       });
-      // Fire the my-result GET (A-2). Silently ignored if it resolves after we've left reveal.
+      // Fire the my-result GET (A-2). Silently ignored if it resolves after we've left reveal, or if
+      // it resolves while a *different* question is being revealed — a slow response for question A
+      // must not attach A's score to question B's reveal.
+      const requestedQuestionIndex = question.questionIndex;
       getTriviaTeamQuestionResult(liveSessionId, question.sequenceOrder)
         .then(result => {
           setView(prev => {
             if (prev.kind !== 'reveal') return prev;
+            if (prev.question.questionIndex !== requestedQuestionIndex) return prev;
             return { ...prev, teamResult: result };
           });
         })

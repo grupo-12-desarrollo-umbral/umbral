@@ -45,6 +45,7 @@ public sealed class GetParticipantTeamBoardQueryHandlerTests
             CancellationToken.None);
 
         result.LiveSessionId.Should().Be(session.LiveSessionId);
+        result.MissionTitle.Should().Be("Museum Hunt");
         result.TeamId.Should().Be(teamId);
         result.TeamDisplayName.Should().Be("Alpha");
         result.TeamCode.Should().Be("A-01");

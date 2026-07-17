@@ -165,6 +165,39 @@ public sealed class TriviaEndpointsTests : IClassFixture<PostgreSqlFixture>, IAs
         payload.Questions[0].Explanation.Should().Be("Arithmetic baseline.");
     }
 
+    // The details-only edit the operator panel sends: no `questions` key at all. It must bind to
+    // null and leave the quiz's questions alone rather than replacing them with nothing.
+    [Fact]
+    public async Task UpdateTriviaQuiz_WhenQuestionsAreOmitted_KeepsExistingQuestions()
+    {
+        AddOperatorHeaders();
+
+        var triviaId = await CreateTriviaQuizAsync("Details Only Before");
+
+        var response = await _client.PutAsJsonAsync(
+            $"/api/trivias/{triviaId}",
+            new
+            {
+                title = "Details Only After",
+                description = "Retitled, questions untouched."
+            });
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var payload = await response.Content.ReadFromJsonAsync<TriviasController.TriviaQuizResponse>();
+        payload.Should().NotBeNull();
+        payload!.Title.Should().Be("Details Only After");
+        payload.Questions.Should().ContainSingle();
+        payload.Questions[0].Prompt.Should().Be("Capital of Venezuela?");
+
+        var detailResponse = await _client.GetAsync($"/api/trivias/{triviaId}");
+        detailResponse.EnsureSuccessStatusCode();
+
+        var detail = await detailResponse.Content.ReadFromJsonAsync<TriviasController.TriviaQuizResponse>();
+        detail!.Questions.Should().ContainSingle();
+        detail.Questions[0].Options.Should().HaveCount(2);
+    }
+
     [Fact]
     public async Task AddTriviaQuestion_ReturnsUpdatedQuizAndPersistsQuestionDetail()
     {

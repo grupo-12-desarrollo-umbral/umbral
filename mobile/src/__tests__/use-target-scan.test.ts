@@ -26,11 +26,15 @@ type ScanProps = {
   onResolved?: () => void;
 };
 
-let hookResult: UseTargetScanResult | null = null;
+// Container object (not a bare reassignable binding) so TestComponent captures the
+// hook result without reassigning a variable declared outside the component.
+const hookResult: { current: UseTargetScanResult | null } = { current: null };
 let onResolved: jest.Mock;
 
 function TestComponent(props: ScanProps) {
-  hookResult = useTargetScan(props);
+  // Test harness: capture the hook's return so assertions can read it outside render.
+  // eslint-disable-next-line react-hooks/immutability
+  hookResult.current = useTargetScan(props);
   return null;
 }
 
@@ -38,13 +42,13 @@ function renderHook(extra?: { onResolved?: () => void }) {
   act(() => {
     create(React.createElement(TestComponent, { ...DEFAULT_PROPS, ...extra }));
   });
-  return { get: () => hookResult! };
+  return { get: () => hookResult.current! };
 }
 
 describe('useTargetScan', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    hookResult = null;
+    hookResult.current = null;
     onResolved = jest.fn();
   });
 

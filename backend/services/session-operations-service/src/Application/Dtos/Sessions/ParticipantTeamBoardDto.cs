@@ -2,6 +2,9 @@ namespace umbral_backend.Application.Dtos.Sessions;
 
 public sealed record ParticipantTeamBoardDto(
     Guid LiveSessionId,
+    // The mission's name (session-level). Shown to the participant alongside the substage, for every
+    // play mode. Session-scoped, so it rides the board itself, not the nullable active-substage context.
+    string MissionTitle,
     Guid TeamId,
     string TeamDisplayName,
     string TeamCode,
