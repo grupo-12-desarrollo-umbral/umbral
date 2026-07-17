@@ -26,7 +26,7 @@ public sealed class SessionEventHistoryConsumer :
                 message.PreviousState,
                 message.CurrentState,
                 message.ChangedAt,
-                message.ResponsibleUserId,
+                message.ResponsibleUserExternalId,
                 message.Reason),
             context.CancellationToken);
     }

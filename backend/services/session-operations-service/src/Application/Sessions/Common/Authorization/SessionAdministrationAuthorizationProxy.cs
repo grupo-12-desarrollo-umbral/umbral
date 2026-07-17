@@ -31,10 +31,13 @@ public sealed class SessionAdministrationAuthorizationProxy : ISessionAdministra
             cancellationToken,
             LoadSessionAsync)).Session;
 
-    public Task<(LiveSession Session, int? ResponsibleUserId)> GetAuthorizedSessionWithActorAsync(
+    public async Task<(LiveSession Session, int? ResponsibleUserId, Guid? ResponsibleUserExternalId)> GetAuthorizedSessionWithActorAsync(
         Guid liveSessionId,
         CancellationToken cancellationToken)
-        => GetAuthorizedSessionInternalAsync(liveSessionId, cancellationToken, LoadSessionAsync);
+    {
+        var access = await GetAuthorizedSessionInternalAsync(liveSessionId, cancellationToken, LoadSessionAsync);
+        return (access.Session, access.ResponsibleUserId, ParseExternalIdentityId(access.ResponsibleUserExternalId));
+    }
 
     public async Task<LiveSession> GetAuthorizedTimerSessionAsync(
         Guid liveSessionId,
@@ -52,7 +55,7 @@ public sealed class SessionAdministrationAuthorizationProxy : ISessionAdministra
         => await _liveSessionRepository.GetTimerSessionByIdAsync(liveSessionId, cancellationToken)
             ?? throw new NotFoundException(nameof(LiveSession), liveSessionId);
 
-    private async Task<(LiveSession Session, int? ResponsibleUserId)> GetAuthorizedSessionInternalAsync(
+    private async Task<(LiveSession Session, int? ResponsibleUserId, string ResponsibleUserExternalId)> GetAuthorizedSessionInternalAsync(
         Guid liveSessionId,
         CancellationToken cancellationToken,
         Func<Guid, CancellationToken, Task<LiveSession>> loadSessionAsync)
@@ -66,7 +69,7 @@ public sealed class SessionAdministrationAuthorizationProxy : ISessionAdministra
 
         if (string.Equals(_currentUser.Role, AdministratorRole, StringComparison.OrdinalIgnoreCase))
         {
-            return (liveSession, null);
+            return (liveSession, null, _currentUser.Id);
         }
 
         if (!string.Equals(_currentUser.Role, OperatorRole, StringComparison.OrdinalIgnoreCase))
@@ -81,6 +84,13 @@ public sealed class SessionAdministrationAuthorizationProxy : ISessionAdministra
             throw new ForbiddenAccessException();
         }
 
-        return (liveSession, actor.UserId);
+        return (liveSession, actor.UserId, actor.ExternalIdentityId);
+    }
+
+    private static Guid ParseExternalIdentityId(string externalIdentityId)
+    {
+        return Guid.TryParse(externalIdentityId, out var parsed)
+            ? parsed
+            : throw new UnauthorizedAccessException("The authenticated user's external identity id is invalid.");
     }
 }

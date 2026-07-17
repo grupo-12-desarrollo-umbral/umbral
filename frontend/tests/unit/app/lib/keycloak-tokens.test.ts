@@ -38,6 +38,7 @@ import { KeycloakAuthError } from '@/app/lib/keycloak'
 import {
   getValidAccessToken,
   sealKeycloakTokens,
+  storeKeycloakTokens,
   unsealKeycloakTokens,
 } from '@/app/lib/keycloak-tokens'
 
@@ -52,9 +53,18 @@ describe('keycloak token cookie lifecycle', () => {
     process.env.SESSION_SECRET = 'test-session-secret'
     delete process.env.KC_TOKEN_SECRET
     cookieJar.clear()
-    cookieStore.get.mockClear()
-    cookieStore.set.mockClear()
-    cookieStore.delete.mockClear()
+    // Reset implementations, not just call history: the read-only-store tests below swap in throwing
+    // ones, and mockClear would leave those in place for whatever ran next.
+    cookieStore.get.mockReset().mockImplementation((name: string) => {
+      const value = cookieJar.get(name)
+      return value ? { name, value } : undefined
+    })
+    cookieStore.set.mockReset().mockImplementation((name: string, value: string) => {
+      cookieJar.set(name, value)
+    })
+    cookieStore.delete.mockReset().mockImplementation((name: string) => {
+      cookieJar.delete(name)
+    })
     refreshAccessTokenMock.mockReset()
   })
 
@@ -164,5 +174,73 @@ describe('keycloak token cookie lifecycle', () => {
     await expect(getValidAccessToken(nowMs)).rejects.toBeInstanceOf(KeycloakAuthError)
     expect(cookieStore.delete).toHaveBeenCalledWith('kc_session')
     expect(cookieJar.has('kc_session')).toBe(false)
+  })
+
+  // Next seals `cookies()` during a Server Component render and throws this exact error on any
+  // write. The proxy has already persisted the refresh by then, so the redundant write must not be
+  // allowed to take the page down with it — this is the 500 the whole change exists to kill.
+  describe('read-only cookie store (Server Component render)', () => {
+    const readonlyError = () =>
+      new Error(
+        'Cookies can only be modified in a Server Action or Route Handler. Read more: https://nextjs.org/docs/app/api-reference/functions/cookies#options',
+      )
+
+    it('surfaces the Keycloak failure rather than the cookie write when clearing is blocked', async () => {
+      const nowMs = Date.now()
+      const sealed = await sealKeycloakTokens({
+        accessToken: 'stale-access',
+        refreshToken: 'refresh-1',
+        accessExpiresAt: nowMs - 5_000,
+        refreshExpiresAt: nowMs + 300_000,
+      })
+      cookieJar.set('kc_session', sealed)
+      cookieStore.delete.mockImplementation(() => {
+        throw readonlyError()
+      })
+      refreshAccessTokenMock.mockRejectedValue(
+        new KeycloakAuthError('refresh_token', 'refresh failed', 401),
+      )
+
+      // Callers key off KeycloakAuthError to degrade to /login; a raw cookie error sails past them.
+      await expect(getValidAccessToken(nowMs)).rejects.toBeInstanceOf(KeycloakAuthError)
+    })
+
+    it('still returns the refreshed token when persisting is blocked', async () => {
+      const nowMs = Date.now()
+      const sealed = await sealKeycloakTokens({
+        accessToken: 'stale-access',
+        refreshToken: 'refresh-1',
+        accessExpiresAt: nowMs - 5_000,
+        refreshExpiresAt: nowMs + 300_000,
+      })
+      cookieJar.set('kc_session', sealed)
+      cookieStore.set.mockImplementation(() => {
+        throw readonlyError()
+      })
+      refreshAccessTokenMock.mockResolvedValue({
+        accessToken: 'fresh-access',
+        refreshToken: 'refresh-2',
+        expiresIn: 300,
+        refreshExpiresIn: 28_800,
+      })
+
+      await expect(getValidAccessToken(nowMs)).resolves.toBe('fresh-access')
+    })
+
+    // Only the read-only render is excused. Anything else is a real fault and must not be muffled.
+    it('still propagates a cookie-store failure that is not the read-only guard', async () => {
+      cookieStore.set.mockImplementation(() => {
+        throw new Error('disk on fire')
+      })
+
+      await expect(
+        storeKeycloakTokens({
+          accessToken: 'fresh-access',
+          refreshToken: 'refresh-2',
+          expiresIn: 300,
+          refreshExpiresIn: 28_800,
+        }),
+      ).rejects.toThrow('disk on fire')
+    })
   })
 })

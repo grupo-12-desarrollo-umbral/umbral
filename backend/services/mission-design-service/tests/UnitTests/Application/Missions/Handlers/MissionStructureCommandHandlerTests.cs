@@ -265,6 +265,41 @@ public sealed class MissionStructureCommandHandlerTests
         result.Failures.Should().BeEmpty();
     }
 
+    [Fact]
+    public async Task RemoveMissionNode_OnDeactivatedMission_IsRejected()
+    {
+        var repository = new InMemoryMissionRepository();
+        var mission = CreateMissionWithTreasureSubstage(repository, out _, out var substage);
+        mission.Deactivate(DateTimeOffset.UtcNow);
+
+        var handler = new RemoveMissionNodeCommandHandler(repository);
+
+        // The substage branch mutates the child node directly (bypassing an aggregate mutator);
+        // HU-09's terminal-retirement guard must still reject it.
+        var act = () => handler.Handle(
+            new RemoveMissionNodeCommand(mission.Id, substage.Id),
+            CancellationToken.None);
+
+        await act.Should().ThrowAsync<MissionNotEditableWhileInactiveException>();
+    }
+
+    [Fact]
+    public async Task UpdateMissionNode_RenamingSubstageOnDeactivatedMission_IsRejected()
+    {
+        var repository = new InMemoryMissionRepository();
+        var mission = CreateMissionWithTreasureSubstage(repository, out _, out var substage);
+        mission.Deactivate(DateTimeOffset.UtcNow);
+
+        var handler = new UpdateMissionNodeCommandHandler(repository);
+
+        // Renaming a substage mutates the child directly; the guard must reject it on a retired mission.
+        var act = () => handler.Handle(
+            new UpdateMissionNodeCommand(mission.Id, substage.Id, "Renamed", 1),
+            CancellationToken.None);
+
+        await act.Should().ThrowAsync<MissionNotEditableWhileInactiveException>();
+    }
+
     private static Mission CreateMissionWithTreasureSubstage(
         InMemoryMissionRepository repository,
         out Stage stage,

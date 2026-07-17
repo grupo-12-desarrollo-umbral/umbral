@@ -9,6 +9,7 @@ public sealed class SessionEventTests
     public void ForStateChange_PreservesMinimumAuditTraceability()
     {
         var liveSessionId = Guid.NewGuid();
+        var responsibleUserExternalId = Guid.NewGuid();
         var changedAt = new DateTimeOffset(2026, 7, 15, 12, 0, 0, TimeSpan.Zero);
 
         var sessionEvent = SessionEvent.ForStateChange(
@@ -16,13 +17,13 @@ public sealed class SessionEventTests
             SessionState.Scheduled,
             SessionState.Preparing,
             changedAt,
-            42,
+            responsibleUserExternalId,
             "  preparation started  ");
 
         sessionEvent.LiveSessionId.Should().Be(liveSessionId);
         sessionEvent.EventType.Should().Be(SessionEvent.StateChangedEventType);
         sessionEvent.OccurredAt.Should().Be(changedAt);
-        sessionEvent.ResponsibleUserId.Should().Be(42);
+        sessionEvent.ResponsibleUserExternalId.Should().Be(responsibleUserExternalId);
         sessionEvent.PayloadSummary.Should().Be("Scheduled→Preparing: preparation started");
     }
 
@@ -56,7 +57,67 @@ public sealed class SessionEventTests
 
         sessionEvent.EventType.Should().Be(SessionEvent.ResultsFinalizedEventType);
         sessionEvent.OccurredAt.Should().Be(finishedAt);
-        sessionEvent.ResponsibleUserId.Should().BeNull();
+        sessionEvent.ResponsibleUserExternalId.Should().BeNull();
         sessionEvent.PayloadSummary.Should().Be("Session results finalized");
+    }
+
+    [Fact]
+    public void NewFactories_SameSourceFactProduceSameKey_AndDifferentTypesProduceDifferentKeys()
+    {
+        var liveSessionId = Guid.NewGuid();
+        var teamId = Guid.NewGuid();
+        var sourceId = Guid.NewGuid();
+        var occurredAt = new DateTimeOffset(2026, 7, 16, 14, 0, 0, TimeSpan.Zero);
+
+        var evidence = SessionEvent.ForEvidenceSubmitted(
+            liveSessionId,
+            teamId,
+            sourceId,
+            "TriviaAnswer",
+            occurredAt);
+        var redelivery = SessionEvent.ForEvidenceSubmitted(
+            liveSessionId,
+            teamId,
+            sourceId,
+            "TriviaAnswer",
+            occurredAt);
+        var score = SessionEvent.ForScoreChanged(
+            liveSessionId,
+            teamId,
+            sourceId,
+            100,
+            "trivia-answer-correct",
+            occurredAt);
+
+        redelivery.SourceEventKey.Should().Be(evidence.SourceEventKey);
+        score.SourceEventKey.Should().NotBe(evidence.SourceEventKey);
+        evidence.TeamId.Should().Be(teamId);
+    }
+
+    [Fact]
+    public void ForClueReleased_DifferentTeamsProduceDifferentSourceKeys()
+    {
+        var liveSessionId = Guid.NewGuid();
+        var clueId = Guid.NewGuid();
+        var releasedAt = DateTimeOffset.UtcNow;
+
+        var firstTeam = SessionEvent.ForClueReleased(
+            liveSessionId,
+            Guid.NewGuid(),
+            targetId: null,
+            clueId,
+            "Manual",
+            releasedAt,
+            responsibleUserExternalId: Guid.NewGuid());
+        var secondTeam = SessionEvent.ForClueReleased(
+            liveSessionId,
+            Guid.NewGuid(),
+            targetId: null,
+            clueId,
+            "Manual",
+            releasedAt,
+            responsibleUserExternalId: Guid.NewGuid());
+
+        secondTeam.SourceEventKey.Should().NotBe(firstTeam.SourceEventKey);
     }
 }

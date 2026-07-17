@@ -23,11 +23,13 @@ public sealed class ErrorCodeContractTests
             ["ClueReleaseSubjectInvalidException"] = "clue-release-subject-invalid",
             ["ClueSnapshotIdRequiredException"] = "clue-snapshot-id-required",
             ["ClueSnapshotSubstageRequiredException"] = "clue-snapshot-substage-required",
+            ["ConcurrentModificationException"] = "concurrent-modification",
             ["DuplicateTeamAssociationInSessionException"] = "duplicate-team-association-in-session",
             ["DuplicateTeamCodeInSessionException"] = "duplicate-team-code-in-session",
             ["DuplicateTriviaAnswerException"] = "duplicate-trivia-answer",
             ["EvidenceAlreadyResolvedException"] = "evidence-already-resolved",
             ["EvidenceSubmissionContextRequiredException"] = "evidence-submission-context-required",
+            ["EvidenceSubmissionTimestampRequiredException"] = "evidence-submission-timestamp-required",
             // Overridden slug (does not follow the class name):
             ["InvalidSessionStateTransitionException"] = "invalid-state-transition",
             ["InvalidTriviaAnswerOptionException"] = "invalid-trivia-answer-option",

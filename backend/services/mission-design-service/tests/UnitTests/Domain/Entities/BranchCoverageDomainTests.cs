@@ -49,12 +49,28 @@ public sealed class BranchCoverageDomainTests
     }
 
     [Fact]
-    public void UpdateDetails_OnDeactivatedMission_LeavesInactive()
+    public void UpdateDetails_OnDeactivatedMission_IsRejected()
     {
         var mission = Mission.Create("M", "D", "Advanced", 30);
         mission.Deactivate(DateTimeOffset.UtcNow);
 
-        mission.UpdateDetails("M2", "D2", "Beginner", 60);
+        // Deactivation is terminal (HU-09): the edit never reaches RefreshActivationState.
+        var act = () => mission.UpdateDetails("M2", "D2", "Beginner", 60);
+
+        act.Should().Throw<MissionNotEditableWhileInactiveException>();
+        mission.ActivationState.Should().Be(MissionActivation.Inactive);
+    }
+
+    [Fact]
+    public void RefreshActivationState_OnDeactivatedMission_LeavesInactive()
+    {
+        var mission = Mission.Create("M", "D", "Advanced", 30);
+        mission.Deactivate(DateTimeOffset.UtcNow);
+
+        // Authoring mutators are blocked on a retired mission (HU-09), but RecordStructureChanged
+        // still routes through RefreshActivationState — which must not resurrect the activation
+        // state from Inactive.
+        mission.RecordStructureChanged();
 
         mission.ActivationState.Should().Be(MissionActivation.Inactive);
     }

@@ -2,6 +2,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Security.Claims;
 using System.Text.Encodings.Web;
 using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 using umbral_backend.Api.Services;
@@ -24,6 +25,13 @@ public static class DependencyInjection
                 _ => { });
         builder.Services.AddAuthorization(options =>
         {
+            options.AddPolicy(AuthorizationPolicies.Administrator, policy =>
+            {
+                policy.AddAuthenticationSchemes(TrustedHeadersAuthenticationDefaults.Scheme);
+                policy.RequireAuthenticatedUser();
+                policy.RequireRole("Administrator");
+            });
+
             options.AddPolicy(AuthorizationPolicies.AdminOrOperator, policy =>
             {
                 policy.AddAuthenticationSchemes(TrustedHeadersAuthenticationDefaults.Scheme);
@@ -31,13 +39,34 @@ public static class DependencyInjection
                 policy.RequireRole("Administrator", "Operator");
             });
 
-            options.AddPolicy(AuthorizationPolicies.Participant, policy =>
-            {
-                policy.AddAuthenticationSchemes(TrustedHeadersAuthenticationDefaults.Scheme);
-                policy.RequireAuthenticatedUser();
-                policy.RequireRole("Participant");
-            });
+            // The default policy backs a bare `[Authorize]` — "any authenticated user", used by
+            // /api/users/me and the reason-coded PermissionsController routes.
+            options.DefaultPolicy = new AuthorizationPolicyBuilder(TrustedHeadersAuthenticationDefaults.Scheme)
+                .RequireAuthenticatedUser()
+                .Build();
         });
+        // The authorization middleware rejects before MediatR, so its 401/403 never reach
+        // ProblemDetailsExceptionHandler and would otherwise return an empty body. Register the
+        // ProblemDetails service (surfaced by UseStatusCodePages in Program.cs) and align the two
+        // arms it can produce with that handler's wording, so a caller cannot tell which layer
+        // rejected it. Only these two are customised: every other status still reaches the handler.
+        builder.Services.AddProblemDetails(options =>
+            options.CustomizeProblemDetails = context =>
+            {
+                switch (context.ProblemDetails.Status)
+                {
+                    case StatusCodes.Status401Unauthorized:
+                        context.ProblemDetails.Type = "unauthorized";
+                        context.ProblemDetails.Title = "Unauthorized.";
+                        context.ProblemDetails.Detail = "Unauthorized.";
+                        break;
+                    case StatusCodes.Status403Forbidden:
+                        context.ProblemDetails.Type = "forbidden";
+                        context.ProblemDetails.Title = "Forbidden.";
+                        context.ProblemDetails.Detail = "You do not have permission to perform this action.";
+                        break;
+                }
+            });
         builder.Services.AddExceptionHandler<ProblemDetailsExceptionHandler>();
         builder.Services.Configure<ApiBehaviorOptions>(options => options.SuppressModelStateInvalidFilter = true);
         builder.Services.AddControllers();
@@ -55,6 +84,11 @@ file sealed class TrustedHeadersAuthenticationHandler : AuthenticationHandler<Au
     {
     }
 
+    // Requires X-User-Email, unlike mission-design and session-operations, which treat it as optional.
+    // The difference is deliberate: email is a required domain field here (User.Email is IsRequired,
+    // UserConfiguration.cs), and AuthenticateUserCommandHandler rejects a blank email before
+    // provisioning a user. A caller with no email claim cannot be represented by this service, so
+    // failing at the edge is clearer than failing deeper in the handler.
     protected override Task<AuthenticateResult> HandleAuthenticateAsync()
     {
         var userId = Request.Headers["X-User-Id"].ToString();

@@ -1,6 +1,7 @@
 using umbral_backend.Application.Missions.Commands.AddMissionNode;
 using umbral_backend.Application.UnitTests.Application.Missions.TestDoubles;
 using umbral_backend.Domain.Entities;
+using ValidationException = umbral_backend.Application.Common.Exceptions.ValidationException;
 
 namespace umbral_backend.Application.UnitTests.Application.Missions.Handlers;
 
@@ -33,5 +34,20 @@ public sealed class AddMissionNodeClueVisibilityTests
             CancellationToken.None);
 
         result.Stages!.Single().Substages!.Single().Clues!.Should().ContainSingle();
+    }
+
+    [Fact]
+    public async Task Handle_WithUnrecognizedNodeType_ThrowsValidationException()
+    {
+        var repository = new InMemoryMissionRepository();
+        var mission = Mission.Create("Mission", "Briefing", "Advanced", 45);
+        repository.Seed(mission);
+        var handler = new AddMissionNodeCommandHandler(repository);
+
+        var act = () => handler.Handle(
+            new AddMissionNodeCommand(mission.Id, "Bogus", "Node", 1),
+            CancellationToken.None);
+
+        await act.Should().ThrowAsync<ValidationException>();
     }
 }

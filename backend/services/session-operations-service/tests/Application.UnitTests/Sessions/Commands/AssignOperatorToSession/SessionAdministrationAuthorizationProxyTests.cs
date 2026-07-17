@@ -14,7 +14,7 @@ public sealed class SessionAdministrationAuthorizationProxyTests
     public async Task GetAuthorizedSessionAsync_WhenCallerIsAdministrator_ReturnsSession()
     {
         var session = CreateScheduledSession();
-        var proxy = CreateProxy(session, "99", "Administrator");
+        var proxy = CreateProxy(session, Guid.NewGuid().ToString(), "Administrator");
 
         var result = await proxy.GetAuthorizedSessionAsync(session.LiveSessionId, CancellationToken.None);
 
@@ -26,7 +26,7 @@ public sealed class SessionAdministrationAuthorizationProxyTests
     {
         var session = CreateScheduledSession();
         session.AssignOperator(27, DateTimeOffset.UtcNow);
-        var proxy = CreateProxy(session, "kc-operator-27", "Operator", resolvedUserId: 27);
+        var proxy = CreateProxy(session, Guid.NewGuid().ToString(), "Operator", resolvedUserId: 27);
 
         var result = await proxy.GetAuthorizedSessionAsync(session.LiveSessionId, CancellationToken.None);
 
@@ -38,7 +38,8 @@ public sealed class SessionAdministrationAuthorizationProxyTests
     {
         var session = CreateScheduledSession();
         session.AssignOperator(27, DateTimeOffset.UtcNow);
-        var proxy = CreateProxy(session, "kc-operator-27", "Operator", resolvedUserId: 27);
+        var externalIdentityId = Guid.NewGuid();
+        var proxy = CreateProxy(session, externalIdentityId.ToString(), "Operator", resolvedUserId: 27);
 
         var result = await proxy.GetAuthorizedSessionWithActorAsync(
             session.LiveSessionId,
@@ -46,13 +47,15 @@ public sealed class SessionAdministrationAuthorizationProxyTests
 
         result.Session.Should().BeSameAs(session);
         result.ResponsibleUserId.Should().Be(27);
+        result.ResponsibleUserExternalId.Should().Be(externalIdentityId);
     }
 
     [Fact]
-    public async Task GetAuthorizedSessionWithActorAsync_WhenCallerIsAdministrator_ReturnsNullActor()
+    public async Task GetAuthorizedSessionWithActorAsync_WhenCallerIsAdministrator_SurfacesExternalActor()
     {
         var session = CreateScheduledSession();
-        var proxy = CreateProxy(session, "99", "Administrator");
+        var externalIdentityId = Guid.NewGuid();
+        var proxy = CreateProxy(session, externalIdentityId.ToString(), "Administrator");
 
         var result = await proxy.GetAuthorizedSessionWithActorAsync(
             session.LiveSessionId,
@@ -60,6 +63,7 @@ public sealed class SessionAdministrationAuthorizationProxyTests
 
         result.Session.Should().BeSameAs(session);
         result.ResponsibleUserId.Should().BeNull();
+        result.ResponsibleUserExternalId.Should().Be(externalIdentityId);
     }
 
     [Fact]
@@ -67,7 +71,7 @@ public sealed class SessionAdministrationAuthorizationProxyTests
     {
         var session = CreateScheduledSession();
         session.AssignOperator(27, DateTimeOffset.UtcNow);
-        var proxy = CreateProxy(session, "kc-operator-31", "Operator", resolvedUserId: 31);
+        var proxy = CreateProxy(session, Guid.NewGuid().ToString(), "Operator", resolvedUserId: 31);
 
         var act = async () => await proxy.GetAuthorizedSessionAsync(session.LiveSessionId, CancellationToken.None);
 
@@ -90,7 +94,7 @@ public sealed class SessionAdministrationAuthorizationProxyTests
     {
         var session = CreateScheduledSession();
         session.AssignOperator(27, DateTimeOffset.UtcNow);
-        var proxy = CreateProxy(session, "kc-operator-27", "Operator", resolvedUserId: 27);
+        var proxy = CreateProxy(session, Guid.NewGuid().ToString(), "Operator", resolvedUserId: 27);
 
         var result = await proxy.GetAuthorizedTimerSessionAsync(session.LiveSessionId, CancellationToken.None);
 

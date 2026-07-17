@@ -52,11 +52,13 @@ service directory so relative paths like tests/UnitTests/<Proj>.csproj resolve.
 Environment:
   THRESHOLD     Coverage gate, % total, applied to BOTH line and branch
                 coverage (default: 93).
+  COVERAGE_DIR  Report output directory (default: coverage/gate under the
+                current service directory).
 
-Outputs (on the merged result, written under the current directory):
-  coverage/gate/merged.cobertura.xml   the gated coverage file
-  coverage/gate/Summary.txt            text summary (if reportgenerator present)
-  coverage/gate/index.html             HTML report   (if reportgenerator present)
+Outputs (on the merged result, written under COVERAGE_DIR):
+  merged.cobertura.xml   the gated coverage file
+  Summary.txt            text summary (if reportgenerator present)
+  index.html             HTML report   (if reportgenerator present)
 EOF
     exit "${1:-0}"
 }
@@ -90,7 +92,7 @@ EXCLUDE_BY_FILE='**/*.generated.cs'
 # merged file so the number shown equals the number gated. Absolute path:
 # CoverletOutput resolves relative to each test .csproj, not this cwd, so a
 # relative path would scatter the file under whichever project ran last.
-GATE_DIR="$PWD/coverage/gate"
+GATE_DIR="${COVERAGE_DIR:-$PWD/coverage/gate}"
 rm -rf "$GATE_DIR"
 mkdir -p "$GATE_DIR"
 MERGED_XML="$GATE_DIR/merged.cobertura.xml"

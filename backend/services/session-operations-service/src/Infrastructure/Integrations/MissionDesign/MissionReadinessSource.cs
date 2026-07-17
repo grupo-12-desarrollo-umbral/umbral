@@ -1,4 +1,3 @@
-using System.Diagnostics.CodeAnalysis;
 using System.Net;
 using System.Net.Http.Json;
 using umbral_backend.Application.Common.Interfaces;
@@ -11,10 +10,9 @@ namespace umbral_backend.Infrastructure.Integrations.MissionDesign;
 /// mission-design-service (<c>GET /api/missions/{id}/readiness</c>). Transport
 /// mapping only; the session-creation rules stay in <c>SessionCreationPolicy</c>.
 /// </summary>
-[ExcludeFromCodeCoverage]
 public sealed class MissionReadinessSource : IMissionReadinessSource
 {
-    private const string InactiveActivationState = "Inactive";
+    private const string ReadyActivationState = "Ready";
 
     private readonly HttpClient _httpClient;
     private readonly ICurrentUser _currentUser;
@@ -65,7 +63,8 @@ public sealed class MissionReadinessSource : IMissionReadinessSource
     {
         public MissionReadinessDto ToMissionReadinessDto()
         {
-            var isActive = !string.Equals(ActivationState, InactiveActivationState, StringComparison.OrdinalIgnoreCase);
+            // mission-design's Ready state is the active state required by RF-03.
+            var isActive = string.Equals(ActivationState, ReadyActivationState, StringComparison.OrdinalIgnoreCase);
 
             return new MissionReadinessDto(
                 MissionId,

@@ -13,7 +13,16 @@ export class ApiError extends Error {
   }
 }
 
-async function request<T>(path: string, init?: RequestInit, allowRetry = true): Promise<T> {
+// Bearer-attaching fetch shared by every caller, returning the raw Response so each one keeps its own
+// error mapping (this rejects on a network failure rather than mapping it). The token looked live when
+// attached yet the gateway disagrees (it died in flight, or the device clock is skewed): force one
+// refresh and replay. `allowRetry` makes the replay terminal, so a genuinely unauthorized call surfaces
+// its 401 instead of looping.
+export async function authorizedFetch(
+  path: string,
+  init?: RequestInit,
+  allowRetry = true,
+): Promise<Response> {
   const token = await getValidAccessToken();
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -23,24 +32,27 @@ async function request<T>(path: string, init?: RequestInit, allowRetry = true): 
     headers['Authorization'] = `Bearer ${token}`;
   }
 
-  let response: Response;
-  try {
-    response = await fetch(`${apiBaseUrl()}${path}`, {
-      ...init,
-      headers,
-    });
-  } catch {
-    throw new ApiError(0, 'network_error', 'Network request failed');
-  }
+  const response = await fetch(`${apiBaseUrl()}${path}`, {
+    ...init,
+    headers,
+  });
 
-  // The token looked live when attached yet the gateway disagrees (it died in flight, or the device
-  // clock is skewed): force one refresh and replay. `allowRetry` makes the replay terminal, so a
-  // genuinely unauthorized call surfaces its 401 instead of looping.
   if (response.status === 401 && allowRetry) {
     const refreshed = await refreshAccessToken();
     if (refreshed) {
-      return request<T>(path, init, false);
+      return authorizedFetch(path, init, false);
     }
+  }
+
+  return response;
+}
+
+async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  let response: Response;
+  try {
+    response = await authorizedFetch(path, init);
+  } catch {
+    throw new ApiError(0, 'network_error', 'Network request failed');
   }
 
   if (!response.ok) {

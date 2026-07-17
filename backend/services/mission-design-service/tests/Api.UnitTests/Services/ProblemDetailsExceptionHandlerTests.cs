@@ -324,6 +324,40 @@ public class ProblemDetailsExceptionHandlerTests
     }
 
     [Fact]
+    public async Task TryHandleAsync_MissionNotEditableWhileInactiveException_Returns409()
+    {
+        var httpContext = CreateHttpContext();
+        var problem = await InvokeHandlerAndReadProblemDetails(
+            httpContext,
+            new MissionNotEditableWhileInactiveException());
+
+        problem.Status.Should().Be(409);
+        problem.Title.Should().Be("Conflict.");
+        problem.Type.Should().Be("mission-not-editable-while-inactive");
+        // The frontend surfaces `detail` verbatim, so it must be the curated PublicDetail
+        // sentence rather than the generic per-category fallback.
+        problem.Detail.Should().StartWith("A deactivated mission cannot be edited.");
+        httpContext.Response.StatusCode.Should().Be(409);
+    }
+
+    [Fact]
+    public async Task TryHandleAsync_MissionCannotBeReactivatedException_Returns409()
+    {
+        var httpContext = CreateHttpContext();
+        var problem = await InvokeHandlerAndReadProblemDetails(
+            httpContext,
+            new MissionCannotBeReactivatedException());
+
+        problem.Status.Should().Be(409);
+        problem.Title.Should().Be("Conflict.");
+        problem.Type.Should().Be("mission-cannot-be-reactivated");
+        // The frontend surfaces `detail` verbatim, so it must be the curated PublicDetail
+        // sentence rather than the generic per-category fallback.
+        problem.Detail.Should().StartWith("This mission has been deactivated.");
+        httpContext.Response.StatusCode.Should().Be(409);
+    }
+
+    [Fact]
     public async Task TryHandleAsync_SubstagePlayModeMismatchException_Returns400()
     {
         var httpContext = CreateHttpContext();

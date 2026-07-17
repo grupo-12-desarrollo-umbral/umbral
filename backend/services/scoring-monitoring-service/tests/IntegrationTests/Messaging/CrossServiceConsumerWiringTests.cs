@@ -83,20 +83,22 @@ public sealed class CrossServiceConsumerWiringTests : IAsyncLifetime
     public async Task SessionStateChanged_PublisherContract_AppendsHistoryRow()
     {
         var liveSessionId = Guid.NewGuid();
+        var responsibleUserExternalId = Guid.NewGuid();
         var changedAt = DateTimeOffset.UtcNow;
         var message = new PublisherContracts.SessionStateChangedIntegrationEvent(
             liveSessionId,
             PublisherSessionState.Scheduled,
             PublisherSessionState.Preparing,
             changedAt,
-            42,
+            responsibleUserExternalId,
             "Operator started preparation");
 
         await _harness.PublishAndWaitForEffectAsync(
             message,
             (context, cancellationToken) => context.SessionEvents.AnyAsync(
                 sessionEvent => sessionEvent.LiveSessionId == liveSessionId
-                    && sessionEvent.EventType == "SessionStateChanged",
+                    && sessionEvent.EventType == "SessionStateChanged"
+                    && sessionEvent.ResponsibleUserExternalId == responsibleUserExternalId,
                 cancellationToken));
     }
 

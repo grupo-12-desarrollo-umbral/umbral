@@ -17,13 +17,15 @@ namespace umbral_backend.Application.UnitTests.Sessions.Commands.TransitionSessi
 public sealed class TransitionSessionStateCommandHandlerTests
 {
     private static readonly DateTimeOffset Now = new(2026, 6, 4, 12, 0, 0, TimeSpan.Zero);
+    private const string OperatorExternalId = "80ef72ad-7e86-4ef6-a6ba-f4758f98fce6";
+    private const string AdministratorExternalId = "a21f69e2-f18c-4c79-b647-d9fb35f60dcb";
 
     [Fact]
     public async Task Handle_WithAllowedTransition_MovesStateAndRaisesEvent()
     {
         var session = CreateScheduledSession(assignedOperatorUserId: 42, registerTeam: true);
         var repository = CreateRepository(session);
-        var handler = CreateHandler(repository, CreateCurrentUser("kc-operator-42", "Operator"), resolvedUserId: 42);
+        var handler = CreateHandler(repository, CreateCurrentUser(OperatorExternalId, "Operator"), resolvedUserId: 42);
         var command = new TransitionSessionStateCommand(session.LiveSessionId, SessionState.Preparing, "Doors open");
 
         var result = await handler.Handle(command, CancellationToken.None);
@@ -35,12 +37,30 @@ public sealed class TransitionSessionStateCommandHandlerTests
             .Last().CurrentState.Should().Be(SessionState.Preparing);
         session.DomainEvents.OfType<SessionStateChangedEvent>()
             .Last().ResponsibleUserId.Should().Be(42);
+        session.DomainEvents.OfType<SessionStateChangedEvent>()
+            .Last().ResponsibleUserExternalId.Should().Be(Guid.Parse(OperatorExternalId));
         session.SessionEvents.Last().ActorId.Should().Be(42);
         repository.Verify(repo => repo.UpdateAsync(session, It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
-    public async Task Handle_WhenPausingActiveSessionWithActiveQuestion_FreezesActiveSubstageTimer()
+    public async Task Handle_WhenAdministratorTransitionsSession_RecordsExternalActor()
+    {
+        var session = CreateScheduledSession(assignedOperatorUserId: 42, registerTeam: true);
+        var repository = CreateRepository(session);
+        var handler = CreateHandler(repository, CreateCurrentUser(AdministratorExternalId, "Administrator"));
+
+        await handler.Handle(
+            new TransitionSessionStateCommand(session.LiveSessionId, SessionState.Preparing, "Admin override"),
+            CancellationToken.None);
+
+        var stateEvent = session.DomainEvents.OfType<SessionStateChangedEvent>().Last();
+        stateEvent.ResponsibleUserId.Should().BeNull();
+        stateEvent.ResponsibleUserExternalId.Should().Be(Guid.Parse(AdministratorExternalId));
+    }
+
+    [Fact]
+    public async Task Handle_WhenPausingActiveSessionWithActiveQuestion_FreezesActiveQuestionTimer()
     {
         // HU-22: the transition result Timer carries the active-substage (trivia-question) window;
         // pausing freezes it at the elapsed remainder.
@@ -50,7 +70,7 @@ public sealed class TransitionSessionStateCommandHandlerTests
         session.MoveTo(SessionState.Active, Now.AddSeconds(-11), transitionPolicy);
         session.ActivateQuestion(0, Now.AddSeconds(-10));
         var repository = CreateRepository(session);
-        var handler = CreateHandler(repository, CreateCurrentUser("kc-operator-42", "Operator"), resolvedUserId: 42);
+        var handler = CreateHandler(repository, CreateCurrentUser(OperatorExternalId, "Operator"), resolvedUserId: 42);
         var command = new TransitionSessionStateCommand(session.LiveSessionId, SessionState.Paused, "Break");
 
         var result = await handler.Handle(command, CancellationToken.None);
@@ -74,7 +94,7 @@ public sealed class TransitionSessionStateCommandHandlerTests
         session.ActivateQuestion(0, Now.AddSeconds(-20));
         session.MoveTo(SessionState.Paused, Now.AddSeconds(-10), transitionPolicy);
         var repository = CreateRepository(session);
-        var handler = CreateHandler(repository, CreateCurrentUser("kc-operator-42", "Operator"), resolvedUserId: 42);
+        var handler = CreateHandler(repository, CreateCurrentUser(OperatorExternalId, "Operator"), resolvedUserId: 42);
         var command = new TransitionSessionStateCommand(session.LiveSessionId, SessionState.Active, "Continue");
 
         var result = await handler.Handle(command, CancellationToken.None);
@@ -92,7 +112,7 @@ public sealed class TransitionSessionStateCommandHandlerTests
     {
         var session = CreateScheduledSession(assignedOperatorUserId: 42, registerTeam: true);
         var repository = CreateRepository(session);
-        var handler = CreateHandler(repository, CreateCurrentUser("kc-operator-42", "Operator"), resolvedUserId: 42);
+        var handler = CreateHandler(repository, CreateCurrentUser(OperatorExternalId, "Operator"), resolvedUserId: 42);
         var command = new TransitionSessionStateCommand(session.LiveSessionId, SessionState.Finished, null);
 
         var act = async () => await handler.Handle(command, CancellationToken.None);
@@ -109,7 +129,7 @@ public sealed class TransitionSessionStateCommandHandlerTests
         session.MoveTo(SessionState.Preparing, Now.AddMinutes(-1), new SessionStateTransitionPolicy());
         var repository = CreateRepository(session);
         // Administrator caller passes the access proxy so the chain's liveness gate is reached.
-        var handler = CreateHandler(repository, CreateCurrentUser("99", "Administrator"));
+        var handler = CreateHandler(repository, CreateCurrentUser(AdministratorExternalId, "Administrator"));
         var command = new TransitionSessionStateCommand(session.LiveSessionId, SessionState.Active, null);
 
         var act = async () => await handler.Handle(command, CancellationToken.None);
@@ -123,7 +143,7 @@ public sealed class TransitionSessionStateCommandHandlerTests
     {
         var session = CreateScheduledSession(assignedOperatorUserId: null, registerTeam: true);
         var repository = CreateRepository(session);
-        var handler = CreateHandler(repository, CreateCurrentUser("99", "Administrator"));
+        var handler = CreateHandler(repository, CreateCurrentUser(AdministratorExternalId, "Administrator"));
         var command = new TransitionSessionStateCommand(session.LiveSessionId, SessionState.Preparing, null);
 
         var act = async () => await handler.Handle(command, CancellationToken.None);
@@ -136,7 +156,7 @@ public sealed class TransitionSessionStateCommandHandlerTests
     {
         var session = CreateScheduledSession(assignedOperatorUserId: 42, registerTeam: true);
         var repository = CreateRepository(session);
-        var handler = CreateHandler(repository, CreateCurrentUser("kc-operator-77", "Operator"), resolvedUserId: 77);
+        var handler = CreateHandler(repository, CreateCurrentUser(Guid.NewGuid().ToString(), "Operator"), resolvedUserId: 77);
         var command = new TransitionSessionStateCommand(session.LiveSessionId, SessionState.Preparing, null);
 
         var act = async () => await handler.Handle(command, CancellationToken.None);

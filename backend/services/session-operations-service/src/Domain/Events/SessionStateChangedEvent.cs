@@ -11,7 +11,8 @@ public sealed class SessionStateChangedEvent : BaseEvent
         DateTimeOffset changedAt,
         int? responsibleUserId = null,
         string? reason = null,
-        SessionEventActorType actorType = SessionEventActorType.System)
+        SessionEventActorType actorType = SessionEventActorType.System,
+        Guid? responsibleUserExternalId = null)
     {
         LiveSessionId = liveSessionId;
         PreviousState = previousState;
@@ -20,6 +21,7 @@ public sealed class SessionStateChangedEvent : BaseEvent
         ResponsibleUserId = responsibleUserId;
         Reason = reason;
         ActorType = actorType;
+        ResponsibleUserExternalId = responsibleUserExternalId;
     }
 
     public Guid LiveSessionId { get; }
@@ -35,4 +37,6 @@ public sealed class SessionStateChangedEvent : BaseEvent
     public string? Reason { get; }
 
     public SessionEventActorType ActorType { get; }
+
+    public Guid? ResponsibleUserExternalId { get; }
 }

@@ -16,6 +16,8 @@ using umbral_backend.Domain.Entities;
 using umbral_backend.Domain.Exceptions;
 using InMemoryMissionRepository =
     umbral_backend.Application.UnitTests.Application.Missions.TestDoubles.InMemoryMissionRepository;
+using StubActiveMissionReferenceRepository =
+    umbral_backend.Application.UnitTests.Application.Missions.TestDoubles.StubActiveMissionReferenceRepository;
 
 namespace umbral_backend.Application.UnitTests.Application.Trivias.Handlers;
 
@@ -115,34 +117,5 @@ public sealed class ArchiveTriviaQuizCommandHandlerTests
             ]);
 
         return triviaQuiz;
-    }
-
-    private sealed class StubActiveMissionReferenceRepository : IMissionRepository
-    {
-        private readonly IReadOnlyList<ActiveMissionReference> _references;
-
-        public StubActiveMissionReferenceRepository(params ActiveMissionReference[] references)
-        {
-            _references = references;
-        }
-
-        public int? QueriedTriviaQuizId { get; private set; }
-
-        public Task<IReadOnlyList<ActiveMissionReference>> GetActiveMissionsReferencingTriviaQuizAsync(
-            int triviaQuizId,
-            CancellationToken cancellationToken)
-        {
-            QueriedTriviaQuizId = triviaQuizId;
-            return Task.FromResult(_references);
-        }
-
-        public Task<Mission?> GetByIdAsync(int missionId, CancellationToken cancellationToken)
-            => throw new NotSupportedException();
-
-        public Task AddAsync(Mission mission, CancellationToken cancellationToken)
-            => throw new NotSupportedException();
-
-        public Task UpdateAsync(Mission mission, CancellationToken cancellationToken)
-            => throw new NotSupportedException();
     }
 }

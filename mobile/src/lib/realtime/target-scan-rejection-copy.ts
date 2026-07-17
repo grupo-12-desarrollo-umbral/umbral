@@ -9,6 +9,7 @@ import type { TargetScanRejectionReasonCode } from './target-scan-types';
 const TITLES: Record<TargetScanRejectionReasonCode, string> = {
   'retained-rejection': 'Scan not accepted',
   'session-not-accepting': 'Session paused',
+  'concurrent-modification': 'Try again',
   'not-a-participant': 'Not authorized',
   'unauthorized': 'Session expired',
   'session-not-found': 'Session unavailable',
@@ -20,6 +21,7 @@ const TITLES: Record<TargetScanRejectionReasonCode, string> = {
 const MESSAGES: Record<TargetScanRejectionReasonCode, string> = {
   'retained-rejection': "That scan didn't resolve a target.",
   'session-not-accepting': "This session isn't accepting scans right now.",
+  'concurrent-modification': 'The session was being updated just then. Scan again.',
   'not-a-participant': "Your team isn't registered to scan in this session.",
   'unauthorized': 'Your session expired — sign in again to keep scanning.',
   'session-not-found': "This session's scanning isn't available.",

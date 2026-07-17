@@ -120,6 +120,40 @@ public sealed class MissionEndpointsTests : IClassFixture<PostgreSqlFixture>, IA
     }
 
     [Fact]
+    public async Task UpdateMission_WhenMissionIsInactive_ReturnsConflict()
+    {
+        AddAdministratorHeaders();
+
+        var missionId = await CreateMissionAsync("Retired Mission");
+
+        var deactivateResponse = await _client.DeleteAsync($"/api/missions/{missionId}");
+        deactivateResponse.StatusCode.Should().Be(HttpStatusCode.NoContent);
+
+        var response = await _client.PutAsJsonAsync(
+            $"/api/missions/{missionId}",
+            new
+            {
+                name = "Edited After Retirement",
+                description = "Should not persist.",
+                difficulty = "Beginner",
+                maximumTimeMinutes = 25
+            });
+
+        response.StatusCode.Should().Be(HttpStatusCode.Conflict);
+
+        var problem = await response.Content.ReadFromJsonAsync<ProblemDetails>();
+        problem.Should().NotBeNull();
+        problem!.Status.Should().Be(StatusCodes.Status409Conflict);
+        problem.Title.Should().Be("Conflict.");
+        problem.Type.Should().Be("mission-not-editable-while-inactive");
+
+        // The rejected edit must not have reached the database.
+        var detailResponse = await _client.GetAsync($"/api/missions/{missionId}");
+        var detail = await detailResponse.Content.ReadFromJsonAsync<MissionsController.MissionResponse>();
+        detail!.Name.Should().Be("Retired Mission");
+    }
+
+    [Fact]
     public async Task UpdateMission_WithInvalidPayload_ReturnsBadRequest()
     {
         AddAdministratorHeaders();
@@ -494,7 +528,7 @@ public sealed class MissionEndpointsTests : IClassFixture<PostgreSqlFixture>, IA
     }
 
     [Fact]
-    public async Task GetMissionRuntimePlan_ReturnsResolvedMixedModeMissionInStrictOrder()
+    public async Task GetMissionRuntimePlan_ReturnsResolvedMixedModeMissionInStrictOrderAndRejectsParticipant()
     {
         // This quiz is built inline rather than via CreatePublishedTriviaQuizAsync because the runtime
         // plan asserts a specific two-question order. Authoring is still Operator-only, so the role
@@ -650,6 +684,8 @@ public sealed class MissionEndpointsTests : IClassFixture<PostgreSqlFixture>, IA
         var activateMissionResponse = await _client.PostAsync($"/api/missions/{missionId}/activate", content: null);
         activateMissionResponse.EnsureSuccessStatusCode();
 
+        AddOperatorHeaders();
+
         var runtimePlanResponse = await _client.GetAsync($"/api/missions/{missionId}/runtime-plan");
         runtimePlanResponse.StatusCode.Should().Be(HttpStatusCode.OK);
 
@@ -703,6 +739,11 @@ public sealed class MissionEndpointsTests : IClassFixture<PostgreSqlFixture>, IA
         triviaSubstage.TriviaQuestions[1].Options.Select(option => option.OptionText).Should().Equal("Right", "Wrong");
         triviaSubstage.TriviaQuestions[1].Options.Select(option => option.SequenceOrder).Should().Equal(1, 2);
         triviaSubstage.TriviaQuestions[1].Options.Select(option => option.IsCorrect).Should().Equal(true, false);
+
+        AddParticipantHeaders();
+
+        var participantResponse = await _client.GetAsync($"/api/missions/{missionId}/runtime-plan");
+        participantResponse.StatusCode.Should().Be(HttpStatusCode.Forbidden);
     }
 
     [Fact]
@@ -853,6 +894,14 @@ public sealed class MissionEndpointsTests : IClassFixture<PostgreSqlFixture>, IA
         _client.DefaultRequestHeaders.Remove("X-User-Role");
         _client.DefaultRequestHeaders.Add("X-User-Id", "operator-01");
         _client.DefaultRequestHeaders.Add("X-User-Role", "Operator");
+    }
+
+    private void AddParticipantHeaders()
+    {
+        _client.DefaultRequestHeaders.Remove("X-User-Id");
+        _client.DefaultRequestHeaders.Remove("X-User-Role");
+        _client.DefaultRequestHeaders.Add("X-User-Id", "participant-01");
+        _client.DefaultRequestHeaders.Add("X-User-Role", "Participant");
     }
 
     private async Task<HttpResponseMessage> ArchiveTriviaQuizAsync(int triviaQuizId)

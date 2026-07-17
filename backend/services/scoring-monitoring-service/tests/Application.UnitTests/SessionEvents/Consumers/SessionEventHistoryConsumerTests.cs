@@ -12,12 +12,13 @@ public sealed class SessionEventHistoryConsumerTests
     [Fact]
     public async Task Consume_StateChange_AppendsMappedHistoryEvent()
     {
+        var responsibleUserExternalId = Guid.NewGuid();
         var message = new SessionStateChangedIntegrationEvent(
             Guid.NewGuid(),
             SessionState.Scheduled,
             SessionState.Preparing,
             DateTimeOffset.UtcNow,
-            42,
+            responsibleUserExternalId,
             "Preparing");
         var repository = new Mock<ISessionEventHistoryRepository>();
         var context = ContextFor(message);
@@ -28,7 +29,7 @@ public sealed class SessionEventHistoryConsumerTests
             It.Is<SessionEvent>(sessionEvent =>
                 sessionEvent.LiveSessionId == message.LiveSessionId
                 && sessionEvent.EventType == SessionEvent.StateChangedEventType
-                && sessionEvent.ResponsibleUserId == 42),
+                && sessionEvent.ResponsibleUserExternalId == responsibleUserExternalId),
             CancellationToken.None));
     }
 

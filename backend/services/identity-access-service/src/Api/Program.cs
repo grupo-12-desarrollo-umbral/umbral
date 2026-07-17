@@ -22,6 +22,7 @@ if (!app.Environment.IsDevelopment())
 }
 
 app.UseExceptionHandler(options => { });
+app.UseStatusCodePages();
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapOpenApi();

@@ -27,12 +27,12 @@ The participant live view is `LiveTeamSpace` in `src/app/(app)/team-space.tsx`, 
 **What already exists (do not rebuild):**
 - `useActiveQuestion` already subscribes to `onQuestionClosed` and, post-HU-M3, holds the
   just-closed question on screen with a display lock + snapshot re-fetch.
-- The close affordance in `active-question-stage.tsx` (~line 288: the `closed ?` branch,
-  "Question closed — waiting for the next") is the **insertion point** for the reveal.
+- The close affordance in `active-question-stage.tsx` (line 275: the `closed ?` branch;
+  "Question closed — waiting for the next" text at line 296) is the **insertion point** for the reveal.
 - `SessionsHubClient.onQuestionClosed` + `QuestionClosedNotificationDto` exist
   (`sessions-hub.ts`, `trivia-types.ts`), keyed by `questionIndex`.
 - Reads go through `src/lib/api/sessions.ts` (`expo/fetch`, `apiBaseUrl()`, bearer via
-  `getAccessToken()` in `src/lib/api/client.ts`); DTOs typed in `src/lib/realtime/*-types.ts`.
+  `getAccessToken()` from `@/lib/auth/token-store`); DTOs typed in `src/lib/realtime/*-types.ts`.
 
 **The HU-M4 gap.** On close today, mobile shows only "Question closed" — no correct option,
 no explanation, no team result. All three are absent from the mobile contract and must be
@@ -75,8 +75,9 @@ export type TriviaTeamQuestionResultDto = {
 }
 ```
 
-New read fn in `src/lib/api/sessions.ts` mirroring the existing GET reads (`apiBaseUrl()` +
-bearer header + ProblemDetails handling), called on close, keyed by `sequenceOrder`.
+New read fn in `src/lib/api/sessions.ts` mirroring the existing GET reads (`getRanking` /
+`getParticipantTeamBoard`: `apiBaseUrl()` + bearer header via `getAccessToken()` from
+`@/lib/auth/token-store` + ProblemDetails handling), called on close, keyed by `sequenceOrder`.
 
 ## Architecture Decisions
 
@@ -102,7 +103,7 @@ bearer header + ProblemDetails handling), called on close, keyed by `sequenceOrd
 - `src/lib/realtime/use-active-question.ts` — add the `reveal` view kind; on index-matched
   `QuestionClosed`, capture `correctOptionSequenceOrder` + `explanation`, trigger the
   `my-result` fetch, expose `{ correctOptionSequenceOrder, explanation, teamResult }`.
-- `src/components/active-question-stage.tsx` — in the `closed` branch (~line 288), when the
+- `src/components/active-question-stage.tsx` — in the `closed` branch (line 275), when the
   view is `reveal`: highlight the option whose `index+1 === correctOptionSequenceOrder`
   (reuse the option-row styling), show a team correct/incorrect chip + points once
   `teamResult` resolves, and render `explanation` when non-null. Keep controls locked.

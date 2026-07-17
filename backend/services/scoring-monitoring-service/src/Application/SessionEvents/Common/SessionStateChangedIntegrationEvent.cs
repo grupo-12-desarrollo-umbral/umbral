@@ -10,5 +10,5 @@ public sealed record SessionStateChangedIntegrationEvent(
     SessionState PreviousState,
     SessionState CurrentState,
     DateTimeOffset ChangedAt,
-    int? ResponsibleUserId,
+    Guid? ResponsibleUserExternalId,
     string? Reason);

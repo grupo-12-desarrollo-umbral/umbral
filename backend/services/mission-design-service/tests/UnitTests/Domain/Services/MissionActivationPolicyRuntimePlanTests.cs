@@ -91,6 +91,66 @@ public class MissionActivationPolicyRuntimePlanTests
         MissionActivationPolicy.SatisfiesRuntimePlan(mission).Should().BeTrue();
     }
 
+    // Duplicate QR codes can no longer be authored, so these build them the only way they now occur:
+    // straight onto the substage, as a mission snapshotted before the aggregate guard existed would hold.
+    [Fact]
+    public void EvaluateReadiness_WhenTwoTargetsShareQrCode_ReportsDuplicate()
+    {
+        var mission = NewMission();
+        var stage = mission.AddStage("Stage", 1);
+        stage.Id = 1;
+        var substage = Substage.CreateTreasureHunt("Sub", 1);
+        substage.Id = 2;
+        mission.AddSubstage(1, substage);
+        substage.AddTarget("Statue", "QR-1", 1, 50, 4.711, -74.0721);
+        substage.AddTarget("Fountain", "QR-1", 2, 50, 4.712, -74.0722);
+
+        var failures = MissionActivationPolicy.EvaluateReadiness(mission);
+
+        failures.Should().ContainSingle().Which.Should().Contain("QR-1").And.Contain("unique");
+        MissionActivationPolicy.SatisfiesRuntimePlan(mission).Should().BeFalse();
+    }
+
+    [Fact]
+    public void EvaluateReadiness_WhenTargetsShareQrCodeAcrossStages_ReportsDuplicate()
+    {
+        var mission = NewMission();
+        var firstStage = mission.AddStage("Stage 1", 1);
+        firstStage.Id = 1;
+        var firstSubstage = Substage.CreateTreasureHunt("Sub 1", 1);
+        firstSubstage.Id = 2;
+        mission.AddSubstage(1, firstSubstage);
+        firstSubstage.AddTarget("Statue", "QR-1", 1, 50, 4.711, -74.0721);
+
+        var secondStage = mission.AddStage("Stage 2", 2);
+        secondStage.Id = 3;
+        var secondSubstage = Substage.CreateTreasureHunt("Sub 2", 1);
+        secondSubstage.Id = 4;
+        mission.AddSubstage(3, secondSubstage);
+        secondSubstage.AddTarget("Fountain", "qr-1", 1, 50, 4.712, -74.0722);
+
+        var failures = MissionActivationPolicy.EvaluateReadiness(mission);
+
+        failures.Should().ContainSingle().Which.Should().Contain("unique");
+    }
+
+    // One failure per duplicated code, not one per offending target.
+    [Fact]
+    public void EvaluateReadiness_WhenThreeTargetsShareOneQrCode_ReportsSingleFailure()
+    {
+        var mission = NewMission();
+        var stage = mission.AddStage("Stage", 1);
+        stage.Id = 1;
+        var substage = Substage.CreateTreasureHunt("Sub", 1);
+        substage.Id = 2;
+        mission.AddSubstage(1, substage);
+        substage.AddTarget("A", "QR-1", 1, 50, 4.711, -74.0721);
+        substage.AddTarget("B", "QR-1", 2, 50, 4.712, -74.0722);
+        substage.AddTarget("C", "QR-1", 3, 50, 4.713, -74.0723);
+
+        MissionActivationPolicy.EvaluateReadiness(mission).Should().ContainSingle();
+    }
+
     [Fact]
     public void EvaluateReadiness_WhenFullTriviaPlanReady_ReturnsNoFailures()
     {

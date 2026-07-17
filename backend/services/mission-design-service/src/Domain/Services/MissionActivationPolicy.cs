@@ -53,7 +53,28 @@ public static class MissionActivationPolicy
             EvaluateStage(stage, failures);
         }
 
+        EvaluateTargetQrUniqueness(mission, failures);
+
         return failures;
+    }
+
+    // Mission-scoped, because SessionOperations resolves a scan against the whole mission snapshot:
+    // two targets sharing a code anywhere in the mission make that scan ambiguous mid-game. Authoring
+    // now rejects duplicates up front, so this only catches missions authored before that guard.
+    private static void EvaluateTargetQrUniqueness(Mission mission, List<string> failures)
+    {
+        var duplicates = mission.Stages
+            .SelectMany(stage => stage.Substages)
+            .SelectMany(substage => substage.Targets)
+            .GroupBy(target => target.QrCode, StringComparer.OrdinalIgnoreCase)
+            .Where(group => group.Count() > 1)
+            .Select(group => group.Key)
+            .OrderBy(qrCode => qrCode, StringComparer.OrdinalIgnoreCase);
+
+        foreach (var qrCode in duplicates)
+        {
+            failures.Add($"QR code '{qrCode}' is shared by more than one target; target QR codes must be unique within a mission.");
+        }
     }
 
     private static void EvaluateStage(Stage stage, List<string> failures)

@@ -1,3 +1,4 @@
+using System.Reflection;
 using umbral_backend.Application.Missions.Common;
 using umbral_backend.Application.UnitTests.Application.Trivias.TestDoubles;
 using umbral_backend.Domain.Entities;
@@ -79,7 +80,7 @@ public sealed class TriviaQuizSelectionGuardTests
     {
         var question = TriviaQuestion.Create(
             "Q", 100, 45, null, [TriviaOption.Create("Only", 1, true)]);
-        var quiz = Published(TriviaQuiz.Create("Quiz", "desc", [question]));
+        var quiz = Published(MaterializePersistedQuiz(question));
 
         await Guard(quiz).Should().ThrowAsync<ValidationException>();
     }
@@ -90,7 +91,7 @@ public sealed class TriviaQuizSelectionGuardTests
         var question = TriviaQuestion.Create(
             "Q", 100, 45, null,
             [TriviaOption.Create("A", 1, false), TriviaOption.Create("B", 2, false)]);
-        var quiz = Published(TriviaQuiz.Create("Quiz", "desc", [question]));
+        var quiz = Published(MaterializePersistedQuiz(question));
 
         await Guard(quiz).Should().ThrowAsync<ValidationException>();
     }
@@ -117,5 +118,29 @@ public sealed class TriviaQuizSelectionGuardTests
             .GetProperty(nameof(TriviaQuiz.Status))!
             .SetValue(quiz, TriviaQuizStatus.Published);
         return quiz;
+    }
+
+    // Option-count and correct-count are now enforced at authoring time (TriviaQuiz.Create), so a
+    // malformed question can no longer be assembled through the public API. The selection guard keeps
+    // its defensive re-check for persisted data, so materialize the quiz through the private
+    // constructor EF uses to feed that path the malformed state stored data could still carry.
+    private static TriviaQuiz MaterializePersistedQuiz(params TriviaQuestion[] questions)
+    {
+        var constructor = typeof(TriviaQuiz).GetConstructor(
+            BindingFlags.Instance | BindingFlags.NonPublic,
+            binder: null,
+            [
+                typeof(string),
+                typeof(string),
+                typeof(TriviaQuizStatus),
+                typeof(DateTimeOffset?),
+                typeof(IEnumerable<TriviaQuestion>),
+                typeof(int?),
+                typeof(bool)
+            ],
+            modifiers: null)!;
+
+        return (TriviaQuiz)constructor.Invoke(
+            ["Quiz", "desc", TriviaQuizStatus.Draft, null, questions, null, false]);
     }
 }

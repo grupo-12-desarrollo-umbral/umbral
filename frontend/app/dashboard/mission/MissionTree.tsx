@@ -29,9 +29,13 @@ function substageSummary(substage: MissionSubstageDto): string {
 export function MissionTree({
   mission,
   onMutated,
+  readOnly = false,
 }: {
   mission: MissionDto
   onMutated: (updated: MissionDto) => void
+  // When true (a deactivated, terminally-retired mission), the tree renders for inspection only:
+  // every add/rename/remove/select affordance is withheld so it matches the backend's HU-09 guard.
+  readOnly?: boolean
 }) {
   // Accordion: at most one substage's authoring body is expanded at a time. Newly
   // added substages auto-open so the author can configure them immediately.
@@ -55,14 +59,16 @@ export function MissionTree({
                 <span className={styles.treeEyebrow}>Stage {stage.sequenceOrder}</span>
                 <h3 className={styles.treeNodeTitle}>{stage.title}</h3>
               </div>
-              <NodeRowControls
-                missionId={mission.id}
-                nodeId={stage.id}
-                nodeKind="Stage"
-                initialTitle={stage.title}
-                initialSequenceOrder={stage.sequenceOrder}
-                onMutated={onMutated}
-              />
+              {!readOnly && (
+                <NodeRowControls
+                  missionId={mission.id}
+                  nodeId={stage.id}
+                  nodeKind="Stage"
+                  initialTitle={stage.title}
+                  initialSequenceOrder={stage.sequenceOrder}
+                  onMutated={onMutated}
+                />
+              )}
             </div>
 
             {stage.substages.length > 0 && (
@@ -99,14 +105,16 @@ export function MissionTree({
                           {PLAY_MODE_LABELS[substage.playMode]}
                         </span>
                       </button>
-                      <NodeRowControls
-                        missionId={mission.id}
-                        nodeId={substage.id}
-                        nodeKind="Substage"
-                        initialTitle={substage.title}
-                        initialSequenceOrder={substage.sequenceOrder}
-                        onMutated={onMutated}
-                      />
+                      {!readOnly && (
+                        <NodeRowControls
+                          missionId={mission.id}
+                          nodeId={substage.id}
+                          nodeKind="Substage"
+                          initialTitle={substage.title}
+                          initialSequenceOrder={substage.sequenceOrder}
+                          onMutated={onMutated}
+                        />
+                      )}
                     </div>
 
                     {isOpen ? (
@@ -118,6 +126,7 @@ export function MissionTree({
                           substage={substage}
                           difficulty={mission.difficulty}
                           onMutated={onMutated}
+                          readOnly={readOnly}
                         />
 
                         {/* Clue children */}
@@ -141,28 +150,32 @@ export function MissionTree({
                                     {clueVisibilityLabel(clue.visibilityPolicy)}
                                   </span>
                                 </div>
-                                <NodeRowControls
-                                  missionId={mission.id}
-                                  nodeId={clue.id}
-                                  nodeKind="Clue"
-                                  initialTitle={clue.title}
-                                  initialSequenceOrder={clue.sequenceOrder}
-                                  initialClueText={clue.text}
-                                  initialVisibility={clue.visibilityPolicy}
-                                  onMutated={onMutated}
-                                />
+                                {!readOnly && (
+                                  <NodeRowControls
+                                    missionId={mission.id}
+                                    nodeId={clue.id}
+                                    nodeKind="Clue"
+                                    initialTitle={clue.title}
+                                    initialSequenceOrder={clue.sequenceOrder}
+                                    initialClueText={clue.text}
+                                    initialVisibility={clue.visibilityPolicy}
+                                    onMutated={onMutated}
+                                  />
+                                )}
                               </div>
                             ))
                           )}
-                          <div className={styles.treeAddRow}>
-                            <AddClueControl
-                              missionId={mission.id}
-                              stageId={stage.id}
-                              substageId={substage.id}
-                              nextOrder={nextSequenceOrder(substage.clues)}
-                              onMutated={onMutated}
-                            />
-                          </div>
+                          {!readOnly && (
+                            <div className={styles.treeAddRow}>
+                              <AddClueControl
+                                missionId={mission.id}
+                                stageId={stage.id}
+                                substageId={substage.id}
+                                nextOrder={nextSequenceOrder(substage.clues)}
+                                onMutated={onMutated}
+                              />
+                            </div>
+                          )}
                         </div>
                       </div>
                     ) : (
@@ -174,33 +187,37 @@ export function MissionTree({
               </div>
             )}
 
-            <div className={styles.treeAddRow}>
-              <AddSubstageControl
-                missionId={mission.id}
-                stageId={stage.id}
-                nextOrder={nextSequenceOrder(stage.substages)}
-                onMutated={(updated) => {
-                  // Auto-open the substage just created so its editor is immediately usable.
-                  const prevIds = new Set(stage.substages.map((s) => s.id))
-                  const added = updated.stages
-                    .find((s) => s.id === stage.id)
-                    ?.substages.find((s) => !prevIds.has(s.id))
-                  if (added) setOpenSubstageId(added.id)
-                  onMutated(updated)
-                }}
-              />
-            </div>
+            {!readOnly && (
+              <div className={styles.treeAddRow}>
+                <AddSubstageControl
+                  missionId={mission.id}
+                  stageId={stage.id}
+                  nextOrder={nextSequenceOrder(stage.substages)}
+                  onMutated={(updated) => {
+                    // Auto-open the substage just created so its editor is immediately usable.
+                    const prevIds = new Set(stage.substages.map((s) => s.id))
+                    const added = updated.stages
+                      .find((s) => s.id === stage.id)
+                      ?.substages.find((s) => !prevIds.has(s.id))
+                    if (added) setOpenSubstageId(added.id)
+                    onMutated(updated)
+                  }}
+                />
+              </div>
+            )}
           </section>
         ))
       )}
 
-      <div className={styles.treeAddRow}>
-        <AddStageControl
-          missionId={mission.id}
-          nextOrder={nextSequenceOrder(mission.stages)}
-          onMutated={onMutated}
-        />
-      </div>
+      {!readOnly && (
+        <div className={styles.treeAddRow}>
+          <AddStageControl
+            missionId={mission.id}
+            nextOrder={nextSequenceOrder(mission.stages)}
+            onMutated={onMutated}
+          />
+        </div>
+      )}
     </div>
   )
 }

@@ -30,14 +30,15 @@ export const lifecycleActions: Record<SessionLifecycleState, LifecycleAction[]> 
     { label: 'Start', targetState: 'Active', description: 'Move teams into active answering.' },
     { label: 'Cancel', targetState: 'Cancelled', description: 'Terminally cancel this preparing session.', destructive: true, allowsReason: true },
   ],
+  // Finished is deliberately absent from both: it is reached only via automatic SessionCompletion
+  // (final-substage completion), never a manual Operator action — the backend now rejects a manual
+  // Active/Paused -> Finished PATCH (CanTransitionTo excludes it).
   Active: [
     { label: 'Pause', targetState: 'Paused', description: 'Freeze the live session while preserving progress.' },
-    { label: 'Finish', targetState: 'Finished', description: 'Terminally finish this live session.', destructive: true },
     { label: 'Cancel', targetState: 'Cancelled', description: 'Terminally cancel this live session.', destructive: true, allowsReason: true },
   ],
   Paused: [
     { label: 'Resume', targetState: 'Active', description: 'Return the paused session to active operation.' },
-    { label: 'Finish', targetState: 'Finished', description: 'Terminally finish this paused session.', destructive: true },
     { label: 'Cancel', targetState: 'Cancelled', description: 'Terminally cancel this paused session.', destructive: true, allowsReason: true },
   ],
   Finished: [],

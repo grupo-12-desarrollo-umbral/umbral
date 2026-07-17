@@ -424,10 +424,10 @@ public sealed class LiveSessionRepositoryIntegrationTests
         sessions.Should().ContainSingle(session => session.LiveSessionId == liveSession.LiveSessionId);
     }
 
-    // DES-93: an Active session whose first substage is TreasureHunt seeds an advancing substage timer on
+    // DES-93: an Active session whose first substage is TreasureHunt seeds the advancing mission deadline on
     // activation; the worker must tick it, so ListActiveTimersAsync selects it via the substage branch.
     [Fact]
-    public async Task ListActiveTimersAsync_ReturnsSessionWithAdvancingTreasureHuntSubstageTimer()
+    public async Task ListActiveTimersAsync_ReturnsSessionWithAdvancingTreasureHuntMissionTimer()
     {
         await using var resetContext = BuildContext();
         await ResetDatabaseAsync(resetContext);
@@ -448,11 +448,10 @@ public sealed class LiveSessionRepositoryIntegrationTests
         sessions.Should().ContainSingle(session => session.LiveSessionId == liveSession.LiveSessionId);
     }
 
-    // DES-93 stale-field guard: SeedSubstageTimerIfTreasureHunt early-returns without clearing the
-    // _substageTimer* fields when a TreasureHunt substage advances to a non-treasure-hunt one, so the
-    // advancing/expired predicate alone would keep matching. The predicate is scoped to the active
-    // substage actually being TreasureHunt, so an advanced-to-Trivia session (with no active question)
-    // must NOT be returned — otherwise the report-only worker would tick it redundantly.
+    // The mission timer advances for the whole session (D-4), so the timer-column predicate alone
+    // matches every started session. Scoping to the active substage actually being TreasureHunt is what
+    // keeps an advanced-to-Trivia session (with no active question, so nothing to tick) out of the
+    // worker's batch.
     [Fact]
     public async Task ListActiveTimersAsync_ExcludesSessionAdvancedFromTreasureHuntToTriviaSubstage()
     {
@@ -472,8 +471,8 @@ public sealed class LiveSessionRepositoryIntegrationTests
         liveSession.AssociateTeam(Guid.NewGuid(), "Aurora", "AUR-01", 3);
         liveSession.MoveTo(SessionState.Preparing, activeAt.AddMinutes(-1), transitionPolicy);
         liveSession.MoveTo(SessionState.Active, activeAt, transitionPolicy);
-        // Active substage is now the leading TreasureHunt substage (timer seeded + advancing). Advance to
-        // the trailing Trivia substage without activating a question: the substage timer fields stay stale.
+        // Active substage is now the leading TreasureHunt substage (mission timer seeded + advancing).
+        // Advance to the trailing Trivia substage without activating a question: nothing to tick.
         liveSession.CompleteActiveSubstageAndAdvance(activeAt.AddSeconds(30), transitionPolicy);
         liveSession.ActiveQuestionIndex.Should().BeNull();
 
@@ -490,11 +489,11 @@ public sealed class LiveSessionRepositoryIntegrationTests
         sessions.Should().NotContain(session => session.LiveSessionId == liveSession.LiveSessionId);
     }
 
-    // DES-93: round-trips a seeded, advancing TreasureHunt substage timer through Postgres and proves the
-    // authoritative snapshot is the substage window seeded from the session-level MaximumTime (45 min),
+    // DES-93: round-trips the seeded, advancing mission deadline through Postgres and proves the
+    // authoritative snapshot during a treasure hunt is that deadline, seeded from MaximumTime (45 min),
     // not the zero/expired question window that shipped before this slice.
     [Fact]
-    public async Task GetByIdAsync_RestoresAdvancingTreasureHuntSubstageTimer()
+    public async Task GetByIdAsync_RestoresAdvancingTreasureHuntMissionTimer()
     {
         await using var resetContext = BuildContext();
         await ResetDatabaseAsync(resetContext);
@@ -718,7 +717,9 @@ public sealed class LiveSessionRepositoryIntegrationTests
     // HU-34 first-write-wins is also guarded at the DB boundary: two aggregates loaded before either
     // committed (each blind to the other's answer, so the in-memory duplicate guard cannot see it)
     // must not both persist an answer for the same team + snapshotted question. The unique index
-    // rejects the second write with a DbUpdateException.
+    // rejects the second write, which the repository reports as a ConcurrentModificationException so
+    // ConcurrencyRetryBehaviour can re-run the handler — the retry then sees the winner's answer and
+    // raises the ordinary DuplicateTriviaAnswerException (409) instead of surfacing a raw 23505 (500).
     [Fact]
     public async Task UpdateAsync_RejectsSecondAnswerForSameTeamAndQuestionAtDatabase()
     {
@@ -757,7 +758,7 @@ public sealed class LiveSessionRepositoryIntegrationTests
         var secondWrite = async () =>
             await new LiveSessionRepository(secondContext).UpdateAsync(secondSession, CancellationToken.None);
 
-        await secondWrite.Should().ThrowAsync<DbUpdateException>(
+        await secondWrite.Should().ThrowAsync<ConcurrentModificationException>(
             "the unique index on team + snapshotted question must reject a second accepted answer");
     }
 
@@ -975,7 +976,8 @@ public sealed class LiveSessionRepositoryIntegrationTests
 
     // HU-26 DB-boundary guard: two aggregates loaded before either committed (each blind to the other's
     // release) must not both persist a release for the same team + target. The unique index rejects the
-    // second write with a DbUpdateException.
+    // second write, reported as a ConcurrentModificationException so the retry can re-run the handler
+    // against the winner's state.
     [Fact]
     public async Task UpdateAsync_RejectsSecondClueReleaseForSameTeamAndTargetAtDatabase()
     {
@@ -1014,7 +1016,7 @@ public sealed class LiveSessionRepositoryIntegrationTests
         var secondWrite = async () =>
             await new LiveSessionRepository(secondContext).UpdateAsync(secondSession, CancellationToken.None);
 
-        await secondWrite.Should().ThrowAsync<DbUpdateException>(
+        await secondWrite.Should().ThrowAsync<ConcurrentModificationException>(
             "the unique index on team + target must reject a second release for the same clue");
     }
 

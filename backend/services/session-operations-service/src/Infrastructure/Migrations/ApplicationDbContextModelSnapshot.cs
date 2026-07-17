@@ -322,6 +322,22 @@ namespace umbral_backend.Infrastructure.Migrations
                         .HasColumnType("character varying(200)")
                         .HasColumnName("title_snapshot");
 
+                    b.Property<DateTimeOffset?>("_missionTimerAdvancingSince")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("mission_timer_advancing_since");
+
+                    b.Property<DateTimeOffset?>("_missionTimerExpiredAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("mission_timer_expired_at");
+
+                    b.Property<TimeSpan>("_missionTimerRemainingDuration")
+                        .HasColumnType("interval")
+                        .HasColumnName("mission_timer_remaining_duration");
+
+                    b.Property<TimeSpan>("_missionTimerTotalDuration")
+                        .HasColumnType("interval")
+                        .HasColumnName("mission_timer_total_duration");
+
                     b.Property<int?>("_pendingNextQuestionIndex")
                         .HasColumnType("integer")
                         .HasColumnName("pending_next_question_index");
@@ -346,21 +362,11 @@ namespace umbral_backend.Infrastructure.Migrations
                         .HasColumnType("interval")
                         .HasColumnName("question_timer_total_duration");
 
-                    b.Property<DateTimeOffset?>("_substageTimerAdvancingSince")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("substage_timer_advancing_since");
-
-                    b.Property<DateTimeOffset?>("_substageTimerExpiredAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("substage_timer_expired_at");
-
-                    b.Property<TimeSpan>("_substageTimerRemainingDuration")
-                        .HasColumnType("interval")
-                        .HasColumnName("substage_timer_remaining_duration");
-
-                    b.Property<TimeSpan>("_substageTimerTotalDuration")
-                        .HasColumnType("interval")
-                        .HasColumnName("substage_timer_total_duration");
+                    b.Property<uint>("xmin")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
 
                     b.HasKey("LiveSessionId");
 
@@ -808,6 +814,11 @@ namespace umbral_backend.Infrastructure.Migrations
                             b1.HasKey("EvidenceSubmissionId");
 
                             b1.HasIndex("LiveSessionId");
+
+                            b1.HasIndex("LiveSessionId", "TeamId", "TargetSnapshotId")
+                                .IsUnique()
+                                .HasDatabaseName("ux_treasure_evidence_accepted_target")
+                                .HasFilter("validation_state = 'Accepted'");
 
                             b1.ToTable("live_session_treasure_evidence_submissions", (string)null);
 

@@ -1,8 +1,10 @@
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 using umbral_backend.Application.Common.Interfaces;
 using umbral_backend.Application.Sessions.Common;
 using umbral_backend.Domain.Entities;
 using umbral_backend.Domain.Enums;
+using umbral_backend.Domain.Exceptions;
 
 namespace umbral_backend.Infrastructure.Persistence.Repositories;
 
@@ -124,10 +126,9 @@ public sealed class LiveSessionRepository : ILiveSessionRepository
     public async Task<IReadOnlyList<LiveSession>> ListActiveTimersAsync(CancellationToken cancellationToken)
     {
         // Two authoritative-timer windows tick under an Active session: the trivia active-question
-        // window, and the treasure-hunt substage window. The substage branch is scoped to the active
-        // substage actually being TreasureHunt — the _substageTimer* fields can be left stale after a
-        // TreasureHunt -> Trivia advance (SeedSubstageTimerIfTreasureHunt early-returns without clearing
-        // them), so the advancing/expired predicate alone would keep ticking such sessions redundantly.
+        // window, and the mission deadline a treasure-hunt substage displays in place of a window of
+        // its own. The mission timer is seeded for every session at start, so its branch alone matches
+        // every started session; the in-memory pass below narrows it to the substages that display it.
         //
         // The predicate below stays within translatable timer columns so EF never has to translate the
         // owned-collection snapshot navigation into SQL. The TreasureHunt scoping is then applied in
@@ -137,9 +138,9 @@ public sealed class LiveSessionRepository : ILiveSessionRepository
                 session.State == SessionState.Active &&
                 ((session.ActiveQuestionIndex != null &&
                     EF.Property<DateTimeOffset?>(session, "_questionTimerExpiredAt") == null) ||
-                 (EF.Property<DateTimeOffset?>(session, "_substageTimerAdvancingSince") != null &&
-                    EF.Property<DateTimeOffset?>(session, "_substageTimerExpiredAt") == null) ||
-                 // A reveal-pending session (HU-35) has no active-question / substage window ticking,
+                 (EF.Property<DateTimeOffset?>(session, "_missionTimerAdvancingSince") != null &&
+                    EF.Property<DateTimeOffset?>(session, "_missionTimerExpiredAt") == null) ||
+                 // A reveal-pending session (HU-35) has no active-question window ticking,
                  // but must still be ticked so the deferred next-question activation fires on time.
                  EF.Property<DateTimeOffset?>(session, "_questionRevealUntil") != null))
             .Include(session => session.MissionRuntimeSnapshot)
@@ -157,8 +158,8 @@ public sealed class LiveSessionRepository : ILiveSessionRepository
     }
 
     // True when the session's active substage (matched by ActiveSubstageId) resolves, within the
-    // hydrated snapshot, to a TreasureHunt substage. Guards against stale _substageTimer* fields left
-    // behind by a TreasureHunt -> Trivia advance.
+    // hydrated snapshot, to a TreasureHunt substage — the only substage that ticks on the mission
+    // timer alone, having no question window.
     private static bool ActiveSubstageIsTreasureHunt(LiveSession session)
     {
         return session.MissionRuntimeSnapshot is not null &&
@@ -176,6 +177,26 @@ public sealed class LiveSessionRepository : ILiveSessionRepository
             _context.LiveSessions.Add(liveSession);
         }
 
-        await _context.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await _context.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException exception)
+        {
+            // The xmin token moved: someone committed to live_sessions between our read and our
+            // write. Only mutations touching a principal column reach this arm — an owned-collection
+            // insert alone emits no UPDATE, so it is caught by the unique-violation arm below instead.
+            throw new ConcurrentModificationException(exception);
+        }
+        catch (DbUpdateException exception)
+            when (exception.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation })
+        {
+            // Every uniqueness rule on this aggregate is enforced in the domain first, so a
+            // duplicate that reaches Postgres is by definition one that was not visible when the
+            // domain checked — i.e. a concurrent writer won. Translating to a concurrency loss lets
+            // the retry re-read and reach the domain's own verdict (a 409 for a duplicate answer, a
+            // rejected submission for a duplicate scan) rather than surfacing the raw 23505 as a 500.
+            throw new ConcurrentModificationException(exception);
+        }
     }
 }

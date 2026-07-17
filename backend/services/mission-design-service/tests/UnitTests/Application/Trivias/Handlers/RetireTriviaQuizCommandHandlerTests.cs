@@ -10,9 +10,14 @@ using umbral_backend.Application.Trivias.Commands.UpdateTriviaQuestion;
 using umbral_backend.Application.Trivias.Commands.UpdateTriviaQuiz;
 using umbral_backend.Application.Trivias.Queries.GetTriviaCatalog;
 using umbral_backend.Application.Trivias.Queries.GetTriviaDetail;
+using umbral_backend.Application.Common.Interfaces;
 using umbral_backend.Application.UnitTests.Application.Trivias.TestDoubles;
 using umbral_backend.Domain.Entities;
 using umbral_backend.Domain.Exceptions;
+using InMemoryMissionRepository =
+    umbral_backend.Application.UnitTests.Application.Missions.TestDoubles.InMemoryMissionRepository;
+using StubActiveMissionReferenceRepository =
+    umbral_backend.Application.UnitTests.Application.Missions.TestDoubles.StubActiveMissionReferenceRepository;
 
 namespace umbral_backend.Application.UnitTests.Application.Trivias.Handlers;
 
@@ -27,7 +32,10 @@ public sealed class RetireTriviaQuizCommandHandlerTests
         triviaQuiz.MarkAsPublished();
         triviaQuiz.MarkAsUsedInSession();
         repository.Seed(triviaQuiz);
-        var handler = new RetireTriviaQuizCommandHandler(repository, new StubClock(archivedAt));
+        var handler = new RetireTriviaQuizCommandHandler(
+            repository,
+            new InMemoryMissionRepository(),
+            new StubClock(archivedAt));
 
         var result = await handler.Handle(new RetireTriviaQuizCommand(triviaQuiz.Id), CancellationToken.None);
 
@@ -44,6 +52,7 @@ public sealed class RetireTriviaQuizCommandHandlerTests
     {
         var handler = new RetireTriviaQuizCommandHandler(
             new InMemoryTriviaQuizRepository(),
+            new InMemoryMissionRepository(),
             new StubClock(new DateTimeOffset(2026, 6, 3, 11, 0, 0, TimeSpan.Zero)));
 
         var act = () => handler.Handle(new RetireTriviaQuizCommand(99), CancellationToken.None);
@@ -61,6 +70,7 @@ public sealed class RetireTriviaQuizCommandHandlerTests
         repository.Seed(triviaQuiz);
         var handler = new RetireTriviaQuizCommandHandler(
             repository,
+            new InMemoryMissionRepository(),
             new StubClock(new DateTimeOffset(2026, 6, 3, 11, 0, 0, TimeSpan.Zero)));
 
         var act = () => handler.Handle(new RetireTriviaQuizCommand(triviaQuiz.Id), CancellationToken.None);
@@ -78,12 +88,39 @@ public sealed class RetireTriviaQuizCommandHandlerTests
         repository.Seed(triviaQuiz);
         var handler = new RetireTriviaQuizCommandHandler(
             repository,
+            new InMemoryMissionRepository(),
             new StubClock(new DateTimeOffset(2026, 6, 3, 11, 0, 0, TimeSpan.Zero)));
 
         var act = () => handler.Handle(new RetireTriviaQuizCommand(triviaQuiz.Id), CancellationToken.None);
 
         await act.Should().ThrowAsync<TriviaQuizCannotBeRetiredWithoutUsageHistoryException>()
             .WithMessage("Only trivia quizzes that have already been used in a session can be retired from future use.");
+    }
+
+    [Fact]
+    public async Task Handle_WhenReferencedByActiveMission_BlocksRetirementAndLeavesQuizPublished()
+    {
+        var repository = new InMemoryTriviaQuizRepository();
+        var triviaQuiz = CreatePublishableTriviaQuiz();
+        triviaQuiz.MarkAsPublished();
+        triviaQuiz.MarkAsUsedInSession();
+        repository.Seed(triviaQuiz);
+        var missionRepository = new StubActiveMissionReferenceRepository(
+            new ActiveMissionReference(7, "Forest Hunt"));
+        var handler = new RetireTriviaQuizCommandHandler(
+            repository,
+            missionRepository,
+            new StubClock(new DateTimeOffset(2026, 6, 3, 11, 0, 0, TimeSpan.Zero)));
+
+        var act = () => handler.Handle(new RetireTriviaQuizCommand(triviaQuiz.Id), CancellationToken.None);
+
+        var assertion = await act.Should().ThrowAsync<TriviaQuizReferencedByActiveMissionException>();
+        assertion.Which.TriviaQuizId.Should().Be(triviaQuiz.Id);
+        assertion.Which.Message.Should().Contain("Forest Hunt");
+        // The transition never ran: the quiz stays published and is not persisted.
+        triviaQuiz.Status.ToString().Should().Be("Published");
+        repository.LastUpdatedTriviaQuiz.Should().BeNull();
+        missionRepository.QueriedTriviaQuizId.Should().Be(triviaQuiz.Id);
     }
 
     private static TriviaQuiz CreatePublishableTriviaQuiz()

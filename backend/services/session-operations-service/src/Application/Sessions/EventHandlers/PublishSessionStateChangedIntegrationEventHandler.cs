@@ -33,7 +33,7 @@ public sealed class PublishSessionStateChangedIntegrationEventHandler
                     notification.PreviousState,
                     notification.CurrentState,
                     notification.ChangedAt,
-                    notification.ResponsibleUserId,
+                    notification.ResponsibleUserExternalId,
                     notification.Reason),
                 cancellationToken);
         }

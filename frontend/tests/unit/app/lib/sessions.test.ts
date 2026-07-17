@@ -211,6 +211,46 @@ describe('session gateway auth', () => {
     ).rejects.toThrowError('mission_not_found')
   })
 
+  // Issue-3 fix: the generic invalid-transition 409 now carries the specific rejected from->to
+  // edge (InvalidSessionStateTransitionException.PublicDetail) in ProblemDetails `detail`; the
+  // gateway must surface it via Error.cause so the UI can render it instead of a vague message.
+  it('maps a generic invalid-transition 409 to invalid_transition with the specific edge in cause', async () => {
+    const { transitionSessionState } = await import('@/app/lib/sessions')
+
+    getValidAccessTokenMock.mockResolvedValue('token')
+    vi.mocked(global.fetch).mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          type: 'invalid-state-transition',
+          title: 'Conflict.',
+          detail: "Session cannot transition from 'Active' to 'Finished'.",
+        }),
+        { status: 409, headers: { 'Content-Type': 'application/json' } },
+      ),
+    )
+
+    const act = transitionSessionState('session-1', 'Finished')
+
+    await expect(act).rejects.toThrowError('invalid_transition')
+    await act.catch((err: Error) => {
+      expect(err.cause).toBe("Session cannot transition from 'Active' to 'Finished'.")
+    })
+  })
+
+  it('maps a session-no-teams 409 to no_teams without a cause', async () => {
+    const { transitionSessionState } = await import('@/app/lib/sessions')
+
+    getValidAccessTokenMock.mockResolvedValue('token')
+    vi.mocked(global.fetch).mockResolvedValue(
+      new Response(
+        JSON.stringify({ type: 'session-no-teams', detail: 'This session has no teams.' }),
+        { status: 409, headers: { 'Content-Type': 'application/json' } },
+      ),
+    )
+
+    await expect(transitionSessionState('session-1', 'Active')).rejects.toThrowError('no_teams')
+  })
+
   it('parses the operator session panel DTO on a 200', async () => {
     const { getOperatorSessionPanel } = await import('@/app/lib/sessions')
     const payload = {
@@ -832,5 +872,78 @@ describe('session gateway auth', () => {
     await expect(getOperatorEvidenceTrace('s')).rejects.toEqual(
       expect.objectContaining<Partial<IdentityError>>({ name: 'IdentityError', code: 'unknown' }),
     )
+  })
+
+  it('fetches session history through the gateway with a bearer token', async () => {
+    const { getSessionHistory } = await import('@/app/lib/sessions')
+    const history = {
+      liveSessionId: 'session-1',
+      events: [
+        {
+          sessionEventId: 'event-1',
+          eventType: 'SessionStateChanged',
+          teamId: null,
+          occurredAt: '2026-07-17T10:42:00.000Z',
+          responsibleUserExternalId: 'user-1',
+          payloadSummary: "Preparing -> Active",
+        },
+      ],
+    }
+    getValidAccessTokenMock.mockResolvedValue('token')
+    vi.mocked(global.fetch).mockResolvedValue(
+      new Response(JSON.stringify(history), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    )
+
+    await expect(getSessionHistory('session-1')).resolves.toEqual(history)
+
+    const [url, init] = vi.mocked(global.fetch).mock.calls[0]
+    expect(url).toBe('http://localhost:8000/api/sessions/session-1/history')
+    expect((init?.headers as Headers).get('Authorization')).toBe('Bearer token')
+  })
+
+  it('narrows session history to a team via the teamId query parameter', async () => {
+    const { getSessionHistory } = await import('@/app/lib/sessions')
+    getValidAccessTokenMock.mockResolvedValue('token')
+    vi.mocked(global.fetch).mockResolvedValue(
+      new Response(JSON.stringify({ liveSessionId: 'session-1', events: [] }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    )
+
+    await getSessionHistory('session-1', 'team-7')
+
+    const [url] = vi.mocked(global.fetch).mock.calls[0]
+    expect(url).toBe('http://localhost:8000/api/sessions/session-1/history?teamId=team-7')
+  })
+
+  // 403 here is a role failure (the endpoint is Administrator OR Operator), not an assignment
+  // failure — and a 5xx must stay distinguishable from it.
+  it('maps session history 401/403 to unauthorized and 5xx to unknown', async () => {
+    const { getSessionHistory } = await import('@/app/lib/sessions')
+    getValidAccessTokenMock.mockResolvedValue('token')
+
+    for (const status of [401, 403]) {
+      vi.mocked(global.fetch).mockResolvedValueOnce(new Response('', { status }))
+      await expect(getSessionHistory('s')).rejects.toEqual(
+        expect.objectContaining<Partial<IdentityError>>({ name: 'IdentityError', code: 'unauthorized' }),
+      )
+    }
+
+    vi.mocked(global.fetch).mockResolvedValueOnce(new Response('', { status: 503 }))
+    await expect(getSessionHistory('s')).rejects.toEqual(
+      expect.objectContaining<Partial<IdentityError>>({ name: 'IdentityError', code: 'unknown' }),
+    )
+  })
+
+  it('maps a session history 404 to session_not_found', async () => {
+    const { getSessionHistory } = await import('@/app/lib/sessions')
+    getValidAccessTokenMock.mockResolvedValue('token')
+
+    vi.mocked(global.fetch).mockResolvedValueOnce(new Response('', { status: 404 }))
+    await expect(getSessionHistory('s')).rejects.toThrowError('session_not_found')
   })
 })

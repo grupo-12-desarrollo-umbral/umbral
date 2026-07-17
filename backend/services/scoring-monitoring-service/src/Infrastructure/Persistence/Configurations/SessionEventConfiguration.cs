@@ -32,6 +32,16 @@ public sealed class SessionEventConfiguration : IEntityTypeConfiguration<Session
 
         builder.HasIndex(sessionEvent => new { sessionEvent.LiveSessionId, sessionEvent.OccurredAt });
 
+        builder.Property(sessionEvent => sessionEvent.TeamId)
+            .HasColumnName("team_id");
+
+        builder.HasIndex(sessionEvent => new
+        {
+            sessionEvent.LiveSessionId,
+            sessionEvent.TeamId,
+            sessionEvent.OccurredAt
+        });
+
         builder.Property(sessionEvent => sessionEvent.EventType)
             .HasColumnName("event_type")
             .HasMaxLength(80)
@@ -46,7 +56,7 @@ public sealed class SessionEventConfiguration : IEntityTypeConfiguration<Session
             .HasMaxLength(500)
             .IsRequired();
 
-        builder.Property(sessionEvent => sessionEvent.ResponsibleUserId)
-            .HasColumnName("responsible_user_id");
+        builder.Property(sessionEvent => sessionEvent.ResponsibleUserExternalId)
+            .HasColumnName("responsible_user_external_id");
     }
 }

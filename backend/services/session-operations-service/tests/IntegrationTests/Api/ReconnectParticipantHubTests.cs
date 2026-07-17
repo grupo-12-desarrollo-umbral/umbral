@@ -415,9 +415,11 @@ public sealed class ReconnectParticipantHubTests : IAsyncLifetime
                 liveSession.MoveTo(SessionState.Active, occurredAt.AddMinutes(1), transitionPolicy);
                 break;
             case SessionState.Finished:
+                // Finished is reached only via SessionCompletion (never a manual MoveTo); the single
+                // treasure-hunt substage above completing with no next substage drives it there.
                 liveSession.MoveTo(SessionState.Preparing, occurredAt, transitionPolicy);
                 liveSession.MoveTo(SessionState.Active, occurredAt.AddMinutes(1), transitionPolicy);
-                liveSession.MoveTo(SessionState.Finished, occurredAt.AddMinutes(2), transitionPolicy);
+                liveSession.CompleteActiveSubstageAndAdvance(occurredAt.AddMinutes(2), transitionPolicy);
                 break;
             case SessionState.Cancelled:
                 liveSession.MoveTo(SessionState.Cancelled, occurredAt, transitionPolicy);

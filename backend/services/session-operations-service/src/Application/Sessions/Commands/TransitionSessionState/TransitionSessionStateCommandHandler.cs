@@ -41,7 +41,8 @@ public sealed class TransitionSessionStateCommandHandler
             liveSession,
             request.TargetState,
             request.Reason,
-            authorizedAccess.ResponsibleUserId);
+            authorizedAccess.ResponsibleUserId,
+            authorizedAccess.ResponsibleUserExternalId);
         await _validatorChain.ValidateAsync(context, cancellationToken);
 
         var previousState = liveSession.State;
@@ -55,7 +56,8 @@ public sealed class TransitionSessionStateCommandHandler
             occurredAt,
             _transitionPolicy,
             context.Reason,
-            context.ResponsibleUserId);
+            context.ResponsibleUserId,
+            context.ResponsibleUserExternalId);
         var timerSnapshot = liveSession.GetAuthoritativeSessionTimerSnapshot(occurredAt);
 
         await _liveSessionRepository.UpdateAsync(liveSession, cancellationToken);

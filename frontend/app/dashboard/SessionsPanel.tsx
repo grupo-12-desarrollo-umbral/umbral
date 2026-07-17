@@ -1,14 +1,20 @@
 'use client'
 
-import { useEffect, useState, useTransition } from 'react'
-import { getSessionAssociatedTeams, associateTeamToSession } from '@/app/actions/sessions'
+import { useCallback, useEffect, useState, useTransition } from 'react'
+import {
+  getSessionAssociatedTeams,
+  associateTeamToSession,
+  getSessionHistoryAction,
+} from '@/app/actions/sessions'
 import { getActiveTeams } from '@/app/actions/teams'
 import type {
   SessionAssociatedTeamsDto,
   SessionAssignmentSummaryDto,
+  SessionHistoryRowDto,
   SessionLifecycleState,
   TeamDto,
 } from '@/app/lib/definitions'
+import { SessionHistoryPanel } from './SessionHistoryPanel'
 import styles from './dashboard.module.css'
 
 interface SessionsPanelProps {
@@ -43,6 +49,15 @@ function formatDateTime(value: string) {
   return new Date(value).toLocaleString()
 }
 
+// The three outcomes of a history read, carried together with the session they describe so a late
+// response for a session the operator has switched away from can be dropped at render.
+type ConcludedSessionHistoryState = {
+  liveSessionId: string
+  events: SessionHistoryRowDto[]
+  unauthorized: boolean
+  error: string | null
+}
+
 export function SessionsPanel({
   assignedSessions,
   isLoadingAssignedSessions,
@@ -68,6 +83,8 @@ export function SessionsPanel({
   const [associateError, setAssociateError] = useState<string | null>(null)
   const [isTeamsPending, startTeamsTransition] = useTransition()
   const [isAssociatePending, startAssociateTransition] = useTransition()
+  const [sessionHistory, setSessionHistory] = useState<ConcludedSessionHistoryState | null>(null)
+  const [isHistoryPending, startHistoryTransition] = useTransition()
 
   useEffect(() => {
     if (selectedLiveSessionId == null) {
@@ -91,10 +108,45 @@ export function SessionsPanel({
     })
   }, [selectedLiveSessionId])
 
+  // A concluded session is the only place the audit trail can be read: its live operation view never
+  // opens, and QuestionClosed/SessionResultsFinalized events mostly exist on sessions that have finished.
+  // The read stays authorized after conclusion — the operator assignment it checks outlives the session.
+  const loadSessionHistory = useCallback(async (liveSessionId: string) => {
+    startHistoryTransition(async () => {
+      const result = await getSessionHistoryAction(liveSessionId)
+
+      setSessionHistory({
+        liveSessionId,
+        events: 'data' in result ? result.data.events : [],
+        unauthorized: 'unauthorized' in result,
+        // A transient read failure is not an authorization problem — keep them distinguishable.
+        error: 'error' in result ? result.error : null,
+      })
+    })
+  }, [])
+
+  useEffect(() => {
+    if (selectedLiveSessionId == null || !selectedIsConcluded) {
+      return
+    }
+
+    void loadSessionHistory(selectedLiveSessionId)
+  }, [selectedLiveSessionId, selectedIsConcluded, loadSessionHistory])
+
   const visibleAssociatedTeams =
     selectedLiveSessionId != null && associatedTeams?.liveSessionId === selectedLiveSessionId
       ? associatedTeams
       : null
+  const visibleSessionHistory =
+    selectedLiveSessionId != null && sessionHistory?.liveSessionId === selectedLiveSessionId
+      ? sessionHistory
+      : null
+  // Runtime teamId → display name, from the teams this session already loads. Every event a concluded
+  // session carries today is session-wide (teamId null), so nothing consumes this yet — it is here so
+  // team-scoped event types resolve to a name rather than "Unknown team" once the consumer records them.
+  const historyTeamNames = Object.fromEntries(
+    visibleAssociatedTeams?.teams.map((team) => [team.runtimeTeamId, team.displayName]) ?? [],
+  )
   const associatedReferenceTeamIds = new Set(
     visibleAssociatedTeams?.teams.map((team) => team.referenceTeamId) ?? [],
   )
@@ -378,10 +430,20 @@ export function SessionsPanel({
               )}
 
               {selectedIsConcluded ? (
-                <p className={styles.emptyStateCopy} data-testid="concluded-session-readonly-note">
-                  This session is {selectedAssignedSession.sessionState.toLowerCase()} and can only be
-                  reviewed in read-only mode.
-                </p>
+                <>
+                  <p className={styles.emptyStateCopy} data-testid="concluded-session-readonly-note">
+                    This session is {selectedAssignedSession.sessionState.toLowerCase()} and can only be
+                    reviewed in read-only mode.
+                  </p>
+                  <SessionHistoryPanel
+                    events={visibleSessionHistory?.events ?? []}
+                    teamNames={historyTeamNames}
+                    unauthorized={visibleSessionHistory?.unauthorized ?? false}
+                    error={visibleSessionHistory?.error ?? null}
+                    loading={isHistoryPending || visibleSessionHistory === null}
+                    onRetry={() => void loadSessionHistory(selectedAssignedSession.liveSessionId)}
+                  />
+                </>
               ) : (
                 <button
                   type="button"

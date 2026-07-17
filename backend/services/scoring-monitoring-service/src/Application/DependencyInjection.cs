@@ -4,6 +4,7 @@ using umbral_backend.Application.Common.Behaviours;
 using umbral_backend.Application.Common.Interfaces;
 using umbral_backend.Application.Rankings.Common;
 using umbral_backend.Application.Scores.Common.Authorization;
+using umbral_backend.Application.Scores.EventHandlers;
 using umbral_backend.Domain.Services;
 
 namespace Microsoft.Extensions.DependencyInjection;
@@ -17,6 +18,9 @@ public static class DependencyInjection
         {
             cfg.RegisterServicesFromAssembly(Assembly.GetExecutingAssembly());
             cfg.AddOpenBehavior(typeof(UnhandledExceptionBehaviour<,>));
+            cfg.AddOpenBehavior(typeof(AuthorizationBehaviour<,>));
+            cfg.AddOpenBehavior(typeof(ValidationBehaviour<,>));
+            cfg.AddOpenBehavior(typeof(PerformanceBehaviour<,>));
         });
 
         builder.Services.AddScoped<IScorePolicy, SnapshotScorePolicy>();
@@ -25,5 +29,7 @@ public static class DependencyInjection
         builder.Services.AddScoped<IPenaltyPolicy, DefaultPenaltyPolicy>();
 
         builder.Services.AddScoped<IScoringSessionAccessResolver, ScoringSessionAuthorizationProxy>();
+        builder.Services.AddScoped<PublishScoreEntryRegisteredIntegrationEventHandler>();
+        builder.Services.AddScoped<IOutboxDomainEventDispatcher, OutboxDomainEventDispatcher>();
     }
 }

@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using umbral_backend.Api.Services;
 using umbral_backend.Application.Common.Models;
@@ -12,8 +13,11 @@ using umbral_backend.Application.Teams.Queries.GetTeams;
 
 namespace umbral_backend.Api.Controllers;
 
+// Every route here is Administrator,Operator at the MediatR layer, so the policy sits on the
+// controller rather than per-action.
 [ApiController]
 [Route("api/teams")]
+[Authorize(Policy = AuthorizationPolicies.AdminOrOperator)]
 public sealed class TeamsController(ISender sender) : ControllerBase
 {
     [HttpPost]

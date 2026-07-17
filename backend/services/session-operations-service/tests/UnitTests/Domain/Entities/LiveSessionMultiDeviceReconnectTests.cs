@@ -137,8 +137,10 @@ public sealed class LiveSessionMultiDeviceReconnectTests
             return;
         }
 
+        // Finished is reached only via SessionCompletion (never a manual MoveTo); the single
+        // treasure-hunt substage above completing with no next substage drives it there.
         session.MoveTo(SessionState.Preparing, JoinedAt.AddMinutes(1), policy);
         session.MoveTo(SessionState.Active, JoinedAt.AddMinutes(2), policy);
-        session.MoveTo(SessionState.Finished, JoinedAt.AddMinutes(3), policy);
+        session.CompleteActiveSubstageAndAdvance(JoinedAt.AddMinutes(3), policy);
     }
 }

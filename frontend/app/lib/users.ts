@@ -1,34 +1,19 @@
 import 'server-only'
-import { IdentityError, type PagedResult, type UserAccessCatalogItemDto, type AssignableOperatorDto, type InvitableRole, type InviteUserResultDto } from './definitions'
+import { IdentityError, type PagedResult, type UserAccessCatalogItemDto, type AssignableOperatorDto, type AssignableParticipantDto, type InvitableRole, type InviteUserResultDto } from './definitions'
 import { verifySession } from './dal'
-
-// Direct service URL for BFF-to-service calls (bypasses JWT gateway auth)
-const IDENTITY_SERVICE_URL = 'http://localhost:5002'
-
-function getIdentityHeaders(session: {
-  externalIdentityId: string
-  displayName: string
-  email: string
-  role: string
-}) {
-  return {
-    'X-User-Id': session.externalIdentityId,
-    'X-User-Role': session.role,
-    'X-User-Email': session.email,
-  }
-}
+import { API_GATEWAY_URL, getGatewayHeaders } from './gateway'
 
 export async function listUsers(
   page = 1,
   pageSize = 20,
 ): Promise<PagedResult<UserAccessCatalogItemDto>> {
-  const session = await verifySession()
-  const url = new URL(`${IDENTITY_SERVICE_URL}/api/users`)
+  await verifySession()
+  const url = new URL(`${API_GATEWAY_URL}/api/users`)
   url.searchParams.set('page', String(page))
   url.searchParams.set('pageSize', String(pageSize))
 
   const response = await fetch(url.toString(), {
-    headers: getIdentityHeaders(session),
+    headers: await getGatewayHeaders(),
     cache: 'no-store',
   })
 
@@ -36,8 +21,12 @@ export async function listUsers(
     throw new IdentityError('unauthorized', 'Authentication failed. Missing or invalid trusted headers.')
   }
 
+  // A 403 here is the backend's AdminOrOperator policy rejecting the caller's ROLE, not an account
+  // status: deactivation is already caught upstream by verifySession (session.isActive) and
+  // enforceActivePlatformAccess, both of which redirect before this call can run. Mapping it to
+  // 'deactivated' would tell a live administrator their account was disabled.
   if (response.status === 403) {
-    throw new IdentityError('deactivated', 'Your account has been deactivated.')
+    throw new IdentityError('unauthorized', 'Forbidden. Administrator or operator role required.')
   }
 
   if (!response.ok) {
@@ -129,13 +118,10 @@ async function readProblemDetail(response: Response): Promise<string | null> {
 }
 
 export async function inviteUser(email: string, role: InvitableRole): Promise<InviteUserResultDto> {
-  const session = await verifySession()
-  const response = await fetch(`${IDENTITY_SERVICE_URL}/api/users/invitations`, {
+  await verifySession()
+  const response = await fetch(`${API_GATEWAY_URL}/api/users/invitations`, {
     method: 'POST',
-    headers: {
-      ...getIdentityHeaders(session),
-      'Content-Type': 'application/json',
-    },
+    headers: await getGatewayHeaders({ 'Content-Type': 'application/json' }),
     body: JSON.stringify({ email, role }),
   })
 
@@ -174,10 +160,10 @@ export async function inviteUser(email: string, role: InvitableRole): Promise<In
 }
 
 export async function deactivateUserAccess(id: number): Promise<void> {
-  const session = await verifySession()
-  const response = await fetch(`${IDENTITY_SERVICE_URL}/api/users/${id}/access`, {
+  await verifySession()
+  const response = await fetch(`${API_GATEWAY_URL}/api/users/${id}/access`, {
     method: 'DELETE',
-    headers: getIdentityHeaders(session),
+    headers: await getGatewayHeaders(),
   })
 
   if (response.status === 400) {
@@ -198,13 +184,10 @@ export async function deactivateUserAccess(id: number): Promise<void> {
 }
 
 export async function assignUserRole(id: number, role: string): Promise<void> {
-  const session = await verifySession()
-  const response = await fetch(`${IDENTITY_SERVICE_URL}/api/users/${id}/role`, {
+  await verifySession()
+  const response = await fetch(`${API_GATEWAY_URL}/api/users/${id}/role`, {
     method: 'PATCH',
-    headers: {
-      ...getIdentityHeaders(session),
-      'Content-Type': 'application/json',
-    },
+    headers: await getGatewayHeaders({ 'Content-Type': 'application/json' }),
     body: JSON.stringify({ role }),
   })
 
@@ -236,6 +219,27 @@ export async function listAssignableOperators(): Promise<AssignableOperatorDto[]
   // The selector should only show active operators from the logical user catalog.
   for (const u of result.items) {
     if (!u.isActive || u.role !== 'Operator') continue
+
+    assignable.set(buildLogicalUserKey(u), {
+      id: u.id,
+      displayName: u.displayName,
+      email: u.email,
+      role: u.role,
+    })
+  }
+
+  return [...assignable.values()].sort((left, right) =>
+    left.displayName.localeCompare(right.displayName) || left.email.localeCompare(right.email),
+  )
+}
+
+export async function listAssignableParticipants(): Promise<AssignableParticipantDto[]> {
+  const assignable = new Map<string, AssignableParticipantDto>()
+  const result = await listDedupedUsers(1, Number.MAX_SAFE_INTEGER)
+
+  // The selector should only show active participants from the logical user catalog.
+  for (const u of result.items) {
+    if (!u.isActive || u.role !== 'Participant') continue
 
     assignable.set(buildLogicalUserKey(u), {
       id: u.id,

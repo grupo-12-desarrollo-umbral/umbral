@@ -5,10 +5,11 @@ import { clearTokens, getAccessToken, getRefreshToken, storeTokens } from './tok
 // gateway. Mirrors the frontend's ACCESS_TOKEN_REFRESH_SKEW_MS.
 const ACCESS_TOKEN_REFRESH_SKEW_MS = 60_000;
 
-// Keycloak rotates the refresh token on every grant, so two concurrent refreshes would consume each
-// other's token and leave the loser holding a dead one. Callers race constantly — API requests plus
-// both hub handshakes all wake at once after a reconnect — so every refresh funnels through this one
-// promise.
+// Callers race constantly — an API request plus both hub handshakes all wake together after a
+// reconnect — so every refresh funnels through this one promise, collapsing the stampede into one
+// grant and one SecureStore write. It also future-proofs rotation: the realm pins `revokeRefreshToken`
+// to false (backend/deploy/keycloak/import/umbral-realm.json), so a loser of that race still holds a
+// usable token today, but only this single-flight keeps that true if rotation is ever turned on.
 let inFlightRefresh: Promise<string> | null = null;
 
 type SessionExpiredListener = () => void;

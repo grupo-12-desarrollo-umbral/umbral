@@ -1,6 +1,7 @@
 'use client'
 
 import {
+  HttpTransportType,
   HubConnection,
   HubConnectionBuilder,
   HubConnectionState,
@@ -102,6 +103,9 @@ export function createRankingRealtimeClient({
   const connection = new HubConnectionBuilder()
     .withUrl(buildHubUrl(), {
       accessTokenFactory: getHubAccessToken,
+      // Pinned so negotiation cannot silently fall back to SSE/long-polling: RNF-03 requires
+      // real-time to run over WebSockets, and a fallback is invisible from the UI.
+      transport: HttpTransportType.WebSockets,
     })
     .withAutomaticReconnect([0, 1500, 5000, 10000])
     .configureLogging(LogLevel.Warning)

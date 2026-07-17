@@ -31,7 +31,7 @@ describe `Access Facts`; the **final admission** into a `LiveSession` is always 
 | **RF-01** | The system must allow creating, editing, consulting, and deactivating `Mission`s (`MissionActivation`). | `MissionDesign` |
 | **RF-02** | Each `Mission` must allow registering `Stage`/`Substage` nodes, `Clue`s, and a `MaximumTime` for execution. | `MissionDesign` |
 | **RF-03** | The system must allow creating a `LiveSession` from an active `Mission` (`SessionSource`). | `SessionOperations` |
-| **RF-04** | The `LiveSession` must manage at least the `SessionState`s `Preparing`, `Active`, `Paused`, `Finished`, and `Cancelled`. | `SessionOperations` |
+| **RF-04** | The `LiveSession` must manage at least the `SessionState`s `Scheduled`, `Preparing`, `Active`, `Paused`, `Finished`, and `Cancelled`. | `SessionOperations` |
 | **RF-05** | The system must allow registering participant `Team`s and associating them with a `LiveSession`. | `Identity` / `SessionOperations` |
 | **RF-06** | Each `Team` must be able to view its timer, score, and released `Clue`s. | `SessionOperations` |
 | **RF-07** | The `Operator` must be able to perform `ClueRelease` manually or conditioned by progression rules. | `SessionOperations` |
@@ -95,7 +95,6 @@ academic compliance.
 
 | Ref | Divergence | Detail |
 | --- | --- | --- |
-| **RF-04** | Missing `SessionState`. | The statement lists *at least* six states (`programada`, `en preparación`, `activa`, `pausada`, `finalizada`, `cancelada`); "at least" makes this a minimum set. The `SessionOperations` model defines five (`Preparing`, `Active`, `Paused`, `Finished`, `Cancelled`) — there is no **`Scheduled`/programada** state. Either it was deliberately collapsed into `Preparing` (then this should be a recorded decision) or it is a gap below the stated minimum. |
 | **RB-08 / RF-12** | Two canonical names for the tie-break time. | The statement calls it *tiempo de resolución*. `SessionOperations` names the underlying value `SolutionTime`; `ScoringMonitoring` names the ranking tie-break `ResolutionTime`. Same concept, two terms across contexts — a ubiquitous-language inconsistency independent of the PDF. |
 | **RB-10** | Operator/session scoping not modeled. | The rule assumes an operator-to-`LiveSession` assignment/visibility policy. Neither `Identity` nor `SessionOperations` defines such a concept; it is only loosely covered by the `Proxy` pattern. Under-specified relative to the rule. |
 | **§7 role table** | `TriviaQuiz` authoring reassigned to `Operator`. | The canon (§7 role table, rows above) assigns **all `TriviaQuiz` authoring** — question and quiz lifecycle — to the `Administrator`, scoping the `Operator` to runtime session operations. As a deliberate product decision ([issue #173](https://github.com/grupo-12-desarrollo-umbral/umbral/issues/173); Linear DES-20, DES-80, DES-17, DES-18, DES-7), all 10 `mission-design-service` trivia commands now require `Operator` instead, for a single, consistent trivia-ownership model. `Mission` authoring stays with the `Administrator`. This diverges from the graded statement and is recorded here rather than silently applied. |

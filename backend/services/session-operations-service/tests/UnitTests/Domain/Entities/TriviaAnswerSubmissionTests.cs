@@ -1,5 +1,6 @@
 using umbral_backend.Domain.Entities;
 using umbral_backend.Domain.Enums;
+using umbral_backend.Domain.Exceptions;
 
 namespace umbral_backend.SessionOperations.UnitTests.Domain.Entities;
 
@@ -77,5 +78,22 @@ public sealed class TriviaAnswerSubmissionTests
             scoreValue: 100);
 
         submission.Should().BeAssignableTo<EvidenceSubmission>();
+    }
+
+    [Fact]
+    public void Accept_WithUnsetSubmittedAt_IsRejectedByTheSharedBase()
+    {
+        var act = () => TriviaAnswerSubmission.Accept(
+            Guid.NewGuid(),
+            Guid.NewGuid(),
+            Guid.NewGuid(),
+            questionSequenceOrder: 1,
+            selectedOptionSequenceOrder: 1,
+            Guid.NewGuid(),
+            default,
+            isCorrect: true,
+            scoreValue: 100);
+
+        act.Should().Throw<EvidenceSubmissionTimestampRequiredException>();
     }
 }

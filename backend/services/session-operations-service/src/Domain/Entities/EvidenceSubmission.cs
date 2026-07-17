@@ -33,6 +33,11 @@ public abstract class EvidenceSubmission : BaseEntity
             throw new EvidenceSubmissionContextRequiredException();
         }
 
+        if (submittedAt == default)
+        {
+            throw new EvidenceSubmissionTimestampRequiredException();
+        }
+
         EvidenceSubmissionId = evidenceSubmissionId;
         LiveSessionId = liveSessionId;
         TeamId = teamId;

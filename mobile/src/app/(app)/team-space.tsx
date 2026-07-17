@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Panel } from '@/components/ui/panel';
 import { QuestionEmptyState } from '@/components/question-empty-state';
 import { Screen } from '@/components/ui/screen';
+import { SessionTimerBar } from '@/components/session-timer-bar';
 import { Text } from '@/components/ui/text';
 import { useAuth } from '@/lib/auth/use-auth';
 import {
@@ -434,15 +435,16 @@ export function LiveTeamSpace({
   // the header mid-question — the participant should only see their score move at the reveal, next to
   // the +points chip. Freeze the pre-question score on entering the active view; every other view
   // (waiting/reveal/none) and the treasure-hunt board fall back to the live score.
-  const frozenScoreRef = useRef(score);
-  const prevViewKindRef = useRef(view.kind);
-  useEffect(() => {
-    if (view.kind === 'active' && prevViewKindRef.current !== 'active') {
-      frozenScoreRef.current = score;
-    }
-    prevViewKindRef.current = view.kind;
-  }, [view.kind, score]);
-  const displayScore = view.kind === 'active' ? frozenScoreRef.current : score;
+  // Freezing in an effect would read a stale value: the ref still holds the previous question's score on
+  // the render that enters the active view, and a ref write schedules no re-render to correct it. Adjust
+  // during render instead, so the frozen score is the score at the moment the question opened.
+  const [frozenScore, setFrozenScore] = useState(score);
+  const [prevViewKind, setPrevViewKind] = useState(view.kind);
+  if (view.kind !== prevViewKind) {
+    setPrevViewKind(view.kind);
+    if (view.kind === 'active') setFrozenScore(score);
+  }
+  const displayScore = view.kind === 'active' ? frozenScore : score;
   // The penalty toast reads the live `score`, not the frozen `displayScore`: an operator can penalise
   // mid-question, and against the frozen value the drop is invisible until the reveal — or lost entirely
   // if the team's answer award nets it back out. The freeze is a header concern only.
@@ -577,8 +579,15 @@ export function LiveTeamSpace({
             teamResult={view.teamResult}
           />
         ) : (
+          // Between questions the header drops the question countdown (correct — no question is
+          // active), but RF-06 still requires the session clock. Render the shared SessionTimerBar
+          // here, as the treasure board does, so the two clocks stay distinct: the countdown is
+          // per-question, this one runs for the whole session.
           <View style={{ alignSelf: 'stretch', backgroundColor: colors.ivoryFog }}>
             <ActiveQuestionStageHeader sessionState={sessionState} score={displayScore} />
+            <View style={{ paddingHorizontal: spacing.lg, paddingBottom: spacing.md }}>
+              <SessionTimerBar display={display} />
+            </View>
             <QuestionEmptyState kind={view.kind} sessionState={sessionState} />
           </View>
         )}

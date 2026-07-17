@@ -124,7 +124,7 @@ public sealed class SessionTimerBroadcastHubTests : IAsyncLifetime
         {
             var repository = scope.ServiceProvider.GetRequiredService<ILiveSessionRepository>();
             var session = await repository.GetByIdAsync(seeded.LiveSessionId, CancellationToken.None);
-            var snapshot = session!.MarkSubstageTimerExpiredIfElapsed(emittedAt);
+            var snapshot = session!.MarkMissionTimerExpiredIfElapsed(emittedAt);
 
             var broadcast = new SessionTimerUpdatedNotificationDto(
                 seeded.LiveSessionId,

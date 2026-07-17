@@ -91,25 +91,32 @@ file sealed class TrustedHeadersAuthenticationHandler : AuthenticationHandler<Au
     {
     }
 
+    // Requires X-User-Id and X-User-Role only. X-User-Email is optional: the gateway forwards it only
+    // when the token carries an email claim (api-gateway/src/Transforms/TrustedHeadersTransform.cs),
+    // so requiring it 401'd every Keycloak user with no email. Nothing here consumes the email —
+    // CurrentUser.DisplayName already falls back when it is absent. (identity-access-service does
+    // require it, because User.Email is a required domain field there.)
     protected override Task<AuthenticateResult> HandleAuthenticateAsync()
     {
         var userId = Request.Headers["X-User-Id"].ToString();
         var role = Request.Headers["X-User-Role"].ToString();
         var email = Request.Headers["X-User-Email"].ToString();
 
-        if (string.IsNullOrWhiteSpace(userId) ||
-            string.IsNullOrWhiteSpace(role) ||
-            string.IsNullOrWhiteSpace(email))
+        if (string.IsNullOrWhiteSpace(userId) || string.IsNullOrWhiteSpace(role))
         {
             return Task.FromResult(AuthenticateResult.NoResult());
         }
 
-        var claims = new[]
+        var claims = new List<Claim>
         {
-            new Claim(ClaimTypes.NameIdentifier, userId),
-            new Claim(ClaimTypes.Role, role),
-            new Claim(ClaimTypes.Email, email)
+            new(ClaimTypes.NameIdentifier, userId),
+            new(ClaimTypes.Role, role)
         };
+
+        if (!string.IsNullOrWhiteSpace(email))
+        {
+            claims.Add(new Claim(ClaimTypes.Email, email));
+        }
 
         var identity = new ClaimsIdentity(claims, TrustedHeadersAuthenticationDefaults.Scheme);
         var principal = new ClaimsPrincipal(identity);

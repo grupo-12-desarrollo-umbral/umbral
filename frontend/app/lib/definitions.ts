@@ -351,6 +351,13 @@ export type AssignableOperatorDto = {
   role: string
 }
 
+export type AssignableParticipantDto = {
+  id: number
+  displayName: string
+  email: string
+  role: string
+}
+
 // Active-question timer status (the authoritative clock is the active trivia question window).
 // "Advancing" = the active question timer is counting down (session Active, question open).
 // "Frozen"    = the active question timer is held (session Paused, Scheduled, or Preparing).
@@ -628,6 +635,23 @@ export type EvidenceTraceItemDto = {
 export type EvidenceTraceDto = {
   liveSessionId: string
   items: EvidenceTraceItemDto[] // empty ⇒ no submissions yet; not an error
+}
+
+// RF-15 session audit history, served by scoring-monitoring's SessionHistoryController. Fed
+// asynchronously from RabbitMQ, so it lags a live session by design — an audit read, not a
+// realtime surface. Captures only SessionStateChanged, QuestionClosed, and SessionResultsFinalized.
+export type SessionHistoryRowDto = {
+  sessionEventId: string // Guid
+  eventType: string // e.g. 'SessionStateChanged' — open-ended; render it, don't exhaustively map it
+  teamId: string | null // null on session-wide events that belong to no single team
+  occurredAt: string // ISO-8601
+  responsibleUserExternalId: string | null // Guid — null when no actor is attributed (system-driven)
+  payloadSummary: string
+}
+
+export type SessionHistoryDto = {
+  liveSessionId: string
+  events: SessionHistoryRowDto[] // empty ⇒ nothing recorded yet; not an error
 }
 
 // SignalR "EvidenceSubmissionRegistered" payload — operator-only (live-session-operators:{id} group on

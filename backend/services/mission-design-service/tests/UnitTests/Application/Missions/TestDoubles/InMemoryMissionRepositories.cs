@@ -70,6 +70,39 @@ internal sealed class InMemoryMissionRepository : IMissionRepository
     }
 }
 
+/// <summary>
+/// Reports a fixed set of active missions referencing any quiz, so ADR-0003 guard rejection can be
+/// exercised without building a Ready mission tree. Records the quiz id it was asked about.
+/// </summary>
+internal sealed class StubActiveMissionReferenceRepository : IMissionRepository
+{
+    private readonly IReadOnlyList<ActiveMissionReference> _references;
+
+    public StubActiveMissionReferenceRepository(params ActiveMissionReference[] references)
+    {
+        _references = references;
+    }
+
+    public int? QueriedTriviaQuizId { get; private set; }
+
+    public Task<IReadOnlyList<ActiveMissionReference>> GetActiveMissionsReferencingTriviaQuizAsync(
+        int triviaQuizId,
+        CancellationToken cancellationToken)
+    {
+        QueriedTriviaQuizId = triviaQuizId;
+        return Task.FromResult(_references);
+    }
+
+    public Task<Mission?> GetByIdAsync(int missionId, CancellationToken cancellationToken)
+        => throw new NotSupportedException();
+
+    public Task AddAsync(Mission mission, CancellationToken cancellationToken)
+        => throw new NotSupportedException();
+
+    public Task UpdateAsync(Mission mission, CancellationToken cancellationToken)
+        => throw new NotSupportedException();
+}
+
 internal sealed class InMemoryMissionReadModelRepository : IMissionReadModelRepository
 {
     private readonly IReadOnlyList<MissionSummaryDto> _catalog;

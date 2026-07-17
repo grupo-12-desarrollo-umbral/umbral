@@ -76,8 +76,11 @@ public sealed class CreateTriviaQuizCommandValidatorTests
     }
 
     [Fact]
-    public void Validate_WhenMoreThanOneOptionIsMarkedCorrect_ReturnsError()
+    public void Validate_WhenMoreThanOneOptionIsMarkedCorrect_DoesNotReturnOptionsError()
     {
+        // The exactly-one-correct-option rule now lives in the domain (TriviaQuiz.Create),
+        // which is the single source of truth shared with the single-question authoring path.
+        // The quiz validator no longer restates it, so it must not flag a multi-correct question.
         var result = _validator.Validate(new CreateTriviaQuizCommand(
             "Quiz",
             "Warm-up trivia",
@@ -91,6 +94,6 @@ public sealed class CreateTriviaQuizCommandValidatorTests
                     ])
             ]));
 
-        result.Errors.Should().ContainSingle(error => error.PropertyName == "Questions[0].Options");
+        result.Errors.Should().NotContain(error => error.PropertyName == "Questions[0].Options");
     }
 }

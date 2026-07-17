@@ -108,10 +108,23 @@ export async function duplicateTriviaQuiz(id: number): Promise<TriviaQuizDto> {
   return result
 }
 
-export async function retireTriviaQuiz(id: number): Promise<TriviaQuizDto> {
+// Returns the conflict rather than throwing it: an Error thrown here crosses the Server Action
+// boundary, and only `message`/`digest` survive that trip — `cause` is dropped, so the backend's
+// curated 409 detail would never reach the UI. Next models expected errors as return values.
+export type RetireTriviaQuizActionResult =
+  | { data: TriviaQuizDto }
+  | { error: string; detail?: string }
+
+export async function retireTriviaQuiz(id: number): Promise<RetireTriviaQuizActionResult> {
   const session = await verifySession()
-  if (session.role !== 'Operator') throw new Error('Forbidden')
-  const result = await retireTriviaQuizLib(id)
-  revalidatePath('/dashboard')
-  return result
+  if (session.role !== 'Operator') return { error: 'forbidden' }
+  try {
+    const data = await retireTriviaQuizLib(id)
+    revalidatePath('/dashboard')
+    return { data }
+  } catch (error) {
+    if (!(error instanceof Error)) return { error: 'unknown' }
+    const detail = typeof error.cause === 'string' && error.cause.trim() ? error.cause : undefined
+    return { error: error.message, detail }
+  }
 }

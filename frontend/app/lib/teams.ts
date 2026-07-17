@@ -1,30 +1,16 @@
 import 'server-only'
 import { IdentityError, type PagedResult, type TeamDto, type CreateTeamResultDto, type TeamMembershipDto } from './definitions'
 import { verifySession } from './dal'
-
-const IDENTITY_SERVICE_URL = 'http://localhost:5002'
-
-function getIdentityHeaders(session: {
-  externalIdentityId: string
-  displayName: string
-  email: string
-  role: string
-}) {
-  return {
-    'X-User-Id': session.externalIdentityId,
-    'X-User-Role': session.role,
-    'X-User-Email': session.email,
-  }
-}
+import { API_GATEWAY_URL, getGatewayHeaders } from './gateway'
 
 export async function listTeams(page = 1, pageSize = 20): Promise<PagedResult<TeamDto>> {
-  const session = await verifySession()
-  const url = new URL(`${IDENTITY_SERVICE_URL}/api/teams`)
+  await verifySession()
+  const url = new URL(`${API_GATEWAY_URL}/api/teams`)
   url.searchParams.set('page', String(page))
   url.searchParams.set('pageSize', String(pageSize))
 
   const response = await fetch(url.toString(), {
-    headers: getIdentityHeaders(session),
+    headers: await getGatewayHeaders(),
     cache: 'no-store',
   })
 
@@ -42,9 +28,9 @@ export async function listTeams(page = 1, pageSize = 20): Promise<PagedResult<Te
 }
 
 export async function getTeamById(id: string): Promise<TeamDto> {
-  const session = await verifySession()
-  const response = await fetch(`${IDENTITY_SERVICE_URL}/api/teams/${id}`, {
-    headers: getIdentityHeaders(session),
+  await verifySession()
+  const response = await fetch(`${API_GATEWAY_URL}/api/teams/${id}`, {
+    headers: await getGatewayHeaders(),
     cache: 'no-store',
   })
 
@@ -65,13 +51,10 @@ export async function createTeam(
   displayName: string,
   teamCode: string,
 ): Promise<CreateTeamResultDto> {
-  const session = await verifySession()
-  const response = await fetch(`${IDENTITY_SERVICE_URL}/api/teams`, {
+  await verifySession()
+  const response = await fetch(`${API_GATEWAY_URL}/api/teams`, {
     method: 'POST',
-    headers: {
-      ...getIdentityHeaders(session),
-      'Content-Type': 'application/json',
-    },
+    headers: await getGatewayHeaders({ 'Content-Type': 'application/json' }),
     body: JSON.stringify({ displayName, teamCode }),
   })
 
@@ -96,13 +79,10 @@ export async function updateTeam(
   displayName: string,
   teamCode: string,
 ): Promise<void> {
-  const session = await verifySession()
-  const response = await fetch(`${IDENTITY_SERVICE_URL}/api/teams/${id}`, {
+  await verifySession()
+  const response = await fetch(`${API_GATEWAY_URL}/api/teams/${id}`, {
     method: 'PATCH',
-    headers: {
-      ...getIdentityHeaders(session),
-      'Content-Type': 'application/json',
-    },
+    headers: await getGatewayHeaders({ 'Content-Type': 'application/json' }),
     body: JSON.stringify({ displayName, teamCode }),
   })
 
@@ -124,10 +104,10 @@ export async function updateTeam(
 }
 
 export async function deactivateTeam(id: string): Promise<TeamDto> {
-  const session = await verifySession()
-  const response = await fetch(`${IDENTITY_SERVICE_URL}/api/teams/${id}/status`, {
+  await verifySession()
+  const response = await fetch(`${API_GATEWAY_URL}/api/teams/${id}/status`, {
     method: 'DELETE',
-    headers: getIdentityHeaders(session),
+    headers: await getGatewayHeaders(),
   })
 
   if (response.status === 403) {
@@ -144,11 +124,11 @@ export async function deactivateTeam(id: string): Promise<TeamDto> {
 }
 
 export async function listTeamParticipants(teamId: string): Promise<TeamMembershipDto[]> {
-  const session = await verifySession()
+  await verifySession()
   const response = await fetch(
-    `${IDENTITY_SERVICE_URL}/api/teams/${teamId}/participants`,
+    `${API_GATEWAY_URL}/api/teams/${teamId}/participants`,
     {
-      headers: getIdentityHeaders(session),
+      headers: await getGatewayHeaders(),
       cache: 'no-store',
     },
   )
@@ -173,15 +153,12 @@ export async function assignParticipant(
   teamId: string,
   userId: number,
 ): Promise<void> {
-  const session = await verifySession()
+  await verifySession()
   const response = await fetch(
-    `${IDENTITY_SERVICE_URL}/api/teams/${teamId}/participants`,
+    `${API_GATEWAY_URL}/api/teams/${teamId}/participants`,
     {
       method: 'POST',
-      headers: {
-        ...getIdentityHeaders(session),
-        'Content-Type': 'application/json',
-      },
+      headers: await getGatewayHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ userId }),
     },
   )

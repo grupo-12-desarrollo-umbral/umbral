@@ -36,6 +36,8 @@ test('admin can create a mission and land on its detail view', async ({ adminPag
   await expect(page.locator('[data-testid="mission-detail"]')).toBeVisible()
   await expect(page.locator('[data-testid="mission-detail-name"]')).toContainText('Test Mission Alpha')
   await expect(page.locator('[data-testid="mission-detail-status"]')).toContainText('Draft')
+  // RF-02: the entered maximum time must survive the full round trip, not merely render as some time.
+  await expect(page.locator('[data-testid="mission-detail-time"]')).toContainText('45 min')
 })
 
 test('create form cancel returns to list', async ({ adminPage: page }) => {
@@ -111,6 +113,33 @@ test('edit form cancel returns to detail without saving', async ({ adminPage: pa
 })
 
 // --- Deactivate flow ---
+
+// Deactivation is terminal: it retires a mission, keeping its history (HU-09.3) and barring it from
+// new sessions (HU-09.4). Neither editing nor reactivation is offered afterwards, so a retired
+// mission cannot drift from the record sessions were built on. This is a panel-level rule — the
+// domain's UpdateMission has no active-state guard — so it is asserted here or nowhere.
+test('admin cannot edit a mission once it has been deactivated', async ({ adminPage: page }) => {
+  await page.goto('/dashboard')
+  await page.click('[data-testid="nav-missions"]')
+
+  await page.click('[data-testid="create-mission-btn"]')
+  await page.fill('[data-testid="mission-name-input"]', 'Retire Target Mission')
+  await page.fill('[data-testid="mission-description-input"]', 'To be retired.')
+  await page.selectOption('[data-testid="mission-difficulty-input"]', 'Intermediate')
+  await page.fill('[data-testid="mission-time-input"]', '30')
+  await page.click('[data-testid="mission-submit-btn"]')
+
+  // Editable while it is still live.
+  await expect(page.locator('[data-testid="edit-mission-btn"]')).toBeEnabled()
+
+  await page.click('[data-testid="deactivate-mission-btn"]')
+  await page.click('[data-testid="confirm-deactivate-mission-btn"]')
+  await expect(page.locator('[data-testid="mission-detail-status"]')).toContainText('Inactive')
+
+  // Retired: no edit, and no way back into play.
+  await expect(page.locator('[data-testid="edit-mission-btn"]')).toBeDisabled()
+  await expect(page.locator('[data-testid="activate-mission-btn"]')).toHaveCount(0)
+})
 
 test('admin deactivate flow shows confirm step then marks mission inactive', async ({ adminPage: page }) => {
   await page.goto('/dashboard')

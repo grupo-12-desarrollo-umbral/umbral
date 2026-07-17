@@ -26,7 +26,7 @@ AC mapping → Open Questions → Commit Sequence).
 | Close notification DTO | `Application/Sessions/Common/Notifications/QuestionClosedNotificationDto.cs` | `(LiveSessionId, QuestionIndex, ClosedAt, WasExpiredByTimer)` — correlation-only |
 | Close broadcaster | `Api/Hubs/SignalRSessionQuestionBroadcaster.cs` (`QuestionClosedMethod`, group `live-session:{id}`) | operators + participants both in group |
 | Snapshot selector | `Application/Sessions/Common/TriviaQuestionSnapshotSelector.cs` | ⚠️ returns options as `string[]` — **strips `IsCorrect`** |
-| Reveal data (in-domain) | `TriviaQuestionSnapshot.Explanation` (:59), `TriviaOptionSnapshot.IsCorrect`/`SequenceOrder` (:16) | present, not projected at close |
+| Reveal data (in-domain) | `TriviaQuestionSnapshot.Explanation` (:59), `TriviaOptionSnapshot.IsCorrect` (:16) / `SequenceOrder` (:14) | present, not projected at close |
 | Per-team answer + points | `Domain/Entities/TriviaAnswerSubmission.cs:45-49` (`SelectedOptionSequenceOrder`, `IsCorrect`, `ScoreValue`) | persisted |
 | Operator pre-close monitor (mirror) | `Application/Sessions/Queries/GetOperatorTriviaAnsweredMonitor/*` + `TriviaAnsweredMonitorDtoFactory.cs` + `LiveSession.ProjectActiveQuestionAnsweredStatus()` (`LiveSession.cs:515`) | HU-36A — the pattern §2/§4 mirror; **deliberately omits** option/correctness/points |
 | Operator endpoint (mirror) | `Api/Controllers/SessionsController.cs:329` `GET {id}/answered-monitor` `[Authorize(Policy = Operator)]` | mirror for §4's route + authz |
@@ -51,6 +51,33 @@ AC mapping → Open Questions → Commit Sequence).
   `ProjectActiveQuestionAnsweredStatus`), or whether they load via a separate repository (then
   the handler queries that repo). The monitor projects from the aggregate; verify the
   submissions are on it before copying that shape.
+  **Resolved (O-2):** `LiveSession` loads its `TriviaAnswerSubmission` children as part of the
+  aggregate — owned collection (`LiveSessionConfiguration.cs:727` `OwnsMany`, flattened onto the
+  session table) and eagerly hydrated by `LiveSessionRepository.GetByIdAsync`
+  (`.Include(session => session.TriviaAnswerSubmissions)`, line 25). So §2/§4 use a **domain
+  projection** mirroring `ProjectActiveQuestionAnsweredStatus` — no separate repository query.
+- **A-3b · Key the closed projection on `(SubstageSnapshotId, QuestionSequenceOrder)`, not just
+  `sequenceOrder`.** `ProjectActiveQuestionAnsweredStatus` resolves its question through
+  `ActiveSubstageId`/`ActiveQuestionIndex` (`LiveSession.cs:517,731,740`) — the live window,
+  which is exactly wrong for a *closed* question. The new projection
+  (`ProjectClosedQuestionAnswerReview`) must take the substage snapshot id + sequence order
+  pair (the stable snapshot key — `TriviaAnswerSubmission.cs:41-42`,
+  `TriviaQuestionSnapshot.SubstageSnapshotId`/`SequenceOrder` at `:49,53`) and carry a
+  **"question is closed" guard** in place of the active-window guard (A-5). The team→submission
+  left-join itself is unchanged: iterate `_teams`, `SingleOrDefault` on
+  `(TeamId, SubstageSnapshotId, QuestionSequenceOrder)`, emit a not-answered row on null
+  (`LiveSession.cs:519-536`) — never-answered teams are already first-class.
+- **A-3c · `AnsweredAt` is a factory-boundary rename of `SubmittedAt`.** There is no `AnsweredAt`
+  field in the domain; the timestamp is `EvidenceSubmission.SubmittedAt` (`:78`,
+  `DateTimeOffset`, non-nullable). The HU-36A factory already renames it
+  (`LiveSession.cs:536`); §2/§4 do the same. The `?` on the four submission-derived DTO fields
+  models "no submission for this team" (never-answered), **not** a nullable domain field — all
+  four are non-nullable on `TriviaAnswerSubmission`.
+- **A-3d · Identity is the session-scoped `TeamId`, not `ReferenceTeamId`.** Legitimate here
+  because `ScoreValue` is pre-snapshotted on the submission, not recomputed from ranking. But
+  this is the same aggregate where scoring/ranking keys on `ReferenceTeamId`
+  (`Team.cs:56`, `LiveSession.cs:629,815,872`) — **if** the operator review ever cross-joins to
+  leaderboard/ranking data, switch the key to `ReferenceTeamId`.
 - **A-4 · §4 authz = the mandated `Proxy`** (matrix HU-36 → `Proxy`): gate through
   `ISessionAdministrationAccessResolver` exactly like the monitor handler — no ad-hoc role
   `if` checks. `[Authorize(Policy = Operator)]` on the endpoint.
@@ -84,8 +111,10 @@ AC mapping → Open Questions → Commit Sequence).
   `GetTeamTriviaQuestionResultQuery(LiveSessionId, QuestionSequenceOrder)` + handler +
   `TriviaTeamQuestionResultDto(SelectedOptionSequenceOrder?, IsCorrect?, ScoreValue?, CorrectOptionSequenceOrder, Explanation)`.
   Participant-authorized, scoped to the caller's own team; return that team's
-  `TriviaAnswerSubmission` for `(ActiveSubstageId, QuestionSequenceOrder)`, nullable when the
-  team never answered. Resolve A-3a for the data source.
+  `TriviaAnswerSubmission` for the **closed** question, keyed on
+  `(SubstageSnapshotId, QuestionSequenceOrder)` (A-3b — resolve the snapshot id from the closed
+  question, **not** `ActiveSubstageId`, which points at the live window), nullable when the team
+  never answered.
 - **New endpoint** on `SessionsController` — mirror the monitor endpoint (line 329);
   `GET {liveSessionId}/trivia/questions/{sequenceOrder:int}/my-result`, Participant policy.
 - Reject if the question has not closed (A-5).
@@ -102,7 +131,12 @@ AC mapping → Open Questions → Commit Sequence).
   `TriviaAnswerReviewDto(LiveSessionId, QuestionSequenceOrder, IReadOnlyList<TriviaTeamAnswerReviewDto>)`
   where each row = `(TeamId, TeamCode, DisplayName, SelectedOptionSequenceOrder?, IsCorrect?, ScoreValue?, AnsweredAt?)`
   (nullable for never-answered teams). Mirror `GetOperatorTriviaAnsweredMonitor*` +
-  `TriviaAnsweredMonitorDtoFactory`; add the withheld fields. Resolve A-3a for the data source.
+  `TriviaAnsweredMonitorDtoFactory`; add the withheld fields. `TeamId`/`TeamCode`/`DisplayName`/
+  `AnsweredAt` are already carried by the monitor projection (from the `Team` entity +
+  `SubmittedAt→AnsweredAt` rename, A-3c); the three withheld fields come off
+  `TriviaAnswerSubmission` (`:45,47,49`). New projection
+  `LiveSession.ProjectClosedQuestionAnswerReview(substageSnapshotId, sequenceOrder)` keyed per
+  A-3b (not the active resolver), with the A-5 closed guard. `TeamId` is session-scoped (A-3d).
 - **Authorization = `Proxy`** via `ISessionAdministrationAccessResolver` (A-4).
   `[Authorize(Policy = Operator)]`.
 - **New endpoint** on `SessionsController` — mirror line 329;
@@ -123,7 +157,8 @@ AC mapping → Open Questions → Commit Sequence).
 
 HU-35 AC "team sees the updated ranking after close" is **already served**:
 `GET /api/sessions/{id}/ranking` (`RankingController.cs:14`) + live `RankingChanged` push
-(`BroadcastRankingRefreshedHandler.cs:20` → `ScoringHub`). Clients already consume it (mobile
+(`BroadcastRankingRefreshedHandler.cs:29`, reacting to the `RankingRefreshed` notification →
+`ScoringHub`). Clients already consume it (mobile
 `podium-leaderboard`). **No change in this service.**
 
 ## §4b · Participant reveal consumer is the mobile app (not a blocker)
@@ -165,10 +200,10 @@ today, waiting on this reveal — the consuming UI is the **HU-M4** slice
 
 - **O-1** — Endpoint paths (§2/§4) are proposals; confirm final routes and curl-verify shapes
   before the clients consume them.
-- **O-2 (A-3a)** — Whether `LiveSession` loads its `TriviaAnswerSubmission` children (domain
-  projection) or they load via a separate repository (handler-level query). Resolve by reading
-  the aggregate/repo before building §2/§4; do not assume the monitor's aggregate-projection
-  shape carries the submissions.
+- **O-2 (A-3a) — RESOLVED.** `LiveSession` loads its `TriviaAnswerSubmission` children as part
+  of the aggregate (owned collection in `LiveSessionConfiguration.cs:727`, eagerly `.Include`-ed
+  in `LiveSessionRepository.GetByIdAsync:25`). §2/§4 use a domain projection mirroring
+  `ProjectActiveQuestionAnsweredStatus` — no separate repository query.
 
 ## Bottom line
 

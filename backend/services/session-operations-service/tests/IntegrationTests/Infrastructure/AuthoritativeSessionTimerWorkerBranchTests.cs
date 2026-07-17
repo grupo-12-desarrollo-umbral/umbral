@@ -14,8 +14,11 @@ public sealed class AuthoritativeSessionTimerWorkerBranchTests
 {
     private static readonly DateTimeOffset Now = new(2026, 6, 4, 12, 0, 0, TimeSpan.Zero);
 
+    // No active question means no question window to report, so the tick falls through to the mission
+    // deadline — which, unlike the substage timer it replaced, is seeded for every started session and
+    // so never reports a bare zero here. Broadcast-only either way: nothing expired, nothing to advance.
     [Fact]
-    public async Task TickAsync_WhenSessionHasNoAdvancingQuestion_BroadcastsOnly()
+    public async Task TickAsync_WhenSessionHasNoAdvancingQuestion_BroadcastsMissionDeadlineOnly()
     {
         var session = CreateActiveTriviaSession();
         var repository = new Mock<ILiveSessionRepository>();
@@ -36,7 +39,9 @@ public sealed class AuthoritativeSessionTimerWorkerBranchTests
         broadcaster.Verify(
             current => current.BroadcastTimerUpdatedAsync(
                 It.Is<SessionTimerUpdatedNotificationDto>(notification =>
-                    notification.TotalMilliseconds == 0 && notification.RemainingMilliseconds == 0),
+                    notification.TotalMilliseconds == (long)TimeSpan.FromMinutes(20).TotalMilliseconds &&
+                    notification.RemainingMilliseconds == (long)TimeSpan.FromMinutes(19).TotalMilliseconds &&
+                    !notification.IsExpired),
                 It.IsAny<CancellationToken>()),
             Times.Once);
         repository.Verify(repo => repo.UpdateAsync(It.IsAny<LiveSession>(), It.IsAny<CancellationToken>()), Times.Never);
@@ -77,8 +82,40 @@ public sealed class AuthoritativeSessionTimerWorkerBranchTests
             Times.Never);
     }
 
+    // D-5: the mission deadline rides the same tick as the question window, so a trivia broadcast
+    // carries both clocks. The session activated 1 minute into its 20-minute budget.
     [Fact]
-    public async Task TickAsync_WhenTreasureHuntSubstageTimerRunning_BroadcastsAdvancingRemaining()
+    public async Task TickAsync_WhenTriviaQuestionRunning_BroadcastsMissionDeadlineAlongsideQuestionWindow()
+    {
+        var session = CreateActiveTriviaSession();
+        session.ActivateQuestion(0, Now.AddSeconds(-5));
+        var repository = new Mock<ILiveSessionRepository>();
+        repository
+            .Setup(repo => repo.ListActiveTimersAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync([session]);
+        var broadcaster = new Mock<ISessionTimerBroadcaster>();
+        broadcaster
+            .Setup(current => current.BroadcastTimerUpdatedAsync(
+                It.IsAny<SessionTimerUpdatedNotificationDto>(),
+                It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        var facade = new Mock<ITriviaRoundOrchestratorFacade>();
+        var worker = CreateWorker(repository, broadcaster, facade, Now);
+
+        await worker.TickAsync(CancellationToken.None);
+
+        broadcaster.Verify(
+            current => current.BroadcastTimerUpdatedAsync(
+                It.Is<SessionTimerUpdatedNotificationDto>(notification =>
+                    notification.MissionTotalMilliseconds == (long)TimeSpan.FromMinutes(20).TotalMilliseconds &&
+                    notification.MissionRemainingMilliseconds == (long)TimeSpan.FromMinutes(19).TotalMilliseconds &&
+                    notification.RemainingMilliseconds < notification.MissionRemainingMilliseconds),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task TickAsync_WhenTreasureHuntMissionTimerRunning_BroadcastsAdvancingRemaining()
     {
         var session = CreateActiveTreasureHuntSession();
         var repository = new Mock<ILiveSessionRepository>();
@@ -92,7 +129,7 @@ public sealed class AuthoritativeSessionTimerWorkerBranchTests
                 It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
         var facade = new Mock<ITriviaRoundOrchestratorFacade>();
-        // Ticked one minute into a 45-minute substage window: still advancing, not expired.
+        // Ticked one minute into the 45-minute mission deadline: still advancing, not expired.
         var worker = CreateWorker(repository, broadcaster, facade, Now.AddMinutes(1));
 
         await worker.TickAsync(CancellationToken.None);
@@ -110,7 +147,7 @@ public sealed class AuthoritativeSessionTimerWorkerBranchTests
     }
 
     [Fact]
-    public async Task TickAsync_WhenTreasureHuntSubstageTimerExpires_BroadcastsExpiredButDoesNotAdvance()
+    public async Task TickAsync_WhenTreasureHuntMissionTimerExpires_BroadcastsExpiredButDoesNotAdvance()
     {
         var session = CreateActiveTreasureHuntSession();
         var repository = new Mock<ILiveSessionRepository>();
@@ -124,7 +161,7 @@ public sealed class AuthoritativeSessionTimerWorkerBranchTests
                 It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
         var facade = new Mock<ITriviaRoundOrchestratorFacade>();
-        // Ticked past the 45-minute window: the substage timer is expired, but a treasure-hunt substage
+        // Ticked past the 45-minute deadline: the mission timer is expired, but a treasure-hunt substage
         // advances by target resolution, not the timer — report-only, so CloseAndAdvanceAsync is never called.
         var worker = CreateWorker(repository, broadcaster, facade, Now.AddMinutes(46));
 
@@ -246,7 +283,7 @@ public sealed class AuthoritativeSessionTimerWorkerBranchTests
         session.AssociateTeam(Guid.NewGuid(), "Alpha", "A-01", 4);
         var policy = new SessionStateTransitionPolicy();
         session.MoveTo(SessionState.Preparing, Now.AddMinutes(-2), policy);
-        // Entering Active seeds the leading TreasureHunt substage timer from the session MaximumTime (45 min).
+        // Entering Active seeds the mission deadline from MaximumTime (45 min); the treasure hunt displays it.
         session.MoveTo(SessionState.Active, Now, policy);
         return session;
     }

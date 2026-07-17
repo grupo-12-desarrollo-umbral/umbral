@@ -140,6 +140,112 @@ public class MissionStructureTests
         act.Should().Throw<SubstagePlayModeMismatchException>();
     }
 
+    // QR uniqueness is mission-scoped because SessionOperations resolves a scan against the whole
+    // mission snapshot: a duplicate anywhere makes that scan ambiguous mid-game.
+    [Fact]
+    public void AddTarget_WhenQrCodeDuplicatesTargetInSameSubstage_Throws()
+    {
+        var mission = NewMission();
+        StageWith(mission, 10);
+        TreasureSubstageWith(mission, 10, 100);
+        mission.AddTarget(10, 100, "Statue", "QR-1", 1, 4.711, -74.0721);
+
+        var act = () => mission.AddTarget(10, 100, "Fountain", "QR-1", 2, 4.712, -74.0722);
+
+        act.Should().Throw<TargetQrCodeMustBeUniqueWithinMissionException>();
+    }
+
+    [Fact]
+    public void AddTarget_WhenQrCodeDuplicatesTargetInAnotherStage_Throws()
+    {
+        var mission = NewMission();
+        StageWith(mission, 10);
+        TreasureSubstageWith(mission, 10, 100);
+        mission.AddTarget(10, 100, "Statue", "QR-1", 1, 4.711, -74.0721);
+        StageWith(mission, 20, 2);
+        TreasureSubstageWith(mission, 20, 200);
+
+        var act = () => mission.AddTarget(20, 200, "Fountain", "QR-1", 1, 4.712, -74.0722);
+
+        act.Should().Throw<TargetQrCodeMustBeUniqueWithinMissionException>();
+    }
+
+    // Uniqueness matches the runtime's OrdinalIgnoreCase/trimmed resolution, so a differently-cased
+    // or padded code is still the same code at scan time.
+    [Theory]
+    [InlineData("qr-1")]
+    [InlineData("  QR-1  ")]
+    public void AddTarget_WhenQrCodeDuplicatesIgnoringCaseAndWhitespace_Throws(string duplicateCode)
+    {
+        var mission = NewMission();
+        StageWith(mission, 10);
+        TreasureSubstageWith(mission, 10, 100);
+        mission.AddTarget(10, 100, "Statue", "QR-1", 1, 4.711, -74.0721);
+
+        var act = () => mission.AddTarget(10, 100, "Fountain", duplicateCode, 2, 4.712, -74.0722);
+
+        act.Should().Throw<TargetQrCodeMustBeUniqueWithinMissionException>();
+    }
+
+    [Fact]
+    public void AddTarget_WhenQrCodeIsDistinct_Succeeds()
+    {
+        var mission = NewMission();
+        StageWith(mission, 10);
+        TreasureSubstageWith(mission, 10, 100);
+        mission.AddTarget(10, 100, "Statue", "QR-1", 1, 4.711, -74.0721);
+
+        var target = mission.AddTarget(10, 100, "Fountain", "QR-2", 2, 4.712, -74.0722);
+
+        target.QrCode.Should().Be("QR-2");
+    }
+
+    // A blank code is Target's own validation concern; the uniqueness guard must not pre-empt it
+    // with a misleading failure.
+    [Fact]
+    public void AddTarget_WhenQrCodeIsBlank_ThrowsRequiredRatherThanUniqueness()
+    {
+        var mission = NewMission();
+        StageWith(mission, 10);
+        TreasureSubstageWith(mission, 10, 100);
+
+        var act = () => mission.AddTarget(10, 100, "Statue", "   ", 1, 4.711, -74.0721);
+
+        act.Should().Throw<TargetQrCodeRequiredException>();
+    }
+
+    [Fact]
+    public void UpdateTarget_WhenQrCodeDuplicatesAnotherTarget_Throws()
+    {
+        var mission = NewMission();
+        StageWith(mission, 10);
+        TreasureSubstageWith(mission, 10, 100);
+        var first = mission.AddTarget(10, 100, "Statue", "QR-1", 1, 4.711, -74.0721);
+        first.Id = 700;
+        var second = mission.AddTarget(10, 100, "Fountain", "QR-2", 2, 4.712, -74.0722);
+        second.Id = 701;
+
+        var act = () => mission.UpdateTarget(10, 100, 701, "Fountain", "QR-1", 2, 4.712, -74.0722, true);
+
+        act.Should().Throw<TargetQrCodeMustBeUniqueWithinMissionException>();
+    }
+
+    // Regression: an update that keeps the target's own code must not clash with itself.
+    [Fact]
+    public void UpdateTarget_KeepingItsOwnQrCode_Succeeds()
+    {
+        var mission = NewMission();
+        StageWith(mission, 10);
+        TreasureSubstageWith(mission, 10, 100);
+        var target = mission.AddTarget(10, 100, "Statue", "QR-1", 1, 4.711, -74.0721);
+        target.Id = 700;
+
+        var updated = mission.UpdateTarget(10, 100, 700, "Statue Renamed", "QR-1", 1, 4.711, -74.0721, true);
+
+        updated.Name.Should().Be("Statue Renamed");
+        updated.QrCode.Should().Be("QR-1");
+    }
+
     [Fact]
     public void AssociateClueWithTarget_DoesNotChangeActivationState()
     {

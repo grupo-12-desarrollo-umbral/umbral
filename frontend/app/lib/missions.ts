@@ -1,26 +1,12 @@
 import 'server-only'
 import { IdentityError, type MissionSummaryDto, type MissionDto } from './definitions'
 import { verifySession } from './dal'
-
-const MISSION_DESIGN_SERVICE_URL = 'http://localhost:5001'
-
-function getIdentityHeaders(session: {
-  externalIdentityId: string
-  displayName: string
-  email: string
-  role: string
-}) {
-  return {
-    'X-User-Id': session.externalIdentityId,
-    'X-User-Role': session.role,
-    'X-User-Email': session.email,
-  }
-}
+import { API_GATEWAY_URL, getGatewayHeaders } from './gateway'
 
 export async function listMissions(): Promise<MissionSummaryDto[]> {
-  const session = await verifySession()
-  const response = await fetch(`${MISSION_DESIGN_SERVICE_URL}/api/missions`, {
-    headers: getIdentityHeaders(session),
+  await verifySession()
+  const response = await fetch(`${API_GATEWAY_URL}/api/missions`, {
+    headers: await getGatewayHeaders(),
     cache: 'no-store',
   })
 
@@ -38,9 +24,9 @@ export async function listMissions(): Promise<MissionSummaryDto[]> {
 }
 
 export async function getMissionById(id: number): Promise<MissionDto> {
-  const session = await verifySession()
-  const response = await fetch(`${MISSION_DESIGN_SERVICE_URL}/api/missions/${id}`, {
-    headers: getIdentityHeaders(session),
+  await verifySession()
+  const response = await fetch(`${API_GATEWAY_URL}/api/missions/${id}`, {
+    headers: await getGatewayHeaders(),
     cache: 'no-store',
   })
 
@@ -66,13 +52,10 @@ export async function createMission(
   difficulty: string,
   maximumTimeMinutes: number,
 ): Promise<MissionDto> {
-  const session = await verifySession()
-  const response = await fetch(`${MISSION_DESIGN_SERVICE_URL}/api/missions`, {
+  await verifySession()
+  const response = await fetch(`${API_GATEWAY_URL}/api/missions`, {
     method: 'POST',
-    headers: {
-      ...getIdentityHeaders(session),
-      'Content-Type': 'application/json',
-    },
+    headers: await getGatewayHeaders({ 'Content-Type': 'application/json' }),
     body: JSON.stringify({ name, description, difficulty, maximumTimeMinutes }),
   })
 
@@ -99,13 +82,10 @@ export async function updateMission(
   difficulty: string,
   maximumTimeMinutes: number,
 ): Promise<MissionDto> {
-  const session = await verifySession()
-  const response = await fetch(`${MISSION_DESIGN_SERVICE_URL}/api/missions/${id}`, {
+  await verifySession()
+  const response = await fetch(`${API_GATEWAY_URL}/api/missions/${id}`, {
     method: 'PUT',
-    headers: {
-      ...getIdentityHeaders(session),
-      'Content-Type': 'application/json',
-    },
+    headers: await getGatewayHeaders({ 'Content-Type': 'application/json' }),
     body: JSON.stringify({ name, description, difficulty, maximumTimeMinutes }),
   })
 
@@ -121,6 +101,19 @@ export async function updateMission(
   if (response.status === 404) {
     throw new Error('mission_not_found')
   }
+  if (response.status === 409) {
+    // A deactivated mission is retired for good, so the backend rejects the edit
+    // (MissionNotEditableWhileInactiveException → 409, HU-09). Surface the ProblemDetails
+    // `detail` verbatim instead of falling through to a generic unknown error.
+    let detail = 'A deactivated mission cannot be edited.'
+    try {
+      const problem = await response.json()
+      if (typeof problem?.detail === 'string' && problem.detail.length > 0) detail = problem.detail
+    } catch {
+      /* keep fallback */
+    }
+    throw new Error(detail)
+  }
   if (!response.ok) {
     throw new IdentityError('unknown', `updateMission failed with status ${response.status}`)
   }
@@ -129,10 +122,10 @@ export async function updateMission(
 }
 
 export async function activateMission(id: number): Promise<MissionDto> {
-  const session = await verifySession()
-  const response = await fetch(`${MISSION_DESIGN_SERVICE_URL}/api/missions/${id}/activate`, {
+  await verifySession()
+  const response = await fetch(`${API_GATEWAY_URL}/api/missions/${id}/activate`, {
     method: 'POST',
-    headers: getIdentityHeaders(session),
+    headers: await getGatewayHeaders(),
   })
 
   if (response.status === 400) {
@@ -185,10 +178,10 @@ export async function activateMission(id: number): Promise<MissionDto> {
 }
 
 export async function deactivateMission(id: number): Promise<void> {
-  const session = await verifySession()
-  const response = await fetch(`${MISSION_DESIGN_SERVICE_URL}/api/missions/${id}`, {
+  await verifySession()
+  const response = await fetch(`${API_GATEWAY_URL}/api/missions/${id}`, {
     method: 'DELETE',
-    headers: getIdentityHeaders(session),
+    headers: await getGatewayHeaders(),
   })
 
   if (response.status === 401) {

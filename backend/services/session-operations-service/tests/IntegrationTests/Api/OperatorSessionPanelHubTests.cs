@@ -15,7 +15,7 @@ namespace umbral_backend.Infrastructure.IntegrationTests.Api;
 public sealed class OperatorSessionPanelHubTests : IAsyncLifetime
 {
     private const int OperatorUserId = 55;
-    private const string OperatorExternalIdentityId = "kc-operator-55";
+    private const string OperatorExternalIdentityId = "723e8e2a-2196-44f4-846c-9afc6c849f15";
     private const string OperatorPanelUpdatedMethod = "OperatorSessionPanelUpdated";
 
     private readonly PostgreSqlFixture _fixture;

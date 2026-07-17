@@ -23,10 +23,10 @@ public sealed class LiveSession : BaseAuditableEntity
     private TimeSpan _questionTimerRemainingDuration;
     private DateTimeOffset? _questionTimerAdvancingSince;
     private DateTimeOffset? _questionTimerExpiredAt;
-    private TimeSpan _substageTimerTotalDuration;
-    private TimeSpan _substageTimerRemainingDuration;
-    private DateTimeOffset? _substageTimerAdvancingSince;
-    private DateTimeOffset? _substageTimerExpiredAt;
+    private TimeSpan _missionTimerTotalDuration;
+    private TimeSpan _missionTimerRemainingDuration;
+    private DateTimeOffset? _missionTimerAdvancingSince;
+    private DateTimeOffset? _missionTimerExpiredAt;
     // Post-close reveal window (HU-35): a just-closed trivia question stays "revealing" until this
     // deadline, so participants see the correct option/result before the next question activates.
     // Null when no reveal is pending. `_pendingNextQuestionIndex` holds the deferred activation the
@@ -44,8 +44,8 @@ public sealed class LiveSession : BaseAuditableEntity
         MissionRuntimeSnapshot = null!;
         _questionTimerTotalDuration = TimeSpan.Zero;
         _questionTimerRemainingDuration = TimeSpan.Zero;
-        _substageTimerTotalDuration = TimeSpan.Zero;
-        _substageTimerRemainingDuration = TimeSpan.Zero;
+        _missionTimerTotalDuration = TimeSpan.Zero;
+        _missionTimerRemainingDuration = TimeSpan.Zero;
     }
 
     private LiveSession(
@@ -82,8 +82,8 @@ public sealed class LiveSession : BaseAuditableEntity
         AssignedOperatorUserId = assignedOperatorUserId;
         _questionTimerTotalDuration = TimeSpan.Zero;
         _questionTimerRemainingDuration = TimeSpan.Zero;
-        _substageTimerTotalDuration = TimeSpan.Zero;
-        _substageTimerRemainingDuration = TimeSpan.Zero;
+        _missionTimerTotalDuration = TimeSpan.Zero;
+        _missionTimerRemainingDuration = TimeSpan.Zero;
     }
 
     public Guid LiveSessionId { get; private set; }
@@ -114,7 +114,11 @@ public sealed class LiveSession : BaseAuditableEntity
 
     public bool IsQuestionTimerAdvancing => LiveSessionStateFactory.For(State).IsQuestionTimerAdvancing(this);
 
-    public bool IsSubstageTimerAdvancing => LiveSessionStateFactory.For(State).IsSubstageTimerAdvancing(this);
+    public bool IsMissionTimerAdvancing => LiveSessionStateFactory.For(State).IsMissionTimerAdvancing(this);
+
+    // False until the session starts: the mission deadline is seeded from MaximumTime on the
+    // Scheduled -> Active transition, so before that there is no deadline to report.
+    public bool HasMissionDeadline => _missionTimerTotalDuration > TimeSpan.Zero;
 
     // True while a just-closed trivia question is showing its result (HU-35 reveal window). During
     // this window ActiveQuestionIndex is null (the question is closed) but the next activation is
@@ -338,12 +342,27 @@ public sealed class LiveSession : BaseAuditableEntity
         DateTimeOffset occurredAt,
         SessionStateTransitionPolicy transitionPolicy,
         string? reason = null,
-        int? responsibleUserId = null)
+        int? responsibleUserId = null,
+        Guid? responsibleUserExternalId = null)
     {
         ArgumentNullException.ThrowIfNull(transitionPolicy);
 
         transitionPolicy.EnsureCanTransition(State, nextState, AssociatedTeamCount);
 
+        ApplyStateChange(nextState, occurredAt, reason, responsibleUserId, responsibleUserExternalId);
+    }
+
+    // Shared state-change application, deliberately split out of MoveTo so SessionCompletion (see
+    // CompleteActiveSubstageAndAdvance) can reach Finished without going through the generic
+    // transition policy: CanTransitionTo intentionally excludes Finished from Active/Paused so no
+    // Operator-facing path can request it (per canon, Finished is reached ONLY via SessionCompletion).
+    private void ApplyStateChange(
+        SessionState nextState,
+        DateTimeOffset occurredAt,
+        string? reason,
+        int? responsibleUserId,
+        Guid? responsibleUserExternalId)
+    {
         var previousState = State;
         State = nextState;
         LastStateChangedAt = occurredAt;
@@ -371,11 +390,13 @@ public sealed class LiveSession : BaseAuditableEntity
             occurredAt,
             responsibleUserId,
             StateReason,
-            actorType));
+            actorType,
+            responsibleUserExternalId));
     }
 
-    // Authoritative displayed remaining time is selected by the active substage's play mode:
-    // TreasureHunt owns a substage window; Trivia keeps the active-question window.
+    // Authoritative displayed remaining time is selected by the active substage's play mode: a
+    // treasure-hunt substage has no window of its own, so it shows the mission deadline; Trivia keeps
+    // the active-question window.
     public AuthoritativeSessionTimerSnapshot GetAuthoritativeSessionTimerSnapshot(DateTimeOffset observedAt)
     {
         if (ActiveSubstageId is null)
@@ -387,7 +408,7 @@ public sealed class LiveSession : BaseAuditableEntity
             .SingleOrDefault(substage => substage.SubstageSnapshotId == ActiveSubstageId.Value);
 
         return activeSubstage?.PlayMode == SubstagePlayMode.TreasureHunt
-            ? LiveSessionStateFactory.For(State).GetSubstageTimerSnapshot(this, observedAt)
+            ? GetMissionTimerSnapshot(observedAt)
             : GetActiveQuestionTimerSnapshot(observedAt);
     }
 
@@ -415,14 +436,19 @@ public sealed class LiveSession : BaseAuditableEntity
         return LiveSessionStateFactory.For(State).GetQuestionTimerSnapshot(this, observedAt);
     }
 
+    public AuthoritativeSessionTimerSnapshot GetMissionTimerSnapshot(DateTimeOffset observedAt)
+    {
+        return LiveSessionStateFactory.For(State).GetMissionTimerSnapshot(this, observedAt);
+    }
+
     public AuthoritativeSessionTimerSnapshot MarkQuestionTimerExpiredIfElapsed(DateTimeOffset occurredAt)
     {
         return LiveSessionStateFactory.For(State).MarkQuestionTimerExpiredIfElapsed(this, occurredAt);
     }
 
-    public AuthoritativeSessionTimerSnapshot MarkSubstageTimerExpiredIfElapsed(DateTimeOffset occurredAt)
+    public AuthoritativeSessionTimerSnapshot MarkMissionTimerExpiredIfElapsed(DateTimeOffset occurredAt)
     {
-        return LiveSessionStateFactory.For(State).MarkSubstageTimerExpiredIfElapsed(this, occurredAt);
+        return LiveSessionStateFactory.For(State).MarkMissionTimerExpiredIfElapsed(this, occurredAt);
     }
 
     public void CloseActiveQuestion(DateTimeOffset occurredAt)
@@ -652,6 +678,10 @@ public sealed class LiveSession : BaseAuditableEntity
         Guid submittedByParticipantId,
         DateTimeOffset submittedAt)
     {
+        // Pure read, so it is safe ahead of the state gates below; a duplicate QR code yields more
+        // than one match and deliberately resolves to no target.
+        var matches = MatchScannedTargets(scannedValue);
+
         var submission = RegisterEvidenceCore(
             teamId,
             EvidenceSubmissionType.TreasureHuntQrScan,
@@ -660,7 +690,7 @@ public sealed class LiveSession : BaseAuditableEntity
             (team, activeSubstageId, participantId, registeredAt) =>
             {
                 EnsureActiveTreasureHuntSubstage(activeSubstageId);
-                var resolvedTarget = ResolveScannedTarget(scannedValue);
+                var resolvedTarget = matches.Count == 1 ? matches[0] : null;
 
                 return TreasureEvidenceSubmission.Begin(
                     LiveSessionId,
@@ -679,7 +709,7 @@ public sealed class LiveSession : BaseAuditableEntity
             : MissionRuntimeSnapshot.TargetSnapshots.Single(target =>
                 target.TargetSnapshotId == submission.TargetSnapshotId.Value);
 
-        var rejectionReason = DetermineTargetResolutionRejection(submission, target);
+        var rejectionReason = DetermineTargetResolutionRejection(submission, target, matches.Count > 1);
         if (rejectionReason is not null)
         {
             submission.RejectRegisteredTarget(rejectionReason.Value, submittedAt);
@@ -713,20 +743,29 @@ public sealed class LiveSession : BaseAuditableEntity
         }
     }
 
-    private TargetSnapshot? ResolveScannedTarget(string scannedValue)
+    // Returns every snapshotted target matching the scanned code. Authoring enforces mission-scoped
+    // QR uniqueness, but a mission snapshotted before that guard can still hold duplicates, so this
+    // reports the ambiguity rather than throwing on a second match.
+    private IReadOnlyList<TargetSnapshot> MatchScannedTargets(string scannedValue)
     {
         var normalizedValue = scannedValue.Trim();
-        return MissionRuntimeSnapshot.TargetSnapshots.SingleOrDefault(target =>
-            string.Equals(target.QrCode, normalizedValue, StringComparison.OrdinalIgnoreCase));
+        return MissionRuntimeSnapshot.TargetSnapshots
+            .Where(target => string.Equals(target.QrCode, normalizedValue, StringComparison.OrdinalIgnoreCase))
+            .ToList();
     }
 
     private TargetResolutionRejectionReason? DetermineTargetResolutionRejection(
         TreasureEvidenceSubmission submission,
-        TargetSnapshot? target)
+        TargetSnapshot? target,
+        bool isAmbiguous)
     {
         if (target is null)
         {
-            return TargetResolutionRejectionReason.ScannedValueDoesNotResolveToTarget;
+            // An ambiguous scan resolves to no single target; report it as such rather than
+            // pretending the code is unknown.
+            return isAmbiguous
+                ? TargetResolutionRejectionReason.ScannedValueResolvesToMultipleTargets
+                : TargetResolutionRejectionReason.ScannedValueDoesNotResolveToTarget;
         }
 
         if (target.SubstageSnapshotId != submission.ActiveSubstageId || !target.IsActive)
@@ -1375,8 +1414,13 @@ public sealed class LiveSession : BaseAuditableEntity
     // Timer-driven, generic substage advancement (ADR-0005): once the active substage's last
     // question has closed, walk to the next substage in strict stage->substage order. A next
     // substage exists -> move the pointer and raise SubstageAdvancedEvent (the facade activates the
-    // first question for a trivia substage; a treasure-hunt substage parks, D-4). No next substage
-    // -> SessionCompletion: Finished is reached ONLY here, never operator-forced.
+    // first question for a trivia substage). The mission timer is untouched here: MaximumTime is one
+    // budget for the whole mission, seeded at start and ticking straight through. No next substage
+    // -> SessionCompletion: Finished is reached ONLY here, never operator-forced. EnsureCanAdvanceSubstage
+    // above only permits this method while State is Active, so the Finished branch below applies the
+    // state change directly (ApplyStateChange) rather than through MoveTo/the transition policy —
+    // Active/PausedLiveSessionState.CanTransitionTo deliberately no longer allow Finished, since that
+    // would also open the door to an Operator-forced Active/Paused -> Finished transition.
     public void CompleteActiveSubstageAndAdvance(DateTimeOffset occurredAt, SessionStateTransitionPolicy transitionPolicy)
     {
         ArgumentNullException.ThrowIfNull(transitionPolicy);
@@ -1400,12 +1444,16 @@ public sealed class LiveSession : BaseAuditableEntity
                 fromSubstage.PlayMode,
                 toSubstageId: null,
                 occurredAt));
-            MoveTo(SessionState.Finished, occurredAt, transitionPolicy);
+            ApplyStateChange(
+                SessionState.Finished,
+                occurredAt,
+                reason: null,
+                responsibleUserId: null,
+                responsibleUserExternalId: null);
             return;
         }
 
         ActiveSubstageId = nextSubstage.SubstageSnapshotId;
-        SeedSubstageTimerIfTreasureHunt(nextSubstage, occurredAt);
         AddDomainEvent(new SubstageAdvancedEvent(
             LiveSessionId,
             fromSubstage.SubstageSnapshotId,
@@ -1443,12 +1491,12 @@ public sealed class LiveSession : BaseAuditableEntity
             _questionTimerRemainingDuration > TimeSpan.Zero;
     }
 
-    internal bool HasAdvancingSubstageTimer()
+    internal bool HasAdvancingMissionTimer()
     {
         return ActiveSubstageId.HasValue &&
-            _substageTimerAdvancingSince.HasValue &&
-            _substageTimerExpiredAt is null &&
-            _substageTimerRemainingDuration > TimeSpan.Zero;
+            _missionTimerAdvancingSince.HasValue &&
+            _missionTimerExpiredAt is null &&
+            _missionTimerRemainingDuration > TimeSpan.Zero;
     }
 
     internal void EnterActiveSessionState(DateTimeOffset occurredAt)
@@ -1456,13 +1504,13 @@ public sealed class LiveSession : BaseAuditableEntity
         StartedAt ??= occurredAt;
         PausedAt = null;
 
-        // Entering Active starts the first substage in strict order (CONTEXT.md:48). `??=` guards
-        // pause->resume so resuming never rewinds the pointer to the first substage.
+        // Entering Active starts the first substage in strict order (CONTEXT.md:48). The null check
+        // guards pause->resume so resuming never rewinds the pointer to the first substage, and never
+        // reseeds the mission timer — a resumed session keeps the budget it had left.
         if (ActiveSubstageId is null)
         {
-            var firstSubstage = GetOrderedSubstages()[0];
-            ActiveSubstageId = firstSubstage.SubstageSnapshotId;
-            SeedSubstageTimerIfTreasureHunt(firstSubstage, occurredAt);
+            ActiveSubstageId = GetOrderedSubstages()[0].SubstageSnapshotId;
+            SeedMissionTimer(occurredAt);
         }
     }
 
@@ -1471,9 +1519,9 @@ public sealed class LiveSession : BaseAuditableEntity
         ResumeQuestionTimer(occurredAt);
     }
 
-    internal void EnterActiveSubstageTimerState(DateTimeOffset occurredAt)
+    internal void EnterActiveMissionTimerState(DateTimeOffset occurredAt)
     {
-        ResumeSubstageTimer(occurredAt);
+        ResumeMissionTimer(occurredAt);
     }
 
     internal void EnterPausedSessionState(DateTimeOffset occurredAt)
@@ -1486,22 +1534,22 @@ public sealed class LiveSession : BaseAuditableEntity
         FreezeQuestionTimer(occurredAt);
     }
 
-    internal void EnterPausedSubstageTimerState(DateTimeOffset occurredAt)
+    internal void EnterPausedMissionTimerState(DateTimeOffset occurredAt)
     {
-        FreezeSubstageTimer(occurredAt);
+        FreezeMissionTimer(occurredAt);
     }
 
     internal void EnterFinishedSessionState(DateTimeOffset occurredAt)
     {
         FreezeQuestionTimer(occurredAt);
-        FreezeSubstageTimer(occurredAt);
+        FreezeMissionTimer(occurredAt);
         EndedAt = occurredAt;
     }
 
     internal void EnterCancelledSessionState(DateTimeOffset occurredAt)
     {
         FreezeQuestionTimer(occurredAt);
-        FreezeSubstageTimer(occurredAt);
+        FreezeMissionTimer(occurredAt);
         CancelledAt = occurredAt;
     }
 
@@ -1545,44 +1593,44 @@ public sealed class LiveSession : BaseAuditableEntity
         return GetFrozenQuestionTimerSnapshot(occurredAt);
     }
 
-    internal AuthoritativeSessionTimerSnapshot GetAdvancingSubstageTimerSnapshot(DateTimeOffset observedAt)
+    internal AuthoritativeSessionTimerSnapshot GetAdvancingMissionTimerSnapshot(DateTimeOffset observedAt)
     {
-        var remaining = CalculateAdvancingSubstageTimerRemaining(observedAt);
-        var expired = _substageTimerExpiredAt.HasValue || remaining <= TimeSpan.Zero;
+        var remaining = CalculateAdvancingMissionTimerRemaining(observedAt);
+        var expired = _missionTimerExpiredAt.HasValue || remaining <= TimeSpan.Zero;
 
         return AuthoritativeSessionTimerSnapshot.Create(
-            _substageTimerTotalDuration,
+            _missionTimerTotalDuration,
             remaining,
-            isAdvancing: !expired && HasAdvancingSubstageTimer(),
+            isAdvancing: !expired && HasAdvancingMissionTimer(),
             observedAt,
-            _substageTimerAdvancingSince,
-            _substageTimerExpiredAt);
+            _missionTimerAdvancingSince,
+            _missionTimerExpiredAt);
     }
 
-    internal AuthoritativeSessionTimerSnapshot GetFrozenSubstageTimerSnapshot(DateTimeOffset observedAt)
+    internal AuthoritativeSessionTimerSnapshot GetFrozenMissionTimerSnapshot(DateTimeOffset observedAt)
     {
         return AuthoritativeSessionTimerSnapshot.Create(
-            _substageTimerTotalDuration,
-            _substageTimerExpiredAt.HasValue ? TimeSpan.Zero : _substageTimerRemainingDuration,
+            _missionTimerTotalDuration,
+            _missionTimerExpiredAt.HasValue ? TimeSpan.Zero : _missionTimerRemainingDuration,
             isAdvancing: false,
             observedAt,
             advancingSince: null,
-            _substageTimerExpiredAt);
+            _missionTimerExpiredAt);
     }
 
-    internal AuthoritativeSessionTimerSnapshot MarkAdvancingSubstageTimerExpiredIfElapsed(DateTimeOffset occurredAt)
+    internal AuthoritativeSessionTimerSnapshot MarkAdvancingMissionTimerExpiredIfElapsed(DateTimeOffset occurredAt)
     {
-        var remaining = CalculateAdvancingSubstageTimerRemaining(occurredAt);
+        var remaining = CalculateAdvancingMissionTimerRemaining(occurredAt);
         if (remaining > TimeSpan.Zero)
         {
-            return GetAdvancingSubstageTimerSnapshot(occurredAt);
+            return GetAdvancingMissionTimerSnapshot(occurredAt);
         }
 
-        _substageTimerRemainingDuration = TimeSpan.Zero;
-        _substageTimerAdvancingSince = null;
-        _substageTimerExpiredAt ??= occurredAt;
+        _missionTimerRemainingDuration = TimeSpan.Zero;
+        _missionTimerAdvancingSince = null;
+        _missionTimerExpiredAt ??= occurredAt;
 
-        return GetFrozenSubstageTimerSnapshot(occurredAt);
+        return GetFrozenMissionTimerSnapshot(occurredAt);
     }
 
     private void ResumeQuestionTimer(DateTimeOffset occurredAt)
@@ -1642,73 +1690,71 @@ public sealed class LiveSession : BaseAuditableEntity
         return remaining > TimeSpan.Zero ? remaining : TimeSpan.Zero;
     }
 
-    private void SeedSubstageTimerIfTreasureHunt(SubstageSnapshot substage, DateTimeOffset occurredAt)
+    // MaximumTime is the whole mission's budget, so the timer is seeded once when the session starts
+    // and then ticks across every substage of both play modes. Seeding per substage would hand each
+    // one the full budget.
+    private void SeedMissionTimer(DateTimeOffset occurredAt)
     {
-        if (substage.PlayMode != SubstagePlayMode.TreasureHunt)
-        {
-            return;
-        }
-
-        _substageTimerTotalDuration = TimeSpan.FromMinutes(MaximumTime.Minutes);
-        _substageTimerRemainingDuration = _substageTimerTotalDuration;
-        _substageTimerAdvancingSince = occurredAt;
-        _substageTimerExpiredAt = null;
+        _missionTimerTotalDuration = TimeSpan.FromMinutes(MaximumTime.Minutes);
+        _missionTimerRemainingDuration = _missionTimerTotalDuration;
+        _missionTimerAdvancingSince = occurredAt;
+        _missionTimerExpiredAt = null;
     }
 
-    private void ResumeSubstageTimer(DateTimeOffset occurredAt)
+    private void ResumeMissionTimer(DateTimeOffset occurredAt)
     {
-        if (ActiveSubstageId is null || _substageTimerTotalDuration <= TimeSpan.Zero)
+        if (ActiveSubstageId is null || _missionTimerTotalDuration <= TimeSpan.Zero)
         {
             return;
         }
 
-        if (_substageTimerExpiredAt is not null || _substageTimerRemainingDuration <= TimeSpan.Zero)
+        if (_missionTimerExpiredAt is not null || _missionTimerRemainingDuration <= TimeSpan.Zero)
         {
-            _substageTimerRemainingDuration = TimeSpan.Zero;
-            _substageTimerAdvancingSince = null;
-            _substageTimerExpiredAt ??= occurredAt;
+            _missionTimerRemainingDuration = TimeSpan.Zero;
+            _missionTimerAdvancingSince = null;
+            _missionTimerExpiredAt ??= occurredAt;
             return;
         }
 
-        _substageTimerAdvancingSince = occurredAt;
+        _missionTimerAdvancingSince = occurredAt;
     }
 
-    private void FreezeSubstageTimer(DateTimeOffset occurredAt)
+    private void FreezeMissionTimer(DateTimeOffset occurredAt)
     {
-        if (_substageTimerAdvancingSince is null)
+        if (_missionTimerAdvancingSince is null)
         {
             return;
         }
 
-        _substageTimerRemainingDuration = CalculateAdvancingSubstageTimerRemaining(occurredAt);
-        _substageTimerAdvancingSince = null;
+        _missionTimerRemainingDuration = CalculateAdvancingMissionTimerRemaining(occurredAt);
+        _missionTimerAdvancingSince = null;
 
-        if (_substageTimerRemainingDuration <= TimeSpan.Zero)
+        if (_missionTimerRemainingDuration <= TimeSpan.Zero)
         {
-            _substageTimerRemainingDuration = TimeSpan.Zero;
-            _substageTimerExpiredAt ??= occurredAt;
+            _missionTimerRemainingDuration = TimeSpan.Zero;
+            _missionTimerExpiredAt ??= occurredAt;
         }
     }
 
-    private TimeSpan CalculateAdvancingSubstageTimerRemaining(DateTimeOffset observedAt)
+    private TimeSpan CalculateAdvancingMissionTimerRemaining(DateTimeOffset observedAt)
     {
-        if (_substageTimerExpiredAt.HasValue)
+        if (_missionTimerExpiredAt.HasValue)
         {
             return TimeSpan.Zero;
         }
 
-        if (_substageTimerAdvancingSince is null)
+        if (_missionTimerAdvancingSince is null)
         {
-            return _substageTimerRemainingDuration;
+            return _missionTimerRemainingDuration;
         }
 
-        var elapsed = observedAt - _substageTimerAdvancingSince.Value;
+        var elapsed = observedAt - _missionTimerAdvancingSince.Value;
         if (elapsed <= TimeSpan.Zero)
         {
-            return _substageTimerRemainingDuration;
+            return _missionTimerRemainingDuration;
         }
 
-        var remaining = _substageTimerRemainingDuration - elapsed;
+        var remaining = _missionTimerRemainingDuration - elapsed;
         return remaining > TimeSpan.Zero ? remaining : TimeSpan.Zero;
     }
 
