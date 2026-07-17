@@ -37,4 +37,14 @@ describe('buildTargetMapHtml', () => {
     // It survives as an escaped unicode sequence inside the JSON payload instead.
     expect(html).toContain('\\u003c/script>');
   });
+
+  test('renders popup names as text, not HTML (no bindPopup string injection)', () => {
+    const html = buildTargetMapHtml([
+      { id: 't1', name: '<img src=x onerror=alert(1)>', latitude: 1, longitude: 2 },
+    ]);
+    // The name must reach the popup via a text node (textContent), never as an HTML string handed to
+    // bindPopup — otherwise markup/handlers execute inside the network-enabled WebView.
+    expect(html).toContain('popup.textContent = t.name');
+    expect(html).not.toContain('bindPopup(t.name)');
+  });
 });

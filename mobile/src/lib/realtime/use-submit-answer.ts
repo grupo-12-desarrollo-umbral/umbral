@@ -96,6 +96,12 @@ export function useSubmitAnswer({
       return;
     }
 
+    // Pin the question this submit belongs to. If the question changes mid-flight (the effect above
+    // resets state for the new question), a late response for the old question must not write into the
+    // new one — locking it, showing the old error on it, or clearing its in-flight guard.
+    const submittedQuestionKey = questionKey;
+    const isStillCurrent = () => questionKeyRef.current === submittedQuestionKey;
+
     submittingRef.current = true;
     setIsSubmitting(true);
 
@@ -107,9 +113,11 @@ export function useSubmitAnswer({
         selectedOptionSequenceOrder,
         token,
       });
+      if (!isStillCurrent()) return;
       setIsLocked(true);
       fireHaptic('success');
     } catch (error) {
+      if (!isStillCurrent()) return;
       const reasonCode =
         error instanceof SubmitTriviaAnswerRejection
           ? error.reasonCode
@@ -121,10 +129,15 @@ export function useSubmitAnswer({
       });
       fireHaptic('error');
     } finally {
-      setIsSubmitting(false);
-      submittingRef.current = false;
+      // Only release the guard/spinner if we still own the current question. If it changed, the
+      // reset effect already cleared both for the new question — touching them here would clobber it.
+      if (isStillCurrent()) {
+        setIsSubmitting(false);
+        submittingRef.current = false;
+      }
     }
   }, [
+    questionKey,
     selectedOptionSequenceOrder,
     isLocked,
     liveSessionId,

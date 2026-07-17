@@ -25,9 +25,11 @@ import { useSessionTimer } from '@/lib/realtime/use-session-timer';
 import { useSubmitAnswer } from '@/lib/realtime/use-submit-answer';
 import { useTeamBoard } from '@/lib/realtime/use-team-board';
 import { useRanking } from '@/lib/realtime/use-ranking';
+import { useRankingReveal } from '@/lib/realtime/use-ranking-reveal';
 import { createScoringHubConnection, type ScoringHubClient } from '@/lib/realtime/scoring-hub';
 import { TreasureHuntBoard } from '@/components/treasure-hunt-board';
 import { PodiumLeaderboard } from '@/components/podium-leaderboard';
+import { RankingReveal } from '@/components/ranking-reveal';
 import { rankingErrorCopy } from '@/lib/realtime/ranking-error-copy';
 import { ScoreDropToast, useScoreDrop } from '@/components/score-drop-toast';
 import { TargetScanner } from '@/components/target-scanner';
@@ -139,9 +141,19 @@ export default function TeamSpaceScreen() {
     let active = true;
 
     async function run() {
+      let persisted: ReconnectContext | null = null;
+      try {
+        // The persisted context lives in SecureStore; a rejection here (locked keychain, etc.) must
+        // not leave `run()` rejecting unhandled with `phase` stuck on 'resolving' — the screen would
+        // show "Restoring your team space…" forever. Treat a read failure as "no context".
+        persisted = await loadReconnectContext();
+      } catch {
+        if (active) setPhase('no-context');
+        return;
+      }
+
       const liveSessionId = asParam(params.liveSessionId);
       const teamId = asParam(params.teamId);
-      const persisted = await loadReconnectContext();
       const resolved = resolveReconnectContext(
         {
           liveSessionId,
@@ -165,6 +177,12 @@ export default function TeamSpaceScreen() {
       ) {
         await saveReconnectContext(resolved);
       }
+
+      // Re-check after the persist await: the screen may have unmounted while it was in flight.
+      // Without this, `reconnect()` below would call `client.start()` after the unmount cleanup has
+      // already run `client.stop()` (a no-op on the not-yet-started connection), leaving an orphan
+      // connection with a live backend presence for a participant who has left the screen.
+      if (!active) return;
 
       setContext(resolved);
       setPhase('ready');
@@ -363,7 +381,9 @@ export function LiveTeamSpace({
   const requestResync = useCallback(() => setResyncNonce(n => n + 1), []);
   const {
     display,
+    missionDisplay,
     activeQuestion,
+    revealReconciliation,
     sessionState: snapshotSessionState,
     pregameSecondsLeft,
     snapshotVersion,
@@ -413,6 +433,13 @@ export function LiveTeamSpace({
     token,
     scoringClient,
   );
+  // D-3 substage ranking reveal. Play-mode agnostic: the cue arrives for a cleared treasure hunt and
+  // a closed trivia round alike, which is why it is read here rather than inside either surface.
+  const { isRevealing } = useRankingReveal({
+    client,
+    liveSessionId: result.liveSessionId,
+    reconciliation: revealReconciliation,
+  });
   const playMode = board?.activeSubstage?.playMode;
   // Only surface an error while it actually masks the board: a still-good board
   // kept from an earlier fetch (a failed re-fetch leaves `board` intact) renders
@@ -470,12 +497,40 @@ export function LiveTeamSpace({
   // empties `activeQuestionProps`, which resets the submit hook's selection to null — so it can't be
   // read once revealing; capture it here first. Reset to null on each new question (the hook clears
   // its selection then too) so a stale pick never bleeds into a question the team didn't answer.
-  const submittedSelectionRef = useRef<number | null>(null);
+  // State (not a ref) so the reveal view reads the captured pick reactively — reading a
+  // ref's value during render is disallowed, and the reveal render needs this value.
+  const [submittedSelection, setSubmittedSelection] = useState<number | null>(null);
   useEffect(() => {
     if (view.kind === 'active') {
-      submittedSelectionRef.current = submitHook.selectedOptionSequenceOrder;
+      // Capture the live pick while the question is active so the reveal (which empties the
+      // submit hook) can still show it. Cross-render memory syncing — needs an effect.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setSubmittedSelection(submitHook.selectedOptionSequenceOrder);
     }
   }, [view.kind, submitHook.selectedOptionSequenceOrder]);
+
+  // The ranking takes the whole screen, above both play-mode branches: the reveal fires in either
+  // mode, and the treasure-hunt return below would otherwise swallow it in exactly the mixed-mode
+  // mission it exists for.
+  //
+  // `Finished` renders it too, and not only after a terminal reveal — a session that runs out its
+  // MaximumTime is cut short with no reveal event at all (D-4), so the state itself has to be enough
+  // to land on the final ranking. `Cancelled` is deliberately excluded: an aborted session keeps the
+  // host's red notice rather than being dressed up with standings.
+  const isFinished = sessionState === 'Finished';
+  if (isRevealing || isFinished) {
+    return (
+      <RankingReveal
+        rows={rankingSnapshot?.rows}
+        ownTeamId={referenceTeamId}
+        isFinished={isFinished}
+        error={rankingError}
+        onRetry={refetchRanking}
+        onRefetch={refetchRanking}
+        onLeave={onLeave}
+      />
+    );
+  }
 
   if (playMode === 'TreasureHunt' && board) {
     const progress = targetProgress(board.activeSubstage);
@@ -557,6 +612,7 @@ export function LiveTeamSpace({
             sessionState={sessionState}
             score={displayScore}
             timerDisplay={display}
+            missionDisplay={missionDisplay}
             selectedOptionSequenceOrder={submitHook.selectedOptionSequenceOrder}
             isSubmitting={submitHook.isSubmitting}
             isLocked={submitHook.isLocked}
@@ -572,8 +628,11 @@ export function LiveTeamSpace({
             sessionState={sessionState}
             score={displayScore}
             timerDisplay={display}
+            // No missionDisplay here: on the reveal view the question is closed, so the header's main
+            // clock already carries the mission deadline (the backend fills the primary window with it
+            // once no question is active). A second line would just duplicate it. See the active branch.
             isClosed={isQuestionClosed}
-            selectedOptionSequenceOrder={submittedSelectionRef.current}
+            selectedOptionSequenceOrder={submittedSelection}
             correctOptionSequenceOrder={view.correctOptionSequenceOrder}
             explanation={view.explanation}
             teamResult={view.teamResult}

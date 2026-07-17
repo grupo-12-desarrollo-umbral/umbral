@@ -23,7 +23,19 @@ export type ScoringHubClient = {
   joinSessionGroup: (liveSessionId: string, teamId: string) => Promise<void>;
   leaveSessionGroup: (liveSessionId: string) => Promise<void>;
   onRankingChanged: (cb: (snapshot: RankingSnapshotDto) => void) => () => void;
+  // Fires after the transport auto-reconnects and the session group has been re-joined. Pushes only
+  // arrive on a ranking *change*, so any change during the outage was missed — consumers use this to
+  // re-fetch the current snapshot rather than showing stale standings until the next change.
+  onReconnected: (cb: () => void) => () => void;
+  // Fires when the connection closes for good (auto-reconnect exhausted). No further pushes will
+  // arrive, so consumers surface this instead of leaving frozen standings displayed as live.
+  onClosed: (cb: () => void) => () => void;
 };
+
+const REJOIN_MAX_ATTEMPTS = 3;
+const REJOIN_BASE_DELAY_MS = 500;
+
+const delay = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
 export function createScoringHubConnection(): ScoringHubClient {
   const connection = new HubConnectionBuilder()
@@ -43,14 +55,36 @@ export function createScoringHubConnection(): ScoringHubClient {
   let joinedSessionId: string | null = null;
   let joinedTeamId: string | null = null;
 
+  const reconnectedSubscribers = new Set<() => void>();
+  const closedSubscribers = new Set<() => void>();
+
   connection.onreconnected(async () => {
-    if (joinedSessionId && joinedTeamId) {
+    if (!joinedSessionId || !joinedTeamId) return;
+
+    // Re-join the session group on the fresh connection. A failed invoke is NOT self-healing: pushes
+    // only reach group members, so without a successful re-join there is no "next push" to retry on
+    // and the stream is silently dead. Retry a bounded number of times before giving up.
+    for (let attempt = 0; attempt < REJOIN_MAX_ATTEMPTS; attempt++) {
       try {
         await connection.invoke('JoinSessionGroup', joinedSessionId, joinedTeamId);
+        reconnectedSubscribers.forEach((cb) => cb());
+        return;
       } catch {
-        // Group re-join failed on transport reconnect; next push will try again
+        if (attempt < REJOIN_MAX_ATTEMPTS - 1) {
+          await delay(REJOIN_BASE_DELAY_MS * (attempt + 1));
+        }
       }
     }
+
+    // Re-join exhausted: the connection is up but the participant is not in the group, so no pushes
+    // will arrive. Surface it like a closed stream so standings aren't shown as live.
+    closedSubscribers.forEach((cb) => cb());
+  });
+
+  connection.onclose(() => {
+    // Auto-reconnect exhausted (or an unexpected close). No further pushes — tell consumers so frozen
+    // standings are not left displayed as live.
+    closedSubscribers.forEach((cb) => cb());
   });
 
   return {
@@ -74,6 +108,14 @@ export function createScoringHubConnection(): ScoringHubClient {
     onRankingChanged(cb) {
       connection.on('RankingChanged', cb);
       return () => connection.off('RankingChanged', cb);
+    },
+    onReconnected(cb) {
+      reconnectedSubscribers.add(cb);
+      return () => reconnectedSubscribers.delete(cb);
+    },
+    onClosed(cb) {
+      closedSubscribers.add(cb);
+      return () => closedSubscribers.delete(cb);
     },
   };
 }

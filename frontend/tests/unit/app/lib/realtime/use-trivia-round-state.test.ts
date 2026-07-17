@@ -84,6 +84,18 @@ describe('useTriviaRoundState — substage tracking', () => {
     expect(harness.get().activeQuestion).toBeNull()
   })
 
+  // Regression: on the final substage the backend raises SubstageAdvanced(toSubstageId=null) and
+  // SessionStateChanged->Finished over different channels, so the SubstageAdvanced can land AFTER
+  // complete(). If it were applied it would drag the panel back to "finishing session…" forever.
+  // 'complete' is terminal and must stay put.
+  it('ignores a late SubstageAdvanced once the round is complete', () => {
+    harness = mountHook()
+    act(() => harness!.get().complete())
+    act(() => harness!.get().handleSubstageAdvanced(advance(null)))
+    expect(harness.get().phase).toBe('complete')
+    expect(harness.get().finalizing).toBe(false)
+  })
+
   it('reset() restores ordinal 1 and clears finalizing', () => {
     harness = mountHook()
     act(() => harness!.get().handleSubstageAdvanced(advance('b')))

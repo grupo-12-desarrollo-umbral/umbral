@@ -12,6 +12,13 @@ public static class SessionTimerSnapshotDtoFactory
     {
         var activeQuestion = CreateActiveQuestionSnapshot(liveSession, snapshot);
 
+        // Resolve the mission deadline at the same instant as the primary window so the two clocks are
+        // consistent. Null before the deadline is seeded (pre-start). During a treasure hunt the primary
+        // snapshot already IS the mission timer, so these mirror Total/RemainingSeconds — as intended.
+        var missionSnapshot = liveSession.HasMissionDeadline
+            ? liveSession.GetMissionTimerSnapshot(snapshot.ObservedAt)
+            : null;
+
         return new SessionTimerSnapshotDto(
             liveSession.LiveSessionId,
             teamId,
@@ -25,7 +32,28 @@ public static class SessionTimerSnapshotDtoFactory
             snapshot.AdvancingSince,
             snapshot.ExpiredAt,
             activeQuestion,
-            ResolveAwaitingRevealSequenceOrder(liveSession));
+            ResolveAwaitingRevealSequenceOrder(liveSession),
+            missionSnapshot is null ? null : ToWholeSeconds(missionSnapshot.TotalDuration),
+            missionSnapshot is null ? null : ToWholeSeconds(missionSnapshot.RemainingDuration),
+            CreateActiveRankingRevealSnapshot(liveSession));
+    }
+
+    // The active substage ranking reveal, read from persisted aggregate state (not a transient event) so
+    // a reconnecting participant restores it. Null outside a reveal; populated identically for both play
+    // modes and kept while paused — the domain clears it only on committed advancement/finish.
+    private static ActiveRankingRevealSnapshotDto? CreateActiveRankingRevealSnapshot(LiveSession liveSession)
+    {
+        if (liveSession.GetActiveSubstageRankingReveal() is not { } reveal)
+        {
+            return null;
+        }
+
+        return new ActiveRankingRevealSnapshotDto(
+            reveal.SubstageSnapshotId,
+            reveal.PlayMode.ToString(),
+            reveal.RevealUntil,
+            reveal.IsTerminal,
+            reveal.EmittedAt);
     }
 
     // During the HU-35 reveal window ActiveQuestionIndex is null (the question closed) but the

@@ -43,7 +43,10 @@ public sealed class TriviaRoundStartedNotificationHandlerTests
                 It.Is<SessionTimerUpdatedNotificationDto>(notification =>
                     notification.LiveSessionId == session.LiveSessionId &&
                     notification.TotalMilliseconds == 5000 &&
-                    notification.SessionState == SessionState.Active.ToString()),
+                    notification.SessionState == SessionState.Active.ToString() &&
+                    // Pre-game ticks flag themselves explicitly so a 5s question window (identical total)
+                    // is never mistaken for the countdown by clients.
+                    notification.IsPregameCountdown == true),
                 It.IsAny<CancellationToken>()),
             Times.Exactly(5));
         facade.Verify(

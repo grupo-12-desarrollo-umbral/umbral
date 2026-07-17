@@ -56,6 +56,9 @@ public sealed class DependencyInjectionTests
         builder.AddApplicationServices();
         builder.Services.AddSingleton(repository.Object);
         builder.Services.AddSingleton(Mock.Of<ICurrentUser>());
+        // The innermost ConcurrencyRetryBehaviour is constructed with every pipeline, so IUnitOfWork
+        // must resolve even for a request that never touches the ranking projection.
+        builder.Services.AddSingleton(Mock.Of<IUnitOfWork>());
 
         using var provider = builder.Services.BuildServiceProvider();
         using var scope = provider.CreateScope();

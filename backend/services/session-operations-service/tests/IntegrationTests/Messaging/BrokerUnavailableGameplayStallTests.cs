@@ -89,11 +89,7 @@ public sealed class BrokerUnavailableGameplayStallTests
         using var scope = host.CreateScope();
         var repository = new LiveSessionRepository(scope.ServiceProvider.GetRequiredService<ApplicationDbContext>());
         var session = await repository.GetByIdAsync(seeded.LiveSessionId, CancellationToken.None);
-        var facade = new TriviaRoundOrchestratorFacade(
-            repository,
-            broadcaster.Object,
-            new SequentialQuestionActivationStrategy(),
-            new SessionStateTransitionPolicy());
+        var facade = CreateFacade(repository, broadcaster);
 
         // now is past the 30s question-0 window, so the close is an expiry-driven close. Both reveal
         // phases (close + reveal-completion) are driven so question 2 activates (HU-35 reveal window).
@@ -150,11 +146,7 @@ public sealed class BrokerUnavailableGameplayStallTests
         var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         var repository = new LiveSessionRepository(context);
         var session = await repository.GetByIdAsync(seeded.LiveSessionId, CancellationToken.None);
-        var facade = new TriviaRoundOrchestratorFacade(
-            repository,
-            broadcaster.Object,
-            new SequentialQuestionActivationStrategy(),
-            new SessionStateTransitionPolicy());
+        var facade = CreateFacade(repository, broadcaster);
 
         var closeAt = ActiveAt.AddSeconds(31);
         var elapsed = await TimeAsync(async () =>
@@ -387,4 +379,25 @@ public sealed class BrokerUnavailableGameplayStallTests
     }
 
     private sealed record SeededSession(Guid LiveSessionId, Guid TeamId);
+
+    private static TriviaRoundOrchestratorFacade CreateFacade(
+        LiveSessionRepository repository,
+        Mock<ISessionQuestionBroadcaster> broadcaster)
+    {
+        var activator = new QuestionActivator(
+            repository,
+            broadcaster.Object,
+            new SequentialQuestionActivationStrategy());
+
+        return new TriviaRoundOrchestratorFacade(
+            repository,
+            broadcaster.Object,
+            new SequentialQuestionActivationStrategy(),
+            activator,
+            new SubstageAdvanceCoordinator(
+                repository,
+                broadcaster.Object,
+                activator,
+                new SessionStateTransitionPolicy()));
+    }
 }

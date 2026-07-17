@@ -202,17 +202,6 @@ function OptionRow({
   );
 }
 
-function ExplanationCard() {
-  return (
-    <Card>
-      <View style={{ gap: spacing.xs }}>
-        <Text variant="label" muted>EXPLANATION</Text>
-        <Text variant="body">{STUB_EXPLANATION}</Text>
-      </View>
-    </Card>
-  );
-}
-
 // ------------------------------------------------------------------
 // Variant B — Option-centric Inline (WINNER)
 // ------------------------------------------------------------------

@@ -197,13 +197,14 @@ export type MissionDto = {
   stages: MissionStageDto[] // ← added in P1
 }
 
+// An eligibility whitelist entry: this participant may join the team. It records no
+// timestamp — the backend dropped "assigned at" when membership stopped being a lock.
 export type TeamMembershipDto = {
   teamMembershipId: string
   teamId: string
-  userId: number       // database integer id of the assigned user
+  userId: number       // database integer id of the eligible user
   email: string
   displayName: string
-  assignedAt: string   // ISO 8601
 }
 
 export type TriviaOptionDto = {
@@ -362,7 +363,8 @@ export type AssignableParticipantDto = {
 // "Advancing" = the active question timer is counting down (session Active, question open).
 // "Frozen"    = the active question timer is held (session Paused, Scheduled, or Preparing).
 // "Expired"   = the active question window reached zero.
-// There is NO whole-session/mission countdown — a substage with no active question has no countdown.
+// This status tracks ONLY the active-question window; the whole-mission countdown rides the separate
+// mission* fields on the snapshot/notification below (null until the deadline is seeded at start).
 export type SessionTimerStatus = 'Advancing' | 'Frozen' | 'Expired'
 
 // Response of GET /api/sessions/{id}/timer (Operator) and
@@ -387,10 +389,31 @@ export type SessionTimerSnapshotDto = {
   // is null but its result is being shown), else null/absent. Lets an operator who opens the session
   // mid-reveal fetch that question's answer review without a prior QuestionActivated (HU-36B AC4).
   awaitingRevealQuestionSequenceOrder?: number | null
+  // The mission deadline (D-4), carried alongside the active-substage window above so a client
+  // reconnecting mid-question can restore the whole-mission clock — not just the trivia question
+  // window, which is all total/remainingSeconds carry during a trivia substage. Null until the
+  // deadline is seeded at session start; during a treasure hunt these equal total/remainingSeconds.
+  missionTotalSeconds?: number | null
+  missionRemainingSeconds?: number | null
+  // The substage ranking reveal on screen right now (D-3), or null/absent when none is active. A
+  // participant-facing recovery field (the mobile team space restores its ranking from it on reconnect);
+  // the operator app does not read it, but the DTO mirror is kept in sync with the backend.
+  activeRankingReveal?: ActiveRankingRevealSnapshotDto | null
+}
+
+// The active substage ranking reveal nested in SessionTimerSnapshotDto (mirrors
+// ActiveRankingRevealSnapshotDto.cs). Present while paused and past the wall-clock revealUntil — the
+// backend clears it only on committed substage advancement or finish.
+export type ActiveRankingRevealSnapshotDto = {
+  substageSnapshotId: string
+  playMode: string
+  revealUntil: string
+  isTerminal: boolean
+  emittedAt: string
 }
 
 // SignalR "SessionTimerUpdated" hub event payload — carries the active-substage
-// (active trivia question) remaining window, not a whole-session countdown.
+// (active trivia question) remaining window plus the whole-mission countdown.
 // Note: time units are milliseconds (long on the backend), not seconds.
 export type SessionTimerUpdatedNotificationDto = {
   liveSessionId: string
@@ -400,6 +423,11 @@ export type SessionTimerUpdatedNotificationDto = {
   totalMilliseconds: number
   isExpired: boolean
   sessionState: SessionLifecycleState | string
+  // The mission deadline (D-4/D-5), riding the same tick as the active-substage window above so the two
+  // clocks never arrive out of step. Null before the deadline is seeded; during a treasure hunt these
+  // mirror remaining/totalMilliseconds (that substage has no window of its own).
+  missionRemainingMilliseconds?: number | null
+  missionTotalMilliseconds?: number | null
 }
 
 // SignalR "QuestionActivated" hub event payload.
@@ -465,10 +493,12 @@ export type TriviaTeamAnswerReviewDto = {
   teamId: string // runtime team id
   teamCode: string
   displayName: string
-  selectedOptionSequenceOrder?: number // absent ⇒ no answer submitted
-  isCorrect?: boolean // absent when no answer
-  scoreValue?: number // absent when no answer or incorrect
-  answeredAt?: string // ISO 8601 when answered; absent when no answer
+  // The four below are present-and-null when the team did not answer: the backend projects them
+  // off a nullable submission and serializes nulls rather than omitting the keys.
+  selectedOptionSequenceOrder: number | null
+  isCorrect: boolean | null
+  scoreValue: number | null // null when no answer; 0 when answered incorrectly
+  answeredAt: string | null // ISO 8601 when answered
 }
 
 export type TriviaAnswerReviewDto = {
@@ -516,6 +546,7 @@ export type OperatorTeamProgressDto = {
 
 export type OperatorSessionPanelDto = {
   liveSessionId: string
+  missionTitle: string // the mission's name (session-level) — distinct from the operator-chosen session title
   state: SessionLifecycleState | string // current lifecycle state
   timer: SessionTimerSnapshotDto // session-scoped (teamId null); HU-22 semantics
   teamProgress: OperatorTeamProgressDto[] // ordered by teamCode (backend Ordinal sort)
@@ -577,7 +608,7 @@ export type ApplyPenaltyRequest = {
   reason: string // the justification; sent trimmed
 }
 
-// 201 response: evidence of the one append-only ScoreEntry deduction that was recorded.
+// 200 response: evidence of the one append-only ScoreEntry deduction that was recorded.
 // `penaltyAmount` is a POSITIVE magnitude (ScoreValue is non-negative by construction); the
 // deduction is carried by the entry's Penalty type, which this DTO does not expose. Render it as
 // a deduction; never treat it as a running total.

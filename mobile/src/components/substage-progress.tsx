@@ -108,6 +108,11 @@ export function SubstageProgress({ board }: { board: ParticipantTeamBoardDto }) 
       }}
     >
       <View style={{ gap: 2 }}>
+        {board.missionTitle ? (
+          <Text variant="label" muted numberOfLines={1}>
+            {board.missionTitle}
+          </Text>
+        ) : null}
         <Text variant="label" muted style={{ textTransform: 'uppercase' }}>
           {isMulti ? 'Now playing' : 'Substage'}
         </Text>

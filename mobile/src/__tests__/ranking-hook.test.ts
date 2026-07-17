@@ -21,9 +21,13 @@ jest.mock('@/lib/api/sessions', () => {
 type RankingHandler = (s: RankingSnapshotDto) => void;
 
 let rankingHandlers: Set<RankingHandler>;
+let reconnectedHandlers: Set<() => void>;
+let closedHandlers: Set<() => void>;
 
 function makeScoringClient() {
   rankingHandlers = new Set();
+  reconnectedHandlers = new Set();
+  closedHandlers = new Set();
   return {
     connection: {} as never,
     start: jest.fn(),
@@ -34,11 +38,27 @@ function makeScoringClient() {
       rankingHandlers.add(cb);
       return () => rankingHandlers.delete(cb);
     },
+    onReconnected(cb: () => void) {
+      reconnectedHandlers.add(cb);
+      return () => reconnectedHandlers.delete(cb);
+    },
+    onClosed(cb: () => void) {
+      closedHandlers.add(cb);
+      return () => closedHandlers.delete(cb);
+    },
   };
 }
 
 function fireRankingChanged(snapshot: RankingSnapshotDto) {
   rankingHandlers.forEach(cb => cb(snapshot));
+}
+
+function fireReconnected() {
+  reconnectedHandlers.forEach(cb => cb());
+}
+
+function fireClosed() {
+  closedHandlers.forEach(cb => cb());
 }
 
 // --- Hook harness ---
@@ -326,5 +346,68 @@ describe('useRanking', () => {
 
     // No handler should have been registered
     expect(rankingHandlers?.size ?? 0).toBe(0);
+  });
+
+  test('re-fetches the snapshot on transport reconnect (missed pushes)', async () => {
+    mockGetRanking.mockResolvedValue(BASE_SNAPSHOT);
+    const scoringClient = makeScoringClient();
+
+    const hook = renderHook('sess-1', 'team-a', undefined, scoringClient);
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(mockGetRanking).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      fireReconnected();
+      await Promise.resolve();
+    });
+
+    // A reconnect re-syncs via REST so standings missed during the outage are pulled.
+    expect(mockGetRanking).toHaveBeenCalledTimes(2);
+
+    hook.unmount();
+  });
+
+  test('surfaces an error when the connection closes for good', async () => {
+    mockGetRanking.mockResolvedValue(BASE_SNAPSHOT);
+    const scoringClient = makeScoringClient();
+
+    const hook = renderHook('sess-1', 'team-a', undefined, scoringClient);
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(hook.get().error).toBeNull();
+
+    act(() => {
+      fireClosed();
+    });
+
+    expect(hook.get().error).toBe('network-error');
+
+    hook.unmount();
+  });
+
+  test('unsubscribes reconnect/close handlers on unmount', async () => {
+    mockGetRanking.mockResolvedValue(BASE_SNAPSHOT);
+    const scoringClient = makeScoringClient();
+
+    const hook = renderHook('sess-1', 'team-a', undefined, scoringClient);
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(reconnectedHandlers.size).toBe(1);
+    expect(closedHandlers.size).toBe(1);
+
+    hook.unmount();
+
+    expect(reconnectedHandlers.size).toBe(0);
+    expect(closedHandlers.size).toBe(0);
   });
 });

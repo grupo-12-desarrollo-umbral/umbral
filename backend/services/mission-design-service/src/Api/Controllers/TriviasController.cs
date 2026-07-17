@@ -29,15 +29,7 @@ public sealed class TriviasController(ISender sender) : ControllerBase
             new CreateTriviaQuizCommand(
                 request.Title,
                 request.Description,
-                request.Questions.Select(question =>
-                    MapTriviaQuestionInput(
-                        question.Prompt,
-                        question.IsActive,
-                        question.Options,
-                        question.ScoreValue,
-                        question.TimeLimitSeconds,
-                        question.Explanation))
-                    .ToArray()),
+                MapTriviaQuestionInputs(request.Questions)),
             cancellationToken);
 
         return Created($"/api/trivias/{triviaQuiz.Id}", TriviaQuizResponse.FromDto(triviaQuiz));
@@ -75,15 +67,7 @@ public sealed class TriviasController(ISender sender) : ControllerBase
                 id,
                 request.Title,
                 request.Description,
-                request.Questions.Select(question =>
-                    MapTriviaQuestionInput(
-                        question.Prompt,
-                        question.IsActive,
-                        question.Options,
-                        question.ScoreValue,
-                        question.TimeLimitSeconds,
-                        question.Explanation))
-                    .ToArray()),
+                MapTriviaQuestionInputs(request.Questions)),
             cancellationToken);
 
         return Ok(TriviaQuizResponse.FromDto(triviaQuiz));
@@ -206,6 +190,23 @@ public sealed class TriviasController(ISender sender) : ControllerBase
             explanation);
     }
 
+    // Preserves the absent/empty distinction the authoring commands rely on: a missing
+    // `questions` stays null rather than collapsing into an empty collection.
+    private static IReadOnlyCollection<TriviaQuestionInput>? MapTriviaQuestionInputs(
+        IReadOnlyList<TriviaQuestionRequest>? questions)
+    {
+        return questions?
+            .Select(question =>
+                MapTriviaQuestionInput(
+                    question.Prompt,
+                    question.IsActive,
+                    question.Options,
+                    question.ScoreValue,
+                    question.TimeLimitSeconds,
+                    question.Explanation))
+            .ToArray();
+    }
+
     private static TriviaOptionInput MapTriviaOptionInput(TriviaOptionRequest option)
     {
         return new TriviaOptionInput(
@@ -217,12 +218,14 @@ public sealed class TriviasController(ISender sender) : ControllerBase
     public sealed record CreateTriviaQuizRequest(
         string Title,
         string Description,
-        IReadOnlyList<TriviaQuestionRequest> Questions);
+        IReadOnlyList<TriviaQuestionRequest>? Questions = null);
 
+    // Omitting `questions` edits the details only and leaves the quiz's questions in place;
+    // sending a collection replaces them.
     public sealed record UpdateTriviaQuizRequest(
         string Title,
         string Description,
-        IReadOnlyList<TriviaQuestionRequest> Questions);
+        IReadOnlyList<TriviaQuestionRequest>? Questions = null);
 
     public sealed record AddTriviaQuestionRequest(
         string Prompt,

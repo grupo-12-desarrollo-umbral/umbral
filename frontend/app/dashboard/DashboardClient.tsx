@@ -4,13 +4,13 @@ import { useCallback, useEffect, useMemo, useReducer, useRef, useState, useSyncE
 import { logout } from '@/app/actions/auth';
 import { refreshSession } from '@/app/actions/session';
 import { getUsersPage, deactivateUser, assignUserRole, inviteUser } from '@/app/actions/users';
-import { listSessionsForOperator, transitionSessionState, getSessionTimerSnapshotAction, getTriviaAnsweredMonitorAction, getOperatorSessionPanelAction, getOperatorRankingAction, getOperatorEvidenceTraceAction, getSessionHistoryAction, getReleasableCluesAction, getTriviaAnswerReviewAction } from '@/app/actions/sessions';
+import { listSessionsForOperator, listSessionsForAssignment, transitionSessionState, getSessionTimerSnapshotAction, getTriviaAnsweredMonitorAction, getOperatorSessionPanelAction, getOperatorRankingAction, getOperatorEvidenceTraceAction, getSessionHistoryAction, getReleasableCluesAction, getTriviaAnswerReviewAction } from '@/app/actions/sessions';
 import { TeamsPanel } from './TeamsPanel'
 import { TriviasPanel } from './TriviasPanel'
 import { MissionsPanel } from './MissionsPanel'
 import { SessionsPanel } from './SessionsPanel'
 import { SessionOperatorPanel } from './SessionOperatorPanel'
-import { OperatorSessionTimerPanel } from './OperatorSessionTimerPanel'
+import { OperatorSessionTimerPanel, MissionSessionTimerPanel } from './OperatorSessionTimerPanel'
 import { TriviaRoundPanel } from './TriviaRoundPanel'
 import { AnsweredMonitorPanel, type AnsweredTeamRow } from './AnsweredMonitorPanel'
 import { TriviaAnswerReviewPanel, type AnswerReviewTeamRow } from './TriviaAnswerReviewPanel'
@@ -21,7 +21,10 @@ import { PenaltyPanel } from './PenaltyPanel'
 import { RankingPanel } from './RankingPanel'
 import { EvidenceSubmissionsPanel } from './EvidenceSubmissionsPanel'
 import { SessionHistoryPanel } from './SessionHistoryPanel'
+import { SessionActivityPanel } from './SessionActivityPanel'
+import { OperatorLiveSession, type OperatorLivePanels } from './OperatorLiveSession'
 import { evidenceReducer, emptyEvidence } from './evidence-trace'
+import { sessionActivityReducer, emptySessionActivity } from './session-activity'
 import { isNonLiveQuestionSnapshot, revealAnswerReviewSequenceOrder } from './timer-snapshot'
 import { createSessionStateRealtimeClient, type SessionRealtimeStatus } from '@/app/lib/realtime/session-state-client'
 import { createRankingRealtimeClient } from '@/app/lib/realtime/ranking-client'
@@ -57,29 +60,6 @@ const transportStatusLabel: Record<SessionRealtimeStatus, string> = {
   AuthExpired: 'Auth expired',
 };
 
-type Session = {
-  id: string;
-  title: string;
-  subtitle: string;
-  district: string;
-  round: string;
-  state: SessionLifecycleState;
-  startedAt: string;
-  timeRemaining: string;
-  teamsActive: number;
-  teamsTotal: number;
-  assignedToOperator: boolean;
-  recent: boolean;
-};
-
-type ActivityEntry = {
-  id: string;
-  time: string;
-  badge: string;
-  team: string;
-  message: string;
-};
-
 const navigation = [
   { key: 'overview', icon: '⌂' },
   { key: 'operator', icon: '◌' },
@@ -88,65 +68,6 @@ const navigation = [
   { key: 'missions', icon: '⚑' },
   { key: 'sessions', icon: '▶' },
   { key: 'users', icon: '⊞' },
-];
-
-const sessions: Session[] = [
-  {
-    id: 'downtown-trivia',
-    title: 'Downtown Trivia Night',
-    subtitle: '12 Teams',
-    district: 'Main Hall',
-    round: 'Round 1',
-    state: 'Active',
-    startedAt: '19:52',
-    timeRemaining: '00:07:18',
-    teamsActive: 12,
-    teamsTotal: 12,
-    assignedToOperator: true,
-    recent: true,
-  },
-  {
-    id: 'science-quiz',
-    title: 'Science Quiz Run',
-    subtitle: '8 Teams',
-    district: 'Lab Wing',
-    round: 'Round 2',
-    state: 'Paused',
-    startedAt: '18:20',
-    timeRemaining: '00:12:40',
-    teamsActive: 8,
-    teamsTotal: 8,
-    assignedToOperator: true,
-    recent: false,
-  },
-  {
-    id: 'history-bowl',
-    title: 'History Knowledge Bowl',
-    subtitle: '10 Teams',
-    district: 'Lecture Hall',
-    round: 'Preview',
-    state: 'Scheduled',
-    startedAt: 'Pending',
-    timeRemaining: 'Not started',
-    teamsActive: 0,
-    teamsTotal: 10,
-    assignedToOperator: false,
-    recent: false,
-  },
-];
-
-const activity: ActivityEntry[] = [
-  { id: 'activity-1', time: '8:00:36 PM', badge: '✺', team: 'Pocket Compass', message: 'submitted the first correct answer for Question 5' },
-  { id: 'activity-2', time: '8:00:31 PM', badge: '❉', team: 'Iron Magnolias', message: 'submitted an answer that is awaiting validation' },
-  { id: 'activity-3', time: '8:00:24 PM', badge: '🧭', team: 'The Wayfinders', message: 'answered Question 4 and advanced to Question 5' },
-  { id: 'activity-4', time: '8:00:18 PM', badge: '🦉', team: 'Gilded Owls', message: 'scored 10 points on Question 3' },
-  { id: 'activity-5', time: '8:00:15 PM', badge: '⬢', team: 'Red Herrings', message: 'requested a hint for Question 2' },
-];
-
-const adminMetrics = [
-  { label: 'Active sessions', value: '2', hint: '1 active, 1 paused', pill: 'Live overview' },
-  { label: 'Teams competing', value: '20', hint: 'Across tonight\'s trivia events', pill: 'Cross-session' },
-  { label: 'Substages in progress', value: '2', hint: 'Across tonight\'s sessions', pill: 'Live overview' },
 ];
 
 const lifecycleTone: Record<SessionLifecycleState, 'success' | 'warning' | 'critical' | 'muted'> = {
@@ -487,7 +408,6 @@ function answerReviewReducer(state: AnswerReviewState, action: AnswerReviewActio
           selectedOptionSequenceOrder: team.selectedOptionSequenceOrder,
           isCorrect: team.isCorrect,
           scoreValue: team.scoreValue,
-          answeredAt: team.answeredAt,
         })),
       }
     case 'unauthorized':
@@ -542,7 +462,7 @@ export default function DashboardClient({
     })
   }, []);
   const [selectedSessionId, setSelectedSessionId] = useState(() =>
-    role === 'operator' ? getOperatorDefaultSession() : 'downtown-trivia'
+    role === 'operator' ? getOperatorDefaultSession() : ''
   );
   const [activeNav, setActiveNav] = useState(() =>
     role === 'operator' ? 'sessions' : 'overview'
@@ -551,6 +471,10 @@ export default function DashboardClient({
   const [operatorSessions, setOperatorSessions] = useState<SessionAssignmentSummaryDto[]>([]);
   const [operatorSessionsError, setOperatorSessionsError] = useState<string | null>(null);
   const [operatorSessionsRequestState, setOperatorSessionsRequestState] = useState<'idle' | 'loaded' | 'failed'>('idle');
+  // Admin overview cross-session feed. The same GET /api/sessions the "Assign operators" view uses,
+  // so the overview's metrics and live-session list are the real backend state, not a mock snapshot.
+  const [adminSessions, setAdminSessions] = useState<SessionAssignmentSummaryDto[]>([]);
+  const [adminSessionsRequestState, setAdminSessionsRequestState] = useState<'idle' | 'loaded' | 'failed'>('idle');
   const [realtimeStatus, setRealtimeStatus] = useState<SessionRealtimeStatus>('Offline');
   // Status of the SEPARATE scoring hub that feeds live ranking. Kept apart from `realtimeStatus`
   // (which reports the session transport) so the ranking panel can tell the operator when live
@@ -566,6 +490,9 @@ export default function DashboardClient({
   const [operatorPanelState, dispatchOperatorPanel] = useReducer(operatorPanelReducer, emptyOperatorPanel)
   const [rankingState, dispatchRanking] = useReducer(rankingReducer, emptyRanking)
   const [evidenceState, dispatchEvidence] = useReducer(evidenceReducer, emptyEvidence)
+  // Operator live activity feed — a client-side projection of the SignalR pushes handled below. No REST
+  // snapshot backs it (nothing to load/merge); it resets on session switch and rebuilds from live events.
+  const [activityState, dispatchActivity] = useReducer(sessionActivityReducer, emptySessionActivity)
 
   // The evidence trace names teams by runtime teamId only, which is unreadable to an operator, so
   // resolve display names off the operator panel rollup (same runtime teamId). Until that panel loads
@@ -621,6 +548,19 @@ export default function DashboardClient({
       })
   }, [role])
 
+  useEffect(() => {
+    if (role !== 'admin') return
+
+    listSessionsForAssignment()
+      .then((result) => {
+        setAdminSessions(result)
+        setAdminSessionsRequestState('loaded')
+      })
+      .catch(() => {
+        setAdminSessionsRequestState('failed')
+      })
+  }, [role])
+
   const selectedOperatorSession =
     role === 'operator'
       ? operatorSessions.find((session) => session.liveSessionId === selectedSessionId) ?? null
@@ -633,10 +573,48 @@ export default function DashboardClient({
   const selectedOperatorState = selectedOperatorSession
     ? toLifecycleState(selectedOperatorSession.sessionState)
     : null
-  const activeSession = sessions.find((session) => session.id === selectedSessionId);
-  const derivedSession = activeSession
-    ? { ...activeSession }
-    : null;
+  // Admin overview derives entirely from the real GET /api/sessions feed. The topbar switcher and
+  // the "Live sessions" list stay focused on sessions that aren't yet concluded (mirrors the operator
+  // switcher rule); the metric cards summarise the full list.
+  const selectedAdminSession =
+    role !== 'operator'
+      ? adminSessions.find((session) => session.liveSessionId === selectedSessionId) ?? null
+      : null
+  const selectedAdminState = selectedAdminSession
+    ? toLifecycleState(selectedAdminSession.sessionState)
+    : null
+  const activeAdminSessions = adminSessions.filter(
+    (session) => session.sessionState !== 'Finished' && session.sessionState !== 'Cancelled',
+  )
+  const adminActiveCount = adminSessions.filter(
+    (session) => toLifecycleState(session.sessionState) === 'Active',
+  ).length
+  const adminPausedCount = adminSessions.filter(
+    (session) => toLifecycleState(session.sessionState) === 'Paused',
+  ).length
+  const adminScheduledCount = adminSessions.filter(
+    (session) => toLifecycleState(session.sessionState) === 'Scheduled',
+  ).length
+  const adminMetrics = [
+    {
+      label: 'Active sessions',
+      value: String(adminActiveCount),
+      hint: adminPausedCount > 0 ? `${adminPausedCount} paused` : 'None paused',
+      pill: 'Live overview',
+    },
+    {
+      label: 'Scheduled sessions',
+      value: String(adminScheduledCount),
+      hint: 'Awaiting kickoff',
+      pill: 'Upcoming',
+    },
+    {
+      label: 'Total sessions',
+      value: String(adminSessions.length),
+      hint: 'Across all events',
+      pill: 'All sessions',
+    },
+  ]
 
   // Key this effect on the stable session id, not the derived `selectedOperatorSession` object.
   // The object is re-created via `.find()` on every render, so depending on it tore down and
@@ -798,12 +776,18 @@ export default function DashboardClient({
         )
         if (notification.currentState === 'Finished') {
           completeTriviaRound()
-          resetTriviaRound()
+          // Do NOT reset here: reset collapses the round panel to idle, and (worse) a SubstageAdvanced
+          // racing in behind this push would re-strand it at "finishing session…". complete() is
+          // terminal/sticky in the round machine; cleanup happens on session switch (effect teardown).
+          // Pull a fresh timer snapshot so the mission timer reflects Finished instead of "Running".
+          void loadTimerSnapshot(selectedRealtimeSessionId)
         } else if (notification.currentState === 'Cancelled') {
           resetTriviaRound()
+          void loadTimerSnapshot(selectedRealtimeSessionId)
         } else if (notification.currentState === 'Active') {
           void loadReleasableClues(selectedRealtimeSessionId)
         }
+        dispatchActivity({ type: 'state', data: notification })
         setLiveUpdateNote('State updated live from another client or tab.')
       },
       onTimerUpdated: (notification: SessionTimerUpdatedNotificationDto) => {
@@ -839,6 +823,15 @@ export default function DashboardClient({
             isExpired: notification.isExpired,
             sessionState: notification.sessionState,
             observedAt: notification.emittedAt,
+            // Keep the whole-mission clock live off the same tick. Absent (deadline not yet seeded)
+            // leaves the prior value untouched — the tick only refines a mission clock it also carries.
+            ...(notification.missionRemainingMilliseconds != null &&
+            notification.missionTotalMilliseconds != null
+              ? {
+                  missionRemainingSeconds: Math.round(notification.missionRemainingMilliseconds / 1000),
+                  missionTotalSeconds: Math.round(notification.missionTotalMilliseconds / 1000),
+                }
+              : {}),
           },
         })
       },
@@ -846,6 +839,7 @@ export default function DashboardClient({
         if (notification.liveSessionId !== selectedRealtimeSessionId) return
         activeQuestionSeqRef.current = notification.sequenceOrder
         handleQuestionActivated(notification)
+        dispatchActivity({ type: 'questionActivated', data: notification })
         // New question → same roster, answers cleared (HU-36A: board resets in lockstep). This is an
         // optimistic update; refetch the authoritative roster below so the board is populated even when
         // the operator opened the session before a question was active (mount fetched an empty roster).
@@ -873,6 +867,7 @@ export default function DashboardClient({
         const closedSeq = activeQuestionSeqRef.current
         activeQuestionSeqRef.current = null
         handleQuestionClosed(notification)
+        dispatchActivity({ type: 'questionClosed', data: notification })
         // Question closed → no active question; the board returns to its empty state.
         dispatchMonitor({ type: 'questionClosed' })
         // Fetch the post-close answer review for the just-closed question.
@@ -895,6 +890,8 @@ export default function DashboardClient({
         if (notification.liveSessionId !== selectedRealtimeSessionId) return
         activeQuestionSeqRef.current = null
         handleSubstageAdvanced(notification)
+        // SubstageAdvanced is the only push without its own timestamp — stamp receipt time.
+        dispatchActivity({ type: 'substageAdvanced', data: notification, receivedAt: new Date().toISOString() })
         // The active substage changed, so its releasable hidden-clue targets did too; refetch the picker.
         void loadReleasableClues(selectedRealtimeSessionId)
         // Substage boundary retires the prior question; clear the board (mirror onQuestionClosed).
@@ -923,6 +920,7 @@ export default function DashboardClient({
           answeredAt: notification.answeredAt,
           order: notification.questionSequenceOrder,
         })
+        dispatchActivity({ type: 'teamAnswered', data: notification })
       },
       onOperatorPanel: (panel) => {
         if (panel.liveSessionId !== selectedRealtimeSessionId) return
@@ -934,11 +932,13 @@ export default function DashboardClient({
         // One row, not a re-projection — merged by evidenceSubmissionId. This can land before the REST
         // trace has the row at all, which is why it inserts rather than patching.
         dispatchEvidence({ type: 'registered', data: notification })
+        dispatchActivity({ type: 'evidenceRegistered', data: notification })
       },
       onEvidenceSubmissionResolved: (notification) => {
         if (notification.liveSessionId !== selectedRealtimeSessionId) return
         // May arrive before its own registration; the reducer inserts a row in that case.
         dispatchEvidence({ type: 'resolved', data: notification })
+        dispatchActivity({ type: 'evidenceResolved', data: notification })
       },
       onReconnected: () => {
         if (selectedRealtimeSessionId) {
@@ -1023,6 +1023,7 @@ export default function DashboardClient({
     dispatchOperatorPanel({ type: 'reset' })
     dispatchRanking({ type: 'reset' })
     dispatchEvidence({ type: 'reset' })
+    dispatchActivity({ type: 'reset' })
     dispatchSessionHistory({ type: 'reset' })
     dispatchAnswerReview({ type: 'reset' })
     dispatchReleasableClues({ type: 'reset' })
@@ -1145,7 +1146,7 @@ export default function DashboardClient({
     (selectedOperatorSession ? realtimeStatus : 'Offline') === 'Offline' ||
     (selectedOperatorSession ? realtimeStatus : 'Offline') === 'AuthExpired' ? 'critical'
     : selectedOperatorState ? lifecycleTone[selectedOperatorState]
-    : derivedSession?.state === 'Paused' ? 'warning'
+    : selectedAdminState === 'Paused' ? 'warning'
     : 'success';
   const transportStatus = selectedOperatorSession ? realtimeStatus : 'Offline'
   const transportStatusText = transportStatusLabel[transportStatus]
@@ -1163,6 +1164,337 @@ export default function DashboardClient({
     if (role === 'operator') return item.key !== 'operator' && item.key !== 'missions' && item.key !== 'users'
     return true
   })
+
+  // Builds the live-session panels as nodes and hands them to OperatorLiveSession, which
+  // arranges them into the sticky-rail + tabs workspace. Built here in the component's direct
+  // render scope (not a nested fn) so the react-hooks linter still sees the panel event handlers.
+  const operatorLivePanels: OperatorLivePanels | null =
+    role === 'operator' && selectedOperatorSession && selectedOperatorState
+      ? {
+      hero: (
+        <section className={styles.hero} aria-labelledby="session-title" data-testid="operator-panel">
+          <div className={styles.heroHeader}>
+            <div className={styles.heroTitleWrap}>
+              <div className={styles.heroMark} aria-hidden="true">
+                <CompassMark />
+              </div>
+
+              <div className={styles.heroHeading}>
+                <div className={styles.headerButtons}>
+                  <h1 id="session-title">{selectedOperatorSession.title}</h1>
+                  <span className={styles.chip} data-tone={statusTone}>
+                    {selectedOperatorState}
+                  </span>
+                </div>
+
+                {operatorPanelState.panel?.missionTitle ? (
+                  <p className={styles.heroMission} data-testid="operator-hero-mission">
+                    Mission: <strong>{operatorPanelState.panel.missionTitle}</strong>
+                  </p>
+                ) : null}
+
+                <div className={styles.sessionMeta}>
+                  <span>{selectedOperatorSession.sessionCode}</span>
+                  <span>•</span>
+                  <span>Scheduled {formatDateTime(selectedOperatorSession.scheduledAt)}</span>
+                  <span>•</span>
+                  <span>{selectedOperatorSession.assignedOperatorUserId == null ? 'Unassigned' : 'Assigned to you'}</span>
+                </div>
+              </div>
+            </div>
+
+            <div className={styles.heroMetrics}>
+              <div className={styles.metricBlock}>
+                <span className={styles.metricValue}>{selectedOperatorState}</span>
+                <span className={styles.metricLabel}>Current state</span>
+              </div>
+              <div className={styles.metricBlock}>
+                <span className={styles.metricValue}>{transportStatusText}</span>
+                <span className={styles.metricLabel}>Transport</span>
+              </div>
+              <div className={styles.metricBlock}>
+                <span className={styles.metricValue}>
+                  {selectedOperatorSession.lastTransitionedAt
+                    ? new Date(selectedOperatorSession.lastTransitionedAt).toLocaleTimeString()
+                    : 'None'}
+                </span>
+                <span className={styles.metricLabel}>Last transition</span>
+              </div>
+            </div>
+          </div>
+        </section>
+      ),
+      timer: (
+        <OperatorSessionTimerPanel
+          timer={timerState.snapshot}
+          isLoading={timerState.loading}
+          error={timerState.error}
+        />
+      ),
+      missionTimer: (
+        <MissionSessionTimerPanel
+          timer={timerState.snapshot}
+          isLoading={timerState.loading}
+          error={timerState.error}
+        />
+      ),
+      teamProgress: (
+        <OperatorTeamProgressPanel
+          panel={operatorPanelState.panel}
+          ranking={rankingState.snapshot}
+          unauthorized={operatorPanelState.unauthorized}
+          error={operatorPanelState.error}
+          loading={operatorPanelState.loading}
+        />
+      ),
+      ranking: (
+        <RankingPanel
+          snapshot={rankingState.snapshot}
+          unauthorized={rankingState.unauthorized}
+          error={rankingState.error}
+          loading={rankingState.loading}
+          live={rankingRealtimeStatus === 'Connected'}
+        />
+      ),
+      evidence: (
+        <EvidenceSubmissionsPanel
+          items={evidenceState.items}
+          teamNames={evidenceTeamNames}
+          unauthorized={evidenceState.unauthorized}
+          error={evidenceState.error}
+          loading={evidenceState.loading}
+          // Evidence rides /hubs/sessions, so it reports the SESSION transport — unlike the
+          // ranking above, which has its own scoring-hub status.
+          live={realtimeStatus === 'Connected'}
+        />
+      ),
+      history: (
+        <SessionHistoryPanel
+          events={sessionHistoryState.events}
+          teamNames={evidenceTeamNames}
+          unauthorized={sessionHistoryState.unauthorized}
+          error={sessionHistoryState.error}
+          loading={sessionHistoryState.loading}
+        />
+      ),
+      activity: (
+        <SessionActivityPanel
+          entries={activityState.entries}
+          teamNames={evidenceTeamNames}
+        />
+      ),
+      cluesRow: (
+        <div className={styles.cluePanelsRow}>
+          <OperatorClueReleasePanel
+            liveSessionId={selectedOperatorSession.liveSessionId}
+            state={selectedOperatorState}
+            teams={(operatorPanelState.panel?.teamProgress ?? []).map((t) => ({
+              teamId: t.teamId,
+              displayName: t.displayName,
+            }))}
+            releasableClues={releasableClues}
+            onReleased={(label, count) =>
+              announce('Clue released', `${label} revealed to ${count} team${count === 1 ? '' : 's'}.`)
+            }
+          />
+
+          <OperativeCluePanel
+            liveSessionId={selectedOperatorSession.liveSessionId}
+            state={selectedOperatorState}
+            teams={(operatorPanelState.panel?.teamProgress ?? []).map((t) => ({
+              teamId: t.teamId,
+              displayName: t.displayName,
+            }))}
+            onAdded={(count) =>
+              announce('Operative clue assigned', `Clue assigned to ${count} team${count === 1 ? '' : 's'}.`)
+            }
+          />
+
+          <PenaltyPanel
+            liveSessionId={selectedOperatorSession.liveSessionId}
+            state={selectedOperatorState}
+            // Penalties are a SCORING action, keyed on the cross-context referenceTeamId — NOT the
+            // runtime teamId the clue panels above use. Sending teamId here would file the penalty
+            // under an id ranking never groups on, so it would never reduce the team's score. Drop
+            // any team missing a referenceTeamId (can't be penalized) rather than send a bad id.
+            teams={(operatorPanelState.panel?.teamProgress ?? [])
+              .filter((t) => t.referenceTeamId != null)
+              .map((t) => ({
+                teamId: t.referenceTeamId as string,
+                displayName: t.displayName,
+              }))}
+            onApplied={(teamId, amount) =>
+              announce('Penalty applied', `−${amount} pts recorded for the selected team.`)
+            }
+          />
+        </div>
+      ),
+      triviaRound: (
+        <TriviaRoundPanel
+          phase={triviaRound.phase}
+          pregameSecondsLeft={triviaRound.pregameSecondsLeft}
+          activeQuestion={triviaRound.activeQuestion}
+          questionSecondsLeft={triviaRound.questionSecondsLeft}
+          substageOrdinal={triviaRound.substageOrdinal}
+          finalizing={triviaRound.finalizing}
+        />
+      ),
+      answeredMonitor: (
+        <AnsweredMonitorPanel
+          activeQuestionOrder={monitorState.activeQuestionOrder}
+          teams={answeredMonitorTeams}
+          unauthorized={monitorState.unauthorized}
+          error={monitorState.error}
+          loading={monitorState.loading}
+        />
+      ),
+      answerReview: (
+        <TriviaAnswerReviewPanel
+          questionSequenceOrder={answerReviewState.questionSequenceOrder}
+          teams={answerReviewState.teams}
+          unauthorized={answerReviewState.unauthorized}
+          error={answerReviewState.error}
+          loading={answerReviewState.loading}
+        />
+      ),
+      controls: (
+        <section className={styles.panel} aria-labelledby="session-controls-title">
+          <div className={styles.panelHeader}>
+            <div>
+              <h2 id="session-controls-title">Session controls</h2>
+              <div className={styles.panelMeta}>Allowed next actions are derived from the backend lifecycle state.</div>
+            </div>
+          </div>
+
+          {transitionError && (
+            <p className={styles.errorBanner} role="alert" data-testid="session-transition-error">
+              {transitionError}
+            </p>
+          )}
+
+          <div className={styles.controlGrid}>
+            {lifecycleActions[selectedOperatorState].map((action) => (
+              <button
+                className={styles.controlTile}
+                data-testid={`session-action-${action.targetState}`}
+                data-tone={action.destructive ? 'critical' : action.targetState === 'Active' ? 'success' : 'accent'}
+                disabled={pendingTransition != null}
+                key={action.targetState}
+                onClick={() => requestTransition(action.targetState)}
+                type="button"
+              >
+                <span className={styles.controlKicker}>{action.destructive ? '!' : '>'}</span>
+                <span className={styles.controlTitle}>
+                  {pendingTransition === action.targetState ? 'Working...' : action.label}
+                </span>
+                <span className={styles.controlCopy}>{action.description}</span>
+              </button>
+            ))}
+          </div>
+
+          {lifecycleActions[selectedOperatorState].length === 0 && (
+            <p className={styles.emptyStateCopy} data-testid="session-no-actions">
+              This session is terminal. No further lifecycle actions are available.
+            </p>
+          )}
+
+          {confirmTransition && (
+            <section className={styles.confirmPanel} aria-label="Confirm terminal transition">
+              <h3>Confirm {confirmTransition}</h3>
+              <p className={styles.panelMeta}>
+                This is a terminal lifecycle action. The backend will reject it if the transition is no longer valid.
+              </p>
+              {confirmTransition === 'Cancelled' && (
+                <label className={styles.reasonField}>
+                  <span>Cancellation reason (optional)</span>
+                  <textarea
+                    value={cancelReason}
+                    onChange={(event) => setCancelReason(event.target.value)}
+                    rows={3}
+                    disabled={pendingTransition != null}
+                  />
+                </label>
+              )}
+              <div className={styles.confirmRow}>
+                <button
+                  className={styles.dangerButton}
+                  data-testid="session-confirm-terminal"
+                  disabled={pendingTransition != null}
+                  onClick={() => void runTransition(confirmTransition)}
+                  type="button"
+                >
+                  Confirm {confirmTransition}
+                </button>
+                <button
+                  className={styles.inlineButton}
+                  disabled={pendingTransition != null}
+                  onClick={() => {
+                    setConfirmTransition(null)
+                    setCancelReason('')
+                  }}
+                  type="button"
+                >
+                  Keep session open
+                </button>
+              </div>
+            </section>
+          )}
+        </section>
+      ),
+      detail: (
+        <section className={styles.panel} aria-labelledby="session-detail-title">
+          <div className={styles.panelHeader}>
+            <div>
+              <h2 id="session-detail-title">Session detail</h2>
+              <div className={styles.panelMeta}>Backend summary for the selected operator session.</div>
+            </div>
+          </div>
+
+          <dl className={styles.detailList}>
+            <dt>Title</dt>
+            <dd>{selectedOperatorSession.title}</dd>
+            <dt>Code</dt>
+            <dd>{selectedOperatorSession.sessionCode}</dd>
+            <dt>Scheduled time</dt>
+            <dd>{formatDateTime(selectedOperatorSession.scheduledAt)}</dd>
+            <dt>Ownership</dt>
+            <dd>{selectedOperatorSession.assignedOperatorUserId == null ? 'No assigned operator' : 'Assigned operator present'}</dd>
+            <dt>Last transition</dt>
+            <dd>{formatDateTime(selectedOperatorSession.lastTransitionedAt)}</dd>
+            <dt>Transport</dt>
+            <dd>{transportStatusText}</dd>
+          </dl>
+        </section>
+      ),
+      banners: (
+        <>
+          {liveUpdateNote && (
+            <p className={styles.liveNote} role="status" data-testid="session-live-update-note">
+              {liveUpdateNote}
+            </p>
+          )}
+
+          {realtimeAuthExpired && (
+            <section className={styles.authBanner} role="alert" data-testid="session-auth-expired-banner">
+              <div>
+                <strong>Realtime authentication expired.</strong> Your dashboard session is still active, but SignalR cannot reconnect until you sign in again.
+              </div>
+              <div className={styles.authBannerActions}>
+                <a className={styles.primaryButton} href="/api/auth/login">
+                  Sign in again
+                </a>
+                <form action={logout}>
+                  <button className={styles.inlineButton} type="submit">
+                    Sign out
+                  </button>
+                </form>
+              </div>
+            </section>
+          )}
+        </>
+      ),
+        }
+      : null
 
   return (
     <div className={styles.page}>
@@ -1204,22 +1536,24 @@ export default function DashboardClient({
           </nav>
 
           <div className={styles.sidebarFooter}>
-            <section className={styles.healthCard} aria-labelledby="session-health-title">
-              <div className={styles.eyebrow} id="session-health-title">
-                Session health
-              </div>
-              <div className={styles.healthStatus}>
-                <span className={styles.statusDot} aria-hidden="true" data-tone={healthIsGood ? 'success' : 'critical'} />
-                <span>{healthIsGood ? 'Good' : 'Needs attention'}</span>
-              </div>
-              <p className={styles.healthText}>
-                {role === 'operator'
-                  ? realtimeAuthExpired
+            {/* Operator-only: it reports the operator's live-session SignalR transport. Admins have no
+                admin-scoped hub connection, so there is no real health signal to show them. */}
+            {role === 'operator' && (
+              <section className={styles.healthCard} aria-labelledby="session-health-title">
+                <div className={styles.eyebrow} id="session-health-title">
+                  Session health
+                </div>
+                <div className={styles.healthStatus}>
+                  <span className={styles.statusDot} aria-hidden="true" data-tone={healthIsGood ? 'success' : 'critical'} />
+                  <span>{healthIsGood ? 'Good' : 'Needs attention'}</span>
+                </div>
+                <p className={styles.healthText}>
+                  {realtimeAuthExpired
                     ? 'Realtime authentication expired. Sign in again to restore live updates.'
-                    : `Realtime transport: ${transportStatusText}.`
-                  : 'SignalR is healthy, validator sync is stable.'}
-              </p>
-            </section>
+                    : `Realtime transport: ${transportStatusText}.`}
+                </p>
+              </section>
+            )}
 
             <button
               className={styles.collapseButton}
@@ -1266,11 +1600,14 @@ export default function DashboardClient({
                         ))}
                       </>
                     ) : (
-                      sessions.map((session) => (
-                        <option key={session.id} value={session.id}>
-                          {session.title}
-                        </option>
-                      ))
+                      <>
+                        <option value="">Select a session</option>
+                        {activeAdminSessions.map((session) => (
+                          <option key={session.liveSessionId} value={session.liveSessionId}>
+                            {session.title}
+                          </option>
+                        ))}
+                      </>
                     )}
                     </select>
                   </label>
@@ -1283,32 +1620,38 @@ export default function DashboardClient({
                           : selectedOperatorState
                             ? lifecycleTone[selectedOperatorState]
                             : 'muted'
-                        : derivedSession?.state === 'Active'
-                          ? undefined
-                          : 'warning'
+                        : selectedAdminState
+                          ? lifecycleTone[selectedAdminState]
+                          : 'muted'
                     }
                   >
                     {role === 'operator'
                       ? selectedOperatorState ?? transportStatusText
-                      : derivedSession ? derivedSession.state : 'Active'}
+                      : selectedAdminState ?? 'No session selected'}
                   </span>
                   <span className={styles.panelMeta}>
                     {role === 'operator'
                       ? selectedOperatorSession
                         ? `Scheduled ${formatDateTime(selectedOperatorSession.scheduledAt)}`
                         : 'Choose a session to inspect'
-                      : derivedSession ? `Started ${derivedSession.startedAt}` : 'Choose a session to inspect'}
+                      : selectedAdminSession
+                        ? `Scheduled ${formatDateTime(selectedAdminSession.scheduledAt)}`
+                        : 'Choose a session to inspect'}
                   </span>
                 </>
               )}
             </div>
 
             <div className={styles.topbarRight}>
-              <div className={styles.statusRow}>
-                <span className={styles.statusToggle} data-testid="session-transport-status">
-                  {role === 'operator' ? transportStatusText : 'SignalR'}
-                </span>
-              </div>
+              {/* The transport pill reflects the operator's live-session hub status. Admins have no
+                  such connection, so the pill is operator-only rather than a constant "SignalR" label. */}
+              {role === 'operator' && (
+                <div className={styles.statusRow}>
+                  <span className={styles.statusToggle} data-testid="session-transport-status">
+                    {transportStatusText}
+                  </span>
+                </div>
+              )}
 
               <button
                 className={styles.themeButton}
@@ -1428,296 +1771,7 @@ export default function DashboardClient({
               </div>
             </section>
           ) : role === 'operator' && selectedOperatorSession && selectedOperatorState ? (
-            <>
-              <section className={styles.hero} aria-labelledby="session-title" data-testid="operator-panel">
-                <div className={styles.heroHeader}>
-                  <div className={styles.heroTitleWrap}>
-                    <div className={styles.heroMark} aria-hidden="true">
-                      <CompassMark />
-                    </div>
-
-                    <div className={styles.heroHeading}>
-                      <div className={styles.headerButtons}>
-                        <h1 id="session-title">{selectedOperatorSession.title}</h1>
-                        <span className={styles.chip} data-tone={statusTone}>
-                          {selectedOperatorState}
-                        </span>
-                      </div>
-
-                      <div className={styles.sessionMeta}>
-                        <span>{selectedOperatorSession.sessionCode}</span>
-                        <span>•</span>
-                        <span>Scheduled {formatDateTime(selectedOperatorSession.scheduledAt)}</span>
-                        <span>•</span>
-                        <span>{selectedOperatorSession.assignedOperatorUserId == null ? 'Unassigned' : 'Assigned to you'}</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className={styles.heroMetrics}>
-                    <div className={styles.metricBlock}>
-                      <span className={styles.metricValue}>{selectedOperatorState}</span>
-                      <span className={styles.metricLabel}>Current state</span>
-                    </div>
-                    <div className={styles.metricBlock}>
-                      <span className={styles.metricValue}>{transportStatusText}</span>
-                      <span className={styles.metricLabel}>Transport</span>
-                    </div>
-                    <div className={styles.metricBlock}>
-                      <span className={styles.metricValue}>
-                        {selectedOperatorSession.lastTransitionedAt
-                          ? new Date(selectedOperatorSession.lastTransitionedAt).toLocaleTimeString()
-                          : 'None'}
-                      </span>
-                      <span className={styles.metricLabel}>Last transition</span>
-                    </div>
-                  </div>
-                </div>
-
-                <OperatorSessionTimerPanel
-                  timer={timerState.snapshot}
-                  isLoading={timerState.loading}
-                  error={timerState.error}
-                />
-
-                <OperatorTeamProgressPanel
-                  panel={operatorPanelState.panel}
-                  unauthorized={operatorPanelState.unauthorized}
-                  error={operatorPanelState.error}
-                  loading={operatorPanelState.loading}
-                />
-
-                <RankingPanel
-                  snapshot={rankingState.snapshot}
-                  unauthorized={rankingState.unauthorized}
-                  error={rankingState.error}
-                  loading={rankingState.loading}
-                  live={rankingRealtimeStatus === 'Connected'}
-                />
-
-                <EvidenceSubmissionsPanel
-                  items={evidenceState.items}
-                  teamNames={evidenceTeamNames}
-                  unauthorized={evidenceState.unauthorized}
-                  error={evidenceState.error}
-                  loading={evidenceState.loading}
-                  // Evidence rides /hubs/sessions, so it reports the SESSION transport — unlike the
-                  // ranking above, which has its own scoring-hub status.
-                  live={realtimeStatus === 'Connected'}
-                />
-
-                <SessionHistoryPanel
-                  events={sessionHistoryState.events}
-                  teamNames={evidenceTeamNames}
-                  unauthorized={sessionHistoryState.unauthorized}
-                  error={sessionHistoryState.error}
-                  loading={sessionHistoryState.loading}
-                />
-
-                <div className={styles.cluePanelsRow}>
-                  <OperatorClueReleasePanel
-                    liveSessionId={selectedOperatorSession.liveSessionId}
-                    state={selectedOperatorState}
-                    teams={(operatorPanelState.panel?.teamProgress ?? []).map((t) => ({
-                      teamId: t.teamId,
-                      displayName: t.displayName,
-                    }))}
-                    releasableClues={releasableClues}
-                    onReleased={(label, count) =>
-                      announce('Clue released', `${label} revealed to ${count} team${count === 1 ? '' : 's'}.`)
-                    }
-                  />
-
-                  <OperativeCluePanel
-                    liveSessionId={selectedOperatorSession.liveSessionId}
-                    state={selectedOperatorState}
-                    teams={(operatorPanelState.panel?.teamProgress ?? []).map((t) => ({
-                      teamId: t.teamId,
-                      displayName: t.displayName,
-                    }))}
-                    onAdded={(count) =>
-                      announce('Operative clue assigned', `Clue assigned to ${count} team${count === 1 ? '' : 's'}.`)
-                    }
-                  />
-
-                  <PenaltyPanel
-                    liveSessionId={selectedOperatorSession.liveSessionId}
-                    state={selectedOperatorState}
-                    // Penalties are a SCORING action, keyed on the cross-context referenceTeamId — NOT the
-                    // runtime teamId the clue panels above use. Sending teamId here would file the penalty
-                    // under an id ranking never groups on, so it would never reduce the team's score. Drop
-                    // any team missing a referenceTeamId (can't be penalized) rather than send a bad id.
-                    teams={(operatorPanelState.panel?.teamProgress ?? [])
-                      .filter((t) => t.referenceTeamId != null)
-                      .map((t) => ({
-                        teamId: t.referenceTeamId as string,
-                        displayName: t.displayName,
-                      }))}
-                    onApplied={(teamId, amount) =>
-                      announce('Penalty applied', `−${amount} pts recorded for the selected team.`)
-                    }
-                  />
-                </div>
-
-                <TriviaRoundPanel
-                  phase={triviaRound.phase}
-                  pregameSecondsLeft={triviaRound.pregameSecondsLeft}
-                  activeQuestion={triviaRound.activeQuestion}
-                  questionSecondsLeft={triviaRound.questionSecondsLeft}
-                  substageOrdinal={triviaRound.substageOrdinal}
-                  finalizing={triviaRound.finalizing}
-                />
-
-                <AnsweredMonitorPanel
-                  activeQuestionOrder={monitorState.activeQuestionOrder}
-                  teams={answeredMonitorTeams}
-                  unauthorized={monitorState.unauthorized}
-                  error={monitorState.error}
-                  loading={monitorState.loading}
-                />
-
-                <TriviaAnswerReviewPanel
-                  questionSequenceOrder={answerReviewState.questionSequenceOrder}
-                  teams={answerReviewState.teams}
-                  unauthorized={answerReviewState.unauthorized}
-                  error={answerReviewState.error}
-                  loading={answerReviewState.loading}
-                />
-
-                {liveUpdateNote && (
-                  <p className={styles.liveNote} role="status" data-testid="session-live-update-note">
-                    {liveUpdateNote}
-                  </p>
-                )}
-
-                {realtimeAuthExpired && (
-                  <section className={styles.authBanner} role="alert" data-testid="session-auth-expired-banner">
-                    <div>
-                      <strong>Realtime authentication expired.</strong> Your dashboard session is still active, but SignalR cannot reconnect until you sign in again.
-                    </div>
-                    <div className={styles.authBannerActions}>
-                      <a className={styles.primaryButton} href="/api/auth/login">
-                        Sign in again
-                      </a>
-                      <form action={logout}>
-                        <button className={styles.inlineButton} type="submit">
-                          Sign out
-                        </button>
-                      </form>
-                    </div>
-                  </section>
-                )}
-              </section>
-
-              <div className={styles.bottomGrid}>
-                <section className={styles.panel} aria-labelledby="session-controls-title">
-                  <div className={styles.panelHeader}>
-                    <div>
-                      <h2 id="session-controls-title">Session controls</h2>
-                      <div className={styles.panelMeta}>Allowed next actions are derived from the backend lifecycle state.</div>
-                    </div>
-                  </div>
-
-                  {transitionError && (
-                    <p className={styles.errorBanner} role="alert" data-testid="session-transition-error">
-                      {transitionError}
-                    </p>
-                  )}
-
-                  <div className={styles.controlGrid}>
-                    {lifecycleActions[selectedOperatorState].map((action) => (
-                      <button
-                        className={styles.controlTile}
-                        data-testid={`session-action-${action.targetState}`}
-                        data-tone={action.destructive ? 'critical' : action.targetState === 'Active' ? 'success' : 'accent'}
-                        disabled={pendingTransition != null}
-                        key={action.targetState}
-                        onClick={() => requestTransition(action.targetState)}
-                        type="button"
-                      >
-                        <span className={styles.controlKicker}>{action.destructive ? '!' : '>'}</span>
-                        <span className={styles.controlTitle}>
-                          {pendingTransition === action.targetState ? 'Working...' : action.label}
-                        </span>
-                        <span className={styles.controlCopy}>{action.description}</span>
-                      </button>
-                    ))}
-                  </div>
-
-                  {lifecycleActions[selectedOperatorState].length === 0 && (
-                    <p className={styles.emptyStateCopy} data-testid="session-no-actions">
-                      This session is terminal. No further lifecycle actions are available.
-                    </p>
-                  )}
-
-                  {confirmTransition && (
-                    <section className={styles.confirmPanel} aria-label="Confirm terminal transition">
-                      <h3>Confirm {confirmTransition}</h3>
-                      <p className={styles.panelMeta}>
-                        This is a terminal lifecycle action. The backend will reject it if the transition is no longer valid.
-                      </p>
-                      {confirmTransition === 'Cancelled' && (
-                        <label className={styles.reasonField}>
-                          <span>Cancellation reason (optional)</span>
-                          <textarea
-                            value={cancelReason}
-                            onChange={(event) => setCancelReason(event.target.value)}
-                            rows={3}
-                            disabled={pendingTransition != null}
-                          />
-                        </label>
-                      )}
-                      <div className={styles.confirmRow}>
-                        <button
-                          className={styles.dangerButton}
-                          data-testid="session-confirm-terminal"
-                          disabled={pendingTransition != null}
-                          onClick={() => void runTransition(confirmTransition)}
-                          type="button"
-                        >
-                          Confirm {confirmTransition}
-                        </button>
-                        <button
-                          className={styles.inlineButton}
-                          disabled={pendingTransition != null}
-                          onClick={() => {
-                            setConfirmTransition(null)
-                            setCancelReason('')
-                          }}
-                          type="button"
-                        >
-                          Keep session open
-                        </button>
-                      </div>
-                    </section>
-                  )}
-                </section>
-
-                <section className={styles.panel} aria-labelledby="session-detail-title">
-                  <div className={styles.panelHeader}>
-                    <div>
-                      <h2 id="session-detail-title">Session detail</h2>
-                      <div className={styles.panelMeta}>Backend summary for the selected operator session.</div>
-                    </div>
-                  </div>
-
-                  <dl className={styles.detailList}>
-                    <dt>Title</dt>
-                    <dd>{selectedOperatorSession.title}</dd>
-                    <dt>Code</dt>
-                    <dd>{selectedOperatorSession.sessionCode}</dd>
-                    <dt>Scheduled time</dt>
-                    <dd>{formatDateTime(selectedOperatorSession.scheduledAt)}</dd>
-                    <dt>Ownership</dt>
-                    <dd>{selectedOperatorSession.assignedOperatorUserId == null ? 'No assigned operator' : 'Assigned operator present'}</dd>
-                    <dt>Last transition</dt>
-                    <dd>{formatDateTime(selectedOperatorSession.lastTransitionedAt)}</dd>
-                    <dt>Transport</dt>
-                    <dd>{transportStatusText}</dd>
-                  </dl>
-                </section>
-              </div>
-            </>
+            operatorLivePanels && <OperatorLiveSession panels={operatorLivePanels} />
           ) : role === 'operator' ? (
             <section className={styles.emptyState} aria-labelledby="operator-session-unavailable-title" data-testid="operator-panel">
               <div>
@@ -1743,16 +1797,13 @@ export default function DashboardClient({
                     <div className={styles.heroHeading}>
                       <div className={styles.headerButtons}>
                         <h1 id="admin-title">Trivia night overview</h1>
-                        <span className={styles.chip} data-tone="success">
-                          Global view live
-                        </span>
                       </div>
                       <div className={styles.sessionMeta}>
                         <span>Tonight&apos;s trivia events</span>
                         <span>•</span>
-                        <span>2 sessions active</span>
+                        <span>{adminActiveCount} {adminActiveCount === 1 ? 'session' : 'sessions'} active</span>
                         <span>•</span>
-                        <span>20 teams competing</span>
+                        <span>{adminSessions.length} total</span>
                       </div>
                     </div>
                   </div>
@@ -1804,52 +1855,48 @@ export default function DashboardClient({
                   <div className={styles.panelHeader}>
                     <div>
                       <h2>Live sessions</h2>
-                      <div className={styles.panelMeta}>Active sessions and their current substage progress.</div>
+                      <div className={styles.panelMeta}>Active and paused sessions across all events.</div>
                     </div>
                   </div>
                   <div className={styles.sessionList}>
-                    {sessions.filter((s) => s.state !== 'Scheduled').map((session) => (
-                      <button
-                        key={session.id}
-                        className={styles.sessionButton}
-                        type="button"
-                        onClick={() => setSelectedSessionId(session.id)}
-                      >
-                        <div className={styles.sessionCardHeader}>
-                          <div>
-                            <h3>{session.title}</h3>
-                            <div className={styles.sessionCardMeta}>
-                              {session.subtitle} • {session.round}
+                    {(() => {
+                      const liveList = activeAdminSessions.filter(
+                        (session) => toLifecycleState(session.sessionState) !== 'Scheduled',
+                      )
+                      if (adminSessionsRequestState === 'failed') {
+                        return <p className={styles.panelMeta}>Live sessions could not be loaded through the gateway.</p>
+                      }
+                      if (liveList.length === 0) {
+                        return (
+                          <p className={styles.panelMeta}>
+                            {adminSessionsRequestState === 'loaded' ? 'No sessions are live right now.' : 'Loading sessions…'}
+                          </p>
+                        )
+                      }
+                      return liveList.map((session) => {
+                        const state = toLifecycleState(session.sessionState)
+                        return (
+                          <button
+                            key={session.liveSessionId}
+                            className={styles.sessionButton}
+                            type="button"
+                            onClick={() => setSelectedSessionId(session.liveSessionId)}
+                          >
+                            <div className={styles.sessionCardHeader}>
+                              <div>
+                                <h3>{session.title}</h3>
+                                <div className={styles.sessionCardMeta}>
+                                  {session.sessionCode} • Scheduled {formatDateTime(session.scheduledAt)}
+                                </div>
+                              </div>
+                              <span className={styles.chip} data-tone={state ? lifecycleTone[state] : 'muted'}>
+                                {state ?? session.sessionState}
+                              </span>
                             </div>
-                          </div>
-                          <span className={styles.chip} data-tone={session.state === 'Active' ? 'success' : 'warning'}>
-                            {session.state}
-                          </span>
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                </article>
-
-                <article className={`${styles.panel} ${styles.adminPanel}`}>
-                  <div className={styles.panelHeader}>
-                    <div>
-                      <h2>Recent global activity</h2>
-                      <div className={styles.panelMeta}>Read-only history across sessions, useful for supervising the live floor without taking over.</div>
-                    </div>
-                  </div>
-                  <div className={styles.activityList}>
-                    {activity.slice(0, 4).map((item) => (
-                      <div className={styles.activityItem} key={item.id}>
-                        <div className={styles.activityTime}>{item.time}</div>
-                        <span className={styles.teamBadge}>{item.badge}</span>
-                        <div className={styles.activityMain}>
-                          <div>
-                            <strong>{item.team}</strong> {item.message}
-                          </div>
-                        </div>
-                      </div>
-                    ))}
+                          </button>
+                        )
+                      })
+                    })()}
                   </div>
                 </article>
               </section>

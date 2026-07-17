@@ -10,6 +10,20 @@ public sealed class RankingConfiguration : IEntityTypeConfiguration<Ranking>
     {
         builder.ToTable("rankings");
 
+        // Optimistic concurrency over Postgres's xmin system column — no stored column, no data
+        // migration. A recalculation always rewrites GeneratedAt and CalculationVersion on the
+        // principal row, so every save emits an UPDATE that the token guards: two recalcs loaded from
+        // the same xmin cannot both commit, and the loser is retried against the winner's row.
+        //
+        // Mapped by hand because Npgsql dropped UseXminAsConcurrencyToken() in v9; this is the mapping
+        // that helper used to generate. xmin already exists on every table as a system column, so the
+        // migration must NOT emit an AddColumn for it.
+        builder.Property<uint>("xmin")
+            .HasColumnName("xmin")
+            .HasColumnType("xid")
+            .ValueGeneratedOnAddOrUpdate()
+            .IsConcurrencyToken();
+
         builder.Ignore(ranking => ranking.Id);
 
         builder.HasKey(ranking => ranking.RankingId);

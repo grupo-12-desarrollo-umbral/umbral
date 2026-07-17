@@ -79,6 +79,23 @@ describe('ActiveQuestionStage', () => {
     expect(texts).toEqual(expect.arrayContaining(QUESTION.options));
   });
 
+  test('shows the mission deadline beneath the question countdown when provided', () => {
+    const texts = allText(
+      (render({ missionDisplay: { label: '08:30', pct: 85, tone: 'running' } }).toJSON() as TreeNode),
+    );
+
+    // Both clocks are visible and distinct: the per-question window and the whole-mission deadline.
+    expect(texts).toContain('00:42');
+    expect(texts).toContain('MISSION');
+    expect(texts).toContain('08:30');
+  });
+
+  test('omits the mission line when no deadline is provided', () => {
+    const texts = allText(renderDisplayOnly());
+
+    expect(texts).not.toContain('MISSION');
+  });
+
   test('renders chip-less countdown without timer status labels', () => {
     const texts = allText(renderDisplayOnly());
 

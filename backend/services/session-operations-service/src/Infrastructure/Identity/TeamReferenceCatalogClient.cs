@@ -88,6 +88,5 @@ public sealed class TeamReferenceCatalogClient : ITeamReferenceCatalogClient
         Guid TeamId,
         int UserId,
         string Email,
-        string DisplayName,
-        DateTimeOffset AssignedAt);
+        string DisplayName);
 }

@@ -147,8 +147,12 @@ public sealed class AuthoritativeSessionTimerWorkerBranchTests
     }
 
     [Fact]
-    public async Task TickAsync_WhenTreasureHuntMissionTimerExpires_BroadcastsExpiredButDoesNotAdvance()
+    public async Task TickAsync_WhenTreasureHuntMissionTimerExpires_FinishesTheMission()
     {
+        // This test used to assert report-only ("BroadcastsExpiredButDoesNotAdvance") — it pinned the
+        // dead end that made MaximumTime a display-only clock and left a treasure-hunt substage's
+        // pointer immovable. D-4 is what removes it: the deadline is one mission-wide budget and ending
+        // the session is the whole point of reaching it.
         var session = CreateActiveTreasureHuntSession();
         var repository = new Mock<ILiveSessionRepository>();
         repository
@@ -161,9 +165,10 @@ public sealed class AuthoritativeSessionTimerWorkerBranchTests
                 It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
         var facade = new Mock<ITriviaRoundOrchestratorFacade>();
-        // Ticked past the 45-minute deadline: the mission timer is expired, but a treasure-hunt substage
-        // advances by target resolution, not the timer — report-only, so CloseAndAdvanceAsync is never called.
-        var worker = CreateWorker(repository, broadcaster, facade, Now.AddMinutes(46));
+        var coordinator = new Mock<ISubstageAdvanceCoordinator>();
+        // Ticked past the 45-minute deadline.
+        var now = Now.AddMinutes(46);
+        var worker = CreateWorker(repository, broadcaster, facade, now, coordinator);
 
         await worker.TickAsync(CancellationToken.None);
 
@@ -172,6 +177,10 @@ public sealed class AuthoritativeSessionTimerWorkerBranchTests
                 It.Is<SessionTimerUpdatedNotificationDto>(notification => notification.IsExpired),
                 It.IsAny<CancellationToken>()),
             Times.Once);
+        coordinator.Verify(
+            current => current.FinishOnMissionDeadlineAsync(session, now, It.IsAny<CancellationToken>()),
+            Times.Once);
+        // The mission is over — there is no question to close on the way out.
         facade.Verify(
             current => current.CloseAndAdvanceAsync(It.IsAny<LiveSession>(), It.IsAny<DateTimeOffset>(), It.IsAny<CancellationToken>()),
             Times.Never);
@@ -239,12 +248,14 @@ public sealed class AuthoritativeSessionTimerWorkerBranchTests
         Mock<ILiveSessionRepository> repository,
         Mock<ISessionTimerBroadcaster> broadcaster,
         Mock<ITriviaRoundOrchestratorFacade> facade,
-        DateTimeOffset utcNow)
+        DateTimeOffset utcNow,
+        Mock<ISubstageAdvanceCoordinator>? coordinator = null)
     {
         var services = new ServiceCollection();
         services.AddScoped(_ => repository.Object);
         services.AddScoped(_ => broadcaster.Object);
         services.AddScoped(_ => facade.Object);
+        services.AddScoped(_ => (coordinator ?? new Mock<ISubstageAdvanceCoordinator>()).Object);
         var provider = services.BuildServiceProvider();
 
         return new AuthoritativeSessionTimerWorker(

@@ -123,7 +123,7 @@ BEGIN
 
   IF v_mission_id IS NULL THEN
     INSERT INTO "Missions" ("Name", "Description", "Difficulty", "MaximumTimeMinutes", "IsActive", "ActivationState", "Created", "LastModified")
-    VALUES ('E2E Seed Mission', 'Seeded for e2e tests — do not delete', 'Easy', 60, true, 'Ready', NOW(), NOW())
+    VALUES ('E2E Seed Mission', 'Seeded for e2e tests — do not delete', 'Beginner', 60, true, 'Ready', NOW(), NOW())
     RETURNING "Id" INTO v_mission_id;
 
     INSERT INTO "MissionStages" ("MissionId", "Title", "SequenceOrder")
@@ -173,7 +173,7 @@ BEGIN
 
   IF v_mission_id IS NULL THEN
     INSERT INTO "Missions" ("Name", "Description", "Difficulty", "MaximumTimeMinutes", "IsActive", "ActivationState", "Created", "LastModified")
-    VALUES ('E2E Activatable Mission', 'Seeded Draft mission with a complete runtime plan — do not delete', 'Easy', 45, true, 'Draft', NOW(), NOW())
+    VALUES ('E2E Activatable Mission', 'Seeded Draft mission with a complete runtime plan — do not delete', 'Beginner', 45, true, 'Draft', NOW(), NOW())
     RETURNING "Id" INTO v_mission_id;
 
     INSERT INTO "MissionStages" ("MissionId", "Title", "SequenceOrder")
@@ -229,7 +229,7 @@ BEGIN
 
   IF v_mission_id IS NULL THEN
     INSERT INTO "Missions" ("Name", "Description", "Difficulty", "MaximumTimeMinutes", "IsActive", "ActivationState", "Created", "LastModified")
-    VALUES ('E2E Not-Ready Mission', 'Seeded Draft mission that stays not-runtime-ready — do not activate or delete', 'Easy', 45, true, 'Draft', NOW(), NOW())
+    VALUES ('E2E Not-Ready Mission', 'Seeded Draft mission that stays not-runtime-ready — do not activate or delete', 'Beginner', 45, true, 'Draft', NOW(), NOW())
     RETURNING "Id" INTO v_mission_id;
 
     INSERT INTO "MissionStages" ("MissionId", "Title", "SequenceOrder")

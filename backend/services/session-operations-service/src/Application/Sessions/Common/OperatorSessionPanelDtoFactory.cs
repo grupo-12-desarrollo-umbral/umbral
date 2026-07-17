@@ -39,6 +39,7 @@ public static class OperatorSessionPanelDtoFactory
 
         return new OperatorSessionPanelDto(
             snapshot.LiveSessionId,
+            liveSession.MissionRuntimeSnapshot.MissionTitle,
             snapshot.State.ToString(),
             timer,
             teamProgress);

@@ -105,7 +105,7 @@ BEGIN
 
   -- Mission + stage
   INSERT INTO "Missions" ("Name", "Description", "Difficulty", "MaximumTimeMinutes", "IsActive", "ActivationState", "Created", "LastModified")
-  VALUES ('${MISSION_NAME}', 'Seeded mixed-play-mode mission for the HU-171 manual test — do not delete', 'Easy', 60, true, 'Ready', NOW(), NOW())
+  VALUES ('${MISSION_NAME}', 'Seeded mixed-play-mode mission for the HU-171 manual test — do not delete', 'Beginner', 60, true, 'Ready', NOW(), NOW())
   RETURNING "Id" INTO v_mission_id;
 
   INSERT INTO "MissionStages" ("MissionId", "Title", "SequenceOrder")

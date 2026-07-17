@@ -21,6 +21,9 @@ public static class DependencyInjection
             cfg.AddOpenBehavior(typeof(AuthorizationBehaviour<,>));
             cfg.AddOpenBehavior(typeof(ValidationBehaviour<,>));
             cfg.AddOpenBehavior(typeof(PerformanceBehaviour<,>));
+            // Innermost: a concurrency retry must re-run only the handler, and must sit inside
+            // UnhandledExceptionBehaviour so a retried loss is not logged as an error.
+            cfg.AddOpenBehavior(typeof(ConcurrencyRetryBehaviour<,>));
         });
 
         builder.Services.AddScoped<IScorePolicy, SnapshotScorePolicy>();

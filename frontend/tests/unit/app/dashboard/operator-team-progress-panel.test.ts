@@ -10,10 +10,11 @@ vi.mock('@/app/dashboard/operatorTeamProgressPanel.module.css', () => ({
 }))
 
 import { OperatorTeamProgressPanel } from '@/app/dashboard/OperatorTeamProgressPanel'
-import type { OperatorSessionPanelDto } from '@/app/lib/definitions'
+import type { OperatorSessionPanelDto, RankingSnapshotDto } from '@/app/lib/definitions'
 
 const panel: OperatorSessionPanelDto = {
   liveSessionId: 's1',
+  missionTitle: 'City Quest',
   state: 'Active',
   timer: { liveSessionId: 's1', teamId: null } as OperatorSessionPanelDto['timer'],
   teamProgress: [
@@ -58,12 +59,28 @@ function render(props: Partial<Parameters<typeof OperatorTeamProgressPanel>[0]> 
   return renderToStaticMarkup(
     createElement(OperatorTeamProgressPanel, {
       panel,
+      ranking: null,
       unauthorized: false,
       error: null,
       loading: false,
       ...props,
     }),
   )
+}
+
+const ranking: RankingSnapshotDto = {
+  liveSessionId: 's1',
+  generatedAt: '2026-07-17T13:13:28Z',
+  calculationVersion: 2,
+  rows: [
+    {
+      teamId: 'ref-team-a',
+      teamDisplayName: 'Alpha',
+      position: 1,
+      totalScore: 100,
+      resolutionTime: null,
+    },
+  ],
 }
 
 describe('OperatorTeamProgressPanel', () => {
@@ -89,11 +106,38 @@ describe('OperatorTeamProgressPanel', () => {
     expect(html).toContain('Question 3')
   })
 
+  it('shows the active substage title for every play mode', () => {
+    const html = render()
+    // Treasure-hunt team (Alpha) and trivia team (Bravo) both surface their substage title.
+    expect(html).toContain('data-testid="team-progress-substage-team-a"')
+    expect(html).toContain('Hunt')
+    expect(html).toContain('data-testid="team-progress-substage-team-b"')
+    expect(html).toContain('Quiz')
+  })
+
+  it('omits the substage title when a team has no active substage', () => {
+    const html = render({
+      panel: {
+        ...panel,
+        teamProgress: [{ ...panel.teamProgress[0], activeSubstage: null }],
+      },
+    })
+    expect(html).not.toContain('data-testid="team-progress-substage-team-a"')
+  })
+
   it('renders a zero score as "0 pts"', () => {
     const html = render()
     expect(html).toContain('data-testid="team-progress-score-team-a"')
     expect(html).toContain('0 pts')
     expect(html).toContain('15 pts')
+  })
+
+  it('renders the authoritative ranking score matched by reference team id', () => {
+    const html = render({ ranking })
+
+    expect(html).toContain('data-testid="team-progress-score-team-a"')
+    expect(html).toContain('100 pts')
+    expect(html).not.toContain('15 pts')
   })
 
   it('shows a per-team released-clue tally only for teams with clues', () => {

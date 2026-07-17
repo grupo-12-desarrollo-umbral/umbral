@@ -14,6 +14,7 @@ import type {
 } from './sessions-hub-types';
 import type { SessionTimerUpdatedNotificationDto } from './timer-types';
 import type { ParticipantTeamBoardDto } from './team-board-types';
+import type { SubstageRankingRevealStartedNotificationDto } from './ranking-reveal-types';
 import type {
   QuestionActivatedNotificationDto,
   QuestionClosedNotificationDto,
@@ -48,6 +49,9 @@ export type SessionsHubClient = {
   ) => () => void;
   onTeamBoardUpdated: (
     cb: (board: ParticipantTeamBoardDto) => void,
+  ) => () => void;
+  onSubstageRankingRevealStarted: (
+    cb: (notification: SubstageRankingRevealStartedNotificationDto) => void,
   ) => () => void;
 };
 
@@ -109,6 +113,10 @@ export function createSessionsHubConnection(): SessionsHubClient {
     onTeamBoardUpdated(cb) {
       connection.on('TeamBoardUpdated', cb);
       return () => connection.off('TeamBoardUpdated', cb);
+    },
+    onSubstageRankingRevealStarted(cb) {
+      connection.on('SubstageRankingRevealStarted', cb);
+      return () => connection.off('SubstageRankingRevealStarted', cb);
     },
   };
 }

@@ -68,6 +68,7 @@ const CLIENT = {
   onQuestionClosed: jest.fn(),
   onSubstageAdvanced: jest.fn(),
   onTeamBoardUpdated: jest.fn(),
+  onSubstageRankingRevealStarted: jest.fn(() => () => {}),
 };
 
 type TreeNode = {
@@ -109,13 +110,29 @@ function renderSpace() {
   return renderer!;
 }
 
+function rerenderSpace(renderer: ReturnType<typeof create>) {
+  act(() => {
+    renderer.update(
+      React.createElement(LiveTeamSpace, {
+        outcome: OUTCOME,
+        onLeave: jest.fn(),
+        client: CLIENT,
+        reconnectNonce: 0,
+        referenceTeamId: 'team-1',
+      }),
+    );
+  });
+}
+
 function primeTimer() {
   mockUseSessionTimer.mockReturnValue({
     timer: null,
     isLoading: false,
     error: null,
     display: { label: '00:42', pct: 70, tone: 'running' },
+    missionDisplay: null,
     activeQuestion: null,
+    revealReconciliation: null,
     sessionState: 'Active',
     pregameSecondsLeft: null,
     snapshotVersion: 1,
@@ -329,6 +346,7 @@ describe('LiveTeamSpace question stage wiring', () => {
 // Treasure Hunt substage — the ordered substage progress the participant should now see (#171).
 const TREASURE_HUNT_BOARD = {
   liveSessionId: 'sess-1',
+  missionTitle: 'Test Mission',
   teamId: 'team-1',
   teamDisplayName: 'Lantern Foxes',
   teamCode: 'LF-01',
@@ -506,6 +524,210 @@ describe('LiveTeamSpace play-mode branch', () => {
 
     expect(texts).toContain('TREASURE HUNT');
     expect(texts.join(' ')).not.toContain("Couldn't reach the live board");
+  });
+
+  test.each([
+    ['Trivia', TRIVIA_BOARD],
+    ['TreasureHunt', TREASURE_HUNT_BOARD],
+  ] as const)('%s pre-start view changes from Scheduled to Preparing', (_mode, authoredBoard) => {
+    const preStartBoard = {
+      ...authoredBoard,
+      activeSubstage: null,
+      substages: authoredBoard.substages.map((substage) => ({ ...substage, status: 'Upcoming' as const })),
+    };
+    mockUseTeamBoard.mockReturnValue({ board: preStartBoard, isLoading: false, error: null });
+    mockUseSessionTimer.mockReturnValue({
+      timer: null,
+      isLoading: false,
+      error: null,
+      display: { label: '--:--', pct: 0, tone: 'unavailable' },
+      missionDisplay: null,
+      activeQuestion: null,
+      revealReconciliation: null,
+      sessionState: 'Scheduled',
+      pregameSecondsLeft: null,
+      snapshotVersion: 1,
+    });
+    mockUseActiveQuestion.mockReturnValue({
+      sessionState: 'Scheduled',
+      isQuestionClosed: false,
+      view: { kind: 'none' },
+    });
+
+    const renderer = renderSpace();
+    expect(allText(renderer.toJSON()).map(String)).toContain('Scheduled');
+
+    mockUseSessionTimer.mockReturnValue({
+      timer: null,
+      isLoading: false,
+      error: null,
+      display: { label: '--:--', pct: 0, tone: 'unavailable' },
+      missionDisplay: null,
+      activeQuestion: null,
+      revealReconciliation: null,
+      sessionState: 'Preparing',
+      pregameSecondsLeft: null,
+      snapshotVersion: 2,
+    });
+    mockUseActiveQuestion.mockReturnValue({
+      sessionState: 'Preparing',
+      isQuestionClosed: false,
+      view: { kind: 'none' },
+    });
+    rerenderSpace(renderer);
+
+    const texts = allText(renderer.toJSON()).map(String);
+    expect(texts).toContain('Preparing');
+    expect(texts).not.toContain('Scheduled');
+  });
+
+  test.each([
+    ['Trivia', TRIVIA_BOARD, 'Waiting for the next question...'],
+    ['TreasureHunt', TREASURE_HUNT_BOARD, 'TREASURE HUNT'],
+  ] as const)('%s Start replaces the pre-start view with its live substage surface', (_mode, activeBoard, surfaceCopy) => {
+    mockUseTeamBoard.mockReturnValue({
+      board: {
+        ...activeBoard,
+        activeSubstage: null,
+        substages: activeBoard.substages.map((substage) => ({ ...substage, status: 'Upcoming' as const })),
+      },
+      isLoading: false,
+      error: null,
+    });
+    mockUseSessionTimer.mockReturnValue({
+      timer: null,
+      isLoading: false,
+      error: null,
+      display: { label: '--:--', pct: 0, tone: 'unavailable' },
+      missionDisplay: null,
+      activeQuestion: null,
+      revealReconciliation: null,
+      sessionState: 'Preparing',
+      pregameSecondsLeft: null,
+      snapshotVersion: 1,
+    });
+    mockUseActiveQuestion.mockReturnValue({
+      sessionState: 'Preparing',
+      isQuestionClosed: false,
+      view: { kind: 'none' },
+    });
+
+    const renderer = renderSpace();
+    expect(allText(renderer.toJSON()).map(String)).not.toContain(surfaceCopy);
+
+    mockUseTeamBoard.mockReturnValue({ board: activeBoard, isLoading: false, error: null });
+    primeTimer();
+    mockUseActiveQuestion.mockReturnValue({
+      sessionState: 'Active',
+      isQuestionClosed: false,
+      view: { kind: 'waiting' },
+    });
+    rerenderSpace(renderer);
+
+    const texts = allText(renderer.toJSON()).map(String);
+    expect(texts).toContain(surfaceCopy);
+    expect(texts).toContain('Running');
+  });
+
+  test.each([
+    ['Trivia', TRIVIA_BOARD, 'Waiting for the next question...'],
+    ['TreasureHunt', TREASURE_HUNT_BOARD, 'TREASURE HUNT'],
+  ] as const)('%s visibly pauses and resumes after operator state changes', (_mode, board, surfaceCopy) => {
+    mockUseTeamBoard.mockReturnValue({ board, isLoading: false, error: null });
+    mockUseSessionTimer.mockReturnValue({
+      timer: null,
+      isLoading: false,
+      error: null,
+      display: { label: '00:42', pct: 70, tone: 'paused' },
+      missionDisplay: null,
+      activeQuestion: null,
+      revealReconciliation: null,
+      sessionState: 'Paused',
+      pregameSecondsLeft: null,
+      snapshotVersion: 2,
+    });
+    mockUseActiveQuestion.mockReturnValue({
+      sessionState: 'Paused',
+      isQuestionClosed: false,
+      view: { kind: 'waiting' },
+    });
+
+    const renderer = renderSpace();
+    let texts = allText(renderer.toJSON()).map(String);
+    expect(texts).toContain(surfaceCopy);
+    expect(texts).toContain('Paused');
+    expect(texts).not.toContain('Running');
+
+    mockUseSessionTimer.mockReturnValue({
+      timer: null,
+      isLoading: false,
+      error: null,
+      display: { label: '00:42', pct: 70, tone: 'running' },
+      missionDisplay: null,
+      activeQuestion: null,
+      revealReconciliation: null,
+      sessionState: 'Active',
+      pregameSecondsLeft: null,
+      snapshotVersion: 3,
+    });
+    mockUseActiveQuestion.mockReturnValue({
+      sessionState: 'Active',
+      isQuestionClosed: false,
+      view: { kind: 'waiting' },
+    });
+    rerenderSpace(renderer);
+
+    texts = allText(renderer.toJSON()).map(String);
+    expect(texts).toContain(surfaceCopy);
+    expect(texts).toContain('Running');
+    expect(texts).not.toContain('Paused');
+  });
+
+  test.each([
+    ['Trivia', TRIVIA_BOARD, 'Waiting for the next question...'],
+    ['TreasureHunt', TREASURE_HUNT_BOARD, 'TREASURE HUNT'],
+  ] as const)('%s is replaced by the cancellation view after the operator cancels', (_mode, board, surfaceCopy) => {
+    mockUseTeamBoard.mockReturnValue({ board, isLoading: false, error: null });
+    mockUseActiveQuestion.mockReturnValue({
+      sessionState: 'Active',
+      isQuestionClosed: false,
+      view: { kind: 'waiting' },
+    });
+
+    const renderer = renderSpace();
+    expect(allText(renderer.toJSON()).map(String)).toContain(surfaceCopy);
+
+    mockUseSessionTimer.mockReturnValue({
+      timer: null,
+      isLoading: false,
+      error: null,
+      display: { label: '00:42', pct: 70, tone: 'running' },
+      missionDisplay: null,
+      activeQuestion: null,
+      revealReconciliation: null,
+      sessionState: 'Cancelled',
+      pregameSecondsLeft: null,
+      snapshotVersion: 2,
+    });
+    mockUseActiveQuestion.mockReturnValue({
+      sessionState: 'Cancelled',
+      isQuestionClosed: false,
+      view: { kind: 'closed' },
+    });
+    mockUseTeamBoard.mockReturnValue({
+      board: {
+        ...board,
+        activeSubstage: null,
+        substages: board.substages.map((substage) => ({ ...substage, status: 'Completed' as const })),
+      },
+      isLoading: false,
+      error: null,
+    });
+    rerenderSpace(renderer);
+
+    const texts = allText(renderer.toJSON()).map(String);
+    expect(texts.join(' ')).toContain('This session was cancelled by the host.');
+    expect(texts).not.toContain(surfaceCopy);
   });
 });
 

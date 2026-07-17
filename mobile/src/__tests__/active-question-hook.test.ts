@@ -9,6 +9,15 @@ import type {
   SubstageAdvancedNotificationDto,
 } from '@/lib/realtime/trivia-types';
 
+// The reveal path fires getTriviaTeamQuestionResult; mock it so its resolution timing is controllable.
+// Default: a never-resolving promise, so existing tests keep `teamResult: null`.
+jest.mock('@/lib/api/sessions', () => ({
+  getTriviaTeamQuestionResult: jest.fn(() => new Promise(() => {})),
+}));
+
+const mockGetResult = jest.requireMock('@/lib/api/sessions')
+  .getTriviaTeamQuestionResult as jest.Mock;
+
 type QuestionActivatedHandler = (n: QuestionActivatedNotificationDto) => void;
 type QuestionClosedHandler = (n: QuestionClosedNotificationDto) => void;
 type SubstageAdvancedHandler = (n: SubstageAdvancedNotificationDto) => void;
@@ -48,6 +57,7 @@ function makeClient() {
       return () => stateHandlers.delete(cb);
     },
     onTeamBoardUpdated: jest.fn(),
+    onSubstageRankingRevealStarted: jest.fn(() => () => {}),
   };
 }
 
@@ -138,6 +148,11 @@ function defaultProps(client = makeClient()): HookProps {
 }
 
 describe('useActiveQuestion', () => {
+  beforeEach(() => {
+    mockGetResult.mockReset();
+    mockGetResult.mockImplementation(() => new Promise(() => {}));
+  });
+
   test('seeds active view from snapshot question', () => {
     const hook = renderHook({ ...defaultProps(), snapshotActiveQuestion: SNAPSHOT_QUESTION });
 
@@ -431,6 +446,68 @@ describe('useActiveQuestion', () => {
       teamResult: null,
     });
     expect(hook.get().isQuestionClosed).toBe(true);
+
+    hook.unmount();
+  });
+
+  test('a delayed result for the previous question does not attach to the new reveal', async () => {
+    let resolveFirst!: (r: unknown) => void;
+    let resolveSecond!: (r: unknown) => void;
+    mockGetResult
+      .mockImplementationOnce(() => new Promise(r => { resolveFirst = r; }))
+      .mockImplementationOnce(() => new Promise(r => { resolveSecond = r; }));
+
+    // Seeded with question index 1 (sequenceOrder 2); close it → reveal, fires the first result fetch.
+    const hook = renderHook({ ...defaultProps(), snapshotActiveQuestion: SNAPSHOT_QUESTION });
+    act(() => {
+      closedHandlers.forEach(cb => cb({ ...CLOSED, questionIndex: 1 }));
+    });
+    expect(hook.get().view.kind).toBe('reveal');
+
+    // Advance to question index 2 (sequenceOrder 3) and close it → reveal, fires the second fetch.
+    act(() => {
+      activatedHandlers.forEach(cb => cb(ACTIVATED));
+    });
+    act(() => {
+      closedHandlers.forEach(cb => cb(CLOSED));
+    });
+    expect(hook.get().view).toMatchObject({
+      kind: 'reveal',
+      question: expect.objectContaining({ questionIndex: 2 }),
+    });
+
+    // Question 1's late result now resolves while question 2 is revealing — it must NOT land.
+    await act(async () => {
+      resolveFirst({
+        selectedOptionSequenceOrder: 1,
+        isCorrect: false,
+        scoreValue: 0,
+        correctOptionSequenceOrder: 2,
+        explanation: null,
+      });
+      await Promise.resolve();
+    });
+    expect(hook.get().view).toMatchObject({
+      kind: 'reveal',
+      question: expect.objectContaining({ questionIndex: 2 }),
+      teamResult: null,
+    });
+
+    // Question 2's own result still attaches.
+    await act(async () => {
+      resolveSecond({
+        selectedOptionSequenceOrder: 2,
+        isCorrect: true,
+        scoreValue: 10,
+        correctOptionSequenceOrder: 2,
+        explanation: null,
+      });
+      await Promise.resolve();
+    });
+    expect(hook.get().view).toMatchObject({
+      kind: 'reveal',
+      teamResult: expect.objectContaining({ scoreValue: 10 }),
+    });
 
     hook.unmount();
   });

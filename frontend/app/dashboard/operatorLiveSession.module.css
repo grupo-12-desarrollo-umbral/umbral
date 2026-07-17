@@ -1,0 +1,78 @@
+/* Layout for the operator live-session workspace (sticky rail + tabs). Colours come from the
+   shared dashboard tokens; the panels themselves keep their own styling. */
+
+.wrap {
+  display: grid;
+  gap: 1rem;
+  align-content: start;
+}
+
+/* Sticky rail: session header + both clocks + live round countdown stay pinned while tabs scroll. */
+.stickyRail {
+  position: sticky;
+  top: 0.25rem;
+  z-index: 5;
+  display: grid;
+  gap: 1rem;
+  padding: 0.6rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: 1.4rem;
+  background: color-mix(in oklab, var(--panel) 88%, transparent);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 10px 30px -22px color-mix(in oklab, var(--text-primary) 60%, transparent);
+}
+
+.railTimers {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 0.6rem;
+}
+
+@media (max-width: 720px) {
+  .railTimers {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.tabBar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  padding: 0.35rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: 1rem;
+  background: color-mix(in oklab, var(--surface-raised) 70%, transparent);
+}
+
+.tabButton {
+  appearance: none;
+  cursor: pointer;
+  border: 1px solid transparent;
+  border-radius: 0.7rem;
+  padding: 0.5rem 0.9rem;
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  background: transparent;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  transition: background 120ms ease, color 120ms ease, border-color 120ms ease;
+}
+
+.tabButton:hover {
+  color: var(--text-primary);
+  background: color-mix(in oklab, var(--surface) 70%, transparent);
+}
+
+.tabButton[data-active='true'] {
+  color: var(--accent-contrast);
+  background: var(--accent);
+  border-color: var(--accent-strong);
+}
+
+.tabPanel {
+  display: grid;
+  gap: 1rem;
+}

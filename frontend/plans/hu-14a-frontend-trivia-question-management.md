@@ -127,8 +127,10 @@ declared without them. The canonical shape (as implemented in `TriviasEndpoints.
 
 - **Per-question endpoints, not quiz-level replacement.** HU-14A uses
   `POST /api/trivias/{id}/questions` and `PUT /api/trivias/{id}/questions/{questionId}`
-  for individual question authoring. The quiz-level `PUT /api/trivias/{id}` continues
-  to pass `questions: []` from the title/description edit form. The backend supports
+  for individual question authoring. The quiz-level `PUT /api/trivias/{id}` **omits**
+  `questions` from the title/description edit form, so the details edit preserves the
+  existing questions rather than replacing them (omitting the field means "leave questions
+  as-is"; sending a collection — including `[]` — replaces them). The backend supports
   both paths; the per-question endpoints are semantically correct for incremental
   authoring and avoid accidental data loss from rebuilding the full array.
 - **`TriviaPanelView` extended with `'add-question' | 'edit-question'`.**  The existing
@@ -161,8 +163,8 @@ declared without them. The canonical shape (as implemented in `TriviasEndpoints.
   "future release" is removed; admin users see "Add question" and per-row "Edit"
   buttons.
 - **No changes to `createTriviaQuiz` or `updateTriviaQuiz` in `lib/trivias.ts`.**
-  They continue to pass `questions: []` at the quiz level. Question management is
-  exclusively via the dedicated endpoints.
+  Create passes `questions: []`; update omits `questions` so a details edit preserves
+  the existing questions. Question management is exclusively via the dedicated endpoints.
 - **Server Actions enforce Administrator-only at the action layer.** Both
   `addTriviaQuestion` and `updateTriviaQuestion` in `actions/trivias.ts` check
   `session.role !== 'Administrator'` before reaching the backend, consistent with
@@ -1134,6 +1136,6 @@ Ref: HU-14A
 - **Question authoring for non-Draft quizzes.** Even though some backend endpoints may
   not explicitly block this, the frontend conservatively hides all authoring controls
   when the quiz status is not `Draft`, consistent with the existing quiz-edit gate.
-- **Updating `createTriviaQuiz`/`updateTriviaQuiz` to accept questions.** The
-  quiz-level endpoints continue to pass `questions: []`. Full quiz+question creation
+- **Updating `createTriviaQuiz`/`updateTriviaQuiz` to accept questions.** Create keeps
+  passing `questions: []` and update keeps omitting `questions`. Full quiz+question creation
   in one request is not required by HU-14A.

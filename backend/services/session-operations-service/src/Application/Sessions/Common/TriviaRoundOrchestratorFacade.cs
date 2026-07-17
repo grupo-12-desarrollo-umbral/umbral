@@ -17,39 +17,29 @@ public sealed class TriviaRoundOrchestratorFacade : ITriviaRoundOrchestratorFaca
     private readonly ILiveSessionRepository _liveSessionRepository;
     private readonly ISessionQuestionBroadcaster _sessionQuestionBroadcaster;
     private readonly IQuestionActivationStrategy _questionActivationStrategy;
-    private readonly SessionStateTransitionPolicy _transitionPolicy;
+    private readonly IQuestionActivator _questionActivator;
+    private readonly ISubstageAdvanceCoordinator _substageAdvanceCoordinator;
 
     public TriviaRoundOrchestratorFacade(
         ILiveSessionRepository liveSessionRepository,
         ISessionQuestionBroadcaster sessionQuestionBroadcaster,
         IQuestionActivationStrategy questionActivationStrategy,
-        SessionStateTransitionPolicy transitionPolicy)
+        IQuestionActivator questionActivator,
+        ISubstageAdvanceCoordinator substageAdvanceCoordinator)
     {
         _liveSessionRepository = liveSessionRepository;
         _sessionQuestionBroadcaster = sessionQuestionBroadcaster;
         _questionActivationStrategy = questionActivationStrategy;
-        _transitionPolicy = transitionPolicy;
+        _questionActivator = questionActivator;
+        _substageAdvanceCoordinator = substageAdvanceCoordinator;
     }
 
-    public async Task ActivateNextQuestionAsync(
+    public Task ActivateNextQuestionAsync(
         LiveSession session,
         DateTimeOffset now,
         CancellationToken cancellationToken)
     {
-        ArgumentNullException.ThrowIfNull(session);
-
-        if (session.ActiveQuestionIndex.HasValue)
-        {
-            return;
-        }
-
-        var nextQuestionIndex = _questionActivationStrategy.Next(session);
-        if (!nextQuestionIndex.HasValue)
-        {
-            return;
-        }
-
-        await ActivateQuestionAsync(session, nextQuestionIndex.Value, now, cancellationToken);
+        return _questionActivator.ActivateNextQuestionAsync(session, now, cancellationToken);
     }
 
     public async Task CloseAndAdvanceAsync(
@@ -115,65 +105,15 @@ public sealed class TriviaRoundOrchestratorFacade : ITriviaRoundOrchestratorFaca
         if (nextQuestionIndex.HasValue)
         {
             // ActivateQuestionAsync persists (clearing the reveal fields too) and broadcasts.
-            await ActivateQuestionAsync(session, nextQuestionIndex.Value, now, cancellationToken);
+            await _questionActivator.ActivateQuestionAsync(session, nextQuestionIndex.Value, now, cancellationToken);
             return;
         }
 
-        await AdvanceSubstageAsync(session, now, cancellationToken);
-    }
-
-    // The active substage is exhausted: walk to the next substage (ADR-0005). The domain moves the
-    // pointer and raises SubstageAdvancedEvent (or finishes the session when no substage remains —
-    // the ONLY path to Finished). Advancing INTO a trivia substage activates its first question;
-    // a treasure-hunt substage parks (the substage-scoped strategy yields no question, D-4).
-    private async Task AdvanceSubstageAsync(
-        LiveSession session,
-        DateTimeOffset now,
-        CancellationToken cancellationToken)
-    {
-        session.CompleteActiveSubstageAndAdvance(now, _transitionPolicy);
-
-        // Capture the event BEFORE persisting: UpdateAsync -> SaveChanges dispatches and clears
-        // domain events (DispatchDomainEventsInterceptor), so reading it afterwards finds none.
-        var advancedEvent = session.DomainEvents.OfType<SubstageAdvancedEvent>().Last();
-        await _liveSessionRepository.UpdateAsync(session, cancellationToken);
-
-        await _sessionQuestionBroadcaster.BroadcastSubstageAdvancedAsync(
-            new SubstageAdvancedNotificationDto(
-                session.LiveSessionId,
-                advancedEvent.FromSubstageId,
-                advancedEvent.FromPlayMode.ToString(),
-                advancedEvent.ToSubstageId,
-                now),
-            cancellationToken);
-
-        if (session.State == SessionState.Active)
-        {
-            await ActivateNextQuestionAsync(session, now, cancellationToken);
-        }
-    }
-
-    private async Task ActivateQuestionAsync(
-        LiveSession session,
-        int questionIndex,
-        DateTimeOffset now,
-        CancellationToken cancellationToken)
-    {
-        session.ActivateQuestion(questionIndex, now);
-        await _liveSessionRepository.UpdateAsync(session, cancellationToken);
-
-        var (question, options) = TriviaQuestionSnapshotSelector.GetOrderedTriviaQuestion(session, questionIndex);
-
-        await _sessionQuestionBroadcaster.BroadcastQuestionActivatedAsync(
-            new QuestionActivatedNotificationDto(
-                session.LiveSessionId,
-                questionIndex,
-                question.SequenceOrder,
-                question.Prompt,
-                options,
-                question.TimeLimitSeconds,
-                now,
-                session.ActiveSubstageId.Value),
-            cancellationToken);
+        // The substage's last question just finished its 5s answer reveal, so the substage itself has
+        // ended: show the ranking for 10s (D-3) rather than advancing now. The advance is deferred to
+        // the coordinator, fired by the worker when that window elapses. This is the behaviour change
+        // D-3 names — advance used to be immediate here. The two reveals nest: 5s answer, then 10s
+        // ranking, then the next substage.
+        await _substageAdvanceCoordinator.BeginRankingRevealAsync(session, now, cancellationToken);
     }
 }

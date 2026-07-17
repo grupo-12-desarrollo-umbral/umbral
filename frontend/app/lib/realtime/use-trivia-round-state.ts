@@ -137,15 +137,24 @@ export function useTriviaRoundState(): TriviaRoundState & TriviaRoundHandlers {
   const handleSubstageAdvanced = useCallback(
     (n: SubstageAdvancedNotificationDto) => {
       clearCountdown()
-      setState((current) => ({
-        ...current,
-        phase: 'substage-advancing',
-        activeQuestion: null,
-        questionSecondsLeft: null,
-        // no next substage ⇒ final substage complete; otherwise advance the ordinal
-        substageOrdinal: n.toSubstageId ? current.substageOrdinal + 1 : current.substageOrdinal,
-        finalizing: n.toSubstageId == null,
-      }))
+      setState((current) => {
+        // 'complete' is terminal and sticky. On the final substage the backend raises both
+        // SubstageAdvanced(toSubstageId=null) and SessionStateChanged->Finished, delivered over
+        // different channels — so this push can land AFTER complete(). Ignoring it then stops the
+        // panel being dragged back to "finishing session…" once the session is already complete.
+        if (current.phase === 'complete') {
+          return current
+        }
+        return {
+          ...current,
+          phase: 'substage-advancing',
+          activeQuestion: null,
+          questionSecondsLeft: null,
+          // no next substage ⇒ final substage complete; otherwise advance the ordinal
+          substageOrdinal: n.toSubstageId ? current.substageOrdinal + 1 : current.substageOrdinal,
+          finalizing: n.toSubstageId == null,
+        }
+      })
     },
     [clearCountdown],
   )

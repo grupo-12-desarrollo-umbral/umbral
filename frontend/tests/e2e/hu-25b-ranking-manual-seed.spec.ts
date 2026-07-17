@@ -98,7 +98,7 @@ DECLARE
   v_clue_id       INT;
 BEGIN
   INSERT INTO "Missions" ("Name", "Description", "Difficulty", "MaximumTimeMinutes", "IsActive", "ActivationState", "Created", "LastModified")
-  VALUES ('${MISSION_NAME}', 'Seeded treasure-hunt mission for HU-25B ranking manual test', 'Easy', 60, true, 'Ready', NOW(), NOW())
+  VALUES ('${MISSION_NAME}', 'Seeded treasure-hunt mission for HU-25B ranking manual test', 'Beginner', 60, true, 'Ready', NOW(), NOW())
   RETURNING "Id" INTO v_mission_id;
 
   INSERT INTO "MissionStages" ("MissionId", "Title", "SequenceOrder")

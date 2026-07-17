@@ -25,7 +25,14 @@ public sealed class DisconnectParticipantCommandHandler
         var liveSession = await _liveSessionRepository.GetByIdAsync(request.LiveSessionId, cancellationToken)
             ?? throw new NotFoundException(nameof(LiveSession), request.LiveSessionId);
 
-        liveSession.DisconnectParticipant(request.SessionParticipantId, _timeProvider.GetUtcNow());
+        // Idempotent + decrement-guarded in the aggregate: dropping an unknown/already-removed
+        // ConnectionId, or one while other sockets remain, leaves presence untouched. The write still
+        // goes through UpdateAsync so the lease row removal is durable and xmin-serialized against any
+        // concurrent reconnect (Phase 2).
+        liveSession.DisconnectParticipantConnection(
+            request.SessionParticipantId,
+            request.ConnectionId,
+            _timeProvider.GetUtcNow());
 
         await _liveSessionRepository.UpdateAsync(liveSession, cancellationToken);
 

@@ -15,4 +15,8 @@ public interface ISessionQuestionBroadcaster
     Task BroadcastSubstageAdvancedAsync(
         SubstageAdvancedNotificationDto notification,
         CancellationToken cancellationToken);
+
+    Task BroadcastSubstageRankingRevealStartedAsync(
+        SubstageRankingRevealStartedNotificationDto notification,
+        CancellationToken cancellationToken);
 }

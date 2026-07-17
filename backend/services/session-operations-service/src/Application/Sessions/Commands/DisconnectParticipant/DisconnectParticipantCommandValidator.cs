@@ -9,5 +9,8 @@ public sealed class DisconnectParticipantCommandValidator : AbstractValidator<Di
 
         RuleFor(command => command.SessionParticipantId)
             .NotEmpty();
+
+        RuleFor(command => command.ConnectionId)
+            .NotEmpty();
     }
 }

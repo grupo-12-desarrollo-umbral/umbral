@@ -59,7 +59,7 @@ public sealed class AuthoritativeSessionTimerWorkerIntegrationTests : IAsyncLife
     }
 
     [Fact]
-    public async Task TickAsync_WhenLastQuestionTimerElapses_OpensRevealThenFinishesAfterRevealWindow()
+    public async Task TickAsync_WhenLastQuestionTimerElapses_OpensBothRevealsThenFinishesOnTheRanking()
     {
         var scheduledAt = new DateTimeOffset(2026, 6, 4, 14, 0, 0, TimeSpan.Zero);
         var activateAt = scheduledAt.AddMinutes(2);
@@ -76,8 +76,19 @@ public sealed class AuthoritativeSessionTimerWorkerIntegrationTests : IAsyncLife
         revealing!.State.Should().Be(SessionState.Active);
         revealing.IsAwaitingQuestionReveal.Should().BeTrue();
 
-        // Second tick after the reveal deadline: the substage completes and the session finishes.
-        var finishAt = closeAt.Add(TriviaRoundOrchestratorFacade.QuestionRevealDuration).AddSeconds(1);
+        // Second tick after the answer-reveal deadline: the substage has ended, so the 10s ranking
+        // opens (D-3). It does NOT finish here any more — the ranking is the terminal screen and the
+        // session finishes on it.
+        var rankingAt = closeAt.Add(TriviaRoundOrchestratorFacade.QuestionRevealDuration).AddSeconds(1);
+        await RunWorkerTickAsync(rankingAt);
+
+        var ranking = await LoadSessionAsync(liveSessionId);
+        ranking!.State.Should().Be(SessionState.Active);
+        ranking.IsAwaitingQuestionReveal.Should().BeFalse();
+        ranking.IsAwaitingSubstageRankingReveal.Should().BeTrue();
+
+        // Third tick after the ranking deadline: the substage completes and the session finishes.
+        var finishAt = rankingAt.Add(LiveSession.SubstageRankingRevealDuration).AddSeconds(1);
         await RunWorkerTickAsync(finishAt);
 
         var session = await LoadSessionAsync(liveSessionId);

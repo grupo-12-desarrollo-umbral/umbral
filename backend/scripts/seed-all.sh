@@ -345,7 +345,7 @@ psql -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d mission_design -c "
 psql -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d mission_design -c "
 WITH mission AS (
   INSERT INTO \"Missions\" (\"Name\", \"Description\", \"Difficulty\", \"MaximumTimeMinutes\", \"IsActive\", \"ActivationState\", \"Created\", \"LastModified\")
-  VALUES ('$PANA_TH_MISSION_NAME', 'Treasure hunt primero: el picker de pistas del operador se llena apenas inicia la sesion.', 'Easy', 60, true, 'Ready', NOW(), NOW())
+  VALUES ('$PANA_TH_MISSION_NAME', 'Treasure hunt primero: el picker de pistas del operador se llena apenas inicia la sesion.', 'Beginner', 60, true, 'Ready', NOW(), NOW())
   RETURNING \"Id\"
 ),
 stage AS (

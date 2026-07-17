@@ -10,4 +10,4 @@ public sealed record UpdateTriviaQuizCommand(
     int Id,
     string Title,
     string Description,
-    IReadOnlyCollection<TriviaQuestionInput> Questions) : IRequest<TriviaQuizDto>, ITriviaQuizAuthoringCommand;
+    IReadOnlyCollection<TriviaQuestionInput>? Questions) : IRequest<TriviaQuizDto>, ITriviaQuizAuthoringCommand;

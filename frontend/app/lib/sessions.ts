@@ -410,7 +410,7 @@ export async function addOperativeClue(
 // HU-38 operator justified penalty. Mirrors addOperativeClue's gateway POST + auth/status mapping.
 // 403 = a non-owning operator: the scoring ownership Proxy denies (Administrator is unrestricted
 // backend-side, but the action layer keeps this Operator-only). 400 = blank reason (the backend
-// validator is authoritative even though the control disables submit). Success is 201 Created.
+// validator is authoritative even though the control disables submit). Success is 200 OK.
 export async function applyPenalty(
   liveSessionId: string,
   body: ApplyPenaltyRequest,

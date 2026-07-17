@@ -38,6 +38,10 @@ export function useRanking(
 
   useEffect(() => {
     let active = true;
+    // Fetch effect: enter the loading state before the request, then resolve it in the
+    // promise callbacks below. Synchronizing UI with an async data source is the intended
+    // use of an effect here.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setIsLoading(true);
     setError(null);
 
@@ -61,11 +65,24 @@ export function useRanking(
   useEffect(() => {
     if (!scoringClient) return;
 
-    return scoringClient.onRankingChanged((pushed: RankingSnapshotDto) => {
+    const offRankingChanged = scoringClient.onRankingChanged((pushed: RankingSnapshotDto) => {
       if (pushed.liveSessionId !== liveSessionId) return;
       setSnapshot(pushed);
       setIsLoading(false);
     });
+    // After a transport auto-reconnect the group is re-joined, but any change during the outage was
+    // missed (pushes only fire on change) — pull the current snapshot so standings aren't stale.
+    const offReconnected = scoringClient.onReconnected(() => setFetchNonce(n => n + 1));
+    // Connection closed for good: no more pushes will arrive, so surface it rather than leaving the
+    // last snapshot displayed as live. (Render sites prefer a snapshot over an error, so this only
+    // shows when there is nothing to display; the retry path re-establishes the stream.)
+    const offClosed = scoringClient.onClosed(() => setError('network-error'));
+
+    return () => {
+      offRankingChanged();
+      offReconnected();
+      offClosed();
+    };
   }, [scoringClient, liveSessionId]);
 
   const refetch = useCallback(() => {

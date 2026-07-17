@@ -58,6 +58,55 @@ public sealed class UpdateTriviaQuizCommandHandlerTests
         result.Questions[0].Options.Should().ContainSingle(option => option.IsCorrect);
     }
 
+    // Editing a title used to wipe the quiz: the details-only form sent no questions, and the
+    // handler read that as "replace them all with nothing".
+    [Fact]
+    public async Task Handle_WhenQuestionsAreOmitted_LeavesExistingQuestionsIntact()
+    {
+        var repository = new InMemoryTriviaQuizRepository();
+        var triviaQuiz = TriviaQuiz.Create("Original Quiz", "Original Description");
+        triviaQuiz.AddQuestion(
+            "Existing question?",
+            100,
+            30,
+            null,
+            [TriviaOption.Create("A", 1, true), TriviaOption.Create("B", 2, false)]);
+        repository.Seed(triviaQuiz);
+        var handler = new UpdateTriviaQuizCommandHandler(repository);
+
+        var result = await handler.Handle(
+            new UpdateTriviaQuizCommand(triviaQuiz.Id, "Updated Quiz", "Updated Description", null),
+            CancellationToken.None);
+
+        result.Title.Should().Be("Updated Quiz");
+        result.Description.Should().Be("Updated Description");
+        result.Questions.Should().ContainSingle();
+        result.Questions[0].Prompt.Should().Be("Existing question?");
+        triviaQuiz.Questions.Should().ContainSingle();
+    }
+
+    [Fact]
+    public async Task Handle_WhenQuestionsAreExplicitlyEmpty_ReplacesThemWithNone()
+    {
+        var repository = new InMemoryTriviaQuizRepository();
+        var triviaQuiz = TriviaQuiz.Create("Original Quiz", "Original Description");
+        triviaQuiz.AddQuestion(
+            "Existing question?",
+            100,
+            30,
+            null,
+            [TriviaOption.Create("A", 1, true), TriviaOption.Create("B", 2, false)]);
+        repository.Seed(triviaQuiz);
+        var handler = new UpdateTriviaQuizCommandHandler(repository);
+
+        var result = await handler.Handle(
+            new UpdateTriviaQuizCommand(triviaQuiz.Id, "Updated Quiz", "Updated Description", []),
+            CancellationToken.None);
+
+        result.Questions.Should().BeEmpty();
+        triviaQuiz.Questions.Should().BeEmpty();
+    }
+
     [Fact]
     public async Task Handle_WhenTriviaQuizDoesNotExist_ThrowsNotFound()
     {

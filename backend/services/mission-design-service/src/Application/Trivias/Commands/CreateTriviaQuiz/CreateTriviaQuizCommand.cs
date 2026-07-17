@@ -9,4 +9,4 @@ namespace umbral_backend.Application.Trivias.Commands.CreateTriviaQuiz;
 public sealed record CreateTriviaQuizCommand(
     string Title,
     string Description,
-    IReadOnlyCollection<TriviaQuestionInput> Questions) : IRequest<TriviaQuizDto>, ITriviaQuizAuthoringCommand;
+    IReadOnlyCollection<TriviaQuestionInput>? Questions) : IRequest<TriviaQuizDto>, ITriviaQuizAuthoringCommand;

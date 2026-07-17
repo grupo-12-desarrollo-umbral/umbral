@@ -222,6 +222,7 @@ public sealed class SignalRTeamBoardDeliveryTests : IAsyncLifetime
 
         return new ParticipantTeamBoardDto(
             liveSessionId,
+            "Test Mission",
             teamId,
             "Alpha",
             "A-01",

@@ -480,6 +480,19 @@
   color: var(--text-secondary);
 }
 
+/* The mission's name (session-level), shown under the session title for every play mode.
+   Distinct from the operator-chosen session title in the H1. */
+.heroMission {
+  margin: 0;
+  font-size: 0.95rem;
+  color: var(--text-secondary);
+}
+
+.heroMission strong {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
 .heroMetrics {
   flex-wrap: wrap;
   justify-content: flex-end;

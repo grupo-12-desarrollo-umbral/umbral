@@ -54,7 +54,9 @@ export async function updateTriviaQuiz(
   const response = await fetch(`${API_GATEWAY_URL}/api/trivias/${id}`, {
     method: 'PUT',
     headers: await getGatewayHeaders({ 'Content-Type': 'application/json' }),
-    body: JSON.stringify({ title, description, questions: [] }),
+    // `questions` is omitted on purpose: this edits details only, and sending a collection
+    // would replace the quiz's questions. Question authoring goes through the routes below.
+    body: JSON.stringify({ title, description }),
   })
   if (response.status === 400) throw new Error('invalid_fields')
   if (response.status === 401) throw new IdentityError('unauthorized', 'Authentication failed.')

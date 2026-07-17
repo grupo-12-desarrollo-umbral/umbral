@@ -80,7 +80,7 @@ BEGIN
 
   IF v_mission_id IS NULL THEN
     INSERT INTO "Missions" ("Name", "Description", "Difficulty", "MaximumTimeMinutes", "IsActive", "ActivationState", "Created", "LastModified")
-    VALUES ('${MISSION_NAME}', 'Seeded runtime-ready treasure-hunt mission with hidden clues for the HU-26 manual test — do not delete', 'Easy', 60, true, 'Ready', NOW(), NOW())
+    VALUES ('${MISSION_NAME}', 'Seeded runtime-ready treasure-hunt mission with hidden clues for the HU-26 manual test — do not delete', 'Beginner', 60, true, 'Ready', NOW(), NOW())
     RETURNING "Id" INTO v_mission_id;
   ELSE
     UPDATE "Missions" SET "IsActive" = true, "ActivationState" = 'Ready', "LastModified" = NOW() WHERE "Id" = v_mission_id;

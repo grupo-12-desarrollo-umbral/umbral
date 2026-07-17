@@ -60,7 +60,8 @@ public sealed class TriviaRoundStartedNotificationHandler : INotificationHandler
                     EmittedAt: emittedAt,
                     TotalMilliseconds: PreGameCountdownSeconds * 1000L,
                     IsExpired: false,
-                    SessionState: notification.CurrentState.ToString()),
+                    SessionState: notification.CurrentState.ToString(),
+                    IsPregameCountdown: true),
                 cancellationToken);
 
             await Task.Delay(TimeSpan.FromSeconds(1), _timeProvider, cancellationToken);

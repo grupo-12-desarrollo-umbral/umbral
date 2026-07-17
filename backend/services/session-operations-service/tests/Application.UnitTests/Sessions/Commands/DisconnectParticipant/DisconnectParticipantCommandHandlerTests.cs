@@ -11,21 +11,63 @@ namespace umbral_backend.Application.UnitTests.Sessions.Commands.DisconnectParti
 public sealed class DisconnectParticipantCommandHandlerTests
 {
     [Fact]
-    public async Task Handle_WhenParticipantIsActive_MarksParticipantDisconnected()
+    public async Task Handle_WhenLastConnectionDrops_MarksParticipantDisconnected()
     {
         var session = CreateActiveSessionWithParticipant(out var participantId);
+        session.RegisterParticipantConnection(participantId, "conn-1", new DateTimeOffset(2026, 6, 4, 11, 5, 0, TimeSpan.Zero));
         var repository = CreateRepository(session);
         var currentUser = CreateCurrentUser(Guid.NewGuid());
         var disconnectedAt = new DateTimeOffset(2026, 6, 4, 12, 0, 0, TimeSpan.Zero);
-        var command = new DisconnectParticipantCommand(session.LiveSessionId, participantId);
+        var command = new DisconnectParticipantCommand(session.LiveSessionId, participantId, "conn-1");
         var handler = CreateHandler(repository, currentUser, new FixedTimeProvider(disconnectedAt));
 
         var result = await handler.Handle(command, CancellationToken.None);
 
         result.Should().Be(MediatR.Unit.Value);
-        session.Participants.Single(participant => participant.SessionParticipantId == participantId).IsDisconnected.Should().BeTrue();
-        session.Participants.Single(participant => participant.SessionParticipantId == participantId).LastSeenAt.Should().Be(disconnectedAt);
+        var participant = session.Participants.Single(participant => participant.SessionParticipantId == participantId);
+        participant.IsDisconnected.Should().BeTrue();
+        participant.LastSeenAt.Should().Be(disconnectedAt);
+        participant.ActiveConnectionCount.Should().Be(0);
         repository.Verify(repo => repo.UpdateAsync(session, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task Handle_WhenAnotherConnectionRemains_KeepsParticipantActive()
+    {
+        var session = CreateActiveSessionWithParticipant(out var participantId);
+        var seenAt = new DateTimeOffset(2026, 6, 4, 11, 5, 0, TimeSpan.Zero);
+        session.RegisterParticipantConnection(participantId, "conn-1", seenAt);
+        session.RegisterParticipantConnection(participantId, "conn-2", seenAt);
+        var repository = CreateRepository(session);
+        var currentUser = CreateCurrentUser(Guid.NewGuid());
+        var command = new DisconnectParticipantCommand(session.LiveSessionId, participantId, "conn-1");
+        var handler = CreateHandler(repository, currentUser, new FixedTimeProvider(seenAt.AddMinutes(1)));
+
+        await handler.Handle(command, CancellationToken.None);
+
+        // Decrement guard: only the last connection dropping disconnects the participant.
+        var participant = session.Participants.Single(participant => participant.SessionParticipantId == participantId);
+        participant.IsDisconnected.Should().BeFalse();
+        participant.ActiveConnectionCount.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Handle_WhenConnectionUnknown_IsIdempotentNoOp()
+    {
+        var session = CreateActiveSessionWithParticipant(out var participantId);
+        var seenAt = new DateTimeOffset(2026, 6, 4, 11, 5, 0, TimeSpan.Zero);
+        session.RegisterParticipantConnection(participantId, "conn-1", seenAt);
+        var repository = CreateRepository(session);
+        var currentUser = CreateCurrentUser(Guid.NewGuid());
+        // A duplicate/stale disconnect callback for a ConnectionId that is not registered.
+        var command = new DisconnectParticipantCommand(session.LiveSessionId, participantId, "conn-stale");
+        var handler = CreateHandler(repository, currentUser, new FixedTimeProvider(seenAt.AddMinutes(1)));
+
+        await handler.Handle(command, CancellationToken.None);
+
+        var participant = session.Participants.Single(participant => participant.SessionParticipantId == participantId);
+        participant.IsDisconnected.Should().BeFalse();
+        participant.ActiveConnectionCount.Should().Be(1);
     }
 
     [Fact]
@@ -36,7 +78,7 @@ public sealed class DisconnectParticipantCommandHandlerTests
             .Setup(repo => repo.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((LiveSession?)null);
         var currentUser = CreateCurrentUser(Guid.NewGuid());
-        var command = new DisconnectParticipantCommand(Guid.NewGuid(), Guid.NewGuid());
+        var command = new DisconnectParticipantCommand(Guid.NewGuid(), Guid.NewGuid(), "conn-1");
         var handler = CreateHandler(repository, currentUser, new FixedTimeProvider(DateTimeOffset.UtcNow));
 
         var act = async () => await handler.Handle(command, CancellationToken.None);

@@ -44,6 +44,7 @@ public static class ParticipantTeamBoardDtoFactory
 
         return new ParticipantTeamBoardDto(
             liveSession.LiveSessionId,
+            liveSession.MissionRuntimeSnapshot.MissionTitle,
             snapshot.TeamId,
             snapshot.TeamDisplayName,
             snapshot.TeamCode,

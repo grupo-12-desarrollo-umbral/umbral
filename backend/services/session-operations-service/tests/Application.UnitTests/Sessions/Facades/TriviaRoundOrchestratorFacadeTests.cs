@@ -22,11 +22,7 @@ public sealed class TriviaRoundOrchestratorFacadeTests
         var broadcaster = new Mock<ISessionQuestionBroadcaster>();
         var strategy = new Mock<IQuestionActivationStrategy>();
         strategy.Setup(activationStrategy => activationStrategy.Next(session)).Returns(0);
-        var facade = new TriviaRoundOrchestratorFacade(
-            repository.Object,
-            broadcaster.Object,
-            strategy.Object,
-            new SessionStateTransitionPolicy());
+        var facade = CreateFacade(repository, broadcaster, strategy);
 
         await facade.ActivateNextQuestionAsync(session, Now, CancellationToken.None);
 
@@ -59,11 +55,7 @@ public sealed class TriviaRoundOrchestratorFacadeTests
         var repository = CreateRepository();
         var broadcaster = new Mock<ISessionQuestionBroadcaster>();
         var strategy = new Mock<IQuestionActivationStrategy>();
-        var facade = new TriviaRoundOrchestratorFacade(
-            repository.Object,
-            broadcaster.Object,
-            strategy.Object,
-            new SessionStateTransitionPolicy());
+        var facade = CreateFacade(repository, broadcaster, strategy);
 
         await facade.ActivateNextQuestionAsync(session, Now.AddSeconds(1), CancellationToken.None);
 
@@ -90,11 +82,7 @@ public sealed class TriviaRoundOrchestratorFacadeTests
         var broadcaster = new Mock<ISessionQuestionBroadcaster>();
         var strategy = new Mock<IQuestionActivationStrategy>();
         strategy.Setup(activationStrategy => activationStrategy.Next(session)).Returns(1);
-        var facade = new TriviaRoundOrchestratorFacade(
-            repository.Object,
-            broadcaster.Object,
-            strategy.Object,
-            policy);
+        var facade = CreateFacade(repository, broadcaster, strategy);
 
         await facade.CloseAndAdvanceAsync(session, Now, CancellationToken.None);
 
@@ -135,11 +123,7 @@ public sealed class TriviaRoundOrchestratorFacadeTests
         var broadcaster = new Mock<ISessionQuestionBroadcaster>();
         var strategy = new Mock<IQuestionActivationStrategy>();
         strategy.Setup(activationStrategy => activationStrategy.Next(session)).Returns(1);
-        var facade = new TriviaRoundOrchestratorFacade(
-            repository.Object,
-            broadcaster.Object,
-            strategy.Object,
-            policy);
+        var facade = CreateFacade(repository, broadcaster, strategy);
 
         await facade.CloseAndAdvanceAsync(session, Now, CancellationToken.None);
         await facade.CompleteQuestionRevealAsync(
@@ -157,8 +141,11 @@ public sealed class TriviaRoundOrchestratorFacadeTests
     }
 
     [Fact]
-    public async Task CompleteQuestionRevealAsync_OnLastQuestion_TransitionsSessionToFinished()
+    public async Task CompleteQuestionRevealAsync_OnLastQuestion_BeginsRankingRevealInsteadOfFinishing()
     {
+        // D-3 changed this flow: the last question's answer reveal used to advance/finish immediately.
+        // It now hands off to the coordinator for the 10s ranking, and the session stays Active until
+        // that window elapses. The facade must NOT finish the session itself any more.
         var session = CreateTriviaSession(questionCount: 1);
         var policy = new SessionStateTransitionPolicy();
         session.MoveTo(SessionState.Preparing, Now.AddMinutes(-2), policy);
@@ -168,52 +155,58 @@ public sealed class TriviaRoundOrchestratorFacadeTests
         var broadcaster = new Mock<ISessionQuestionBroadcaster>();
         var strategy = new Mock<IQuestionActivationStrategy>();
         strategy.Setup(activationStrategy => activationStrategy.Next(session)).Returns((int?)null);
-        var facade = new TriviaRoundOrchestratorFacade(
-            repository.Object,
-            broadcaster.Object,
-            strategy.Object,
-            policy);
+        var coordinator = new Mock<ISubstageAdvanceCoordinator>();
+        var facade = CreateFacade(repository, broadcaster, strategy, coordinator.Object);
 
         await facade.CloseAndAdvanceAsync(session, Now, CancellationToken.None);
 
-        // The close alone does NOT finish the session — it holds the reveal.
+        // The close alone does NOT finish the session — it holds the answer reveal.
         session.State.Should().Be(SessionState.Active);
         session.IsAwaitingQuestionReveal.Should().BeTrue();
 
         await facade.CompleteQuestionRevealAsync(session, Now.AddSeconds(5), CancellationToken.None);
 
         session.ActiveQuestionIndex.Should().BeNull();
-        session.State.Should().Be(SessionState.Finished);
+        session.State.Should().Be(SessionState.Active);
+        coordinator.Verify(
+            current => current.BeginRankingRevealAsync(
+                session,
+                Now.AddSeconds(5),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
         broadcaster.Verify(
             current => current.BroadcastQuestionClosedAsync(
                 It.IsAny<QuestionClosedNotificationDto>(),
                 It.IsAny<CancellationToken>()),
             Times.Once);
-        session.DomainEvents
-            .OfType<SessionStateChangedEvent>()
-            .Last()
-            .CurrentState
-            .Should()
-            .Be(SessionState.Finished);
     }
 
     [Fact]
-    public async Task CompleteQuestionRevealAsync_OnLastQuestionOfSubstage_AdvancesToNextTriviaSubstageAndActivatesFirstQuestion()
+    public async Task CompleteQuestionRevealAsync_OnLastQuestionOfSubstage_ShowsRankingThenAdvancesToNextTriviaSubstage()
     {
         var session = LiveSessionTestFactory.CreateScheduledMultiSubstageTrivia();
         ActivateFirstQuestion(session);
         var substages = OrderedSubstages(session);
         var repository = CreateRepository();
         var broadcaster = new Mock<ISessionQuestionBroadcaster>();
-        var facade = CreateFacadeWithRealStrategy(repository, broadcaster);
+        var (facade, coordinator) = CreateFacadeWithRealStrategy(repository, broadcaster);
 
+        // The full D-3 sequence: close -> 5s answer reveal -> 10s ranking reveal -> advance.
         await facade.CloseAndAdvanceAsync(session, Now, CancellationToken.None);
         session.IsAwaitingQuestionReveal.Should().BeTrue();
         await facade.CompleteQuestionRevealAsync(session, Now.AddSeconds(5), CancellationToken.None);
 
+        // The substage has NOT advanced yet — the ranking is on screen and the pointer has not moved.
+        session.IsAwaitingSubstageRankingReveal.Should().BeTrue();
+        session.ActiveSubstageId.Should().Be(substages[0].SubstageSnapshotId);
+
+        var advancedAt = Now.AddSeconds(5) + LiveSession.SubstageRankingRevealDuration;
+        await coordinator.CompleteRankingRevealAsync(session, advancedAt, CancellationToken.None);
+
         session.ActiveSubstageId.Should().Be(substages[1].SubstageSnapshotId);
         session.ActiveQuestionIndex.Should().Be(0);
         session.State.Should().Be(SessionState.Active);
+        session.IsAwaitingSubstageRankingReveal.Should().BeFalse();
         broadcaster.Verify(
             current => current.BroadcastSubstageAdvancedAsync(
                 It.Is<SubstageAdvancedNotificationDto>(notification =>
@@ -221,7 +214,7 @@ public sealed class TriviaRoundOrchestratorFacadeTests
                     notification.FromSubstageId == substages[0].SubstageSnapshotId &&
                     notification.FromPlayMode == "Trivia" &&
                     notification.ToSubstageId == substages[1].SubstageSnapshotId &&
-                    notification.AdvancedAt == Now.AddSeconds(5)),
+                    notification.AdvancedAt == advancedAt),
                 It.IsAny<CancellationToken>()),
             Times.Once);
         broadcaster.Verify(
@@ -232,18 +225,21 @@ public sealed class TriviaRoundOrchestratorFacadeTests
     }
 
     [Fact]
-    public async Task CompleteQuestionRevealAsync_WhenNextSubstageIsTreasureHunt_ParksWithoutActivatingOrFinishing()
+    public async Task CompleteQuestionRevealAsync_WhenNextSubstageIsTreasureHunt_AdvancesIntoItWithoutActivatingAQuestion()
     {
         var session = LiveSessionTestFactory.CreateScheduledTriviaThenTreasureHunt();
         ActivateFirstQuestion(session);
         var substages = OrderedSubstages(session);
         var repository = CreateRepository();
         var broadcaster = new Mock<ISessionQuestionBroadcaster>();
-        var facade = CreateFacadeWithRealStrategy(repository, broadcaster);
+        var (facade, coordinator) = CreateFacadeWithRealStrategy(repository, broadcaster);
 
         await facade.CloseAndAdvanceAsync(session, Now, CancellationToken.None);
         await facade.CompleteQuestionRevealAsync(session, Now.AddSeconds(5), CancellationToken.None);
+        await coordinator.CompleteRankingRevealAsync(session, Now.AddSeconds(15), CancellationToken.None);
 
+        // The hunt is now the live substage with no question activated — it ends when a team clears it
+        // (D-1), not on a timer. It no longer "parks": the pointer is movable from here.
         session.ActiveSubstageId.Should().Be(substages[1].SubstageSnapshotId);
         session.ActiveQuestionIndex.Should().BeNull();
         session.State.Should().Be(SessionState.Active);
@@ -269,10 +265,16 @@ public sealed class TriviaRoundOrchestratorFacadeTests
         var substages = OrderedSubstages(session);
         var repository = CreateRepository();
         var broadcaster = new Mock<ISessionQuestionBroadcaster>();
-        var facade = CreateFacadeWithRealStrategy(repository, broadcaster);
+        var (facade, coordinator) = CreateFacadeWithRealStrategy(repository, broadcaster);
 
         await facade.CloseAndAdvanceAsync(session, Now, CancellationToken.None);
         await facade.CompleteQuestionRevealAsync(session, Now.AddSeconds(5), CancellationToken.None);
+
+        // Last substage: the ranking is terminal — the session finishes ON it, not before it (D-3).
+        session.IsAwaitingSubstageRankingReveal.Should().BeTrue();
+        session.State.Should().Be(SessionState.Active);
+
+        await coordinator.CompleteRankingRevealAsync(session, Now.AddSeconds(15), CancellationToken.None);
 
         session.State.Should().Be(SessionState.Finished);
         session.ActiveQuestionIndex.Should().BeNull();
@@ -306,7 +308,7 @@ public sealed class TriviaRoundOrchestratorFacadeTests
         ActivateFirstQuestion(session);
         var repository = CreateRepository();
         var broadcaster = new Mock<ISessionQuestionBroadcaster>();
-        var facade = CreateFacadeWithRealStrategy(repository, broadcaster);
+        var (facade, coordinator) = CreateFacadeWithRealStrategy(repository, broadcaster);
 
         await facade.CloseAndAdvanceAsync(session, Now, CancellationToken.None);
         // A repeat tick while the reveal is still open (ActiveQuestionIndex is null) is a no-op: the
@@ -334,15 +336,22 @@ public sealed class TriviaRoundOrchestratorFacadeTests
         var substages = OrderedSubstages(session);
         var repository = CreateRepository();
         var broadcaster = new Mock<ISessionQuestionBroadcaster>();
-        var facade = CreateFacadeWithRealStrategy(repository, broadcaster);
+        var (facade, coordinator) = CreateFacadeWithRealStrategy(repository, broadcaster);
 
         await facade.CloseAndAdvanceAsync(session, Now, CancellationToken.None);
         await facade.CompleteQuestionRevealAsync(session, Now.AddSeconds(5), CancellationToken.None);
-        // A duplicate reveal-completion tick is guarded by IsAwaitingQuestionReveal.
+        // A duplicate reveal-completion tick is guarded by IsAwaitingQuestionReveal, so it must not
+        // open a second ranking reveal on top of the one already running.
         await facade.CompleteQuestionRevealAsync(session, Now.AddSeconds(6), CancellationToken.None);
+        session.SubstageRevealUntil.Should().Be(Now.AddSeconds(5) + LiveSession.SubstageRankingRevealDuration);
+
+        await coordinator.CompleteRankingRevealAsync(session, Now.AddSeconds(15), CancellationToken.None);
+        // ...and a duplicate ranking-reveal tick must not advance twice.
+        await coordinator.CompleteRankingRevealAsync(session, Now.AddSeconds(16), CancellationToken.None);
 
         session.ActiveSubstageId.Should().Be(substages[1].SubstageSnapshotId);
         session.IsAwaitingQuestionReveal.Should().BeFalse();
+        session.IsAwaitingSubstageRankingReveal.Should().BeFalse();
         broadcaster.Verify(
             current => current.BroadcastSubstageAdvancedAsync(
                 It.IsAny<SubstageAdvancedNotificationDto>(),
@@ -355,15 +364,44 @@ public sealed class TriviaRoundOrchestratorFacadeTests
             Times.Once);
     }
 
-    private static TriviaRoundOrchestratorFacade CreateFacadeWithRealStrategy(
+    // Real strategy, real activator, real coordinator: these tests drive the whole trivia chain
+    // (close -> 5s answer reveal -> 10s ranking reveal -> advance), so stubbing the coordinator would
+    // hide the seam the facade now hands off across.
+    private static (TriviaRoundOrchestratorFacade Facade, ISubstageAdvanceCoordinator Coordinator) CreateFacadeWithRealStrategy(
         Mock<ILiveSessionRepository> repository,
         Mock<ISessionQuestionBroadcaster> broadcaster)
+    {
+        var activator = new QuestionActivator(
+            repository.Object,
+            broadcaster.Object,
+            new SequentialQuestionActivationStrategy());
+        var coordinator = new SubstageAdvanceCoordinator(
+            repository.Object,
+            broadcaster.Object,
+            activator,
+            new SessionStateTransitionPolicy());
+        var facade = new TriviaRoundOrchestratorFacade(
+            repository.Object,
+            broadcaster.Object,
+            new SequentialQuestionActivationStrategy(),
+            activator,
+            coordinator);
+
+        return (facade, coordinator);
+    }
+
+    private static TriviaRoundOrchestratorFacade CreateFacade(
+        Mock<ILiveSessionRepository> repository,
+        Mock<ISessionQuestionBroadcaster> broadcaster,
+        Mock<IQuestionActivationStrategy> strategy,
+        ISubstageAdvanceCoordinator? coordinator = null)
     {
         return new TriviaRoundOrchestratorFacade(
             repository.Object,
             broadcaster.Object,
-            new SequentialQuestionActivationStrategy(),
-            new SessionStateTransitionPolicy());
+            strategy.Object,
+            new QuestionActivator(repository.Object, broadcaster.Object, strategy.Object),
+            coordinator ?? Mock.Of<ISubstageAdvanceCoordinator>());
     }
 
     private static void ActivateFirstQuestion(LiveSession session)

@@ -119,6 +119,12 @@ public sealed class LiveSessionConfiguration : IEntityTypeConfiguration<LiveSess
         builder.Property<int?>("_pendingNextQuestionIndex")
             .HasColumnName("pending_next_question_index");
 
+        // Substage-end ranking reveal (D-3): deadline for the advance/finish the reveal defers. Unlike
+        // the mission timer this needs no remaining/frozen pair — it is an absolute deadline that a
+        // pause does not extend (a paused session is not ticked at all).
+        builder.Property<DateTimeOffset?>("_substageRevealUntil")
+            .HasColumnName("substage_reveal_until");
+
         builder.Property(session => session.AssignedOperatorUserId)
             .HasColumnName("assigned_operator_user_id");
 
@@ -548,6 +554,19 @@ public sealed class LiveSessionConfiguration : IEntityTypeConfiguration<LiveSess
                 memberBuilder.HasIndex(member => new { member.TeamId, member.SessionParticipantId })
                     .IsUnique()
                     .HasFilter("membership_status = 'Active'");
+
+                // The authoritative "one active team per participant" guard (Finding 3). The index above
+                // only forbids two active rows for the *same* team+participant pair, so nothing at the row
+                // level stopped a participant holding an active membership in two *different* teams —
+                // Team.AssignParticipant checks only its own team, and LiveSession.SelectTeam's release-then-
+                // assign ordering is the sole thing keeping it to one. Serialising every aggregate write
+                // makes concurrent switches sequential, but this filtered index is the last-line invariant
+                // that survives a bypass or future regression: a second Active row for one participant, in
+                // any team, collides. Removed rows are excluded so a legitimate switch/rejoin still writes.
+                memberBuilder.HasIndex(member => member.SessionParticipantId)
+                    .IsUnique()
+                    .HasFilter("membership_status = 'Active'")
+                    .HasDatabaseName("ux_team_member_one_active_team_per_participant");
             });
 
             teamBuilder.Navigation(team => team.Members)
@@ -705,6 +724,40 @@ public sealed class LiveSessionConfiguration : IEntityTypeConfiguration<LiveSess
 
             participantBuilder.HasIndex(participant => new { participant.LiveSessionId, participant.ExternalIdentityId })
                 .IsUnique();
+
+            // Presence leases (Finding 5): one row per live socket the participant holds, keyed on the
+            // SignalR ConnectionId. Owned/hydrated by field like the other aggregate children so a
+            // reload rebuilds the connection set and DropConnection's decrement guard sees prior sockets
+            // after an xmin-conflict retry. ParticipantConnection derives from BaseEntity, so the only
+            // base ceremony to strip is BaseEntity.Id.
+            participantBuilder.OwnsMany(participant => participant.Connections, connectionBuilder =>
+            {
+                connectionBuilder.ToTable("live_session_participant_connections");
+                connectionBuilder.WithOwner().HasForeignKey(connection => connection.SessionParticipantId);
+
+                connectionBuilder.Ignore(connection => connection.Id);
+                connectionBuilder.HasKey(connection => connection.ConnectionId);
+
+                connectionBuilder.Property(connection => connection.ConnectionId)
+                    .HasColumnName("connection_id")
+                    .HasMaxLength(200)
+                    .ValueGeneratedNever();
+
+                connectionBuilder.Property(connection => connection.SessionParticipantId)
+                    .HasColumnName("session_participant_id")
+                    .IsRequired();
+
+                connectionBuilder.Property(connection => connection.OpenedAt)
+                    .HasColumnName("opened_at")
+                    .IsRequired();
+
+                connectionBuilder.Property(connection => connection.LastSeenAt)
+                    .HasColumnName("last_seen_at")
+                    .IsRequired();
+            });
+
+            participantBuilder.Navigation(participant => participant.Connections)
+                .UsePropertyAccessMode(PropertyAccessMode.Field);
         });
 
         builder.OwnsMany(session => session.JoinContexts, joinContextBuilder =>

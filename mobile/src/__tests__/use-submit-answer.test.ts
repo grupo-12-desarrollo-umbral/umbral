@@ -24,7 +24,9 @@ const DEFAULT_PROPS = {
   questionSequenceOrder: 1,
 };
 
-let hookResult: UseSubmitAnswerResult | null = null;
+// Container object (not a bare reassignable binding) so TestComponent captures the
+// hook result without reassigning a variable declared outside the component.
+const hookResult: { current: UseSubmitAnswerResult | null } = { current: null };
 
 function renderHook(props = DEFAULT_PROPS) {
   let renderer: ReturnType<typeof create> | null = null;
@@ -32,7 +34,7 @@ function renderHook(props = DEFAULT_PROPS) {
     renderer = create(React.createElement(TestComponent, props));
   });
   return {
-    get: () => hookResult!,
+    get: () => hookResult.current!,
     rerender: (newProps: typeof DEFAULT_PROPS) => {
       act(() => {
         renderer!.update(React.createElement(TestComponent, newProps));
@@ -43,14 +45,16 @@ function renderHook(props = DEFAULT_PROPS) {
 }
 
 function TestComponent(props: typeof DEFAULT_PROPS) {
-  hookResult = useSubmitAnswer(props);
+  // Test harness: capture the hook's return so assertions can read it outside render.
+  // eslint-disable-next-line react-hooks/immutability
+  hookResult.current = useSubmitAnswer(props);
   return null;
 }
 
 describe('useSubmitAnswer', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    hookResult = null;
+    hookResult.current = null;
   });
 
   test('selecting an option stores it and clears a prior rejection', async () => {
@@ -150,6 +154,73 @@ describe('useSubmitAnswer', () => {
     });
 
     expect(mockSubmit).not.toHaveBeenCalled();
+  });
+
+  test('a late response for the previous question does not corrupt the new question state', async () => {
+    let resolveSubmit!: (value: unknown) => void;
+    mockSubmit.mockReturnValueOnce(new Promise((resolve) => { resolveSubmit = resolve; }));
+    const hook = renderHook();
+
+    // Submit for question 1, then the operator advances to question 2 while it is still in flight.
+    act(() => hook.get().selectOption(0));
+    act(() => {
+      hook.get().submit();
+    });
+    expect(hook.get().isSubmitting).toBe(true);
+
+    hook.rerender({ ...DEFAULT_PROPS, questionSequenceOrder: 2 });
+    // Question 2 starts clean: the reset effect cleared lock/submitting for the new question.
+    expect(hook.get().isLocked).toBe(false);
+    expect(hook.get().isSubmitting).toBe(false);
+
+    // Question 1's request now resolves — it must NOT lock question 2 or touch its in-flight guard.
+    await act(async () => {
+      resolveSubmit({
+        liveSessionId: 'sess-1',
+        teamId: 'team-1',
+        triviaSubstageSnapshotId: 'substage-abc',
+        questionSequenceOrder: 1,
+        answeredAt: '2026-07-11T10:00:00Z',
+      });
+    });
+
+    expect(hook.get().isLocked).toBe(false);
+    expect(hook.get().rejection).toBeNull();
+
+    // The guard is intact for question 2: a fresh submit still fires.
+    mockSubmit.mockResolvedValueOnce({
+      liveSessionId: 'sess-1',
+      teamId: 'team-1',
+      triviaSubstageSnapshotId: 'substage-abc',
+      questionSequenceOrder: 2,
+      answeredAt: '2026-07-11T10:00:05Z',
+    });
+    act(() => hook.get().selectOption(1));
+    await act(async () => {
+      await hook.get().submit();
+    });
+    expect(mockSubmit).toHaveBeenCalledTimes(2);
+    expect(hook.get().isLocked).toBe(true);
+  });
+
+  test('a late rejection for the previous question does not show its error on the new question', async () => {
+    let rejectSubmit!: (reason: unknown) => void;
+    mockSubmit.mockReturnValueOnce(new Promise((_, reject) => { rejectSubmit = reject; }));
+    const hook = renderHook();
+
+    act(() => hook.get().selectOption(0));
+    act(() => {
+      hook.get().submit();
+    });
+
+    hook.rerender({ ...DEFAULT_PROPS, questionSequenceOrder: 2 });
+
+    await act(async () => {
+      rejectSubmit(new SubmitTriviaAnswerRejection('late-trivia-answer', 409, 'Too late'));
+      await Promise.resolve();
+    });
+
+    expect(hook.get().rejection).toBeNull();
   });
 
   test('network failure maps to unknown rejection', async () => {

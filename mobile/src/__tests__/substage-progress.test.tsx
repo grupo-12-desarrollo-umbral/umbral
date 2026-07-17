@@ -37,6 +37,7 @@ function chips(renderer: ReturnType<typeof create>) {
 
 const BASE: ParticipantTeamBoardDto = {
   liveSessionId: 'sess-1',
+  missionTitle: 'City Quest',
   teamId: 'team-1',
   teamDisplayName: 'Lantern Foxes',
   teamCode: 'LF-01',
@@ -74,6 +75,11 @@ describe('SubstageProgress', () => {
     );
     expect(active).toHaveLength(1);
     expect(active[0].props.accessibilityLabel as string).toContain('active');
+  });
+
+  test('shows the mission title alongside the active substage', () => {
+    const renderer = render(BASE);
+    expect(allText(renderer.toJSON())).toContain('City Quest');
   });
 
   test('single-substage: shows only the name, no chips', () => {

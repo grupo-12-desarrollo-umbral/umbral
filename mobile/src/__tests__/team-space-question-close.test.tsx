@@ -28,6 +28,9 @@ jest.mock('@/lib/api/sessions', () => {
     getTriviaTeamQuestionResult: (...args: unknown[]) => mockGetResult.apply(null, args),
     // Keep the team board null (never-resolving) so this trivia close-flow drive is unaffected.
     getParticipantTeamBoard: () => new Promise(() => {}),
+    // Same for the ranking: the terminal-state case renders it, and a real fetch here would resolve
+    // into an error panel on its own schedule. Never-resolving keeps that surface at its empty state.
+    getRanking: () => new Promise(() => {}),
   };
 });
 
@@ -78,6 +81,7 @@ function makeClient() {
       return () => substageAdvancedHandlers.delete(cb);
     },
     onTeamBoardUpdated: jest.fn(() => () => {}),
+    onSubstageRankingRevealStarted: jest.fn(() => () => {}),
   };
 }
 
@@ -256,7 +260,9 @@ describe('LiveTeamSpace close flow (integration)', () => {
     expect(texts).not.toContain('Which lantern is lit?');
   });
 
-  test('close into a terminal session state shows the session-closed panel', async () => {
+  // A finished session lands on the final ranking rather than the session-closed panel: expiry (D-4)
+  // sends no reveal event, so the terminal state alone has to carry the participant there.
+  test('close into a terminal session state shows the final ranking', async () => {
     const client = makeClient();
     const renderer = await mountAndActivate(client);
 
@@ -272,7 +278,7 @@ describe('LiveTeamSpace close flow (integration)', () => {
     await flush();
 
     const texts = allText(renderer.toJSON());
-    expect(texts.join(' ')).toContain('Session closed');
+    expect(texts.join(' ')).toContain('Final ranking');
     expect(texts).not.toContain('Which lantern is lit?');
   });
 

@@ -62,7 +62,12 @@ export function buildTargetMapHtml(markers: readonly TargetMapMarker[]): string 
   // data/html WebView) and matches the app's ember pin.
   var icon = L.divIcon({ className: '', html: '<div class="target-pin"></div>', iconSize: [22, 22], iconAnchor: [11, 11] });
   targets.forEach(function (t) {
-    L.marker([t.latitude, t.longitude], { icon: icon, title: t.name }).addTo(map).bindPopup(t.name);
+    // Operator-authored names are untrusted: bindPopup renders a string as HTML, so build the popup
+    // from a text node (textContent) instead. This keeps markup/event handlers in a name from
+    // executing inside this network-enabled WebView.
+    var popup = document.createElement('div');
+    popup.textContent = t.name;
+    L.marker([t.latitude, t.longitude], { icon: icon, title: t.name }).addTo(map).bindPopup(popup);
   });
 </script>
 </body>

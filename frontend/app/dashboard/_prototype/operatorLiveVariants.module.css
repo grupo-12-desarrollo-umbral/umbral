@@ -1,0 +1,309 @@
+/*
+ * PROTOTYPE — throwaway layout scaffolding for the operator live-session view.
+ * Only arranges the real panels (which keep their own styles); no colours of its own
+ * beyond the shared dashboard tokens. Delete this file once a variant is chosen.
+ */
+
+.wrap {
+  display: grid;
+  gap: 1rem;
+  align-content: start;
+}
+
+/* --- shared sticky header rail (variants A & C) --- */
+.stickyRail {
+  position: sticky;
+  top: 0.25rem;
+  z-index: 5;
+  display: grid;
+  gap: 1rem;
+  padding: 0.6rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: 1.4rem;
+  background: color-mix(in oklab, var(--panel) 88%, transparent);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 10px 30px -22px color-mix(in oklab, var(--text-primary) 60%, transparent);
+}
+
+/* =========================================================
+   VARIANT A — Tabbed workspace
+   ========================================================= */
+.railTimers {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 0.6rem;
+}
+
+@media (max-width: 720px) {
+  .railTimers {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.tabBar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  padding: 0.35rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: 1rem;
+  background: color-mix(in oklab, var(--surface-raised) 70%, transparent);
+}
+
+.tabButton {
+  appearance: none;
+  cursor: pointer;
+  border: 1px solid transparent;
+  border-radius: 0.7rem;
+  padding: 0.5rem 0.9rem;
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  background: transparent;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  transition: background 120ms ease, color 120ms ease, border-color 120ms ease;
+}
+
+.tabButton:hover {
+  color: var(--text-primary);
+  background: color-mix(in oklab, var(--surface) 70%, transparent);
+}
+
+.tabButton[data-active='true'] {
+  color: var(--accent-contrast);
+  background: var(--accent);
+  border-color: var(--accent-strong);
+}
+
+.tabCount {
+  min-width: 1.2rem;
+  padding: 0 0.35rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  line-height: 1.3rem;
+  text-align: center;
+  background: color-mix(in oklab, var(--text-primary) 12%, transparent);
+  color: inherit;
+}
+
+.tabButton[data-active='true'] .tabCount {
+  background: color-mix(in oklab, var(--accent-contrast) 24%, transparent);
+}
+
+.tabPanel {
+  display: grid;
+  gap: 1rem;
+}
+
+/* =========================================================
+   VARIANT B — Two-column console (watch | act)
+   ========================================================= */
+.twoCol {
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+.col {
+  display: grid;
+  gap: 1rem;
+  align-content: start;
+  min-width: 0;
+}
+
+.colHead {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.15rem 0.25rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.colHead::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border-subtle);
+}
+
+.colDot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 999px;
+  background: var(--accent);
+}
+
+.colDot[data-tone='watch'] { background: var(--success); }
+.colDot[data-tone='act'] { background: var(--accent); }
+
+.fullRow {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+
+@media (max-width: 1100px) {
+  .twoCol,
+  .fullRow {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* =========================================================
+   VARIANT C — Command dock + accordion
+   ========================================================= */
+.dock {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+  align-items: start;
+}
+
+@media (max-width: 1100px) {
+  .dock {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.dockCol {
+  display: grid;
+  gap: 1rem;
+  min-width: 0;
+}
+
+.accordion {
+  display: grid;
+  gap: 0.7rem;
+}
+
+.section {
+  border: 1px solid var(--border-subtle);
+  border-radius: 1.2rem;
+  background: color-mix(in oklab, var(--panel) 92%, transparent);
+  overflow: hidden;
+}
+
+.section > summary {
+  cursor: pointer;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.85rem 1.1rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  user-select: none;
+}
+
+.section > summary::-webkit-details-marker { display: none; }
+
+.section > summary::after {
+  content: '⌄';
+  margin-left: auto;
+  font-size: 1.1rem;
+  color: var(--text-muted);
+  transition: transform 160ms ease;
+}
+
+.section[open] > summary::after { transform: rotate(180deg); }
+
+.section > summary:hover {
+  background: color-mix(in oklab, var(--surface) 60%, transparent);
+}
+
+.sectionTag {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--text-primary) 8%, transparent);
+}
+
+.sectionBody {
+  padding: 0 0.9rem 0.9rem;
+  display: grid;
+  gap: 1rem;
+}
+
+/* =========================================================
+   Floating prototype switcher
+   ========================================================= */
+.switcher {
+  position: fixed;
+  left: 50%;
+  bottom: 1.1rem;
+  transform: translateX(-50%);
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.35rem 0.4rem;
+  border-radius: 999px;
+  border: 1px solid var(--border-strong);
+  background: color-mix(in oklab, var(--surface) 96%, transparent);
+  box-shadow: 0 18px 40px -18px color-mix(in oklab, var(--text-primary) 70%, transparent);
+  backdrop-filter: blur(12px);
+}
+
+.switchArrow {
+  appearance: none;
+  cursor: pointer;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 999px;
+  border: 1px solid var(--border-subtle);
+  background: var(--panel);
+  color: var(--text-primary);
+  font-size: 1rem;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.switchArrow:hover {
+  background: var(--accent);
+  color: var(--accent-contrast);
+  border-color: var(--accent-strong);
+}
+
+.switchLabel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.05rem;
+  min-width: 11rem;
+  padding: 0 0.4rem;
+  text-align: center;
+}
+
+.switchKey {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--accent-strong);
+}
+
+.switchName {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.switchHint {
+  font-size: 0.62rem;
+  color: var(--text-muted);
+  letter-spacing: 0.04em;
+}

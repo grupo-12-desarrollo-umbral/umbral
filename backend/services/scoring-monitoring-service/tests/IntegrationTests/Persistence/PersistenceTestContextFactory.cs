@@ -14,7 +14,9 @@ internal sealed class PersistenceTestContextFactory
         _connectionString = connectionString;
     }
 
-    public ScoringMonitoringDbContext Create(IMediator? mediator = null)
+    public ScoringMonitoringDbContext Create(
+        IMediator? mediator = null,
+        IOutboxDomainEventDispatcher? outboxDispatcher = null)
     {
         var optionsBuilder = new DbContextOptionsBuilder<ScoringMonitoringDbContext>()
             .UseNpgsql(_connectionString);
@@ -23,15 +25,15 @@ internal sealed class PersistenceTestContextFactory
             new AuditableEntityInterceptor(new StubCurrentUser(), TimeProvider.System),
             new DispatchDomainEventsInterceptor(
                 mediator ?? new NoOpMediator(),
-                CreateServiceProvider()));
+                CreateServiceProvider(outboxDispatcher ?? new NoOpOutboxDomainEventDispatcher())));
 
         return new ScoringMonitoringDbContext(optionsBuilder.Options);
     }
 
-    private static IServiceProvider CreateServiceProvider()
+    private static IServiceProvider CreateServiceProvider(IOutboxDomainEventDispatcher outboxDispatcher)
     {
         var services = new ServiceCollection();
-        services.AddSingleton<IOutboxDomainEventDispatcher, NoOpOutboxDomainEventDispatcher>();
+        services.AddSingleton(outboxDispatcher);
         return services.BuildServiceProvider();
     }
 
