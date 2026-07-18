@@ -8,7 +8,7 @@ namespace umbral_backend.Infrastructure.Identity;
 
 /// <summary>
 /// HTTP adapter that resolves the participant eligible-teams whitelist (#107) from the
-/// identity-access-service. External integration glue — excluded from coverage.
+/// users-service. External integration glue — excluded from coverage.
 /// </summary>
 [ExcludeFromCodeCoverage]
 public sealed class ParticipantEligibleTeamsClient : IParticipantEligibleTeamsClient

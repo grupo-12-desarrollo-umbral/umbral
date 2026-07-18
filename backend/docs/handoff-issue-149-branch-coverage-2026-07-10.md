@@ -2,13 +2,13 @@
 
 **Date:** 2026-07-10
 **Branch:** `develop` (no feature branch cut yet — do that before committing)
-**Goal (as instructed):** run every service's tests via the Makefile and reach **≥95% branch coverage per service** (the issue text itself says ≥93%; the working target for this task is 95%).
+**Goal (as instructed):** run every service's tests via the Makefile and reach **at least 95% aggregate branch coverage per service**.
 
 ## Issue summary
 
 `gh issue view 149`. Today `backend/scripts/cover-gate.sh` gates **line** coverage only
-(`/p:ThresholdType=line`). #149 asks to also gate **branch** coverage per service, amend
-ADR-0005, and update the ~8 doc locations that state the "93% line" policy. Full acceptance
+The earlier gate used a different coverage dimension. #149 asks to gate **branch** coverage per service, amend
+ADR-0005, and update the documentation that still describes the former line-coverage policy. Full acceptance
 criteria + doc-location list are in the issue body — do not duplicate here.
 
 Gated services (auto-discovered in `backend/Makefile:58` from `services/*/tests/IntegrationTests/*.csproj`):
@@ -30,9 +30,8 @@ All existing tests still pass; every new test passes. `make gate` for identity a
 ### Key design finding (resolves the issue's open question)
 
 The goal is reached by **writing real tests**, not ratcheting — so the `cover-gate.sh` change is a
-simple flip to `/p:ThresholdType="line,branch"` with a single `/p:Threshold` applied to **both**
-types (coverlet 6.0.4 applies one Threshold value to every listed ThresholdType; it does **not**
-support positional per-type values). No cobertura-XML parsing needed. **This edit is NOT done yet**
+simple flip to `/p:ThresholdType=branch` with a single `/p:Threshold` applied to aggregate branches.
+No Cobertura XML parsing is needed. **This edit is NOT done yet**
 (task 2 below) — do it only once session is ≥ the bar, or the gate goes red mid-work.
 
 ## What's left (do these in order)
@@ -73,15 +72,15 @@ branch and are effectively uncoverable — prefer real-logic branches.
 
 ### 2. Flip `cover-gate.sh` to gate branch coverage (task not started)
 
-`backend/scripts/cover-gate.sh` ~line 118: change `/p:ThresholdType=line` →
-`/p:ThresholdType="line,branch"`. Keep the single `/p:Threshold="$THRESHOLD"` (default 93 — the
-issue's floor; applies to both line and branch). Update the script's header/usage comment to state
-`THRESHOLD` now applies to both types. Then `make gate-all` must pass on develop.
+`backend/scripts/cover-gate.sh` must use `/p:ThresholdType=branch`. Keep the single
+`/p:Threshold="$THRESHOLD"` with the current project floor.
+Update the script's header/usage comment to state
+`THRESHOLD` now applies to aggregate branch coverage. Then `make gate-all` must pass on develop.
 **Only do this after all three services clear the threshold**, else the gate blocks iteration.
 
 ### 3. Docs (task not started) — issue lists all 8 locations
 
-Amend `backend/docs/adr/0005-coverlet-msbuild-for-aggregate-coverage.md` (line/branch + the
+Amend `backend/docs/adr/0005-coverlet-msbuild-for-aggregate-coverage.md` (branch gate + the
 api-gateway / scoring-monitoring scope note), plus the skill/agent/HANDOFF files the issue enumerates.
 While in `docs/current_workflow.md:178`, remove the stale `check_cobertura_threshold.py` reference.
 

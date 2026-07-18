@@ -26,23 +26,23 @@ describe('QuestionEmptyState', () => {
   test('renders waiting copy distinctly', () => {
     const text = allText(render({ kind: 'waiting', sessionState: 'Active' })).join(' ');
 
-    expect(text).toContain('Waiting for the next question');
-    expect(text).toContain("The operator hasn't activated the next one.");
+    expect(text).toContain('Esperando la siguiente pregunta');
+    expect(text).toContain('El operador aún no ha activado la siguiente.');
   });
 
   test('renders no-active-question copy distinctly', () => {
     const text = allText(render({ kind: 'none', sessionState: 'Preparing' })).join(' ');
 
-    expect(text).toContain('No active question yet.');
-    expect(text).toContain('the host will start the round');
+    expect(text).toContain('Aún no hay pregunta activa.');
+    expect(text).toContain('el anfitrión iniciará la ronda');
   });
 
   test('renders Finished and Cancelled terminal variants', () => {
     const finished = allText(render({ kind: 'closed', sessionState: 'Finished' })).join(' ');
     const cancelled = allText(render({ kind: 'closed', sessionState: 'Cancelled' })).join(' ');
 
-    expect(finished).toContain('This session has ended. Thanks for playing.');
-    expect(cancelled).toContain('This session was cancelled by the host.');
+    expect(finished).toContain('Esta sesión ha terminado. Gracias por jugar.');
+    expect(cancelled).toContain('Esta sesión fue cancelada por el anfitrión.');
     expect(finished).not.toBe(cancelled);
   });
 });

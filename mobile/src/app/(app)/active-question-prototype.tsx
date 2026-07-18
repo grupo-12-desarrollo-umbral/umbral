@@ -23,7 +23,7 @@ type Team = { name: string; participants: string[] };
 const STUB_QUESTION: ActiveQuestion = {
   questionIndex: 0,
   sequenceOrder: 3,
-  prompt: 'Which street borders the north colonnade of the Plaza Mayor?',
+  prompt: '¿Qué calle bordea la columnata norte de la Plaza Mayor?',
   options: ['Calle del Sol', 'Avenida Mayor', 'Paseo del Prado', 'Rambla Vella'],
   timeLimitSeconds: 60,
   triviaSubstageSnapshotId: 'stub',
@@ -32,7 +32,7 @@ const STUB_QUESTION: ActiveQuestion = {
 const CORRECT_INDEX = 1; // Avenida Mayor
 const STUB_TIMER: TimerDisplay = { label: '0:47', pct: 78, tone: 'running' };
 
-const YOUR_TEAM: Team = { name: 'Lantern Bearers', participants: ['You', 'Mara', 'Diego', 'Priya'] };
+const YOUR_TEAM: Team = { name: 'Lantern Bearers', participants: ['Tú', 'Mara', 'Diego', 'Priya'] };
 const OTHER_TEAMS: Team[] = [
   { name: 'Compass Rose', participants: ['Ivan', 'Lucía', 'Sam'] },
   { name: 'Ember Foxes', participants: ['Noor', 'Theo', 'Aiko', 'Ben'] },
@@ -50,15 +50,15 @@ type PreviewMode =
   | 'next';
 
 const MODE_LABELS: Record<PreviewMode, string> = {
-  active: 'Active question',
-  waiting: 'Waiting for next',
-  none: 'No question yet',
-  finished: 'Finished',
-  cancelled: 'Cancelled',
-  selected: 'Selected option',
-  right: 'Right answer',
-  wrong: 'Wrong answer',
-  next: 'Go to next',
+  active: 'Pregunta activa',
+  waiting: 'Esperando la siguiente',
+  none: 'Aún no hay pregunta',
+  finished: 'Finalizada',
+  cancelled: 'Cancelada',
+  selected: 'Opción seleccionada',
+  right: 'Respuesta correcta',
+  wrong: 'Respuesta incorrecta',
+  next: 'Ir a la siguiente',
 };
 
 const MODE_ROWS: PreviewMode[][] = [
@@ -107,11 +107,11 @@ function TeamsSheet({ onClose }: { onClose: () => void }) {
           alignItems: 'center',
         }}
       >
-        <Text variant="title">All Teams</Text>
+        <Text variant="title">Todos los equipos</Text>
         <Pressable
           onPress={onClose}
           accessibilityRole="button"
-          accessibilityLabel="Close"
+          accessibilityLabel="Cerrar"
           style={{
             paddingHorizontal: spacing.md,
             paddingVertical: spacing.xs,
@@ -120,7 +120,7 @@ function TeamsSheet({ onClose }: { onClose: () => void }) {
           }}
         >
           <Text variant="label" style={{ color: colors.ivoryFog }}>
-            CLOSE
+            CERRAR
           </Text>
         </Pressable>
       </View>
@@ -130,7 +130,7 @@ function TeamsSheet({ onClose }: { onClose: () => void }) {
           <View style={{ gap: spacing.xs }}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
               <Text variant="title" accent>{YOUR_TEAM.name}</Text>
-              <Text variant="label" muted>YOUR TEAM</Text>
+              <Text variant="label" muted>TU EQUIPO</Text>
             </View>
             {YOUR_TEAM.participants.map((p) => (
               <Text key={p} variant="body">{p}</Text>
@@ -182,12 +182,12 @@ function ResultBanner({ kind }: { kind: 'right' | 'wrong' }) {
       </View>
       <View style={{ flex: 1 }}>
         <Text variant="title" style={{ color: isCorrect ? colors.signalSuccess : colors.signalCritical }}>
-          {isCorrect ? 'Correct!' : 'Incorrect'}
+          {isCorrect ? '¡Correcta!' : 'Incorrecta'}
         </Text>
         <Text variant="body" muted>
           {isCorrect
-            ? 'Your team answered correctly.'
-            : `The correct answer was ${STUB_QUESTION.options[CORRECT_INDEX]}.`}
+            ? 'Tu equipo respondió correctamente.'
+            : `La respuesta correcta era ${STUB_QUESTION.options[CORRECT_INDEX]}.`}
         </Text>
       </View>
     </View>
@@ -256,7 +256,7 @@ export default function ActiveQuestionPrototypeScreen() {
           gap: spacing.xs,
         }}
       >
-        <Text variant="label" muted>PROTOTYPE · ACTIVE QUESTION</Text>
+        <Text variant="label" muted>PROTOTIPO · PREGUNTA ACTIVA</Text>
         {MODE_ROWS.map((row, ri) => (
           <View key={ri} style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs }}>
             {row.map((k) => (
@@ -385,10 +385,10 @@ export default function ActiveQuestionPrototypeScreen() {
       >
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
           <Text variant="label" style={{ color: colors.emberAccentSoft }}>
-            YOUR TEAM · {YOUR_TEAM.name}
+            TU EQUIPO · {YOUR_TEAM.name}
           </Text>
           <Text variant="label" style={{ color: colors.emberAccentSoft }}>
-            ALL TEAMS ›
+            TODOS LOS EQUIPOS ›
           </Text>
         </View>
         <Text variant="body" style={{ color: colors.ivoryFog }} numberOfLines={1}>

@@ -1,0 +1,86 @@
+name: frontend-ci
+
+# GitHub only runs workflows from the repository-root .github/workflows directory,
+# so the frontend pipeline lives here (not under frontend/.github/). Path filters
+# keep it from running on backend-only changes.
+on:
+  push:
+    branches: [develop, main]
+    paths:
+      - 'frontend/**'
+      - '.github/workflows/frontend-ci.yml'
+  pull_request:
+    branches: [develop, main]
+    paths:
+      - 'frontend/**'
+      - '.github/workflows/frontend-ci.yml'
+  workflow_dispatch:
+
+# A newer push to the same branch supersedes an in-flight run.
+concurrency:
+  group: frontend-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: frontend
+
+jobs:
+  quality:
+    name: Lint and unit tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Unit tests
+        run: pnpm test
+
+  build:
+    name: Build production image
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    # Only spend a build slot once lint + unit tests are green.
+    needs: quality
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # Build only (load into the local daemon, no registry push). Placeholder
+      # NEXT_PUBLIC_* args keep the client build deterministic; they are NOT the
+      # deploy values and must be supplied for real by whatever pushes the image.
+      - name: Build image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./frontend
+          push: false
+          load: true
+          tags: umbral-web:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            NEXT_PUBLIC_API_GATEWAY_URL=http://localhost:8000
+            NEXT_PUBLIC_KEYCLOAK_URL=http://localhost:8080
+            NEXT_PUBLIC_KEYCLOAK_REALM=umbral
+            NEXT_PUBLIC_KEYCLOAK_CLIENT_ID=umbral-web
+            NEXT_PUBLIC_APP_URL=http://localhost:3000

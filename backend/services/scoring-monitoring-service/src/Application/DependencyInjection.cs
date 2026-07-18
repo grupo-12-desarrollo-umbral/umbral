@@ -26,7 +26,12 @@ public static class DependencyInjection
             cfg.AddOpenBehavior(typeof(ConcurrencyRetryBehaviour<,>));
         });
 
-        builder.Services.AddScoped<IScorePolicy, SnapshotScorePolicy>();
+        // Scoring Strategy: one IScorePolicy per session mode / domain variation, chosen at runtime
+        // by IScorePolicySelector on the entry's ScoreSourceType.
+        builder.Services.AddScoped<TargetScorePolicy>();
+        builder.Services.AddScoped<TriviaScorePolicy>();
+        builder.Services.AddScoped<PenaltyScorePolicy>();
+        builder.Services.AddScoped<IScorePolicySelector, ScorePolicySelector>();
         builder.Services.AddScoped<IRankingPolicy, ResolutionTimeRankingPolicy>();
         builder.Services.AddScoped<IRankingSessionMembershipGuard, RankingSessionMembershipGuard>();
         builder.Services.AddScoped<IPenaltyPolicy, DefaultPenaltyPolicy>();

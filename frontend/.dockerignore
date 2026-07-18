@@ -1,0 +1,41 @@
+# dependencies (reinstalled cleanly in the build)
+node_modules
+
+# next.js build output (rebuilt in the image)
+.next
+out
+build
+
+# env files — never bake secrets or local URLs into the image
+.env*
+!.env.local.example
+
+# vcs / ci
+.git
+.github
+
+# testing
+coverage
+test-results
+playwright-report
+blob-report
+playwright/.cache
+playwright/.auth
+
+# typescript
+*.tsbuildinfo
+
+# docs / agent tooling (not needed at build)
+.next-docs
+.agents
+.claude
+.impeccable
+
+# misc
+.DS_Store
+*.pem
+npm-debug.log*
+yarn-debug.log*
+.pnpm-debug.log*
+Dockerfile
+.dockerignore

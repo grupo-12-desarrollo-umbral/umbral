@@ -63,9 +63,9 @@ describe('TreasureHuntBoard', () => {
   test('renders score and the target-progress count from props', () => {
     const texts = allText(renderBoard().toJSON());
 
-    expect(texts).toContain('TREASURE HUNT');
+    expect(texts).toContain('BÚSQUEDA DEL TESORO');
     // The active substage name is owned by the shared SubstageProgress component (#171).
-    expect(texts).toContain('SCORE');
+    expect(texts).toContain('PUNTUACIÓN');
     expect(texts).toContain('240');
     // Map tab is the default; target progress is a count, not coordinates.
     expect(texts.join('')).toContain('2 / 5 targets');
@@ -95,7 +95,7 @@ describe('TreasureHuntBoard', () => {
     const renderer = renderBoard({ activeTargets: [] });
     const texts = allText(renderer.toJSON());
 
-    expect(texts).toContain('NO MAP LOCATION YET');
+    expect(texts).toContain('AÚN SIN UBICACIÓN EN EL MAPA');
     expect(
       renderer.root.findAll((n) => n.props?.testID === 'target-map-webview'),
     ).toHaveLength(0);
@@ -103,7 +103,7 @@ describe('TreasureHuntBoard', () => {
 
   test('exposes target progress via an accessibility label', () => {
     const renderer = renderBoard();
-    const node = renderer.root.findByProps({ accessibilityLabel: 'Targets resolved 2 of 5' });
+    const node = renderer.root.findByProps({ accessibilityLabel: 'Targets resueltos 2 de 5' });
     expect(node).toBeTruthy();
   });
 
@@ -124,7 +124,7 @@ describe('TreasureHuntBoard', () => {
     switchTab(renderer, 'CLUES');
     const texts = allText(renderer.toJSON());
 
-    expect(texts).toContain('No clues yet.');
+    expect(texts).toContain('Aún no hay pistas.');
   });
 
   test('surfaces a newly-revealed clue when visibleClues grows (empty → first clue)', () => {
@@ -132,7 +132,7 @@ describe('TreasureHuntBoard', () => {
     // re-render with the grown visibleClues replaces the empty state with the clue's name + text.
     const renderer = renderBoard({ visibleClues: [] });
     switchTab(renderer, 'CLUES');
-    expect(allText(renderer.toJSON())).toContain('No clues yet.');
+    expect(allText(renderer.toJSON())).toContain('Aún no hay pistas.');
 
     act(() => {
       renderer.update(
@@ -150,7 +150,7 @@ describe('TreasureHuntBoard', () => {
     });
 
     const texts = allText(renderer.toJSON());
-    expect(texts).not.toContain('No clues yet.');
+    expect(texts).not.toContain('Aún no hay pistas.');
     expect(texts).toContain('Brass Astrolabe');
     expect(texts).toContain('Follow the north colonnade.');
   });
@@ -226,8 +226,8 @@ describe('TreasureHuntBoard', () => {
     const texts = allText(renderer.toJSON());
 
     expect(texts).toContain('Lantern Foxes');
-    expect(texts).toContain('PLACEHOLDER');
-    expect(texts.join(' ')).toContain('Sample standings — not live yet');
+    expect(texts).toContain('EJEMPLO');
+    expect(texts.join(' ')).toContain('Clasificación de ejemplo — aún no en vivo');
   });
 
   // --- HU-25B ranking integration ---
@@ -237,11 +237,6 @@ describe('TreasureHuntBoard', () => {
     { teamId: 't2', teamDisplayName: 'Ember Foxes', position: 2, totalScore: 555, resolutionTime: '00:38:45' },
     { teamId: 't3', teamDisplayName: 'Parchment Moths', position: 3, totalScore: 520, resolutionTime: '00:42:10' },
     { teamId: 'own-team', teamDisplayName: 'Lantern Bearers', position: 4, totalScore: 495, resolutionTime: '00:46:33' },
-  ];
-
-  const LONG_DURATION_ROWS: RankingRowDto[] = [
-    { teamId: 't1', teamDisplayName: 'Compass Rose', position: 1, totalScore: 580, resolutionTime: '03:15:27.95' },
-    { teamId: 'own-team', teamDisplayName: 'Lantern Bearers', position: 2, totalScore: 555, resolutionTime: '00:38:45' },
   ];
 
   test('renders real ranking rows on the teams tab', () => {
@@ -260,23 +255,9 @@ describe('TreasureHuntBoard', () => {
     // Scores are rendered.
     expect(texts).toContain('580');
     expect(texts).toContain('495');
-    // Resolution times are rendered in compact form.
-    expect(texts).toContain('46m');
     // Placeholder copy no longer appears.
-    expect(texts).not.toContain('PLACEHOLDER');
-    expect(texts.join(' ')).not.toContain('Sample standings');
-  });
-
-  test('formats long resolution times compactly in the podium', () => {
-    const renderer = renderBoard({
-      rankingRows: LONG_DURATION_ROWS,
-      ownTeamId: 'own-team',
-    });
-    switchTab(renderer, 'TEAMS');
-    const texts = allText(renderer.toJSON());
-
-    expect(texts).toContain('3h 15m');
-    expect(texts.join(' ')).not.toContain('03:15:27.95');
+    expect(texts).not.toContain('EJEMPLO');
+    expect(texts.join(' ')).not.toContain('Clasificación de ejemplo');
   });
 
   test('highlights the own team in the ranking', () => {
@@ -288,9 +269,9 @@ describe('TreasureHuntBoard', () => {
     const texts = allText(renderer.toJSON());
 
     // The own team carries the "(You)" suffix.
-    expect(texts).toContain('(You)');
+    expect(texts).toContain('(Tú)');
     // The other teams do not.
-    expect(texts.join(' ')).not.toContain('Compass Rose (You)');
+    expect(texts.join(' ')).not.toContain('Compass Rose (Tú)');
   });
 
   test('shows empty ranking state when rows are empty', () => {
@@ -302,9 +283,9 @@ describe('TreasureHuntBoard', () => {
     const texts = allText(renderer.toJSON());
 
     expect(texts).toContain('🏆');
-    expect(texts.join(' ')).toContain('Standings will appear once the round begins.');
+    expect(texts.join(' ')).toContain('La clasificación aparecerá cuando comience la ronda.');
     // No placeholder copy in the empty state.
-    expect(texts).not.toContain('PLACEHOLDER');
+    expect(texts).not.toContain('EJEMPLO');
   });
 
   test('shows a ranking error card (not the placeholder) when the fetch failed with no snapshot', () => {
@@ -313,11 +294,11 @@ describe('TreasureHuntBoard', () => {
     const texts = allText(renderer.toJSON());
 
     // The failure reads as an error, not as "no standings yet" sample data.
-    expect(texts.join(' ')).toContain("Couldn't reach the standings — check your connection.");
-    expect(texts).not.toContain('PLACEHOLDER');
-    expect(texts.join(' ')).not.toContain('Sample standings');
+    expect(texts.join(' ')).toContain('No pudimos acceder a la clasificación — revisa tu conexión.');
+    expect(texts).not.toContain('EJEMPLO');
+    expect(texts.join(' ')).not.toContain('Clasificación de ejemplo');
     // A generic (non-network) failure falls back to the default copy.
-    expect(texts.join(' ')).not.toContain('Standings will appear once the round begins.');
+    expect(texts.join(' ')).not.toContain('La clasificación aparecerá cuando comience la ronda.');
   });
 
   test('retry button invokes onRetryRanking', () => {
@@ -330,7 +311,7 @@ describe('TreasureHuntBoard', () => {
     });
     switchTab(renderer, 'TEAMS');
 
-    const retry = renderer.root.findByProps({ accessibilityLabel: 'Retry loading standings' });
+    const retry = renderer.root.findByProps({ accessibilityLabel: 'Reintentar cargar la clasificación' });
     act(() => {
       retry.props.onPress();
     });
@@ -338,7 +319,7 @@ describe('TreasureHuntBoard', () => {
     expect(retries).toBe(1);
   });
 
-  test('a stale snapshot still renders the podium even when a later fetch errored', () => {
+  test('a stale snapshot still renders the standings even when a later fetch errored', () => {
     // error is ignored while usable rows exist — mirrors the board's still-good-board pattern.
     const renderer = renderBoard({
       rankingRows: RANKING_ROWS,
@@ -349,7 +330,7 @@ describe('TreasureHuntBoard', () => {
     const texts = allText(renderer.toJSON());
 
     expect(texts).toContain('Compass Rose');
-    expect(texts.join(' ')).not.toContain("Couldn't reach the standings");
+    expect(texts.join(' ')).not.toContain('No pudimos acceder a la clasificación');
   });
 
   test('renders the shared session timer label', () => {
@@ -368,7 +349,7 @@ describe('TreasureHuntBoard', () => {
     switchTab(renderer, 'CLUES');
     const texts = allText(renderer.toJSON());
 
-    expect(texts).toContain('CLUE');
+    expect(texts).toContain('PISTA');
     expect(texts).not.toContain('OPERATIVE CLUE');
     expect(texts).toContain('Look beneath the blue banner.');
     // No target name is invented for a target-less clue.
@@ -389,7 +370,7 @@ describe('TreasureHuntBoard', () => {
     const texts = allText(renderer.toJSON());
 
     expect(texts).toContain('Brass Astrolabe');
-    expect(texts).toContain('CLUE');
+    expect(texts).toContain('PISTA');
     expect(texts).toContain('Follow the north colonnade.');
     expect(texts).toContain('Look beneath the blue banner.');
     expect(warn.mock.calls.some((args) => String(args[0]).includes('same key'))).toBe(false);
@@ -410,7 +391,7 @@ describe('TreasureHuntBoard', () => {
 
     // Both cards render the same text (two occurrences) and both unified CLUE labels.
     expect(texts.filter((t) => t === 'Regroup at the fountain.')).toHaveLength(2);
-    expect(texts.filter((t) => t === 'CLUE')).toHaveLength(2);
+    expect(texts.filter((t) => t === 'PISTA')).toHaveLength(2);
     expect(warn.mock.calls.some((args) => String(args[0]).includes('same key'))).toBe(false);
     warn.mockRestore();
   });
@@ -501,12 +482,12 @@ describe('TreasureHuntBoard', () => {
 
   test('offers the leave action in the team strip only when onLeave is given', () => {
     expect(
-      renderBoard().root.findAll((n) => n.props?.accessibilityLabel === 'Leave team space'),
+      renderBoard().root.findAll((n) => n.props?.accessibilityLabel === 'Salir del espacio de equipo'),
     ).toHaveLength(0);
 
     const onLeave = jest.fn();
     const renderer = renderBoard({ onLeave });
-    const leave = renderer.root.findByProps({ accessibilityLabel: 'Leave team space' });
+    const leave = renderer.root.findByProps({ accessibilityLabel: 'Salir del espacio de equipo' });
     act(() => {
       (leave.props.onPress as () => void)();
     });
@@ -619,7 +600,7 @@ describe('TreasureHuntBoard operative-clue arrival toast', () => {
     push([TARGET, OPERATIVE]);
 
     act(() => {
-      (renderer.root.findByProps({ accessibilityLabel: 'Open clues' }).props.onPress as () => void)();
+      (renderer.root.findByProps({ accessibilityLabel: 'Abrir pistas' }).props.onPress as () => void)();
     });
 
     // The Clues tab is the durable home here, so the toast hands the reveal back to the board.

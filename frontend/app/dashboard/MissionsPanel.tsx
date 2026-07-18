@@ -16,6 +16,25 @@ import styles from './dashboard.module.css'
 type DashboardRole = 'operator' | 'admin' | 'participant'
 type MissionPanelView = 'list' | 'detail' | 'create' | 'edit'
 
+// Display labels for backend enums (values stay in English on the wire / in payloads).
+const ACTIVATION_STATE_LABELS: Record<string, string> = {
+  Draft: 'Borrador',
+  Ready: 'Lista',
+  Inactive: 'Inactiva',
+  Active: 'Activa',
+}
+function activationStateLabel(state: string) {
+  return ACTIVATION_STATE_LABELS[state] ?? state
+}
+const DIFFICULTY_LABELS: Record<string, string> = {
+  Beginner: 'Principiante',
+  Intermediate: 'Intermedio',
+  Advanced: 'Avanzado',
+}
+function difficultyLabel(value: string) {
+  return DIFFICULTY_LABELS[value] ?? value
+}
+
 export function MissionsPanel(_props: { role: DashboardRole }) {
   const [view, setView] = useState<MissionPanelView>('list')
   const [selectedMission, setSelectedMission] = useState<MissionDto | null>(null)
@@ -34,7 +53,7 @@ export function MissionsPanel(_props: { role: DashboardRole }) {
         const result = await getMissions()
         setListData(result)
       } catch {
-        setListError('Failed to load missions.')
+        setListError('No se pudieron cargar las misiones.')
       }
     })
   }, [refreshKey])
@@ -48,7 +67,7 @@ export function MissionsPanel(_props: { role: DashboardRole }) {
         setDeactivateError(null)
         setView('detail')
       } catch {
-        setListError('Failed to load mission details.')
+        setListError('No se pudieron cargar los detalles de la misión.')
       }
     })
   }
@@ -69,9 +88,9 @@ export function MissionsPanel(_props: { role: DashboardRole }) {
       } catch (err) {
         const msg = err instanceof Error ? err.message : ''
         if (msg === 'invalid_fields') {
-          setFormError('Check all fields: name, description, and difficulty are required; time must be a positive number.')
+          setFormError('Revisa todos los campos: el nombre, la descripción y la dificultad son obligatorios; el tiempo debe ser un número positivo.')
         } else {
-          setFormError('Failed to create mission. Try again.')
+          setFormError('No se pudo crear la misión. Inténtalo de nuevo.')
         }
       }
     })
@@ -94,11 +113,11 @@ export function MissionsPanel(_props: { role: DashboardRole }) {
       } catch (err) {
         const msg = err instanceof Error ? err.message : ''
         if (msg === 'invalid_fields') {
-          setFormError('Check all fields: name, description, and difficulty are required; time must be a positive number.')
+          setFormError('Revisa todos los campos: el nombre, la descripción y la dificultad son obligatorios; el tiempo debe ser un número positivo.')
         } else if (msg === 'mission_not_found') {
-          setFormError('Mission no longer exists.')
+          setFormError('La misión ya no existe.')
         } else {
-          setFormError('Failed to update mission. Try again.')
+          setFormError('No se pudo actualizar la misión. Inténtalo de nuevo.')
         }
       }
     })
@@ -120,7 +139,7 @@ export function MissionsPanel(_props: { role: DashboardRole }) {
         const message =
           err instanceof Error && err.message && err.message !== 'mission_not_found'
             ? err.message
-            : 'Deactivation failed. Try again.'
+            : 'Falló la desactivación. Inténtalo de nuevo.'
         setDeactivateError(message)
         setConfirmDeactivate(false)
       }
@@ -146,7 +165,7 @@ export function MissionsPanel(_props: { role: DashboardRole }) {
           }}
           type="button"
         >
-          ← Back to missions
+          ← Volver a misiones
         </button>
 
         <h2 className={styles.missionDetailTitle} data-testid="mission-detail-name">
@@ -154,25 +173,25 @@ export function MissionsPanel(_props: { role: DashboardRole }) {
         </h2>
 
         <div className={styles.missionDetailDescCard}>
-          <span className={styles.missionDetailDescLabel}>Description</span>
+          <span className={styles.missionDetailDescLabel}>Descripción</span>
           <p data-testid="mission-detail-description">{selectedMission.description}</p>
         </div>
 
         <div className={styles.missionDetailInlineMeta}>
           <span data-testid="mission-detail-time">
-            Maximum Time: <strong>{selectedMission.maximumTimeMinutes} min</strong>
+            Tiempo máximo: <strong>{selectedMission.maximumTimeMinutes} min</strong>
           </span>
           <span data-testid="mission-detail-difficulty">
-            Difficulty: <strong>{selectedMission.difficulty}</strong>
+            Dificultad: <strong>{difficultyLabel(selectedMission.difficulty)}</strong>
           </span>
           <span>
-            Status:
+            Estado:
             <span
               className={styles.chip}
               data-tone={activationTone}
               data-testid="mission-detail-status"
             >
-              {selectedMission.activationState}
+              {activationStateLabel(selectedMission.activationState)}
             </span>
           </span>
         </div>
@@ -202,7 +221,7 @@ export function MissionsPanel(_props: { role: DashboardRole }) {
             onClick={() => { setFormError(null); setView('edit') }}
             type="button"
           >
-            Edit
+            Editar
           </button>
 
           {selectedMission.isActive && !confirmDeactivate && (
@@ -213,13 +232,13 @@ export function MissionsPanel(_props: { role: DashboardRole }) {
               onClick={() => setConfirmDeactivate(true)}
               type="button"
             >
-              Deactivate
+              Desactivar
             </button>
           )}
 
           {confirmDeactivate && (
             <span className={styles.confirmRow}>
-              <span>Deactivate this mission?</span>
+              <span>¿Desactivar esta misión?</span>
               <button
                 className={styles.dangerButton}
                 data-testid="confirm-deactivate-mission-btn"
@@ -227,7 +246,7 @@ export function MissionsPanel(_props: { role: DashboardRole }) {
                 onClick={() => handleDeactivate(selectedMission.id)}
                 type="button"
               >
-                Confirm
+                Confirmar
               </button>
               <button
                 className={styles.inlineButton}
@@ -235,7 +254,7 @@ export function MissionsPanel(_props: { role: DashboardRole }) {
                 onClick={() => setConfirmDeactivate(false)}
                 type="button"
               >
-                Cancel
+                Cancelar
               </button>
             </span>
           )}
@@ -253,10 +272,10 @@ export function MissionsPanel(_props: { role: DashboardRole }) {
           onClick={() => { setFormError(null); setView('list') }}
           type="button"
         >
-          ← Back to missions
+          ← Volver a misiones
         </button>
 
-        <h2 className={styles.missionDetailTitle}>Create mission</h2>
+        <h2 className={styles.missionDetailTitle}>Crear misión</h2>
 
         <MissionForm
           initial={{ name: '', description: '', difficulty: '', maximumTimeMinutes: 0 }}
@@ -280,7 +299,7 @@ export function MissionsPanel(_props: { role: DashboardRole }) {
           ← {selectedMission.name}
         </button>
 
-        <h2 className={styles.missionDetailTitle}>Edit mission</h2>
+        <h2 className={styles.missionDetailTitle}>Editar misión</h2>
 
         <MissionForm
           initial={{
@@ -303,7 +322,7 @@ export function MissionsPanel(_props: { role: DashboardRole }) {
     <section className={styles.panel} data-testid="missions-panel">
       <div className={styles.panelHeader}>
         <div>
-          <h2>Missions</h2>
+          <h2>Misiones</h2>
         </div>
         <button
           className={styles.primaryButton}
@@ -312,7 +331,7 @@ export function MissionsPanel(_props: { role: DashboardRole }) {
           onClick={() => { setFormError(null); setView('create') }}
           type="button"
         >
-          Create mission
+          Crear misión
         </button>
       </div>
 
@@ -322,36 +341,36 @@ export function MissionsPanel(_props: { role: DashboardRole }) {
         <table className={styles.table}>
           <thead>
             <tr>
-              <th>Name</th>
-              <th>Description</th>
-              <th>Difficulty</th>
-              <th>Status</th>
-              <th>Actions</th>
+              <th>Nombre</th>
+              <th>Descripción</th>
+              <th>Dificultad</th>
+              <th>Estado</th>
+              <th>Acciones</th>
             </tr>
           </thead>
           <tbody>
             {listData.map((mission) => (
               <tr key={mission.id} data-testid={`mission-row-${mission.id}`}>
-                <td data-label="Name">{mission.name}</td>
-                <td data-label="Description">{mission.description}</td>
-                <td data-label="Difficulty">
+                <td data-label="Nombre">{mission.name}</td>
+                <td data-label="Descripción">{mission.description}</td>
+                <td data-label="Dificultad">
                   <span
                     className={styles.chip}
                     data-testid={`mission-difficulty-${mission.id}`}
                   >
-                    {mission.difficulty}
+                    {difficultyLabel(mission.difficulty)}
                   </span>
                 </td>
-                <td data-label="Status">
+                <td data-label="Estado">
                   <span
                     className={styles.chip}
                     data-tone={mission.isActive ? (mission.isSourceReady ? 'success' : 'warning') : 'muted'}
                     data-testid={`mission-status-${mission.id}`}
                   >
-                    {mission.activationState}
+                    {activationStateLabel(mission.activationState)}
                   </span>
                 </td>
-                <td data-label="Actions">
+                <td data-label="Acciones">
                   <button
                     className={styles.inlineButton}
                     data-testid={`view-mission-btn-${mission.id}`}
@@ -359,7 +378,7 @@ export function MissionsPanel(_props: { role: DashboardRole }) {
                     onClick={() => handleOpenDetail(mission.id)}
                     type="button"
                   >
-                    View details
+                    Ver detalles
                   </button>
                 </td>
               </tr>
@@ -372,6 +391,9 @@ export function MissionsPanel(_props: { role: DashboardRole }) {
 }
 
 const MISSION_DIFFICULTIES = ['Beginner', 'Intermediate', 'Advanced'] as const
+
+// Keep in sync with the backend cap (MaximumTime.MaximumMinutes).
+const MAX_MISSION_TIME_MINUTES = 30
 
 function MissionForm({
   initial,
@@ -392,6 +414,7 @@ function MissionForm({
   const [maximumTimeMinutes, setMaximumTimeMinutes] = useState(
     initial.maximumTimeMinutes === 0 ? '' : String(initial.maximumTimeMinutes),
   )
+  const [timeError, setTimeError] = useState<string | null>(null)
 
   return (
     <form
@@ -400,20 +423,26 @@ function MissionForm({
       onSubmit={(e) => {
         e.preventDefault()
         const time = parseInt(maximumTimeMinutes, 10)
-        if (!time || time < 1) return
+        if (!Number.isInteger(time) || time < 1 || time > MAX_MISSION_TIME_MINUTES) {
+          setTimeError(
+            `El tiempo máximo debe ser un número entero entre 1 y ${MAX_MISSION_TIME_MINUTES} minutos.`,
+          )
+          return
+        }
+        setTimeError(null)
         onSubmit(name.trim(), description.trim(), difficulty, time)
       }}
     >
       {error && <p className={styles.formError} role="alert">{error}</p>}
 
       <div className={styles.missionFormNameCard}>
-        <span className={styles.missionDetailDescLabel}>Mission Name</span>
+        <span className={styles.missionDetailDescLabel}>Nombre de la misión</span>
         <input
           className={styles.missionFormNameInput}
           data-testid="mission-name-input"
           disabled={isPending}
           maxLength={200}
-          placeholder="Enter mission name"
+          placeholder="Ingresa el nombre de la misión"
           required
           value={name}
           onChange={(e) => setName(e.target.value)}
@@ -421,13 +450,13 @@ function MissionForm({
       </div>
 
       <div className={styles.missionFormDescCard}>
-        <span className={styles.missionDetailDescLabel}>Description</span>
+        <span className={styles.missionDetailDescLabel}>Descripción</span>
         <textarea
           className={styles.missionFormDescTextarea}
           data-testid="mission-description-input"
           disabled={isPending}
           maxLength={2000}
-          placeholder="Describe the mission"
+          placeholder="Describe la misión"
           required
           rows={4}
           value={description}
@@ -437,7 +466,7 @@ function MissionForm({
 
       <div className={styles.missionFormMetaRow}>
         <div className={styles.missionFormMetaItem}>
-          <span className={styles.missionDetailDescLabel}>Difficulty</span>
+          <span className={styles.missionDetailDescLabel}>Dificultad</span>
           <select
             className={styles.formInput}
             data-testid="mission-difficulty-input"
@@ -446,28 +475,39 @@ function MissionForm({
             value={difficulty}
             onChange={(e) => setDifficulty(e.target.value)}
           >
-            <option value="" disabled>Select difficulty</option>
+            <option value="" disabled>Selecciona la dificultad</option>
             {MISSION_DIFFICULTIES.map((d) => (
-              <option key={d} value={d}>{d}</option>
+              <option key={d} value={d}>{difficultyLabel(d)}</option>
             ))}
           </select>
         </div>
         <div className={styles.missionFormMetaItem}>
-          <span className={styles.missionDetailDescLabel}>Maximum Time</span>
+          <span className={styles.missionDetailDescLabel}>Tiempo máximo</span>
           <div className={styles.missionFormTimeWrap}>
             <input
+              aria-invalid={timeError !== null}
               className={styles.formInput}
               data-testid="mission-time-input"
               disabled={isPending}
+              max={MAX_MISSION_TIME_MINUTES}
               min={1}
-              placeholder="e.g. 30"
+              placeholder="p. ej. 30"
               required
+              step={1}
               type="number"
               value={maximumTimeMinutes}
-              onChange={(e) => setMaximumTimeMinutes(e.target.value)}
+              onChange={(e) => {
+                setMaximumTimeMinutes(e.target.value)
+                if (timeError) setTimeError(null)
+              }}
             />
-            <span className={styles.missionFormTimeUnit}>minutes</span>
+            <span className={styles.missionFormTimeUnit}>minutos</span>
           </div>
+          {timeError && (
+            <p className={styles.formError} data-testid="mission-time-error" role="alert">
+              {timeError}
+            </p>
+          )}
         </div>
       </div>
 
@@ -478,7 +518,7 @@ function MissionForm({
           disabled={isPending}
           type="submit"
         >
-          Save
+          Guardar
         </button>
         <button
           className={styles.inlineButton}
@@ -486,7 +526,7 @@ function MissionForm({
           type="button"
           onClick={onCancel}
         >
-          Cancel
+          Cancelar
         </button>
       </div>
     </form>

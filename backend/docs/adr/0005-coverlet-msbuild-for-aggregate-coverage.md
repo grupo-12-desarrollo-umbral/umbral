@@ -1,8 +1,8 @@
 # Use coverlet.msbuild with MergeWith chaining for aggregate coverage enforcement
 
-All test projects use `coverlet.msbuild` instead of `coverlet.collector`. Coverage is collected by running each test project in order with `/p:CollectCoverage=true /p:CoverletOutputFormat=json`, passing the previous run's output via `/p:MergeWith`; the final project adds `/p:Threshold=93 /p:ThresholdType="line,branch" /p:ThresholdStat=total` so `dotnet test` itself fails if the aggregate **line or branch** coverage falls short. This replaces a custom Python script that accepted only a single pre-merged Cobertura file and required the agent to improvise a merge step that was never reliable in practice.
+All test projects use `coverlet.msbuild` instead of `coverlet.collector`. Coverage is collected by running each test project in order with `/p:CollectCoverage=true /p:CoverletOutputFormat=json`, passing the previous run's output via `/p:MergeWith`; the final project adds `/p:Threshold=95 /p:ThresholdType=branch /p:ThresholdStat=total` so `dotnet test` itself fails if aggregate branch coverage falls short. Line coverage remains visible in the generated report but does not determine the gate. This replaces a custom Python script that accepted only a single pre-merged Cobertura file and required the agent to improvise a merge step that was never reliable in practice.
 
-The gate enforces **both line and branch** coverage against the same threshold. coverlet 6.0.4 applies a single `/p:Threshold` value to every type listed in `/p:ThresholdType`, so one bar (93% by default) gates both dimensions; it does not support per-type threshold values. The comma-separated `ThresholdType` value must be quoted (`\"line,branch\"`) so the comma reaches MSBuild inside the property value rather than being parsed as a separate switch (which fails with `MSB1006 Property is not valid`).
+The gate enforces **aggregate branch coverage of at least 95%**. Coverlet 6.0.4 receives a single threshold type, `branch`, so line coverage cannot make the build pass or fail.
 
 ## Gate scope and single source of truth
 
@@ -12,11 +12,11 @@ On a green run the gate persists the merged Cobertura file to `coverage/gate/mer
 
 `backend/scripts/cover.sh` is a dev-only convenience for whole-solution exploration. It uses a different project discovery and different ReportGenerator filters, so its number is **not** the gated number and must not be used to demonstrate that the gate passed.
 
-The threshold defaults to 93% (the project minimum, applied to both line and branch) and is overridable per-run with the `THRESHOLD` env var when a consumer requires a different bar (e.g. `THRESHOLD=95`).
+The threshold defaults to 95%, the project minimum for aggregate branch coverage. The `THRESHOLD` environment variable remains available for consumers that require a stricter bar.
 
 ## Gated services and scope
 
-`make gate-all` auto-discovers gated services from `services/*/tests/IntegrationTests/*.csproj`: `identity-access-service`, `mission-design-service`, and `session-operations-service`. As of issue #149 all three clear the 93% line **and** branch bar (identity 96.2% branch, mission 95.3% branch, session 95.1% branch).
+`make gate-all` auto-discovers gated services from `services/*/tests/IntegrationTests/*.csproj`. Every discovered service must clear the 95% aggregate branch-coverage bar.
 
 Two backend services are intentionally **out of scope** for the coverage gate:
 

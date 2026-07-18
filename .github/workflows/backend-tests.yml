@@ -22,7 +22,7 @@ jobs:
       fail-fast: false
       matrix:
         service:
-          - identity-access-service
+          - users-service
           - mission-design-service
           - scoring-monitoring-service
           - session-operations-service
@@ -32,13 +32,13 @@ jobs:
 
       - uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '10.0.x'
+          global-json-file: backend/global.json
 
       - name: Cache NuGet packages
         uses: actions/cache@v4
         with:
           path: ~/.nuget/packages
-          key: nuget-${{ runner.os }}-${{ hashFiles('backend/**/*.csproj') }}
+          key: nuget-${{ runner.os }}-${{ hashFiles('backend/**/*.csproj', 'backend/.config/dotnet-tools.json') }}
           restore-keys: nuget-${{ runner.os }}-
 
       # The Testcontainers suites skip themselves when they cannot reach the
@@ -57,21 +57,10 @@ jobs:
       # `build` also runs the structure-guard and layer-guard (Clean Architecture
       # dependency rule); `gate` runs the unit + Testcontainers integration projects
       # and enforces aggregate coverage.
-      - name: Build (includes structure + layer guards)
-        run: make -C backend build SVC=${{ matrix.service }}
-
-      - name: Install coverage report generator
-        run: |
-          dotnet tool install dotnet-reportgenerator-globaltool \
-            --version 5.5.10 \
-            --tool-path "$RUNNER_TEMP/reportgenerator"
-          echo "$RUNNER_TEMP/reportgenerator" >> "$GITHUB_PATH"
-
-      # `gate` runs the unit + integration projects, merges their Coverlet data,
-      # enforces the repository's line/branch thresholds, and renders the HTML
-      # report when ReportGenerator is available.
-      - name: Test with coverage gate
-        run: make -C backend gate SVC=${{ matrix.service }}
+      # The same entrypoint developers run locally: architecture guards, build,
+      # unit + integration tests, the Coverlet threshold, and required reports.
+      - name: Run local CI contract
+        run: make -C backend ci SVC=${{ matrix.service }}
 
       # The authoritative guard against a false green. dotnet reports a skipped
       # test as a pass, so assert the count is zero rather than trusting the exit
@@ -128,20 +117,17 @@ jobs:
 
       - uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '10.0.x'
+          global-json-file: backend/global.json
 
       - name: Cache NuGet packages
         uses: actions/cache@v4
         with:
           path: ~/.nuget/packages
-          key: nuget-${{ runner.os }}-${{ hashFiles('backend/**/*.csproj') }}
+          key: nuget-${{ runner.os }}-${{ hashFiles('backend/**/*.csproj', 'backend/.config/dotnet-tools.json') }}
           restore-keys: nuget-${{ runner.os }}-
 
-      - name: Build
-        run: make -C backend build SVC=api-gateway
-
-      - name: Test
-        run: make -C backend test SVC=api-gateway
+      - name: Run local CI contract
+        run: make -C backend ci SVC=api-gateway
 
       # Same false-green guard as the service matrix: dotnet reports a skipped test
       # as a pass, so assert the count rather than trusting the exit code.

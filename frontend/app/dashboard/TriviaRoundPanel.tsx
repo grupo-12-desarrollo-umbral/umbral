@@ -36,8 +36,8 @@ export function TriviaRoundPanel({
     const percent = Math.min(100, Math.max(0, (seconds / 5) * 100))
     return (
       <div className={styles.panel} data-testid="trivia-round-panel" data-phase="pregame">
-        <div className={styles.eyebrow}>Get ready</div>
-        <div className={styles.pregameNumeral} aria-live="assertive" aria-label={`Starting in ${seconds}`}>
+        <div className={styles.eyebrow}>Prepárate</div>
+        <div className={styles.pregameNumeral} aria-live="assertive" aria-label={`Comienza en ${seconds}`}>
           {seconds}
         </div>
         <div
@@ -46,7 +46,7 @@ export function TriviaRoundPanel({
           aria-valuemin={0}
           aria-valuemax={100}
           aria-valuenow={percent}
-          aria-label="Pre-game countdown"
+          aria-label="Cuenta regresiva previa al juego"
         >
           <div className={styles.barFill} data-tone="normal" style={{ width: `${percent}%` }} />
         </div>
@@ -62,7 +62,7 @@ export function TriviaRoundPanel({
     return (
       <div className={styles.panel} data-testid="trivia-round-panel" data-phase="question-active">
         <div className={styles.questionHeader}>
-          <span className={styles.eyebrow}>Substage {substageOrdinal} · Question {activeQuestion.sequenceOrder}</span>
+          <span className={styles.eyebrow}>Subetapa {substageOrdinal} · Pregunta {activeQuestion.sequenceOrder}</span>
           <span className={styles.timeLeft} data-tone={tone} data-testid="trivia-round-time-left">
             {left}s
           </span>
@@ -76,7 +76,7 @@ export function TriviaRoundPanel({
           aria-valuemin={0}
           aria-valuemax={100}
           aria-valuenow={percent}
-          aria-label="Time remaining for this question"
+          aria-label="Tiempo restante para esta pregunta"
         >
           <div className={styles.barFill} data-tone={tone} style={{ width: `${percent}%` }} />
         </div>
@@ -90,7 +90,7 @@ export function TriviaRoundPanel({
         <div className={styles.transition} aria-live="polite">
           <span className={styles.transitionLine} aria-hidden="true" />
           <span className={styles.transitionText}>
-            {finalizing ? 'Final substage complete — finishing session…' : 'Advancing to the next substage…'}
+            {finalizing ? 'Subetapa final completada — finalizando la sesión…' : 'Avanzando a la siguiente subetapa…'}
           </span>
           <span className={styles.transitionLine} aria-hidden="true" />
         </div>
@@ -101,8 +101,8 @@ export function TriviaRoundPanel({
   if (phase === 'complete') {
     return (
       <div className={styles.panel} data-testid="trivia-round-panel" data-phase="complete">
-        <div className={styles.eyebrow}>Session complete</div>
-        <p className={styles.prompt} aria-live="polite">All substages finished. This session is complete.</p>
+        <div className={styles.eyebrow}>Sesión completada</div>
+        <p className={styles.prompt} aria-live="polite">Todas las subetapas finalizaron. Esta sesión está completa.</p>
       </div>
     )
   }
@@ -112,7 +112,7 @@ export function TriviaRoundPanel({
     <div className={styles.panel} data-testid="trivia-round-panel" data-phase="between-questions">
       <div className={styles.transition} aria-live="polite">
         <span className={styles.transitionLine} aria-hidden="true" />
-        <span className={styles.transitionText}>Next question loading…</span>
+        <span className={styles.transitionText}>Cargando la siguiente pregunta…</span>
         <span className={styles.transitionLine} aria-hidden="true" />
       </div>
     </div>

@@ -47,7 +47,7 @@ public sealed class MissionMutationCommandHandlerTests
     public async Task AssignSubstagePlayMode_ChangesPlayModeFromTreasureHuntToTrivia()
     {
         var repository = new InMemoryMissionRepository();
-        var mission = Mission.Create("Mission", "Briefing", "Advanced", 45);
+        var mission = Mission.Create("Mission", "Briefing", "Advanced", 30);
         repository.Seed(mission);
         var stage = mission.AddStage("Stage", 1);
         stage.Id = 10;
@@ -67,7 +67,7 @@ public sealed class MissionMutationCommandHandlerTests
     public async Task AssignSubstagePlayMode_WhenSameMode_ReturnsUnchangedMission()
     {
         var repository = new InMemoryMissionRepository();
-        var mission = Mission.Create("Mission", "Briefing", "Advanced", 45);
+        var mission = Mission.Create("Mission", "Briefing", "Advanced", 30);
         repository.Seed(mission);
         var stage = mission.AddStage("Stage", 1);
         stage.Id = 10;
@@ -89,7 +89,7 @@ public sealed class MissionMutationCommandHandlerTests
     public async Task RemoveMissionNode_RemovesStageFromMission()
     {
         var repository = new InMemoryMissionRepository();
-        var mission = Mission.Create("Mission", "Briefing", "Advanced", 45);
+        var mission = Mission.Create("Mission", "Briefing", "Advanced", 30);
         repository.Seed(mission);
         var stage = mission.AddStage("Stage", 1);
         stage.Id = 10;
@@ -107,7 +107,7 @@ public sealed class MissionMutationCommandHandlerTests
     public async Task RemoveMissionNode_RemovesSubstageFromStage()
     {
         var repository = new InMemoryMissionRepository();
-        var mission = Mission.Create("Mission", "Briefing", "Advanced", 45);
+        var mission = Mission.Create("Mission", "Briefing", "Advanced", 30);
         repository.Seed(mission);
         var stage = mission.AddStage("Stage", 1);
         stage.Id = 10;
@@ -127,7 +127,7 @@ public sealed class MissionMutationCommandHandlerTests
     public async Task RemoveMissionNode_RemovesClueFromSubstage()
     {
         var repository = new InMemoryMissionRepository();
-        var mission = Mission.Create("Mission", "Briefing", "Advanced", 45);
+        var mission = Mission.Create("Mission", "Briefing", "Advanced", 30);
         repository.Seed(mission);
         var stage = mission.AddStage("Stage", 1);
         stage.Id = 10;
@@ -149,7 +149,7 @@ public sealed class MissionMutationCommandHandlerTests
     public async Task RemoveMissionNode_WhenNodeNotFound_ThrowsNotFoundException()
     {
         var repository = new InMemoryMissionRepository();
-        var mission = Mission.Create("Mission", "Briefing", "Advanced", 45);
+        var mission = Mission.Create("Mission", "Briefing", "Advanced", 30);
         repository.Seed(mission);
 
         var handler = new RemoveMissionNodeCommandHandler(repository);
@@ -165,7 +165,7 @@ public sealed class MissionMutationCommandHandlerTests
     public async Task RemoveTarget_RemovesTargetFromSubstage()
     {
         var repository = new InMemoryMissionRepository();
-        var mission = Mission.Create("Mission", "Briefing", "Advanced", 45);
+        var mission = Mission.Create("Mission", "Briefing", "Advanced", 30);
         repository.Seed(mission);
         var stage = mission.AddStage("Stage", 1);
         stage.Id = 10;
@@ -187,7 +187,7 @@ public sealed class MissionMutationCommandHandlerTests
     public async Task RemoveTarget_WhenTargetNotFound_ThrowsNotFoundException()
     {
         var repository = new InMemoryMissionRepository();
-        var mission = Mission.Create("Mission", "Briefing", "Advanced", 45);
+        var mission = Mission.Create("Mission", "Briefing", "Advanced", 30);
         repository.Seed(mission);
         var stage = mission.AddStage("Stage", 1);
         stage.Id = 10;
@@ -209,7 +209,7 @@ public sealed class MissionMutationCommandHandlerTests
     public async Task UpdateMissionNode_RenamesStage()
     {
         var repository = new InMemoryMissionRepository();
-        var mission = Mission.Create("Mission", "Briefing", "Advanced", 45);
+        var mission = Mission.Create("Mission", "Briefing", "Advanced", 30);
         repository.Seed(mission);
         var stage = mission.AddStage("Stage", 1);
         stage.Id = 10;
@@ -228,7 +228,7 @@ public sealed class MissionMutationCommandHandlerTests
     public async Task UpdateMissionNode_RenamesSubstage()
     {
         var repository = new InMemoryMissionRepository();
-        var mission = Mission.Create("Mission", "Briefing", "Advanced", 45);
+        var mission = Mission.Create("Mission", "Briefing", "Advanced", 30);
         repository.Seed(mission);
         var stage = mission.AddStage("Stage", 1);
         stage.Id = 10;
@@ -248,7 +248,7 @@ public sealed class MissionMutationCommandHandlerTests
     public async Task UpdateMissionNode_RenamesClueAndUpdatesText()
     {
         var repository = new InMemoryMissionRepository();
-        var mission = Mission.Create("Mission", "Briefing", "Advanced", 45);
+        var mission = Mission.Create("Mission", "Briefing", "Advanced", 30);
         repository.Seed(mission);
         var stage = mission.AddStage("Stage", 1);
         stage.Id = 10;
@@ -272,7 +272,7 @@ public sealed class MissionMutationCommandHandlerTests
     public async Task UpdateMissionNode_WhenNodeNotFound_ThrowsNotFoundException()
     {
         var repository = new InMemoryMissionRepository();
-        var mission = Mission.Create("Mission", "Briefing", "Advanced", 45);
+        var mission = Mission.Create("Mission", "Briefing", "Advanced", 30);
         repository.Seed(mission);
 
         var handler = new UpdateMissionNodeCommandHandler(repository);
@@ -290,7 +290,7 @@ public sealed class MissionMutationCommandHandlerTests
     public async Task UpdateTarget_UpdatesTargetFields_AndKeepsDifficultyDerivedScore()
     {
         var repository = new InMemoryMissionRepository();
-        var mission = Mission.Create("Mission", "Briefing", "Advanced", 45);
+        var mission = Mission.Create("Mission", "Briefing", "Advanced", 30);
         repository.Seed(mission);
         var stage = mission.AddStage("Stage", 1);
         stage.Id = 10;
@@ -319,7 +319,7 @@ public sealed class MissionMutationCommandHandlerTests
     {
         var missionRepository = new InMemoryMissionRepository();
         var quizRepository = new InMemoryTriviaQuizRepository();
-        var mission = Mission.Create("Mission", "Briefing", "Advanced", 45);
+        var mission = Mission.Create("Mission", "Briefing", "Advanced", 30);
         missionRepository.Seed(mission);
         var stage = mission.AddStage("Stage", 1);
         stage.Id = 10;
@@ -347,7 +347,7 @@ public sealed class MissionMutationCommandHandlerTests
     {
         var missionRepository = new InMemoryMissionRepository();
         var quizRepository = new InMemoryTriviaQuizRepository();
-        var mission = Mission.Create("Mission", "Briefing", "Advanced", 45);
+        var mission = Mission.Create("Mission", "Briefing", "Advanced", 30);
         missionRepository.Seed(mission);
         var stage = mission.AddStage("Stage", 1);
         stage.Id = 10;

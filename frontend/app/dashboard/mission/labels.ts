@@ -7,7 +7,7 @@
 export const PLAY_MODES = ['TreasureHunt', 'Trivia'] as const
 export type PlayMode = (typeof PLAY_MODES)[number]
 export const PLAY_MODE_LABELS: Record<PlayMode, string> = {
-  TreasureHunt: 'Treasure Hunt',
+  TreasureHunt: 'Búsqueda del tesoro',
   Trivia: 'Trivia',
 }
 
@@ -19,8 +19,8 @@ export const CLUE_VISIBILITY_POLICIES = [
 ] as const
 export type ClueVisibility = (typeof CLUE_VISIBILITY_POLICIES)[number]
 const CLUE_VISIBILITY_LABELS: Record<string, string> = {
-  VisibleWhenSubstageStarts: 'Visible when substage starts',
-  HiddenUntilOperatorRelease: 'Hidden until operator releases it',
+  VisibleWhenSubstageStarts: 'Visible al iniciar la subetapa',
+  HiddenUntilOperatorRelease: 'Oculta hasta que el operador la libere',
 }
 // Tolerant: unknown server value (e.g. a future policy) degrades to a humanized fallback,
 // never a crash or a raw PascalCase token.
@@ -29,7 +29,7 @@ export function clueVisibilityLabel(policy: string): string {
 }
 
 export const TARGET_QR_HELP =
-  'The code embedded in the printed QR participants scan to resolve this target.'
+  'El código incrustado en el QR impreso que los participantes escanean para resolver este target.'
 
 // Authoring-side guard for the runtime TargetResolutionPolicy: an opaque, collision-resistant
 // token. crypto.getRandomValues is browser-only — call ONLY from event handlers (never at module

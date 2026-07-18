@@ -21,4 +21,7 @@ public sealed record TargetResolvedIntegrationEvent(
     Guid ActiveSubstageId,
     Guid TargetSnapshotId,
     int ScoreValue,
+    // Mission difficulty multiplier (1/2/3) behind ScoreValue. Scoring's TargetScorePolicy applies it
+    // to the base score so the difficulty rule is owned here, not reverse-engineered from ScoreValue.
+    int DifficultyFactor,
     DateTimeOffset ResolvedAt);

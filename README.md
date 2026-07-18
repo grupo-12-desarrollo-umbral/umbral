@@ -1,213 +1,175 @@
 # Umbral
 
-Umbral es una plataforma para la ejecución de sesiones en vivo de tipo misión y trivia, orientada a contextos educativos y competitivos. Permite a operadores diseñar misiones con estructura de pistas y etapas, crear cuestionarios de trivia, lanzar sesiones con equipos de participantes, registrar evidencia y obtener resultados con rankings auditables en tiempo real.
+Umbral es una plataforma para ejecutar sesiones en vivo de tipo misión y
+trivia en contextos educativos y competitivos. Permite diseñar contenido,
+organizar equipos, operar sesiones, registrar evidencias y obtener rankings
+auditables en tiempo real.
 
----
+## Arquitectura
 
-## Descripción general
+El monorepositorio contiene tres cargas de trabajo:
 
-El sistema está construido como un monorepo con dos cargas de trabajo independientes:
+- `backend/`: API Gateway YARP y microservicios .NET.
+- `frontend/`: aplicación web Next.js para administradores, operadores y
+  participantes.
+- `mobile/`: aplicación Expo para la experiencia móvil.
 
-- **Backend** — microservicios .NET expuestos a través de un API Gateway centralizado.
-- **Frontend** — aplicación Next.js consumida por operadores, administradores y participantes.
-
-El frontend se comunica exclusivamente con el API Gateway, que valida cada request contra Keycloak e inyecta la identidad del actor como headers de confianza hacia los servicios internos. Los servicios se integran entre sí mediante eventos de dominio.
-
----
+Frontend y mobile se comunican exclusivamente con el API Gateway. El gateway
+valida el JWT emitido por Keycloak y genera headers de identidad confiable para
+los servicios internos. Los contextos se integran por contratos HTTP y eventos;
+ninguno accede a la base de datos de otro.
 
 ## Microservicios
 
-### Identity Access
+| Servicio | Autoridad | Documentación |
+| --- | --- | --- |
+| Users | perfil, rol y acceso de Umbral; delega autenticación y credenciales a Keycloak | [README](backend/services/users-service/README.md) |
+| Mission Design | autoría y activación de misiones y trivias | [README](backend/services/mission-design-service/README.md) |
+| Session Operations | estado y operación de sesiones en vivo | [README](backend/services/session-operations-service/README.md) |
+| Scoring Monitoring | puntuación, ranking, penalizaciones e historial | [README](backend/services/scoring-monitoring-service/README.md) |
 
-`**backend/services/identity-access-service`**
+Session Operations es la única autoridad sobre el runtime. Mission Design
+entrega contenido preparado, Users entrega hechos de identidad y elegibilidad,
+y Scoring Monitoring deriva vistas a partir de los hechos de la sesión.
 
-Gestiona identidad, roles y acceso dentro de la plataforma. La autenticación está delegada a Keycloak; este servicio se encarga del aprovisionamiento post-login que registra al actor como usuario conocido por la plataforma.
+Users no autentica contraseñas ni emite o valida tokens. Delega en Keycloak el
+alta de la identidad, las credenciales, el login, la verificación de correo y la
+recuperación de contraseña; conserva únicamente el perfil y las reglas de acceso
+propias del dominio de Umbral.
 
-- Registro y gestión de usuarios con su rol (Administrador, Operador, Participante).
-- Emisión y validación de `JoinToken` para el flujo de ingreso a sesiones.
-- Catálogo de equipos de referencia y asociaciones para el lobby de participantes.
-- Devolución de hechos de acceso (identidad, rol, validez del token) usados por los demás contextos.
+Para las fronteras y contratos entre cargas, consulta
+[CONTEXT-MAP.md](CONTEXT-MAP.md) y [backend/CONTEXT-MAP.md](backend/CONTEXT-MAP.md).
 
-> La decisión final de admisión a una sesión en vivo no pertenece a este servicio; esa autoridad recae en Session Operations.
+## Pipeline local esencial
 
----
+Hay dos flujos independientes: ejecutar la solución para desarrollarla y
+verificar cambios antes de integrarlos. Levantar Compose no es un prerrequisito
+de la verificación.
 
-### Mission Design
+### Prerrequisitos
 
-`**backend/services/mission-design-service**`
+- Docker con Compose v2.24 o posterior.
+- Para verificar el backend en el host: GNU Make y el SDK exacto indicado en
+  `backend/global.json`.
+- Para desarrollar fuera de Compose: Node.js y pnpm en `frontend/`; Node.js y
+  npm en `mobile/`.
 
-Permite a operadores y administradores diseñar el contenido que luego se ejecuta en sesiones en vivo. Gestiona dos tipos de fuente: misiones con estructura jerárquica de pistas y cuestionarios de trivia.
+### 1. Ejecutar la solución web completa
 
-- Autoría de misiones con su árbol de nodos (Etapa → Subetapa → Pista) y puntos de validación por QR.
-- Autoría de cuestionarios de trivia con preguntas y opciones de respuesta.
-- Control de activación: decide si una misión o quiz está listo para ser usado como fuente de una sesión en vivo.
+Desde la raíz, Compose levanta PostgreSQL, Keycloak, Mailpit, RabbitMQ, Seq, los
+microservicios, el gateway y el frontend:
 
-> Este servicio no controla la ejecución en tiempo real; es exclusivamente la autoridad sobre la estructura y preparación del contenido.
+```bash
+cp backend/.env.example backend/.env  # opcional: personaliza SMTP, hostname y secretos
+docker compose -f backend/docker-compose.yml -f backend/docker-compose.override.yml up -d --wait
+```
 
----
+Comprueba el estado del stack:
 
-### Session Operations
+```bash
+docker compose -f backend/docker-compose.yml -f backend/docker-compose.override.yml ps
+```
 
-`**backend/services/session-operations-service**`
+La siembra no forma parte del arranque esencial. Cuando necesites el catálogo y
+las sesiones de demostración, ejecútala explícitamente:
 
-Es el núcleo de la ejecución en vivo. Recibe una fuente (misión o trivia) y la convierte en una sesión activa con equipos, progresión de pistas y registro de evidencia.
+```bash
+./backend/scripts/seed-all.sh
+```
 
-- Ciclo de vida completo de la sesión: Programada → Preparando → Activa → Pausada → Finalizada / Cancelada.
-- Decisión final de admisión de participantes (late join, reconexión, capacidad, asignación de equipo).
-- Gestión de equipos, participantes y contextos de ingreso en el ámbito de sesión.
-- Liberación de pistas a equipos durante la sesión activa.
-- Recepción y validación de evidencia (respuestas, escaneos QR, respuestas de trivia).
-- Emisión de eventos de sesión para trazabilidad, auditoría y supervisión.
+Puntos de acceso:
 
-> Este servicio es la única autoridad sobre el estado de runtime de la sesión. Ningún otro servicio puede mutar su estado directamente.
+| Componente | URL |
+| --- | --- |
+| Frontend | `http://localhost:3000` |
+| API Gateway | `http://localhost:8000` |
+| Keycloak | `http://localhost:8080` |
+| Mailpit | `http://localhost:8025` |
+| RabbitMQ Management | `http://localhost:15672` |
+| Seq | `http://localhost:8341` |
 
----
+Los servicios .NET se ejecutan con `dotnet watch`; los microservicios no
+publican puertos directos al host. Comprueba el loop de desarrollo con:
 
-### Scoring Monitoring
+```bash
+make -C backend doctor
+```
 
-`**backend/services/scoring-monitoring-service**`
+Detén el entorno sin borrar la base local con:
 
-Calcula, persiste y expone vistas derivadas de puntuación y monitoreo a partir de los eventos emitidos por Session Operations.
+```bash
+docker compose -f backend/docker-compose.yml -f backend/docker-compose.override.yml down
+```
 
-- Registro trazable de puntos otorgados o penalizados por equipo.
-- Aplicación de penalizaciones con razón justificada.
-- Derivación del ranking de equipos con tiempo de resolución como criterio de desempate.
-- Preservación del historial de auditoría de eventos de sesión.
-- Proyecciones de monitoreo para supervisión en tiempo real por operadores.
+### 2. Verificar cambios del backend
 
-> Este servicio no controla el estado de la sesión; consume hechos de runtime y expone exclusivamente vistas de lectura.
+El gate local ejecuta las pruebas unitarias e integración de un servicio,
+combina su cobertura y exige al menos 95 % de ramas:
 
----
+```bash
+make -C backend gate SVC=session-operations-service
+make -C backend gate-all
+```
+
+Antes de integrar, usa `ci`: añade los controles estructurales y de Arquitectura
+Limpia, compila la API y reproduce el punto de entrada de GitHub Actions. Para
+el API Gateway, que no tiene un gate de Coverlet representativo, `ci` ejecuta su
+build y sus pruebas.
+
+```bash
+make -C backend ci SVC=session-operations-service
+make -C backend ci SVC=api-gateway
+make -C backend ci-all
+```
+
+Las pruebas de integración usan Testcontainers, por lo que requieren Docker,
+pero no el stack persistente de Compose.
+
+Más detalles: [backend/README.md](backend/README.md) y
+[backend/docs/local-ci.md](backend/docs/local-ci.md).
+
+### 3. Trabajar en las interfaces
+
+El frontend incluido en Compose sirve una compilación de la app. Para usar la
+recarga de Next.js, conserva el backend levantado, libera el puerto 3000 y sigue
+la guía del frontend:
+
+```bash
+docker compose -f backend/docker-compose.yml -f backend/docker-compose.override.yml stop frontend
+cd frontend
+pnpm install
+pnpm dev
+```
+
+Consulta [frontend/README.md](frontend/README.md) para variables y pruebas.
+
+Para la aplicación Expo:
+
+```bash
+cd mobile
+cp .env.example .env
+npm install
+npm start
+```
+
+Consulta [mobile/README.md](mobile/README.md) para configurar la URL correcta en
+simulador, emulador o dispositivo físico.
 
 ## Estructura del repositorio
 
-```
+```text
 umbral/
 ├── backend/
 │   ├── api-gateway/
 │   ├── services/
-│   │   ├── identity-access-service/
+│   │   ├── users-service/
 │   │   ├── mission-design-service/
 │   │   ├── session-operations-service/
 │   │   └── scoring-monitoring-service/
-│   └── docker-compose.yml
+│   ├── docker-compose.yml
+│   └── docs/local-ci.md
 ├── frontend/
 ├── mobile/
 ├── CONTEXT-MAP.md
 └── AGENTS.md
 ```
-
----
-
-## Cómo levantar el proyecto
-
-### Prerrequisitos
-
-- [Docker](https://docs.docker.com/get-docker/) y Docker Compose v2.24+
-- [Node.js](https://nodejs.org/) 20+ y [pnpm](https://pnpm.io/) (para el frontend)
-- [Node.js](https://nodejs.org/) 20+ y npm (para el móvil)
-- [Expo CLI](https://docs.expo.dev/get-started/installation/) (`npm install -g expo-cli`)
-
----
-
-### Backend
-
-El backend corre completamente en Docker. El comando `docker compose up` auto-carga el override de desarrollo que monta el código fuente y usa `dotnet watch run` para hot reload.
-
-```bash
-cd backend
-
-# Desarrollo con hot reload (recompila al guardar archivos .cs)
-docker compose up
-
-# Build de producción sin hot reload
-docker compose -f docker-compose.yml up --build
-```
-
-**Servicios expuestos en el host:**
-
-
-| Servicio            | Puerto            |
-| ------------------- | ----------------- |
-| API Gateway         | `localhost:8000`  |
-| Keycloak            | `localhost:8080`  |
-| RabbitMQ Management | `localhost:15672` |
-| PostgreSQL          | `localhost:5432`  |
-
-
-Para compilar o testear un servicio individualmente:
-
-```bash
-make -C backend build SVC=<service>   # compilar
-make -C backend test  SVC=<service>   # ejecutar tests
-make -C backend gate  SVC=<service>   # gate de cobertura
-```
-
-Donde `<service>` es el nombre de la carpeta del servicio, por ejemplo `session-operations-service`.
-
----
-
-### Frontend
-
-La aplicación web Next.js consume el API Gateway. Requiere que el backend esté corriendo.
-
-```bash
-cd frontend
-
-# Copiar variables de entorno y completar los valores
-cp .env.local.example .env.local
-
-# Instalar dependencias
-pnpm install
-
-# Iniciar servidor de desarrollo
-pnpm dev
-```
-
-La app estará disponible en `http://localhost:3000`.
-
-**Variables de entorno relevantes (`.env.local`):**
-
-```env
-KEYCLOAK_URL=http://localhost:8080
-KEYCLOAK_REALM=umbral
-KEYCLOAK_CLIENT_SECRET=      # obtener desde la consola de Keycloak
-API_GATEWAY_URL=http://localhost:8000
-```
-
----
-
-### Mobile
-
-La aplicación móvil está construida con Expo (React Native). Puede correrse en simulador iOS, emulador Android, o dispositivo físico vía Expo Go.
-
-```bash
-cd mobile
-
-# Copiar variables de entorno y completar los valores
-cp .env.example .env
-
-# Instalar dependencias
-npm install
-
-# Iniciar el servidor de desarrollo
-npm start
-```
-
-**Variables de entorno (`.env`):**
-
-```env
-# iOS Simulator → localhost | Android Emulator → 10.0.2.2 | Dispositivo físico → IP local
-EXPO_PUBLIC_API_BASE_URL=http://<host>:8000
-EXPO_PUBLIC_KEYCLOAK_URL=http://<host>:8080
-EXPO_PUBLIC_KEYCLOAK_REALM=umbral
-EXPO_PUBLIC_KEYCLOAK_CLIENT_ID=umbral-mobile
-```
-
-Para correr directamente en una plataforma:
-
-```bash
-npm run android   # emulador Android
-npm run ios       # simulador iOS (requiere macOS)
-```
-

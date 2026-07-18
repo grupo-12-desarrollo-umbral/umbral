@@ -10,8 +10,8 @@ end-to-end scenarios; this document records only what changed during implementat
 ## Current status
 
 Implementation is complete in `session-operations-service` and `mobile`. Identity Access was not
-changed. Backend compilation and all session-operations tests pass, and the ADR-0005 coverage gate is
-GREEN (98% line / 93.4% branch). The focused mobile regression and targeted lint pass.
+changed. Backend compilation and all session-operations tests passed under the historical gate. The
+current branch-coverage gate must be rerun. The focused mobile regression and targeted lint passed.
 
 **The core manual end-to-end scenarios have now been run against the local docker stack and pass** — see
 "Manual end-to-end verification" below. The unassigned participant plays, and the authorized-set gate
@@ -209,24 +209,23 @@ env GenerateSourceLinkFile=false EnableSourceControlManagerQueries=false \
   make -C backend gate SVC=session-operations-service
 ```
 
-Result: **Gate GREEN — line and branch coverage >= 93%.**
+Result at the time: **historical gate green; current branch-coverage gate requires a rerun.**
 
 - Line coverage: 98%
-- Branch coverage: 93.4% (1276 of 1365)
+- Historical branch coverage was below the current threshold.
 
 Report: `services/session-operations-service/coverage/gate/index.html`.
 
-A later re-run, *including* the separate rejoin fix and its 3 tests, was also GREEN at **98.13% line /
-93.56% branch (1279 of 1367)** — 7 branches of slack. Quote whichever number matches the tree you are
-gating; the figures above are HU-24b alone. Note the console summary prints an unweighted per-module
+A later rerun, *including* the separate rejoin fix and its 3 tests, was green under the historical
+threshold but is below the current branch requirement. Rerun the current tree. Note the console
+summary prints an unweighted per-module
 `Average` (92.89% branch) that is **not** what the gate enforces — `cover-gate.sh` passes
-`/p:Threshold /p:ThresholdType="line,branch"` to coverlet, which gates the merged total. Read
+`/p:Threshold /p:ThresholdType=branch` to Coverlet, which gates the merged branch total. Read
 `coverage/gate/merged.cobertura.xml` (`branch-rate`) for the real figure rather than the Average row.
 
 Two things worth carrying forward:
 
-- **Branch coverage has almost no headroom.** 93.4% against a 93 bar is 89 uncovered branches out of 1365;
-  roughly five or six more uncovered branches turn the gate red. This is pre-existing repo slack, not
+- **Branch coverage requires additional tests.** The historical run is below the current gate. This is pre-existing repo debt, not
   something this work introduced — the change added branches *with* tests and nudged the number up. But the
   next person to add defensive code without tests will trip it and it will look like their fault.
 - The first gate run showed the new `AdmitParticipant` authorized-set line at **75% (3/4)** condition
@@ -323,8 +322,8 @@ Both cost real time this session; neither is visible unless you look for it.
    `backend/docs/open-team-selection-runtime-guard-fix-handoff-2026-07-15.md`; that review produced the
    authorized-set fix above. Any further review still needs to avoid absorbing unrelated dirty-worktree
    changes.
-2. ~~Run the coverage gate~~ — **done, GREEN** (98% line / 93.4% branch). See "Coverage gate" above. Note
-   the thin branch margin recorded there before adding any untested defensive code.
+2. Run the current coverage gate again. The historical result no longer satisfies the active branch
+   threshold; see "Coverage gate" above before adding untested defensive code.
 3. ~~Run the manual end-to-end and negative scenarios~~ — **the core ones are done and PASS**, including
    the added reconnect authorized-set scenario. See "Manual end-to-end verification" above. What is left
    is the wider negative/gameplay list: foreign-reference-team answer 403, target-scan submissions, and

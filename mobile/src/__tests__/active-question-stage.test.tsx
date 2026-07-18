@@ -69,10 +69,10 @@ describe('ActiveQuestionStage', () => {
   test('renders header state badge, score, question label, prompt, and options', () => {
     const texts = allText(renderDisplayOnly());
 
-    expect(texts).toContain('Active');
-    expect(texts).toContain('SCORE');
+    expect(texts).toContain('Activa');
+    expect(texts).toContain('PUNTUACIÓN');
     expect(texts).toContain('120');
-    expect(texts).toContain('QUESTION 2');
+    expect(texts).toContain('· Pregunta 2');
     expect(texts).toContain('00:42');
     expect(texts).toContain('Which lantern is lit above the old archive door?');
     expect(texts).toEqual(expect.arrayContaining(['A', 'B', 'C']));
@@ -86,14 +86,14 @@ describe('ActiveQuestionStage', () => {
 
     // Both clocks are visible and distinct: the per-question window and the whole-mission deadline.
     expect(texts).toContain('00:42');
-    expect(texts).toContain('MISSION');
+    expect(texts).toContain('MISIÓN');
     expect(texts).toContain('08:30');
   });
 
   test('omits the mission line when no deadline is provided', () => {
     const texts = allText(renderDisplayOnly());
 
-    expect(texts).not.toContain('MISSION');
+    expect(texts).not.toContain('MISIÓN');
   });
 
   test('renders chip-less countdown without timer status labels', () => {
@@ -154,8 +154,8 @@ describe('ActiveQuestionStage', () => {
     const tree = renderer.toJSON() as TreeNode;
     const texts = allText(tree);
 
-    expect(texts).toContain('Answer submitted');
-    expect(texts).not.toContain('Submit answer');
+    expect(texts).toContain('Respuesta enviada');
+    expect(texts).not.toContain('Enviar respuesta');
     expect(findAllByProp(tree, 'accessibilityRole', 'button')).toHaveLength(0);
   });
 
@@ -171,9 +171,9 @@ describe('ActiveQuestionStage', () => {
     const texts = allText(tree);
 
     // Close affordance shows, distinct from the success chip and the interactive Submit button.
-    expect(texts.join(' ')).toContain('Question closed');
-    expect(texts).not.toContain('Answer submitted');
-    expect(texts).not.toContain('Submit answer');
+    expect(texts.join(' ')).toContain('Pregunta cerrada');
+    expect(texts).not.toContain('Respuesta enviada');
+    expect(texts).not.toContain('Enviar respuesta');
     expect(findAllByProp(tree, 'accessibilityRole', 'button')).toHaveLength(0);
 
     // Option rows are rendered as non-pressable, disabled text.
@@ -204,8 +204,8 @@ describe('ActiveQuestionStage', () => {
     const tree = renderer.toJSON() as TreeNode;
     const texts = allText(tree);
 
-    expect(texts.join(' ')).toContain('Question closed — waiting for the next');
-    expect(texts).not.toContain('Answer submitted');
+    expect(texts.join(' ')).toContain('Pregunta cerrada — esperando la siguiente');
+    expect(texts).not.toContain('Respuesta enviada');
     expect(findAllByProp(tree, 'accessibilityRole', 'alert')).toHaveLength(0);
   });
 
@@ -220,7 +220,7 @@ describe('ActiveQuestionStage', () => {
     const tree = renderer.toJSON() as TreeNode;
     const texts = allText(tree);
 
-    expect(texts).not.toContain('Submit answer');
+    expect(texts).not.toContain('Enviar respuesta');
     expect(findAllByProp(tree, 'accessibilityRole', 'button')).toHaveLength(1);
   });
 
@@ -245,7 +245,7 @@ describe('ActiveQuestionStage', () => {
     expect(findAllByProp(tree, 'accessibilityRole', 'alert')).toHaveLength(1);
 
     const dismissButton = findAllByProp(tree, 'accessibilityRole', 'button')
-      .find(b => (b.props as Record<string, unknown>).accessibilityLabel === 'Dismiss');
+      .find(b => (b.props as Record<string, unknown>).accessibilityLabel === 'Descartar');
     expect(dismissButton).toBeDefined();
   });
 

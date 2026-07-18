@@ -69,7 +69,7 @@
 | **NFR-06** | The solution must follow a hexagonal architecture or a variant compatible with clean architecture. |
 | **NFR-07** | The domain must not depend on infrastructure or web-framework details. |
 | **NFR-08** | The application must incorporate consistent logging, exception handling, and validations. |
-| **NFR-09** | The backend must reach, as an academic target, a test coverage of at least 90%. |
+| **NFR-09** | The backend must reach at least 95% aggregate branch coverage. |
 | **NFR-10** | The solution must be runnable locally via Docker Compose. |
 | **NFR-11** | The repository must include a continuous-integration pipeline for compilation and test execution. |
 | **NFR-12** | The interface must be clear, usable, and coherent with the system's main flows. |

@@ -268,6 +268,9 @@ public class ProblemDetailsExceptionHandlerTests
 
         problem.Status.Should().Be(409);
         problem.Title.Should().Be("Conflict.");
+        // The frontend surfaces `detail` verbatim, so the readiness failures must ride through
+        // PublicDetail rather than being swallowed by the generic per-category fallback.
+        problem.Detail.Should().Contain("Mission must have at least one stage.");
         httpContext.Response.StatusCode.Should().Be(409);
     }
 

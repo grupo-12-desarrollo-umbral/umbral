@@ -14,7 +14,7 @@ export const test = base.extend<{
   operatorPage: async ({ browser }, runPageFixture) => {
     const ctx = await browser.newContext()
     // externalIdentityId = the Keycloak sub (UUID), not 'op-1': operator session-listing goes
-    // gateway→JWT and identity-access keys the actor by sub. global-setup seeds op-1's row with
+    // gateway→JWT and users-service keys the actor by sub. global-setup seeds op-1's row with
     // the same sub, so both the BFF-direct (X-User-Id) and gateway paths resolve to one row.
     const { cookie: keycloakSession, sub } = await createKeycloakSession('op-1', 'operator123')
     const payload: SessionPayload = {
@@ -38,7 +38,7 @@ export const test = base.extend<{
   adminPage: async ({ browser }, runPageFixture) => {
     const ctx = await browser.newContext()
     // externalIdentityId = the Keycloak sub (UUID), not 'admin-1': Keycloak account provisioning
-    // reconciles the identity-access row to the resolved sub the first time admin authenticates via
+    // reconciles the users-service row to the resolved sub the first time admin authenticates via
     // the gateway, dropping the literal-'admin-1' row global-setup seeded. global-setup's
     // seedAdminIdentity re-inserts the row keyed by the same sub, so the dashboard's BFF-direct access
     // check (X-User-Id) resolves it instead of 404ing and redirect-looping — same fix as op-1.
@@ -81,7 +81,7 @@ export const test = base.extend<{
   participantPage: async ({ browser }, runPageFixture) => {
     const ctx = await browser.newContext()
     // externalIdentityId = the Keycloak sub (UUID), not 'participant-1': global-setup's
-    // seedParticipantIdentity re-inserts the identity-access row keyed by the resolved sub
+    // seedParticipantIdentity re-inserts the users-service row keyed by the resolved sub
     // (for the HU-36A gateway→JWT membership path), so the literal username no longer matches.
     // The dashboard's BFF-direct access check (X-User-Id) 404s on the literal and redirect-loops.
     const { cookie: keycloakSession, sub } = await createKeycloakSession('participant-1', 'participant123')

@@ -10,11 +10,11 @@ type OperatorSessionTimerPanelProps = {
 // The authoritative clock is the active trivia question window. No active question
 // (treasure-hunt substage or between questions) means there is no countdown.
 function deriveChipLabel(timer: SessionTimerSnapshotDto): string {
-  if (timer.activeQuestion === null) return 'No question'
-  if (timer.isExpired || timer.timerStatus === 'Expired') return 'Expired'
-  if (timer.timerStatus === 'Advancing') return 'Running'
+  if (timer.activeQuestion === null) return 'Sin pregunta'
+  if (timer.isExpired || timer.timerStatus === 'Expired') return 'Expirado'
+  if (timer.timerStatus === 'Advancing') return 'En curso'
   const preStart = timer.sessionState === 'Scheduled' || timer.sessionState === 'Preparing'
-  return preStart ? 'Not started' : 'Paused'
+  return preStart ? 'Sin iniciar' : 'Pausado'
 }
 
 function formatRemaining(seconds: number): string {
@@ -32,9 +32,9 @@ function progressPercent(timer: SessionTimerSnapshotDto): number {
 }
 
 function chipTone(label: string): 'running' | 'frozen' | 'expired' | 'unavailable' {
-  if (label === 'Running') return 'running'
-  if (label === 'Expired') return 'expired'
-  if (label === 'Not started' || label === 'Paused') return 'frozen'
+  if (label === 'En curso') return 'running'
+  if (label === 'Expirado') return 'expired'
+  if (label === 'Sin iniciar' || label === 'Pausado') return 'frozen'
   return 'unavailable'
 }
 
@@ -42,10 +42,10 @@ export function OperatorSessionTimerPanel({ timer, isLoading, error }: OperatorS
   if (isLoading) {
     return (
       <div className={styles.timerPanel} data-testid="session-timer-panel">
-        <div className={styles.timerLabel}>Question timer</div>
+        <div className={styles.timerLabel}>Temporizador de pregunta</div>
         <div className={styles.timerRow}>
           <span className={styles.timerValue} data-placeholder="true">--:--</span>
-          <span className={styles.timerChip} data-tone="unavailable" data-testid="timer-chip">Loading</span>
+          <span className={styles.timerChip} data-tone="unavailable" data-testid="timer-chip">Cargando</span>
         </div>
         <div className={styles.progressTrack} aria-hidden="true">
           <div className={styles.progressFill} data-tone="unavailable" style={{ width: '0%' }} />
@@ -57,10 +57,10 @@ export function OperatorSessionTimerPanel({ timer, isLoading, error }: OperatorS
   if (error !== null || timer === null) {
     return (
       <div className={styles.timerPanel} data-testid="session-timer-panel">
-        <div className={styles.timerLabel}>Question timer</div>
+        <div className={styles.timerLabel}>Temporizador de pregunta</div>
         <div className={styles.timerRow}>
           <span className={styles.timerValue} data-placeholder="true" aria-live="polite">--:--</span>
-          <span className={styles.timerChip} data-tone="unavailable" data-testid="timer-chip">Unavailable</span>
+          <span className={styles.timerChip} data-tone="unavailable" data-testid="timer-chip">No disponible</span>
         </div>
         {error && <div className={styles.errorMessage}>{error}</div>}
         <div className={styles.progressTrack} aria-hidden="true">
@@ -77,12 +77,12 @@ export function OperatorSessionTimerPanel({ timer, isLoading, error }: OperatorS
   if (timer.activeQuestion === null) {
     return (
       <div className={styles.timerPanel} data-testid="session-timer-panel">
-        <div className={styles.timerLabel}>Question timer</div>
+        <div className={styles.timerLabel}>Temporizador de pregunta</div>
         <div className={styles.timerRow} data-testid="timer-no-countdown">
           <span className={styles.timerValue} data-placeholder="true">--:--</span>
           <span className={styles.timerChip} data-tone={tone} data-testid="timer-chip">{label}</span>
         </div>
-        <div className={styles.noCountdownNote}>No active question</div>
+        <div className={styles.noCountdownNote}>Sin pregunta activa</div>
       </div>
     )
   }
@@ -91,13 +91,13 @@ export function OperatorSessionTimerPanel({ timer, isLoading, error }: OperatorS
 
   return (
     <div className={styles.timerPanel} data-testid="session-timer-panel">
-      <div className={styles.timerLabel}>Question timer</div>
+      <div className={styles.timerLabel}>Temporizador de pregunta</div>
       <div className={styles.timerRow}>
         <span
           className={styles.timerValue}
           data-testid="timer-remaining"
           aria-live="polite"
-          aria-label={`${formatRemaining(timer.remainingSeconds)} remaining`}
+          aria-label={`${formatRemaining(timer.remainingSeconds)} restantes`}
         >
           {formatRemaining(timer.remainingSeconds)}
         </span>
@@ -109,7 +109,7 @@ export function OperatorSessionTimerPanel({ timer, isLoading, error }: OperatorS
         aria-valuemin={0}
         aria-valuemax={100}
         aria-valuenow={percent}
-        aria-label="Timer progress"
+        aria-label="Progreso del temporizador"
       >
         <div className={styles.progressFill} data-tone={tone} style={{ width: `${percent}%` }} />
       </div>
@@ -123,21 +123,21 @@ export function OperatorSessionTimerPanel({ timer, isLoading, error }: OperatorS
 function deriveMissionChipLabel(timer: SessionTimerSnapshotDto, remainingSeconds: number): string {
   // Terminal states win over the clock: a session that finished before its deadline still has time
   // on the mission timer, but it is over — it must read "Ended", not "Running".
-  if (timer.sessionState === 'Finished' || timer.sessionState === 'Cancelled') return 'Ended'
-  if (remainingSeconds <= 0) return 'Expired'
-  if (timer.sessionState === 'Scheduled' || timer.sessionState === 'Preparing') return 'Not started'
-  if (timer.sessionState === 'Paused') return 'Paused'
-  return 'Running'
+  if (timer.sessionState === 'Finished' || timer.sessionState === 'Cancelled') return 'Finalizado'
+  if (remainingSeconds <= 0) return 'Expirado'
+  if (timer.sessionState === 'Scheduled' || timer.sessionState === 'Preparing') return 'Sin iniciar'
+  if (timer.sessionState === 'Paused') return 'Pausado'
+  return 'En curso'
 }
 
 export function MissionSessionTimerPanel({ timer, isLoading, error }: OperatorSessionTimerPanelProps) {
   if (isLoading) {
     return (
       <div className={styles.timerPanel} data-testid="mission-timer-panel">
-        <div className={styles.timerLabel}>Mission timer</div>
+        <div className={styles.timerLabel}>Temporizador de misión</div>
         <div className={styles.timerRow}>
           <span className={styles.timerValue} data-placeholder="true">--:--</span>
-          <span className={styles.timerChip} data-tone="unavailable" data-testid="mission-timer-chip">Loading</span>
+          <span className={styles.timerChip} data-tone="unavailable" data-testid="mission-timer-chip">Cargando</span>
         </div>
       </div>
     )
@@ -153,10 +153,10 @@ export function MissionSessionTimerPanel({ timer, isLoading, error }: OperatorSe
   if (error !== null || !hasMission) {
     return (
       <div className={styles.timerPanel} data-testid="mission-timer-panel">
-        <div className={styles.timerLabel}>Mission timer</div>
+        <div className={styles.timerLabel}>Temporizador de misión</div>
         <div className={styles.timerRow} data-testid="mission-timer-no-countdown">
           <span className={styles.timerValue} data-placeholder="true" aria-live="polite">--:--</span>
-          <span className={styles.timerChip} data-tone="unavailable" data-testid="mission-timer-chip">Unavailable</span>
+          <span className={styles.timerChip} data-tone="unavailable" data-testid="mission-timer-chip">No disponible</span>
         </div>
         {error && <div className={styles.errorMessage}>{error}</div>}
       </div>
@@ -171,13 +171,13 @@ export function MissionSessionTimerPanel({ timer, isLoading, error }: OperatorSe
 
   return (
     <div className={styles.timerPanel} data-testid="mission-timer-panel">
-      <div className={styles.timerLabel}>Mission timer</div>
+      <div className={styles.timerLabel}>Temporizador de misión</div>
       <div className={styles.timerRow}>
         <span
           className={styles.timerValue}
           data-testid="mission-timer-remaining"
           aria-live="polite"
-          aria-label={`${formatRemaining(remaining)} remaining in the mission`}
+          aria-label={`${formatRemaining(remaining)} restantes en la misión`}
         >
           {formatRemaining(remaining)}
         </span>
@@ -189,7 +189,7 @@ export function MissionSessionTimerPanel({ timer, isLoading, error }: OperatorSe
         aria-valuemin={0}
         aria-valuemax={100}
         aria-valuenow={percent}
-        aria-label="Mission timer progress"
+        aria-label="Progreso del temporizador de misión"
       >
         <div className={styles.progressFill} data-tone={tone} style={{ width: `${percent}%` }} />
       </div>

@@ -116,7 +116,7 @@ clue), DES-32/49 (operator/monitor projections), DES-45/75/78 (trivia runtime), 
 DES-31 (HU-23 live board) is a **downstream consumer** of HU-31's `resolvedTargets` counter, not a build-on.
 
 **Coverage:** no stable carried-forward aggregate percentage is recorded for this seam; the ADR-0005
-gate (`coverlet.msbuild`, threshold **93** line+branch, aggregate) is enforced by `dotnet test` — verify
+gate (`coverlet.msbuild`, **at least 95% aggregate branch coverage**) is enforced by `dotnet test` — verify
 the real service percentage at X.4.
 
 ## What this HU adds
@@ -348,4 +348,4 @@ scan only `EvidenceSubmissionRegistered` is; no second publisher stack.
 a wrong/duplicate/out-of-context scan returns consistent RFC 7807 ProblemDetails, and a scan on a
 non-admitting session (Paused/Finished/Cancelled) is rejected; an E2E test proves the correct path
 publishes `EvidenceSubmissionRegistered` then `TargetResolved` end-to-end after transactional success;
-service coverage passes the **ADR-0005** gate (`coverlet.msbuild`, aggregate line+branch ≥ 93).
+service coverage passes the **ADR-0005** gate (`coverlet.msbuild`, aggregate branch coverage ≥95%).

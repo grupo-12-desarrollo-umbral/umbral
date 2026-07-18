@@ -9,12 +9,25 @@
  * verified result). No geofencing / GPS proximity — coordinates stay display-only (per #156).
  */
 import { useEffect, useRef } from 'react';
-import { ActivityIndicator, Modal, Pressable, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Animated,
+  Easing,
+  Modal,
+  Pressable,
+  useAnimatedValue,
+  View,
+} from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
+import * as Haptics from 'expo-haptics';
 import { Button } from '@/components/ui/button';
 import { Text } from '@/components/ui/text';
 import { useTargetScan } from '@/lib/realtime/use-target-scan';
 import { colors, radii, spacing } from '@/constants/theme';
+
+// How long the success burst plays before the scanner dismisses itself. Long enough to read as a
+// celebratory beat, short enough that a player scanning several targets isn't kept waiting.
+const SUCCESS_DISMISS_MS = 1550;
 
 export function TargetScanner({
   liveSessionId,
@@ -95,7 +108,7 @@ function PermissionPending() {
     <View style={styles.centered}>
       <ActivityIndicator size="large" color={colors.emberAccent} />
       <Text variant="body" style={{ color: colors.textInkNight }}>
-        Preparing the camera…
+        Preparando la cámara…
       </Text>
     </View>
   );
@@ -119,18 +132,18 @@ function PermissionDenied({
       style={[styles.centered, { paddingHorizontal: spacing.xl, gap: spacing.md }]}
     >
       <Text variant="headline" style={{ color: colors.textInkNight, textAlign: 'center' }}>
-        Camera access needed
+        Se necesita acceso a la cámara
       </Text>
       <Text variant="body" style={{ color: colors.textInkNight, textAlign: 'center', opacity: 0.85 }}>
         {canAskAgain
-          ? 'Scanning a target QR needs your camera. Allow access to continue.'
-          : 'Camera access is off for this app. Turn it on in your device settings to scan targets.'}
+          ? 'Escanear el QR de un target necesita tu cámara. Permite el acceso para continuar.'
+          : 'El acceso a la cámara está desactivado para esta app. Actívalo en los ajustes de tu dispositivo para escanear targets.'}
       </Text>
       <View style={{ alignSelf: 'stretch', gap: spacing.sm }}>
         {canAskAgain ? (
-          <Button label="Allow camera" variant="primary" onPress={onRequest} />
+          <Button label="Permitir cámara" variant="primary" onPress={onRequest} />
         ) : null}
-        <Button label="Close" variant="secondary" onPress={onClose} />
+        <Button label="Cerrar" variant="secondary" onPress={onClose} />
       </View>
     </View>
   );
@@ -152,17 +165,17 @@ function ScannerOverlay({
     <View style={styles.overlay} pointerEvents="box-none">
       <View style={styles.overlayHeader} pointerEvents="box-none">
         <Text variant="label" style={{ color: '#FFF' }}>
-          SCAN TARGET
+          ESCANEAR TARGET
         </Text>
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Close scanner"
+          accessibilityLabel="Cerrar escáner"
           onPress={onClose}
           hitSlop={12}
           style={styles.closeButton}
         >
           <Text variant="label" style={{ color: '#FFF' }}>
-            CLOSE
+            CERRAR
           </Text>
         </Pressable>
       </View>
@@ -170,10 +183,10 @@ function ScannerOverlay({
       <View style={styles.reticleWrap} pointerEvents="none">
         <View
           accessibilityRole="image"
-          accessibilityLabel="Point the camera at a target QR code"
+          accessibilityLabel="Apunta la cámara a un código QR de target"
           style={[
             styles.reticle,
-            outcome.kind === 'accepted' ? { borderColor: colors.signalSuccess } : null,
+            outcome.kind === 'accepted' ? { borderColor: colors.emberAccent } : null,
             outcome.kind === 'rejected' ? { borderColor: colors.signalCritical } : null,
           ]}
         />
@@ -182,7 +195,135 @@ function ScannerOverlay({
       <View style={styles.statusSlot} pointerEvents="box-none">
         <ScanStatus outcome={outcome} onClose={onClose} onScanAgain={onScanAgain} />
       </View>
+
+      {/* An accepted scan takes over the whole overlay with a celebratory burst that then dismisses the
+          scanner on its own — no "Done" tap needed. Layered last so it sits above the reticle + status. */}
+      {outcome.kind === 'accepted' ? <ScanSuccessBurst onDone={onClose} /> : null}
     </View>
+  );
+}
+
+// Success moment for an accepted scan, staged as a warm celebration sheet that rises from the bottom edge
+// into the lower portion of the screen — not a full-screen takeover — so the camera and reticle stay
+// visible above it. On-brand ember/parchment (the Lantern Control Room): a paper surface with a top ember
+// hairline, an ember badge that springs in behind a warm glow and a single contained pulse ring, then the
+// "¡Felicitaciones!" copy. It auto-dismisses. Mounts only while the outcome is `accepted`, so its
+// animation/haptic fire exactly once per successful scan.
+function ScanSuccessBurst({ onDone }: { onDone: () => void }) {
+  // 0 → 1 drives the sheet's rise + fade; interpolated into a translateY so it slides up from below.
+  const sheetProgress = useAnimatedValue(0);
+  const badgeScale = useAnimatedValue(0);
+  // A single ring pulses out from behind the badge — contained within the sheet, not a full-screen flare.
+  const ringScale = useAnimatedValue(0);
+  const ringOpacity = useAnimatedValue(0.6);
+
+  useEffect(() => {
+    // Success haptic — iOS only, matching the play surface's guard (Android lacks the notification pattern).
+    if (process.env.EXPO_OS === 'ios') {
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    }
+
+    const animation = Animated.parallel([
+      // Sheet slides up and fades in together.
+      Animated.timing(sheetProgress, {
+        toValue: 1,
+        duration: 340,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: false,
+      }),
+      // Badge overshoots then settles — the "pop" that makes success feel earned.
+      Animated.spring(badgeScale, {
+        toValue: 1,
+        friction: 5,
+        tension: 140,
+        delay: 120,
+        useNativeDriver: false,
+      }),
+      Animated.timing(ringScale, {
+        toValue: 1,
+        duration: 620,
+        delay: 120,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: false,
+      }),
+      // Every timing carries an explicit non-bezier easing: the default easing samples Easing.bezier,
+      // which is unavailable under the jest-expo Animated shim.
+      Animated.timing(ringOpacity, {
+        toValue: 0,
+        duration: 620,
+        delay: 120,
+        easing: Easing.out(Easing.quad),
+        useNativeDriver: false,
+      }),
+    ]);
+    animation.start();
+
+    const timer = setTimeout(onDone, SUCCESS_DISMISS_MS);
+    // Stop the animation (and its chained delay timer) and cancel the dismiss on unmount, so nothing
+    // fires into a torn-down tree if the scanner closes early.
+    return () => {
+      clearTimeout(timer);
+      animation.stop();
+    };
+  }, [sheetProgress, badgeScale, ringScale, ringOpacity, onDone]);
+
+  return (
+    <Animated.View
+      accessibilityRole="alert"
+      style={[
+        styles.successSheet,
+        {
+          opacity: sheetProgress,
+          transform: [
+            { translateY: sheetProgress.interpolate({ inputRange: [0, 1], outputRange: [320, 0] }) },
+          ],
+        },
+      ]}
+      pointerEvents="auto"
+    >
+      <View style={styles.successBadgeWrap} pointerEvents="none">
+        <Animated.View
+          style={{
+            position: 'absolute',
+            width: 100,
+            height: 100,
+            borderRadius: 50,
+            borderWidth: 2.5,
+            borderColor: colors.emberAccent,
+            opacity: ringOpacity,
+            transform: [
+              { scale: ringScale.interpolate({ inputRange: [0, 1], outputRange: [0.5, 1.6] }) },
+            ],
+          }}
+        />
+        <Animated.View
+          style={{
+            width: 72,
+            height: 72,
+            borderRadius: 36,
+            backgroundColor: colors.emberAccentStrong,
+            alignItems: 'center',
+            justifyContent: 'center',
+            // Warm lantern halo instead of a hard signal glow — the signature-moment finish.
+            boxShadow: `0 0 32px ${colors.emberAccent}66`,
+            transform: [{ scale: badgeScale }],
+          }}
+        >
+          <Text style={{ color: colors.ivoryFog, fontSize: 38, lineHeight: 42, fontWeight: '700' }}>
+            ✓
+          </Text>
+        </Animated.View>
+      </View>
+
+      <View style={{ alignItems: 'center', gap: spacing.xs }}>
+        <Text variant="headline" style={{ color: colors.textInk, textAlign: 'center' }}>
+          ¡Felicitaciones!
+        </Text>
+        <Text variant="body" style={{ color: colors.textMuted, textAlign: 'center' }}>
+          Encontraste el target.
+        </Text>
+      </View>
+    </Animated.View>
   );
 }
 
@@ -199,7 +340,7 @@ function ScanStatus({
     return (
       <View style={styles.hintCard} pointerEvents="none">
         <Text variant="body" style={{ color: '#FFF', textAlign: 'center' }}>
-          Line up a target QR code to scan it.
+          Alinea un código QR de target para escanearlo.
         </Text>
       </View>
     );
@@ -210,36 +351,15 @@ function ScanStatus({
       <View style={[styles.statusCard]} accessibilityRole="text">
         <ActivityIndicator size="small" color={colors.emberAccent} />
         <Text variant="body" style={{ color: colors.textInk }}>
-          Registering your scan…
+          Registrando tu escaneo…
         </Text>
       </View>
     );
   }
 
   if (outcome.kind === 'accepted') {
-    return (
-      <View
-        style={[styles.statusCard, { borderColor: colors.signalSuccess }]}
-        accessibilityRole="alert"
-      >
-        <View style={{ gap: spacing.xs }}>
-          <Text variant="label" style={{ color: colors.signalSuccess }}>
-            TARGET RESOLVED
-          </Text>
-          <Text variant="body" style={{ color: colors.textInk }}>
-            Nice find — your team is one target closer.
-          </Text>
-        </View>
-        <View style={{ flexDirection: 'row', gap: spacing.sm }}>
-          <View style={{ flex: 1 }}>
-            <Button label="Scan another" variant="primary" onPress={onScanAgain} />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Button label="Done" variant="secondary" onPress={onClose} />
-          </View>
-        </View>
-      </View>
-    );
+    // Handled by the full-screen ScanSuccessBurst (which also auto-dismisses); no bottom card here.
+    return null;
   }
 
   // rejected
@@ -258,10 +378,10 @@ function ScanStatus({
       </View>
       <View style={{ flexDirection: 'row', gap: spacing.sm }}>
         <View style={{ flex: 1 }}>
-          <Button label="Try again" variant="primary" onPress={onScanAgain} />
+          <Button label="Reintentar" variant="primary" onPress={onScanAgain} />
         </View>
         <View style={{ flex: 1 }}>
-          <Button label="Close" variant="secondary" onPress={onClose} />
+          <Button label="Cerrar" variant="secondary" onPress={onClose} />
         </View>
       </View>
     </View>
@@ -333,5 +453,31 @@ const styles = {
     borderColor: colors.borderSoft,
     padding: spacing.md,
     gap: spacing.md,
+  },
+  // Celebration sheet anchored to the bottom edge — rises into the lower portion of the screen, leaving the
+  // camera/reticle visible above. Rounded top corners + a warm upward halo read it as a raised surface.
+  successSheet: {
+    ...({ position: 'absolute' } as const),
+    left: 0,
+    right: 0,
+    bottom: 0,
+    alignItems: 'center' as const,
+    gap: spacing.lg,
+    paddingHorizontal: spacing.xl,
+    paddingTop: spacing.xl,
+    paddingBottom: 48,
+    backgroundColor: colors.paperSurface,
+    borderTopLeftRadius: radii.panel,
+    borderTopRightRadius: radii.panel,
+    borderCurve: 'continuous' as const,
+    borderTopWidth: 2,
+    borderColor: colors.emberAccent,
+    boxShadow: '0 -8px 30px rgba(53, 37, 27, 0.18)',
+  },
+  successBadgeWrap: {
+    width: 100,
+    height: 100,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
   },
 };

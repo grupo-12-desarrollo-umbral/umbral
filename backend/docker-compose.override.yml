@@ -110,11 +110,11 @@ services:
       - ./services/mission-design-service/src:/src/src
       - ${HOME}/.nuget/packages:/tmp/nuget
 
-  identity-access-service:
+  users-service:
     <<: *dotnet-watch
     working_dir: /src/src/Api
     volumes:
-      - ./services/identity-access-service/src:/src/src
+      - ./services/users-service/src:/src/src
       - ${HOME}/.nuget/packages:/tmp/nuget
 
   session-operations-service:

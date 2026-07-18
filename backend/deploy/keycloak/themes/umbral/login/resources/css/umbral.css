@@ -1,0 +1,241 @@
+/*
+ * Umbral login theme — "The Lantern Control Room".
+ * Palette and rules from frontend/DESIGN.md: warm charcoal dark room (never
+ * pure black), one concentrated ember accent used sparingly, tinted neutrals,
+ * tonal depth over shadow theater. Values are the design tokens verbatim.
+ */
+
+:root {
+  /* Ember accent (rare by rule — primary action + focus only) */
+  --ember-accent: oklch(72% 0.16 48);
+  --ember-accent-strong: oklch(66% 0.18 44);
+  --ember-accent-soft: oklch(90% 0.05 54);
+
+  /* Warm charcoal surfaces (dark "room") */
+  --charcoal-room: oklch(18.5% 0.016 58);
+  --ember-panel-night: oklch(22.5% 0.018 58);
+  --night-surface: oklch(25.2% 0.018 58);
+  --border-soft-night: oklch(34% 0.016 58);
+
+  /* Ink + semantics */
+  --text-ink-night: oklch(90.5% 0.018 72);
+  --text-muted: oklch(61% 0.018 60);
+  --ivory-fog: oklch(98.4% 0.013 76);
+  --signal-critical: oklch(64% 0.18 27);
+  --signal-success: oklch(66% 0.14 148);
+
+  /* Radii from the token scale */
+  --r-panel: 1.4rem;
+  --r-control: 1rem;
+}
+
+/* ----- Page field: warm charcoal room, faint lantern glow up top -------- */
+.login-pf,
+body {
+  background: radial-gradient(
+      1100px 520px at 50% -8%,
+      color-mix(in oklab, var(--ember-accent-soft) 8%, var(--ember-panel-night))
+        0%,
+      var(--charcoal-room) 62%
+    )
+    no-repeat fixed var(--charcoal-room);
+  color: var(--text-ink-night);
+  font-family: "Geist", "Inter", "Segoe UI", system-ui, -apple-system,
+    sans-serif;
+}
+
+.login-pf-page {
+  padding-top: 6vh;
+}
+
+/* ----- Header / logo --------------------------------------------------- */
+#kc-header-wrapper {
+  font-size: 0; /* the mark carries the brand; hide the text realm name */
+  padding: 0 0 22px;
+}
+
+#kc-header-wrapper::before {
+  content: "";
+  display: block;
+  width: 120px;
+  height: 120px;
+  margin: 0 auto;
+  background: url("../img/logo.svg") center / contain no-repeat;
+  /* Lantern Halo — reserved, restrained glow on a signature element */
+  filter: drop-shadow(
+    0 8px 24px color-mix(in oklab, var(--ember-accent) 22%, transparent)
+  );
+}
+
+/* ----- Card: default night panel, tonal depth + inset sheen ------------- */
+.card-pf {
+  background: var(--ember-panel-night);
+  border: 1px solid var(--border-soft-night);
+  border-radius: var(--r-panel);
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.42),
+    /* Inset Sheen: crafted material, not a card deck */
+      inset 0 1px 0 color-mix(in oklab, var(--text-ink-night) 5%, transparent);
+  padding: 34px 32px 28px;
+}
+
+#kc-page-title,
+.pf-c-title,
+label,
+.pf-c-form__label-text {
+  color: var(--text-ink-night);
+}
+
+#kc-page-title {
+  font-weight: 600;
+  letter-spacing: -0.03em; /* headline tracking */
+}
+
+/* ----- Inputs ---------------------------------------------------------- */
+input[type="text"],
+input[type="email"],
+input[type="password"],
+.pf-c-form-control,
+#kc-form-login input {
+  background: var(--night-surface);
+  border: 1px solid var(--border-soft-night);
+  border-radius: var(--r-control);
+  color: var(--text-ink-night);
+  height: 44px;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+input::placeholder {
+  color: var(--text-muted);
+}
+
+input:focus,
+.pf-c-form-control:focus {
+  outline: none;
+  border-color: var(--ember-accent-strong);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--ember-accent) 32%, transparent);
+}
+
+/* ----- Password field (PatternFly input-group + visibility toggle) ------ */
+.pf-c-input-group {
+  background: transparent;
+}
+
+/* The general input rule above matches this field via `#kc-form-login input`
+ * (an ID selector), so this override must carry the same #kc-form-login prefix
+ * to win the cascade — otherwise the input keeps a full border + rounded right
+ * corners and the toggle button detaches, appearing clipped on its left edge. */
+#kc-form-login .pf-c-input-group .pf-c-form-control,
+.pf-c-input-group .pf-c-form-control {
+  border-right: none;
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.pf-c-button.pf-m-control {
+  /* PatternFly draws this button's border via an ::after overlay whose color
+   * comes from CSS variables; recolor them so no bright default box shows. */
+  --pf-c-button--m-control--after--BorderColor: var(--border-soft-night);
+  --pf-c-button--m-control--after--BorderTopColor: var(--border-soft-night);
+  --pf-c-button--m-control--after--BorderRightColor: var(--border-soft-night);
+  --pf-c-button--m-control--after--BorderBottomColor: var(--border-soft-night);
+  --pf-c-button--m-control--hover--after--BorderBottomColor: var(--ember-accent);
+  --pf-c-button--m-control--focus--after--BorderBottomColor: var(--ember-accent);
+  background: var(--night-surface);
+  border: none;
+  color: var(--text-muted);
+}
+
+.pf-c-button.pf-m-control::after {
+  border-left: none;
+  border-radius: 0 var(--r-control) var(--r-control) 0;
+}
+
+.pf-c-button.pf-m-control:hover {
+  color: var(--text-ink-night);
+  background: color-mix(in oklab, var(--night-surface) 80%, black);
+}
+
+/* ----- Primary button: the ember moment --------------------------------
+ * DESIGN.md specifies an ember fill from Banked Ember to Lantern Ember with
+ * light text. PatternFly drives the fill through a CSS variable, so override
+ * the variable AND set the gradient with !important to win. */
+.btn-primary,
+input[type="submit"].btn-primary,
+#kc-login.pf-c-button.pf-m-primary,
+.pf-c-button.pf-m-primary {
+  --pf-c-button--m-primary--BackgroundColor: transparent;
+  --pf-c-button--m-primary--hover--BackgroundColor: transparent;
+  --pf-c-button--m-primary--active--BackgroundColor: transparent;
+  --pf-c-button--m-primary--focus--BackgroundColor: transparent;
+  background: linear-gradient(
+    135deg,
+    var(--ember-accent-strong) 0%,
+    var(--ember-accent) 100%
+  ) !important;
+  border: none;
+  border-radius: var(--r-control);
+  color: var(--ivory-fog) !important;
+  font-weight: 600;
+  height: 46px;
+  letter-spacing: 0.02em;
+  box-shadow: 0 8px 22px
+    color-mix(in oklab, var(--ember-accent) 24%, transparent);
+  transition: transform 0.08s ease, box-shadow 0.15s ease, filter 0.15s ease;
+}
+
+.btn-primary:hover,
+#kc-login.pf-c-button.pf-m-primary:hover,
+.pf-c-button.pf-m-primary:hover {
+  filter: brightness(1.05);
+  box-shadow: 0 10px 28px
+    color-mix(in oklab, var(--ember-accent) 32%, transparent);
+}
+
+.btn-primary:active,
+.pf-c-button.pf-m-primary:active {
+  transform: translateY(1px);
+}
+
+/* ----- Links (ember for emphasis, warm on hover) ----------------------- */
+a,
+#kc-registration a,
+#kc-info-message a,
+.login-pf-page .login-pf-signup a {
+  color: var(--ember-accent);
+  text-decoration: none;
+}
+
+a:hover {
+  color: var(--ember-accent-soft);
+  text-decoration: underline;
+}
+
+/* ----- Checkbox / remember-me ------------------------------------------ */
+.checkbox label,
+#kc-form-options label {
+  color: var(--text-muted);
+}
+
+/* ----- Alerts: direct semantic signals --------------------------------- */
+.alert-error,
+.pf-c-alert.pf-m-danger {
+  background: color-mix(in oklab, var(--signal-critical) 14%, transparent);
+  border: 1px solid color-mix(in oklab, var(--signal-critical) 45%, transparent);
+  color: color-mix(in oklab, var(--signal-critical) 80%, white);
+  border-radius: var(--r-control);
+}
+
+.alert-success,
+.pf-c-alert.pf-m-success {
+  background: color-mix(in oklab, var(--signal-success) 12%, transparent);
+  border: 1px solid color-mix(in oklab, var(--signal-success) 40%, transparent);
+  color: color-mix(in oklab, var(--signal-success) 82%, white);
+  border-radius: var(--r-control);
+}
+
+/* ----- Footer / misc --------------------------------------------------- */
+#kc-info,
+.instruction,
+#kc-content-wrapper .instruction {
+  color: var(--text-muted);
+}

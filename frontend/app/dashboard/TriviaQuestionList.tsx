@@ -13,14 +13,14 @@ import styles from './dashboard.module.css'
 export function TriviaQuestionList({
   questions,
   renderRowActions,
-  actionsHeader = 'Actions',
+  actionsHeader = 'Acciones',
 }: {
   questions: TriviaQuestionDto[]
   renderRowActions?: (question: TriviaQuestionDto) => ReactNode
   actionsHeader?: string
 }) {
   if (questions.length === 0) {
-    return <p className={styles.mutedText}>No questions added yet.</p>
+    return <p className={styles.mutedText}>Aún no se han agregado preguntas.</p>
   }
 
   const showActions = renderRowActions !== undefined
@@ -29,28 +29,28 @@ export function TriviaQuestionList({
     <table className={`${styles.table} ${styles.triviaQuestionTable}`}>
       <thead>
         <tr>
-          <th>Prompt</th>
-          <th>Score</th>
-          <th>Timer (s)</th>
-          <th>Explanation</th>
-          <th>Status</th>
-          <th>Options</th>
+          <th>Enunciado</th>
+          <th>Puntaje</th>
+          <th>Temporizador (s)</th>
+          <th>Explicación</th>
+          <th>Estado</th>
+          <th>Opciones</th>
           {showActions && <th>{actionsHeader}</th>}
         </tr>
       </thead>
       <tbody>
         {questions.map((q) => (
           <tr key={q.id} data-testid={`question-row-${q.id}`}>
-            <td data-label="Prompt">{q.prompt}</td>
-            <td data-label="Score">{q.scoreValue ?? '—'}</td>
-            <td data-label="Timer (s)">{q.timeLimitSeconds ?? '—'}</td>
-            <td data-label="Explanation">{q.explanation ?? '—'}</td>
-            <td data-label="Status">
+            <td data-label="Enunciado">{q.prompt}</td>
+            <td data-label="Puntaje">{q.scoreValue ?? '—'}</td>
+            <td data-label="Temporizador (s)">{q.timeLimitSeconds ?? '—'}</td>
+            <td data-label="Explicación">{q.explanation ?? '—'}</td>
+            <td data-label="Estado">
               <span className={styles.chip} data-tone={q.isActive ? 'success' : 'muted'}>
-                {q.isActive ? 'Active' : 'Inactive'}
+                {q.isActive ? 'Activa' : 'Inactiva'}
               </span>
             </td>
-            <td data-label="Options">
+            <td data-label="Opciones">
               <ul className={styles.triviaOptionList}>
                 {[...q.options]
                   .sort((a, b) => a.sequenceOrder - b.sequenceOrder)
@@ -58,7 +58,7 @@ export function TriviaQuestionList({
                     <li key={opt.id}>
                       {opt.optionText}
                       {opt.isCorrect && (
-                        <span className={styles.triviaOptionCorrect} aria-label="Correct answer">
+                        <span className={styles.triviaOptionCorrect} aria-label="Respuesta correcta">
                           ✓
                         </span>
                       )}

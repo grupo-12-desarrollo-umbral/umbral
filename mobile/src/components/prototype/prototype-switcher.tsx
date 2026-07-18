@@ -79,13 +79,13 @@ export function PrototypeSwitcher({
           boxShadow: shadows.card,
         }}
       >
-        <Arrow label="Previous variant" glyph="‹" onPress={() => cycle(-1)} />
+        <Arrow label="Variante anterior" glyph="‹" onPress={() => cycle(-1)} />
         <View style={{ minWidth: 150, alignItems: 'center', paddingHorizontal: spacing.xs }}>
           <Text variant="label" style={{ color: colors.emberAccentSoft }}>
             {active ? `${active.key} — ${active.name}` : '—'}
           </Text>
         </View>
-        <Arrow label="Next variant" glyph="›" onPress={() => cycle(1)} />
+        <Arrow label="Variante siguiente" glyph="›" onPress={() => cycle(1)} />
       </View>
     </View>
   );

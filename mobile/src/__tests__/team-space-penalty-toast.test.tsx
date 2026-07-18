@@ -1,9 +1,11 @@
-// Guards the penalty toast against the freeze that holds the header score steady during a live question:
-// the toast must read the live score, or a mid-question penalty stays invisible until the reveal.
+// The penalty toast is driven by the explicit ScoringHub `PenaltyApplied` push (see `usePenaltyToast`),
+// not inferred from a ranking score decrease. These tests mock that hook to assert the toast renders in
+// the trivia surface, and that the header score freeze during a live question is independent of it.
 import React from 'react';
 import { act, create } from 'react-test-renderer';
 import { LiveTeamSpace } from '@/app/(app)/team-space';
 import { useActiveQuestion } from '@/lib/realtime/use-active-question';
+import { usePenaltyToast, type PenaltyToastData } from '@/lib/realtime/use-penalty-toast';
 import { useRanking } from '@/lib/realtime/use-ranking';
 import { useSessionTimer } from '@/lib/realtime/use-session-timer';
 import { useTeamBoard } from '@/lib/realtime/use-team-board';
@@ -27,11 +29,13 @@ jest.mock('@/lib/realtime/use-session-timer', () => ({ useSessionTimer: jest.fn(
 jest.mock('@/lib/realtime/use-active-question', () => ({ useActiveQuestion: jest.fn() }));
 jest.mock('@/lib/realtime/use-team-board', () => ({ useTeamBoard: jest.fn() }));
 jest.mock('@/lib/realtime/use-ranking', () => ({ useRanking: jest.fn() }));
+jest.mock('@/lib/realtime/use-penalty-toast', () => ({ usePenaltyToast: jest.fn() }));
 
 const mockUseSessionTimer = useSessionTimer as jest.MockedFunction<typeof useSessionTimer>;
 const mockUseActiveQuestion = useActiveQuestion as jest.MockedFunction<typeof useActiveQuestion>;
 const mockUseTeamBoard = useTeamBoard as jest.MockedFunction<typeof useTeamBoard>;
 const mockUseRanking = useRanking as jest.MockedFunction<typeof useRanking>;
+const mockUsePenaltyToast = usePenaltyToast as jest.MockedFunction<typeof usePenaltyToast>;
 
 const REFERENCE_TEAM_ID = 'team-1';
 
@@ -104,6 +108,10 @@ function primeRanking(totalScore: number) {
   });
 }
 
+function primePenalty(penalty: PenaltyToastData | null) {
+  mockUsePenaltyToast.mockReturnValue({ penalty, clear: jest.fn() });
+}
+
 function primeActiveQuestion() {
   mockUseActiveQuestion.mockReturnValue({
     sessionState: 'Active',
@@ -174,6 +182,7 @@ describe('LiveTeamSpace penalty toast', () => {
     });
     mockUseTeamBoard.mockReturnValue({ board: null, isLoading: false, error: null });
     primeActiveQuestion();
+    primePenalty(null);
   });
 
   afterEach(() => {
@@ -183,41 +192,77 @@ describe('LiveTeamSpace penalty toast', () => {
     mounted = null;
   });
 
-  test('surfaces a penalty applied mid-question without waiting for the reveal', () => {
+  test('surfaces a penalty pushed for the own team, with the true magnitude and reason', () => {
     primeRanking(500);
+    primePenalty({ id: 1, magnitude: 100, reason: 'Unsportsmanlike conduct' });
     const renderer = renderSpace();
 
-    // The operator applies a penalty while the question is still on screen.
-    primeRanking(400);
-    rerenderSpace(renderer);
-
-    expect(allText(renderer.toJSON())).toContain('PENALTY APPLIED');
-    expect(flatText(renderer.toJSON())).toContain('Score dropped by 100 pts');
+    expect(allText(renderer.toJSON())).toContain('PENALIZACIÓN APLICADA');
+    expect(flatText(renderer.toJSON())).toContain('La puntuación bajó 100 pts');
+    expect(flatText(renderer.toJSON())).toContain('Unsportsmanlike conduct');
   });
 
-  test('still surfaces a penalty that a correct answer nets back out', () => {
-    primeRanking(500);
+  test('surfaces the penalty even when the resulting ranking score is unchanged (clamped)', () => {
+    // A penalty against a team at zero leaves the ranking at zero — the old score-decrease heuristic
+    // would show nothing. The explicit push still drives the toast.
+    primeRanking(0);
+    primePenalty({ id: 1, magnitude: 100, reason: 'Late arrival' });
     const renderer = renderSpace();
 
-    // Penalty (-100) lands, then the answer award (+100) returns the score to where it started.
-    primeRanking(400);
-    rerenderSpace(renderer);
-    primeRanking(500);
-    rerenderSpace(renderer);
-
-    expect(allText(renderer.toJSON())).toContain('PENALTY APPLIED');
+    expect(allText(renderer.toJSON())).toContain('PENALIZACIÓN APLICADA');
+    expect(flatText(renderer.toJSON())).toContain('La puntuación bajó 100 pts');
   });
 
-  test('holds the header score steady during the question despite the penalty', () => {
+  test('shows no toast when no penalty has been pushed', () => {
+    primeRanking(500);
+    primePenalty(null);
+    const renderer = renderSpace();
+
+    expect(allText(renderer.toJSON())).not.toContain('PENALIZACIÓN APLICADA');
+  });
+
+  test('holds the header score steady during the question, independent of the penalty toast', () => {
     primeRanking(500);
     const renderer = renderSpace();
 
+    // The ranking drops to 400 mid-question (a correct-answer award landed on the ledger — the freeze
+    // hides it until the reveal, so a NEGATIVE-looking live move that isn't a penalty must not show).
     primeRanking(400);
     rerenderSpace(renderer);
 
-    // The freeze is a header concern and still applies: the stage header keeps the pre-question score.
+    // The freeze is a header concern: the stage header keeps the pre-question score.
     const texts = allText(renderer.toJSON());
     expect(texts).toContain('500');
     expect(texts).not.toContain('400');
+  });
+
+  test('drops the header score immediately when a penalty is pushed mid-question', () => {
+    // Header freezes at 500 on question open, with no penalty yet.
+    primeRanking(500);
+    const renderer = renderSpace();
+    expect(allText(renderer.toJSON())).toContain('500');
+
+    // The operator sends a -100 penalty: the toast appears AND the frozen header must drop at once,
+    // without waiting for the question timer to end.
+    primePenalty({ id: 1, magnitude: 100, reason: 'Unsportsmanlike conduct' });
+    rerenderSpace(renderer);
+
+    const texts = allText(renderer.toJSON());
+    expect(texts).toContain('400');
+    expect(texts).not.toContain('500');
+  });
+
+  test('clamps the header score to zero when the penalty exceeds the current score', () => {
+    // Team sits at 60; a -100 penalty must floor the header at 0, not go negative.
+    primeRanking(60);
+    const renderer = renderSpace();
+    expect(allText(renderer.toJSON())).toContain('60');
+
+    primePenalty({ id: 1, magnitude: 100, reason: 'Late arrival' });
+    rerenderSpace(renderer);
+
+    const texts = allText(renderer.toJSON());
+    expect(texts).toContain('0');
+    expect(texts).not.toContain('60');
   });
 });

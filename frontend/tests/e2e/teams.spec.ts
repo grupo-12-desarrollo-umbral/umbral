@@ -87,7 +87,7 @@ test('operator associates a team to a scheduled session end-to-end', async ({
   const sessionItem = admin
     .locator('[data-testid="session-operator-item"]')
     .filter({ hasText: sessionTitle })
-  await sessionItem.getByRole('button', { name: 'Assign operator' }).click()
+  await sessionItem.getByRole('button', { name: 'Asignar operador' }).click()
 
   const operatorSelect = admin.locator('[data-testid="operator-select"]')
   const operatorOptionValue = await operatorSelect
@@ -112,16 +112,16 @@ test('operator associates a team to a scheduled session end-to-end', async ({
   const actionButton = teamRow.locator('[data-testid^="team-row-session-actions-"]')
   await expect(actionButton).toBeEnabled()
   await actionButton.click()
-  await expect(operator.getByRole('heading', { name: 'Assign team to session' })).toBeVisible()
+  await expect(operator.getByRole('heading', { name: 'Asignar equipo a sesión' })).toBeVisible()
 
   // Confirm the association inside the modal — this is the actual mutation, not just opening it.
   const sessionCard = operator
     .locator('[data-testid="team-session-list"] article')
     .filter({ hasText: sessionTitle })
-  await sessionCard.getByRole('button', { name: 'Assign to session' }).click()
+  await sessionCard.getByRole('button', { name: 'Asignar a la sesión' }).click()
 
   // Modal closes on a successful association.
-  await expect(operator.getByRole('heading', { name: 'Assign team to session' })).toHaveCount(0)
+  await expect(operator.getByRole('heading', { name: 'Asignar equipo a sesión' })).toHaveCount(0)
 
   // Verify the association actually landed by checking the session's associated-teams list.
   await operator.click('[data-testid="nav-sessions"]')
@@ -145,7 +145,7 @@ test('admin deactivate flow shows confirm step then updates status', async ({ ad
   await expect(page.locator('[data-testid="confirm-deactivate-team-btn"]')).toBeVisible()
   await page.click('[data-testid="confirm-deactivate-team-btn"]')
   // After deactivation the status chip shows Inactive
-  await expect(page.locator('[data-testid="detail-status"]')).toContainText('Inactive')
+  await expect(page.locator('[data-testid="detail-status"]')).toContainText('Inactivo')
   // Edit and deactivate buttons are gone for inactive teams
   await expect(page.locator('[data-testid="deactivate-team-btn"]')).toHaveCount(0)
 })
@@ -157,7 +157,7 @@ test('admin can cancel deactivation', async ({ adminPage: page }) => {
   await page.locator('[data-testid^="team-row-"]').nth(2).click()
   await page.click('[data-testid="deactivate-team-btn"]')
   await expect(page.locator('[data-testid="confirm-deactivate-team-btn"]')).toBeVisible()
-  await page.getByRole('button', { name: 'Cancel' }).first().click()
+  await page.getByRole('button', { name: 'Cancelar' }).first().click()
   await expect(page.locator('[data-testid="deactivate-team-btn"]')).toBeVisible()
 })
 
@@ -229,7 +229,7 @@ test('admin cancel edit returns to detail', async ({ adminPage: page }) => {
   // First row is always active (deactivation tests only target nth(1)/nth(2)).
   await page.locator('[data-testid^="team-row-"]').first().click()
   await page.click('[data-testid="edit-team-btn"]')
-  await page.getByRole('button', { name: 'Cancel' }).first().click()
+  await page.getByRole('button', { name: 'Cancelar' }).first().click()
   await expect(page.locator('[data-testid="team-detail-panel"]')).toBeVisible()
 })
 

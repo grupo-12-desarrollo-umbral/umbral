@@ -83,7 +83,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         status: 'error',
         profile: null,
         rejectionReason: null,
-        errorMessage: 'Network error. Check your connection and try again.',
+        errorMessage: 'Error de red. Revisa tu conexión e inténtalo de nuevo.',
       });
     }
   }, []);
@@ -128,8 +128,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (err instanceof KeycloakError) {
         const message =
           err.reason === 'network'
-            ? 'Network error. Check your connection and try again.'
-            : 'Wrong email or password.';
+            ? 'Error de red. Revisa tu conexión e inténtalo de nuevo.'
+            : 'Correo electrónico o contraseña incorrectos.';
         setState({ status: 'error', profile: null, rejectionReason: null, errorMessage: message });
         return;
       }
@@ -138,7 +138,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           status: 'error',
           profile: null,
           rejectionReason: null,
-          errorMessage: 'Network error. Check your connection and try again.',
+          errorMessage: 'Error de red. Revisa tu conexión e inténtalo de nuevo.',
         });
         return;
       }
@@ -146,7 +146,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         status: 'error',
         profile: null,
         rejectionReason: null,
-        errorMessage: 'Something went wrong. Please try again.',
+        errorMessage: 'Algo salió mal. Inténtalo de nuevo.',
       });
     }
   }

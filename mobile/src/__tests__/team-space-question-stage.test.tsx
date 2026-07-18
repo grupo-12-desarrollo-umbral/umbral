@@ -169,9 +169,9 @@ describe('LiveTeamSpace question stage wiring', () => {
     const texts = allText(renderSpace().toJSON());
 
     expect(texts).toContain('Which lantern is lit?');
-    expect(texts).toContain('QUESTION 1');
+    expect(texts).toContain('· Pregunta 1');
     expect(texts).toContain('00:42');
-    expect(texts).not.toContain('Running');
+    expect(texts).not.toContain('En curso');
     expect(texts).not.toContain('Joined live session');
   });
 
@@ -181,8 +181,8 @@ describe('LiveTeamSpace question stage wiring', () => {
     const texts = allText(renderSpace().toJSON());
 
     expect(texts).toContain('Active');
-    expect(texts).toContain('SCORE');
-    expect(texts.join(' ')).toContain('Waiting for the next question');
+    expect(texts).toContain('PUNTUACIÓN');
+    expect(texts.join(' ')).toContain('Esperando la siguiente pregunta');
   });
 
   // RF-06 requires the session clock to stay visible for the whole session. The two clocks are
@@ -196,8 +196,8 @@ describe('LiveTeamSpace question stage wiring', () => {
       .findAllByProps({ accessibilityRole: 'progressbar' })
       .map((node) => node.props.accessibilityLabel);
 
-    expect(timerLabels).toContain('Session timer: 00:42');
-    expect(timerLabels.some((label: string) => label.startsWith('Question timer:'))).toBe(false);
+    expect(timerLabels).toContain('Temporizador de sesión: 00:42');
+    expect(timerLabels.some((label: string) => label.startsWith('Temporizador de pregunta:'))).toBe(false);
   });
 
   test('renders the question countdown while a question is active', () => {
@@ -222,7 +222,7 @@ describe('LiveTeamSpace question stage wiring', () => {
       .findAllByProps({ accessibilityRole: 'progressbar' })
       .map((node) => node.props.accessibilityLabel);
 
-    expect(timerLabels).toContain('Question timer: 00:42');
+    expect(timerLabels).toContain('Temporizador de pregunta: 00:42');
   });
 
   test('renders retained question while Paused instead of an empty state', () => {
@@ -246,7 +246,7 @@ describe('LiveTeamSpace question stage wiring', () => {
 
     expect(texts).toContain('Paused');
     expect(texts).toContain('Paused question stays visible');
-    expect(texts.join(' ')).not.toContain('No active question yet');
+    expect(texts.join(' ')).not.toContain('Aún no hay pregunta activa');
   });
 
   test('threads a closed flag into the stage as the close affordance', () => {
@@ -268,31 +268,31 @@ describe('LiveTeamSpace question stage wiring', () => {
 
     const texts = allText(renderSpace().toJSON());
 
-    expect(texts.join(' ')).toContain('Question closed — waiting for the next');
-    expect(texts).not.toContain('Submit answer');
-    expect(texts).not.toContain('Answer submitted');
+    expect(texts.join(' ')).toContain('Pregunta cerrada — esperando la siguiente');
+    expect(texts).not.toContain('Enviar respuesta');
+    expect(texts).not.toContain('Respuesta enviada');
   });
 
   test('opens teams sheet from the persistent footer', () => {
     mockUseActiveQuestion.mockReturnValue({ sessionState: 'Active', isQuestionClosed: false, view: { kind: 'none' } });
     const renderer = renderSpace();
 
-    expect(allText(renderer.toJSON()).join(' ')).toContain('YOUR TEAM · Lantern Foxes');
-    const footerText = renderer.root.findByProps({ accessibilityLabel: 'Open all teams for Lantern Foxes' });
+    expect(allText(renderer.toJSON()).join(' ')).toContain('TU EQUIPO · Lantern Foxes');
+    const footerText = renderer.root.findByProps({ accessibilityLabel: 'Abrir todos los equipos de Lantern Foxes' });
 
     act(() => {
       (footerText.props.onPress as () => void)();
     });
 
     const texts = allText(renderer.toJSON());
-    expect(texts).toContain('ALL TEAMS');
+    expect(texts).toContain('TODOS LOS EQUIPOS');
     expect(texts).toContain('Lantern Foxes');
-    expect(texts).toContain('CLOSE');
+    expect(texts).toContain('CERRAR');
   });
 
   function openTeamsSheet(renderer: ReturnType<typeof renderSpace>) {
     const footer = renderer.root.findByProps({
-      accessibilityLabel: 'Open all teams for Lantern Foxes',
+      accessibilityLabel: 'Abrir todos los equipos de Lantern Foxes',
     });
     act(() => {
       (footer.props.onPress as () => void)();
@@ -333,8 +333,8 @@ describe('LiveTeamSpace question stage wiring', () => {
     openTeamsSheet(renderer);
 
     const texts = allText(renderer.toJSON());
-    expect(texts.join(' ')).toContain("Couldn't reach the standings");
-    const retry = renderer.root.findByProps({ label: 'RETRY' });
+    expect(texts.join(' ')).toContain('No pudimos acceder a la clasificación');
+    const retry = renderer.root.findByProps({ label: 'REINTENTAR' });
     act(() => {
       (retry.props.onPress as () => void)();
     });
@@ -422,7 +422,7 @@ describe('LiveTeamSpace play-mode branch', () => {
     const renderer = renderSpace();
     const texts = allText(renderer.toJSON());
 
-    expect(texts).toContain('TREASURE HUNT');
+    expect(texts).toContain('BÚSQUEDA DEL TESORO');
     expect(texts).toContain('The Cartographer’s Vault');
     expect(texts).toContain('240');
     // target progress (resolved / total), a count — not coordinates
@@ -430,7 +430,7 @@ describe('LiveTeamSpace play-mode branch', () => {
     // The Map tab now renders the real Leaflet map (#156): the board's activeTargets reach a WebView.
     expect(renderer.root.findByProps({ testID: 'target-map-webview' })).toBeTruthy();
     // trivia empty-state copy is NOT present
-    expect(texts.join(' ')).not.toContain('Waiting for the next question');
+    expect(texts.join(' ')).not.toContain('Esperando la siguiente pregunta');
   });
 
   test('timer display from useSessionTimer reaches the board', () => {
@@ -448,8 +448,8 @@ describe('LiveTeamSpace play-mode branch', () => {
 
     const texts = allText(renderSpace().toJSON());
 
-    expect(texts.join(' ')).toContain('Waiting for the next question');
-    expect(texts).not.toContain('TREASURE HUNT');
+    expect(texts.join(' ')).toContain('Esperando la siguiente pregunta');
+    expect(texts).not.toContain('BÚSQUEDA DEL TESORO');
   });
 
   test('null board keeps the trivia surface (pre-load window)', () => {
@@ -458,8 +458,8 @@ describe('LiveTeamSpace play-mode branch', () => {
 
     const texts = allText(renderSpace().toJSON());
 
-    expect(texts.join(' ')).toContain('Waiting for the next question');
-    expect(texts).not.toContain('TREASURE HUNT');
+    expect(texts.join(' ')).toContain('Esperando la siguiente pregunta');
+    expect(texts).not.toContain('BÚSQUEDA DEL TESORO');
   });
 
   test('surfaces a failed board fetch instead of silently falling to trivia', () => {
@@ -468,7 +468,7 @@ describe('LiveTeamSpace play-mode branch', () => {
 
     const texts = allText(renderSpace().toJSON());
 
-    expect(texts.join(' ')).toContain("You don't have access to this team's board.");
+    expect(texts.join(' ')).toContain('No tienes acceso al tablero de este equipo.');
   });
 
   test('TreasureHunt gives the board the viewport — no enclosing ScrollView, no fixed height', () => {
@@ -500,7 +500,7 @@ describe('LiveTeamSpace play-mode branch', () => {
 
     // Substage progress (#171) rides the board's sticky header now that the board owns the screen.
     expect(allText(renderer.toJSON())).toContain('The Cartographer’s Vault');
-    expect(renderer.root.findAll((n) => n.props?.accessibilityLabel === 'Leave team space').length)
+    expect(renderer.root.findAll((n) => n.props?.accessibilityLabel === 'Salir del espacio de equipo').length)
       .toBeGreaterThan(0);
 
     // Switching to CLUES mounts exactly one scroller: the clue list itself, with nothing above it.
@@ -522,8 +522,8 @@ describe('LiveTeamSpace play-mode branch', () => {
 
     const texts = allText(renderSpace().toJSON());
 
-    expect(texts).toContain('TREASURE HUNT');
-    expect(texts.join(' ')).not.toContain("Couldn't reach the live board");
+    expect(texts).toContain('BÚSQUEDA DEL TESORO');
+    expect(texts.join(' ')).not.toContain('No pudimos acceder al tablero en vivo');
   });
 
   test.each([
@@ -582,8 +582,8 @@ describe('LiveTeamSpace play-mode branch', () => {
   });
 
   test.each([
-    ['Trivia', TRIVIA_BOARD, 'Waiting for the next question...'],
-    ['TreasureHunt', TREASURE_HUNT_BOARD, 'TREASURE HUNT'],
+    ['Trivia', TRIVIA_BOARD, 'Esperando la siguiente pregunta...'],
+    ['TreasureHunt', TREASURE_HUNT_BOARD, 'BÚSQUEDA DEL TESORO'],
   ] as const)('%s Start replaces the pre-start view with its live substage surface', (_mode, activeBoard, surfaceCopy) => {
     mockUseTeamBoard.mockReturnValue({
       board: {
@@ -626,12 +626,12 @@ describe('LiveTeamSpace play-mode branch', () => {
 
     const texts = allText(renderer.toJSON()).map(String);
     expect(texts).toContain(surfaceCopy);
-    expect(texts).toContain('Running');
+    expect(texts).toContain('En curso');
   });
 
   test.each([
-    ['Trivia', TRIVIA_BOARD, 'Waiting for the next question...'],
-    ['TreasureHunt', TREASURE_HUNT_BOARD, 'TREASURE HUNT'],
+    ['Trivia', TRIVIA_BOARD, 'Esperando la siguiente pregunta...'],
+    ['TreasureHunt', TREASURE_HUNT_BOARD, 'BÚSQUEDA DEL TESORO'],
   ] as const)('%s visibly pauses and resumes after operator state changes', (_mode, board, surfaceCopy) => {
     mockUseTeamBoard.mockReturnValue({ board, isLoading: false, error: null });
     mockUseSessionTimer.mockReturnValue({
@@ -655,8 +655,8 @@ describe('LiveTeamSpace play-mode branch', () => {
     const renderer = renderSpace();
     let texts = allText(renderer.toJSON()).map(String);
     expect(texts).toContain(surfaceCopy);
-    expect(texts).toContain('Paused');
-    expect(texts).not.toContain('Running');
+    expect(texts).toContain('En pausa');
+    expect(texts).not.toContain('En curso');
 
     mockUseSessionTimer.mockReturnValue({
       timer: null,
@@ -679,13 +679,13 @@ describe('LiveTeamSpace play-mode branch', () => {
 
     texts = allText(renderer.toJSON()).map(String);
     expect(texts).toContain(surfaceCopy);
-    expect(texts).toContain('Running');
-    expect(texts).not.toContain('Paused');
+    expect(texts).toContain('En curso');
+    expect(texts).not.toContain('En pausa');
   });
 
   test.each([
-    ['Trivia', TRIVIA_BOARD, 'Waiting for the next question...'],
-    ['TreasureHunt', TREASURE_HUNT_BOARD, 'TREASURE HUNT'],
+    ['Trivia', TRIVIA_BOARD, 'Esperando la siguiente pregunta...'],
+    ['TreasureHunt', TREASURE_HUNT_BOARD, 'BÚSQUEDA DEL TESORO'],
   ] as const)('%s is replaced by the cancellation view after the operator cancels', (_mode, board, surfaceCopy) => {
     mockUseTeamBoard.mockReturnValue({ board, isLoading: false, error: null });
     mockUseActiveQuestion.mockReturnValue({
@@ -726,7 +726,7 @@ describe('LiveTeamSpace play-mode branch', () => {
     rerenderSpace(renderer);
 
     const texts = allText(renderer.toJSON()).map(String);
-    expect(texts.join(' ')).toContain('This session was cancelled by the host.');
+    expect(texts.join(' ')).toContain('Esta sesión fue cancelada por el anfitrión.');
     expect(texts).not.toContain(surfaceCopy);
   });
 });
@@ -738,7 +738,7 @@ function substageChips(renderer: ReturnType<typeof create>) {
     (n) =>
       typeof n.type === 'string' &&
       typeof n.props?.accessibilityLabel === 'string' &&
-      /^Substage \d+:/.test(n.props.accessibilityLabel as string),
+      /^Subetapa \d+:/.test(n.props.accessibilityLabel as string),
   );
 }
 
@@ -758,7 +758,7 @@ describe('LiveTeamSpace substage progress (#171)', () => {
     expect(texts).toContain('The Cartographer’s Vault');
     // Both substages render with their play-mode labels.
     expect(texts).toContain('Trivia');
-    expect(texts).toContain('Treasure Hunt');
+    expect(texts).toContain('Búsqueda del tesoro');
     // A chip per substage in order.
     expect(substageChips(renderer)).toHaveLength(2);
   });
@@ -772,7 +772,7 @@ describe('LiveTeamSpace substage progress (#171)', () => {
     );
     expect(selected).toHaveLength(1);
     expect(selected[0].props.accessibilityLabel as string).toContain('active');
-    expect(selected[0].props.accessibilityLabel as string).toContain('Treasure Hunt');
+    expect(selected[0].props.accessibilityLabel as string).toContain('Búsqueda del tesoro');
   });
 
   test('single-substage session renders the name but no chips', () => {

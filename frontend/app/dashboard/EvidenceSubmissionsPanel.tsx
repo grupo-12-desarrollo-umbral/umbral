@@ -11,14 +11,14 @@ type EvidenceSubmissionsPanelProps = {
 }
 
 const typeLabels: Record<string, string> = {
-  TreasureHuntQrScan: 'QR scan',
-  TriviaAnswer: 'Trivia answer',
+  TreasureHuntQrScan: 'Escaneo QR',
+  TriviaAnswer: 'Respuesta de trivia',
 }
 
 const stateLabels: Record<string, string> = {
-  Pending: 'Pending',
-  Accepted: 'Accepted',
-  Rejected: 'Rejected',
+  Pending: 'Pendiente',
+  Accepted: 'Aceptada',
+  Rejected: 'Rechazada',
 }
 
 function formatSubmittedAt(iso: string): string {
@@ -44,9 +44,9 @@ export function EvidenceSubmissionsPanel({
   if (unauthorized) {
     return (
       <section className={styles.panel} data-testid="evidence-panel" aria-labelledby="evidence-panel-title">
-        <div className={styles.eyebrow} id="evidence-panel-title">Evidence</div>
+        <div className={styles.eyebrow} id="evidence-panel-title">Evidencias</div>
         <p className={styles.stateNote} role="status" data-testid="evidence-unauthorized">
-          You are not authorized to view this session’s submissions.
+          No tienes autorización para ver los envíos de esta sesión.
         </p>
       </section>
     )
@@ -56,9 +56,9 @@ export function EvidenceSubmissionsPanel({
   if (error !== null) {
     return (
       <section className={styles.panel} data-testid="evidence-panel" aria-labelledby="evidence-panel-title">
-        <div className={styles.eyebrow} id="evidence-panel-title">Evidence</div>
+        <div className={styles.eyebrow} id="evidence-panel-title">Evidencias</div>
         <p className={styles.stateNote} role="status" data-testid="evidence-error">
-          Couldn’t load the submissions. They will refresh automatically.
+          No se pudieron cargar los envíos. Se actualizarán automáticamente.
         </p>
       </section>
     )
@@ -75,18 +75,18 @@ export function EvidenceSubmissionsPanel({
   return (
     <section className={styles.panel} data-testid="evidence-panel" aria-labelledby="evidence-panel-title">
       <div className={styles.header}>
-        <span className={styles.eyebrow} id="evidence-panel-title">Evidence</span>
+        <span className={styles.eyebrow} id="evidence-panel-title">Evidencias</span>
         {!live && (
           // The snapshot is present but the live channel is down, so a submission can be missing until
           // it recovers. Say so rather than passing a stale list off as live.
           <span className={styles.stateNote} role="status" data-testid="evidence-live-paused">
-            Live updates paused — reconnecting.
+            Actualizaciones en vivo pausadas — reconectando.
           </span>
         )}
       </div>
       {ordered.length === 0 ? (
         <p className={styles.stateNote} data-testid="evidence-empty">
-          {loading ? 'Loading submissions…' : 'No submissions yet.'}
+          {loading ? 'Cargando los envíos…' : 'Aún no hay envíos.'}
         </p>
       ) : (
         <ul className={styles.list} aria-live="polite">
@@ -101,7 +101,7 @@ export function EvidenceSubmissionsPanel({
               </span>
               <span className={styles.details}>
                 <span className={styles.teamName}>
-                  {teamNames[item.teamId] ?? 'Unknown team'}
+                  {teamNames[item.teamId] ?? 'Equipo desconocido'}
                 </span>
                 {item.originReference !== null && (
                   // qr:{scannedValue} echoes raw scanned input on an unmatched scan. JSX escapes it as

@@ -15,6 +15,14 @@ public interface ITriviaQuizRepository
         IReadOnlyCollection<int> triviaQuizIds,
         CancellationToken cancellationToken);
 
+    /// <summary>
+    /// Batched sum of active question timer seconds per quiz, for the trivia time-budget readiness
+    /// check. Returns only quizzes that exist; a missing id is treated as contributing no time.
+    /// </summary>
+    Task<IReadOnlyDictionary<int, int>> GetActiveQuestionTimerSecondsByIdsAsync(
+        IReadOnlyCollection<int> triviaQuizIds,
+        CancellationToken cancellationToken);
+
     Task AddAsync(TriviaQuiz triviaQuiz, CancellationToken cancellationToken);
 
     Task UpdateAsync(TriviaQuiz triviaQuiz, CancellationToken cancellationToken);

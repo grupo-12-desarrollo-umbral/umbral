@@ -24,6 +24,9 @@ public sealed record MissionRuntimeTargetDto(
     int SequenceOrder,
     bool IsActive,
     int Score,
+    // Mission difficulty multiplier (1/2/3) that produced Score (= base 50 × factor). Snapshotted so
+    // it survives to target resolution and travels to scoring, which owns the difficulty rule.
+    int DifficultyFactor,
     double Latitude,
     double Longitude,
     MissionRuntimeClueDto? Clue);

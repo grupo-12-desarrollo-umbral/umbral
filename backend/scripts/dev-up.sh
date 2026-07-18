@@ -1,18 +1,17 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# dev-up.sh — one-command dev stack: (re)create the hot-reload stack and seed it.
+# dev-up.sh — optional convenience: (re)create the hot-reload stack and seed it.
 #
-# This is the local "Track A" runbook wrapped into a single command: bring the
-# stack up and load test data so the frontend/mobile (localhost:8000) always
-# have something to click through.
+# This is not the canonical local pipeline. Normal development can use
+# `docker compose up -d --wait`; this wrapper exists for the explicit case where
+# recreating (unless --keep), starting, and seeding in one command is useful.
 #
-# It deliberately does NOT run the coverage gate. That is a separate host-side
-# flow — `make -C backend gate-all` — which uses Testcontainers and never
-# touches this stack. Don't chain them: the hot-reload containers run as root
-# over the bind-mounted source, so running the stack pollutes bin/obj with
-# root-owned files that block a later host-run gate (clear them with a one-time
-# `sudo find services -type d \( -name bin -o -name obj \) -exec rm -rf {} +`).
+# It deliberately does NOT run the local CI contract. That is a separate
+# host-side flow — `make -C backend ci SVC=<service>` or `ci-all` — which uses
+# Testcontainers and never needs this persistent stack. The dev override runs
+# with the configured host UID/GID and redirects .NET build output away from
+# the bind-mounted source tree.
 #
 # Usage:
 #   ./scripts/dev-up.sh           # down -v, up, wait, seed sessions (fresh slate)

@@ -12,4 +12,8 @@ public sealed class MissionNotReadyForActivationException : DomainException
     public IReadOnlyCollection<string> ReadinessFailures { get; }
 
     public override ErrorCategory Category => ErrorCategory.Conflict;
+
+    // Safe to expose: the message is composed only of curated, identifier-free readiness sentences
+    // (the same strings the readiness endpoint returns), so the client sees why activation was blocked.
+    public override string? PublicDetail => Message;
 }

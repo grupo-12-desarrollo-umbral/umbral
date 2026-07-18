@@ -105,12 +105,12 @@ test.beforeAll(async () => {
   // DELETE there would momentarily strip the row out from under this one. ExternalIdentityId is the only
   // unique index on users, and both specs write identical content, so the upsert converges either way.
   const adminSub = subOf(admin)
-  sql('identity_access', `
+  sql('users', `
     INSERT INTO users ("ExternalIdentityId","DisplayName","Email","Role","IsActive","Created","LastModified")
     VALUES ('${adminSub}','Administrator One','admin-1@umbral.local','Administrator',true,NOW(),NOW())
     ON CONFLICT ("ExternalIdentityId") DO UPDATE SET "IsActive"=true, "LastModified"=NOW();
   `)
-  const opId = Number(sql('identity_access', `SELECT "Id" FROM users WHERE "Email"='op-1@umbral.local'`))
+  const opId = Number(sql('users', `SELECT "Id" FROM users WHERE "Email"='op-1@umbral.local'`))
   const missionId = Number(sql('mission_design',
     `SELECT "Id" FROM "Missions" WHERE "Name"='${MISSION_NAME}' AND "IsActive"=true AND "ActivationState"='Ready' ORDER BY "Id" DESC LIMIT 1`))
   expect(missionId, 'treasure-hunt mission should have been authored').toBeGreaterThan(0)
@@ -148,7 +148,7 @@ async function openPanel(page: import('@playwright/test').Page) {
   const card = page.locator('[data-testid="assigned-session-button"]', { hasText: sessionCode })
   await expect(card).toBeVisible({ timeout: 15000 })
   await card.click()
-  await page.getByRole('button', { name: 'Open live operation' }).click()
+  await page.getByRole('button', { name: 'Abrir operación en vivo' }).click()
   await expect(page.locator('[data-testid="operator-session-panel"]')).toBeVisible({ timeout: 15000 })
   await expect(page.getByTestId('evidence-panel')).toBeVisible({ timeout: 15000 })
   // Live channel healthy once the session hub connects + joins the operator group. Asserted before every
@@ -162,7 +162,7 @@ async function openPanel(page: import('@playwright/test').Page) {
 // `0/0 targets` is the null-activeSubstage render, hence the [1-9] — it must not satisfy the wait.
 async function start(page: import('@playwright/test').Page) {
   await page.locator('[data-testid="session-action-Active"]').click()
-  await expect(page.locator('[data-testid="panel-session-state"]')).toHaveText('Active', { timeout: 15000 })
+  await expect(page.locator('[data-testid="panel-session-state"]')).toHaveText('Activa', { timeout: 15000 })
   await expect(page.locator(`[data-testid="team-progress-targets-${team1RuntimeId}"]`))
     .toHaveText(/^\d+\/[1-9]\d* targets$/, { timeout: 15000 })
 }
@@ -181,12 +181,12 @@ test('a QR scan of a seeded target lands on the operator evidence panel live, wi
   const row = page.locator('[data-testid^="evidence-row-"]')
   await expect(row).toHaveCount(1, { timeout: 20000 })
   await expect(row).toContainText('Gilded Owls')
-  await expect(row).toContainText('QR scan')
+  await expect(row).toContainText('Escaneo QR')
   // The origin the trivia-driven spec cannot reach: a matched scan is identified by the target it
   // resolved to, not by the raw scanned text.
   await expect(row).toContainText(`target:${scanned.json.targetSnapshotId}`)
   // ...and the Accepted fact (raised by the same write) resolves it — the flip AC #2 asks for.
-  await expect(row).toContainText('Accepted', { timeout: 20000 })
+  await expect(row).toContainText('Aceptada', { timeout: 20000 })
 })
 
 test('an unmatched scanned value is rejected live, echoing the raw value as a qr: origin', async ({ operatorPage: page }) => {
@@ -205,7 +205,7 @@ test('an unmatched scanned value is rejected live, echoing the raw value as a qr
   // Nothing matched, so the origin falls back to the scanned text itself — the operator can see WHAT was
   // scanned, which is the whole point of the fallback.
   await expect(row).toContainText('qr:NOT-A-REAL-CODE')
-  await expect(row).toContainText('Rejected')
+  await expect(row).toContainText('Rechazada')
   await expect(page.locator('[data-testid^="evidence-row-"]')).toHaveCount(2)
 })
 
@@ -221,13 +221,13 @@ test('rescanning a target the team already resolved is rejected live with the al
 
   const row = page.locator('[data-testid^="evidence-row-"]', { hasText: ALREADY_RESOLVED_MESSAGE })
   await expect(row).toHaveCount(1, { timeout: 20000 })
-  await expect(row).toContainText('Rejected')
+  await expect(row).toContainText('Rechazada')
   // A rejected duplicate still resolved to a target, so it keeps the target: origin — the prefix tracks
   // what the value matched, not whether the scan was allowed.
   await expect(row).toContainText('target:')
   await expect(page.locator('[data-testid^="evidence-row-"]')).toHaveCount(3)
   // The accepted row is untouched: "once terminal always terminal" — the duplicate must not revert it.
-  await expect(page.locator('[data-testid^="evidence-row-"]', { hasText: 'Accepted' })).toHaveCount(1)
+  await expect(page.locator('[data-testid^="evidence-row-"]', { hasText: 'Aceptada' })).toHaveCount(1)
 })
 
 test('scanning a target from a non-active substage is rejected live with the outside-substage reason', async ({ operatorPage: page }) => {
@@ -242,7 +242,7 @@ test('scanning a target from a non-active substage is rejected live with the out
 
   const row = page.locator('[data-testid^="evidence-row-"]', { hasText: OUTSIDE_SUBSTAGE_MESSAGE })
   await expect(row).toHaveCount(1, { timeout: 20000 })
-  await expect(row).toContainText('Rejected')
+  await expect(row).toContainText('Rechazada')
   // The scan matched a real snapshot before the substage check rejected it, so the origin is target:, not
   // qr: — the prefix tracks what the value matched, not whether the scan was allowed.
   await expect(row).toContainText('target:')

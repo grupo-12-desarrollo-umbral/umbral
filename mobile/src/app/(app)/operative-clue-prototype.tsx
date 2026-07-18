@@ -39,15 +39,15 @@ import type { TimerDisplay } from '@/lib/realtime/timer-types';
 import type { VisibleClueDto } from '@/lib/realtime/team-board-types';
 
 const VARIANTS: readonly PrototypeVariant[] = [
-  { key: 'A', name: 'Signal chip' },
-  { key: 'B', name: 'Docked drawer' },
-  { key: 'C', name: 'Inline feed' },
+  { key: 'A', name: 'Chip de señal' },
+  { key: 'B', name: 'Cajón acoplado' },
+  { key: 'C', name: 'Feed en línea' },
 ];
 
 const STUB_QUESTION: ActiveQuestion = {
   questionIndex: 0,
   sequenceOrder: 3,
-  prompt: 'Which street borders the north colonnade of the Plaza Mayor?',
+  prompt: '¿Qué calle bordea la columnata norte de la Plaza Mayor?',
   options: ['Calle del Sol', 'Avenida Mayor', 'Paseo del Prado', 'Rambla Vella'],
   timeLimitSeconds: 60,
   triviaSubstageSnapshotId: 'stub',
@@ -56,10 +56,10 @@ const STUB_TIMER: TimerDisplay = { label: '0:47', pct: 78, tone: 'running' };
 
 // Operator-authored operative clues: null targets, real operativeClueId (mirrors the P0 projection).
 const STUB_CLUE_TEXTS: readonly string[] = [
-  'The gatekeeper answers only to those who know the third lantern is never lit.',
-  'Count the arches on the east wall — the true door is the one with no number.',
-  'Ignore the loud market. The quiet vendor by the fountain holds the token.',
-  'When the bell tower shows a quarter past, the north gate is unguarded.',
+  'El guardián solo responde a quienes saben que la tercera linterna nunca se enciende.',
+  'Cuenta los arcos del muro este — la puerta verdadera es la que no tiene número.',
+  'Ignora el mercado ruidoso. El vendedor silencioso junto a la fuente tiene la ficha.',
+  'Cuando el campanario marca y cuarto, la puerta norte queda sin vigilancia.',
 ];
 
 // Operative clues key on their operativeClueId (target fields are null). Mirrors treasure-hunt-board.
@@ -70,7 +70,7 @@ function OperativeClueArtifact({ clue }: { clue: VisibleClueDto }) {
   return (
     <Card parchment>
       <View accessibilityRole="text" style={{ gap: spacing.xs }}>
-        <Text variant="label" muted>{clue.targetName ?? 'OPERATIVE CLUE'}</Text>
+        <Text variant="label" muted>{clue.targetName ?? 'PISTA OPERATIVA'}</Text>
         <Text variant="mono">{clue.clueText}</Text>
       </View>
     </Card>
@@ -82,7 +82,7 @@ function EmptyHint() {
     <View style={{ padding: spacing.lg }}>
       <Card>
         <Text variant="body" muted>
-          No operative clues yet — tap ＋ Simulate operator clue to push one.
+          Aún no hay pistas operativas — toca ＋ Simular pista del operador para enviar una.
         </Text>
       </Card>
     </View>
@@ -156,10 +156,10 @@ export default function OperativeCluePrototypeScreen() {
           zIndex: 60,
         }}
       >
-        <Text variant="label" muted>PROTOTYPE · OPERATIVE CLUE · TRIVIA</Text>
+        <Text variant="label" muted>PROTOTIPO · PISTA OPERATIVA · TRIVIA</Text>
         <View style={{ flexDirection: 'row', gap: spacing.xs }}>
-          <ControlPill label="＋ Simulate operator clue" onPress={simulate} emphasis />
-          <ControlPill label="Reset" onPress={reset} />
+          <ControlPill label="＋ Simular pista del operador" onPress={simulate} emphasis />
+          <ControlPill label="Restablecer" onPress={reset} />
         </View>
       </View>
 
@@ -244,7 +244,7 @@ function ChipInline({
       <Pressable
         testID="operative-clue-list"
         accessibilityRole="button"
-        accessibilityLabel={`Operative clues, ${clues.length}${unseen > 0 ? `, ${unseen} new` : ''}`}
+        accessibilityLabel={`Pistas operativas, ${clues.length}${unseen > 0 ? `, ${unseen} nuevas` : ''}`}
         onPress={onToggle}
         style={{
           flexDirection: 'row',
@@ -264,7 +264,7 @@ function ChipInline({
           {unseen > 0 ? (
             <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: colors.emberAccentStrong }} />
           ) : null}
-          <Text variant="label" muted>{`OPERATIVE CLUES · ${clues.length}`}</Text>
+          <Text variant="label" muted>{`PISTAS OPERATIVAS · ${clues.length}`}</Text>
         </View>
         <Text variant="label" muted>{expanded ? '▲' : '▼'}</Text>
       </Pressable>
@@ -294,7 +294,7 @@ function ClueToast({ clue, onOpen }: { clue: VisibleClueDto; onOpen: () => void 
 
   useEffect(() => {
     if (Platform.OS !== 'web') {
-      AccessibilityInfo.announceForAccessibility(`New operative clue. ${clue.clueText}`);
+      AccessibilityInfo.announceForAccessibility(`Nueva pista operativa. ${clue.clueText}`);
     }
     Animated.parallel([
       Animated.timing(translateY, { toValue: 0, duration: 220, useNativeDriver: true }),
@@ -323,7 +323,7 @@ function ClueToast({ clue, onOpen }: { clue: VisibleClueDto; onOpen: () => void 
       <Pressable
         testID="operative-clue-toast"
         accessibilityRole="button"
-        accessibilityLabel="Open operative clues"
+        accessibilityLabel="Abrir pistas operativas"
         onPress={() => {
           onOpen();
           dismiss();
@@ -343,12 +343,12 @@ function ClueToast({ clue, onOpen }: { clue: VisibleClueDto; onOpen: () => void 
       >
         <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: colors.emberAccentStrong }} />
         <View style={{ flex: 1, gap: 2 }}>
-          <Text variant="label" muted>NEW OPERATIVE CLUE</Text>
+          <Text variant="label" muted>NUEVA PISTA OPERATIVA</Text>
           <Text variant="body" numberOfLines={1}>{clue.clueText}</Text>
         </View>
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Dismiss"
+          accessibilityLabel="Descartar"
           onPress={dismiss}
           hitSlop={spacing.xs}
           style={{ width: 24, height: 24, alignItems: 'center', justifyContent: 'center' }}
@@ -393,7 +393,7 @@ function DockedHandle({
         <Pressable
           testID="operative-clue-handle"
           accessibilityRole="button"
-          accessibilityLabel={`Open operative clues, ${count}${unseen > 0 ? `, ${unseen} new` : ''}`}
+          accessibilityLabel={`Abrir pistas operativas, ${count}${unseen > 0 ? `, ${unseen} nuevas` : ''}`}
           onPress={onOpen}
           style={{
             flexDirection: 'row',
@@ -413,7 +413,7 @@ function DockedHandle({
             {unseen > 0 ? (
               <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: colors.emberAccentStrong }} />
             ) : null}
-            <Text variant="label" muted>{`OPERATIVE CLUES · ${count}`}</Text>
+            <Text variant="label" muted>{`PISTAS OPERATIVAS · ${count}`}</Text>
           </View>
           <Text variant="label" muted>▲</Text>
         </Pressable>
@@ -450,7 +450,7 @@ function ClueSheet({ clues, onClose }: { clues: VisibleClueDto[]; onClose: () =>
   return (
     <View style={[StyleSheet.absoluteFill, { zIndex: 95 }]}>
       <Animated.View style={{ flex: 1, backgroundColor: 'rgba(24, 17, 12, 0.45)', opacity: scrim }}>
-        <Pressable accessibilityRole="button" accessibilityLabel="Close operative clues" onPress={close} style={{ flex: 1 }} />
+        <Pressable accessibilityRole="button" accessibilityLabel="Cerrar pistas operativas" onPress={close} style={{ flex: 1 }} />
       </Animated.View>
       <Animated.View
         style={{
@@ -480,14 +480,14 @@ function ClueSheet({ clues, onClose }: { clues: VisibleClueDto[]; onClose: () =>
             borderColor: colors.borderSoft,
           }}
         >
-          <Text variant="title">Operative clues</Text>
+          <Text variant="title">Pistas operativas</Text>
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="Close"
+            accessibilityLabel="Cerrar"
             onPress={close}
             style={{ paddingHorizontal: spacing.sm, paddingVertical: spacing.xs, backgroundColor: colors.charcoalRoom, borderRadius: radii.control, borderCurve: 'continuous' }}
           >
-            <Text variant="label" style={{ color: colors.emberAccentSoft }}>CLOSE</Text>
+            <Text variant="label" style={{ color: colors.emberAccentSoft }}>CERRAR</Text>
           </Pressable>
         </View>
         <ScrollView testID="operative-clue-list" contentContainerStyle={{ padding: spacing.lg, gap: spacing.sm, paddingBottom: spacing.xl }}>
@@ -507,7 +507,7 @@ function InlineFeed({ clues }: { clues: VisibleClueDto[] }) {
   const ordered = useMemo(() => clues.slice().reverse(), [clues]);
   return (
     <View testID="operative-clue-list" style={{ paddingHorizontal: spacing.lg, paddingTop: spacing.md, gap: spacing.sm }}>
-      <Text variant="label" muted>OPERATIVE CLUES</Text>
+      <Text variant="label" muted>PISTAS OPERATIVAS</Text>
       {ordered.map((c) => (
         <FeedCard key={clueKey(c)} clue={c} />
       ))}

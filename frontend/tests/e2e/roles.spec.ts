@@ -35,7 +35,7 @@ test('admin can cancel role change without network call', async ({ adminPage: pa
   await page.click('[data-testid="nav-users"]')
   await page.locator('[data-testid^="change-role-btn-"]').first().click()
   await page.locator('[data-testid^="role-select-"]').first().selectOption('Participant')
-  await page.getByRole('button', { name: 'Cancel' }).first().click()
+  await page.getByRole('button', { name: 'Cancelar' }).first().click()
   // row should be back to read mode — no select visible
   await expect(page.locator('[data-testid^="role-select-"]')).toHaveCount(0)
 })

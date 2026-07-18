@@ -18,7 +18,7 @@ public sealed class MissionStructureEditorTests
 
     private static Mission BuildMission(out Stage stage, out Substage substage)
     {
-        var mission = Mission.Create("Mission", "Briefing", "Advanced", 45);
+        var mission = Mission.Create("Mission", "Briefing", "Advanced", 30);
         stage = mission.AddStage("Stage", 1);
         stage.Id = StageId;
         substage = mission.AddSubstage(stage.Id, Substage.CreateTreasureHunt("Substage", 1));
@@ -205,7 +205,7 @@ public sealed class MissionStructureEditorTests
     [Fact]
     public void AssignPlayMode_TriviaToTreasure_Swaps()
     {
-        var mission = Mission.Create("Mission", "Briefing", "Advanced", 45);
+        var mission = Mission.Create("Mission", "Briefing", "Advanced", 30);
         var stage = mission.AddStage("Stage", 1);
         stage.Id = StageId;
         var substage = mission.AddSubstage(stage.Id, Substage.CreateTrivia("Trivia", 1));

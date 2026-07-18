@@ -56,7 +56,7 @@ The brief is the generator's compact projection of everything you need resident
 | HU id (e.g. `HU-06`) + title | Slice table |
 | Linear HU ticket (e.g. `DES-12`) | Slice table |
 | PRD ticket (e.g. `DES-67`) | Slice table |
-| Service name (e.g. `identity-access-service`) | Slice table |
+| Service name (e.g. `users-service`) | Slice table |
 | Branch name (e.g. `feature/hu-06-<slug>`) | Slice table |
 | Branch base (`develop` or `feature/<predecessor>`) | Slice table |
 | Required design pattern(s) + owning phase | "Required pattern(s)" |
@@ -463,7 +463,7 @@ from the service directory and pass every test project, the threshold-enforcing
 one last.
 
 The script is the single source of truth for the gate AND for the number we
-demonstrate: it owns the `/p:Threshold` (project minimum 93, override per-run
+demonstrate: it owns the `/p:Threshold` (project minimum 95 for aggregate branch coverage, override per-run
 with `THRESHOLD=NN`), the `MergeWith` chain, and the sandbox-safe env vars
 (`MSBUILDDISABLENODEREUSE=1`) so the gate works on any machine and without
 Claude. It is committed to the repo — never inline the `dotnet test` chain back

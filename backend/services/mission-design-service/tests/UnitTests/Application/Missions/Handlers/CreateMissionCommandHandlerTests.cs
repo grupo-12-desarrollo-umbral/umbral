@@ -27,7 +27,7 @@ public class CreateMissionCommandHandlerTests
     {
         var repository = new InMemoryMissionRepository();
         var handler = new CreateMissionCommandHandler(repository);
-        var command = new CreateMissionCommand("Test Mission", "Test Description", "Advanced", 45);
+        var command = new CreateMissionCommand("Test Mission", "Test Description", "Advanced", 30);
 
         var result = await handler.Handle(command, CancellationToken.None);
 
@@ -37,6 +37,6 @@ public class CreateMissionCommandHandlerTests
         result.Name.Should().Be("Test Mission");
         result.Description.Should().Be("Test Description");
         result.Difficulty.Should().Be("Advanced");
-        result.MaximumTimeMinutes.Should().Be(45);
+        result.MaximumTimeMinutes.Should().Be(30);
     }
 }

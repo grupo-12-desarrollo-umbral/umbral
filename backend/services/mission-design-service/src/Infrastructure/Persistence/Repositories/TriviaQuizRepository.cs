@@ -39,6 +39,28 @@ public sealed class TriviaQuizRepository : ITriviaQuizRepository
         return statuses.ToDictionary(entry => entry.Id, entry => entry.Status);
     }
 
+    public async Task<IReadOnlyDictionary<int, int>> GetActiveQuestionTimerSecondsByIdsAsync(
+        IReadOnlyCollection<int> triviaQuizIds,
+        CancellationToken cancellationToken)
+    {
+        if (triviaQuizIds.Count == 0)
+        {
+            return new Dictionary<int, int>();
+        }
+
+        // Questions (and their owned TimeLimit) load with the aggregate, so summing in memory is
+        // exact. This is an authoring cold path, so materialising the quizzes is acceptable.
+        var quizzes = await _context.TriviaQuizzes
+            .Where(triviaQuiz => triviaQuizIds.Contains(triviaQuiz.Id))
+            .ToListAsync(cancellationToken);
+
+        return quizzes.ToDictionary(
+            triviaQuiz => triviaQuiz.Id,
+            triviaQuiz => triviaQuiz.Questions
+                .Where(question => question.IsActive)
+                .Sum(question => question.TimeLimit?.Seconds ?? 0));
+    }
+
     public async Task AddAsync(TriviaQuiz triviaQuiz, CancellationToken cancellationToken)
     {
         await _context.TriviaQuizzes.AddAsync(triviaQuiz, cancellationToken);

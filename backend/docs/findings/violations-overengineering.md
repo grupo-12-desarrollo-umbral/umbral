@@ -86,7 +86,8 @@ Per the checklist KEEP list and the services' CONTEXT.md required patterns:
 
 ## Resolution (2026-06-30)
 
-**All aligned findings are applied and merged to `develop`, verified green** (identity-access 95.1% / session-operations 93.3% line coverage, structure-guard OK, full suites passing).
+**All aligned findings are applied and merged to `develop`.** The historical suites and structure
+guard passed; rerun the current branch-coverage gate before treating the services as green.
 
 | Finding | Service | Status |
 |---|---|---|

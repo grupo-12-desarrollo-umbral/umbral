@@ -127,28 +127,27 @@ export async function inviteUser(email: string, role: InvitableRole): Promise<In
 
   // 400 validation-failed: surface the backend's readable detail (invalid email, unknown role, …).
   if (response.status === 400) {
-    throw new Error((await readProblemDetail(response)) ?? 'The invitation details are invalid.')
+    throw new Error((await readProblemDetail(response)) ?? 'Los datos de la invitación no son válidos.')
   }
 
   if (response.status === 401) {
-    throw new IdentityError('unauthorized', 'Authentication failed.')
+    throw new IdentityError('unauthorized', 'Falló la autenticación.')
   }
 
   if (response.status === 403) {
-    throw new IdentityError('unauthorized', 'Forbidden. Administrator role required.')
+    throw new IdentityError('unauthorized', 'Acceso denegado. Se requiere rol de Administrador.')
   }
 
   // 409 conflict: an account already exists for this email.
   if (response.status === 409) {
-    throw new Error((await readProblemDetail(response)) ?? 'A user with this email address already exists.')
+    throw new Error('Ya existe una cuenta con este correo electrónico.')
   }
 
   // 422 unprocessable: role is not invitable (Participant). The form never offers it, but the guard
   // mirrors the backend contract in case a request is crafted directly.
   if (response.status === 422) {
     throw new Error(
-      (await readProblemDetail(response)) ??
-        'Participants self-register and cannot be invited. Only Operator and Administrator accounts can be invited.',
+      'Los participantes se auto-registran y no pueden ser invitados. Solo se pueden invitar cuentas de Operador y Administrador.',
     )
   }
 

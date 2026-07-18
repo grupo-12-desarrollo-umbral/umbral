@@ -30,7 +30,7 @@ export function OperatorLiveSession({ panels }: { panels: OperatorLivePanels }) 
   const tabs: { key: string; label: string; content: ReactNode }[] = [
     {
       key: 'live',
-      label: 'Live',
+      label: 'En vivo',
       content: (
         <>
           {panels.teamProgress}
@@ -40,12 +40,12 @@ export function OperatorLiveSession({ panels }: { panels: OperatorLivePanels }) 
     },
     {
       key: 'clues',
-      label: 'Clues & penalties',
+      label: 'Pistas y penalizaciones',
       content: <>{panels.cluesRow}</>,
     },
     {
       key: 'evidence',
-      label: 'Evidence',
+      label: 'Evidencias',
       content: <>{panels.evidence}</>,
     },
     {
@@ -60,7 +60,7 @@ export function OperatorLiveSession({ panels }: { panels: OperatorLivePanels }) 
     },
     {
       key: 'timeline',
-      label: 'Timeline',
+      label: 'Cronología',
       content: (
         <>
           {panels.history}
@@ -70,7 +70,7 @@ export function OperatorLiveSession({ panels }: { panels: OperatorLivePanels }) 
     },
     {
       key: 'controls',
-      label: 'Controls',
+      label: 'Controles',
       content: (
         <>
           {panels.controls}
@@ -95,7 +95,7 @@ export function OperatorLiveSession({ panels }: { panels: OperatorLivePanels }) 
             Renders null when idle, so it costs no space until a round is running — this keeps the
             post-Activate pregame countdown visible regardless of the active tab. */}
         {panels.triviaRound}
-        <div className={styles.tabBar} role="tablist" aria-label="Live session sections">
+        <div className={styles.tabBar} role="tablist" aria-label="Secciones de la sesión en vivo">
           {tabs.map((t) => (
             <button
               key={t.key}

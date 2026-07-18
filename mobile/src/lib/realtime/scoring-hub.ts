@@ -7,6 +7,7 @@ import {
 } from '@microsoft/signalr';
 import { getValidAccessToken } from '@/lib/auth/token-provider';
 import { apiBaseUrl } from '@/lib/host';
+import type { PenaltyAppliedDto } from './penalty-types';
 import type { RankingSnapshotDto } from './ranking-types';
 
 const KEEP_ALIVE_INTERVAL_MS = 15_000;
@@ -23,6 +24,10 @@ export type ScoringHubClient = {
   joinSessionGroup: (liveSessionId: string, teamId: string) => Promise<void>;
   leaveSessionGroup: (liveSessionId: string) => Promise<void>;
   onRankingChanged: (cb: (snapshot: RankingSnapshotDto) => void) => () => void;
+  // Fires when an operator applies a penalty to a team in the joined session. Unlike RankingChanged, this
+  // carries the true deduction magnitude and always fires — even when the resulting team total clamps to
+  // zero and the ranking snapshot is unchanged — so it, not a score-decrease heuristic, drives the toast.
+  onPenaltyApplied: (cb: (payload: PenaltyAppliedDto) => void) => () => void;
   // Fires after the transport auto-reconnects and the session group has been re-joined. Pushes only
   // arrive on a ranking *change*, so any change during the outage was missed — consumers use this to
   // re-fetch the current snapshot rather than showing stale standings until the next change.
@@ -108,6 +113,10 @@ export function createScoringHubConnection(): ScoringHubClient {
     onRankingChanged(cb) {
       connection.on('RankingChanged', cb);
       return () => connection.off('RankingChanged', cb);
+    },
+    onPenaltyApplied(cb) {
+      connection.on('PenaltyApplied', cb);
+      return () => connection.off('PenaltyApplied', cb);
     },
     onReconnected(cb) {
       reconnectedSubscribers.add(cb);

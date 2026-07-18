@@ -1,12 +1,13 @@
 import { useEffect } from 'react';
 import { View } from 'react-native';
 import { Button } from '@/components/ui/button';
-import { PodiumLeaderboard } from '@/components/podium-leaderboard';
+import { RankingLeaderboard } from '@/components/ranking-leaderboard';
 import { Screen } from '@/components/ui/screen';
 import { Text } from '@/components/ui/text';
 import { rankingErrorCopy } from '@/lib/realtime/ranking-error-copy';
 import type { TimerSnapshotError } from '@/lib/api/sessions';
 import type { RankingRowDto } from '@/lib/realtime/ranking-types';
+import type { TimerDisplay } from '@/lib/realtime/timer-types';
 import { colors, spacing } from '@/constants/theme';
 
 export type RankingRevealProps = {
@@ -14,6 +15,9 @@ export type RankingRevealProps = {
   ownTeamId: string;
   // The mission is over: the ranking is final and the participant can leave.
   isFinished: boolean;
+  // Whole-mission countdown. Shown on the between-substage reveal ("how the teams
+  // stand"); suppressed once finished, where the clock has run out anyway.
+  missionDisplay?: TimerDisplay | null;
   error: TimerSnapshotError | null;
   onRetry: () => void;
   onRefetch: () => void;
@@ -23,7 +27,7 @@ export type RankingRevealProps = {
 /**
  * Full-screen substage ranking (D-3), shown for a timed reveal window between substages and again —
  * without a time limit — once the mission finishes. Both states are one component on purpose: a
- * terminal reveal flows straight into `Finished` without unmounting, so the podium never flashes.
+ * terminal reveal flows straight into `Finished` without unmounting, so the leaderboard never flashes.
  *
  * Outranks the treasure-hunt board and the trivia surface, since the reveal fires in either play mode.
  */
@@ -31,6 +35,7 @@ export function RankingReveal({
   rows,
   ownTeamId,
   isFinished,
+  missionDisplay,
   error,
   onRetry,
   onRefetch,
@@ -47,10 +52,10 @@ export function RankingReveal({
     <Screen contentContainerStyle={{ gap: spacing.md }}>
       <View style={{ alignItems: 'center', paddingTop: spacing.lg, gap: spacing.xs }}>
         <Text variant="label" muted>
-          {isFinished ? 'MISSION COMPLETE' : 'ROUND STANDINGS'}
+          {isFinished ? 'MISIÓN COMPLETADA' : 'CLASIFICACIÓN DE LA RONDA'}
         </Text>
         <Text variant="headline">
-          {isFinished ? 'Final ranking' : 'How the teams stand'}
+          {isFinished ? 'Clasificación final' : 'Cómo van los equipos'}
         </Text>
       </View>
 
@@ -59,11 +64,11 @@ export function RankingReveal({
           <Text variant="body" style={{ color: colors.signalCritical, textAlign: 'center' }}>
             {rankingErrorCopy(error)}
           </Text>
-          <Button label="RETRY" variant="secondary" onPress={onRetry} />
+          <Button label="REINTENTAR" variant="secondary" onPress={onRetry} />
         </View>
       ) : isFinished && rows?.length === 0 ? (
         // A mission that ends with nobody on the board returns an empty ranking — routine when
-        // MaximumTime expires before any team scores. PodiumLeaderboard's own empty state promises
+        // MaximumTime expires before any team scores. RankingLeaderboard's own empty state promises
         // standings "once the round begins", which contradicts the MISSION COMPLETE heading above it,
         // so the terminal case gets its own copy instead.
         <View style={{ paddingVertical: spacing.xl, alignItems: 'center', gap: spacing.sm }}>
@@ -71,17 +76,21 @@ export function RankingReveal({
             🏁
           </Text>
           <Text variant="title" muted style={{ textAlign: 'center' }}>
-            No team scored before the mission ended.
+            Ningún equipo puntuó antes de que terminara la misión.
           </Text>
         </View>
       ) : (
-        // PodiumLeaderboard owns the empty state, so a not-yet-loaded snapshot reads as
+        // RankingLeaderboard owns the empty state, so a not-yet-loaded snapshot reads as
         // "standings coming" rather than an error.
-        <PodiumLeaderboard rows={rows ?? []} ownTeamId={ownTeamId} />
+        <RankingLeaderboard
+          rows={rows ?? []}
+          ownTeamId={ownTeamId}
+          missionDisplay={isFinished ? null : missionDisplay}
+        />
       )}
 
       {isFinished ? (
-        <Button label="Leave team space" variant="secondary" onPress={onLeave} />
+        <Button label="Salir del espacio de equipo" variant="secondary" onPress={onLeave} />
       ) : null}
     </Screen>
   );

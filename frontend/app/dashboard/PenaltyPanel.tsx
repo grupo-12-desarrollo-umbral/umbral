@@ -35,10 +35,10 @@ export function PenaltyPanel({
     return (
       <section className={styles.cluePanel} data-testid="penalty-panel" aria-labelledby="penalty-title">
         <div className={styles.panelHeader}>
-          <h2 id="penalty-title">Penalty</h2>
+          <h2 id="penalty-title">Penalización</h2>
         </div>
         <p className={styles.panelMeta} data-testid="penalty-inactive">
-          Penalties can be applied once the session is Active or Paused.
+          Las penalizaciones se pueden aplicar una vez que la sesión esté Activa o Pausada.
         </p>
       </section>
     )
@@ -51,14 +51,14 @@ export function PenaltyPanel({
       const result = await applyPenaltyAction(liveSessionId, { teamId, reason: reason.trim() })
       if ('data' in result) {
         // penaltyAmount is a positive magnitude; the deduction is the entry's type. Render the sign.
-        setSuccess(`Penalty applied: −${result.data.penaltyAmount} pts.`)
+        setSuccess(`Penalización aplicada: −${result.data.penaltyAmount} pts.`)
         setReason('')
         setTeamId('')
         onApplied?.(result.data.teamId, result.data.penaltyAmount)
       } else if ('invalidReason' in result) {
-        setError('A penalty requires an explicit reason.')
+        setError('Una penalización requiere un motivo explícito.')
       } else if ('unauthorized' in result) {
-        setError('You are not authorized to penalize teams in this session.')
+        setError('No tienes autorización para penalizar equipos en esta sesión.')
       } else {
         setError(result.error)
       }
@@ -71,14 +71,14 @@ export function PenaltyPanel({
   return (
     <section className={styles.cluePanel} data-testid="penalty-panel" aria-labelledby="penalty-title">
       <div className={styles.panelHeader}>
-        <h2 id="penalty-title">Penalty</h2>
-        <div className={styles.panelMeta}>Deduct points from a team, with a justification.</div>
+        <h2 id="penalty-title">Penalización</h2>
+        <div className={styles.panelMeta}>Descuenta puntos a un equipo, con una justificación.</div>
       </div>
 
       <label className={styles.clueField}>
-        <span className={styles.clueFieldLabel}>Team</span>
+        <span className={styles.clueFieldLabel}>Equipo</span>
         {teams.length === 0 ? (
-          <p className={styles.panelMeta}>No teams are attached to this session yet.</p>
+          <p className={styles.panelMeta}>Aún no hay equipos asociados a esta sesión.</p>
         ) : (
           <select
             className={styles.clueControl}
@@ -86,7 +86,7 @@ export function PenaltyPanel({
             value={teamId}
             onChange={(e) => setTeamId(e.target.value)}
           >
-            <option value="">Select a team…</option>
+            <option value="">Selecciona un equipo…</option>
             {teams.map((t) => (
               <option key={t.teamId} value={t.teamId}>
                 {t.displayName}
@@ -97,13 +97,13 @@ export function PenaltyPanel({
       </label>
 
       <label className={`${styles.clueField} ${styles.clueFieldFull}`}>
-        <span className={styles.clueFieldLabel}>Reason</span>
+        <span className={styles.clueFieldLabel}>Motivo</span>
         <textarea
           className={`${styles.clueControl} ${styles.clueTextarea}`}
           data-testid="penalty-reason-input"
           value={reason}
           onChange={(e) => setReason(e.target.value)}
-          placeholder="e.g. Team used a phone during a no-device substage."
+          placeholder="p. ej. El equipo usó un teléfono en una subetapa sin dispositivos."
           rows={3}
         />
       </label>
@@ -116,7 +116,7 @@ export function PenaltyPanel({
           onClick={submit}
           type="button"
         >
-          {isPending ? 'Applying…' : 'Apply penalty'}
+          {isPending ? 'Aplicando…' : 'Aplicar penalización'}
         </button>
       </div>
 

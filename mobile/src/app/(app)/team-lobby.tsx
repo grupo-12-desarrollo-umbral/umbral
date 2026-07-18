@@ -157,10 +157,10 @@ export default function TeamLobbyScreen() {
 
       <Panel>
         <View style={{ gap: spacing.xs }}>
-          <Text variant="headline">Select your team</Text>
+          <Text variant="headline">Selecciona tu equipo</Text>
           <Text variant="body" muted>
-            Session {sessionCode || '------'}. Teams marked locked are
-            unavailable to you.
+            Sesión {sessionCode || '------'}. Los equipos marcados como
+            bloqueados no están disponibles para ti.
           </Text>
         </View>
       </Panel>
@@ -184,7 +184,7 @@ export default function TeamLobbyScreen() {
                 {errorMessage}
               </Text>
               <Button
-                label="Try again"
+                label="Reintentar"
                 variant="secondary"
                 onPress={() => {
                   void load();
@@ -201,7 +201,7 @@ export default function TeamLobbyScreen() {
               {collectionState.message}
             </Text>
             <Button
-              label="Refresh teams"
+              label="Actualizar equipos"
               variant="secondary"
               onPress={() => {
                 void load();
@@ -228,10 +228,10 @@ export default function TeamLobbyScreen() {
             const isLocked = team.joinState === 'locked';
             const statusLabel =
               team.joinState === 'mine'
-                ? 'Your team'
+                ? 'Tu equipo'
                 : team.joinState === 'locked'
-                  ? 'Locked'
-                  : 'Joinable';
+                  ? 'Bloqueado'
+                  : 'Disponible';
             return (
               <Pressable
                 key={team.teamId}
@@ -262,7 +262,7 @@ export default function TeamLobbyScreen() {
                         variant="label"
                         style={{ color: colors.signalCritical }}
                       >
-                        Locked
+                        Bloqueado
                       </Text>
                     ) : null}
                   </View>
@@ -284,7 +284,7 @@ export default function TeamLobbyScreen() {
       ) : null}
 
       <Button
-        label="Back"
+        label="Atrás"
         variant="secondary"
         onPress={() => router.back()}
         disabled={isJoining}

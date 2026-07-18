@@ -7,7 +7,7 @@ namespace umbral_backend.Application.UnitTests.Domain.Entities;
 
 public class MissionStructureTests
 {
-    private static Mission NewMission() => Mission.Create("Mission", "Briefing", "Advanced", 45);
+    private static Mission NewMission() => Mission.Create("Mission", "Briefing", "Advanced", 30);
 
     private static Stage StageWith(Mission mission, int stageId, int sequenceOrder = 1)
     {
@@ -123,7 +123,7 @@ public class MissionStructureTests
         var target = mission.AddTarget(10, 100, "Statue", "QR-1", 1, 4.711, -74.0721);
         target.Score.Points.Should().Be(150);
 
-        mission.UpdateDetails("Mission", "Briefing", "Beginner", 45); // Beginner => 50
+        mission.UpdateDetails("Mission", "Briefing", "Beginner", 30); // Beginner => 50
 
         target.Score.Points.Should().Be(50);
     }

@@ -43,12 +43,12 @@ describe('buildTargetMapHtml', () => {
   it('enables the pick flow and hint only in interactive mode', () => {
     const passive = buildTargetMapHtml({ markers })
     expect(passive).toContain('var interactive = false;')
-    expect(passive).not.toContain('Click the map to place this target')
+    expect(passive).not.toContain('Haz clic en el mapa para ubicar este target')
 
     const interactive = buildTargetMapHtml({ markers, interactive: true })
     expect(interactive).toContain('var interactive = true;')
     expect(interactive).toContain(TARGET_PICK_MESSAGE)
-    expect(interactive).toContain('Click the map to place this target')
+    expect(interactive).toContain('Haz clic en el mapa para ubicar este target')
   })
 
   it('treats the 0,0 sentinel as unplaced rather than centring on Null Island', () => {
@@ -74,6 +74,23 @@ describe('buildTargetMapHtml', () => {
   it('still centres on a placed marker ahead of the operator location', () => {
     const html = buildTargetMapHtml({ markers, defaultCenter: { lat: 40.41, lng: -3.69 } })
     expect(html).toContain('setView([10.5, -70.25]')
+  })
+
+  it('reframes to fit every marker when the read-only overview has more than one', () => {
+    // Centring on markers[0] at a fixed zoom leaves targets elsewhere off-screen, looking as if they
+    // collapsed onto the first pin. The overview must fitBounds over all placed targets instead.
+    const html = buildTargetMapHtml({ markers })
+    expect(html).toContain('map.fitBounds(')
+  })
+
+  it('does not reframe when a single marker is placed', () => {
+    const html = buildTargetMapHtml({ markers: [markers[0]] })
+    expect(html).not.toContain('map.fitBounds(')
+  })
+
+  it('does not reframe in interactive mode so the map stays put while picking', () => {
+    const html = buildTargetMapHtml({ markers, interactive: true })
+    expect(html).not.toContain('map.fitBounds(')
   })
 
   it('escapes < in a target name to prevent script-block injection', () => {

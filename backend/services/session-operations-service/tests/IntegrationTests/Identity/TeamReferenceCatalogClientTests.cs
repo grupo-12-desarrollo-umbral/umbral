@@ -182,7 +182,7 @@ public sealed class TeamReferenceCatalogClientTests
     {
         var httpClient = new HttpClient(handler)
         {
-            BaseAddress = new Uri("http://identity-access-service")
+            BaseAddress = new Uri("http://users-service")
         };
 
         return new TeamReferenceCatalogClient(

@@ -1,25 +1,25 @@
 import type { TriviaAnswerRejectionReasonCode } from './trivia-types';
 
 const TITLES: Record<TriviaAnswerRejectionReasonCode | 'unknown', string> = {
-  'late-trivia-answer': 'Too late',
-  'duplicate-trivia-answer': 'Already answered',
-  'trivia-answer-requires-active-question': 'No active question',
-  'trivia-answer-requires-active-session': 'Session not active',
-  'trivia-answer-requires-trivia-substage': 'Not a trivia round',
-  'invalid-trivia-answer-option': 'Invalid selection',
-  'answer-submitter-is-not-session-participant': 'Not authorized',
-  'unknown': 'Connection issue',
+  'late-trivia-answer': 'Demasiado tarde',
+  'duplicate-trivia-answer': 'Ya respondida',
+  'trivia-answer-requires-active-question': 'No hay pregunta activa',
+  'trivia-answer-requires-active-session': 'Sesión no activa',
+  'trivia-answer-requires-trivia-substage': 'No es una ronda de trivia',
+  'invalid-trivia-answer-option': 'Selección inválida',
+  'answer-submitter-is-not-session-participant': 'No autorizado',
+  'unknown': 'Problema de conexión',
 };
 
 const MESSAGES: Record<TriviaAnswerRejectionReasonCode | 'unknown', string> = {
-  'late-trivia-answer': 'The time window to answer closed before your submission arrived.',
-  'duplicate-trivia-answer': 'Your team has already submitted an answer for this question.',
-  'trivia-answer-requires-active-question': 'This question is no longer open.',
-  'trivia-answer-requires-active-session': "Answering isn't available right now.",
-  'trivia-answer-requires-trivia-substage': "The current stage doesn't accept answers.",
-  'invalid-trivia-answer-option': "The selected option isn't valid for this question.",
-  'answer-submitter-is-not-session-participant': "Your team isn't registered to answer in this session.",
-  'unknown': "Couldn't reach the server. Check your connection and try again.",
+  'late-trivia-answer': 'La ventana de tiempo para responder se cerró antes de que llegara tu respuesta.',
+  'duplicate-trivia-answer': 'Tu equipo ya envió una respuesta para esta pregunta.',
+  'trivia-answer-requires-active-question': 'Esta pregunta ya no está abierta.',
+  'trivia-answer-requires-active-session': 'Responder no está disponible en este momento.',
+  'trivia-answer-requires-trivia-substage': 'La etapa actual no acepta respuestas.',
+  'invalid-trivia-answer-option': 'La opción seleccionada no es válida para esta pregunta.',
+  'answer-submitter-is-not-session-participant': 'Tu equipo no está registrado para responder en esta sesión.',
+  'unknown': 'No pudimos conectar con el servidor. Revisa tu conexión y reintenta.',
 };
 
 export function triviaAnswerRejectionTitle(

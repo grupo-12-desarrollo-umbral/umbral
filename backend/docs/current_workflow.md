@@ -169,9 +169,9 @@ Commit backend changes
 | X.3 Infrastructure | `dotnet ef migrations add Init` succeeds; repository integration test green |
 | X.4 Api | At least one endpoint returns expected response via HTTP test or `curl`; **aggregate coverage ≥95% (see below)** |
 
-**Coverage gate:** the backend must reach **≥93% line coverage and ≥93% branch coverage**, measured as an aggregate across all of the touched service's test projects combined. This remains a hard gate for each backend service completed inside the slice.
+**Coverage gate:** the backend must reach **at least 95% aggregate branch coverage** across all test projects of the touched service. Line coverage is reported for diagnosis but does not determine the verdict. This remains a hard gate for each backend service completed inside the slice.
 
-Collect and enforce coverage through the canonical gate script (per ADR-0005), which chains coverlet across the service's test projects and fails `dotnet test` if either line or branch coverage falls short:
+Collect and enforce coverage through the canonical gate script (per ADR-0005), which chains coverlet across the service's test projects and fails `dotnet test` if aggregate branch coverage falls below 95%:
 
 - `make gate SVC=<service>` — runs `backend/scripts/cover-gate.sh` and renders `coverage/gate/Summary.txt` from the exact gated file
 - `make gate-all` — runs the gate for every discovered service

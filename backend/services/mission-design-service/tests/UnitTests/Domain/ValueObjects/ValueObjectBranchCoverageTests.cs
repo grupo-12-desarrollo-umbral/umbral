@@ -99,7 +99,7 @@ public sealed class ValueObjectBranchCoverageTests
     public void MaximumTime_Equals_WhenDifferentMinutes_ReturnsFalse()
     {
         var a = MaximumTime.Create(30);
-        var b = MaximumTime.Create(60);
+        var b = MaximumTime.Create(15);
 
         a.Equals(b).Should().BeFalse();
     }
@@ -155,7 +155,7 @@ public sealed class ValueObjectBranchCoverageTests
     public void QuestionTimer_Equals_WhenDifferentSeconds_ReturnsFalse()
     {
         var a = QuestionTimer.Create(30);
-        var b = QuestionTimer.Create(60);
+        var b = QuestionTimer.Create(20);
 
         a.Equals(b).Should().BeFalse();
     }
@@ -211,7 +211,7 @@ public sealed class ValueObjectBranchCoverageTests
     public void MaximumTime_EqualityOperator_WhenLeftNull_ReturnsFalse()
     {
         MaximumTime? nil = null;
-        var a = MaximumTime.Create(45);
+        var a = MaximumTime.Create(25);
 
         (nil! == a).Should().BeFalse();
     }
@@ -287,7 +287,7 @@ public sealed class ValueObjectBranchCoverageTests
     public void QuestionTimer_InequalityOperator_WhenDifferent_ReturnsTrue()
     {
         var a = QuestionTimer.Create(30);
-        var b = QuestionTimer.Create(60);
+        var b = QuestionTimer.Create(20);
 
         (a != b).Should().BeTrue();
     }

@@ -282,7 +282,7 @@ test('activation is blocked with readiness failures for an incomplete mission', 
   // A freshly created Draft mission with no stages has readiness failures.
   await expect(page.locator('[data-testid="readiness-failure"]').first()).toBeVisible({ timeout: 10000 })
   await expect(page.locator('[data-testid="activate-mission-btn"]')).toBeDisabled()
-  await expect(page.locator('[data-testid="mission-detail-status"]')).toContainText('Draft')
+  await expect(page.locator('[data-testid="mission-detail-status"]')).toContainText('Borrador')
 })
 
 test('admin can deactivate a mission', async ({ adminPage: page }) => {
@@ -290,7 +290,7 @@ test('admin can deactivate a mission', async ({ adminPage: page }) => {
   await page.click('[data-testid="deactivate-mission-btn"]')
   await expect(page.locator('[data-testid="confirm-deactivate-mission-btn"]')).toBeVisible()
   await page.click('[data-testid="confirm-deactivate-mission-btn"]')
-  await expect(page.locator('[data-testid="mission-detail-status"]')).toContainText('Inactive')
+  await expect(page.locator('[data-testid="mission-detail-status"]')).toContainText('Inactiva')
   await expect(page.locator('[data-testid="deactivate-mission-btn"]')).toHaveCount(0)
 })
 

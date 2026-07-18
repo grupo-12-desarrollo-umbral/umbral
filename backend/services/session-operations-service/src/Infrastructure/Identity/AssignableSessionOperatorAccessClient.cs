@@ -7,13 +7,13 @@ namespace umbral_backend.Infrastructure.Identity;
 
 /// <summary>
 /// HTTP adapter that resolves assignable operator facts from the
-/// identity-access-service user catalog. External integration glue.
+/// users-service user catalog. External integration glue.
 /// </summary>
 [ExcludeFromCodeCoverage]
 public sealed class AssignableSessionOperatorAccessClient : IAssignableSessionOperatorAccessClient
 {
     private const int PageSize = 100;
-    private const string Source = "identity-access-service.user-catalog";
+    private const string Source = "users-service.user-catalog";
 
     private readonly HttpClient _httpClient;
     private readonly ICurrentUser _currentUser;
@@ -66,7 +66,7 @@ public sealed class AssignableSessionOperatorAccessClient : IAssignableSessionOp
         response.EnsureSuccessStatusCode();
 
         return await response.Content.ReadFromJsonAsync<UserCatalogPageResponse>(cancellationToken)
-            ?? throw new InvalidOperationException("Identity-access-service returned an empty user catalog response.");
+            ?? throw new InvalidOperationException("Users-service returned an empty user catalog response.");
     }
 
     private void ForwardTrustedHeaders(HttpRequestMessage requestMessage)

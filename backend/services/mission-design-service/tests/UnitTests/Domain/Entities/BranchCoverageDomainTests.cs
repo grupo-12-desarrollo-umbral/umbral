@@ -55,7 +55,7 @@ public sealed class BranchCoverageDomainTests
         mission.Deactivate(DateTimeOffset.UtcNow);
 
         // Deactivation is terminal (HU-09): the edit never reaches RefreshActivationState.
-        var act = () => mission.UpdateDetails("M2", "D2", "Beginner", 60);
+        var act = () => mission.UpdateDetails("M2", "D2", "Beginner", 30);
 
         act.Should().Throw<MissionNotEditableWhileInactiveException>();
         mission.ActivationState.Should().Be(MissionActivation.Inactive);
@@ -82,7 +82,7 @@ public sealed class BranchCoverageDomainTests
         mission.Activate();
 
         // Update with same difficulty — plan stays satisfied
-        mission.UpdateDetails("Updated", "Updated desc", "Advanced", 45);
+        mission.UpdateDetails("Updated", "Updated desc", "Advanced", 30);
 
         mission.ActivationState.Should().Be(MissionActivation.Ready);
     }
@@ -578,14 +578,14 @@ public sealed class BranchCoverageDomainTests
             TriviaOption.Create("B", 2, false)
         ]);
 
-        question.ApplyAuthoring(" New ", 50, 60, "Explained", [
+        question.ApplyAuthoring(" New ", 50, 25, "Explained", [
             TriviaOption.Create("C", 1, true),
             TriviaOption.Create("D", 2, false)
         ], false);
 
         question.Prompt.Should().Be("New");
         question.ScoreValue.Should().Be(50);
-        question.TimeLimit!.Seconds.Should().Be(60);
+        question.TimeLimit!.Seconds.Should().Be(25);
         question.Explanation.Should().Be("Explained");
         question.IsActive.Should().BeFalse();
         question.Options.Should().HaveCount(2);

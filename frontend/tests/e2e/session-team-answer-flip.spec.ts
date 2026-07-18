@@ -6,15 +6,15 @@
 // POST /api/sessions/{id}/participants/answers — and watches the operator board react over SignalR.
 //
 // The seeding this needs, beyond the live-start fixture:
-//   1. an identity-access users row for participant-1 keyed by its RESOLVED Keycloak sub (global-setup
-//      seeds it under the literal 'participant-1'; the gateway/identity-access resolve the actor by sub,
+//   1. an users-service users row for participant-1 keyed by its RESOLVED Keycloak sub (global-setup
+//      seeds it under the literal 'participant-1'; the gateway/users-service resolve the actor by sub,
 //      same reason op-1 is re-seeded by sub) — so GetParticipantEligibleTeams + the membership guard see
 //      an active Participant; and
 //   2. a registered_team_memberships row (team = the REFERENCE id, user = that participant) so the
 //      ParticipantMembershipAccessAuthorizationProxy authorizes the team.
 // The participant JOINS while the session is still Scheduled (self-join freezes once it leaves
 // Scheduled/Preparing). The answer is submitted with the REFERENCE team id: LiveSession.GetTeam resolves
-// by runtime-id OR reference-id, and identity-access keys registered_teams by the reference id, so one id
+// by runtime-id OR reference-id, and users-service keys registered_teams by the reference id, so one id
 // satisfies both. The accepted answer is keyed internally by the RUNTIME team id, which is what the board
 // row is keyed by — so the correct row flips.
 import { execSync } from 'child_process'
@@ -66,12 +66,12 @@ test.beforeAll(async () => {
 
   // Sub-keyed admin identity for the gateway-JWT assign path (mirrors the other HU-36A specs).
   const adminSub = subOf(admin)
-  sql('identity_access', `
+  sql('users', `
     DELETE FROM users WHERE "ExternalIdentityId"='${adminSub}';
     INSERT INTO users ("ExternalIdentityId","DisplayName","Email","Role","IsActive","Created","LastModified")
     VALUES ('${adminSub}','Administrator One','admin-1@umbral.local','Administrator',true,NOW(),NOW());
   `)
-  const opId = Number(sql('identity_access', `SELECT "Id" FROM users WHERE "Email"='op-1@umbral.local'`))
+  const opId = Number(sql('users', `SELECT "Id" FROM users WHERE "Email"='op-1@umbral.local'`))
   const missionId = Number(sql('mission_design',
     `SELECT "Id" FROM "Missions" WHERE "Name"='E2E Seed Mission' AND "IsActive"=true AND "ActivationState"='Ready' ORDER BY "Id" DESC LIMIT 1`))
 
@@ -79,7 +79,7 @@ test.beforeAll(async () => {
   // row (and its membership, via the FK cascade) is cleared first; user_id is resolved AFTER the insert
   // because the fresh row gets a new identity Id.
   const participantSub = subOf(await token('participant-1', 'participant123'))
-  sql('identity_access', `
+  sql('users', `
     DELETE FROM users WHERE "Email"='participant-1@umbral.local';
     INSERT INTO users ("ExternalIdentityId","DisplayName","Email","Role","IsActive","Created","LastModified")
     VALUES ('${participantSub}','Participant One','participant-1@umbral.local','Participant',true,NOW(),NOW());
@@ -87,9 +87,9 @@ test.beforeAll(async () => {
     VALUES ('${TEAM_1_REFERENCE}','Gilded Owls','OWLS',true,NOW(),NOW())
     ON CONFLICT (id) DO UPDATE SET is_active=true, updated_at=NOW();
   `)
-  const participantUserId = Number(sql('identity_access',
+  const participantUserId = Number(sql('users',
     `SELECT "Id" FROM users WHERE "Email"='participant-1@umbral.local'`))
-  sql('identity_access', `
+  sql('users', `
     INSERT INTO registered_team_memberships (id, team_id, user_id)
     VALUES (gen_random_uuid(), '${TEAM_1_REFERENCE}', ${participantUserId});
   `)
@@ -122,7 +122,7 @@ test('a real participant answer flips that team on the operator answered-monitor
   const card = page.locator('[data-testid="assigned-session-button"]', { hasText: sessionCode })
   await expect(card).toBeVisible({ timeout: 15000 })
   await card.click()
-  await page.getByRole('button', { name: 'Open live operation' }).click()
+  await page.getByRole('button', { name: 'Abrir operación en vivo' }).click()
 
   // Preparing -> Active (Start), then wait out the pre-game until the first trivia question is active.
   await page.locator('[data-testid="session-action-Active"]').click()
@@ -141,7 +141,7 @@ test('a real participant answer flips that team on the operator answered-monitor
   const monitor = await (await api('GET', `/api/sessions/${liveSessionId}/answered-monitor`, op)).json()
 
   // Submit as the participant — the fake mobile client. Reference team id satisfies both the domain team
-  // resolution and the identity-access membership guard. Token is threaded but currently unused (join-token
+  // resolution and the users-service membership guard. Token is threaded but currently unused (join-token
   // issuance moved to session-operations, issue #87), so null is accepted.
   const participant = await token('participant-1', 'participant123')
   const submit = await api('POST', `/api/sessions/${liveSessionId}/participants/answers`, participant, {

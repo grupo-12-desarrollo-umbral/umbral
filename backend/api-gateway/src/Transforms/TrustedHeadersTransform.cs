@@ -53,7 +53,7 @@ public sealed class TrustedHeadersTransform : RequestTransform
         ?? user.FindFirstValue("preferred_username");
 
     // The three application roles, most-privileged first. Downstream services only understand these
-    // exact names (identity-access-service's GatewayRoleParser rejects anything else), so the header
+    // exact names (users-service's GatewayRoleParser rejects anything else), so the header
     // must carry one of them or nothing.
     private static readonly string[] ApplicationRolesByPrecedence =
     {

@@ -21,6 +21,7 @@ public sealed class ErrorCodeContractTests
             ["DifficultyValueRequiredException"] = "difficulty-value-required",
             ["InvalidDifficultyValueException"] = "invalid-difficulty-value",
             ["InvalidMissionNodeChildException"] = "invalid-mission-node-child",
+            ["MaximumTimeExceedsLimitException"] = "maximum-time-exceeds-limit",
             ["MaximumTimeMustBePositiveException"] = "maximum-time-must-be-positive",
             ["MissionAlreadyActiveException"] = "mission-already-active",
             ["MissionAlreadyDeactivatedException"] = "mission-already-deactivated",

@@ -20,6 +20,7 @@ public sealed class TargetSnapshot : ValueObject
         int sequenceOrder,
         bool isActive,
         int score,
+        int difficultyFactor,
         double latitude,
         double longitude,
         string? clueText,
@@ -40,6 +41,11 @@ public sealed class TargetSnapshot : ValueObject
             throw new TargetSnapshotScoreMustBePositiveException();
         }
 
+        if (difficultyFactor <= 0)
+        {
+            throw new TargetSnapshotDifficultyFactorMustBePositiveException();
+        }
+
         TargetSnapshotId = targetSnapshotId;
         SubstageSnapshotId = substageSnapshotId;
         Name = name.Trim();
@@ -47,6 +53,7 @@ public sealed class TargetSnapshot : ValueObject
         SequenceOrder = sequenceOrder;
         IsActive = isActive;
         Score = score;
+        DifficultyFactor = difficultyFactor;
         Latitude = latitude;
         Longitude = longitude;
         ClueText = string.IsNullOrWhiteSpace(clueText) ? null : clueText.Trim();
@@ -66,6 +73,11 @@ public sealed class TargetSnapshot : ValueObject
     public bool IsActive { get; }
 
     public int Score { get; }
+
+    // Mission difficulty multiplier (1/2/3) that produced Score (= base 50 × factor). Carried on the
+    // snapshot so target resolution can hand the real difficulty factor to scoring, where the
+    // "puntaje según dificultad" Strategy computes the award, rather than passing a pre-weighted value.
+    public int DifficultyFactor { get; }
 
     // Display/context metadata copied immutably from the mission target. QR validation, not
     // these coordinates, remains the source of truth for target resolution.
@@ -87,7 +99,10 @@ public sealed class TargetSnapshot : ValueObject
         double latitude,
         double longitude,
         string? clueText,
-        string? clueVisibilityPolicy)
+        string? clueVisibilityPolicy,
+        // Optional/trailing with a base-weight default so the many callers that don't exercise
+        // difficulty stay unchanged; session creation passes the mission's real factor (1/2/3).
+        int difficultyFactor = 1)
     {
         return new TargetSnapshot(
             Guid.NewGuid(),
@@ -97,6 +112,7 @@ public sealed class TargetSnapshot : ValueObject
             sequenceOrder,
             isActive,
             score,
+            difficultyFactor,
             latitude,
             longitude,
             clueText,
@@ -112,6 +128,7 @@ public sealed class TargetSnapshot : ValueObject
         yield return SequenceOrder;
         yield return IsActive;
         yield return Score;
+        yield return DifficultyFactor;
         yield return Latitude;
         yield return Longitude;
         yield return ClueText;

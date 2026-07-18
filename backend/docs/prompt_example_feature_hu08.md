@@ -45,7 +45,7 @@ Reject this generated prompt before implementation if it does not explicitly sco
 
 Branch base is `develop` — all predecessors merged, none In Progress. Mirror targets for the new tests: `LiveSessionTeamBoardTests`, `ReconnectAuthenticatedParticipantCommandHandlerTests`, `ParticipantTeamBoardRepositoryIntegrationTests`, `SignalRTeamBoardDeliveryTests`, `ConnectionTrackerTests`.
 
-**Coverage:** the merged suite is at/above the ADR-0005 `cover-gate.sh` bar (line **and** branch); the new multi-device test only adds coverage.
+**Coverage:** the merged suite reaches at least 95% aggregate branch coverage under ADR-0005; the new multi-device test only adds coverage.
 
 ### What HU-08 adds (per DES-70 + canon `§SessionParticipant`)
 
@@ -282,7 +282,7 @@ Gate:
   (AC3) a fresh/reconnecting connection is admitted idempotently and receives current SessionState/timer
 - hub group routing (live-session:{id}, team:{teamId}, participant:{id}) and ConnectionTracker N-connection
   counting are exercised, not modified
-- service reaches the repo coverage gate (ADR-0005) on line AND branch
+- service reaches the ADR-0005 gate of at least 95% aggregate branch coverage
 - no new endpoint introduced
 
 Do not touch frontend.

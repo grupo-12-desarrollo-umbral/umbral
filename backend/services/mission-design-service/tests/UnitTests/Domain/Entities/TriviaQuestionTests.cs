@@ -73,8 +73,8 @@ public class TriviaQuestionTests
     }
 
     [Theory]
-    [InlineData(5)]
-    [InlineData(120)]
+    [InlineData(15)]
+    [InlineData(30)]
     public void Create_WhenTimeLimitIsWithinRange_SetsValue(int timeLimitSeconds)
     {
         var question = TriviaQuestion.Create("Prompt", 10, timeLimitSeconds, null);
@@ -85,7 +85,7 @@ public class TriviaQuestionTests
     [Fact]
     public void Create_WhenTimeLimitIsBelowMinimum_ThrowsPositiveException()
     {
-        var act = () => TriviaQuestion.Create("Prompt", 10, 4, null);
+        var act = () => TriviaQuestion.Create("Prompt", 10, 14, null);
 
         act.Should().Throw<QuestionTimerMustBePositiveException>();
     }
@@ -93,7 +93,7 @@ public class TriviaQuestionTests
     [Fact]
     public void Create_WhenTimeLimitExceedsMaximum_ThrowsMaximumException()
     {
-        var act = () => TriviaQuestion.Create("Prompt", 10, 121, null);
+        var act = () => TriviaQuestion.Create("Prompt", 10, 31, null);
 
         act.Should().Throw<QuestionTimerExceedsMaximumException>();
     }

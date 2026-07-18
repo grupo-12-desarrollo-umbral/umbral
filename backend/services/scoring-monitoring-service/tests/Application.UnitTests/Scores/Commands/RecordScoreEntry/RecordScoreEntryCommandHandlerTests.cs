@@ -21,8 +21,12 @@ public sealed class RecordScoreEntryCommandHandlerTests
         var awardedScore = ScoreValue.Create(250);
         var scorePolicy = new Mock<IScorePolicy>();
         scorePolicy
-            .Setup(policy => policy.Award(It.Is<ScoreValue>(value => value.Value == 100)))
+            .Setup(policy => policy.Award(It.Is<ScoreValue>(value => value.Value == 100), It.IsAny<int>()))
             .Returns(awardedScore);
+        var scorePolicySelector = new Mock<IScorePolicySelector>();
+        scorePolicySelector
+            .Setup(selector => selector.For(ScoreSourceType.TriviaAnswerSubmission))
+            .Returns(scorePolicy.Object);
 
         ScoreEntry? savedEntry = null;
         repository
@@ -32,7 +36,7 @@ public sealed class RecordScoreEntryCommandHandlerTests
 
         var recordedAt = new DateTimeOffset(2026, 7, 14, 18, 0, 0, TimeSpan.Zero);
         var sourceEntityId = Guid.NewGuid();
-        var handler = new RecordScoreEntryCommandHandler(repository.Object, scorePolicy.Object);
+        var handler = new RecordScoreEntryCommandHandler(repository.Object, scorePolicySelector.Object);
 
         await handler.Handle(
             new RecordScoreEntryCommand(
@@ -46,7 +50,8 @@ public sealed class RecordScoreEntryCommandHandlerTests
                 sourceEntityId),
             CancellationToken.None);
 
-        scorePolicy.Verify(policy => policy.Award(It.Is<ScoreValue>(value => value.Value == 100)), Times.Once);
+        scorePolicySelector.Verify(selector => selector.For(ScoreSourceType.TriviaAnswerSubmission), Times.Once);
+        scorePolicy.Verify(policy => policy.Award(It.Is<ScoreValue>(value => value.Value == 100), It.IsAny<int>()), Times.Once);
         repository.Verify(repo => repo.AddAsync(It.IsAny<ScoreEntry>(), It.IsAny<CancellationToken>()), Times.Once);
         savedEntry.Should().NotBeNull();
         savedEntry!.ScoreValue.Should().Be(awardedScore);
@@ -63,8 +68,8 @@ public sealed class RecordScoreEntryCommandHandlerTests
             .Setup(repo => repo.ExistsForSourceAsync(ScoreSourceType.TriviaAnswerSubmission, It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(true);
 
-        var scorePolicy = new Mock<IScorePolicy>();
-        var handler = new RecordScoreEntryCommandHandler(repository.Object, scorePolicy.Object);
+        var scorePolicySelector = new Mock<IScorePolicySelector>();
+        var handler = new RecordScoreEntryCommandHandler(repository.Object, scorePolicySelector.Object);
 
         await handler.Handle(
             new RecordScoreEntryCommand(
@@ -78,7 +83,7 @@ public sealed class RecordScoreEntryCommandHandlerTests
                 Guid.NewGuid()),
             CancellationToken.None);
 
-        scorePolicy.Verify(policy => policy.Award(It.IsAny<ScoreValue>()), Times.Never);
+        scorePolicySelector.Verify(selector => selector.For(It.IsAny<ScoreSourceType>()), Times.Never);
         repository.Verify(repo => repo.AddAsync(It.IsAny<ScoreEntry>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 }

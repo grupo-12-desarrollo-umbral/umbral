@@ -45,8 +45,10 @@ public class PerformanceBehaviour<TRequest, TResponse> : IPipelineBehavior<TRequ
                 userName = await _identityService.GetUserNameAsync(userId);
             }
 
-            _logger.LogWarning("umbral_backend Long Running Request: {Name} ({ElapsedMilliseconds} milliseconds) {@UserId} {@UserName} {@Request}",
-                requestName, elapsedMilliseconds, userId, userName, request);
+            // Name and actor only — no {@Request} body. Slow-request diagnostics never need the
+            // gameplay payload (QR codes, coordinates, trivia answers), and logging it would leak it. (#7)
+            _logger.LogWarning("umbral_backend Long Running Request: {Name} ({ElapsedMilliseconds} milliseconds) {UserId} {UserName}",
+                requestName, elapsedMilliseconds, userId, userName);
         }
 
         return response;

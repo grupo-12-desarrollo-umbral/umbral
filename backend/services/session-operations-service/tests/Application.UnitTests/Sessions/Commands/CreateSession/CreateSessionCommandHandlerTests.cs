@@ -246,7 +246,7 @@ public sealed class CreateSessionCommandHandlerTests
                             1,
                             SubstagePlayMode.TreasureHunt.ToString(),
                             [
-                                new MissionRuntimeTargetDto("Main Exhibit", "QR-001", 1, true, 100, 4.711, -74.0721, null)
+                                new MissionRuntimeTargetDto("Main Exhibit", "QR-001", 1, true, 100, 2, 4.711, -74.0721, null)
                             ],
                             [],
                             [])
@@ -319,6 +319,7 @@ public sealed class CreateSessionCommandHandlerTests
                                     1,
                                     true,
                                     100,
+                                    2,
                                     4.711,
                                     -74.0721,
                                     new MissionRuntimeClueDto("Look near the entrance.", "VisibleAtStart"))

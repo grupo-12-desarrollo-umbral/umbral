@@ -32,6 +32,24 @@ import {
 } from './labels'
 import styles from '../dashboard.module.css'
 
+// Display labels for backend enums (values stay English on the wire).
+const QUIZ_STATUS_LABELS: Record<string, string> = {
+  Draft: 'Borrador',
+  Published: 'Publicado',
+  Archived: 'Archivado',
+}
+function quizStatusLabel(status: string) {
+  return QUIZ_STATUS_LABELS[status] ?? status
+}
+const DIFFICULTY_DISPLAY: Record<string, string> = {
+  Beginner: 'Principiante',
+  Intermediate: 'Intermedio',
+  Advanced: 'Avanzado',
+}
+function difficultyLabel(value: string) {
+  return DIFFICULTY_DISPLAY[value] ?? value
+}
+
 // Parses a coordinate <input> value to a finite number, or null when blank/invalid. null means
 // "unplaced": the request then sends 0 (the backend has no null coordinate — an unplaced target reads
 // as 0,0), and the picker shows no draft pin.
@@ -93,7 +111,7 @@ export function SubstageEditor({
         <div className={styles.treeSection}>
           <span className={styles.treeSectionLabel}>Targets</span>
           {substage.targets.length === 0 ? (
-            <p className={styles.treeEmpty}>No targets yet.</p>
+            <p className={styles.treeEmpty}>Aún no hay targets.</p>
           ) : (
             substage.targets.map((target) => (
               <TargetRow
@@ -124,11 +142,11 @@ export function SubstageEditor({
 
           {substage.targets.length > 0 && (
             <div className={styles.targetOverview}>
-              <span className={styles.treeSectionLabel}>Map overview</span>
+              <span className={styles.treeSectionLabel}>Vista general del mapa</span>
               <TargetMap
                 markers={contextMarkers(substage.targets)}
                 testId={`target-overview-map-${substage.id}`}
-                label="All targets on the map"
+                label="Todos los targets en el mapa"
               />
             </div>
           )}
@@ -137,7 +155,7 @@ export function SubstageEditor({
 
       {substage.playMode === 'Trivia' && (
         <div className={styles.treeSection}>
-          <span className={styles.treeSectionLabel}>Trivia quiz</span>
+          <span className={styles.treeSectionLabel}>Cuestionario de trivia</span>
           <TriviaSelectionControl
             missionId={missionId}
             stageId={stageId}
@@ -193,7 +211,7 @@ function TriviaSelectionControl({
         if (active) setQuizzes(all.filter((q) => q.status === 'Published'))
       })
       .catch(() => {
-        if (active) setLoadError('Could not load trivia quizzes.')
+        if (active) setLoadError('No se pudieron cargar los cuestionarios de trivia.')
       })
     return () => {
       active = false
@@ -205,7 +223,7 @@ function TriviaSelectionControl({
     setPreviewError(null)
     getTriviaQuiz(quizId)
       .then((quiz) => setPreview(quiz))
-      .catch(() => setPreviewError('Could not load quiz preview.'))
+      .catch(() => setPreviewError('No se pudo cargar la vista previa del cuestionario.'))
       .finally(() => setPreviewLoading(false))
   }
 
@@ -221,7 +239,7 @@ function TriviaSelectionControl({
   function save() {
     const quizId = Number(selected)
     if (selected === '' || Number.isNaN(quizId)) {
-      setError('Select a published quiz.')
+      setError('Selecciona un cuestionario publicado.')
       return
     }
     startTransition(async () => {
@@ -238,7 +256,7 @@ function TriviaSelectionControl({
         if (previewOpen) loadPreview(quizId)
       } catch (e) {
         // Selecting a non-published / missing quiz is API-enforced; surfaced verbatim.
-        setError(e instanceof Error ? e.message : 'Could not save quiz selection.')
+        setError(e instanceof Error ? e.message : 'No se pudo guardar la selección del cuestionario.')
       }
     })
   }
@@ -249,7 +267,7 @@ function TriviaSelectionControl({
         {!readOnly && (
           <>
             <label className={styles.nodeField}>
-              <span className={styles.fieldLabel}>Quiz</span>
+              <span className={styles.fieldLabel}>Cuestionario</span>
               <select
                 className={styles.inlineInput}
                 data-testid={`trivia-quiz-select-${substage.id}`}
@@ -257,7 +275,7 @@ function TriviaSelectionControl({
                 disabled={isPending || quizzes === null}
                 onChange={(e) => setSelected(e.target.value)}
               >
-                <option value="">{quizzes === null ? 'Loading…' : 'Select quiz…'}</option>
+                <option value="">{quizzes === null ? 'Cargando…' : 'Selecciona un cuestionario…'}</option>
                 {(quizzes ?? []).map((quiz) => (
                   <option key={quiz.id} value={quiz.id}>
                     {quiz.title}
@@ -272,17 +290,17 @@ function TriviaSelectionControl({
               onClick={save}
               type="button"
             >
-              {current === null ? 'Select quiz' : 'Change quiz'}
+              {current === null ? 'Seleccionar cuestionario' : 'Cambiar cuestionario'}
             </button>
           </>
         )}
 
         {current !== null ? (
           <span>
-            Selected: {quizzes?.find((q) => q.id === current)?.title ?? `#${current}`}
+            Seleccionado: {quizzes?.find((q) => q.id === current)?.title ?? `#${current}`}
           </span>
         ) : (
-          readOnly && <span className={styles.treeClueText}>No quiz selected.</span>
+          readOnly && <span className={styles.treeClueText}>Ningún cuestionario seleccionado.</span>
         )}
       </div>
 
@@ -295,12 +313,12 @@ function TriviaSelectionControl({
             data-testid={`trivia-quiz-preview-toggle-${substage.id}`}
             onClick={togglePreview}
           >
-            {previewOpen ? '▾ Hide questions' : '▸ Preview questions'}
+            {previewOpen ? '▾ Ocultar preguntas' : '▸ Vista previa de preguntas'}
           </button>
 
           {previewOpen && (
             <div className={styles.triviaPreviewBody}>
-              {previewLoading && <p className={styles.treeEmpty}>Loading quiz…</p>}
+              {previewLoading && <p className={styles.treeEmpty}>Cargando cuestionario…</p>}
               {previewError && (
                 <p className={styles.formError} role="alert">
                   {previewError}
@@ -314,7 +332,7 @@ function TriviaSelectionControl({
                       className={styles.chip}
                       data-tone={preview.status === 'Published' ? 'success' : 'muted'}
                     >
-                      {preview.status}
+                      {quizStatusLabel(preview.status)}
                     </span>
                   </div>
                   <TriviaQuestionList questions={preview.questions} />
@@ -377,7 +395,7 @@ function PlayModeControl({
         onMutated(updated)
         setPending(null)
       } catch (e) {
-        setError(e instanceof Error ? e.message : 'Could not change play mode.')
+        setError(e instanceof Error ? e.message : 'No se pudo cambiar el modo de juego.')
       }
     })
   }
@@ -386,7 +404,7 @@ function PlayModeControl({
     <div className={styles.playModeControl}>
       <div className={styles.playModeRow}>
         <label className={styles.nodeField}>
-          <span className={styles.fieldLabel}>Play mode</span>
+          <span className={styles.fieldLabel}>Modo de juego</span>
           <select
             className={styles.inlineInput}
             data-testid={`playmode-select-${substage.id}`}
@@ -406,8 +424,8 @@ function PlayModeControl({
       {pending !== null && (
         <div className={styles.playModeWarning} role="alert" data-testid="playmode-switch-warning">
           <span>
-            Switching to {PLAY_MODE_LABELS[pending]} discards the other mode&rsquo;s content
-            (targets, clue associations, and trivia selection).
+            Cambiar a {PLAY_MODE_LABELS[pending]} descarta el contenido del otro modo
+            (targets, asociaciones de pistas y selección de trivia).
           </span>
           <div className={styles.playModeWarningActions}>
             <button
@@ -416,7 +434,7 @@ function PlayModeControl({
               onClick={confirm}
               type="button"
             >
-              Confirm switch
+              Confirmar cambio
             </button>
             <button
               className={styles.inlineButton}
@@ -427,7 +445,7 @@ function PlayModeControl({
               }}
               type="button"
             >
-              Cancel
+              Cancelar
             </button>
           </div>
         </div>
@@ -471,10 +489,10 @@ function LocationField({
 
   return (
     <div className={styles.locationField}>
-      <span className={styles.fieldLabel}>Map location</span>
+      <span className={styles.fieldLabel}>Ubicación en el mapa</span>
       <div className={styles.coordRow}>
         <label className={styles.nodeField}>
-          <span className={styles.fieldLabel}>Latitude</span>
+          <span className={styles.fieldLabel}>Latitud</span>
           <input
             className={styles.inlineInput}
             data-testid={`${testIdPrefix}-latitude-input`}
@@ -483,11 +501,11 @@ function LocationField({
             inputMode="decimal"
             value={latitude}
             onChange={(e) => onChange(e.target.value, longitude)}
-            placeholder="-90 to 90"
+            placeholder="-90 a 90"
           />
         </label>
         <label className={styles.nodeField}>
-          <span className={styles.fieldLabel}>Longitude</span>
+          <span className={styles.fieldLabel}>Longitud</span>
           <input
             className={styles.inlineInput}
             data-testid={`${testIdPrefix}-longitude-input`}
@@ -496,7 +514,7 @@ function LocationField({
             inputMode="decimal"
             value={longitude}
             onChange={(e) => onChange(latitude, e.target.value)}
-            placeholder="-180 to 180"
+            placeholder="-180 a 180"
           />
         </label>
       </div>
@@ -508,10 +526,10 @@ function LocationField({
           onChange(pickedLat.toFixed(6), pickedLng.toFixed(6))
         }
         testId={`${testIdPrefix}-map`}
-        label="Pick target location"
+        label="Elegir la ubicación del target"
       />
       <p className={styles.qrHelp}>
-        Click the map to drop the pin, or type coordinates. Leave blank if this target has no location.
+        Haz clic en el mapa para colocar el pin, o escribe las coordenadas. Déjalo en blanco si este target no tiene ubicación.
       </p>
     </div>
   )
@@ -582,7 +600,7 @@ function AddTargetControl({
         onMutated(updated)
         reset()
       } catch (e) {
-        setError(e instanceof Error ? e.message : 'Could not add target.')
+        setError(e instanceof Error ? e.message : 'No se pudo agregar el target.')
       }
     })
   }
@@ -596,7 +614,7 @@ function AddTargetControl({
         onClick={() => setOpen(true)}
         type="button"
       >
-        + Add target
+        + Agregar target
       </button>
     )
   }
@@ -605,19 +623,19 @@ function AddTargetControl({
     <div className={`${styles.nodeForm} ${styles.nodeFormWide}`}>
       <div className={styles.nodeFormGrid}>
         <label className={styles.nodeField}>
-          <span className={styles.fieldLabel}>Target name</span>
+          <span className={styles.fieldLabel}>Nombre del target</span>
           <input
             className={styles.inlineInput}
             data-testid="target-name-input"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="Target name"
+            placeholder="Nombre del target"
           />
         </label>
         <label className={styles.nodeField}>
-          <span className={styles.fieldLabel}>Score</span>
+          <span className={styles.fieldLabel}>Puntaje</span>
           <span className={styles.inlineInput} data-testid="target-score-derived" aria-readonly="true">
-            {derivedScore ?? '—'} <small>(set by {difficulty} difficulty)</small>
+            {derivedScore ?? '—'} <small>(definido por la dificultad {difficultyLabel(difficulty)})</small>
           </span>
         </label>
         <label className={styles.inlineCheck}>
@@ -627,17 +645,17 @@ function AddTargetControl({
             checked={isActive}
             onChange={(e) => setIsActive(e.target.checked)}
           />{' '}
-          Active
+          Activo
         </label>
         <div className={styles.qrField}>
-          <span className={styles.fieldLabel}>QR code</span>
+          <span className={styles.fieldLabel}>Código QR</span>
           <div className={styles.qrInputRow}>
             <input
               className={styles.inlineInput}
               data-testid="target-qrcode-input"
               value={qrCode}
               onChange={(e) => setQrCode(e.target.value)}
-              placeholder="QR code"
+              placeholder="Código QR"
             />
             <button
               className={styles.smallButton}
@@ -646,7 +664,7 @@ function AddTargetControl({
               onClick={() => setQrCode(generateTargetQrCode())}
               type="button"
             >
-              Generate
+              Generar
             </button>
           </div>
           <p className={styles.qrHelp}>{TARGET_QR_HELP}</p>
@@ -670,10 +688,10 @@ function AddTargetControl({
           onClick={submit}
           type="button"
         >
-          Save
+          Guardar
         </button>
         <button className={styles.inlineButton} disabled={isPending} onClick={reset} type="button">
-          Cancel
+          Cancelar
         </button>
       </div>
       {error && (
@@ -722,7 +740,7 @@ function TargetEditForm({
   function saveEdit() {
     const seq = parseInt(sequenceOrder, 10)
     if (Number.isNaN(seq)) {
-      setError('Sequence order must be a number.')
+      setError('El orden de secuencia debe ser un número.')
       return
     }
     startTransition(async () => {
@@ -756,7 +774,7 @@ function TargetEditForm({
         onMutated(updated)
         onDone()
       } catch (e) {
-        setError(e instanceof Error ? e.message : 'Could not update target.')
+        setError(e instanceof Error ? e.message : 'No se pudo actualizar el target.')
       }
     })
   }
@@ -765,17 +783,17 @@ function TargetEditForm({
     <div className={styles.nodeForm} data-testid={`target-node-${target.id}`}>
       <div className={styles.nodeFormGrid}>
         <label className={styles.nodeField}>
-          <span className={styles.fieldLabel}>Target name</span>
+          <span className={styles.fieldLabel}>Nombre del target</span>
           <input
             className={styles.inlineInput}
             data-testid="target-name-input"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="Target name"
+            placeholder="Nombre del target"
           />
         </label>
         <label className={styles.nodeField}>
-          <span className={styles.fieldLabel}>Order</span>
+          <span className={styles.fieldLabel}>Orden</span>
           <input
             className={styles.inlineInput}
             data-testid="target-sequence-input"
@@ -785,7 +803,7 @@ function TargetEditForm({
           />
         </label>
         <label className={styles.nodeField}>
-          <span className={styles.fieldLabel}>Associated clue</span>
+          <span className={styles.fieldLabel}>Pista asociada</span>
           <select
             className={styles.inlineInput}
             data-testid={`clue-select-${target.id}`}
@@ -793,7 +811,7 @@ function TargetEditForm({
             disabled={isPending || clues.length === 0}
             onChange={(e) => setClueId(e.target.value)}
           >
-            <option value="">{clues.length === 0 ? 'No clues yet' : 'No clue'}</option>
+            <option value="">{clues.length === 0 ? 'Aún no hay pistas' : 'Sin pista'}</option>
             {clues.map((clue) => (
               <option key={clue.id} value={clue.id}>
                 {clue.title}
@@ -808,17 +826,17 @@ function TargetEditForm({
             checked={isActive}
             onChange={(e) => setIsActive(e.target.checked)}
           />{' '}
-          Active
+          Activo
         </label>
         <div className={styles.qrField}>
-          <span className={styles.fieldLabel}>QR code</span>
+          <span className={styles.fieldLabel}>Código QR</span>
           <div className={styles.qrInputRow}>
             <input
               className={styles.inlineInput}
               data-testid="target-qrcode-input"
               value={qrCode}
               onChange={(e) => setQrCode(e.target.value)}
-              placeholder="QR code"
+              placeholder="Código QR"
             />
             <button
               className={styles.smallButton}
@@ -827,7 +845,7 @@ function TargetEditForm({
               onClick={() => setQrCode(generateTargetQrCode())}
               type="button"
             >
-              Generate
+              Generar
             </button>
           </div>
           <p className={styles.qrHelp}>{TARGET_QR_HELP}</p>
@@ -851,7 +869,7 @@ function TargetEditForm({
           onClick={saveEdit}
           type="button"
         >
-          Save
+          Guardar
         </button>
         <button
           className={styles.inlineButton}
@@ -859,7 +877,7 @@ function TargetEditForm({
           onClick={onDone}
           type="button"
         >
-          Cancel
+          Cancelar
         </button>
       </div>
       {error && (
@@ -901,7 +919,7 @@ function TargetRow({
         onMutated(updated)
         setConfirmRemove(false)
       } catch (e) {
-        setError(e instanceof Error ? e.message : 'Could not remove target.')
+        setError(e instanceof Error ? e.message : 'No se pudo eliminar el target.')
       }
     })
   }
@@ -933,21 +951,21 @@ function TargetRow({
           <span className={styles.treeClueTitle}>{target.name}</span>
           <span className={styles.qrPreviewCode}>{target.qrCode}</span>
           <span className={styles.treeClueText} data-testid={`target-score-${target.id}`}>
-            Score: {target.score} ({difficulty})
+            Puntaje: {target.score} ({difficultyLabel(difficulty)})
           </span>
           <span className={styles.treeClueText} data-testid={`target-location-${target.id}`}>
             {isPlacedCoordinate(target.latitude, target.longitude)
               ? `📍 ${target.latitude.toFixed(5)}, ${target.longitude.toFixed(5)}`
-              : 'No location set'}
+              : 'Sin ubicación definida'}
           </span>
           {!target.isActive && (
             <span className={styles.chip} data-tone="muted">
-              Inactive
+              Inactivo
             </span>
           )}
           {target.clueId !== null && (
             <span className={styles.treeClueText}>
-              clue #{target.clueId}
+              pista #{target.clueId}
               {associatedClueTitle ? ` — ${associatedClueTitle}` : ''}
             </span>
           )}
@@ -965,7 +983,7 @@ function TargetRow({
           }}
           type="button"
         >
-          Edit
+          Editar
         </button>
 
         {!confirmRemove && (
@@ -976,7 +994,7 @@ function TargetRow({
             onClick={() => setConfirmRemove(true)}
             type="button"
           >
-            Remove
+            Eliminar
           </button>
         )}
         {confirmRemove && (
@@ -988,7 +1006,7 @@ function TargetRow({
               onClick={remove}
               type="button"
             >
-              Confirm remove
+              Confirmar eliminación
             </button>
             <button
               className={styles.inlineButton}
@@ -996,7 +1014,7 @@ function TargetRow({
               onClick={() => setConfirmRemove(false)}
               type="button"
             >
-              Cancel
+              Cancelar
             </button>
           </>
         )}

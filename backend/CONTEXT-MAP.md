@@ -2,7 +2,7 @@
 
 ## Contexts
 
-- [Users](./services/identity-access-service/CONTEXT.md) — owns user records, roles, provider sessions, registered teams, and returns access facts; delegates authentication to Keycloak
+- [Users](./services/users-service/CONTEXT.md) — owns user records, roles, provider sessions, registered teams, and returns access facts; delegates authentication to Keycloak
 - [Mission Design](./services/mission-design-service/CONTEXT.md) — manages mission and trivia authoring and prepares content for live use
 - [Session Operations](./services/session-operations-service/CONTEXT.md) — runs live sessions, team participation, target progression, clue visibility, and evidence intake
 - [Scoring Monitoring](./services/scoring-monitoring-service/CONTEXT.md) — calculates scoring outcomes and exposes ranking, audit, and monitoring views

@@ -100,7 +100,7 @@ describe('OperatorClueReleasePanel', () => {
     expect(html).toContain('data-testid="clue-release-submit"')
     expect(html).toContain('1. Fountain')
     expect(html).toContain('2. Pista 2')
-    expect(html).toContain('All teams')
+    expect(html).toContain('Todos los equipos')
     expect(html).toContain('Alpha')
     expect(html).toContain('Bravo')
   })
@@ -130,7 +130,7 @@ describe('OperatorClueReleasePanel', () => {
     await act(async () => {})
     await submit()
     expect(releaseClueActionMock).toHaveBeenCalledWith('s1', { targetId: 'target-1', clueId: undefined, teamId: undefined })
-    expect(q('clue-release-success')?.textContent).toContain('Released to 2 teams.')
+    expect(q('clue-release-success')?.textContent).toContain('Liberada a 2 equipos.')
     expect(q('clue-release-error')).toBeNull()
   })
 
@@ -141,7 +141,7 @@ describe('OperatorClueReleasePanel', () => {
     await act(async () => {})
     await submit()
     expect(releaseClueActionMock).toHaveBeenCalledWith('s1', { targetId: undefined, clueId: 'clue-2', teamId: undefined })
-    expect(q('clue-release-success')?.textContent).toContain('Released to 1 team.')
+    expect(q('clue-release-success')?.textContent).toContain('Liberada a 1 equipo.')
     expect(q('clue-release-error')).toBeNull()
   })
 
@@ -151,7 +151,7 @@ describe('OperatorClueReleasePanel', () => {
     selectTarget('target-1')
     await act(async () => {})
     await submit()
-    expect(q('clue-release-error')?.textContent).toContain('already released to that team')
+    expect(q('clue-release-error')?.textContent).toContain('ya fue liberada a ese equipo')
   })
 
   it('shows the not-releasable message on { notReleasable }', async () => {
@@ -160,7 +160,7 @@ describe('OperatorClueReleasePanel', () => {
     selectTarget('target-1')
     await act(async () => {})
     await submit()
-    expect(q('clue-release-error')?.textContent).toContain('no releasable hidden clue')
+    expect(q('clue-release-error')?.textContent).toContain('pista oculta liberable')
   })
 
   it('shows the not-active message on { notActive }', async () => {
@@ -169,7 +169,7 @@ describe('OperatorClueReleasePanel', () => {
     selectTarget('target-1')
     await act(async () => {})
     await submit()
-    expect(q('clue-release-error')?.textContent).toContain('must be Active')
+    expect(q('clue-release-error')?.textContent).toContain('debe estar Activa')
   })
 
   it('shows the not-authorized message on { unauthorized }', async () => {
@@ -178,7 +178,7 @@ describe('OperatorClueReleasePanel', () => {
     selectTarget('target-1')
     await act(async () => {})
     await submit()
-    expect(q('clue-release-error')?.textContent).toContain('not authorized')
+    expect(q('clue-release-error')?.textContent).toContain('No tienes autorización')
   })
 
   it('shows the transient error copy on { error }', async () => {

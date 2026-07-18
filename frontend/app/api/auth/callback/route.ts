@@ -10,9 +10,18 @@ export async function GET(request: NextRequest) {
   const state = searchParams.get('state')
   const error = searchParams.get('error')
 
+  // Redirect against a stable public origin, not request.url. In the standalone
+  // Docker server request.url's host is the bind address (HOSTNAME, e.g.
+  // 0.0.0.0), so redirecting off it sends the browser to a different origin than
+  // it came in on (localhost) — the freshly-set session cookie isn't carried
+  // across, and /dashboard bounces straight back to /login. Anchoring to
+  // NEXT_PUBLIC_APP_URL keeps every hop same-origin. Falls back to request.url
+  // for `next dev`, where the host is already correct.
+  const appBase = process.env.NEXT_PUBLIC_APP_URL ?? new URL(request.url).origin
+
   if (error) {
     console.error('[auth/callback] Keycloak returned error:', error)
-    const response = NextResponse.redirect(new URL('/login?error=unauthorized', request.url))
+    const response = NextResponse.redirect(new URL('/login?error=unauthorized', appBase))
     response.cookies.delete('auth_state')
     response.cookies.delete('auth_verifier')
     return response
@@ -46,7 +55,7 @@ export async function GET(request: NextRequest) {
 
     if (!result.access.isAllowed) {
       await deleteSession()
-      const response = NextResponse.redirect(new URL('/login?error=deactivated', request.url))
+      const response = NextResponse.redirect(new URL('/login?error=deactivated', appBase))
       response.cookies.delete('auth_state')
       response.cookies.delete('auth_verifier')
       return response
@@ -76,7 +85,7 @@ export async function GET(request: NextRequest) {
       issuedAtMs,
     )
 
-    const response = NextResponse.redirect(new URL('/dashboard', request.url))
+    const response = NextResponse.redirect(new URL('/dashboard', appBase))
     response.cookies.delete('auth_state')
     response.cookies.delete('auth_verifier')
     return response
@@ -87,8 +96,8 @@ export async function GET(request: NextRequest) {
 
     await deleteSession()
     const redirectUrl = message.includes('deactivated')
-      ? new URL('/login?error=deactivated', request.url)
-      : new URL('/login?error=unauthorized', request.url)
+      ? new URL('/login?error=deactivated', appBase)
+      : new URL('/login?error=unauthorized', appBase)
     const response = NextResponse.redirect(redirectUrl)
     response.cookies.delete('auth_state')
     response.cookies.delete('auth_verifier')

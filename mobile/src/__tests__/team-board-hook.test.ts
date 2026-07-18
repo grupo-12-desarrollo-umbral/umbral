@@ -78,7 +78,7 @@ function renderHook(initialProps: HookProps) {
 
 // --- Fixtures ---
 
-// The hook prop is the identity-access *reference* team id (used for the REST fetch/guard);
+// The hook prop is the users-service *reference* team id (used for the REST fetch/guard);
 // every board DTO carries the *per-session* team id (`Team.TeamId`). They must differ so the
 // tests exercise the reference-vs-per-session contract the push filter used to get wrong.
 const REFERENCE_TEAM_ID = 'ref-team-a0000000';

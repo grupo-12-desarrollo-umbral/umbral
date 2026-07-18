@@ -93,7 +93,7 @@ describe('OperativeCluePanel', () => {
     expect(html).toContain('data-testid="operative-clue-text-input"')
     expect(html).toContain('data-testid="operative-clue-team-select"')
     expect(html).toContain('data-testid="operative-clue-submit"')
-    expect(html).toContain('All teams')
+    expect(html).toContain('Todos los equipos')
     expect(html).toContain('Alpha')
     expect(html).toContain('Bravo')
   })
@@ -135,7 +135,7 @@ describe('OperativeCluePanel', () => {
       clueText: 'Look beneath the blue banner.',
       teamIds: ['team-a'],
     })
-    expect(q('operative-clue-success')?.textContent).toContain('Assigned to 1 team.')
+    expect(q('operative-clue-success')?.textContent).toContain('Asignada a 1 equipo.')
     expect(q('operative-clue-error')).toBeNull()
   })
 
@@ -152,7 +152,7 @@ describe('OperativeCluePanel', () => {
       clueText: 'Regroup.',
       teamIds: ['team-a', 'team-b'],
     })
-    expect(q('operative-clue-success')?.textContent).toContain('Assigned to 2 teams.')
+    expect(q('operative-clue-success')?.textContent).toContain('Asignada a 2 equipos.')
   })
 
   it('shows the not-live message on { notLive }', async () => {
@@ -161,7 +161,7 @@ describe('OperativeCluePanel', () => {
     setText('Clue')
     await act(async () => {})
     await submit()
-    expect(q('operative-clue-error')?.textContent).toContain('must be Active or Paused')
+    expect(q('operative-clue-error')?.textContent).toContain('debe estar Activa o Pausada')
   })
 
   it('shows the not-authorized message on { unauthorized }', async () => {
@@ -170,7 +170,7 @@ describe('OperativeCluePanel', () => {
     setText('Clue')
     await act(async () => {})
     await submit()
-    expect(q('operative-clue-error')?.textContent).toContain('not authorized')
+    expect(q('operative-clue-error')?.textContent).toContain('No tienes autorización')
   })
 
   it('shows the transient error copy on { error }', async () => {

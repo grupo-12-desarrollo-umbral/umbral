@@ -21,7 +21,7 @@ test('operator sees assign participant button', async ({ operatorPage: page }) =
   await page.click('[data-testid="nav-teams"]')
   // Open an active team so the assign button is rendered
   await page.locator('[data-testid^="team-row-"]').first().click()
-  await expect(page.locator('[data-testid="detail-status"]')).toHaveText(/(Active|Inactive)/)
+  await expect(page.locator('[data-testid="detail-status"]')).toHaveText(/(Activo|Inactivo)/)
   const statusText = await page.locator('[data-testid="detail-status"]').textContent()
   if (statusText?.includes('Active')) {
     await expect(page.locator('[data-testid="assign-participant-btn"]')).toBeVisible()
@@ -46,7 +46,7 @@ test('admin sees assign button only on active teams', async ({ adminPage: page }
   // Open first active team
   await page.locator('[data-testid^="team-row-"]').first().click()
   // Wait for detail panel to fully render before reading status
-  await expect(page.locator('[data-testid="detail-status"]')).toHaveText(/(Active|Inactive)/)
+  await expect(page.locator('[data-testid="detail-status"]')).toHaveText(/(Activo|Inactivo)/)
   const statusText = await page.locator('[data-testid="detail-status"]').textContent()
   if (statusText?.includes('Active')) {
     await expect(page.locator('[data-testid="assign-participant-btn"]')).toBeVisible()
@@ -59,7 +59,7 @@ test('admin can open assign form and it shows participant users', async ({ admin
   await page.goto('/dashboard')
   await page.click('[data-testid="nav-teams"]')
   await page.locator('[data-testid^="team-row-"]').nth(2).click()
-  await expect(page.locator('[data-testid="detail-status"]')).toContainText('Active')
+  await expect(page.locator('[data-testid="detail-status"]')).toContainText('Activo')
   await page.click('[data-testid="assign-participant-btn"]')
   await expect(page.locator('[data-testid="assign-form"]')).toBeVisible()
   await expect(page.locator('[data-testid="participant-select"]')).toBeVisible()
@@ -79,7 +79,7 @@ test('admin can cancel assign form without network call', async ({ adminPage: pa
   await page.locator('[data-testid^="team-row-"]').nth(2).click()
   await page.click('[data-testid="assign-participant-btn"]')
   await expect(page.locator('[data-testid="assign-form"]')).toBeVisible()
-  await page.getByRole('button', { name: 'Cancel' }).first().click()
+  await page.getByRole('button', { name: 'Cancelar' }).first().click()
   await expect(page.locator('[data-testid="assign-form"]')).toHaveCount(0)
 })
 
@@ -107,7 +107,7 @@ test('operator can open assign form and it shows participant users', async ({ op
   await page.goto('/dashboard')
   await page.click('[data-testid="nav-teams"]')
   await page.locator('[data-testid^="team-row-"]').nth(2).click()
-  await expect(page.locator('[data-testid="detail-status"]')).toContainText('Active')
+  await expect(page.locator('[data-testid="detail-status"]')).toContainText('Activo')
   await page.click('[data-testid="assign-participant-btn"]')
   await expect(page.locator('[data-testid="assign-form"]')).toBeVisible()
   await expect(page.locator('[data-testid="participant-select"]')).toBeVisible()
@@ -150,7 +150,7 @@ test('duplicate assignment shows user-friendly error', async ({ adminPage: page 
   await select.selectOption({ index: 1 })
   await page.click('[data-testid="confirm-assign-btn"]')
   await expect(page.locator('[data-testid="assign-error"]')).toContainText(
-    'already assigned',
+    'ya está asignado',
   )
 })
 

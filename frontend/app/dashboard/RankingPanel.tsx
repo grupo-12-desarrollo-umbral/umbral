@@ -21,7 +21,7 @@ export function RankingPanel({ snapshot, unauthorized, error, loading, live }: R
       <section className={styles.panel} data-testid="ranking-panel" aria-labelledby="ranking-panel-title">
         <div className={styles.eyebrow} id="ranking-panel-title">Ranking</div>
         <p className={styles.stateNote} role="status" data-testid="ranking-unauthorized">
-          You are not authorized to view this session’s ranking.
+          No tienes autorización para ver el ranking de esta sesión.
         </p>
       </section>
     )
@@ -33,7 +33,7 @@ export function RankingPanel({ snapshot, unauthorized, error, loading, live }: R
       <section className={styles.panel} data-testid="ranking-panel" aria-labelledby="ranking-panel-title">
         <div className={styles.eyebrow} id="ranking-panel-title">Ranking</div>
         <p className={styles.stateNote} role="status" data-testid="ranking-error">
-          Couldn’t load the ranking. It will refresh automatically.
+          No se pudo cargar el ranking. Se actualizará automáticamente.
         </p>
       </section>
     )
@@ -44,7 +44,7 @@ export function RankingPanel({ snapshot, unauthorized, error, loading, live }: R
       <section className={styles.panel} data-testid="ranking-panel" aria-labelledby="ranking-panel-title">
         <div className={styles.eyebrow} id="ranking-panel-title">Ranking</div>
         <p className={styles.stateNote} data-testid="ranking-empty">
-          {loading ? 'Loading ranking…' : 'No standings yet.'}
+          {loading ? 'Cargando el ranking…' : 'Aún no hay posiciones.'}
         </p>
       </section>
     )
@@ -58,13 +58,13 @@ export function RankingPanel({ snapshot, unauthorized, error, loading, live }: R
           // The REST snapshot is present but the live scoring channel is down, so these standings
           // can lag a penalty/award until it recovers. Say so rather than passing stale rows off as live.
           <span className={styles.stateNote} role="status" data-testid="ranking-live-paused">
-            Live updates paused — reconnecting.
+            Actualizaciones en vivo pausadas — reconectando.
           </span>
         )}
       </div>
       {snapshot.rows.length === 0 ? (
         // The backend's well-known empty snapshot: a live session simply has no score entries yet.
-        <p className={styles.stateNote} data-testid="ranking-empty">No standings yet.</p>
+        <p className={styles.stateNote} data-testid="ranking-empty">Aún no hay posiciones.</p>
       ) : (
         <ul className={styles.list} aria-live="polite">
           {snapshot.rows.map((row) => (

@@ -46,7 +46,7 @@ test('operator sees the creation panel, not the operator-assignment panel', asyn
 test('admin assign operators button navigates to sessions panel', async ({ adminPage: page }) => {
   await page.goto('/dashboard')
   // The admin hero section has an "Assign operators" button
-  const assignButton = page.getByTestId('admin-panel').getByRole('button', { name: 'Assign operators' })
+  const assignButton = page.getByTestId('admin-panel').getByRole('button', { name: 'Asignar operadores' })
   await expect(assignButton).toBeVisible()
   await assignButton.click()
   // After clicking, the session-operator-panel should be visible

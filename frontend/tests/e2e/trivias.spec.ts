@@ -35,7 +35,7 @@ test('operator can create a trivia quiz and land on its detail view', async ({ o
 
   await expect(page.locator('[data-testid="trivia-detail"]')).toBeVisible()
   await expect(page.locator('[data-testid="trivia-detail-title"]')).toContainText('Geography Basics')
-  await expect(page.locator('[data-testid="trivia-detail-status"]')).toContainText('Draft')
+  await expect(page.locator('[data-testid="trivia-detail-status"]')).toContainText('Borrador')
 })
 
 test('create form cancel returns to list', async ({ operatorPage: page }) => {
@@ -43,7 +43,7 @@ test('create form cancel returns to list', async ({ operatorPage: page }) => {
   await page.click('[data-testid="nav-trivias"]')
   await page.click('[data-testid="create-trivia-btn"]')
   await expect(page.locator('[data-testid="trivia-form"]')).toBeVisible()
-  await page.getByRole('button', { name: 'Cancel' }).click()
+  await page.getByRole('button', { name: 'Cancelar' }).click()
   await expect(page.locator('[data-testid="trivias-panel"]')).toBeVisible()
   await expect(page.locator('[data-testid="trivia-form"]')).toHaveCount(0)
 })
@@ -136,16 +136,16 @@ test('edit button is disabled for non-Draft quizzes', async ({ operatorPage: pag
   await expect(publishedRow).toBeVisible()
   await publishedRow.locator('[data-testid^="view-trivia-btn-"]').click()
   await expect(page.locator('[data-testid="trivia-detail-title"]')).toContainText('Filosofos de Atenas')
-  await expect(page.locator('[data-testid="trivia-detail-status"]')).toContainText('Published')
+  await expect(page.locator('[data-testid="trivia-detail-status"]')).toContainText('Publicado')
   await expect(page.locator('[data-testid="edit-trivia-btn"]')).toBeDisabled()
 
   // Check Archived quiz has Edit disabled
-  await page.getByRole('button', { name: '← Back to trivia quizzes' }).click()
+  await page.getByRole('button', { name: '← Volver a los cuestionarios de trivia' }).click()
   const archivedRow = page.locator('[data-testid^="trivia-row-"]').filter({ hasText: 'Capitales del mundo' })
   await expect(archivedRow).toBeVisible()
   await archivedRow.locator('[data-testid^="view-trivia-btn-"]').click()
   await expect(page.locator('[data-testid="trivia-detail-title"]')).toContainText('Capitales del mundo')
-  await expect(page.locator('[data-testid="trivia-detail-status"]')).toContainText('Archived')
+  await expect(page.locator('[data-testid="trivia-detail-status"]')).toContainText('Archivado')
   await expect(page.locator('[data-testid="edit-trivia-btn"]')).toBeDisabled()
 })
 
@@ -185,6 +185,10 @@ test('operator can open add-question form from draft quiz detail', async ({ oper
   await expect(page.locator('[data-testid="add-question-btn"]')).toBeVisible()
   await page.click('[data-testid="add-question-btn"]')
   await expect(page.locator('[data-testid="question-form"]')).toBeVisible()
+  const timerInput = page.locator('[data-testid="question-timer-input"]')
+  await expect(timerInput).toHaveValue('15')
+  await expect(timerInput).toHaveAttribute('min', '15')
+  await expect(timerInput).toHaveAttribute('max', '30')
   await expect(page.locator('[data-testid="question-option-0"]')).toBeVisible()
   await expect(page.locator('[data-testid="question-option-1"]')).toBeVisible()
   await expect(page.locator('[data-testid="question-option-2"]')).toHaveCount(0) // starts with 2
@@ -200,7 +204,6 @@ test('operator can add a question with 2 options and see it in detail', async ({
 
   await page.click('[data-testid="add-question-btn"]')
   await page.fill('[data-testid="question-prompt-input"]', 'What is 1+1?')
-  await page.fill('[data-testid="question-score-value-input"]', '50')
   await page.fill('[data-testid="question-timer-input"]', '20')
   await page.fill('[data-testid="question-option-text-0"]', '2')
   await page.fill('[data-testid="question-option-text-1"]', '3')
@@ -223,7 +226,6 @@ test('operator can add a question with 4 options', async ({ operatorPage: page }
 
   await page.click('[data-testid="add-question-btn"]')
   await page.fill('[data-testid="question-prompt-input"]', 'Best planet?')
-  await page.fill('[data-testid="question-score-value-input"]', '100')
   await page.fill('[data-testid="question-timer-input"]', '30')
 
   // Add two more options (starts with 2)
@@ -253,7 +255,7 @@ test('add-question cancel returns to detail without network call', async ({ oper
 
   await page.click('[data-testid="add-question-btn"]')
   await expect(page.locator('[data-testid="question-form"]')).toBeVisible()
-  await page.locator('[data-testid="question-form"] button[type="button"]').filter({ hasText: 'Cancel' }).click()
+  await page.locator('[data-testid="question-form"] button[type="button"]').filter({ hasText: 'Cancelar' }).click()
 
   await expect(page.locator('[data-testid="trivia-detail"]')).toBeVisible()
   await expect(page.locator('[data-testid="question-form"]')).toHaveCount(0)
@@ -272,7 +274,6 @@ test('operator can edit an existing question', async ({ operatorPage: page }) =>
   // Add a question first
   await page.click('[data-testid="add-question-btn"]')
   await page.fill('[data-testid="question-prompt-input"]', 'Original prompt')
-  await page.fill('[data-testid="question-score-value-input"]', '50')
   await page.fill('[data-testid="question-timer-input"]', '20')
   await page.fill('[data-testid="question-option-text-0"]', 'A')
   await page.fill('[data-testid="question-option-text-1"]', 'B')
@@ -288,7 +289,6 @@ test('operator can edit an existing question', async ({ operatorPage: page }) =>
   await expect(page.locator('[data-testid="question-prompt-input"]')).toHaveValue('Original prompt')
 
   await page.fill('[data-testid="question-prompt-input"]', 'Updated prompt')
-  await page.fill('[data-testid="question-score-value-input"]', '75')
   await page.click('[data-testid="question-submit-btn"]')
 
   await expect(page.locator('[data-testid="trivia-detail"]')).toBeVisible()
@@ -305,8 +305,7 @@ test('edit-question form is pre-filled with current values', async ({ operatorPa
 
   await page.click('[data-testid="add-question-btn"]')
   await page.fill('[data-testid="question-prompt-input"]', 'Capital of France?')
-  await page.fill('[data-testid="question-score-value-input"]', '100')
-  await page.fill('[data-testid="question-timer-input"]', '45')
+  await page.fill('[data-testid="question-timer-input"]', '25')
   await page.fill('[data-testid="question-explanation-input"]', 'Paris is the capital.')
   await page.fill('[data-testid="question-option-text-0"]', 'Paris')
   await page.fill('[data-testid="question-option-text-1"]', 'Berlin')
@@ -316,19 +315,17 @@ test('edit-question form is pre-filled with current values', async ({ operatorPa
   await page.locator('[data-testid^="edit-question-btn-"]').first().click()
 
   await expect(page.locator('[data-testid="question-prompt-input"]')).toHaveValue('Capital of France?')
-  await expect(page.locator('[data-testid="question-score-value-input"]')).toHaveValue('100')
-  await expect(page.locator('[data-testid="question-timer-input"]')).toHaveValue('45')
+  await expect(page.locator('[data-testid="question-score-value"]')).toContainText('100')
+  await expect(page.locator('[data-testid="question-timer-input"]')).toHaveValue('25')
   await expect(page.locator('[data-testid="question-explanation-input"]')).toHaveValue('Paris is the capital.')
 })
 
 // --- Authorization ---
 
-test('admin sees no trivia authoring controls', async ({ adminPage: page }) => {
+test('admin does not see the trivias nav', async ({ adminPage: page }) => {
   await page.goto('/dashboard')
-  await page.click('[data-testid="nav-trivias"]')
-  // Issue #173: admins keep read access to the trivias panel, but authoring is Operator-only.
-  await expect(page.locator('[data-testid="trivias-panel"]')).toBeVisible()
-  await expect(page.locator('[data-testid="create-trivia-btn"]')).toHaveCount(0)
+  // Issue #173: trivia authoring is Operator-owned; admins have no trivias nav at all.
+  await expect(page.locator('[data-testid="nav-trivias"]')).toHaveCount(0)
 })
 
 // --- Regression: HU-11 quiz flows unaffected ---
@@ -372,7 +369,6 @@ async function createReadyDraftQuiz(page: Page, title: string): Promise<void> {
   // Add one question to satisfy the readiness check
   await page.click('[data-testid="add-question-btn"]')
   await page.fill('[data-testid="question-prompt-input"]', 'What is 2+2?')
-  await page.fill('[data-testid="question-score-value-input"]', '100')
   await page.fill('[data-testid="question-timer-input"]', '30')
   await page.fill('[data-testid="question-option-text-0"]', '4')
   await page.fill('[data-testid="question-option-text-1"]', '5')
@@ -398,7 +394,7 @@ test('draft quiz shows source ready as No in list view', async ({ operatorPage: 
   await expect(page.locator('[data-testid="trivia-detail"]')).toBeVisible()
 
   // Back to list
-  await page.getByRole('button', { name: '← Back to trivia quizzes' }).click()
+  await page.getByRole('button', { name: '← Volver a los cuestionarios de trivia' }).click()
 
   const row = page.locator('[data-testid^="trivia-row-"]').filter({ hasText: quizTitle })
   const chip = row.locator('[data-testid^="trivia-source-ready-"]')
@@ -448,8 +444,8 @@ test('operator can publish a ready draft quiz', async ({ operatorPage: page }) =
   await expect(page.locator('[data-testid="confirm-publish-btn"]')).toBeVisible()
   await page.click('[data-testid="confirm-publish-btn"]')
 
-  await expect(page.locator('[data-testid="trivia-detail-status"]')).toContainText('Published')
-  await expect(page.locator('[data-testid="trivia-source-ready"]')).toContainText('Yes')
+  await expect(page.locator('[data-testid="trivia-detail-status"]')).toContainText('Publicado')
+  await expect(page.locator('[data-testid="trivia-source-ready"]')).toContainText('Sí')
   await expect(page.locator('[data-testid="publish-trivia-btn"]')).toHaveCount(0)
   await expect(page.locator('[data-testid="archive-trivia-btn"]')).toBeVisible()
 })
@@ -464,10 +460,10 @@ test('published quiz shows source ready as Yes in list view', async ({ operatorP
   await page.click('[data-testid="publish-trivia-btn"]')
   await page.click('[data-testid="confirm-publish-btn"]')
 
-  await page.getByRole('button', { name: '← Back to trivia quizzes' }).click()
+  await page.getByRole('button', { name: '← Volver a los cuestionarios de trivia' }).click()
 
   const row = page.locator('[data-testid^="trivia-row-"]').filter({ hasText: quizTitle })
-  await expect(row.locator('[data-testid^="trivia-source-ready-"]')).toContainText('Yes')
+  await expect(row.locator('[data-testid^="trivia-source-ready-"]')).toContainText('Sí')
 })
 
 test('operator can cancel publish confirmation without network call', async ({ operatorPage: page }) => {
@@ -476,11 +472,11 @@ test('operator can cancel publish confirmation without network call', async ({ o
 
   await page.click('[data-testid="publish-trivia-btn"]')
   await expect(page.locator('[data-testid="confirm-publish-btn"]')).toBeVisible()
-  await page.getByRole('button', { name: 'Cancel' }).first().click()
+  await page.getByRole('button', { name: 'Cancelar' }).first().click()
 
   // Should be back to showing the trigger buttons — status unchanged
   await expect(page.locator('[data-testid="publish-trivia-btn"]')).toBeVisible()
-  await expect(page.locator('[data-testid="trivia-detail-status"]')).toContainText('Draft')
+  await expect(page.locator('[data-testid="trivia-detail-status"]')).toContainText('Borrador')
 })
 
 // ---- Archive flow ----
@@ -492,14 +488,14 @@ test('operator can archive a published quiz', async ({ operatorPage: page }) => 
   // Publish first
   await page.click('[data-testid="publish-trivia-btn"]')
   await page.click('[data-testid="confirm-publish-btn"]')
-  await expect(page.locator('[data-testid="trivia-detail-status"]')).toContainText('Published')
+  await expect(page.locator('[data-testid="trivia-detail-status"]')).toContainText('Publicado')
 
   // Archive
   await page.click('[data-testid="archive-trivia-btn"]')
   await expect(page.locator('[data-testid="confirm-archive-btn"]')).toBeVisible()
   await page.click('[data-testid="confirm-archive-btn"]')
 
-  await expect(page.locator('[data-testid="trivia-detail-status"]')).toContainText('Archived')
+  await expect(page.locator('[data-testid="trivia-detail-status"]')).toContainText('Archivado')
   await expect(page.locator('[data-testid="trivia-source-ready"]')).toContainText('No')
   await expect(page.locator('[data-testid="archive-trivia-btn"]')).toHaveCount(0)
   await expect(page.locator('[data-testid="publish-trivia-btn"]')).toHaveCount(0)
@@ -517,7 +513,7 @@ test('operator can archive a draft quiz directly', async ({ operatorPage: page }
   await page.click('[data-testid="archive-trivia-btn"]')
   await page.click('[data-testid="confirm-archive-btn"]')
 
-  await expect(page.locator('[data-testid="trivia-detail-status"]')).toContainText('Archived')
+  await expect(page.locator('[data-testid="trivia-detail-status"]')).toContainText('Archivado')
   await expect(page.locator('[data-testid="archive-trivia-btn"]')).toHaveCount(0)
 })
 
@@ -530,10 +526,10 @@ test('operator can cancel archive confirmation without network call', async ({ o
 
   await page.click('[data-testid="archive-trivia-btn"]')
   await expect(page.locator('[data-testid="confirm-archive-btn"]')).toBeVisible()
-  await page.getByRole('button', { name: 'Cancel' }).first().click()
+  await page.getByRole('button', { name: 'Cancelar' }).first().click()
 
   await expect(page.locator('[data-testid="archive-trivia-btn"]')).toBeVisible()
-  await expect(page.locator('[data-testid="trivia-detail-status"]')).toContainText('Published')
+  await expect(page.locator('[data-testid="trivia-detail-status"]')).toContainText('Publicado')
 })
 
 // ---- Edit gate after lifecycle transitions ----
@@ -600,7 +596,7 @@ test('HU-14A add-question flow still works after lifecycle wiring', async ({ ope
 
   await page.click('[data-testid="add-question-btn"]')
   await expect(page.locator('[data-testid="question-form"]')).toBeVisible()
-  await page.getByRole('button', { name: 'Cancel' }).click()
+  await page.getByRole('button', { name: 'Cancelar' }).click()
   await expect(page.locator('[data-testid="trivia-detail"]')).toBeVisible()
 })
 
@@ -626,7 +622,7 @@ test('HU-11 trivia create flow still works after publish/archive wiring', async 
   await page.fill('[data-testid="trivia-description-input"]', 'HU-11 regression check.')
   await page.click('[data-testid="trivia-submit-btn"]')
   await expect(page.locator('[data-testid="trivia-detail"]')).toBeVisible()
-  await expect(page.locator('[data-testid="trivia-detail-status"]')).toContainText('Draft')
+  await expect(page.locator('[data-testid="trivia-detail-status"]')).toContainText('Borrador')
 })
 
 test('HU-11 trivia edit flow still works after publish/archive wiring', async ({ operatorPage: page }) => {
@@ -659,11 +655,11 @@ async function _createReadyPublishedQuiz(page: Page, title: string): Promise<num
   await createReadyDraftQuiz(page, title)
   await page.click('[data-testid="publish-trivia-btn"]')
   await page.click('[data-testid="confirm-publish-btn"]')
-  await expect(page.locator('[data-testid="trivia-detail-status"]')).toContainText('Published')
+  await expect(page.locator('[data-testid="trivia-detail-status"]')).toContainText('Publicado')
 
   // Extract id from trivia-source-ready testid context — use the URL or data attribute.
   // Alternatively, capture from the back-and-re-list pattern:
-  await page.getByRole('button', { name: '← Back to trivia quizzes' }).click()
+  await page.getByRole('button', { name: '← Volver a los cuestionarios de trivia' }).click()
   const row = page.locator('[data-testid^="trivia-row-"]').filter({ hasText: title })
   const rowTestId = await row.getAttribute('data-testid')
   return parseInt(rowTestId!.replace('trivia-row-', ''), 10)
@@ -677,14 +673,14 @@ test('operator can duplicate a published quiz and lands on new copy detail', asy
 
   await page.click('[data-testid="publish-trivia-btn"]')
   await page.click('[data-testid="confirm-publish-btn"]')
-  await expect(page.locator('[data-testid="trivia-detail-status"]')).toContainText('Published')
+  await expect(page.locator('[data-testid="trivia-detail-status"]')).toContainText('Publicado')
 
   await page.click('[data-testid="duplicate-trivia-btn"]')
   await expect(page.locator('[data-testid="confirm-duplicate-btn"]')).toBeVisible()
   await page.click('[data-testid="confirm-duplicate-btn"]')
 
   // Should now be on the new copy's detail
-  await expect(page.locator('[data-testid="trivia-detail-status"]')).toContainText('Draft')
+  await expect(page.locator('[data-testid="trivia-detail-status"]')).toContainText('Borrador')
   await expect(page.locator('[data-testid="trivia-source-ready"]')).toContainText('No')
   await expect(page.locator('[data-testid="trivia-source-quiz-id"]')).toBeVisible()
   await expect(page.locator('[data-testid="trivia-has-usage-history"]')).toHaveCount(0)
@@ -706,10 +702,10 @@ test('operator can cancel duplicate confirmation without network call', async ({
 
   await page.click('[data-testid="duplicate-trivia-btn"]')
   await expect(page.locator('[data-testid="confirm-duplicate-btn"]')).toBeVisible()
-  await page.getByRole('button', { name: 'Cancel' }).first().click()
+  await page.getByRole('button', { name: 'Cancelar' }).first().click()
 
   await expect(page.locator('[data-testid="duplicate-trivia-btn"]')).toBeVisible()
-  await expect(page.locator('[data-testid="trivia-detail-status"]')).toContainText('Draft')
+  await expect(page.locator('[data-testid="trivia-detail-status"]')).toContainText('Borrador')
 })
 
 test('duplicate confirmation hides other trigger buttons', async ({ operatorPage: page }) => {
@@ -750,7 +746,7 @@ test('copy shows Copy chip in list provenance column', async ({ operatorPage: pa
   await page.click('[data-testid="confirm-duplicate-btn"]')
 
   // Navigate back to list
-  await page.getByRole('button', { name: '← Back to trivia quizzes' }).click()
+  await page.getByRole('button', { name: '← Volver a los cuestionarios de trivia' }).click()
 
   // The new copy (same title as its source) should be the row that carries a Copy chip.
   const copyRow = page.locator('[data-testid^="trivia-row-"]')
@@ -766,7 +762,7 @@ test('original quiz shows no Copy chip in list', async ({ operatorPage: page }) 
   await page.fill('[data-testid="trivia-title-input"]', 'Original No Copy Chip')
   await page.fill('[data-testid="trivia-description-input"]', 'Original quiz.')
   await page.click('[data-testid="trivia-submit-btn"]')
-  await page.getByRole('button', { name: '← Back to trivia quizzes' }).click()
+  await page.getByRole('button', { name: '← Volver a los cuestionarios de trivia' }).click()
 
   const originalRow = page.locator('[data-testid^="trivia-row-"]').filter({
     hasText: 'Original No Copy Chip',
@@ -849,7 +845,7 @@ test('HU-12 archive flow still works for unused quizzes after retire wiring', as
 
   await page.click('[data-testid="publish-trivia-btn"]')
   await page.click('[data-testid="confirm-publish-btn"]')
-  await expect(page.locator('[data-testid="trivia-detail-status"]')).toContainText('Published')
+  await expect(page.locator('[data-testid="trivia-detail-status"]')).toContainText('Publicado')
 
   await expect(page.locator('[data-testid="archive-trivia-btn"]')).toBeVisible()
   await expect(page.locator('[data-testid="retire-trivia-btn"]')).toHaveCount(0)
@@ -857,7 +853,7 @@ test('HU-12 archive flow still works for unused quizzes after retire wiring', as
   await page.click('[data-testid="archive-trivia-btn"]')
   await page.click('[data-testid="confirm-archive-btn"]')
 
-  await expect(page.locator('[data-testid="trivia-detail-status"]')).toContainText('Archived')
+  await expect(page.locator('[data-testid="trivia-detail-status"]')).toContainText('Archivado')
   await expect(page.locator('[data-testid="archive-trivia-btn"]')).toHaveCount(0)
   await expect(page.locator('[data-testid="retire-trivia-btn"]')).toHaveCount(0)
   await expect(page.locator('[data-testid="duplicate-trivia-btn"]')).toHaveCount(0)
@@ -886,8 +882,8 @@ test('HU-12 publish flow unaffected after HU-13 wiring', async ({ operatorPage: 
   await expect(page.locator('[data-testid="confirm-publish-btn"]')).toBeVisible()
   await page.click('[data-testid="confirm-publish-btn"]')
 
-  await expect(page.locator('[data-testid="trivia-detail-status"]')).toContainText('Published')
-  await expect(page.locator('[data-testid="trivia-source-ready"]')).toContainText('Yes')
+  await expect(page.locator('[data-testid="trivia-detail-status"]')).toContainText('Publicado')
+  await expect(page.locator('[data-testid="trivia-source-ready"]')).toContainText('Sí')
 })
 
 // ---- Regression: HU-14A question authoring unaffected ----
@@ -902,7 +898,7 @@ test('HU-14A add-question flow still works after HU-13 wiring', async ({ operato
 
   await page.click('[data-testid="add-question-btn"]')
   await expect(page.locator('[data-testid="question-form"]')).toBeVisible()
-  await page.getByRole('button', { name: 'Cancel' }).click()
+  await page.getByRole('button', { name: 'Cancelar' }).click()
   await expect(page.locator('[data-testid="trivia-detail"]')).toBeVisible()
 })
 
@@ -917,7 +913,7 @@ test('HU-11 trivia create flow still works after HU-13 wiring', async ({ operato
   await page.click('[data-testid="trivia-submit-btn"]')
 
   await expect(page.locator('[data-testid="trivia-detail"]')).toBeVisible()
-  await expect(page.locator('[data-testid="trivia-detail-status"]')).toContainText('Draft')
+  await expect(page.locator('[data-testid="trivia-detail-status"]')).toContainText('Borrador')
   await expect(page.locator('[data-testid="trivia-source-quiz-id"]')).toHaveCount(0)
   await expect(page.locator('[data-testid="trivia-has-usage-history"]')).toHaveCount(0)
 })
@@ -936,7 +932,6 @@ test('HU-09 missions panel still reachable after HU-13 wiring', async ({ adminPa
 async function addQuestion(page: Page, prompt: string) {
   await page.click('[data-testid="add-question-btn"]')
   await page.fill('[data-testid="question-prompt-input"]', prompt)
-  await page.fill('[data-testid="question-score-value-input"]', '50')
   await page.fill('[data-testid="question-timer-input"]', '20')
   await page.fill('[data-testid="question-option-text-0"]', 'A')
   await page.fill('[data-testid="question-option-text-1"]', 'B')
@@ -961,7 +956,7 @@ test('operator can remove a question from a draft quiz', async ({ operatorPage: 
   await page.locator('[data-testid^="confirm-remove-question-btn-"]').first().click()
 
   await expect(page.locator('[data-testid^="question-row-"]')).toHaveCount(0)
-  await expect(page.locator('[data-testid="trivia-questions-section"]')).toContainText('No questions added yet.')
+  await expect(page.locator('[data-testid="trivia-questions-section"]')).toContainText('Aún no se han agregado preguntas.')
 })
 
 test('removing a question preserves the API question order', async ({ operatorPage: page }) => {
@@ -1002,7 +997,7 @@ test('remove confirmation can be cancelled without deleting', async ({ operatorP
 
   await page.locator('[data-testid^="remove-question-btn-"]').first().click()
   await expect(page.locator('[data-testid^="confirm-remove-question-btn-"]').first()).toBeVisible()
-  await page.getByRole('button', { name: 'Cancel' }).click()
+  await page.getByRole('button', { name: 'Cancelar' }).click()
 
   await expect(page.locator('[data-testid^="question-row-"]')).toHaveCount(1)
   await expect(page.locator('[data-testid="trivia-questions-section"]')).toContainText('Keep me')
@@ -1022,7 +1017,7 @@ test('published quiz shows no remove control', async ({ operatorPage: page }) =>
 
   await page.click('[data-testid="publish-trivia-btn"]')
   await page.click('[data-testid="confirm-publish-btn"]')
-  await expect(page.locator('[data-testid="trivia-detail-status"]')).toContainText('Published')
+  await expect(page.locator('[data-testid="trivia-detail-status"]')).toContainText('Publicado')
 
   // Question still listed, but no authoring controls.
   await expect(page.locator('[data-testid^="question-row-"]')).toHaveCount(1)

@@ -14,7 +14,26 @@ type SessionHistoryPanelProps = {
 
 // Spaces out the PascalCase event types the backend records ('SessionStateChanged' → 'Session state
 // changed'). eventType is open-ended, so this formats whatever arrives rather than mapping a closed set.
+// Best-effort Spanish labels for the known backend event types. An unknown type degrades to the
+// humanized PascalCase fallback rather than throwing, so a new event type still renders readably.
+const eventTypeLabels: Record<string, string> = {
+  SessionStateChanged: 'Cambio de estado de la sesión',
+  SubstageAdvanced: 'Avance de subetapa',
+  QuestionActivated: 'Pregunta activada',
+  QuestionClosed: 'Pregunta cerrada',
+  TeamAnswered: 'Equipo respondió',
+  EvidenceSubmissionRegistered: 'Evidencia registrada',
+  EvidenceSubmissionResolved: 'Evidencia resuelta',
+  CluesReleased: 'Pistas liberadas',
+  ClueReleased: 'Pista liberada',
+  OperativeClueAssigned: 'Pista operativa asignada',
+  PenaltyApplied: 'Penalización aplicada',
+  SessionCompleted: 'Sesión completada',
+}
+
 function formatEventType(eventType: string): string {
+  const mapped = eventTypeLabels[eventType]
+  if (mapped) return mapped
   const spaced = eventType.replace(/([a-z0-9])([A-Z])/g, '$1 $2')
   return spaced.charAt(0).toUpperCase() + spaced.slice(1).toLowerCase()
 }
@@ -40,9 +59,9 @@ export function SessionHistoryPanel({
   if (unauthorized) {
     return (
       <section className={styles.panel} data-testid="session-history-panel" aria-labelledby="session-history-panel-title">
-        <div className={styles.eyebrow} id="session-history-panel-title">History</div>
+        <div className={styles.eyebrow} id="session-history-panel-title">Historial</div>
         <p className={styles.stateNote} role="status" data-testid="session-history-unauthorized">
-          You are not authorized to view this session’s history.
+          No tienes autorización para ver el historial de esta sesión.
         </p>
       </section>
     )
@@ -52,11 +71,11 @@ export function SessionHistoryPanel({
   if (error !== null) {
     return (
       <section className={styles.panel} data-testid="session-history-panel" aria-labelledby="session-history-panel-title">
-        <div className={styles.eyebrow} id="session-history-panel-title">History</div>
+        <div className={styles.eyebrow} id="session-history-panel-title">Historial</div>
         <p className={styles.stateNote} role="status" data-testid="session-history-error">
           {onRetry === undefined
-            ? 'Couldn’t load the session history. It will refresh automatically.'
-            : 'Couldn’t load the session history.'}
+            ? 'No se pudo cargar el historial de la sesión. Se actualizará automáticamente.'
+            : 'No se pudo cargar el historial de la sesión.'}
         </p>
         {onRetry !== undefined && (
           <button
@@ -66,7 +85,7 @@ export function SessionHistoryPanel({
             disabled={loading}
             data-testid="session-history-retry"
           >
-            {loading ? 'Retrying…' : 'Retry'}
+            {loading ? 'Reintentando…' : 'Reintentar'}
           </button>
         )}
       </section>
@@ -76,11 +95,11 @@ export function SessionHistoryPanel({
   return (
     <section className={styles.panel} data-testid="session-history-panel" aria-labelledby="session-history-panel-title">
       <div className={styles.header}>
-        <span className={styles.eyebrow} id="session-history-panel-title">History</span>
+        <span className={styles.eyebrow} id="session-history-panel-title">Historial</span>
       </div>
       {events.length === 0 ? (
         <p className={styles.stateNote} data-testid="session-history-empty">
-          {loading ? 'Loading history…' : 'No events recorded yet.'}
+          {loading ? 'Cargando el historial…' : 'Aún no hay eventos registrados.'}
         </p>
       ) : (
         <ul className={styles.list}>
@@ -98,8 +117,8 @@ export function SessionHistoryPanel({
                   {/* A null teamId is a session-wide event that belongs to no single team — not an
                       unknown team. Only an unresolved id is genuinely unknown. */}
                   {event.teamId === null
-                    ? 'Whole session'
-                    : teamNames[event.teamId] ?? 'Unknown team'}
+                    ? 'Toda la sesión'
+                    : teamNames[event.teamId] ?? 'Equipo desconocido'}
                 </span>
                 {/* Already a display string from the backend projection — render it, don't reinterpret it. */}
                 <span className={styles.summary} data-testid={`session-history-summary-${event.sessionEventId}`}>

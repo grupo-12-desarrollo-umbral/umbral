@@ -322,7 +322,7 @@ Gate:
 - a scan on a non-admitting session (Paused/Finished/Cancelled) is rejected
 - an end-to-end test proves the correct path publishes EvidenceSubmissionRegistered then TargetResolved
   after transactional success
-- service coverage passes the ADR-0005 gate (coverlet.msbuild, aggregate line+branch >= 93)
+- service coverage passes the ADR-0005 gate (coverlet.msbuild, aggregate branch coverage >= 95%)
 
 Do not touch frontend or mobile.
 ```

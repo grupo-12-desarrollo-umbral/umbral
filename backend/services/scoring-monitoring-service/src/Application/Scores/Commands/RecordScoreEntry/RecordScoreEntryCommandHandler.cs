@@ -8,14 +8,14 @@ namespace umbral_backend.Application.Scores.Commands.RecordScoreEntry;
 public sealed class RecordScoreEntryCommandHandler : IRequestHandler<RecordScoreEntryCommand>
 {
     private readonly IScoreEntryRepository _scoreEntryRepository;
-    private readonly IScorePolicy _scorePolicy;
+    private readonly IScorePolicySelector _scorePolicySelector;
 
     public RecordScoreEntryCommandHandler(
         IScoreEntryRepository scoreEntryRepository,
-        IScorePolicy scorePolicy)
+        IScorePolicySelector scorePolicySelector)
     {
         _scoreEntryRepository = scoreEntryRepository;
-        _scorePolicy = scorePolicy;
+        _scorePolicySelector = scorePolicySelector;
     }
 
     public async Task Handle(RecordScoreEntryCommand request, CancellationToken cancellationToken)
@@ -30,7 +30,9 @@ public sealed class RecordScoreEntryCommandHandler : IRequestHandler<RecordScore
             return;
         }
 
-        var awardedScore = _scorePolicy.Award(ScoreValue.Create(request.ScoreValue));
+        var awardedScore = _scorePolicySelector
+            .For(request.SourceEntityType)
+            .Award(ScoreValue.Create(request.ScoreValue), request.DifficultyFactor);
         var scoreEntry = ScoreEntry.Grant(
             request.LiveSessionId,
             request.TeamId,

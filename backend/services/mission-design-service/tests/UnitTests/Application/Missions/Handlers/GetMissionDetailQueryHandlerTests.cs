@@ -27,7 +27,7 @@ public sealed class GetMissionDetailQueryHandlerTests
     [Fact]
     public async Task Handle_WhenMissionExists_ReturnsMissionDetail()
     {
-        var mission = new MissionDto(7, "Mission", "Briefing", "Advanced", 45, "Draft");
+        var mission = new MissionDto(7, "Mission", "Briefing", "Advanced", 30, "Draft");
         var repository = new InMemoryMissionReadModelRepository(
             details: new Dictionary<int, MissionDto> { [mission.Id] = mission });
         var handler = new GetMissionDetailQueryHandler(repository);

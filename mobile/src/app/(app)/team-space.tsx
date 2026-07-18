@@ -25,13 +25,14 @@ import { useSessionTimer } from '@/lib/realtime/use-session-timer';
 import { useSubmitAnswer } from '@/lib/realtime/use-submit-answer';
 import { useTeamBoard } from '@/lib/realtime/use-team-board';
 import { useRanking } from '@/lib/realtime/use-ranking';
+import { usePenaltyToast } from '@/lib/realtime/use-penalty-toast';
 import { useRankingReveal } from '@/lib/realtime/use-ranking-reveal';
 import { createScoringHubConnection, type ScoringHubClient } from '@/lib/realtime/scoring-hub';
 import { TreasureHuntBoard } from '@/components/treasure-hunt-board';
-import { PodiumLeaderboard } from '@/components/podium-leaderboard';
+import { RankingLeaderboard } from '@/components/ranking-leaderboard';
 import { RankingReveal } from '@/components/ranking-reveal';
 import { rankingErrorCopy } from '@/lib/realtime/ranking-error-copy';
-import { ScoreDropToast, useScoreDrop } from '@/components/score-drop-toast';
+import { PenaltyToast } from '@/components/penalty-toast';
 import { TargetScanner } from '@/components/target-scanner';
 import {
   OperativeCluePortalHost,
@@ -67,21 +68,21 @@ function fireHaptic(type: 'success' | 'error') {
 function deniedCopy(outcome: ReconnectOutcome): string | null {
   switch (outcome.kind) {
     case 'forbidden-late-join':
-      return "The session has moved on — late join isn't allowed.";
+      return 'La sesión ya avanzó — no se permite unirse tarde.';
     case 'invalid-session-state':
-      return "This session isn't accepting participants right now.";
+      return 'Esta sesión no está aceptando participantes en este momento.';
     case 'lost-access':
-      return 'You no longer have access to this team.';
+      return 'Ya no tienes acceso a este equipo.';
     case 'already-connected':
-      return "You're already connected on another device.";
+      return 'Ya estás conectado en otro dispositivo.';
     case 'wrong-team':
-      return "You're assigned to a different team — head back to the lobby to rejoin.";
+      return 'Estás asignado a un equipo diferente — vuelve a la sala para reingresar.';
     case 'network-error':
-      return "Couldn't reach your live session. Check your connection and try again.";
+      return 'No pudimos conectar con tu sesión en vivo. Revisa tu conexión y reintenta.';
     case 'unauthorized':
-      return 'Your session expired. Signing you out…';
+      return 'Tu sesión expiró. Cerrando tu sesión…';
     case 'error':
-      return 'Something went wrong restoring your team space.';
+      return 'Algo salió mal al restaurar tu espacio de equipo.';
     default:
       return null;
   }
@@ -96,17 +97,17 @@ function deniedCopy(outcome: ReconnectOutcome): string | null {
 function boardErrorCopy(error: TimerSnapshotError): string {
   switch (error) {
     case 'network-error':
-      return "Couldn't reach the live board — check your connection.";
+      return 'No pudimos acceder al tablero en vivo — revisa tu conexión.';
     case 'unauthorized':
-      return 'Your session expired — the team board couldn’t load.';
+      return 'Tu sesión expiró — no se pudo cargar el tablero del equipo.';
     case 'forbidden':
-      return "You don't have access to this team's board.";
+      return 'No tienes acceso al tablero de este equipo.';
     case 'not-found':
-      return "This session's board isn't available.";
+      return 'El tablero de esta sesión no está disponible.';
     case 'timer-unavailable':
-      return "The board isn't ready yet — hang tight.";
+      return 'El tablero aún no está listo — espera un momento.';
     default:
-      return "Couldn't load the team board.";
+      return 'No se pudo cargar el tablero del equipo.';
   }
 }
 
@@ -243,7 +244,7 @@ export default function TeamSpaceScreen() {
       >
         <ActivityIndicator size="small" color={colors.signalWarning} />
         <Text variant="body" style={{ color: colors.signalWarning }}>
-          Reconnecting…
+          Reconectando…
         </Text>
       </View>
     </Panel>
@@ -261,7 +262,6 @@ export default function TeamSpaceScreen() {
           reconnectNonce={reconnectNonce}
           referenceTeamId={context?.teamId ?? outcome.result.teamId}
           token={context?.token}
-          brandMark={brandMark}
           banner={reconnectingBanner}
         />
       ) : (
@@ -273,22 +273,22 @@ export default function TeamSpaceScreen() {
             <View style={{ alignItems: 'center', paddingVertical: spacing.xl, gap: spacing.md }}>
               <ActivityIndicator size="large" color={colors.emberAccent} />
               <Text variant="body" muted>
-                Restoring your team space…
+                Restaurando tu espacio de equipo…
               </Text>
             </View>
           ) : phase === 'no-context' ? (
             <>
               <Panel>
                 <View style={{ gap: spacing.sm }}>
-                  <Text variant="headline">No active session</Text>
+                  <Text variant="headline">No hay sesión activa</Text>
                   <Text variant="body" muted>
-                    There&apos;s no live team space to restore. Join a session to get
-                    started.
+                    No hay un espacio de equipo en vivo para restaurar. Únete a una
+                    sesión para comenzar.
                   </Text>
                 </View>
               </Panel>
               <Button
-                label="Back to home"
+                label="Volver al inicio"
                 variant="primary"
                 onPress={() => router.replace('/(app)' as Href)}
               />
@@ -309,7 +309,6 @@ export function LiveTeamSpace({
   reconnectNonce,
   referenceTeamId,
   token,
-  brandMark,
   banner,
 }: {
   outcome: Extract<ReconnectOutcome, { kind: 'reconnected' }>;
@@ -320,7 +319,6 @@ export function LiveTeamSpace({
   token?: string | null;
   // Screen chrome, injected because the play-mode branch below picks the container: only this
   // component knows the play mode (it owns the board fetch), and the two modes need different roots.
-  brandMark?: ReactNode;
   banner?: ReactNode;
 }) {
   const { result } = outcome;
@@ -421,7 +419,7 @@ export function LiveTeamSpace({
     refreshNonce: boardRefreshNonce,
   });
   // HU-25B: session ranking snapshot. Fetched in parallel with the board; the TEAMS tab shows the
-  // live PodiumLeaderboard when rows are available, falling back to the own-team-only placeholder.
+  // live RankingLeaderboard when rows are available, falling back to the own-team-only placeholder.
   // When `scoringClient` is present (Slice 3), subscribes to live `RankingChanged` push events.
   const {
     snapshot: rankingSnapshot,
@@ -433,6 +431,69 @@ export function LiveTeamSpace({
     token,
     scoringClient,
   );
+  // A treasure-hunt scan's score is awarded asynchronously and cross-service (scan → outbox → RabbitMQ →
+  // RecordScoreEntry → RecalculateRanking → RankingChanged), landing ~1s after the scan POST returns — and
+  // the scan response deliberately omits the score. The header normally catches up via the `RankingChanged`
+  // SignalR push, but the full-screen scanner modal covers it while scanning, so if that push is missed the
+  // header still reads the pre-scan score when the scanner closes (the number only appearing later when the
+  // substage-reveal leaderboard force-refetches). A single immediate refetch would race the pipeline and re-read
+  // the stale score, so schedule a few staggered REST refetches across the eventual-consistency window as a
+  // fallback to the push. Cheap and idempotent (each is a re-GET of the snapshot).
+  const rankingCatchUpTimersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+  useEffect(
+    () => () => {
+      rankingCatchUpTimersRef.current.forEach(clearTimeout);
+      rankingCatchUpTimersRef.current = [];
+    },
+    [],
+  );
+  // Staggered REST refetches across the eventual-consistency window described above. Shared by the two
+  // signals that a treasure-hunt team score has changed: the scanning participant's own accepted scan,
+  // and — for every teammate — the board push that advances the resolved-target count (see below).
+  const scheduleRankingCatchUp = useCallback(() => {
+    rankingCatchUpTimersRef.current.forEach(clearTimeout);
+    rankingCatchUpTimersRef.current = [1500, 3500, 6000].map((delay) =>
+      setTimeout(() => refetchRanking(), delay),
+    );
+  }, [refetchRanking]);
+  const handleScanResolved = useCallback(() => {
+    // Advance the board's resolved-target count immediately (#223).
+    setBoardRefreshNonce((n) => n + 1);
+    // …then pull the ranking across the async scoring window so the header reflects the new score.
+    scheduleRankingCatchUp();
+  }, [scheduleRankingCatchUp]);
+  // Every accepted target scan by ANY team member advances this count via the reliable `TeamBoardUpdated`
+  // push (session-operations' BroadcastTeamBoardNotificationHandler re-projects the whole team's board on
+  // each TargetResolvedEvent) — which is why the X/n numerator moves live for teammates. But the board's
+  // own score always projects 0 (scoring lives in the scoring-monitoring ledger, read via the ranking
+  // snapshot), so a teammate's scan reaches the HEADER score only through the `RankingChanged` scoring-hub
+  // push — and that push has no catch-up fallback here, so a missed one leaves the header stuck on the
+  // pre-scan score until the substage reveal force-refetches. The scanning participant is covered by
+  // handleScanResolved; mirror it for everyone else by treating a resolved-target increase as the same
+  // "team score changed" cue and pulling the ranking across the scoring window. Idempotent re-GETs; a
+  // later RankingChanged push still wins the race if it arrives first.
+  const resolvedTargets = board?.activeSubstage?.resolvedTargets ?? 0;
+  const prevResolvedTargetsRef = useRef(resolvedTargets);
+  useEffect(() => {
+    // Only a growth is a scan; a reset to 0 (or a lower count) is a substage boundary, not a resolution.
+    if (resolvedTargets > prevResolvedTargetsRef.current) {
+      scheduleRankingCatchUp();
+    }
+    prevResolvedTargetsRef.current = resolvedTargets;
+  }, [resolvedTargets, scheduleRankingCatchUp]);
+  // A correct trivia answer is scored asynchronously (submit → outbox → RabbitMQ → RecordScoreEntry →
+  // recalc → RankingChanged), so the header's live `score` only reflects the "+points" once the ranking
+  // snapshot refreshes. Unlike the treasure-hunt scan (covered above) and penalties (covered in
+  // use-ranking), the trivia flow had NO ranking catch-up — a missed RankingChanged push left the award
+  // invisible until the substage reveal force-refetched, which read as "the correct answer added no
+  // points." When a question closes into the reveal view, pull the ranking across the scoring window so
+  // the reveal shows the awarded points. Idempotent re-GETs; a real RankingChanged push still wins the
+  // race if it arrives first. (view.kind only changes on a real transition, so this fires once per close.)
+  useEffect(() => {
+    if (view.kind === 'reveal') {
+      scheduleRankingCatchUp();
+    }
+  }, [view.kind, scheduleRankingCatchUp]);
   // D-3 substage ranking reveal. Play-mode agnostic: the cue arrives for a cleared treasure hunt and
   // a closed trivia round alike, which is why it is read here rather than inside either surface.
   const { isRevealing } = useRankingReveal({
@@ -466,16 +527,53 @@ export function LiveTeamSpace({
   // the render that enters the active view, and a ref write schedules no re-render to correct it. Adjust
   // during render instead, so the frozen score is the score at the moment the question opened.
   const [frozenScore, setFrozenScore] = useState(score);
+  // Freeze the displayed ranking snapshot alongside the header score for the same reason: the "TODOS LOS
+  // EQUIPOS" leaderboard renders the live ranking, so a `RankingChanged` push ~1s after a correct answer
+  // would move a team's standing there while the frozen header stays put — leaking the post-answer score
+  // before the reveal and desyncing the two surfaces. Capture the pre-question snapshot on entering the
+  // active view so the leaderboard reveals in lockstep with the header. Same render-time (not effect)
+  // freeze so the captured snapshot is the one visible at the moment the question opened.
+  const [frozenSnapshot, setFrozenSnapshot] = useState(rankingSnapshot);
+  // A penalty must break through the freeze. Unlike a correct-answer award — which the freeze hides until
+  // the reveal, alongside the +points chip — an operator penalty is an explicit, immediate event: its toast
+  // shows the instant it lands, so the header number has to drop with it (to zero if the team can't cover
+  // the full deduction). Accumulate the deduction of each penalty that arrives during the frozen question
+  // and subtract it from the displayed score below; reset when the next question opens, by which point the
+  // live `score` already carries every prior deduction, so nothing is double-counted.
+  const [frozenPenalty, setFrozenPenalty] = useState(0);
   const [prevViewKind, setPrevViewKind] = useState(view.kind);
   if (view.kind !== prevViewKind) {
     setPrevViewKind(view.kind);
-    if (view.kind === 'active') setFrozenScore(score);
+    if (view.kind === 'active') {
+      setFrozenScore(score);
+      setFrozenSnapshot(rankingSnapshot);
+      setFrozenPenalty(0);
+    }
   }
-  const displayScore = view.kind === 'active' ? frozenScore : score;
-  // The penalty toast reads the live `score`, not the frozen `displayScore`: an operator can penalise
-  // mid-question, and against the frozen value the drop is invisible until the reveal — or lost entirely
-  // if the team's answer award nets it back out. The freeze is a header concern only.
-  const { drop: scoreDrop, clear: clearScoreDrop } = useScoreDrop(score);
+  // The penalty toast is driven by the explicit ScoringHub `PenaltyApplied` push, not inferred from a
+  // score decrease: a penalty against a low-scoring team clamps the ranking total to zero (leaving the
+  // snapshot unchanged), and a partial clamp would misreport the magnitude. The push carries the true
+  // deduction and always fires, so it surfaces mid-question regardless of the header score freeze.
+  const { penalty: penaltyToast, clear: clearPenaltyToast } = usePenaltyToast(
+    result.liveSessionId,
+    referenceTeamId,
+    scoringClient,
+  );
+  // `usePenaltyToast` mints a monotonic `id` per penalty against the own team. Fold each into the frozen
+  // deduction exactly once — a re-render, or the toast lingering until its auto-dismiss, must not subtract
+  // the same penalty twice.
+  const lastPenaltyIdRef = useRef(0);
+  useEffect(() => {
+    if (!penaltyToast || penaltyToast.id === lastPenaltyIdRef.current) return;
+    lastPenaltyIdRef.current = penaltyToast.id;
+    // Cross-event memory sync: fold the just-pushed penalty into the running deduction.
+    setFrozenPenalty((total) => total + penaltyToast.magnitude);
+  }, [penaltyToast]);
+  // Active question: show the frozen pre-question score, less any penalties applied since it opened
+  // (clamped at zero). Every other view falls back to the live score, which already reflects them.
+  const displayScore =
+    view.kind === 'active' ? Math.max(0, frozenScore - frozenPenalty) : score;
+  const displaySnapshot = view.kind === 'active' ? frozenSnapshot : rankingSnapshot;
   const teamMembers = [result.participantDisplayName];
 
   const activeQuestionProps = view.kind === 'active'
@@ -524,6 +622,7 @@ export function LiveTeamSpace({
         rows={rankingSnapshot?.rows}
         ownTeamId={referenceTeamId}
         isFinished={isFinished}
+        missionDisplay={missionDisplay}
         error={rankingError}
         onRetry={refetchRanking}
         onRefetch={refetchRanking}
@@ -540,8 +639,12 @@ export function LiveTeamSpace({
     // scrollable. Given the viewport it sizes itself, and its body is the only vertical scroller.
     return (
       <>
-        {scoreDrop ? (
-          <ScoreDropToast drop={scoreDrop} onDismiss={clearScoreDrop} />
+        {penaltyToast ? (
+          <PenaltyToast
+            key={penaltyToast.id}
+            penalty={penaltyToast}
+            onDismiss={clearPenaltyToast}
+          />
         ) : null}
         <TreasureHuntBoard
           teamDisplayName={board.teamDisplayName}
@@ -551,6 +654,7 @@ export function LiveTeamSpace({
           totalActiveTargets={progress.total}
           visibleClues={board.visibleClues}
           activeTargets={board.activeTargets ?? []}
+          substageId={board.activeSubstage?.substageSnapshotId}
           headerSlot={
             <>
               {banner}
@@ -570,7 +674,7 @@ export function LiveTeamSpace({
             teamId={referenceTeamId}
             token={token}
             onClose={() => setScannerOpen(false)}
-            onResolved={() => setBoardRefreshNonce((n) => n + 1)}
+            onResolved={handleScanResolved}
           />
         ) : null}
       </>
@@ -579,10 +683,15 @@ export function LiveTeamSpace({
 
   return (
     <Screen contentContainerStyle={{ gap: spacing.md }}>
-      {scoreDrop ? (
-        <ScoreDropToast drop={scoreDrop} onDismiss={clearScoreDrop} />
+      {penaltyToast ? (
+        <PenaltyToast
+          key={penaltyToast.id}
+          penalty={penaltyToast}
+          onDismiss={clearPenaltyToast}
+        />
       ) : null}
-      {brandMark}
+      {/* No brand mark on the live play surface: mid-game, prime above-the-fold space belongs to the
+          question, not branding. The wordmark stays on the pre-game loading/denied screens below. */}
       {banner}
 
       {maskedBoardError ? (
@@ -655,11 +764,17 @@ export function LiveTeamSpace({
       {/* HU-28 B2: the trivia surface has no Clues tab, so every clue kind (operative, substage-initial,
           scheduled/target) lands in the collapsed CLUES chip (durable store + dot) + arrival toast, fed
           from the live board. Suppress the toast during pre-game countdown so it doesn't overlap. */}
-      {board ? <OperativeClueSurface visibleClues={board.visibleClues} suppressToast={pregameSecondsLeft != null} /> : null}
+      {board ? (
+        <OperativeClueSurface
+          visibleClues={board.visibleClues}
+          suppressToast={pregameSecondsLeft != null}
+          substageId={board.activeSubstage?.substageSnapshotId}
+        />
+      ) : null}
 
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={`Open all teams for ${result.teamDisplayName}`}
+        accessibilityLabel={`Abrir todos los equipos de ${result.teamDisplayName}`}
         onPress={() => setTeamsOpen(true)}
         style={{
           backgroundColor: colors.charcoalRoom,
@@ -673,23 +788,27 @@ export function LiveTeamSpace({
           variant="label"
           style={{ color: colors.textInkNight }}
         >
-          {`YOUR TEAM · ${result.teamDisplayName}`}
+          {`TU EQUIPO · ${result.teamDisplayName}`}
         </Text>
         <Text muted style={{ color: colors.textMuted }}>
-          {teamMembers.join(', ')} · ALL TEAMS ›
+          {teamMembers.join(', ')} · TODOS LOS EQUIPOS ›
         </Text>
       </Pressable>
 
       {teamsOpen ? (
         <Panel style={{ gap: spacing.md }}>
-          <Text variant="headline">ALL TEAMS</Text>
+          <Text variant="headline">TODOS LOS EQUIPOS</Text>
           {/* Live standings (HU-35 AC4). The scoring ledger keys ranking rows on the cross-context
-              ReferenceTeamId, so own-team highlighting matches on `referenceTeamId` (same id the podium
-              on the treasure-hunt board uses). PodiumLeaderboard owns the empty state ("Standings will
+              ReferenceTeamId, so own-team highlighting matches on `referenceTeamId` (same id the leaderboard
+              on the treasure-hunt board uses). RankingLeaderboard owns the empty state ("Standings will
               appear once the round begins."); a failed fetch surfaces an error + retry instead of the
               old placeholder teams, so a real load failure never reads as data. */}
-          {rankingSnapshot ? (
-            <PodiumLeaderboard rows={rankingSnapshot.rows} ownTeamId={referenceTeamId} />
+          {displaySnapshot ? (
+            <RankingLeaderboard
+              rows={displaySnapshot.rows}
+              ownTeamId={referenceTeamId}
+              missionDisplay={missionDisplay}
+            />
           ) : rankingError ? (
             <View style={{ gap: spacing.sm, alignItems: 'center' }}>
               <Text
@@ -698,7 +817,7 @@ export function LiveTeamSpace({
               >
                 {rankingErrorCopy(rankingError)}
               </Text>
-              <Button label="RETRY" variant="secondary" onPress={refetchRanking} />
+              <Button label="REINTENTAR" variant="secondary" onPress={refetchRanking} />
             </View>
           ) : (
             <View
@@ -715,11 +834,11 @@ export function LiveTeamSpace({
               <Text muted>{teamMembers.join(', ')}</Text>
             </View>
           )}
-          <Button label="CLOSE" variant="secondary" onPress={() => setTeamsOpen(false)} />
+          <Button label="CERRAR" variant="secondary" onPress={() => setTeamsOpen(false)} />
         </Panel>
       ) : null}
 
-      <Button label="Leave team space" variant="secondary" onPress={onLeave} />
+      <Button label="Salir del espacio de equipo" variant="secondary" onPress={onLeave} />
     </Screen>
   );
 }
@@ -753,9 +872,9 @@ function DeniedState({
       {isUnauthorized ? null : (
         <View style={{ gap: spacing.sm }}>
           {isRetryable ? (
-            <Button label="Try again" variant="primary" onPress={onRetry} />
+            <Button label="Reintentar" variant="primary" onPress={onRetry} />
           ) : null}
-          <Button label="Back to home" variant="secondary" onPress={onLeave} />
+          <Button label="Volver al inicio" variant="secondary" onPress={onLeave} />
         </View>
       )}
     </>

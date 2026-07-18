@@ -1,4 +1,3 @@
-using Microsoft.EntityFrameworkCore;
 using umbral_backend.Domain.Entities;
 using umbral_backend.Domain.Enums;
 using umbral_backend.Domain.ValueObjects;
@@ -17,7 +16,7 @@ public sealed class ScoreEntryRepositoryIntegrationTests
     }
 
     [Fact]
-    public async Task AddAndList_RoundTripsLedgerEntry_AndUniqueSourceIndexRejectsDuplicate()
+    public async Task AddAndList_RoundTripsLedgerEntry_AndConcurrentDuplicateSourceCollapsesToNoOp()
     {
         var liveSessionId = Guid.NewGuid();
         var teamId = Guid.NewGuid();
@@ -69,8 +68,17 @@ public sealed class ScoreEntryRepositoryIntegrationTests
             ScoreSourceType.TriviaAnswerSubmission,
             sourceEntityId);
 
+        // A lost race on the (source_entity_type, source_entity_id) unique index is the idempotency
+        // guard firing at the database: recording a source exactly once is the goal, so the repository
+        // collapses the duplicate insert into a no-op instead of leaking a raw DbUpdateException.
         var act = async () => await duplicateRepository.AddAsync(duplicateEntry, CancellationToken.None);
 
-        await act.Should().ThrowAsync<DbUpdateException>();
+        await act.Should().NotThrowAsync();
+
+        await using var assertContext = _contextFactory.Create();
+        var assertRepository = new ScoreEntryRepository(assertContext);
+        var entriesAfterDuplicate = await assertRepository.ListByLiveSessionIdAsync(liveSessionId, CancellationToken.None);
+
+        entriesAfterDuplicate.Should().ContainSingle();
     }
 }

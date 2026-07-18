@@ -33,7 +33,7 @@ public sealed class TeamReferenceCatalogClient : ITeamReferenceCatalogClient
 
         var team = await response.Content.ReadFromJsonAsync<TeamReferenceCatalogResponse>(cancellationToken)
             ?? throw new InvalidOperationException(
-                $"Identity-access-service returned an empty team reference payload for team '{teamId}'.");
+                $"Users-service returned an empty team reference payload for team '{teamId}'.");
 
         var participantCount = await GetParticipantCountAsync(teamId, cancellationToken);
 
@@ -55,7 +55,7 @@ public sealed class TeamReferenceCatalogClient : ITeamReferenceCatalogClient
 
         var participants = await response.Content.ReadFromJsonAsync<IReadOnlyList<TeamParticipantResponse>>(cancellationToken)
             ?? throw new InvalidOperationException(
-                $"Identity-access-service returned an empty team participant payload for team '{teamId}'.");
+                $"Users-service returned an empty team participant payload for team '{teamId}'.");
 
         return participants.Count;
     }

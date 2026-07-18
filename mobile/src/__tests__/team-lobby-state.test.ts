@@ -16,7 +16,7 @@ describe('evaluateTeamLobbyState', () => {
   test('empty team list -> no teams message', () => {
     expect(evaluateTeamLobbyState([])).toEqual({
       kind: 'empty',
-      message: 'No teams available yet. Ask your operator.',
+      message: 'Todavía no hay equipos disponibles. Consulta con tu operador.',
     });
   });
 
@@ -29,7 +29,7 @@ describe('evaluateTeamLobbyState', () => {
     ).toEqual({
       kind: 'assigned-team-unavailable',
       message:
-        'Your assigned team is unavailable right now. Ask your operator to reactivate it or move you.',
+        'Tu equipo asignado no está disponible en este momento. Pídele a tu operador que lo reactive o que te cambie de equipo.',
     });
   });
 

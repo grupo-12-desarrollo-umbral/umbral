@@ -66,12 +66,12 @@ test.beforeAll(async () => {
   // runs in parallel, so a DELETE here would momentarily strip the row out from under it. Both specs write
   // identical content and ExternalIdentityId is the only unique index on users.
   const adminSub = subOf(admin)
-  sql('identity_access', `
+  sql('users', `
     INSERT INTO users ("ExternalIdentityId","DisplayName","Email","Role","IsActive","Created","LastModified")
     VALUES ('${adminSub}','Administrator One','admin-1@umbral.local','Administrator',true,NOW(),NOW())
     ON CONFLICT ("ExternalIdentityId") DO UPDATE SET "IsActive"=true, "LastModified"=NOW();
   `)
-  const opId = Number(sql('identity_access', `SELECT "Id" FROM users WHERE "Email"='op-1@umbral.local'`))
+  const opId = Number(sql('users', `SELECT "Id" FROM users WHERE "Email"='op-1@umbral.local'`))
   const missionId = Number(sql('mission_design',
     `SELECT "Id" FROM "Missions" WHERE "Name"='E2E Seed Mission' AND "IsActive"=true AND "ActivationState"='Ready' ORDER BY "Id" DESC LIMIT 1`))
 
@@ -106,7 +106,7 @@ async function openAndStart(page: import('@playwright/test').Page) {
   const card = page.locator('[data-testid="assigned-session-button"]', { hasText: sessionCode })
   await expect(card).toBeVisible({ timeout: 15000 })
   await card.click()
-  await page.getByRole('button', { name: 'Open live operation' }).click()
+  await page.getByRole('button', { name: 'Abrir operación en vivo' }).click()
   await expect(page.locator('[data-testid="operator-session-panel"]')).toBeVisible({ timeout: 15000 })
 }
 
@@ -142,9 +142,9 @@ test('a real participant submission lands on the operator evidence panel live, w
   const row = page.locator('[data-testid^="evidence-row-"]')
   await expect(row).toHaveCount(1, { timeout: 20000 })
   await expect(row).toContainText('Gilded Owls')
-  await expect(row).toContainText('Trivia answer')
+  await expect(row).toContainText('Respuesta de trivia')
   // ...and the Accepted fact (raised by the same write) resolves it — the flip AC #2 asks for.
-  await expect(row).toContainText('Accepted', { timeout: 20000 })
+  await expect(row).toContainText('Aceptada', { timeout: 20000 })
   // The trivia form's origin grain, proving the registered push's payload survived the merge.
   await expect(row).toContainText(`question:${monitor.questionSequenceOrder}`)
 })

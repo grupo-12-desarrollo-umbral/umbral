@@ -19,7 +19,7 @@ export function TargetMap({
   interactive = false,
   onPick,
   testId = 'target-map',
-  label = 'Target map',
+  label = 'Mapa de targets',
 }: {
   markers?: readonly TargetMapMarker[]
   draft?: TargetMapDraft | null
@@ -74,7 +74,7 @@ export function TargetMap({
   if (!interactive && !hasContent) {
     return (
       <div className={styles.mapEmpty} data-testid={`${testId}-empty`}>
-        No target has a map location yet.
+        Ningún target tiene aún una ubicación en el mapa.
       </div>
     )
   }

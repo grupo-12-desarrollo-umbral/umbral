@@ -94,7 +94,7 @@ file sealed class TrustedHeadersAuthenticationHandler : AuthenticationHandler<Au
     // Requires X-User-Id and X-User-Role only. X-User-Email is optional: the gateway forwards it only
     // when the token carries an email claim (api-gateway/src/Transforms/TrustedHeadersTransform.cs),
     // so requiring it 401'd every Keycloak user with no email. Nothing here consumes the email —
-    // CurrentUser.DisplayName already falls back when it is absent. (identity-access-service does
+    // CurrentUser.DisplayName already falls back when it is absent. (users-service does
     // require it, because User.Email is a required domain field there.)
     protected override Task<AuthenticateResult> HandleAuthenticateAsync()
     {

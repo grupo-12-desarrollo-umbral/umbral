@@ -36,7 +36,7 @@ describe('TargetMap', () => {
   test('shows the empty state (no WebView) when the target list is empty', () => {
     const renderer = render([]);
 
-    expect(allText(renderer.toJSON())).toContain('NO MAP LOCATION YET');
+    expect(allText(renderer.toJSON())).toContain('AÚN SIN UBICACIÓN EN EL MAPA');
     expect(renderer.root.findAll((n) => n.props?.testID === 'target-map-webview')).toHaveLength(0);
   });
 
@@ -47,7 +47,7 @@ describe('TargetMap', () => {
       { targetSnapshotId: 't1', name: 'Unplaced', latitude: 0, longitude: 0 },
     ]);
 
-    expect(allText(renderer.toJSON())).toContain('NO MAP LOCATION YET');
+    expect(allText(renderer.toJSON())).toContain('AÚN SIN UBICACIÓN EN EL MAPA');
     expect(renderer.root.findAll((n) => n.props?.testID === 'target-map-webview')).toHaveLength(0);
   });
 
@@ -69,7 +69,7 @@ describe('TargetMap', () => {
       { targetSnapshotId: 't1', name: 'Ghost', latitude: Number.NaN, longitude: 10 },
     ]);
 
-    expect(allText(renderer.toJSON())).toContain('NO MAP LOCATION YET');
+    expect(allText(renderer.toJSON())).toContain('AÚN SIN UBICACIÓN EN EL MAPA');
     expect(renderer.root.findAll((n) => n.props?.testID === 'target-map-webview')).toHaveLength(0);
   });
 });

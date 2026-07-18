@@ -19,11 +19,11 @@ export function SessionActivityPanel({ entries, teamNames }: SessionActivityPane
   return (
     <section className={styles.panel} data-testid="session-activity-panel" aria-labelledby="session-activity-panel-title">
       <div className={styles.header}>
-        <span className={styles.eyebrow} id="session-activity-panel-title">Live activity</span>
+        <span className={styles.eyebrow} id="session-activity-panel-title">Actividad en vivo</span>
       </div>
       {entries.length === 0 ? (
         <p className={styles.stateNote} data-testid="session-activity-empty">
-          No live activity yet. Events appear here as the session runs.
+          Aún no hay actividad en vivo. Los eventos aparecen aquí a medida que avanza la sesión.
         </p>
       ) : (
         <ul className={styles.list}>
@@ -35,8 +35,8 @@ export function SessionActivityPanel({ entries, teamNames }: SessionActivityPane
                   {/* A null teamId is a session-wide event that belongs to no single team. Only an
                       unresolved id (team not in the panel rollup) is genuinely unknown. */}
                   {entry.teamId === null
-                    ? 'Whole session'
-                    : teamNames[entry.teamId] ?? 'Unknown team'}
+                    ? 'Toda la sesión'
+                    : teamNames[entry.teamId] ?? 'Equipo desconocido'}
                 </span>
                 <span className={styles.summary} data-testid={`session-activity-summary-${entry.id}`}>
                   {entry.summary}

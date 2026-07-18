@@ -60,7 +60,7 @@ public sealed class TriviaQuizSelectionGuardTests
     [Fact]
     public async Task EnsurePublishedSelectionAsync_QuestionMissingScoreValue_ThrowsValidation()
     {
-        var question = TriviaQuestion.Create("Q", null, 45, null, TwoOptions());
+        var question = TriviaQuestion.Create("Q", null, 25, null, TwoOptions());
         var quiz = Published(TriviaQuiz.Create("Quiz", "desc", [question]));
 
         await Guard(quiz).Should().ThrowAsync<ValidationException>();
@@ -79,7 +79,7 @@ public sealed class TriviaQuizSelectionGuardTests
     public async Task EnsurePublishedSelectionAsync_QuestionHasTooFewOptions_ThrowsValidation()
     {
         var question = TriviaQuestion.Create(
-            "Q", 100, 45, null, [TriviaOption.Create("Only", 1, true)]);
+            "Q", 100, 25, null, [TriviaOption.Create("Only", 1, true)]);
         var quiz = Published(MaterializePersistedQuiz(question));
 
         await Guard(quiz).Should().ThrowAsync<ValidationException>();
@@ -89,7 +89,7 @@ public sealed class TriviaQuizSelectionGuardTests
     public async Task EnsurePublishedSelectionAsync_QuestionHasNoCorrectOption_ThrowsValidation()
     {
         var question = TriviaQuestion.Create(
-            "Q", 100, 45, null,
+            "Q", 100, 25, null,
             [TriviaOption.Create("A", 1, false), TriviaOption.Create("B", 2, false)]);
         var quiz = Published(MaterializePersistedQuiz(question));
 
@@ -105,7 +105,7 @@ public sealed class TriviaQuizSelectionGuardTests
     }
 
     private static TriviaQuestion ValidQuestion(bool isActive = true) =>
-        TriviaQuestion.Create("Q", 100, 45, null, TwoOptions(), isActive);
+        TriviaQuestion.Create("Q", 100, 25, null, TwoOptions(), isActive);
 
     private static TriviaOption[] TwoOptions() =>
         [TriviaOption.Create("A", 1, true), TriviaOption.Create("B", 2, false)];

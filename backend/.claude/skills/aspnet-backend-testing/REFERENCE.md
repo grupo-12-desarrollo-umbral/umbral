@@ -180,12 +180,12 @@ Not a backend concern. Owned by the frontend project.
 
 ## Coverage Policy
 
-This skill assumes a minimum project coverage target of 93% for both line and branch coverage.
+This skill assumes a minimum target of 95% aggregate branch coverage. Line coverage is reported for diagnosis but does not gate the build.
 
 Enforcement guidance:
 
 - collect coverage in CI on every mainline change
-- fail the build when either line or branch coverage drops below 93%
+- fail the build when aggregate branch coverage drops below 95%
 - exclude generated code deliberately, not broadly
 - review uncovered code for risk, not only for percentage
 

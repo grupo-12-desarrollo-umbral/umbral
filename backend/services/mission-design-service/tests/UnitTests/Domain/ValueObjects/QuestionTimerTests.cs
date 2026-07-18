@@ -6,8 +6,8 @@ namespace umbral_backend.Application.UnitTests.Domain.ValueObjects;
 public class QuestionTimerTests
 {
     [Theory]
-    [InlineData(5)]
-    [InlineData(120)]
+    [InlineData(15)]
+    [InlineData(30)]
     public void Create_WithSecondsWithinRange_SetsValue(int seconds)
     {
         var timer = QuestionTimer.Create(seconds);
@@ -18,7 +18,7 @@ public class QuestionTimerTests
     [Fact]
     public void Create_WithSecondsBelowMinimum_ThrowsPositiveException()
     {
-        var act = () => QuestionTimer.Create(4);
+        var act = () => QuestionTimer.Create(14);
 
         act.Should().Throw<QuestionTimerMustBePositiveException>();
     }
@@ -26,7 +26,7 @@ public class QuestionTimerTests
     [Fact]
     public void Create_WithSecondsAboveMaximum_ThrowsMaximumException()
     {
-        var act = () => QuestionTimer.Create(121);
+        var act = () => QuestionTimer.Create(31);
 
         act.Should().Throw<QuestionTimerExceedsMaximumException>();
     }

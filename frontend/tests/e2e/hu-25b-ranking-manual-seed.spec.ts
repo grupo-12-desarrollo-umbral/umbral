@@ -42,7 +42,8 @@ const MISSION_NAME = 'HU-25B Ranking E2E'
 const STAGE_TITLE = 'Main Stage'
 const SUBSTAGE_TITLE = 'Treasure Hunt'
 // The first, immediately-visible target. Its QR value is what the fake scanner submits; scoring the
-// scan grants its 150-point value to Gilded Owls (SnapshotScorePolicy.Award is identity for grants).
+// scan grants its 150-point value to Gilded Owls (TargetScorePolicy re-applies the difficulty
+// weighting base×factor, which reconstructs the authored 150 unchanged).
 const ASTROLABE_QR = 'HR-25B-QR-1'
 const ASTROLABE_SCORE = '150'
 
@@ -155,16 +156,16 @@ test('seeds "HU-25B Ranking E2E" Active with a real backend-computed ranking row
     DELETE FROM live_sessions WHERE title_snapshot = '${MISSION_NAME}';
   `)
 
-  // Ensure admin-1 exists in identity_access (sub-keyed, for the gateway-JWT operator-assignment path)
+  // Ensure admin-1 exists in users (sub-keyed, for the gateway-JWT operator-assignment path)
   const adminSub = subOf(admin)
-  sql('identity_access', `
+  sql('users', `
     DELETE FROM users WHERE "ExternalIdentityId"='${adminSub}' OR "Email"='admin-1@umbral.local';
     INSERT INTO users ("ExternalIdentityId","DisplayName","Email","Role","IsActive","Created","LastModified")
     VALUES ('${adminSub}','Administrator One','admin-1@umbral.local','Administrator',true,NOW(),NOW());
   `)
 
   // Resolve op-1 identity
-  const opId = Number(sql('identity_access', `SELECT "Id" FROM users WHERE "Email"='op-1@umbral.local'`))
+  const opId = Number(sql('users', `SELECT "Id" FROM users WHERE "Email"='op-1@umbral.local'`))
   expect(opId).toBeGreaterThan(0)
 
   // participant-1's identity (keyed by resolved Keycloak sub) and its Gilded Owls membership are seeded
@@ -174,7 +175,7 @@ test('seeds "HU-25B Ranking E2E" Active with a real backend-computed ranking row
   // Ensure the second team exists AND carries the canonical name (global-setup only creates Gilded
   // Owls). Upsert so an earlier seed can't leave the lobby showing a stale name. Crimson Foxes is
   // attached for a two-team lobby but is not scored by this seed.
-  sql('identity_access', `
+  sql('users', `
     INSERT INTO registered_teams (id, display_name, team_code, is_active, created_at, updated_at)
     VALUES ('${TEAM_B}', '${TEAM_B_NAME}', 'CF-01', true, NOW(), NOW())
     ON CONFLICT (id) DO UPDATE
@@ -213,7 +214,7 @@ test('seeds "HU-25B Ranking E2E" Active with a real backend-computed ranking row
 
   // Resolve Gilded Owls' runtime id and self-join it as participant-1 while the session is still
   // Scheduled (self-join freezes once the session leaves Scheduled/Preparing). The scan below submits
-  // with the REFERENCE team id, which satisfies both the domain team resolution and the identity-access
+  // with the REFERENCE team id, which satisfies both the domain team resolution and the users-service
   // membership guard.
   const teams = await (await api('GET', `/api/sessions/${liveSessionId}/teams`, op)).json()
   const teamARuntimeId = teams.teams.find((t: { referenceTeamId: string }) => t.referenceTeamId === TEAM_A)

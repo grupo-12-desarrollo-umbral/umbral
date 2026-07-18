@@ -1,11 +1,18 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   getRanking,
   interpretTimerSnapshotError,
   type TimerSnapshotError,
 } from '@/lib/api/sessions';
+import type { PenaltyAppliedDto } from './penalty-types';
 import type { RankingSnapshotDto } from './ranking-types';
 import type { ScoringHubClient } from './scoring-hub';
+
+// A penalty's toast (`PenaltyApplied`) fires the instant the deduction commits, but the ranking recalc
+// that reflects it rides the scoring outbox and only lands as a later `RankingChanged`. That push can be
+// missed (a transport blip) or, when the total clamps to zero, carry an unchanged snapshot — so pull the
+// snapshot across the eventual-consistency window, mirroring the target-scan catch-up in team-space.
+const PENALTY_CATCH_UP_DELAYS_MS = [1500, 3500, 6000];
 
 export type UseRankingResult = {
   snapshot: RankingSnapshotDto | null;
@@ -35,6 +42,7 @@ export function useRanking(
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<TimerSnapshotError | null>(null);
   const [fetchNonce, setFetchNonce] = useState(0);
+  const penaltyTimersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
 
   useEffect(() => {
     let active = true;
@@ -73,6 +81,17 @@ export function useRanking(
     // After a transport auto-reconnect the group is re-joined, but any change during the outage was
     // missed (pushes only fire on change) — pull the current snapshot so standings aren't stale.
     const offReconnected = scoringClient.onReconnected(() => setFetchNonce(n => n + 1));
+    // A penalty against any team in this session recomputes standings asynchronously (see the note on
+    // PENALTY_CATCH_UP_DELAYS_MS). The RankingChanged push alone can leave the score stale, so schedule
+    // a few staggered re-fetches across the scoring window. Cheap and idempotent (each re-GETs the
+    // snapshot); a later RankingChanged still overwrites if it wins the race.
+    const offPenaltyApplied = scoringClient.onPenaltyApplied((pushed: PenaltyAppliedDto) => {
+      if (pushed.liveSessionId !== liveSessionId) return;
+      penaltyTimersRef.current.forEach(clearTimeout);
+      penaltyTimersRef.current = PENALTY_CATCH_UP_DELAYS_MS.map(delay =>
+        setTimeout(() => setFetchNonce(n => n + 1), delay),
+      );
+    });
     // Connection closed for good: no more pushes will arrive, so surface it rather than leaving the
     // last snapshot displayed as live. (Render sites prefer a snapshot over an error, so this only
     // shows when there is nothing to display; the retry path re-establishes the stream.)
@@ -81,7 +100,10 @@ export function useRanking(
     return () => {
       offRankingChanged();
       offReconnected();
+      offPenaltyApplied();
       offClosed();
+      penaltyTimersRef.current.forEach(clearTimeout);
+      penaltyTimersRef.current = [];
     };
   }, [scoringClient, liveSessionId]);
 

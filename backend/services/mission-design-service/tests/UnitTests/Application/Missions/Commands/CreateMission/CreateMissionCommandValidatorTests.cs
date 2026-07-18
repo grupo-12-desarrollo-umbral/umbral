@@ -9,7 +9,7 @@ public sealed class CreateMissionCommandValidatorTests
     [Fact]
     public void Validate_WhenCommandIsValid_HasNoErrors()
     {
-        var result = _validator.Validate(new CreateMissionCommand("Mission", "Briefing", "Advanced", 45));
+        var result = _validator.Validate(new CreateMissionCommand("Mission", "Briefing", "Advanced", 30));
 
         result.IsValid.Should().BeTrue();
     }
@@ -17,7 +17,7 @@ public sealed class CreateMissionCommandValidatorTests
     [Fact]
     public void Validate_WhenNameIsEmpty_ReturnsError()
     {
-        var result = _validator.Validate(new CreateMissionCommand("", "Briefing", "Advanced", 45));
+        var result = _validator.Validate(new CreateMissionCommand("", "Briefing", "Advanced", 30));
 
         result.Errors.Should().ContainSingle(error => error.PropertyName == nameof(CreateMissionCommand.Name));
     }
@@ -25,7 +25,7 @@ public sealed class CreateMissionCommandValidatorTests
     [Fact]
     public void Validate_WhenDescriptionIsEmpty_ReturnsError()
     {
-        var result = _validator.Validate(new CreateMissionCommand("Mission", "", "Advanced", 45));
+        var result = _validator.Validate(new CreateMissionCommand("Mission", "", "Advanced", 30));
 
         result.Errors.Should().ContainSingle(error => error.PropertyName == nameof(CreateMissionCommand.Description));
     }
@@ -33,7 +33,7 @@ public sealed class CreateMissionCommandValidatorTests
     [Fact]
     public void Validate_WhenDifficultyIsEmpty_ReturnsError()
     {
-        var result = _validator.Validate(new CreateMissionCommand("Mission", "Briefing", "", 45));
+        var result = _validator.Validate(new CreateMissionCommand("Mission", "Briefing", "", 30));
 
         result.Errors.Should().ContainSingle(error => error.PropertyName == nameof(CreateMissionCommand.Difficulty));
     }
@@ -42,6 +42,14 @@ public sealed class CreateMissionCommandValidatorTests
     public void Validate_WhenMaximumTimeIsNotPositive_ReturnsError()
     {
         var result = _validator.Validate(new CreateMissionCommand("Mission", "Briefing", "Advanced", 0));
+
+        result.Errors.Should().ContainSingle(error => error.PropertyName == nameof(CreateMissionCommand.MaximumTimeMinutes));
+    }
+
+    [Fact]
+    public void Validate_WhenMaximumTimeExceedsLimit_ReturnsError()
+    {
+        var result = _validator.Validate(new CreateMissionCommand("Mission", "Briefing", "Advanced", 31));
 
         result.Errors.Should().ContainSingle(error => error.PropertyName == nameof(CreateMissionCommand.MaximumTimeMinutes));
     }

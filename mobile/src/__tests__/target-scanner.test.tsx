@@ -82,7 +82,7 @@ describe('TargetScanner', () => {
   test('renders the camera and idle hint when permission is granted', () => {
     const renderer = render();
     expect(findCamera(renderer).length).toBeGreaterThan(0);
-    expect(allText(renderer.toJSON()).join(' ')).toContain('Line up a target QR code');
+    expect(allText(renderer.toJSON()).join(' ')).toContain('Alinea un código QR');
   });
 
   test('a granted-but-not-yet-asked permission triggers a request on mount', () => {
@@ -97,27 +97,44 @@ describe('TargetScanner', () => {
 
     expect(mockRequestPermission).not.toHaveBeenCalled();
     const text = allText(renderer.toJSON()).join(' ');
-    expect(text).toContain('Camera access is off');
+    expect(text).toContain('El acceso a la cámara está desactivado');
     // No camera preview when permission is refused.
     expect(findCamera(renderer)).toHaveLength(0);
   });
 
-  test('an accepted scan shows success and calls onResolved', async () => {
-    mockScan.mockResolvedValueOnce({ targetSnapshotId: 'target-1', isResolved: true });
+  test('an accepted scan shows the success burst, fires onResolved, then auto-dismisses', async () => {
+    // The burst runs an Animated timeline + a dismiss timeout; fake timers keep both under the test's
+    // control so nothing fires into a torn-down environment afterwards.
+    jest.useFakeTimers();
     const onResolved = jest.fn();
-    const renderer = render({ onResolved });
+    const onClose = jest.fn();
+    try {
+      mockScan.mockResolvedValueOnce({ targetSnapshotId: 'target-1', isResolved: true });
+      const renderer = render({ onResolved, onClose });
 
-    await act(async () => {
-      fireScan(renderer, 'QR-ALPHA');
-    });
+      await act(async () => {
+        fireScan(renderer, 'QR-ALPHA');
+      });
 
-    expect(mockScan).toHaveBeenCalledWith('sess-1', {
-      teamId: 'team-1',
-      scannedValue: 'QR-ALPHA',
-      token: 'tok',
-    });
-    expect(allText(renderer.toJSON()).join(' ')).toContain('TARGET RESOLVED');
-    expect(onResolved).toHaveBeenCalledTimes(1);
+      expect(mockScan).toHaveBeenCalledWith('sess-1', {
+        teamId: 'team-1',
+        scannedValue: 'QR-ALPHA',
+        token: 'tok',
+      });
+      expect(allText(renderer.toJSON()).join(' ')).toContain('¡Felicitaciones!');
+      expect(onResolved).toHaveBeenCalledTimes(1);
+
+      // The burst dismisses itself with no tap — flushing its timeline calls onClose exactly once.
+      act(() => {
+        jest.advanceTimersByTime(2000);
+      });
+      expect(onClose).toHaveBeenCalledTimes(1);
+
+      act(() => renderer.unmount());
+    } finally {
+      jest.clearAllTimers();
+      jest.useRealTimers();
+    }
   });
 
   test('a rejected scan surfaces the backend reason', async () => {
@@ -139,24 +156,37 @@ describe('TargetScanner', () => {
   });
 
   test('the camera stops scanning once an outcome is showing', async () => {
-    mockScan.mockResolvedValueOnce({ targetSnapshotId: 'target-1', isResolved: true });
-    const renderer = render();
+    // Accepted here too, which mounts the success burst — fake timers keep its animation/dismiss
+    // timeline from leaking past teardown.
+    jest.useFakeTimers();
+    try {
+      mockScan.mockResolvedValueOnce({ targetSnapshotId: 'target-1', isResolved: true });
+      const renderer = render();
 
-    await act(async () => {
-      fireScan(renderer, 'QR-ALPHA');
-    });
+      await act(async () => {
+        fireScan(renderer, 'QR-ALPHA');
+      });
 
-    // After a terminal outcome the camera's onBarcodeScanned is unwired (undefined), so no further
-    // submissions can fire until the scanner is reset.
-    const camera = findCamera(renderer)[0];
-    expect(camera.props.onBarcodeScanned).toBeUndefined();
-    expect(mockScan).toHaveBeenCalledTimes(1);
+      // After a terminal outcome the camera's onBarcodeScanned is unwired (undefined), so no further
+      // submissions can fire until the scanner is reset.
+      const camera = findCamera(renderer)[0];
+      expect(camera.props.onBarcodeScanned).toBeUndefined();
+      expect(mockScan).toHaveBeenCalledTimes(1);
+
+      act(() => {
+        jest.advanceTimersByTime(2000);
+      });
+      act(() => renderer.unmount());
+    } finally {
+      jest.clearAllTimers();
+      jest.useRealTimers();
+    }
   });
 
   test('close control invokes onClose', () => {
     const onClose = jest.fn();
     const renderer = render({ onClose });
-    const closeBtn = renderer.root.findAllByProps({ accessibilityLabel: 'Close scanner' })[0];
+    const closeBtn = renderer.root.findAllByProps({ accessibilityLabel: 'Cerrar escáner' })[0];
     act(() => (closeBtn.props.onPress as () => void)());
     expect(onClose).toHaveBeenCalled();
   });

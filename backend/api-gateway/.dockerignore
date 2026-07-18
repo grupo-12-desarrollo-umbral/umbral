@@ -1,0 +1,27 @@
+# build artifacts — rebuilt inside the image; local copies may be stale or wrong-arch
+**/bin
+**/obj
+
+# local dev config / secrets — never bake into the image (base appsettings.json is kept)
+**/appsettings.Development.json
+**/appsettings.*.Development.json
+**/*.user
+.env
+.env*
+
+# vcs / ci / editor / agent tooling (not needed at build)
+.git
+.github
+.vs
+.idea
+.vscode
+.claude
+
+# test output
+**/TestResults
+coverage
+
+# misc
+.DS_Store
+Dockerfile
+.dockerignore

@@ -428,6 +428,10 @@ export type SessionTimerUpdatedNotificationDto = {
   // mirror remaining/totalMilliseconds (that substage has no window of its own).
   missionRemainingMilliseconds?: number | null
   missionTotalMilliseconds?: number | null
+  // Authoritative flag set by the backend orchestration: true only for the pre-game "Prepárate"
+  // countdown ticks, false for every real substage/mission tick. The client must trust this rather
+  // than infer "pregame" from a short total window — a short trivia question also has a small total.
+  isPregameCountdown?: boolean
 }
 
 // SignalR "QuestionActivated" hub event payload.

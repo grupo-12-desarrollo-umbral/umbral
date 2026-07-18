@@ -7,27 +7,27 @@ import type { TargetScanRejectionReasonCode } from './target-scan-types';
 // code is a pre-intake/transport failure the client explains itself.
 
 const TITLES: Record<TargetScanRejectionReasonCode, string> = {
-  'retained-rejection': 'Scan not accepted',
-  'session-not-accepting': 'Session paused',
-  'concurrent-modification': 'Try again',
-  'not-a-participant': 'Not authorized',
-  'unauthorized': 'Session expired',
-  'session-not-found': 'Session unavailable',
-  'invalid-scan': "Couldn't read code",
-  'network': 'Connection issue',
-  'unknown': 'Something went wrong',
+  'retained-rejection': 'Escaneo no aceptado',
+  'session-not-accepting': 'Sesión en pausa',
+  'concurrent-modification': 'Reintentar',
+  'not-a-participant': 'No autorizado',
+  'unauthorized': 'Sesión expirada',
+  'session-not-found': 'Sesión no disponible',
+  'invalid-scan': 'No se pudo leer el código',
+  'network': 'Problema de conexión',
+  'unknown': 'Algo salió mal',
 };
 
 const MESSAGES: Record<TargetScanRejectionReasonCode, string> = {
-  'retained-rejection': "That scan didn't resolve a target.",
-  'session-not-accepting': "This session isn't accepting scans right now.",
-  'concurrent-modification': 'The session was being updated just then. Scan again.',
-  'not-a-participant': "Your team isn't registered to scan in this session.",
-  'unauthorized': 'Your session expired — sign in again to keep scanning.',
-  'session-not-found': "This session's scanning isn't available.",
-  'invalid-scan': 'That QR code was empty or unreadable. Try again.',
-  'network': "Couldn't reach the server. Check your connection and try again.",
-  'unknown': "Couldn't register that scan. Try again.",
+  'retained-rejection': 'Ese escaneo no resolvió un target.',
+  'session-not-accepting': 'Esta sesión no está aceptando escaneos en este momento.',
+  'concurrent-modification': 'La sesión se estaba actualizando en ese momento. Escanea de nuevo.',
+  'not-a-participant': 'Tu equipo no está registrado para escanear en esta sesión.',
+  'unauthorized': 'Tu sesión expiró — inicia sesión de nuevo para seguir escaneando.',
+  'session-not-found': 'El escaneo de esta sesión no está disponible.',
+  'invalid-scan': 'Ese código QR estaba vacío o ilegible. Reintenta.',
+  'network': 'No pudimos conectar con el servidor. Revisa tu conexión y reintenta.',
+  'unknown': 'No se pudo registrar ese escaneo. Reintenta.',
 };
 
 export function targetScanRejectionTitle(reasonCode: TargetScanRejectionReasonCode): string {

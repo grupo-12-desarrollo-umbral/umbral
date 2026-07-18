@@ -85,6 +85,7 @@ public sealed class ErrorCodeContractTests
             ["TeamNotInAuthorizedSetException"] = "team-not-in-authorized-set",
             ["TreasureHuntSubstageSnapshotMustContainTargetsException"] = "treasure-hunt-substage-snapshot-must-contain-targets",
             ["TargetSnapshotScoreMustBePositiveException"] = "target-snapshot-score-must-be-positive",
+            ["TargetSnapshotDifficultyFactorMustBePositiveException"] = "target-snapshot-difficulty-factor-must-be-positive",
             ["TriviaAnswerRequiresActiveQuestionException"] = "trivia-answer-requires-active-question",
             ["TriviaAnswerRequiresActiveSessionException"] = "trivia-answer-requires-active-session",
             ["TriviaAnswerRequiresTriviaSubstageException"] = "trivia-answer-requires-trivia-substage",

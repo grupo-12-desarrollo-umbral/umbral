@@ -342,7 +342,7 @@ Endpoint tests:
 
 Coverage gate:
 - Run the merged unit + integration + endpoint test suite
-- Aggregate line coverage must reach ≥ 95%; if it does not, add targeted tests for
+- Aggregate branch coverage must reach ≥ 95%; if it does not, add targeted tests for
   any uncovered branch before closing the phase
 
 Do not touch frontend.
@@ -471,7 +471,7 @@ Acceptance criteria:
 - deactivated teams remain queryable (IsActive=false) and cannot be deactivated again
 - duplicate TeamCode is rejected at both application and database layers
 - reads (list, get-by-id) are accessible to administrators and operators but not participants
-- aggregate line coverage is ≥ 95% after the merged test suite runs
+- aggregate branch coverage is ≥ 95% after the merged test suite runs
 
 Then:
 - open or update the draft PR to develop

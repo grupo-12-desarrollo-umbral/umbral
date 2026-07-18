@@ -25,9 +25,10 @@ public sealed class ActivateMissionCommandHandler : IRequestHandler<ActivateMiss
         var mission = await _missionRepository.GetByIdAsync(request.Id, cancellationToken)
             ?? throw new NotFoundException("Mission", request.Id);
 
-        // The domain's Activate() checks structural readiness; the cross-aggregate
-        // "still published?" check lives here, where repository access exists.
-        await EnsureSelectedQuizzesPublishedAsync(mission, cancellationToken);
+        // The domain's Activate() checks structural readiness; the cross-aggregate checks
+        // (quiz still published, trivia timers fit the mission budget) live here, where
+        // repository access exists.
+        await EnsureSelectedQuizzesReadyAsync(mission, cancellationToken);
 
         mission.Activate();
 
@@ -36,7 +37,7 @@ public sealed class ActivateMissionCommandHandler : IRequestHandler<ActivateMiss
         return MissionDtoMapper.Map(mission);
     }
 
-    private async Task EnsureSelectedQuizzesPublishedAsync(Mission mission, CancellationToken cancellationToken)
+    private async Task EnsureSelectedQuizzesReadyAsync(Mission mission, CancellationToken cancellationToken)
     {
         var quizIds = MissionTriviaPublicationChecker.CollectTriviaQuizIds(mission);
         if (quizIds.Count == 0)
@@ -45,7 +46,13 @@ public sealed class ActivateMissionCommandHandler : IRequestHandler<ActivateMiss
         }
 
         var statuses = await _triviaQuizRepository.GetStatusesByIdsAsync(quizIds, cancellationToken);
-        var failures = MissionTriviaPublicationChecker.Evaluate(mission, statuses);
+        var timerSeconds =
+            await _triviaQuizRepository.GetActiveQuestionTimerSecondsByIdsAsync(quizIds, cancellationToken);
+
+        var failures = MissionTriviaPublicationChecker.Evaluate(mission, statuses)
+            .Concat(MissionTriviaTimeBudgetChecker.Evaluate(mission, timerSeconds))
+            .ToList();
+
         if (failures.Count > 0)
         {
             throw new MissionNotReadyForActivationException(failures);

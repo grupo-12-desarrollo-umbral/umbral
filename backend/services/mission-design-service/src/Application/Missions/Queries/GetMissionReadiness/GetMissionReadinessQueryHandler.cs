@@ -36,6 +36,11 @@ public sealed class GetMissionReadinessQueryHandler : IRequestHandler<GetMission
         {
             var statuses = await _triviaQuizRepository.GetStatusesByIdsAsync(quizIds, cancellationToken);
             failures.AddRange(MissionTriviaPublicationChecker.Evaluate(mission, statuses));
+
+            // Necessary-condition check: the trivia timers alone must fit the mission-wide budget.
+            var timerSeconds =
+                await _triviaQuizRepository.GetActiveQuestionTimerSecondsByIdsAsync(quizIds, cancellationToken);
+            failures.AddRange(MissionTriviaTimeBudgetChecker.Evaluate(mission, timerSeconds));
         }
 
         return new MissionReadinessDto(

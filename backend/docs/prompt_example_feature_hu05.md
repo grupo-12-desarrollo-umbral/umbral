@@ -48,7 +48,7 @@ All of this lives on `feature/hu-04-team-registration` (or `develop` once HU-04 
 - HU-04 team endpoints: `POST /api/teams`, `GET /api/teams`, `GET /api/teams/{id}`, `PATCH /api/teams/{id}`, `DELETE /api/teams/{id}/status`
 - HU-04 persistence surface: `teams` table and `AddTeams` migration — these must exist and be committed before HU-05 infrastructure work begins
 
-**Coverage:** Aggregate line coverage must still reach ≥95% after HU-05 membership paths are added.
+**Coverage:** Aggregate branch coverage must still reach ≥95% after HU-05 membership paths are added.
 
 ### What HU-05 adds on top (per PRD DES-67)
 
@@ -385,7 +385,7 @@ Endpoint tests:
 
 Coverage gate:
 - Run the merged unit + integration + endpoint test suite
-- Aggregate line coverage must reach ≥ 95%; if it does not, add targeted tests for
+- Aggregate branch coverage must reach ≥ 95%; if it does not, add targeted tests for
   any uncovered branch before closing the phase
 
 Do not touch frontend.
@@ -513,7 +513,7 @@ Acceptance criteria:
 - frontend: admin can view and assign participants from the team detail view
 - frontend: operator sees a read-only participant list with no assign action
 - frontend: participant is blocked from the participants section entirely
-- aggregate line coverage is ≥ 95% after the merged test suite runs
+- aggregate branch coverage is ≥ 95% after the merged test suite runs
 
 Then:
 - open or update the draft PR targeting feature/hu-04-team-registration (not develop,

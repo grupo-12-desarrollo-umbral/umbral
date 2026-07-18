@@ -1,3 +1,5 @@
+using umbral_backend.Domain.ValueObjects;
+
 namespace umbral_backend.Application.Missions.Commands.CreateMission;
 
 public sealed class CreateMissionCommandValidator : AbstractValidator<CreateMissionCommand>
@@ -21,6 +23,7 @@ public sealed class CreateMissionCommandValidator : AbstractValidator<CreateMiss
             .MaximumLength(MaximumDifficultyLength);
 
         RuleFor(command => command.MaximumTimeMinutes)
-            .GreaterThan(0);
+            .GreaterThan(0)
+            .LessThanOrEqualTo(MaximumTime.MaximumMinutes);
     }
 }

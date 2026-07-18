@@ -25,7 +25,7 @@ test('operator sessions panel is read-only and has no create form', async ({ ope
   await expect(page.locator('[data-testid="sessions-panel"]')).toBeVisible()
   // Creation is now admin-only; operators only operate assigned sessions.
   await expect(page.locator('[data-testid="session-create-form"]')).toHaveCount(0)
-  await expect(page.getByRole('heading', { name: 'My sessions' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Mis sesiones' })).toBeVisible()
   await expect(page.getByText(/Operate the sessions an administrator has assigned to you/)).toBeVisible()
   await expect(page.getByText(`Sessions you're responsible for`)).toBeVisible()
 })
@@ -35,7 +35,7 @@ test('admin sessions panel loads and shows the create form', async ({ adminPage:
   await page.click('[data-testid="nav-sessions"]')
   await expect(page.locator('[data-testid="session-operator-panel"]')).toBeVisible()
   await expect(page.locator('[data-testid="session-create-form"]')).toBeVisible()
-  await expect(page.getByRole('heading', { name: 'Create session' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Crear sesión' })).toBeVisible()
 })
 
 // --- Submit button disabled state ---
@@ -134,7 +134,7 @@ test('admin can create a session from an active mission and it appears in the as
   // rendered in its initial Scheduled state.
   const list = page.locator('[data-testid="session-operator-list"]')
   await expect(list).toContainText('E2E Mission Night')
-  await expect(list).toContainText('Scheduled')
+  await expect(list).toContainText('Programada')
   await expect(page.locator('[data-testid="session-title-input"]')).toHaveValue('')
 })
 
@@ -199,8 +199,8 @@ test('session form shows error banner on 409 and keeps form intact', async ({
 
 // --- HU-11/12 regression ---
 
-test('HU-11 trivias panel still renders for admin after sessions integration', async ({
-  adminPage: page,
+test('HU-11 trivias panel still renders for operator after sessions integration', async ({
+  operatorPage: page,
 }) => {
   await page.goto('/dashboard')
   await page.click('[data-testid="nav-trivias"]')

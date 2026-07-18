@@ -114,6 +114,7 @@ public sealed class MissionRuntimeSource : IMissionRuntimeSource
         int SequenceOrder,
         bool IsActive,
         int Score,
+        int DifficultyFactor,
         double Latitude,
         double Longitude,
         MissionRuntimeClueResponse? Clue)
@@ -126,6 +127,10 @@ public sealed class MissionRuntimeSource : IMissionRuntimeSource
                 SequenceOrder,
                 IsActive,
                 Score,
+                // A mission always carries a difficulty (factor 1/2/3). Guard a missing/zero value from
+                // an older MissionDesign response by falling back to the base factor so the snapshot
+                // invariant (factor >= 1) holds and the target scores at its base weight.
+                DifficultyFactor <= 0 ? 1 : DifficultyFactor,
                 Latitude,
                 Longitude,
                 Clue?.ToMissionRuntimeClueDto());
@@ -150,12 +155,19 @@ public sealed class MissionRuntimeSource : IMissionRuntimeSource
         string? Explanation,
         IReadOnlyList<MissionRuntimeTriviaOptionResponse> Options)
     {
+        // A published trivia question always carries a positive score (MissionDesign's authoring /
+        // publication policy enforces it). This guard mirrors the target DifficultyFactor fallback
+        // above: if the MissionDesign runtime JSON ever fails to bind `scoreValue` (contract drift,
+        // a renamed field), the int would default to 0 and every correct answer would silently score
+        // nothing. Fall back to the fixed authored value so a correct answer always awards points.
+        private const int FallbackTriviaScoreValue = 100;
+
         public MissionRuntimeTriviaQuestionDto ToMissionRuntimeTriviaQuestionDto()
         {
             return new MissionRuntimeTriviaQuestionDto(
                 Prompt,
                 SequenceOrder,
-                ScoreValue,
+                ScoreValue <= 0 ? FallbackTriviaScoreValue : ScoreValue,
                 TimeLimitSeconds,
                 Explanation,
                 Options

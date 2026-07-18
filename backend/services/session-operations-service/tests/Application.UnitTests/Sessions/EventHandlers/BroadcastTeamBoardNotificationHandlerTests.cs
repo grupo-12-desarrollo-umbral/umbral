@@ -157,6 +157,45 @@ public sealed class BroadcastTeamBoardNotificationHandlerTests
         clue.TargetName.Should().BeNull();
     }
 
+    [Fact]
+    public async Task Handle_TargetResolved_BroadcastsOnlyTheScanningTeamsBoardSoTeammatesSeeTheProgress()
+    {
+        // A target scan bumps the team's X/n resolved-target count, but before this handler only the
+        // scanning participant learned it (they re-pull their own board over REST). The fan-out below is
+        // the single point through which the advanced count reaches every teammate on the team:{teamId}
+        // group; if a future refactor drops the TargetResolvedEvent handler, teammates silently freeze on
+        // the stale numerator until their own scan. This test locks the propagation.
+        var session = CreateActiveTreasureHunt(out var teamIds, teamCount: 2);
+        var broadcaster = new Mock<ITeamBoardBroadcaster>();
+        var handler = CreateHandler(session, broadcaster);
+
+        await handler.Handle(
+            new TargetResolvedEvent(
+                session.LiveSessionId,
+                teamIds[0],
+                referenceTeamId: Guid.NewGuid(),
+                teamDisplayName: "Team 1",
+                evidenceSubmissionId: Guid.NewGuid(),
+                activeSubstageId: session.ActiveSubstageId!.Value,
+                targetSnapshotId: Guid.NewGuid(),
+                scoreValue: 100,
+                difficultyFactor: 1,
+                resolvedAt: Now),
+            CancellationToken.None);
+
+        broadcaster.Verify(
+            current => current.BroadcastTeamBoardUpdatedAsync(
+                It.Is<ParticipantTeamBoardDto>(board => board.TeamId == teamIds[0]),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+        broadcaster.Verify(
+            current => current.BroadcastTeamBoardUpdatedAsync(
+                It.Is<ParticipantTeamBoardDto>(board => board.TeamId == teamIds[1]),
+                It.IsAny<CancellationToken>()),
+            Times.Never);
+        broadcaster.VerifyNoOtherCalls();
+    }
+
     private static BroadcastTeamBoardNotificationHandler CreateHandler(
         LiveSession session,
         Mock<ITeamBoardBroadcaster> broadcaster)

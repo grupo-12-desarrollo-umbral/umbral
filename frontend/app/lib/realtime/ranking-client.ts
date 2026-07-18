@@ -19,6 +19,11 @@ type RankingClientOptions = {
   onStatusChange: (status: SessionRealtimeStatus) => void
   onRankingChanged: (snapshot: RankingSnapshotDto) => void
   onReconnected?: () => void
+  // Fires when any team in this session is penalized. The deduction's toast pushes immediately, but the
+  // ranking recalc that reflects it rides the scoring outbox and lands as a later RankingChanged — which
+  // can be missed or (on a clamp-to-zero) carry an unchanged snapshot. Consumers re-fetch the REST
+  // snapshot across the recalc window so the standings drop even without the push.
+  onPenaltyApplied?: () => void
 }
 
 export type RankingRealtimeClient = {
@@ -99,6 +104,7 @@ export function createRankingRealtimeClient({
   onStatusChange,
   onRankingChanged,
   onReconnected,
+  onPenaltyApplied,
 }: RankingClientOptions): RankingRealtimeClient {
   const connection = new HubConnectionBuilder()
     .withUrl(buildHubUrl(), {
@@ -154,6 +160,12 @@ export function createRankingRealtimeClient({
 
   connection.on('RankingChanged', (raw: unknown) => {
     onRankingChanged(normalizeRankingSnapshot(raw))
+  })
+
+  // Penalty payload is not read here — the deduction is applied server-side; this only cues a snapshot
+  // re-fetch so the standings reflect it even if the follow-up RankingChanged push is missed.
+  connection.on('PenaltyApplied', () => {
+    onPenaltyApplied?.()
   })
 
   connection.onreconnecting((error) =>

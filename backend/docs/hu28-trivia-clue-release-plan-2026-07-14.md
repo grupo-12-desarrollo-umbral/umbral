@@ -266,7 +266,7 @@ Also in this phase, the two doc corrections carried over from the handoff's "Rem
 
 ## Test plan
 
-Coverage gate is **93% line *and* branch**, aggregate across all test projects
+Coverage gate is **at least 95% aggregate branch coverage** across all test projects
 (`docs/adr/0005-coverlet-msbuild-for-aggregate-coverage.md`). `session-operations-service`
 currently sits at 95.1% branch — the new branches must carry tests or the gate drops.
 

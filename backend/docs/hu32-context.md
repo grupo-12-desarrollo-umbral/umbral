@@ -167,7 +167,7 @@ fold it into `OperatorSessionPanelDtoFactory`), DES-36 (clue release), DES-45/75
 runtime, lifecycle, timers), DES-86/87 (per-target scoring).
 
 **Coverage:** no stable carried-forward aggregate percentage is recorded for this seam; the ADR-0005
-gate (`coverlet.msbuild`, threshold **93** line+branch, aggregate) is enforced by `dotnet test` —
+gate (`coverlet.msbuild`, **at least 95% aggregate branch coverage**) is enforced by `dotnet test` —
 verify the real service percentage at X.4.
 
 ## What this HU adds
@@ -615,5 +615,5 @@ end-to-end test proves a QR scan submitted through the participant endpoint appe
 its **terminal** state after the outbox drains and the consumer runs (**polled** — the read is
 eventually consistent by AC #5), including a rejected scan carrying its reason; the write path is
 unaffected when the broker is down (bus outbox off the critical path — the evidence write still
-commits and the trace catches up on recovery); **ADR-0005 coverage** (service aggregate line+branch
+commits and the trace catches up on recovery); **ADR-0005 coverage** (service aggregate branch coverage
 ≥ 93).

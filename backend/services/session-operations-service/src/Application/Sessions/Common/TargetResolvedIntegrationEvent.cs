@@ -12,4 +12,5 @@ public sealed record TargetResolvedIntegrationEvent(
     Guid ActiveSubstageId,
     Guid TargetSnapshotId,
     int ScoreValue,
+    int DifficultyFactor,
     DateTimeOffset ResolvedAt);

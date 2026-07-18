@@ -19,7 +19,7 @@ import type {
 
 const PLAY_MODE_LABELS: Record<SubstagePlayMode, string> = {
   Trivia: 'Trivia',
-  TreasureHunt: 'Treasure Hunt',
+  TreasureHunt: 'Búsqueda del tesoro',
 };
 
 // Status coloring mirrors the STATE_DOT_COLORS pattern: the active substage is emphasised in
@@ -64,7 +64,7 @@ function SubstageChip({ substage, position }: { substage: SubstageProgressDto; p
     <View
       accessibilityRole="text"
       accessibilityState={{ selected: substage.status === 'Active' }}
-      accessibilityLabel={`Substage ${position}: ${substage.title}, ${label}, ${substage.status.toLowerCase()}`}
+      accessibilityLabel={`Subetapa ${position}: ${substage.title}, ${label}, ${substage.status.toLowerCase()}`}
       style={{
         flexDirection: 'row',
         alignItems: 'center',
@@ -96,7 +96,7 @@ export function SubstageProgress({ board }: { board: ParticipantTeamBoardDto }) 
 
   return (
     <View
-      accessibilityLabel="Substage progress"
+      accessibilityLabel="Progreso de subetapas"
       style={{
         backgroundColor: colors.panelSurface,
         borderWidth: 1,
@@ -114,7 +114,7 @@ export function SubstageProgress({ board }: { board: ParticipantTeamBoardDto }) 
           </Text>
         ) : null}
         <Text variant="label" muted style={{ textTransform: 'uppercase' }}>
-          {isMulti ? 'Now playing' : 'Substage'}
+          {isMulti ? 'Ahora jugando' : 'Subetapa'}
         </Text>
         {title ? (
           <Text variant="headline" numberOfLines={2}>

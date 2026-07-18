@@ -764,12 +764,13 @@ public sealed class LiveSession : BaseAuditableEntity
         AddDomainEvent(new TargetResolvedEvent(
             LiveSessionId,
             submission.TeamId,
-            resolvedTeam.ReferenceTeamId ?? resolvedTeam.TeamId,
+            ReferenceTeamIdFor(resolvedTeam),
             resolvedTeam.DisplayName,
             submission.EvidenceSubmissionId,
             submission.ActiveSubstageId,
             target!.TargetSnapshotId,
             target.Score,
+            target.DifficultyFactor,
             submission.SubmittedAt));
 
         // D-1: this scan may have just cleared the substage for everyone. Checked after the accept
@@ -982,7 +983,7 @@ public sealed class LiveSession : BaseAuditableEntity
         AddDomainEvent(new AnswerRegisteredEvent(
             LiveSessionId,
             submission.TeamId,
-            answeringTeam.ReferenceTeamId ?? answeringTeam.TeamId,
+            ReferenceTeamIdFor(answeringTeam),
             answeringTeam.DisplayName,
             submission.EvidenceSubmissionId,
             submission.ActiveSubstageId,
@@ -1985,6 +1986,17 @@ public sealed class LiveSession : BaseAuditableEntity
                 team.ReferenceTeamId == teamId)
             ?? throw new TeamNotFoundException(teamId);
     }
+
+    // The cross-context id that scoring keys ranking rows on. Scores/penalties must carry the
+    // ReferenceTeamId (the catalog id the mobile client and seed use) so the ledger row matches the
+    // team the client queries the ranking with. The `?? TeamId` fallback exists only for a team whose
+    // ReferenceTeamId was never set; when that happens the score lands on a session-scoped row the
+    // client never reads — i.e. the score silently goes missing. Centralised here so both scoring
+    // events resolve the id identically and the failure mode is documented in one place rather than
+    // buried in an inline `??` at each call site. A properly-seeded team always has a ReferenceTeamId,
+    // so the fallback should never fire in practice; if telemetry is wanted, assert/log it at team
+    // set-up (application layer) where a logger is available — the domain stays dependency-free.
+    private static Guid ReferenceTeamIdFor(Team team) => team.ReferenceTeamId ?? team.TeamId;
 
     private void EnsureCanAssociateTeam()
     {

@@ -60,8 +60,8 @@ intentional: fail-fast over silent mutation. The shared `PostgreSqlFixture` only
 fresh database, so it never reaches either branch; `PerTargetScoreMigrationTests` covers all three
 paths (backfill, preserve-existing, fail-loudly) against seeded rows on its own container.
 
-The exit criterion is met: `make gate` is green in both services — mission-design 96.7%,
-session-operations 95.2%, both over the ADR-0005 93% threshold.
+The historical exit criterion was met under the gate in effect at the time. Both
+services must be rerun against the current ADR-0005 branch-coverage threshold.
 
 One loose end remains. The comment at `MissionRuntimeSourceIntegrationTests.cs:36` says `WinnerScore`
 "is still emitted by mission-design during the F1/F2" — stale, since F3 is the commit that stops
@@ -191,7 +191,7 @@ contracts assembly. `workflow_refactor.md` claims the two services must land tog
    participant's identity.
 3. **Build + test session-operations and mission-design.** Nothing in §2a/§2b has ever been compiled.
    `make -C backend test SVC=session-operations-service` (note: `SVC` defaults to
-   `identity-access-service`; `make gate-all` for the 93% ADR-0005 coverage gate).
+   `identity-access-service`; `make gate-all` for the ADR-0005 branch-coverage gate).
 4. **Close the `Microsoft.OpenApi` gap in test projects** — see §5, this is a real, unfinished defect.
 5. Commit §2a + §2b + §2c as separate commits.
 6. **Then** start DES-86 F1 from scratch.
@@ -266,7 +266,7 @@ contracts assembly. `workflow_refactor.md` claims the two services must land tog
 ## 7. Suggested skills
 
 - **`aspnet-backend-testing`** — for §4 steps 1-3: the golden-file error-code tests and the unfinished
-  endpoint tests, keeping the ADR-0005 93% coverage gate green.
+  endpoint tests, keeping the ADR-0005 branch-coverage gate green.
 - **`cqrs-mediatr-aspnetcore`** — to finish §2b; the attribution guard sits in a command handler and a
   Chain-of-Responsibility validator (canonical home per ADR-0012:
   `<Area>/Common/<Pipeline>/Validators/`).

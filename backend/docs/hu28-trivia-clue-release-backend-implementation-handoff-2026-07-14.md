@@ -99,8 +99,8 @@ Results:
 - domain tests: 368 passed;
 - integration/API/SignalR tests: 369 passed;
 - total: 1,061 passed, 0 failed;
-- aggregate coverage: 97.95% line, 93.76% branch;
-- coverage gate: green (both thresholds at least 93%);
+- historical coverage was below the current branch threshold;
+- rerun the current coverage gate before treating this handoff as green;
 - scoped `git diff --check`: clean.
 
 Coverage report:

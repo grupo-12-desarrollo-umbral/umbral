@@ -15,7 +15,7 @@ public sealed class MissionTriviaPublicationCheckerTests
     // skipped), and a trivia substage with no selection (skipped).
     private static Mission BuildMission()
     {
-        var mission = Mission.Create("Mission", "Briefing", "Advanced", 45);
+        var mission = Mission.Create("Mission", "Briefing", "Advanced", 30);
         var stage = mission.AddStage("Stage", 1);
         stage.Id = 1;
 

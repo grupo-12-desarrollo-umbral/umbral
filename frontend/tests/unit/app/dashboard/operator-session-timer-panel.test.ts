@@ -50,15 +50,15 @@ describe('OperatorSessionTimerPanel', () => {
     const html = render(snapshot())
     expect(html).toContain('data-testid="timer-remaining"')
     expect(html).toContain('00:18')
-    expect(html).toContain('>Running<')
+    expect(html).toContain('>En curso<')
     expect(html).not.toContain('timer-no-countdown')
   })
 
   it('renders the no-countdown state when no question is active', () => {
     const html = render(snapshot({ activeQuestion: null, remainingSeconds: 0, totalSeconds: 0 }))
     expect(html).toContain('data-testid="timer-no-countdown"')
-    expect(html).toContain('No active question')
-    expect(html).toContain('>No question<')
+    expect(html).toContain('Sin pregunta activa')
+    expect(html).toContain('>Sin pregunta<')
     expect(html).not.toContain('data-testid="timer-remaining"')
   })
 })

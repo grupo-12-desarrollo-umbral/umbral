@@ -32,9 +32,9 @@ export function AnsweredMonitorPanel({
         data-testid="answered-monitor-panel"
         aria-labelledby="answered-monitor-title"
       >
-        <div className={styles.eyebrow} id="answered-monitor-title">Answered monitor</div>
+        <div className={styles.eyebrow} id="answered-monitor-title">Monitor de respuestas</div>
         <p className={styles.stateNote} role="status" data-testid="answered-monitor-unauthorized">
-          You are not authorized to monitor this session.
+          No tienes autorización para monitorear esta sesión.
         </p>
       </section>
     )
@@ -49,9 +49,9 @@ export function AnsweredMonitorPanel({
         data-testid="answered-monitor-panel"
         aria-labelledby="answered-monitor-title"
       >
-        <div className={styles.eyebrow} id="answered-monitor-title">Answered monitor</div>
+        <div className={styles.eyebrow} id="answered-monitor-title">Monitor de respuestas</div>
         <p className={styles.stateNote} role="status" data-testid="answered-monitor-error">
-          Couldn’t load answered status. It will refresh automatically.
+          No se pudo cargar el estado de respuestas. Se actualizará automáticamente.
         </p>
       </section>
     )
@@ -64,9 +64,9 @@ export function AnsweredMonitorPanel({
         data-testid="answered-monitor-panel"
         aria-labelledby="answered-monitor-title"
       >
-        <div className={styles.eyebrow} id="answered-monitor-title">Answered monitor</div>
+        <div className={styles.eyebrow} id="answered-monitor-title">Monitor de respuestas</div>
         <p className={styles.stateNote} data-testid="answered-monitor-empty">
-          {loading ? 'Loading answered status…' : 'No active trivia question.'}
+          {loading ? 'Cargando el estado de respuestas…' : 'No hay ninguna pregunta de trivia activa.'}
         </p>
       </section>
     )
@@ -83,11 +83,11 @@ export function AnsweredMonitorPanel({
       >
         <div className={styles.header}>
           <span className={styles.eyebrow} id="answered-monitor-title" data-testid="answered-monitor-active-question">
-            Question {activeQuestionOrder}
+            Pregunta {activeQuestionOrder}
           </span>
         </div>
         <p className={styles.stateNote} data-testid="answered-monitor-no-roster">
-          Waiting for the team roster…
+          Esperando la lista de equipos…
         </p>
       </section>
     )
@@ -103,10 +103,10 @@ export function AnsweredMonitorPanel({
     >
       <div className={styles.header}>
         <span className={styles.eyebrow} id="answered-monitor-title" data-testid="answered-monitor-active-question">
-          Question {activeQuestionOrder}
+          Pregunta {activeQuestionOrder}
         </span>
         <span className={styles.count} data-testid="answered-monitor-count" aria-live="polite">
-          {answeredCount} / {teams.length} answered
+          {answeredCount} / {teams.length} respondieron
         </span>
       </div>
       <ul className={styles.list}>
@@ -120,7 +120,7 @@ export function AnsweredMonitorPanel({
             <span className={styles.teamName}>{team.displayName}</span>
             <span className={styles.teamCode}>{team.teamCode}</span>
             <span className={styles.status} data-answered={team.answered ? 'true' : 'false'}>
-              {team.answered ? 'Answered' : 'Not answered yet'}
+              {team.answered ? 'Respondió' : 'Sin responder'}
             </span>
           </li>
         ))}

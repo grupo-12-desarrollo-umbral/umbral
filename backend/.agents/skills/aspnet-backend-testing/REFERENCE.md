@@ -139,7 +139,7 @@ private static async Task ResetDatabaseAsync(ApplicationDbContext context)
     => await context.LiveSessions.ExecuteDeleteAsync();
 ```
 
-For API tests that reset through the running host, `TRUNCATE TABLE a, b, c RESTART IDENTITY CASCADE;` is the equivalent. Both match the convention used by the existing services (identity-access, mission-design, session-operations).
+For API tests that reset through the running host, `TRUNCATE TABLE a, b, c RESTART IDENTITY CASCADE;` is the equivalent. Both match the convention used by the existing services (users, mission-design, session-operations).
 
 Do **not** reset by dropping and re-creating the database (`EnsureDeletedAsync()` + `MigrateAsync()` per test). It is slow (full re-migration every test) and, because Testcontainers' default database name is `postgres` (the cluster's maintenance DB), the drop fails with `55006: cannot drop the currently open database`. Migrate once; delete rows thereafter.
 
@@ -194,12 +194,12 @@ Not a backend concern. Owned by the frontend project.
 
 ## Coverage Policy
 
-This skill assumes a minimum project coverage target of 93% for both line and branch coverage.
+This skill assumes a minimum target of 95% aggregate branch coverage. Line coverage is reported for diagnosis but does not gate the build.
 
 Enforcement guidance:
 
 - collect coverage in CI on every mainline change
-- fail the build when either line or branch coverage drops below 93%
+- fail the build when aggregate branch coverage drops below 95%
 - exclude generated code deliberately, not broadly
 - review uncovered code for risk, not only for percentage
 

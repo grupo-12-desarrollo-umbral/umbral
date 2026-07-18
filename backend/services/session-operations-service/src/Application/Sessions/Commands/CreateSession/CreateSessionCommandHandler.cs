@@ -120,7 +120,8 @@ public sealed class CreateSessionCommandHandler
                                 target.Latitude,
                                 target.Longitude,
                                 target.Clue?.Text,
-                                target.Clue?.VisibilityPolicy)));
+                                target.Clue?.VisibilityPolicy,
+                                difficultyFactor: target.DifficultyFactor)));
 
                     continue;
                 }

@@ -4,6 +4,8 @@ namespace umbral_backend.Domain.ValueObjects;
 
 public sealed class MaximumTime : ValueObject
 {
+    public const int MaximumMinutes = 30;
+
     private MaximumTime()
     {
     }
@@ -20,6 +22,11 @@ public sealed class MaximumTime : ValueObject
         if (minutes <= 0)
         {
             throw new MaximumTimeMustBePositiveException();
+        }
+
+        if (minutes > MaximumMinutes)
+        {
+            throw new MaximumTimeExceedsLimitException(MaximumMinutes);
         }
 
         return new MaximumTime(minutes);

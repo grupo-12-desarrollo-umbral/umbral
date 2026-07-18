@@ -89,7 +89,7 @@ live in `<Area>/Common/`, **not** in `Application/Dtos/`. Broadcaster interfaces
 5. **One DI line** in `src/Api/DependencyInjection.cs` (~line 35, beside the other broadcasters):
    `AddSingleton<IEvidenceSubmissionBroadcaster, SignalREvidenceSubmissionBroadcaster>()`.
    **Requires `make rewire SVC=session-operations-service`** — DI registrations do not hot-reload.
-6. **Tests** (RNF-09 ≥90%): handler unit tests mirroring `TeamAnsweredNotificationHandlerTests`, and an
+6. **Tests** (RNF-09: aggregate branch coverage ≥95%): handler unit tests mirroring `TeamAnsweredNotificationHandlerTests`, and an
    integration test mirroring `TeamAnsweredHubTests` asserting delivery to `live-session-operators:{id}`
    and **never** to the participant `live-session:{id}` group.
 
@@ -178,4 +178,4 @@ the QR evidence gap this plan closes — see `session-treasure-hunt-manual-seed.
 | RF-14 / RNF-05 (publish to RabbitMQ on evidence) | **Preserved** — SignalR is additive; publishers untouched |
 | RF-16 / §8, RB-10 (role differentiation, assigned sessions only) | Operator-only group + `SessionAdministrationAuthorizationProxy` assignment check |
 | RNF-03 (real-time over WebSockets) | SignalR |
-| RNF-09 (backend coverage ≥90%) | Item 6 |
+| RNF-09 (backend aggregate branch coverage ≥95%) | Item 6 |

@@ -16,9 +16,9 @@ export function getAccountStatus(user: UserAccessCatalogItemDto): AccountStatus 
 }
 
 export const accountStatusLabel: Record<AccountStatus, string> = {
-  pending: 'Pending invitation',
-  active: 'Active',
-  deactivated: 'Deactivated',
+  pending: 'Invitación pendiente',
+  active: 'Activo',
+  deactivated: 'Desactivado',
 }
 
 export const accountStatusTone: Record<AccountStatus, 'success' | 'warning' | 'critical'> = {

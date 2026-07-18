@@ -40,23 +40,23 @@ function render(props: {
 
 describe('TriviaRoundPanel — substage awareness', () => {
   it('shows the substage ordinal + question number in the active-question header', () => {
-    expect(render({ phase: 'question-active' })).toContain('Substage 2 · Question')
+    expect(render({ phase: 'question-active' })).toContain('Subetapa 2 · Pregunta')
   })
 
   it('renders the advancing copy when moving to the next substage', () => {
     const html = render({ phase: 'substage-advancing', finalizing: false })
     expect(html).toContain('data-phase="substage-advancing"')
-    expect(html).toContain('Advancing to the next substage')
+    expect(html).toContain('Avanzando a la siguiente subetapa')
   })
 
   it('renders the finalizing copy when the final substage completes', () => {
     const html = render({ phase: 'substage-advancing', finalizing: true })
-    expect(html).toContain('Final substage complete')
+    expect(html).toContain('Subetapa final completada')
   })
 
   it('renders the completion state', () => {
     const html = render({ phase: 'complete' })
     expect(html).toContain('data-phase="complete"')
-    expect(html).toContain('Session complete')
+    expect(html).toContain('Sesión completada')
   })
 })
