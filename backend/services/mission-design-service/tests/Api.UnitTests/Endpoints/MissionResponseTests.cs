@@ -13,7 +13,7 @@ public class MissionResponseTests
     [Fact]
     public void FromDto_WhenStatusIsDraft_SetsIsActiveTrueAndIsSourceReadyFalse()
     {
-        var dto = new MissionDto(1, "Mission", "Description", "Advanced", 45, "Draft");
+        var dto = new MissionDto(1, "Mission", "Description", "Advanced", 30, "Draft");
 
         var response = MissionsController.MissionResponse.FromDto(dto);
 
@@ -39,7 +39,7 @@ public class MissionResponseTests
     [Fact]
     public void FromDto_WhenStatusIsInactive_SetsIsActiveFalseAndIsSourceReadyFalse()
     {
-        var dto = new MissionDto(3, "Mission", "Description", "Advanced", 60, "Inactive");
+        var dto = new MissionDto(3, "Mission", "Description", "Advanced", 30, "Inactive");
 
         var response = MissionsController.MissionResponse.FromDto(dto);
 

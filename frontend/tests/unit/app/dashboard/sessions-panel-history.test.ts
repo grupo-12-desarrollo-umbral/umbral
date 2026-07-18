@@ -63,7 +63,7 @@ describe('SessionsPanel session history', () => {
   it('keeps the live operation view closed for a concluded session', () => {
     const markup = render(FINISHED_ID)
 
-    expect(markup).not.toContain('Open live operation')
+    expect(markup).not.toContain('Abrir operación en vivo')
   })
 
   it('does not mount the history panel for a session still in play', () => {
@@ -71,15 +71,15 @@ describe('SessionsPanel session history', () => {
 
     // The live view owns history while a session runs; two mounts would double-fetch and diverge.
     expect(markup).not.toContain('session-history-panel')
-    expect(markup).toContain('Open live operation')
+    expect(markup).toContain('Abrir operación en vivo')
   })
 
   it('shows the loading state until the history read resolves', () => {
     const markup = render(FINISHED_ID)
 
     // Never the empty state on first paint: 'no events' is a claim the read has not yet supported.
-    expect(markup).toContain('Loading history…')
-    expect(markup).not.toContain('No events recorded yet.')
+    expect(markup).toContain('Cargando el historial…')
+    expect(markup).not.toContain('Aún no hay eventos registrados.')
   })
 })
 

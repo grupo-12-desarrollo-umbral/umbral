@@ -31,6 +31,7 @@ public sealed class PublishTargetResolvedIntegrationEventHandler
                 notification.ActiveSubstageId,
                 notification.TargetSnapshotId,
                 notification.ScoreValue,
+                notification.DifficultyFactor,
                 notification.ResolvedAt), cancellationToken);
         }
         catch (Exception exception)

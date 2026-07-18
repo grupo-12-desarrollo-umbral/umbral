@@ -11,7 +11,7 @@ public sealed class FakeAssignableSessionOperatorAccessClient : IAssignableSessi
 {
     public bool IsEligible { get; set; } = true;
 
-    public string Source { get; set; } = "identity-access-service";
+    public string Source { get; set; } = "users-service";
 
     public string? Role { get; set; } = "Operator";
 

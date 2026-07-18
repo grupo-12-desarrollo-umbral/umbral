@@ -19,12 +19,12 @@ export function QrPreview({ code, testId }: { code: string; testId: string }) {
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
       >
-        {open ? 'Hide QR preview' : 'Show QR preview'}
+        {open ? 'Ocultar vista previa del QR' : 'Mostrar vista previa del QR'}
       </button>
       {open && (
         <div className={styles.qrPreview}>
           {trimmed === '' ? (
-            <span className={styles.qrHelp}>Enter or generate a code to preview.</span>
+            <span className={styles.qrHelp}>Ingresa o genera un código para previsualizar.</span>
           ) : (
             <>
               <QRCodeSVG value={trimmed} size={128} />

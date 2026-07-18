@@ -64,7 +64,7 @@ public sealed class MissionInfrastructureIntegrationTests : IClassFixture<Postgr
         var handler = new CreateMissionCommandHandler(new MissionRepository(actContext));
 
         var result = await handler.Handle(
-            new CreateMissionCommand(" Mission Beta ", " Persisted through postgres ", "Advanced", 60),
+            new CreateMissionCommand(" Mission Beta ", " Persisted through postgres ", "Advanced", 30),
             CancellationToken.None);
 
         result.Status.Should().Be("Draft");
@@ -78,7 +78,7 @@ public sealed class MissionInfrastructureIntegrationTests : IClassFixture<Postgr
         mission.Name.Should().Be("Mission Beta");
         mission.Description.Should().Be("Persisted through postgres");
         mission.Difficulty.Value.Should().Be("Advanced");
-        mission.MaximumTime.Minutes.Should().Be(60);
+        mission.MaximumTime.Minutes.Should().Be(30);
         mission.IsActive.Should().BeTrue();
         mission.ArchivedAt.Should().BeNull();
         mission.ActivationState.ToString().Should().Be("Draft");
@@ -95,7 +95,7 @@ public sealed class MissionInfrastructureIntegrationTests : IClassFixture<Postgr
         await ResetDatabaseAsync(setupContext);
         var setupRepository = new MissionRepository(setupContext);
 
-        var mission = Domain.Entities.Mission.Create("Mission One", "Briefing", "Advanced", 45);
+        var mission = Domain.Entities.Mission.Create("Mission One", "Briefing", "Advanced", 30);
         await setupRepository.AddAsync(mission, CancellationToken.None);
 
         var mediator = new CapturingMediator();
@@ -131,7 +131,7 @@ public sealed class MissionInfrastructureIntegrationTests : IClassFixture<Postgr
         await ResetDatabaseAsync(setupContext);
         var setupRepository = new MissionRepository(setupContext);
 
-        var mission = Domain.Entities.Mission.Create("Mission One", "Briefing", "Advanced", 45);
+        var mission = Domain.Entities.Mission.Create("Mission One", "Briefing", "Advanced", 30);
         await setupRepository.AddAsync(mission, CancellationToken.None);
 
         var archivedAt = new DateTimeOffset(2026, 5, 31, 18, 0, 0, TimeSpan.Zero);
@@ -160,7 +160,7 @@ public sealed class MissionInfrastructureIntegrationTests : IClassFixture<Postgr
         await ResetDatabaseAsync(setupContext);
         var repository = new MissionRepository(setupContext);
 
-        var activeMission = Domain.Entities.Mission.Create("Bravo Mission", "Second mission", "Advanced", 60);
+        var activeMission = Domain.Entities.Mission.Create("Bravo Mission", "Second mission", "Advanced", 30);
         var inactiveMission = Domain.Entities.Mission.Create("Alpha Mission", "First mission", "Intermediate", 30);
         await repository.AddAsync(activeMission, CancellationToken.None);
         await repository.AddAsync(inactiveMission, CancellationToken.None);
@@ -214,7 +214,7 @@ public sealed class MissionInfrastructureIntegrationTests : IClassFixture<Postgr
         await triviaRepository.AddAsync(publishedQuiz, CancellationToken.None);
 
         var missionRepository = new MissionRepository(setupContext);
-        var mission = Domain.Entities.Mission.Create("Mission Tree", "Composite persistence", "Advanced", 60);
+        var mission = Domain.Entities.Mission.Create("Mission Tree", "Composite persistence", "Advanced", 30);
 
         var stage = mission.AddStage("Stage 1", 1);
         var treasureSubstage = mission.AddSubstage(stage.Id, Domain.Entities.Substage.CreateTreasureHunt("Treasure", 1));
@@ -428,7 +428,7 @@ public sealed class MissionInfrastructureIntegrationTests : IClassFixture<Postgr
                 triviaQuiz.Id,
                 " Highest mountain? ",
                 100,
-                45,
+                25,
                 " Because Everest is the tallest above sea level. ",
                 true,
                 [
@@ -444,7 +444,7 @@ public sealed class MissionInfrastructureIntegrationTests : IClassFixture<Postgr
 
         result.Questions.Should().ContainSingle();
         result.Questions[0].ScoreValue.Should().Be(100);
-        result.Questions[0].TimeLimitSeconds.Should().Be(45);
+        result.Questions[0].TimeLimitSeconds.Should().Be(25);
         result.Questions[0].Explanation.Should().Be("Because Everest is the tallest above sea level.");
 
         await using var assertContext = BuildContext();
@@ -458,7 +458,7 @@ public sealed class MissionInfrastructureIntegrationTests : IClassFixture<Postgr
         var question = reloadedQuiz.Questions.Single();
         question.Prompt.Should().Be("Highest mountain?");
         question.ScoreValue.Should().Be(100);
-        question.TimeLimit!.Seconds.Should().Be(45);
+        question.TimeLimit!.Seconds.Should().Be(25);
         question.Explanation.Should().Be("Because Everest is the tallest above sea level.");
         question.Options.Should().HaveCount(4);
         question.Options.Count(option => option.IsCorrect).Should().Be(1);
@@ -500,7 +500,7 @@ public sealed class MissionInfrastructureIntegrationTests : IClassFixture<Postgr
                 existingQuestionId,
                 " Updated question ",
                 100,
-                60,
+                25,
                 " Updated explanation ",
                 false,
                 [
@@ -515,7 +515,7 @@ public sealed class MissionInfrastructureIntegrationTests : IClassFixture<Postgr
 
         result.Questions.Should().ContainSingle();
         result.Questions[0].ScoreValue.Should().Be(100);
-        result.Questions[0].TimeLimitSeconds.Should().Be(60);
+        result.Questions[0].TimeLimitSeconds.Should().Be(25);
         result.Questions[0].Explanation.Should().Be("Updated explanation");
 
         await using var assertContext = BuildContext();
@@ -528,7 +528,7 @@ public sealed class MissionInfrastructureIntegrationTests : IClassFixture<Postgr
         var question = reloadedQuiz.Questions.Single();
         question.Prompt.Should().Be("Updated question");
         question.ScoreValue.Should().Be(100);
-        question.TimeLimit!.Seconds.Should().Be(60);
+        question.TimeLimit!.Seconds.Should().Be(25);
         question.Explanation.Should().Be("Updated explanation");
         question.IsActive.Should().BeFalse();
         question.Options.Should().HaveCount(3);
@@ -592,7 +592,7 @@ public sealed class MissionInfrastructureIntegrationTests : IClassFixture<Postgr
                 Domain.Entities.TriviaQuestion.Create(
                     "Who signed the act?",
                     100,
-                    40,
+                    30,
                     "The signer appears in the independence record.",
                     [
                         Domain.Entities.TriviaOption.Create("Person A", 1, true),
@@ -620,7 +620,7 @@ public sealed class MissionInfrastructureIntegrationTests : IClassFixture<Postgr
         detail.Questions[0].TimeLimitSeconds.Should().Be(20);
         detail.Questions[0].Explanation.Should().Be("The first charter date is the accepted answer.");
         detail.Questions[1].ScoreValue.Should().Be(100);
-        detail.Questions[1].TimeLimitSeconds.Should().Be(40);
+        detail.Questions[1].TimeLimitSeconds.Should().Be(30);
         detail.Questions[1].Explanation.Should().Be("The signer appears in the independence record.");
         detail.Questions[1].Options.Select(option => option.OptionText).Should().Equal("Person A", "Person B", "Person C", "Person D");
         detail.Questions[1].Options.Should().HaveCount(4);
@@ -863,7 +863,7 @@ public sealed class MissionInfrastructureIntegrationTests : IClassFixture<Postgr
                 Domain.Entities.TriviaQuestion.Create(
                     "Which building came first?",
                     100,
-                    45,
+                    25,
                     "The main hall predates the library.",
                     [
                         Domain.Entities.TriviaOption.Create("Main Hall", 1, true),

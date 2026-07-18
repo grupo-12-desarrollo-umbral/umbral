@@ -13,5 +13,6 @@ test-results/
 /HANDOFF.md
 
 # Git worktrees
+/.worktrees/
 /umbral-hu-*
 /umbral-des-*

@@ -25,7 +25,7 @@ describe('runSql', () => {
     )
   })
 
-  it('seeds identity_access against the registered team tables', async () => {
+  it('seeds users against the registered team tables', async () => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('skip keycloak')))
 
     await globalSetup()

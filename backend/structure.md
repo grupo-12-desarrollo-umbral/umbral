@@ -123,7 +123,7 @@ umbral-backend/
 │   │   │   │   └── Domain.csproj
 │   │   │   │
 │   │   │   ├── Infrastructure/                                  # External implementations
-│   │   │   │   ├── Identity/                                    # identity-access-service only — see ADR-0001
+│   │   │   │   ├── Identity/                                    # users-service only — see ADR-0001
 │   │   │   │   │   ├── Keycloak/
 │   │   │   │   │   │   ├── KeycloakOptions.cs
 │   │   │   │   │   │   ├── KeycloakClaimMapper.cs
@@ -236,7 +236,7 @@ This structure is entity-oriented by convention, but the folder name should stil
 
 ### `Infrastructure/Identity`
 
-**`identity-access-service` only** — see ADR-0001.
+**`users-service` only** — see ADR-0001.
 
 - Keycloak admin-client configuration for user provisioning
 - Claims translation
@@ -335,7 +335,7 @@ It should also avoid DDD-hostile shortcuts such as:
 ```text
 umbral-backend/
 ├── services/
-│   ├── identity-access-service/
+│   ├── users-service/
 │   │   ├── src/
 │   │   │   ├── Api/
 │   │   │   ├── Application/
@@ -425,7 +425,7 @@ umbral-backend/
 │   ├── keycloak/import/                             # Realm import consumed by the keycloak container
 │   └── postgres/init-dbs.sql                        # Per-service database bootstrap
 ├── docker-compose.yml                               # postgres, keycloak, rabbitmq, seq, api-gateway,
-│                                                    # mission-design, identity-access, session-operations
+│                                                    # mission-design, users, session-operations
 ├── docker-compose.override.yml                      # DEV-ONLY hot-reload loop; auto-loads on bare `up`
 ├── .gitignore
 └── README.md

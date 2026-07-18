@@ -64,7 +64,7 @@ public class TriviaQuizTests
         quiz.AddQuestion(
             "Capital of France?",
             100,
-            45,
+            25,
             null,
             [
                 TriviaOption.Create("Paris", 1, true),
@@ -159,7 +159,7 @@ public class TriviaQuizTests
         var question = quiz.AddQuestion(
             " Capital of France? ",
             100,
-            45,
+            25,
             " Geography baseline ",
             [
                 TriviaOption.Create("Paris", 1, true),
@@ -168,7 +168,7 @@ public class TriviaQuizTests
 
         question.Prompt.Should().Be("Capital of France?");
         question.ScoreValue.Should().Be(100);
-        question.TimeLimit.Should().Be(QuestionTimer.Create(45));
+        question.TimeLimit.Should().Be(QuestionTimer.Create(25));
         question.Explanation.Should().Be("Geography baseline");
         question.Options.Should().ContainSingle(option => option.IsCorrect);
         quiz.Questions.Should().ContainSingle().Which.Should().BeSameAs(question);
@@ -184,7 +184,7 @@ public class TriviaQuizTests
         var question = quiz.AddQuestion(
             "Capital of France?",
             100,
-            45,
+            20,
             null,
             [
                 TriviaOption.Create("Paris", 1, true),
@@ -198,7 +198,7 @@ public class TriviaQuizTests
             27,
             " Capital of Germany? ",
             100,
-            60,
+            25,
             " Updated explanation ",
             [
                 TriviaOption.Create("Paris", 1, false),
@@ -209,7 +209,7 @@ public class TriviaQuizTests
         updated.Should().BeSameAs(question);
         updated.Prompt.Should().Be("Capital of Germany?");
         updated.ScoreValue.Should().Be(100);
-        updated.TimeLimit.Should().Be(QuestionTimer.Create(60));
+        updated.TimeLimit.Should().Be(QuestionTimer.Create(25));
         updated.Explanation.Should().Be("Updated explanation");
         updated.IsActive.Should().BeFalse();
         updated.Options.Should().ContainSingle(option => option.IsCorrect && option.OptionText == "Berlin");
@@ -278,7 +278,7 @@ public class TriviaQuizTests
         quiz.AddQuestion(
             "Capital of France?",
             100,
-            45,
+            25,
             null,
             [
                 TriviaOption.Create("Paris", 1, true),
@@ -356,7 +356,7 @@ public class TriviaQuizTests
         quiz.AddQuestion(
             "Capital of France?",
             100,
-            45,
+            25,
             null,
             [
                 TriviaOption.Create("Paris", 1, true),
@@ -401,7 +401,7 @@ public class TriviaQuizTests
         quiz.AddQuestion(
             "Capital of France?",
             100,
-            45,
+            25,
             null,
             [
                 TriviaOption.Create("Paris", 1, true),
@@ -437,7 +437,7 @@ public class TriviaQuizTests
         sourceQuiz.AddQuestion(
             "Capital of France?",
             100,
-            45,
+            25,
             "Geography baseline",
             [
                 TriviaOption.Create("Paris", 1, true),
@@ -506,7 +506,7 @@ public class TriviaQuizTests
         original.AddQuestion(
             "Capital of France?",
             100,
-            45,
+            25,
             null,
             [
                 TriviaOption.Create("Paris", 1, true),
@@ -533,7 +533,7 @@ public class TriviaQuizTests
         quiz.AddQuestion(
             "Capital of France?",
             100,
-            45,
+            25,
             null,
             [
                 TriviaOption.Create("Paris", 1, true),
@@ -558,7 +558,7 @@ public class TriviaQuizTests
         quiz.AddQuestion(
             "Capital of France?",
             100,
-            45,
+            25,
             null,
             [
                 TriviaOption.Create("Paris", 1, true),
@@ -599,7 +599,7 @@ public class TriviaQuizTests
         var question = quiz.AddQuestion(
             "Capital of France?",
             100,
-            45,
+            25,
             "Geography baseline",
             [
                 TriviaOption.Create("Paris", 1, true),
@@ -626,7 +626,7 @@ public class TriviaQuizTests
         var question1 = quiz.AddQuestion(
             "Capital of France?",
             100,
-            45,
+            25,
             null,
             [
                 TriviaOption.Create("Paris", 1, true),
@@ -635,7 +635,7 @@ public class TriviaQuizTests
         var question2 = quiz.AddQuestion(
             "Capital of Germany?",
             100,
-            45,
+            25,
             null,
             [
                 TriviaOption.Create("Berlin", 1, true),
@@ -644,7 +644,7 @@ public class TriviaQuizTests
         var question3 = quiz.AddQuestion(
             "Capital of Spain?",
             100,
-            45,
+            25,
             null,
             [
                 TriviaOption.Create("Madrid", 1, true),
@@ -671,7 +671,7 @@ public class TriviaQuizTests
         quiz.AddQuestion(
             "Capital of France?",
             100,
-            45,
+            25,
             null,
             [
                 TriviaOption.Create("Paris", 1, true),
@@ -690,7 +690,7 @@ public class TriviaQuizTests
         var question = quiz.AddQuestion(
             "Capital of France?",
             100,
-            45,
+            25,
             null,
             [
                 TriviaOption.Create("Paris", 1, true),

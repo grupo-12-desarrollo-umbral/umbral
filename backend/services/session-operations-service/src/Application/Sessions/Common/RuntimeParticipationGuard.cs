@@ -5,7 +5,7 @@ namespace umbral_backend.Application.Sessions.Common;
 
 // Enforces the cross-context Participation Block (#91) synchronously and fail-closed. Blocking is an
 // access decision on the critical gameplay path, so it must not depend on RabbitMQ (roadmap §2.3):
-// the authoritative gate is this per-call re-check of the identity-access eligibility fact. On deny we
+// the authoritative gate is this per-call re-check of the users-service eligibility fact. On deny we
 // record the block on the SessionParticipant and evict the live connection, then reject. Recovery is
 // automatic — a later Users re-allow passes here and reconnect refreshes the participant to Active.
 public sealed class RuntimeParticipationGuard : IRuntimeParticipationGuard

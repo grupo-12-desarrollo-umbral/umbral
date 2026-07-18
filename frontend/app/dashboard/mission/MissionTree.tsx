@@ -20,10 +20,10 @@ function substageSummary(substage: MissionSubstageDto): string {
   const lead =
     substage.playMode === 'Trivia'
       ? substage.triviaQuizSelection
-        ? 'Quiz selected'
-        : 'No quiz'
+        ? 'Cuestionario seleccionado'
+        : 'Sin cuestionario'
       : plural(substage.targets.length, 'target')
-  return `${lead} · ${plural(substage.clues.length, 'clue')}`
+  return `${lead} · ${plural(substage.clues.length, 'pista')}`
 }
 
 export function MissionTree({
@@ -45,7 +45,7 @@ export function MissionTree({
     <div className={styles.missionTree} data-testid="mission-tree">
       {mission.stages.length === 0 ? (
         <p data-testid="mission-tree-empty" className={styles.treeEmpty}>
-          No stages yet.
+          Aún no hay etapas.
         </p>
       ) : (
         mission.stages.map((stage) => (
@@ -56,7 +56,7 @@ export function MissionTree({
           >
             <div className={styles.treeStageHead}>
               <div>
-                <span className={styles.treeEyebrow}>Stage {stage.sequenceOrder}</span>
+                <span className={styles.treeEyebrow}>Etapa {stage.sequenceOrder}</span>
                 <h3 className={styles.treeNodeTitle}>{stage.title}</h3>
               </div>
               {!readOnly && (
@@ -94,7 +94,7 @@ export function MissionTree({
                         <span className={styles.substageToggleCaret} aria-hidden="true">
                           {isOpen ? '▾' : '▸'}
                         </span>
-                        <span className={styles.treeEyebrow}>Substage {substage.sequenceOrder}</span>
+                        <span className={styles.treeEyebrow}>Subetapa {substage.sequenceOrder}</span>
                         <span className={styles.treeNodeTitle}>{substage.title}</span>
                         <span
                           className={styles.chip}
@@ -131,9 +131,9 @@ export function MissionTree({
 
                         {/* Clue children */}
                         <div className={styles.treeSection}>
-                          <span className={styles.treeSectionLabel}>Clues</span>
+                          <span className={styles.treeSectionLabel}>Pistas</span>
                           {substage.clues.length === 0 ? (
-                            <p className={styles.treeEmpty}>No clues yet.</p>
+                            <p className={styles.treeEmpty}>Aún no hay pistas.</p>
                           ) : (
                             substage.clues.map((clue) => (
                               <div

@@ -29,7 +29,7 @@ public sealed class UpdateMissionCommandHandlerTests
     public async Task Handle_WhenMissionExists_UpdatesMissionAndReturnsDetail()
     {
         var repository = new InMemoryMissionRepository();
-        var mission = Mission.Create("Mission One", "Briefing", "Advanced", 45);
+        var mission = Mission.Create("Mission One", "Briefing", "Advanced", 30);
         repository.Seed(mission);
         var handler = new UpdateMissionCommandHandler(repository);
 
@@ -53,7 +53,7 @@ public sealed class UpdateMissionCommandHandlerTests
         var handler = new UpdateMissionCommandHandler(repository);
 
         var act = () => handler.Handle(
-            new UpdateMissionCommand(99, "Mission", "Briefing", "Advanced", 45),
+            new UpdateMissionCommand(99, "Mission", "Briefing", "Advanced", 30),
             CancellationToken.None);
 
         await act.Should().ThrowAsync<NotFoundException>()
@@ -64,7 +64,7 @@ public sealed class UpdateMissionCommandHandlerTests
     public async Task Handle_WhenMissionIsInactive_ThrowsAndDoesNotPersist()
     {
         var repository = new InMemoryMissionRepository();
-        var mission = Mission.Create("Mission One", "Briefing", "Advanced", 45);
+        var mission = Mission.Create("Mission One", "Briefing", "Advanced", 30);
         mission.Deactivate(new DateTimeOffset(2026, 5, 31, 13, 0, 0, TimeSpan.Zero));
         repository.Seed(mission);
         var handler = new UpdateMissionCommandHandler(repository);

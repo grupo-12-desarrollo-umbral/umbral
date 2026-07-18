@@ -38,12 +38,12 @@ export default function JoinSessionScreen() {
   function handleSubmit() {
     Keyboard.dismiss();
     if (!sessionCode.trim()) {
-      setSessionError('Session code is required.');
+      setSessionError('El código de sesión es obligatorio.');
       fireHaptic('error');
       return;
     }
     if (!isSessionCode(sessionCode)) {
-      setSessionError('Enter a valid 6-character session code.');
+      setSessionError('Ingresa un código de sesión válido de 6 caracteres.');
       fireHaptic('error');
       return;
     }
@@ -63,15 +63,16 @@ export default function JoinSessionScreen() {
 
       <Panel>
         <View style={{ gap: spacing.xs }}>
-          <Text variant="headline">Join your session</Text>
+          <Text variant="headline">Únete a tu sesión</Text>
           <Text variant="body" muted>
-            Enter the session code your operator gave you to see the team lobby.
+            Ingresa el código de sesión que te dio tu operador para ver la sala
+            de equipos.
           </Text>
         </View>
       </Panel>
 
       <TextField
-        label="Session Code"
+        label="Código de sesión"
         value={sessionCode}
         onChangeText={setSessionCode}
         placeholder="RSF231"
@@ -82,10 +83,10 @@ export default function JoinSessionScreen() {
         error={sessionError}
       />
 
-      <Button label="View teams" variant="primary" onPress={handleSubmit} />
+      <Button label="Ver equipos" variant="primary" onPress={handleSubmit} />
 
       <Button
-        label="Back"
+        label="Atrás"
         variant="secondary"
         onPress={() => router.back()}
       />

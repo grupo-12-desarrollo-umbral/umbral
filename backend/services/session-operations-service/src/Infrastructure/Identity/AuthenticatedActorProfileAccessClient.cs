@@ -26,7 +26,7 @@ public sealed class AuthenticatedActorProfileAccessClient : IAuthenticatedActorP
         response.EnsureSuccessStatusCode();
 
         var payload = await response.Content.ReadFromJsonAsync<AuthenticatedActorProfileResponse>(cancellationToken)
-            ?? throw new InvalidOperationException("Identity-access-service returned an empty authenticated actor profile.");
+            ?? throw new InvalidOperationException("Users-service returned an empty authenticated actor profile.");
 
         return new AuthenticatedActorProfileLookupDto(
             payload.UserId,

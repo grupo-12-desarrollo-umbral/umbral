@@ -43,7 +43,7 @@ export function ActivationBar({
         refresh()
       } catch (e) {
         // Readiness 400 and already-active 409 both arrive as a verbatim message.
-        setError(e instanceof Error ? e.message : 'Activation failed. Try again.')
+        setError(e instanceof Error ? e.message : 'Falló la activación. Inténtalo de nuevo.')
       }
     })
   }
@@ -68,7 +68,7 @@ export function ActivationBar({
           onClick={activate}
           type="button"
         >
-          Activate
+          Activar
         </button>
       )}
 

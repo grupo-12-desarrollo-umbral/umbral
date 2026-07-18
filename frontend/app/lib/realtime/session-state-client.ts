@@ -92,6 +92,7 @@ function normalizeTimerNotification(raw: unknown): SessionTimerUpdatedNotificati
     SessionState?: string
     MissionRemainingMilliseconds?: number | null
     MissionTotalMilliseconds?: number | null
+    IsPregameCountdown?: boolean
   }
   return {
     liveSessionId: n.liveSessionId ?? n.LiveSessionId ?? '',
@@ -104,6 +105,8 @@ function normalizeTimerNotification(raw: unknown): SessionTimerUpdatedNotificati
     // absent OR null both mean "no mission deadline seeded yet" — coalesce to null
     missionRemainingMilliseconds: n.missionRemainingMilliseconds ?? n.MissionRemainingMilliseconds ?? null,
     missionTotalMilliseconds: n.missionTotalMilliseconds ?? n.MissionTotalMilliseconds ?? null,
+    // Default false: only the orchestration's pre-game ticks set this true; a missing field is a real tick.
+    isPregameCountdown: n.isPregameCountdown ?? n.IsPregameCountdown ?? false,
   }
 }
 

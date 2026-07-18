@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { lifecycleActions, lifecycleStates, toLifecycleState } from '@/app/lib/session-lifecycle'
+import { isTransitionAllowed, lifecycleActions, lifecycleStates, toLifecycleState } from '@/app/lib/session-lifecycle'
 
 // The one source of truth for which transitions the operator UI offers. If this drifts from the
 // backend state machine, the operator is shown an edge the API will reject (or hidden a valid one).
@@ -46,5 +46,28 @@ describe('session lifecycle transition map', () => {
   it('never offers a manual Finish action from Active or Paused', () => {
     expect(lifecycleActions.Active.some((a) => a.targetState === 'Finished')).toBe(false)
     expect(lifecycleActions.Paused.some((a) => a.targetState === 'Finished')).toBe(false)
+  })
+})
+
+describe('isTransitionAllowed (stale double-transition guard)', () => {
+  it('allows every canonical edge', () => {
+    for (const [state, targets] of Object.entries(CANONICAL)) {
+      for (const target of targets) {
+        expect(isTransitionAllowed(state as never, target as never)).toBe(true)
+      }
+    }
+  })
+
+  it('rejects a same-state transition (the Active->Active resume race)', () => {
+    // A stale "Reanudar" button firing Paused->Active after the session is already Active: the guard
+    // sees the live state is Active, which offers no Active target, so the doomed request is suppressed.
+    expect(isTransitionAllowed('Active', 'Active')).toBe(false)
+    expect(isTransitionAllowed('Paused', 'Paused')).toBe(false)
+  })
+
+  it('rejects edges the current state does not offer', () => {
+    expect(isTransitionAllowed('Active', 'Preparing')).toBe(false)
+    expect(isTransitionAllowed('Finished', 'Active')).toBe(false)
+    expect(isTransitionAllowed('Cancelled', 'Active')).toBe(false)
   })
 })

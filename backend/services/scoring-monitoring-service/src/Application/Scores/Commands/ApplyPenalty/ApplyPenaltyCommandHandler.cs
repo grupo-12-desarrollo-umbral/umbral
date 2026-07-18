@@ -2,6 +2,7 @@ using umbral_backend.Application.Common.Interfaces;
 using umbral_backend.Application.Dtos.Scores;
 using umbral_backend.Application.Scores.Common.Authorization;
 using umbral_backend.Domain.Entities;
+using umbral_backend.Domain.Enums;
 using umbral_backend.Domain.Services;
 using umbral_backend.Domain.ValueObjects;
 
@@ -13,7 +14,7 @@ public sealed class ApplyPenaltyCommandHandler : IRequestHandler<ApplyPenaltyCom
 
     private readonly IScoringSessionAccessResolver _accessResolver;
     private readonly IPenaltyPolicy _penaltyPolicy;
-    private readonly IScorePolicy _scorePolicy;
+    private readonly IScorePolicySelector _scorePolicySelector;
     private readonly IScoreEntryRepository _scoreEntryRepository;
     private readonly IPenaltyRepository _penaltyRepository;
     private readonly ICurrentUser _currentUser;
@@ -21,14 +22,14 @@ public sealed class ApplyPenaltyCommandHandler : IRequestHandler<ApplyPenaltyCom
     public ApplyPenaltyCommandHandler(
         IScoringSessionAccessResolver accessResolver,
         IPenaltyPolicy penaltyPolicy,
-        IScorePolicy scorePolicy,
+        IScorePolicySelector scorePolicySelector,
         IScoreEntryRepository scoreEntryRepository,
         IPenaltyRepository penaltyRepository,
         ICurrentUser currentUser)
     {
         _accessResolver = accessResolver;
         _penaltyPolicy = penaltyPolicy;
-        _scorePolicy = scorePolicy;
+        _scorePolicySelector = scorePolicySelector;
         _scoreEntryRepository = scoreEntryRepository;
         _penaltyRepository = penaltyRepository;
         _currentUser = currentUser;
@@ -42,7 +43,9 @@ public sealed class ApplyPenaltyCommandHandler : IRequestHandler<ApplyPenaltyCom
 
         _penaltyPolicy.ValidateEligibility(request.LiveSessionId, request.TeamId, request.Reason);
 
-        var deductionValue = _scorePolicy.Award(BasePenaltyMagnitude);
+        var deductionValue = _scorePolicySelector
+            .For(ScoreSourceType.Penalty)
+            .Award(BasePenaltyMagnitude, difficultyFactor: 1);
 
         var scoreEntryId = Guid.NewGuid();
         var penalty = Penalty.Create(scoreEntryId, request.Reason, appliedByUserId);

@@ -35,6 +35,16 @@ public sealed class TriviaRoundStartedNotificationHandler : INotificationHandler
             return;
         }
 
+        // Resume (Paused → Active) must NOT replay the pre-game countdown. The countdown is a go-live /
+        // substage-entry affordance, not a resume one: re-running it here broadcasts a spurious 5s
+        // "Prepárate" round to operators who merely un-paused, and — because a pause landing mid-countdown
+        // never cancels the original loop — can overlap two countdowns and double-activate the question.
+        // The authoritative timer worker already re-emits the frozen substage/mission window on resume.
+        if (notification.PreviousState == SessionState.Paused)
+        {
+            return;
+        }
+
         var session = await _liveSessionRepository.GetByIdAsync(notification.LiveSessionId, cancellationToken)
             ?? throw new NotFoundException(nameof(umbral_backend.Domain.Entities.LiveSession), notification.LiveSessionId.ToString());
 

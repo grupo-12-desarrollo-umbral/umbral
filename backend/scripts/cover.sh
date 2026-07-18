@@ -13,7 +13,7 @@ usage() {
 ${BOLD}Usage:${NC}  cover.sh <service-name> [options]
 
 ${BOLD}Arguments:${NC}
-  service-name    One of: identity-access-service, mission-design-service,
+  service-name    One of: users-service, mission-design-service,
                   session-operations-service, scoring-monitoring-service
 
 ${BOLD}Options:${NC}

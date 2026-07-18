@@ -28,9 +28,26 @@ services:
     environment:
       KEYCLOAK_ADMIN: admin
       KEYCLOAK_ADMIN_PASSWORD: admin
-      KC_HOSTNAME: http://localhost:8080
+      # Frontend/base URL Keycloak bakes into issuer and, crucially, into the
+      # links inside verification / password-reset emails. Must be reachable from
+      # wherever the recipient opens the mail — a physical phone can't reach
+      # localhost, so set KC_HOSTNAME_URL=http://<LAN_IP>:8080 in backend/.env.
+      KC_HOSTNAME: ${KC_HOSTNAME_URL:-http://localhost:8080}
       KC_HEALTH_ENABLED: "true"
       KC_HTTP_MANAGEMENT_PORT: "9000"
+      # SMTP for verification / password-reset mail. Defaults keep mail local in
+      # Mailpit; set the KC_SMTP_* vars in backend/.env (see .env.example) to send
+      # real mail through Gmail or any provider instead. The realm's smtpServer
+      # block reads these from the container environment.
+      KC_SMTP_HOST: ${KC_SMTP_HOST:-mailpit}
+      KC_SMTP_PORT: ${KC_SMTP_PORT:-1025}
+      KC_SMTP_FROM: ${KC_SMTP_FROM:-no-reply@umbral.local}
+      KC_SMTP_FROM_DISPLAY_NAME: ${KC_SMTP_FROM_DISPLAY_NAME:-Umbral}
+      KC_SMTP_SSL: ${KC_SMTP_SSL:-false}
+      KC_SMTP_STARTTLS: ${KC_SMTP_STARTTLS:-false}
+      KC_SMTP_AUTH: ${KC_SMTP_AUTH:-false}
+      KC_SMTP_USER: ${KC_SMTP_USER:-}
+      KC_SMTP_PASSWORD: ${KC_SMTP_PASSWORD:-}
     healthcheck:
       test:
         [
@@ -46,6 +63,7 @@ services:
       - "9000:9000"
     volumes:
       - ./deploy/keycloak/import:/opt/keycloak/data/import:ro
+      - ./deploy/keycloak/themes/umbral:/opt/keycloak/themes/umbral:ro
 
   # Local mail catcher. Keycloak points its SMTP server here (see the realm's
   # smtpServer block), so verification and password-reset mail never leaves the
@@ -89,7 +107,7 @@ services:
     depends_on:
       keycloak:
         condition: service_healthy
-      identity-access-service:
+      users-service:
         condition: service_started
       seq:
         condition: service_started
@@ -98,8 +116,15 @@ services:
       ASPNETCORE_URLS: http://+:8080
       Keycloak__Authority: http://keycloak:8080/realms/umbral
       Keycloak__Audience: umbral-web
+      # Accept tokens whose issuer is the configured frontend hostname (KC_HOSTNAME_URL),
+      # the internal service name, and localhost. When KC_HOSTNAME_URL points at a LAN IP
+      # (for physical-device testing), tokens are issued with that issuer — without it here
+      # every authenticated call would 401.
+      Keycloak__ValidIssuers__0: ${KC_HOSTNAME_URL:-http://localhost:8080}/realms/umbral
+      Keycloak__ValidIssuers__1: http://keycloak:8080/realms/umbral
+      Keycloak__ValidIssuers__2: http://localhost:8080/realms/umbral
       ReverseProxy__Clusters__mission-design__Destinations__d1__Address: http://mission-design-service:8080/
-      ReverseProxy__Clusters__identity__Destinations__d1__Address: http://identity-access-service:8080/
+      ReverseProxy__Clusters__users__Destinations__d1__Address: http://users-service:8080/
       # Base URL; the exporter appends /v1/traces and /v1/logs. Seq serves no /v1/metrics.
       OTEL_EXPORTER_OTLP_ENDPOINT: http://seq:5341/ingest/otlp
       # Mandatory: the exporter defaults to gRPC, Seq speaks OTLP over HTTP only,
@@ -126,12 +151,15 @@ services:
       OTEL_EXPORTER_OTLP_ENDPOINT: http://seq:5341/ingest/otlp
       OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
       OTEL_SERVICE_NAME: mission-design-service
-    ports:
-      - "5001:8080"
+    # Not published to the host: this service is reachable only through the api-gateway on the
+    # compose network. Publishing it directly (formerly 5001:8080) let a host/LAN caller bypass
+    # the gateway's JWT validation and forge the trusted X-User-* identity headers the gateway
+    # mints from validated claims — an admin/operator impersonation path (#1 gateway-bypass).
+    # Add a docker-compose.override.yml with a 127.0.0.1-bound port if you need direct debug access.
 
-  identity-access-service:
+  users-service:
     build:
-      context: ./services/identity-access-service
+      context: ./services/users-service
       dockerfile: Dockerfile
     restart: unless-stopped
     depends_on:
@@ -142,7 +170,7 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: Development
       ASPNETCORE_URLS: http://+:8080
-      ConnectionStrings__umbral_backendDb: Host=postgres;Port=5432;Database=identity_access;Username=postgres;Password=postgres
+      ConnectionStrings__umbral_backendDb: Host=postgres;Port=5432;Database=users;Username=postgres;Password=postgres
       # Confidential client-credentials against the umbral realm (see deploy/keycloak/import).
       # The secret is read from the environment, not committed here; the :- fallback is the dev
       # value seeded by the realm import so `docker compose up` works out of the box.
@@ -150,9 +178,8 @@ services:
       Keycloak__ClientSecret: ${KEYCLOAK_BACKEND_CLIENT_SECRET:-umbral-backend-dev-secret}
       OTEL_EXPORTER_OTLP_ENDPOINT: http://seq:5341/ingest/otlp
       OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
-      OTEL_SERVICE_NAME: identity-access-service
-    ports:
-      - "5002:8080"
+      OTEL_SERVICE_NAME: users-service
+    # Not published to the host — gateway-only ingress (see mission-design-service). (#1 gateway-bypass)
 
   session-operations-service:
     build:
@@ -178,15 +205,14 @@ services:
       RabbitMq__VirtualHost: /
       RabbitMq__UserName: guest
       RabbitMq__Password: guest
-      IdentityAccess__BaseAddress: http://identity-access-service:8080/
+      UsersService__BaseAddress: http://users-service:8080/
       PublishedTriviaQuizSource__BaseAddress: http://mission-design-service:8080/
       MissionReadinessSource__BaseAddress: http://mission-design-service:8080/
       MissionRuntimeSource__BaseAddress: http://mission-design-service:8080/
       OTEL_EXPORTER_OTLP_ENDPOINT: http://seq:5341/ingest/otlp
       OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
       OTEL_SERVICE_NAME: session-operations-service
-    ports:
-      - "5003:8080"
+    # Not published to the host — gateway-only ingress (see mission-design-service). (#1 gateway-bypass)
 
   scoring-monitoring-service:
     build:
@@ -213,8 +239,54 @@ services:
       OTEL_EXPORTER_OTLP_ENDPOINT: http://seq:5341/ingest/otlp
       OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
       OTEL_SERVICE_NAME: scoring-monitoring-service
+    # Not published to the host — gateway-only ingress (see mission-design-service). (#1 gateway-bypass)
+
+  # Next.js web app (RNF-10: the whole stack, frontend included, comes up with
+  # `docker compose up`). Split-horizon config: NEXT_PUBLIC_* are baked into the
+  # client bundle at build time and are reached by the BROWSER, so they use the
+  # host-published localhost ports. The non-public vars are read by the Next
+  # SERVER inside the compose network, so they use the internal service names.
+  frontend:
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_GATEWAY_URL: http://localhost:8000
+        # MUST match KC_HOSTNAME (the keycloak service's KC_HOSTNAME_URL). Keycloak 26
+        # pins a single canonical frontend host, so it rewrites the login form action
+        # and redirects to KC_HOSTNAME. If the browser starts the flow on a DIFFERENT
+        # host (e.g. localhost) than KC_HOSTNAME (e.g. a LAN IP for phone email links),
+        # the KC_RESTART cookie is set on one domain and the form POSTs to the other →
+        # "Restart login cookie not found". Keeping this in sync with KC_HOSTNAME_URL
+        # keeps the whole web login flow on one host.
+        NEXT_PUBLIC_KEYCLOAK_URL: ${KC_HOSTNAME_URL:-http://localhost:8080}
+        NEXT_PUBLIC_KEYCLOAK_REALM: umbral
+        NEXT_PUBLIC_KEYCLOAK_CLIENT_ID: umbral-web
+        NEXT_PUBLIC_APP_URL: http://localhost:3000
+    restart: unless-stopped
+    depends_on:
+      api-gateway:
+        condition: service_started
+      keycloak:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      # Server-side calls stay on the compose network.
+      API_GATEWAY_URL: http://api-gateway:8080
+      KEYCLOAK_URL: http://keycloak:8080
+      KEYCLOAK_REALM: umbral
+      KEYCLOAK_CLIENT_ID: umbral-web
+      # umbral-web is a public (PKCE) client in the seeded realm, so the secret
+      # is empty by default; override if the realm is switched to confidential.
+      KEYCLOAK_CLIENT_SECRET: ${KEYCLOAK_WEB_CLIENT_SECRET:-}
+      # Iron-session cookie signing key. Dev fallback only — override in real envs.
+      SESSION_SECRET: ${FRONTEND_SESSION_SECRET:-dev-session-secret-change-in-production}
+      # Seals the kc_session token cookie. REQUIRED under NODE_ENV=production
+      # (app/lib/keycloak-tokens.ts throws without it); in `next dev` it derives
+      # from SESSION_SECRET instead. Dev fallback only — override in real envs.
+      KC_TOKEN_SECRET: ${FRONTEND_KC_TOKEN_SECRET:-dev-kc-token-secret-change-in-production}
     ports:
-      - "5004:8080"
+      - "3000:3000"
 
 volumes:
   postgres-data:

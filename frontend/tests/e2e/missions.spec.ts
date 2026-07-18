@@ -26,18 +26,57 @@ test('admin can create a mission and land on its detail view', async ({ adminPag
   await page.click('[data-testid="nav-missions"]')
   await page.click('[data-testid="create-mission-btn"]')
   await expect(page.locator('[data-testid="mission-form"]')).toBeVisible()
+  const maximumTimeInput = page.locator('[data-testid="mission-time-input"]')
+  await expect(maximumTimeInput).toHaveAttribute('min', '1')
+  await expect(maximumTimeInput).toHaveAttribute('max', '30')
+  await expect(maximumTimeInput).toHaveAttribute('step', '1')
 
   await page.fill('[data-testid="mission-name-input"]', 'Test Mission Alpha')
   await page.fill('[data-testid="mission-description-input"]', 'Navigate to the relay point.')
   await page.selectOption('[data-testid="mission-difficulty-input"]', 'Advanced')
-  await page.fill('[data-testid="mission-time-input"]', '45')
+  await page.fill('[data-testid="mission-time-input"]', '25')
   await page.click('[data-testid="mission-submit-btn"]')
 
   await expect(page.locator('[data-testid="mission-detail"]')).toBeVisible()
   await expect(page.locator('[data-testid="mission-detail-name"]')).toContainText('Test Mission Alpha')
-  await expect(page.locator('[data-testid="mission-detail-status"]')).toContainText('Draft')
+  await expect(page.locator('[data-testid="mission-detail-status"]')).toContainText('Borrador')
   // RF-02: the entered maximum time must survive the full round trip, not merely render as some time.
-  await expect(page.locator('[data-testid="mission-detail-time"]')).toContainText('45 min')
+  await expect(page.locator('[data-testid="mission-detail-time"]')).toContainText('25 min')
+})
+
+test('create form rejects a negative maximum time with an inline error', async ({ adminPage: page }) => {
+  await page.goto('/dashboard')
+  await page.click('[data-testid="nav-missions"]')
+  await page.click('[data-testid="create-mission-btn"]')
+  await expect(page.locator('[data-testid="mission-form"]')).toBeVisible()
+
+  await page.fill('[data-testid="mission-name-input"]', 'Negative Time Mission')
+  await page.fill('[data-testid="mission-description-input"]', 'Should not be creatable.')
+  await page.selectOption('[data-testid="mission-difficulty-input"]', 'Advanced')
+  await page.fill('[data-testid="mission-time-input"]', '-5')
+  await page.click('[data-testid="mission-submit-btn"]')
+
+  // The form must stay open showing an error rather than silently doing nothing or creating the mission.
+  await expect(page.locator('[data-testid="mission-time-error"]')).toBeVisible()
+  await expect(page.locator('[data-testid="mission-form"]')).toBeVisible()
+  await expect(page.locator('[data-testid="mission-detail"]')).toHaveCount(0)
+})
+
+test('create form rejects a maximum time above the 30-minute cap', async ({ adminPage: page }) => {
+  await page.goto('/dashboard')
+  await page.click('[data-testid="nav-missions"]')
+  await page.click('[data-testid="create-mission-btn"]')
+  await expect(page.locator('[data-testid="mission-form"]')).toBeVisible()
+
+  await page.fill('[data-testid="mission-name-input"]', 'Over Limit Mission')
+  await page.fill('[data-testid="mission-description-input"]', 'Should not be creatable.')
+  await page.selectOption('[data-testid="mission-difficulty-input"]', 'Advanced')
+  await page.fill('[data-testid="mission-time-input"]', '31')
+  await page.click('[data-testid="mission-submit-btn"]')
+
+  await expect(page.locator('[data-testid="mission-time-error"]')).toBeVisible()
+  await expect(page.locator('[data-testid="mission-form"]')).toBeVisible()
+  await expect(page.locator('[data-testid="mission-detail"]')).toHaveCount(0)
 })
 
 test('create form cancel returns to list', async ({ adminPage: page }) => {
@@ -45,7 +84,7 @@ test('create form cancel returns to list', async ({ adminPage: page }) => {
   await page.click('[data-testid="nav-missions"]')
   await page.click('[data-testid="create-mission-btn"]')
   await expect(page.locator('[data-testid="mission-form"]')).toBeVisible()
-  await page.getByRole('button', { name: 'Cancel' }).click()
+  await page.getByRole('button', { name: 'Cancelar' }).click()
   await expect(page.locator('[data-testid="missions-panel"]')).toBeVisible()
   await expect(page.locator('[data-testid="mission-form"]')).toHaveCount(0)
 })
@@ -134,7 +173,7 @@ test('admin cannot edit a mission once it has been deactivated', async ({ adminP
 
   await page.click('[data-testid="deactivate-mission-btn"]')
   await page.click('[data-testid="confirm-deactivate-mission-btn"]')
-  await expect(page.locator('[data-testid="mission-detail-status"]')).toContainText('Inactive')
+  await expect(page.locator('[data-testid="mission-detail-status"]')).toContainText('Inactiva')
 
   // Retired: no edit, and no way back into play.
   await expect(page.locator('[data-testid="edit-mission-btn"]')).toBeDisabled()
@@ -150,7 +189,7 @@ test('admin deactivate flow shows confirm step then marks mission inactive', asy
   await page.fill('[data-testid="mission-name-input"]', 'Deactivate Target Mission')
   await page.fill('[data-testid="mission-description-input"]', 'To be deactivated.')
   await page.selectOption('[data-testid="mission-difficulty-input"]', 'Advanced')
-  await page.fill('[data-testid="mission-time-input"]', '60')
+  await page.fill('[data-testid="mission-time-input"]', '30')
   await page.click('[data-testid="mission-submit-btn"]')
 
   await expect(page.locator('[data-testid="deactivate-mission-btn"]')).toBeVisible()
@@ -158,7 +197,7 @@ test('admin deactivate flow shows confirm step then marks mission inactive', asy
   await expect(page.locator('[data-testid="confirm-deactivate-mission-btn"]')).toBeVisible()
   await page.click('[data-testid="confirm-deactivate-mission-btn"]')
 
-  await expect(page.locator('[data-testid="mission-detail-status"]')).toContainText('Inactive')
+  await expect(page.locator('[data-testid="mission-detail-status"]')).toContainText('Inactiva')
   await expect(page.locator('[data-testid="deactivate-mission-btn"]')).toHaveCount(0)
 })
 
@@ -178,7 +217,7 @@ test('admin deactivate confirm cancel dismisses without change', async ({ adminP
   await page.locator('button:has-text("Cancel")').last().click()
 
   await expect(page.locator('[data-testid="confirm-deactivate-mission-btn"]')).toHaveCount(0)
-  await expect(page.locator('[data-testid="mission-detail-status"]')).toHaveText('Draft')
+  await expect(page.locator('[data-testid="mission-detail-status"]')).toHaveText('Borrador')
 })
 
 // --- Activate flow ---
@@ -192,14 +231,14 @@ test('admin can activate a runtime-ready draft mission', async ({ adminPage: pag
   await row.locator('[data-testid^="view-mission-btn-"]').click()
 
   await expect(page.locator('[data-testid="mission-detail-name"]')).toContainText('E2E Activatable Mission')
-  await expect(page.locator('[data-testid="mission-detail-status"]')).toContainText('Draft')
+  await expect(page.locator('[data-testid="mission-detail-status"]')).toContainText('Borrador')
 
   // ActivationBar loads readiness asynchronously — wait for the button to be enabled.
   await expect(page.locator('[data-testid="activate-mission-btn"]')).toBeEnabled({ timeout: 10000 })
 
   await page.click('[data-testid="activate-mission-btn"]')
 
-  await expect(page.locator('[data-testid="mission-detail-status"]')).toContainText('Ready')
+  await expect(page.locator('[data-testid="mission-detail-status"]')).toContainText('Lista')
   await expect(page.locator('[data-testid="activate-mission-btn"]')).toHaveCount(0)
 })
 
@@ -215,14 +254,14 @@ test('activating a mission with no runtime plan surfaces readiness errors', asyn
   await page.fill('[data-testid="mission-time-input"]', '20')
   await page.click('[data-testid="mission-submit-btn"]')
 
-  await expect(page.locator('[data-testid="mission-detail-status"]')).toContainText('Draft')
+  await expect(page.locator('[data-testid="mission-detail-status"]')).toContainText('Borrador')
 
   // ActivationBar loads readiness asynchronously — wait for failures to appear.
   await expect(page.locator('[data-testid="readiness-failure"]').first()).toBeVisible({ timeout: 10000 })
   // Button is disabled because readiness fails.
   await expect(page.locator('[data-testid="activate-mission-btn"]')).toBeDisabled()
   // Mission stays Draft.
-  await expect(page.locator('[data-testid="mission-detail-status"]')).toContainText('Draft')
+  await expect(page.locator('[data-testid="mission-detail-status"]')).toContainText('Borrador')
 })
 
 // --- Status badge in catalog ---

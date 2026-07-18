@@ -1130,6 +1130,12 @@ namespace umbral_backend.Infrastructure.Migrations
                                         .HasColumnType("character varying(128)")
                                         .HasColumnName("clue_visibility_policy");
 
+                                    b2.Property<int>("DifficultyFactor")
+                                        .ValueGeneratedOnAdd()
+                                        .HasColumnType("integer")
+                                        .HasDefaultValue(1)
+                                        .HasColumnName("difficulty_factor");
+
                                     b2.Property<bool>("IsActive")
                                         .HasColumnType("boolean")
                                         .HasColumnName("is_active");

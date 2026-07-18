@@ -26,7 +26,7 @@ import { clueKey, type ActiveTargetDto, type VisibleClueDto } from '@/lib/realti
 import type { RankingRowDto } from '@/lib/realtime/ranking-types';
 import { rankingErrorCopy } from '@/lib/realtime/ranking-error-copy';
 import type { TimerSnapshotError } from '@/lib/api/sessions';
-import { PodiumLeaderboard } from './podium-leaderboard';
+import { RankingLeaderboard } from './ranking-leaderboard';
 
 // Fallback other-team cards used when real ranking rows have not yet loaded.
 const PLACEHOLDER_OTHER_TEAMS: readonly { name: string }[] = [
@@ -43,7 +43,7 @@ function ClueCard({ clue }: { clue: VisibleClueDto }) {
   return (
     <Card parchment>
       <View accessibilityRole="text" style={{ gap: spacing.xs }}>
-        <Text variant="label" muted>{clue.targetName ?? 'CLUE'}</Text>
+        <Text variant="label" muted>{clue.targetName ?? 'PISTA'}</Text>
         <Text variant="mono">{clue.clueText}</Text>
       </View>
     </Card>
@@ -62,6 +62,10 @@ export type TreasureHuntBoardProps = {
   // Active treasure-hunt targets with coordinates; drives the Map tab (#156). Absent/empty → map
   // empty state. Optional so a board push that predates #156 still renders (degrades, never crashes).
   activeTargets?: readonly ActiveTargetDto[];
+  // The active substage's snapshot id, threaded to the clue surface so its arrival toast re-arms on a
+  // substage boundary (see OperativeClueSurface). Also re-arms this board's own reveal-dot baseline so
+  // a new substage's visible-on-start clues flash as new. Optional → degrades to mount-only baseline.
+  substageId?: string | null;
   // The board owns the whole viewport (its body is the only scroller), so session chrome that would
   // otherwise sit around it has to come in: `headerSlot` rides the sticky header — it is where the
   // substage name belongs (#171, see below) and where a transient connection banner stays readable on
@@ -73,7 +77,7 @@ export type TreasureHuntBoardProps = {
   // trivia. Absent → no scan button (e.g. a board push that predates the scanner).
   onScan?: () => void;
   // HU-25B: real session ranking rows. When provided the TEAMS tab renders the
-  // live PodiumLeaderboard; when absent it falls back to the participant's own
+  // live RankingLeaderboard; when absent it falls back to the participant's own
   // team card + placeholder other-team cards.
   rankingRows?: readonly RankingRowDto[];
   // Per-session team id used to highlight the participant's own team in the
@@ -88,6 +92,14 @@ export type TreasureHuntBoardProps = {
   onRetryRanking?: () => void;
 };
 
+// Display labels for the segmented tabs. Keyed by the tab discriminant so the state logic keeps using
+// the English enum values while the UI reads in Spanish.
+const TAB_LABELS: Record<'map' | 'clues' | 'teams', string> = {
+  map: 'MAPA',
+  clues: 'PISTAS',
+  teams: 'EQUIPOS',
+};
+
 export function TreasureHuntBoard({
   teamDisplayName,
   currentScore,
@@ -96,6 +108,7 @@ export function TreasureHuntBoard({
   totalActiveTargets,
   visibleClues,
   activeTargets = [],
+  substageId,
   headerSlot,
   onLeave,
   onScan,
@@ -125,6 +138,10 @@ export function TreasureHuntBoard({
   // clues (already-seen) so a reconnect never false-flashes; only clues arriving in a LATER render
   // are "new". Prop-diff bookkeeping only — never owns board state.
   const seenClueIds = useRef<Set<string>>(new Set(visibleClues.map(clueKey)));
+  // Mirror of OperativeClueSurface's substage re-arm: on a substage boundary the incoming substage's
+  // visible-on-start clues should read as new, not inherit the prior baseline. Seeded to `substageId`
+  // so the first mount stays quiet (reconnect rule).
+  const lastSubstageId = useRef<string | null | undefined>(substageId);
 
   // Reveal-badge state, recomputed from the seen-set baseline whenever the tab or the
   // clue list changes. Kept in state (not derived at render) because the source is a ref,
@@ -138,6 +155,10 @@ export function TreasureHuntBoard({
     // baseline lives in a ref (mount snapshot, mutated on ack), so this derivation can only
     // run in an effect, not at render.
     /* eslint-disable react-hooks/set-state-in-effect */
+    if (substageId !== lastSubstageId.current) {
+      lastSubstageId.current = substageId;
+      seenClueIds.current = new Set();
+    }
     if (tab === 'clues') {
       for (const c of visibleClues) seenClueIds.current.add(clueKey(c));
       setHasNewClues(false);
@@ -145,11 +166,11 @@ export function TreasureHuntBoard({
       setHasNewClues(visibleClues.some((c) => !seenClueIds.current.has(clueKey(c))));
     }
     /* eslint-enable react-hooks/set-state-in-effect */
-  }, [tab, visibleClues]);
+  }, [tab, visibleClues, substageId]);
 
   return (
     <View
-      accessibilityLabel={`Treasure hunt board for ${teamDisplayName}`}
+      accessibilityLabel={`Tablero de búsqueda del tesoro para ${teamDisplayName}`}
       style={{ flex: 1, backgroundColor: colors.ivoryFog }}
     >
       <View
@@ -169,10 +190,10 @@ export function TreasureHuntBoard({
           <View style={{ flex: 1, paddingRight: spacing.sm }}>
             {/* Active substage name is owned by the shared SubstageProgress component (#171), which
                 the host hands in through `headerSlot` above. */}
-            <Text variant="label" muted>TREASURE HUNT</Text>
+            <Text variant="label" muted>BÚSQUEDA DEL TESORO</Text>
           </View>
           <View style={{ alignItems: 'flex-end' }}>
-            <Text variant="label" muted>SCORE</Text>
+            <Text variant="label" muted>PUNTUACIÓN</Text>
             <Text style={{ ...typography.headline, fontSize: 22, color: colors.emberAccentStrong, fontVariant: ['tabular-nums'] }}>
               {currentScore}
             </Text>
@@ -198,7 +219,7 @@ export function TreasureHuntBoard({
               <Pressable
                 key={k}
                 accessibilityRole="button"
-                accessibilityLabel={showDot ? 'New clue available' : undefined}
+                accessibilityLabel={showDot ? 'Nueva pista disponible' : undefined}
                 onPress={() => setTab(k)}
                 style={{
                   flex: 1,
@@ -214,7 +235,7 @@ export function TreasureHuntBoard({
                 }}
               >
                 <Text variant="label" style={{ color: tab === k ? colors.textInk : colors.textMuted }}>
-                  {k.toUpperCase()}
+                  {TAB_LABELS[k]}
                 </Text>
                 {showDot ? (
                   // Ember dot: tiny new-clue accent (DESIGN Ember Rule); ClueCard artifact untouched.
@@ -239,7 +260,7 @@ export function TreasureHuntBoard({
                 <Text
                   variant="title"
                   accessibilityRole="text"
-                  accessibilityLabel={`Targets resolved ${resolvedTargets} of ${totalActiveTargets}`}
+                  accessibilityLabel={`Targets resueltos ${resolvedTargets} de ${totalActiveTargets}`}
                   style={{ fontVariant: ['tabular-nums'] }}
                 >
                   {resolvedTargets} / {totalActiveTargets} targets
@@ -253,13 +274,13 @@ export function TreasureHuntBoard({
               orderedClues.map((c) => <ClueCard key={clueKey(c)} clue={c} />)
             ) : (
               <Card>
-                <Text variant="body" muted>No clues yet.</Text>
+                <Text variant="body" muted>Aún no hay pistas.</Text>
               </Card>
             )}
           </Screen>
         ) : rankingRows && ownTeamId ? (
           <Screen contentContainerStyle={{ gap: spacing.sm, paddingBottom: 100 }}>
-            <PodiumLeaderboard rows={rankingRows} ownTeamId={ownTeamId} />
+            <RankingLeaderboard rows={rankingRows} ownTeamId={ownTeamId} />
           </Screen>
         ) : rankingError ? (
           <Screen contentContainerStyle={{ gap: spacing.sm, paddingBottom: 100 }}>
@@ -274,7 +295,7 @@ export function TreasureHuntBoard({
                 {onRetryRanking ? (
                   <Pressable
                     accessibilityRole="button"
-                    accessibilityLabel="Retry loading standings"
+                    accessibilityLabel="Reintentar cargar la clasificación"
                     onPress={onRetryRanking}
                     style={{
                       backgroundColor: colors.raisedSurface,
@@ -286,7 +307,7 @@ export function TreasureHuntBoard({
                       paddingVertical: spacing.xs,
                     }}
                   >
-                    <Text variant="label" style={{ color: colors.textInk }}>RETRY</Text>
+                    <Text variant="label" style={{ color: colors.textInk }}>REINTENTAR</Text>
                   </Pressable>
                 ) : null}
               </View>
@@ -298,7 +319,7 @@ export function TreasureHuntBoard({
               <View style={{ gap: spacing.xs }}>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
                   <Text variant="title" accent>{teamDisplayName}</Text>
-                  <Text variant="label" muted>YOUR TEAM</Text>
+                  <Text variant="label" muted>TU EQUIPO</Text>
                 </View>
                 <Text
                   style={{ ...typography.headline, fontSize: 22, color: colors.emberAccentStrong, fontVariant: ['tabular-nums'] }}
@@ -308,7 +329,7 @@ export function TreasureHuntBoard({
               </View>
             </Card>
             {PLACEHOLDER_OTHER_TEAMS.map((t) => (
-              <Card key={t.name} accessibilityHint="Sample standings — not live yet">
+              <Card key={t.name} accessibilityHint="Clasificación de ejemplo — aún no en vivo">
                 <View style={{ gap: spacing.xs }}>
                   <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
                     <Text variant="title">{t.name}</Text>
@@ -322,10 +343,10 @@ export function TreasureHuntBoard({
                         paddingVertical: spacing.one,
                       }}
                     >
-                      <Text variant="label" muted>PLACEHOLDER</Text>
+                      <Text variant="label" muted>EJEMPLO</Text>
                     </View>
                   </View>
-                  <Text variant="body" muted>Sample standings — not live yet</Text>
+                  <Text variant="body" muted>Clasificación de ejemplo — aún no en vivo</Text>
                 </View>
               </Card>
             ))}
@@ -340,7 +361,7 @@ export function TreasureHuntBoard({
         <Pressable
           testID="treasure-hunt-scan-button"
           accessibilityRole="button"
-          accessibilityLabel="Scan a target QR code"
+          accessibilityLabel="Escanea un código QR de target"
           onPress={onScan}
           style={{
             position: 'absolute',
@@ -358,7 +379,7 @@ export function TreasureHuntBoard({
           }}
         >
           <Text variant="label" style={{ color: colors.ivoryFog }}>
-            SCAN TARGET
+            ESCANEAR TARGET
           </Text>
         </Pressable>
       ) : null}
@@ -369,6 +390,7 @@ export function TreasureHuntBoard({
       <OperativeClueSurface
         visibleClues={visibleClues}
         home={{ listVisible: tab === 'clues', onOpen: () => setTab('clues') }}
+        substageId={substageId}
       />
 
       {/* persistent "your team" strip so team identity survives tab switches */}
@@ -389,20 +411,20 @@ export function TreasureHuntBoard({
       >
         <View style={{ flex: 1 }}>
           <Text variant="label" style={{ color: colors.emberAccentSoft }}>
-            YOUR TEAM · {teamDisplayName}
+            TU EQUIPO · {teamDisplayName}
           </Text>
           <Text
             variant="body"
             style={{ color: colors.ivoryFog, fontVariant: ['tabular-nums'] }}
             numberOfLines={1}
           >
-            SCORE {currentScore}
+            PUNTUACIÓN {currentScore}
           </Text>
         </View>
         {onLeave ? (
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="Leave team space"
+            accessibilityLabel="Salir del espacio de equipo"
             onPress={onLeave}
             style={{
               borderWidth: 1,
@@ -413,7 +435,7 @@ export function TreasureHuntBoard({
               paddingVertical: spacing.xs,
             }}
           >
-            <Text variant="label" style={{ color: colors.emberAccentSoft }}>LEAVE</Text>
+            <Text variant="label" style={{ color: colors.emberAccentSoft }}>SALIR</Text>
           </Pressable>
         ) : null}
       </View>

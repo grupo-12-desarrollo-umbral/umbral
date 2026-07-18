@@ -156,6 +156,45 @@ public sealed class TriviaRoundStartedNotificationHandlerTests
     }
 
     [Fact]
+    public async Task Handle_WhenResumingFromPaused_DoesNotReplayCountdownOrActivate()
+    {
+        // Resume is Paused → Active. Even for a trivia session with no active question yet (so the
+        // ActiveQuestionIndex guard would otherwise pass), the handler must bail on the resume edge:
+        // no spurious pre-game countdown, no re-activation. It must not even hit the repository.
+        var session = CreateTriviaSession();
+        var repository = new Mock<ILiveSessionRepository>();
+        repository
+            .Setup(repo => repo.GetByIdAsync(session.LiveSessionId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(session);
+        var timerBroadcaster = new Mock<ISessionTimerBroadcaster>();
+        var facade = new Mock<ITriviaRoundOrchestratorFacade>();
+        var handler = new TriviaRoundStartedNotificationHandler(
+            repository.Object,
+            timerBroadcaster.Object,
+            facade.Object,
+            new ImmediateDelayTimeProvider(Now));
+
+        await handler.Handle(
+            new SessionStateChangedEvent(session.LiveSessionId, SessionState.Paused, SessionState.Active, Now),
+            CancellationToken.None);
+
+        repository.Verify(
+            repo => repo.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+        timerBroadcaster.Verify(
+            broadcaster => broadcaster.BroadcastTimerUpdatedAsync(
+                It.IsAny<SessionTimerUpdatedNotificationDto>(),
+                It.IsAny<CancellationToken>()),
+            Times.Never);
+        facade.Verify(
+            current => current.ActivateNextQuestionAsync(
+                It.IsAny<LiveSession>(),
+                It.IsAny<DateTimeOffset>(),
+                It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Fact]
     public async Task Handle_WhenSecondTriviaSubstageIsActive_BroadcastsCountdownThenActivatesNextQuestion()
     {
         var session = LiveSessionTestFactory.CreateScheduledMultiSubstageTrivia();

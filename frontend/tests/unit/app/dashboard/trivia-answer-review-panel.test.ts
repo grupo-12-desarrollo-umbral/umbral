@@ -41,26 +41,26 @@ describe('TriviaAnswerReviewPanel', () => {
 
   it('shows the correct badge for a correct answer', () => {
     const html = render()
-    expect(html).toMatch(/data-testid="trivia-answer-review-correct-team-a"[^>]*>Correct</)
+    expect(html).toMatch(/data-testid="trivia-answer-review-correct-team-a"[^>]*>Correcta</)
     expect(html).toContain('data-tone="success"')
   })
 
   it('shows the incorrect badge for a wrong answer', () => {
     const html = render()
-    expect(html).toMatch(/data-testid="trivia-answer-review-correct-team-b"[^>]*>Incorrect</)
+    expect(html).toMatch(/data-testid="trivia-answer-review-correct-team-b"[^>]*>Incorrecta</)
     expect(html).toContain('data-tone="critical"')
   })
 
   it('shows the no-answer badge when a team did not answer', () => {
     const html = render()
-    expect(html).toMatch(/data-testid="trivia-answer-review-correct-team-c"[^>]*>No answer</)
+    expect(html).toMatch(/data-testid="trivia-answer-review-correct-team-c"[^>]*>Sin respuesta</)
     expect(html).toContain('data-tone="muted"')
   })
 
   it('displays the selected option sequence order for teams that answered', () => {
     const html = render()
-    expect(html).toContain('Option 2')
-    expect(html).toContain('Option 1')
+    expect(html).toContain('Opción 2')
+    expect(html).toContain('Opción 1')
   })
 
   it('displays an em-dash for teams without an answer', () => {
@@ -91,7 +91,7 @@ describe('TriviaAnswerReviewPanel', () => {
     const rowCHtml = html.slice(rowCStart, html.indexOf('</li>', rowCStart))
     expect(rowCHtml).toContain('data-has-answer="false"')
     expect(rowCHtml).toContain('<span class="option">—</span>')
-    expect(rowCHtml).toMatch(/data-testid="trivia-answer-review-correct-team-c"[^>]*>No answer</)
+    expect(rowCHtml).toMatch(/data-testid="trivia-answer-review-correct-team-c"[^>]*>Sin respuesta</)
     expect(rowCHtml).toContain('<span class="points">—</span>')
   })
 
@@ -104,13 +104,13 @@ describe('TriviaAnswerReviewPanel', () => {
   it('renders the loading state when no question is set and loading is true', () => {
     const html = render({ questionSequenceOrder: null, loading: true })
     expect(html).toContain('data-testid="trivia-answer-review-empty"')
-    expect(html).toContain('Loading answer review')
+    expect(html).toContain('Cargando la revisión de respuestas')
   })
 
   it('renders the waiting-for-roster state when a question is set but teams are empty', () => {
     const html = render({ questionSequenceOrder: 2, teams: [] })
     expect(html).toContain('data-testid="trivia-answer-review-no-roster"')
-    expect(html).toContain('Question 2')
+    expect(html).toContain('Pregunta 2')
     expect(html).not.toContain('data-testid="trivia-answer-review-empty"')
   })
 
@@ -132,6 +132,6 @@ describe('TriviaAnswerReviewPanel', () => {
   it('shows the question sequence order in the header', () => {
     const html = render({ questionSequenceOrder: 7 })
     expect(html).toContain('data-testid="trivia-answer-review-question"')
-    expect(html).toContain('Question 7')
+    expect(html).toContain('Pregunta 7')
   })
 })

@@ -31,7 +31,7 @@ public sealed class MissionStructureCommandHandlerTests
     public async Task AddMissionNode_AddsStageSubstageAndClueIntoCompositeShape()
     {
         var repository = new InMemoryMissionRepository();
-        var mission = Mission.Create("Mission", "Briefing", "Advanced", 45);
+        var mission = Mission.Create("Mission", "Briefing", "Advanced", 30);
         repository.Seed(mission);
 
         var handler = new AddMissionNodeCommandHandler(repository);
@@ -161,7 +161,7 @@ public sealed class MissionStructureCommandHandlerTests
     public async Task ActivateMission_WhenRuntimePlanIsNotReady_ThrowsDomainReadinessException()
     {
         var repository = new InMemoryMissionRepository();
-        var mission = Mission.Create("Mission", "Briefing", "Advanced", 45);
+        var mission = Mission.Create("Mission", "Briefing", "Advanced", 30);
         repository.Seed(mission);
         var handler = new ActivateMissionCommandHandler(repository, new InMemoryTriviaQuizRepository());
 
@@ -186,7 +186,7 @@ public sealed class MissionStructureCommandHandlerTests
     public async Task GetMissionReadiness_ReturnsDomainPolicyFailures()
     {
         var repository = new InMemoryMissionRepository();
-        var mission = Mission.Create("Mission", "Briefing", "Advanced", 45);
+        var mission = Mission.Create("Mission", "Briefing", "Advanced", 30);
         repository.Seed(mission);
         var handler = new GetMissionReadinessQueryHandler(repository, new InMemoryTriviaQuizRepository());
 
@@ -266,6 +266,59 @@ public sealed class MissionStructureCommandHandlerTests
     }
 
     [Fact]
+    public async Task ActivateMission_WhenTriviaTimersExceedMaximumTime_ThrowsReadinessException()
+    {
+        var missionRepository = new InMemoryMissionRepository();
+        var quizRepository = new InMemoryTriviaQuizRepository();
+        // 1-minute mission = 60s budget; quiz of 3 × 30s = 90s cannot fit.
+        var mission = CreateShortMissionWithTriviaSubstage(missionRepository, out var stage, out var substage);
+        var quiz = CreatePublishedTriviaQuiz(questionCount: 3, timerSeconds: 30);
+        quizRepository.Seed(quiz);
+        mission.SelectTriviaQuiz(stage.Id, substage.Id, quiz.Id);
+        var handler = new ActivateMissionCommandHandler(missionRepository, quizRepository);
+
+        var act = () => handler.Handle(new ActivateMissionCommand(mission.Id), CancellationToken.None);
+
+        await act.Should().ThrowAsync<MissionNotReadyForActivationException>()
+            .WithMessage("*exceeds the mission maximum time*");
+    }
+
+    [Fact]
+    public async Task GetMissionReadiness_WhenTriviaTimersExceedMaximumTime_IsNotReadyWithTimeBudgetFailure()
+    {
+        var missionRepository = new InMemoryMissionRepository();
+        var quizRepository = new InMemoryTriviaQuizRepository();
+        var mission = CreateShortMissionWithTriviaSubstage(missionRepository, out var stage, out var substage);
+        var quiz = CreatePublishedTriviaQuiz(questionCount: 3, timerSeconds: 30);
+        quizRepository.Seed(quiz);
+        mission.SelectTriviaQuiz(stage.Id, substage.Id, quiz.Id);
+        var handler = new GetMissionReadinessQueryHandler(missionRepository, quizRepository);
+
+        var result = await handler.Handle(new GetMissionReadinessQuery(mission.Id), CancellationToken.None);
+
+        result.IsReady.Should().BeFalse();
+        result.Failures!.Should().Contain(failure => failure.Contains("exceeds the mission maximum time"));
+    }
+
+    [Fact]
+    public async Task GetMissionReadiness_WhenTriviaTimersEqualMaximumTime_IsReady()
+    {
+        var missionRepository = new InMemoryMissionRepository();
+        var quizRepository = new InMemoryTriviaQuizRepository();
+        // 1-minute mission = 60s budget; quiz of 2 × 30s = 60s sits exactly at the boundary.
+        var mission = CreateShortMissionWithTriviaSubstage(missionRepository, out var stage, out var substage);
+        var quiz = CreatePublishedTriviaQuiz(questionCount: 2, timerSeconds: 30);
+        quizRepository.Seed(quiz);
+        mission.SelectTriviaQuiz(stage.Id, substage.Id, quiz.Id);
+        var handler = new GetMissionReadinessQueryHandler(missionRepository, quizRepository);
+
+        var result = await handler.Handle(new GetMissionReadinessQuery(mission.Id), CancellationToken.None);
+
+        result.IsReady.Should().BeTrue();
+        result.Failures.Should().BeEmpty();
+    }
+
+    [Fact]
     public async Task RemoveMissionNode_OnDeactivatedMission_IsRejected()
     {
         var repository = new InMemoryMissionRepository();
@@ -305,7 +358,7 @@ public sealed class MissionStructureCommandHandlerTests
         out Stage stage,
         out Substage substage)
     {
-        var mission = Mission.Create("Mission", "Briefing", "Advanced", 45);
+        var mission = Mission.Create("Mission", "Briefing", "Advanced", 30);
         repository.Seed(mission);
         stage = mission.AddStage("Stage", 1);
         stage.Id = 10;
@@ -319,7 +372,21 @@ public sealed class MissionStructureCommandHandlerTests
         out Stage stage,
         out Substage substage)
     {
-        var mission = Mission.Create("Mission", "Briefing", "Advanced", 45);
+        var mission = Mission.Create("Mission", "Briefing", "Advanced", 30);
+        repository.Seed(mission);
+        stage = mission.AddStage("Stage", 1);
+        stage.Id = 10;
+        substage = mission.AddSubstage(stage.Id, Substage.CreateTrivia("Trivia", 1));
+        substage.Id = 20;
+        return mission;
+    }
+
+    private static Mission CreateShortMissionWithTriviaSubstage(
+        InMemoryMissionRepository repository,
+        out Stage stage,
+        out Substage substage)
+    {
+        var mission = Mission.Create("Mission", "Briefing", "Advanced", 1); // 1 minute = 60s budget
         repository.Seed(mission);
         stage = mission.AddStage("Stage", 1);
         stage.Id = 10;
@@ -331,6 +398,25 @@ public sealed class MissionStructureCommandHandlerTests
     private static TriviaQuiz CreatePublishedTriviaQuiz()
     {
         var quiz = TriviaQuiz.Create("Quiz", "Description", [CreateTriviaQuestion()]);
+        quiz.Publish(DateTimeOffset.UtcNow);
+        return quiz;
+    }
+
+    private static TriviaQuiz CreatePublishedTriviaQuiz(int questionCount, int timerSeconds)
+    {
+        var questions = Enumerable.Range(0, questionCount)
+            .Select(index => TriviaQuestion.Create(
+                $"Question {index}?",
+                10,
+                timerSeconds,
+                null,
+                [
+                    TriviaOption.Create("A", 1, true),
+                    TriviaOption.Create("B", 2, false)
+                ]))
+            .ToList();
+
+        var quiz = TriviaQuiz.Create("Quiz", "Description", questions);
         quiz.Publish(DateTimeOffset.UtcNow);
         return quiz;
     }

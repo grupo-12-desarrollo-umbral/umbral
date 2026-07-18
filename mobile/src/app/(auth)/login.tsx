@@ -10,7 +10,7 @@ import { TextField } from '@/components/ui/text-field';
 import { useAuth } from '@/lib/auth/use-auth';
 import { colors, spacing } from '@/constants/theme';
 
-const NETWORK_ERROR_PREFIX = 'Network error';
+const NETWORK_ERROR_PREFIX = 'Error de red';
 
 function isValidEmail(value: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
@@ -58,17 +58,17 @@ export default function LoginScreen() {
 
     let valid = true;
     if (!email.trim()) {
-      setEmailError('Email is required.');
+      setEmailError('Correo electrónico es obligatorio.');
       valid = false;
     } else if (!isValidEmail(email.trim())) {
-      setEmailError('Enter a valid email address.');
+      setEmailError('Ingresa un correo electrónico válido.');
       valid = false;
     } else {
       setEmailError('');
     }
 
     if (!password) {
-      setPasswordError('Password is required.');
+      setPasswordError('La contraseña es obligatoria.');
       valid = false;
     } else {
       setPasswordError('');
@@ -101,7 +101,7 @@ export default function LoginScreen() {
       </View>
 
       <TextField
-        label="Email"
+        label="Correo electrónico"
         value={email}
         onChangeText={setEmail}
         placeholder="you@example.com"
@@ -113,7 +113,7 @@ export default function LoginScreen() {
       />
 
       <TextField
-        label="Password"
+        label="Contraseña"
         value={password}
         onChangeText={setPassword}
         placeholder="••••••••"
@@ -134,7 +134,7 @@ export default function LoginScreen() {
       ) : null}
 
       <Button
-        label={isNetworkError ? 'Try again' : 'Sign in'}
+        label={isNetworkError ? 'Reintentar' : 'Iniciar sesión'}
         variant="primary"
         onPress={handleSubmit}
         disabled={loading}
@@ -154,7 +154,7 @@ export default function LoginScreen() {
             textDecorationLine: 'underline',
           }}
         >
-          Forgot your password?
+          ¿Olvidaste tu contraseña?
         </Text>
       </Pressable>
 
@@ -171,7 +171,7 @@ export default function LoginScreen() {
             textDecorationLine: 'underline',
           }}
         >
-          New here? Create an account
+          ¿Primera vez? Crea una cuenta
         </Text>
       </Pressable>
     </Screen>

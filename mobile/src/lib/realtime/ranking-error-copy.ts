@@ -8,16 +8,16 @@ import type { TimerSnapshotError } from '@/lib/api/sessions';
 export function rankingErrorCopy(error: TimerSnapshotError): string {
   switch (error) {
     case 'network-error':
-      return "Couldn't reach the standings — check your connection.";
+      return 'No pudimos acceder a la clasificación — revisa tu conexión.';
     case 'unauthorized':
-      return 'Your session expired — the standings couldn’t load.';
+      return 'Tu sesión expiró — no se pudo cargar la clasificación.';
     case 'forbidden':
-      return "You don't have access to this session's standings.";
+      return 'No tienes acceso a la clasificación de esta sesión.';
     case 'not-found':
-      return "This session's standings aren't available.";
+      return 'La clasificación de esta sesión no está disponible.';
     case 'timer-unavailable':
-      return "Standings aren't ready yet — hang tight.";
+      return 'La clasificación aún no está lista — espera un momento.';
     default:
-      return "Couldn't load the standings.";
+      return 'No se pudo cargar la clasificación.';
   }
 }

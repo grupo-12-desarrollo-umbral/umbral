@@ -5,10 +5,10 @@
 # keeps `dotnet` working under a filesystem/network sandbox lives here ONCE.
 # Callers never need to remember per-command prefixes.
 #
-#   make build SVC=identity-access-service
-#   make test  SVC=identity-access-service
-#   make gate  SVC=identity-access-service
-#   make ef    SVC=identity-access-service ARGS="migrations add AddFoo"
+#   make build SVC=users-service
+#   make test  SVC=users-service
+#   make gate  SVC=users-service
+#   make ef    SVC=users-service ARGS="migrations add AddFoo"
 #
 # Run from backend/, or use `make -C backend <target> SVC=<service>`.
 # ─────────────────────────────────────────────────────────────────────────────
@@ -22,7 +22,7 @@ export MSBUILDDISABLENODEREUSE := 1
 export DOTNET_CLI_TELEMETRY_OPTOUT := 1
 export DOTNET_NOLOGO := 1
 
-SVC ?= identity-access-service
+SVC ?= users-service
 
 # Services live under services/; the api-gateway does not — it is a YARP reverse
 # proxy with a single flat src/ project, not a Clean Architecture service. Resolving
@@ -35,7 +35,7 @@ SVCDIR := $(if $(filter api-gateway,$(SVC)),api-gateway,services/$(SVC))
 # slice-collapse lands. Add a service here the moment that collapse merges; that one
 # edit flips its build from "skipped" to "enforcing". The standalone
 # `make structure-guard` still checks every service regardless of this list.
-CONVERGED_SERVICES := mission-design-service session-operations-service identity-access-service scoring-monitoring-service
+CONVERGED_SERVICES := mission-design-service session-operations-service users-service scoring-monitoring-service
 
 # Verbose dotnet output (restore/build/per-test spew) goes to a log file; the
 # recipes echo only a compact summary. An agent driving the toolchain reads the
@@ -59,13 +59,15 @@ INTEGRATION_PROJECTS := $(shell find $(SVCDIR)/tests -maxdepth 3 -name '*Integra
 # Every domain service coverlet can actually measure: one with an in-process
 # IntegrationTests project (the gate runs it last to enforce the threshold).
 # Discovered, not hardcoded, so a new service is gated the day it grows tests —
-# and a scaffold without tests (scoring-monitoring-service) is skipped. The
+# while a scaffold without an IntegrationTests project is skipped. The
 # api-gateway is intentionally absent: its only test is a full-stack E2E that
 # runs the gateway in a separate container, so coverlet sees ~0% of it (it is a
 # behavioural gate, not a coverlet report).
 GATEABLE_SERVICES := $(sort $(foreach p,$(wildcard services/*/tests/IntegrationTests/*.csproj),$(word 2,$(subst /, ,$(p)))))
+DOMAIN_SERVICES := $(sort $(notdir $(wildcard services/*)))
+ALL_BACKEND_WORKLOADS := $(DOMAIN_SERVICES) api-gateway
 
-.PHONY: help build test gate gate-all clean clean-all clean-artifacts guard-artifacts structure-guard structure-guard-converged layer-guard layer-guard-layered ef rewire doctor
+.PHONY: help tools ci ci-all build test gate gate-all clean clean-all clean-artifacts guard-artifacts structure-guard structure-guard-converged layer-guard layer-guard-layered ef rewire doctor
 
 # Compose service names of the hot-reload dev containers (docker-compose.override.yml):
 # every service/ plus the gateway, which lives outside services/.
@@ -107,6 +109,8 @@ build: layer-guard-layered
 
 help:
 	@echo "Targets (pass SVC=<service>, or SVC=api-gateway):"
+	@echo "  ci      reproduce CI locally for SVC; generates required coverage reports when applicable"
+	@echo "  ci-all  reproduce CI locally for every backend workload"
 	@echo "  build   compile Api + all test projects"
 	@echo "  test    run unit + integration test projects"
 	@echo "  (SVC=api-gateway builds/tests the gateway; its guards and coverage gate do not apply,"
@@ -123,6 +127,44 @@ help:
 	@echo "  layer-guard      forbid cross-layer reflection laundering (inner layer naming an Api type by string; all services, or SVC=<svc>)"
 	@echo "  (build/test/gate pre-flight-check bin/obj ownership; foreign-owned → fail fast with the fix)"
 	@echo "  (build/test/gate echo a compact summary; full dotnet output → $(LOGDIR)/<target>-<svc>.log)"
+	@echo "  (local CI guide: docs/local-ci.md)"
+
+# Restore repository-owned CLI tools from .config/dotnet-tools.json. Keeping the
+# report renderer in a manifest gives local runs and GitHub Actions the exact same
+# version instead of relying on whichever global tool happens to be installed.
+tools:
+	@dotnet tool restore --tool-manifest .config/dotnet-tools.json
+
+# One canonical CI entrypoint for humans and automation. Domain services with an
+# IntegrationTests project run the authoritative Coverlet gate; workloads outside
+# that scope (currently the gateway) still run their complete build + test suite.
+# REPORTGENERATOR_RUNNER=local makes cover-gate.sh use the pinned manifest tool,
+# and REQUIRE_COVERAGE_REPORT=1 turns a missing report into a CI failure.
+ci: tools
+	@$(MAKE) --no-print-directory build SVC=$(SVC)
+	@if echo " $(GATEABLE_SERVICES) " | grep -q " $(SVC) "; then \
+	  REPORTGENERATOR_RUNNER=local REQUIRE_COVERAGE_REPORT=1 \
+	    $(MAKE) --no-print-directory gate SVC=$(SVC); \
+	else \
+	  $(MAKE) --no-print-directory test SVC=$(SVC); \
+	  echo "coverage gate not applicable ($(SVC))"; \
+	fi
+	@echo "ci OK ($(SVC))"
+
+# Run every workload even after an individual failure so a single invocation
+# produces the complete service-by-service picture and every available report.
+ci-all: tools
+	@failed=""; \
+	for svc in $(ALL_BACKEND_WORKLOADS); do \
+	  echo "═══ ci $$svc ═══"; \
+	  $(MAKE) --no-print-directory ci SVC=$$svc || failed="$$failed $$svc"; \
+	done; \
+	echo; echo "─── local CI summary ───"; \
+	for svc in $(ALL_BACKEND_WORKLOADS); do \
+	  case " $$failed " in *" $$svc "*) echo "  ✗ $$svc";; *) echo "  ✓ $$svc";; esac; \
+	done; \
+	if [ -n "$$failed" ]; then echo "Local CI FAILED for:$$failed" >&2; exit 1; fi; \
+	echo "All backend workloads GREEN."
 
 build:
 	@mkdir -p $(LOGDIR); log="$(LOGDIR)/build-$(SVC).log"; : > "$$log"; \

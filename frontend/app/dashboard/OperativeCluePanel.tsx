@@ -38,10 +38,10 @@ export function OperativeCluePanel({
     return (
       <section className={styles.cluePanel} data-testid="operative-clue-panel" aria-labelledby="operative-clue-title">
         <div className={styles.panelHeader}>
-          <h2 id="operative-clue-title">Operative clue</h2>
+          <h2 id="operative-clue-title">Pista operativa</h2>
         </div>
         <p className={styles.panelMeta} data-testid="operative-clue-inactive">
-          Operative clues can be assigned once the session is Active or Paused.
+          Las pistas operativas se pueden asignar una vez que la sesión esté Activa o Pausada.
         </p>
       </section>
     )
@@ -59,14 +59,14 @@ export function OperativeCluePanel({
       })
       if ('data' in result) {
         const count = result.data.assignedTeamIds.length
-        setSuccess(`Assigned to ${count} team${count === 1 ? '' : 's'}.`)
+        setSuccess(`Asignada a ${count} equipo${count === 1 ? '' : 's'}.`)
         setClueText('')
         setTeamId('')
         onAdded?.(count)
       } else if ('notLive' in result) {
-        setError('The session must be Active or Paused to assign operative clues.')
+        setError('La sesión debe estar Activa o Pausada para asignar pistas operativas.')
       } else if ('unauthorized' in result) {
-        setError('You are not authorized to assign operative clues for this session.')
+        setError('No tienes autorización para asignar pistas operativas en esta sesión.')
       } else {
         setError(result.error)
       }
@@ -78,27 +78,27 @@ export function OperativeCluePanel({
   return (
     <section className={styles.cluePanel} data-testid="operative-clue-panel" aria-labelledby="operative-clue-title">
       <div className={styles.panelHeader}>
-        <h2 id="operative-clue-title">Operative clue</h2>
-        <div className={styles.panelMeta}>Write a free-text clue and assign it to one team or all.</div>
+        <h2 id="operative-clue-title">Pista operativa</h2>
+        <div className={styles.panelMeta}>Escribe una pista de texto libre y asígnala a un equipo o a todos.</div>
       </div>
 
       <label className={`${styles.clueField} ${styles.clueFieldFull}`}>
-        <span className={styles.clueFieldLabel}>Clue text</span>
+        <span className={styles.clueFieldLabel}>Texto de la pista</span>
         <textarea
           className={`${styles.clueControl} ${styles.clueTextarea}`}
           data-testid="operative-clue-text-input"
           value={clueText}
           maxLength={MAX_CLUE_LENGTH}
           onChange={(e) => setClueText(e.target.value)}
-          placeholder="e.g. Look beneath the blue banner."
+          placeholder="p. ej. Busca debajo del banner azul."
           rows={3}
         />
       </label>
 
       <label className={styles.clueField}>
-        <span className={styles.clueFieldLabel}>Assign to</span>
+        <span className={styles.clueFieldLabel}>Asignar a</span>
         {teams.length === 0 ? (
-          <p className={styles.panelMeta}>No teams are attached to this session yet.</p>
+          <p className={styles.panelMeta}>Aún no hay equipos asociados a esta sesión.</p>
         ) : (
           <select
             className={styles.clueControl}
@@ -106,7 +106,7 @@ export function OperativeCluePanel({
             value={teamId}
             onChange={(e) => setTeamId(e.target.value)}
           >
-            <option value="">All teams</option>
+            <option value="">Todos los equipos</option>
             {teams.map((t) => (
               <option key={t.teamId} value={t.teamId}>
                 {t.displayName}
@@ -124,7 +124,7 @@ export function OperativeCluePanel({
           onClick={submit}
           type="button"
         >
-          {isPending ? 'Assigning…' : 'Assign clue'}
+          {isPending ? 'Asignando…' : 'Asignar pista'}
         </button>
       </div>
 

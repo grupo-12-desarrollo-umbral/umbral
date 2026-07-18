@@ -21,11 +21,11 @@ export default function ParticipantHome() {
       <Panel>
         <View style={{ gap: spacing.sm }}>
           <Text variant="headline">
-            Welcome, {profile?.displayName ?? 'Participant'}
+            Te damos la bienvenida, {profile?.displayName ?? 'Participante'}
           </Text>
           <Text variant="body" muted>
-            When your session is live, enter your session code to see its teams
-            and join your team space.
+            Cuando tu sesión esté activa, ingresa tu código de sesión para ver
+            sus equipos y unirte a tu espacio de equipo.
           </Text>
           {profile?.email ? (
             <Text variant="label" muted>
@@ -36,48 +36,12 @@ export default function ParticipantHome() {
       </Panel>
 
       <Button
-        label="Join your session"
+        label="Únete a tu sesión"
         variant="primary"
         onPress={() => router.push('/(app)/join' as Href)}
       />
 
-      {/* DEV-ONLY preview of the active-question (trivia) surface (stub data). */}
-      {__DEV__ ? (
-        <Button
-          label="▶ Preview · trivia question"
-          variant="secondary"
-          onPress={() => router.push('/(app)/active-question-prototype' as Href)}
-        />
-      ) : null}
-
-      {/* DEV-ONLY UI prototype: HU-28 operative-clue reveal on the trivia surface. */}
-      {__DEV__ ? (
-        <Button
-          label="▶ Prototype · operative clue"
-          variant="secondary"
-          onPress={() => router.push('/(app)/operative-clue-prototype?variant=A' as Href)}
-        />
-      ) : null}
-
-      {/* DEV-ONLY UI prototype: HU-25B ranking view (3 variants, switchable). */}
-      {__DEV__ ? (
-        <Button
-          label="▶ Prototype · ranking view"
-          variant="secondary"
-          onPress={() => router.push('/(app)/ranking-prototype?variant=A' as Href)}
-        />
-      ) : null}
-
-      {/* DEV-ONLY UI prototype: HU-M4 result reveal (Option-centric variant). */}
-      {__DEV__ ? (
-        <Button
-          label="▶ Prototype · result reveal"
-          variant="secondary"
-          onPress={() => router.push('/(app)/result-reveal-prototype' as Href)}
-        />
-      ) : null}
-
-      <Button label="Sign out" variant="secondary" onPress={signOut} />
+      <Button label="Cerrar sesión" variant="secondary" onPress={signOut} />
     </Screen>
   );
 }

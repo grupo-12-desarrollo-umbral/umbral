@@ -592,6 +592,7 @@ public sealed class MissionsController(ISender sender) : ControllerBase
         int SequenceOrder,
         bool IsActive,
         int Score,
+        int DifficultyFactor,
         double Latitude,
         double Longitude,
         MissionRuntimeClueResponse? Clue)
@@ -604,6 +605,7 @@ public sealed class MissionsController(ISender sender) : ControllerBase
                 dto.SequenceOrder,
                 dto.IsActive,
                 dto.Score,
+                dto.DifficultyFactor,
                 dto.Latitude,
                 dto.Longitude,
                 dto.Clue is null ? null : MissionRuntimeClueResponse.FromDto(dto.Clue));

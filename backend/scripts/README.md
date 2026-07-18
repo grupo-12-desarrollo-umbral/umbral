@@ -1,23 +1,31 @@
 # `backend/scripts/`
 
-Scripts auxiliares para desarrollo, testing y cobertura del backend. Ejecútalos desde la raíz del repo (las rutas relativas asumen ese directorio de trabajo).
+Scripts auxiliares para desarrollo, testing y cobertura del backend. Los
+ejemplos de esta página se ejecutan desde la raíz del monorepositorio.
 
 | Script | Propósito |
 |--------|-----------|
-| [`dev-up.sh`](#pipeline-dev-upsh) | **Pipeline de desarrollo**: levanta el stack y lo siembra en un solo comando |
+| [`dev-up.sh`](#comodidad-dev-upsh) | Comodidad opcional para recrear, levantar y sembrar el stack |
 | [`seed-all.sh`](#seed-allsh) | Siembra completa: quizzes, sesiones, equipos, usuarios Keycloak y membresías — todo en un solo script |
 | [`cover.sh`](#coversh) | Ejecuta tests de un servicio y genera el reporte de cobertura HTML |
 | [`cover-gate.sh`](#cover-gatesh) | Gate de cobertura canónico (ADR-0005): mergea coverlet y aplica el umbral |
 
 ---
 
-## Pipeline: `dev-up.sh`
+## Comodidad: `dev-up.sh`
 
-El "pipeline" de desarrollo local: recrea el stack con hot-reload y lo siembra en **un solo comando**, de modo que el frontend / móvil (`localhost:8000`) siempre tengan datos para usar. Encadena lo que harías a mano:
+Este script no es el pipeline local canónico. Es una comodidad para recrear el
+stack con hot reload y sembrarlo en un solo comando. Encadena:
 
 1. `docker compose down -v --remove-orphans` — borra los volúmenes para empezar de cero (omitir con `--keep`).
 2. `docker compose up -d --wait` — bloquea hasta que los servicios con healthcheck (**postgres**, **keycloak**) estén sanos.
 3. `seed-all.sh` — siembra todo (psql → espera gateway → API). Si el gateway aún está compilando, avisa en vez de tumbar la corrida.
+
+Para el arranque cotidiano, prefiere Compose sin borrar volúmenes:
+
+```bash
+docker compose -f backend/docker-compose.yml -f backend/docker-compose.override.yml up -d --wait
+```
 
 **Uso**
 
@@ -26,7 +34,13 @@ El "pipeline" de desarrollo local: recrea el stack con hot-reload y lo siembra e
 ./backend/scripts/dev-up.sh --keep    # omite `down -v` (conserva los datos de la BD)
 ```
 
-> **No** corre el gate de cobertura. Ese es un flujo aparte del host — `make -C backend gate-all` — que usa Testcontainers y no toca este stack. No los encadenes: los contenedores de hot-reload corren como root sobre el código montado (*bind mount*), así que dejan `bin/`/`obj/` con dueño root que bloquean un gate posterior corrido en el host (límpialos con `make -C backend clean-all`, o una vez con `sudo find services -type d \( -name bin -o -name obj \) -exec rm -rf {} +`).
+> **No** corre la verificación de CI. Ese es un flujo independiente —
+> `make -C backend gate SVC=<servicio>` para pruebas y cobertura, o
+> `make -C backend ci SVC=<servicio>` para el contrato completo. Ambos usan
+> Testcontainers y no necesitan este stack. Los contenedores de desarrollo usan
+> el UID/GID configurado y escriben los artefactos fuera del árbol de fuentes;
+> si una instalación anterior dejó propietarios incompatibles, el preflight de
+> Make muestra el comando de recuperación aplicable.
 
 ---
 
@@ -34,9 +48,9 @@ El "pipeline" de desarrollo local: recrea el stack con hot-reload y lo siembra e
 
 Fusión de los dos scripts anteriores en uno solo. Combina la siembra directa a PostgreSQL con el aprovisionamiento vía API:
 
-1. **Siembra vía `psql`** — 7 quizzes de trivia (5 Published, 1 Draft, 1 Archived) en `mission_design`; 7 sesiones (SMOKE1–SMOKE7) en cada estado del ciclo de vida, cada una con 2 equipos asociados, en `identity_access` y `session_operations`.
+1. **Siembra vía `psql`** — 7 quizzes de trivia (5 Published, 1 Draft, 1 Archived) en `mission_design`; 7 sesiones (SMOKE1–SMOKE7) en cada estado del ciclo de vida, cada una con 2 equipos asociados, en `users` y `session_operations`.
 2. **Espera** a que el gateway conteste en `:8000`.
-3. **Siembra vía API** — 12 usuarios en Keycloak (admin, 3 operators, 8 participants), los bootstrapea en `identity_access` a través del gateway, registra 4 equipos app-level (Delta, Echo, Bismarck, Los Panas) y asigna 2 participantes por equipo.
+3. **Siembra vía API** — 12 usuarios en Keycloak (admin, 3 operators, 8 participants), los bootstrapea en `users` a través del gateway, registra 4 equipos app-level (Delta, Echo, Bismarck, Los Panas) y asigna 2 participantes por equipo.
 
 | Código | Estado | Comportamiento esperado al unirse |
 |--------|--------|-----------------------------------|
@@ -84,8 +98,10 @@ nuevos, elimina las misiones que seleccionan un quiz para impedir referencias
 | `OPERATOR_PASSWORD` | `operator123` |
 | `PARTICIPANT_PASSWORD` | `participant123` |
 
-> `seed-all.sh` es el único seeder. Para sembrar sobre un stack ya levantado, ejecútalo directo;
-> para un slate limpio usa `dev-up.sh` (que hace `down -v` → `up --wait` → `seed-all.sh`).
+> `seed-all.sh` es el único seeder. Para sembrar sobre un stack ya levantado,
+> ejecútalo directamente. Usa `dev-up.sh` solo cuando quieras explícitamente el
+> flujo combinado y hayas decidido si debes conservar los volúmenes con
+> `--keep`.
 
 ---
 
@@ -97,7 +113,7 @@ Ejecuta los tests de un servicio (unitarios y/o integración) y genera un report
 ./backend/scripts/cover.sh <service-name> [opciones]
 ```
 
-`<service-name>` es uno de: `identity-access-service`, `mission-design-service`, `session-operations-service`, `scoring-monitoring-service`.
+`<service-name>` es uno de: `users-service`, `mission-design-service`, `session-operations-service`, `scoring-monitoring-service`.
 
 | Opción | Efecto |
 |--------|--------|
@@ -110,6 +126,10 @@ Ejecuta los tests de un servicio (unitarios y/o integración) y genera un report
 
 ## `cover-gate.sh`
 
-Gate de cobertura **canónico** (ADR-0005) y única fuente de verdad del número de cobertura para CI/CD. Encadena coverlet sobre los proyectos de test, mergea los resultados y aplica el umbral de línea. El código de salida **es** el gate: `0` = verde, distinto de `0` = falla (error de build, test roto o cobertura por debajo del umbral).
+Gate de cobertura **canónico** (ADR-0005) y única fuente de verdad del número de
+cobertura para CI/CD. Encadena Coverlet sobre los proyectos de prueba, combina
+los resultados y aplica el umbral agregado de ramas (95 % por defecto). El
+código de salida **es** el gate: `0` = verde; cualquier otro valor indica un
+fallo de build, pruebas o cobertura.
 
 > No generes el reporte de demostración con `cover.sh`: usa un conjunto de proyectos y filtros distintos, así que su número no coincide con el número gateado.

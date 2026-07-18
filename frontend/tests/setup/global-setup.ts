@@ -69,7 +69,7 @@ export function runSql(db: string, sql: string, label: string): void {
 }
 
 function seedViaDocker(): void {
-  runSql('identity_access', `
+  runSql('users', `
 DELETE FROM registered_team_memberships;
 DELETE FROM registered_teams;
 -- admin-1 and op-1 are seeded later (seedAdminIdentity / seedOperatorIdentity) with their resolved
@@ -257,32 +257,32 @@ END $$;
 `, 'E2E not-ready mission ensured.')
 }
 
-// Seed admin-1's identity-access row keyed by its resolved Keycloak sub (UUID). Keycloak account
+// Seed admin-1's users-service row keyed by its resolved Keycloak sub (UUID). Keycloak account
 // provisioning reconciles the row to the sub the first time admin authenticates via the gateway,
 // dropping the literal-'admin-1' row seedViaDocker seeds; seeding by sub up front means the row the
 // adminPage fixture's X-User-Id resolves already exists, so admin BFF-direct calls never 404 and
 // redirect-loop. Deletes any prior admin-1 rows (literal-username or a stale sub) by email first so a
 // persistent DB never accumulates duplicates. Must run after seedKeycloak() so the sub is known.
 function seedAdminIdentity(sub: string): void {
-  runSql('identity_access', `
+  runSql('users', `
 DELETE FROM users WHERE "Email" = 'admin-1@umbral.local';
 INSERT INTO users ("ExternalIdentityId", "DisplayName", "Email", "Role", "IsActive", "Created", "LastModified")
 VALUES ('${sub}', 'Administrator One', 'admin-1@umbral.local', 'Administrator', true, NOW(), NOW());
 `, `Admin identity seeded with Keycloak sub ${sub}.`)
 }
 
-// Seed op-1's identity-access row keyed by its resolved Keycloak sub (UUID). Deletes any prior
+// Seed op-1's users-service row keyed by its resolved Keycloak sub (UUID). Deletes any prior
 // op-1 rows (literal-username or a stale sub from an earlier run) by email first, so a persistent
 // DB never accumulates duplicates. Must run after seedKeycloak() so the sub is known.
 function seedOperatorIdentity(sub: string): void {
-  runSql('identity_access', `
+  runSql('users', `
 DELETE FROM users WHERE "Email" = 'op-1@umbral.local';
 INSERT INTO users ("ExternalIdentityId", "DisplayName", "Email", "Role", "IsActive", "Created", "LastModified")
 VALUES ('${sub}', 'Operator One', 'op-1@umbral.local', 'Operator', true, NOW(), NOW());
 `, `Operator identity seeded with Keycloak sub ${sub}.`)
 }
 
-// Seed participant-1's identity-access row keyed by its resolved Keycloak sub (UUID), then link it to the
+// Seed participant-1's users-service row keyed by its resolved Keycloak sub (UUID), then link it to the
 // Gilded Owls reference team via registered_team_memberships. Deletes any prior participant-1 row (literal
 // username or a stale sub) by email first — the FK cascade drops its old membership too — so a persistent DB
 // never accumulates duplicates. user_id is resolved by email in the same batch because the fresh users row
@@ -290,7 +290,7 @@ VALUES ('${sub}', 'Operator One', 'op-1@umbral.local', 'Operator', true, NOW(), 
 // mobile client submits, so the HU-36A answer-flip's ParticipantMembershipAccessAuthorizationProxy authorizes
 // it. Must run after seedKeycloak() (for the sub) and after seedViaDocker() seeds registered_teams.
 function seedParticipantIdentity(sub: string): void {
-  runSql('identity_access', `
+  runSql('users', `
 DELETE FROM users WHERE "Email" = 'participant-1@umbral.local';
 INSERT INTO users ("ExternalIdentityId", "DisplayName", "Email", "Role", "IsActive", "Created", "LastModified")
 VALUES ('${sub}', 'Participant One', 'participant-1@umbral.local', 'Participant', true, NOW(), NOW());
@@ -504,7 +504,7 @@ async function assertUserCanAuthenticate(user: E2EKeycloakUser): Promise<void> {
   )
 }
 
-// Returns each user's resolved Keycloak id (sub) keyed by username, so identity-access rows can
+// Returns each user's resolved Keycloak id (sub) keyed by username, so users-service rows can
 // be seeded to match the sub the gateway forwards as X-User-Id.
 async function seedKeycloak(): Promise<Map<string, string>> {
   const adminToken = await getAdminToken()

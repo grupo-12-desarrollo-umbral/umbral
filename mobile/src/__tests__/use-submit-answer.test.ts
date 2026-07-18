@@ -126,8 +126,8 @@ describe('useSubmitAnswer', () => {
 
     expect(hook.get().rejection).toEqual({
       reasonCode: 'duplicate-trivia-answer',
-      title: 'Already answered',
-      message: 'Your team has already submitted an answer for this question.',
+      title: 'Ya respondida',
+      message: 'Tu equipo ya envió una respuesta para esta pregunta.',
     });
   });
 
@@ -236,8 +236,8 @@ describe('useSubmitAnswer', () => {
 
     expect(hook.get().rejection).toEqual({
       reasonCode: 'unknown',
-      title: 'Connection issue',
-      message: "Couldn't reach the server. Check your connection and try again.",
+      title: 'Problema de conexión',
+      message: 'No pudimos conectar con el servidor. Revisa tu conexión y reintenta.',
     });
   });
 });

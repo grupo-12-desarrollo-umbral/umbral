@@ -220,8 +220,8 @@ describe('LiveTeamSpace close flow (integration)', () => {
     });
     let texts = allText(renderer.toJSON());
     expect(texts).toContain('Which lantern is lit?');
-    expect(texts.join(' ')).toContain('Question closed — waiting for the next');
-    expect(texts).not.toContain('Submit answer');
+    expect(texts.join(' ')).toContain('Pregunta cerrada — esperando la siguiente');
+    expect(texts).not.toContain('Enviar respuesta');
     expect(mockGetSnapshot).toHaveBeenCalledTimes(2); // reconnect + close re-sync
 
     // Re-fetch resolves to a new question → advances and clears the lock.
@@ -229,7 +229,7 @@ describe('LiveTeamSpace close flow (integration)', () => {
     texts = allText(renderer.toJSON());
     expect(texts).toContain('Which key fits the archive lock?');
     expect(texts).not.toContain('Which lantern is lit?');
-    expect(texts.join(' ')).not.toContain('Question closed — waiting for the next');
+    expect(texts.join(' ')).not.toContain('Pregunta cerrada — esperando la siguiente');
   });
 
   test('close with no next question holds the reveal until the substage advances', async () => {
@@ -247,7 +247,7 @@ describe('LiveTeamSpace close flow (integration)', () => {
 
     let texts = allText(renderer.toJSON());
     expect(texts).toContain('Which lantern is lit?');
-    expect(texts.join(' ')).not.toContain('Waiting for the next question');
+    expect(texts.join(' ')).not.toContain('Esperando la siguiente pregunta');
 
     // Once the reveal window closes the substage advances (its last question just closed). That push
     // — not the close re-sync — drives the transition to the waiting state.
@@ -256,7 +256,7 @@ describe('LiveTeamSpace close flow (integration)', () => {
     });
 
     texts = allText(renderer.toJSON());
-    expect(texts.join(' ')).toContain('Waiting for the next question');
+    expect(texts.join(' ')).toContain('Esperando la siguiente pregunta');
     expect(texts).not.toContain('Which lantern is lit?');
   });
 
@@ -278,7 +278,7 @@ describe('LiveTeamSpace close flow (integration)', () => {
     await flush();
 
     const texts = allText(renderer.toJSON());
-    expect(texts.join(' ')).toContain('Final ranking');
+    expect(texts.join(' ')).toContain('Clasificación final');
     expect(texts).not.toContain('Which lantern is lit?');
   });
 
@@ -293,7 +293,7 @@ describe('LiveTeamSpace close flow (integration)', () => {
 
     const texts = allText(renderer.toJSON());
     expect(texts).toContain('Which lantern is lit?');
-    expect(texts.join(' ')).not.toContain('Question closed — waiting for the next');
+    expect(texts.join(' ')).not.toContain('Pregunta cerrada — esperando la siguiente');
     expect(mockGetSnapshot).toHaveBeenCalledTimes(1); // only the reconnect fetch; no re-sync
   });
 
@@ -351,8 +351,8 @@ describe('LiveTeamSpace close flow (integration)', () => {
 
     const texts = allText(renderer.toJSON());
     expect(texts).toContain('South');
-    expect(texts).toContain('CORRECT');
-    expect(texts).toContain('WHY');
+    expect(texts).toContain('CORRECTA');
+    expect(texts).toContain('¿POR QUÉ?');
     expect(texts).toContain('The south lantern is always lit first.');
   });
 
@@ -378,8 +378,8 @@ describe('LiveTeamSpace close flow (integration)', () => {
 
     const texts = allText(renderer.toJSON());
     expect(texts).toContain('South');
-    expect(texts).toContain('CORRECT');
-    expect(texts).not.toContain('WHY');
+    expect(texts).toContain('CORRECTA');
+    expect(texts).not.toContain('¿POR QUÉ?');
   });
 
   test('reveal shows correct outcome chip and points when team answered correctly', async () => {
@@ -401,7 +401,7 @@ describe('LiveTeamSpace close flow (integration)', () => {
     await flush();
 
     const texts = allText(renderer.toJSON());
-    expect(texts).toContain('Correct');
+    expect(texts).toContain('Correcta');
     expect(texts).toContain('+20');
   });
 
@@ -424,8 +424,8 @@ describe('LiveTeamSpace close flow (integration)', () => {
     await flush();
 
     const texts = allText(renderer.toJSON());
-    expect(texts).toContain('Incorrect');
-    expect(texts).toContain('YOUR ANSWER');
+    expect(texts).toContain('Incorrecta');
+    expect(texts).toContain('TU RESPUESTA');
     expect(texts).toContain('North');
   });
 
@@ -448,8 +448,8 @@ describe('LiveTeamSpace close flow (integration)', () => {
     await flush();
 
     const texts = allText(renderer.toJSON());
-    expect(texts).toContain('No answer');
-    expect(texts).not.toContain('YOUR ANSWER');
+    expect(texts).toContain('Sin respuesta');
+    expect(texts).not.toContain('TU RESPUESTA');
   });
 
   test('controls stay locked during reveal and transition to next question still works', async () => {
@@ -472,9 +472,9 @@ describe('LiveTeamSpace close flow (integration)', () => {
 
     // Controls are locked — no submit button.
     let texts = allText(renderer.toJSON());
-    expect(texts).not.toContain('Submit answer');
+    expect(texts).not.toContain('Enviar respuesta');
     expect(texts).toContain('South');
-    expect(texts).toContain('CORRECT');
+    expect(texts).toContain('CORRECTA');
 
     // Next question arrives via activate — clears reveal.
     mockGetSnapshot.mockResolvedValueOnce(NEXT_QUESTION_SNAPSHOT);
@@ -486,6 +486,6 @@ describe('LiveTeamSpace close flow (integration)', () => {
     texts = allText(renderer.toJSON());
     expect(texts).toContain('Which key fits the archive lock?');
     expect(texts).not.toContain('South');
-    expect(texts).not.toContain('CORRECT');
+    expect(texts).not.toContain('CORRECTA');
   });
 });

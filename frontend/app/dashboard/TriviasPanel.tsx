@@ -21,24 +21,39 @@ import styles from './dashboard.module.css'
 type DashboardRole = 'operator' | 'admin' | 'participant'
 type TriviaPanelView = 'list' | 'detail' | 'create' | 'edit' | 'add-question' | 'edit-question'
 
+// Trivia questions are always worth this fixed score; the backend enforces the same value.
+const FIXED_QUESTION_SCORE = 100
+
+// Spanish display labels for the quiz lifecycle statuses. The enum values stay in English
+// (they mirror the backend contract); this map is used wherever a status is shown to the operator.
+const statusLabel: Record<string, string> = {
+  Draft: 'Borrador',
+  Published: 'Publicado',
+  Archived: 'Archivado',
+}
+
+function displayStatus(status: string) {
+  return statusLabel[status] ?? status
+}
+
 function computeReadiness(quiz: TriviaQuizDto): { isReady: boolean; reasons: string[] } {
   const reasons: string[] = []
   if (quiz.questions.length === 0) {
-    reasons.push('At least one question is required.')
+    reasons.push('Se requiere al menos una pregunta.')
   }
   for (const [index, q] of quiz.questions.entries()) {
-    const questionLabel = `Question ${index + 1}`
+    const questionLabel = `Pregunta ${index + 1}`
     if (q.scoreValue === null) {
-      reasons.push(`${questionLabel}: score value is required.`)
+      reasons.push(`${questionLabel}: se requiere el valor de puntaje.`)
     }
     if (q.timeLimitSeconds === null) {
-      reasons.push(`${questionLabel}: time limit is required.`)
+      reasons.push(`${questionLabel}: se requiere el límite de tiempo.`)
     }
     if (q.options.length < 2 || q.options.length > 4) {
-      reasons.push(`${questionLabel}: must have 2–4 options.`)
+      reasons.push(`${questionLabel}: debe tener entre 2 y 4 opciones.`)
     }
     if (q.options.filter((o) => o.isCorrect).length !== 1) {
-      reasons.push(`${questionLabel}: exactly one correct option required.`)
+      reasons.push(`${questionLabel}: se requiere exactamente una opción correcta.`)
     }
   }
   return { isReady: reasons.length === 0, reasons }
@@ -70,7 +85,7 @@ export function TriviasPanel({ role }: { role: DashboardRole }) {
         const result = await getTriviaQuizzes()
         setListData(result)
       } catch {
-        setListError('Failed to load trivia quizzes.')
+        setListError('No se pudieron cargar los cuestionarios de trivia.')
       }
     })
   }, [refreshKey])
@@ -82,7 +97,7 @@ export function TriviasPanel({ role }: { role: DashboardRole }) {
         setSelectedQuiz(quiz)
         setView('detail')
       } catch {
-        setListError('Failed to load trivia quiz details.')
+        setListError('No se pudieron cargar los detalles del cuestionario de trivia.')
       }
     })
   }
@@ -98,9 +113,9 @@ export function TriviasPanel({ role }: { role: DashboardRole }) {
       } catch (err) {
         const msg = err instanceof Error ? err.message : ''
         if (msg === 'invalid_fields') {
-          setFormError('Title and description are required (max 200 and 2000 characters).')
+          setFormError('El título y la descripción son obligatorios (máx. 200 y 2000 caracteres).')
         } else {
-          setFormError('Failed to create trivia quiz. Try again.')
+          setFormError('No se pudo crear el cuestionario de trivia. Inténtalo de nuevo.')
         }
       }
     })
@@ -118,13 +133,13 @@ export function TriviasPanel({ role }: { role: DashboardRole }) {
       } catch (err) {
         const msg = err instanceof Error ? err.message : ''
         if (msg === 'invalid_fields') {
-          setFormError('Title and description are required (max 200 and 2000 characters).')
+          setFormError('El título y la descripción son obligatorios (máx. 200 y 2000 caracteres).')
         } else if (msg === 'trivia_not_found') {
-          setFormError('Trivia quiz no longer exists.')
+          setFormError('El cuestionario de trivia ya no existe.')
         } else if (msg === 'trivia_not_editable') {
-          setFormError('This trivia quiz can no longer be edited (it is no longer in Draft status).')
+          setFormError('Este cuestionario de trivia ya no se puede editar (ya no está en estado Borrador).')
         } else {
-          setFormError('Failed to update trivia quiz. Try again.')
+          setFormError('No se pudo actualizar el cuestionario de trivia. Inténtalo de nuevo.')
         }
       }
     })
@@ -142,11 +157,11 @@ export function TriviasPanel({ role }: { role: DashboardRole }) {
       } catch (err) {
         const msg = err instanceof Error ? err.message : ''
         if (msg === 'invalid_question') {
-          setQuestionError('Invalid question. Check all fields and ensure exactly one correct option.')
+          setQuestionError('Pregunta no válida. Revisa todos los campos y asegúrate de marcar exactamente una opción correcta.')
         } else if (msg === 'trivia_not_found') {
-          setQuestionError('Trivia quiz no longer exists.')
+          setQuestionError('El cuestionario de trivia ya no existe.')
         } else {
-          setQuestionError('Failed to add question. Try again.')
+          setQuestionError('No se pudo agregar la pregunta. Inténtalo de nuevo.')
         }
       }
     })
@@ -164,11 +179,11 @@ export function TriviasPanel({ role }: { role: DashboardRole }) {
       } catch (err) {
         const msg = err instanceof Error ? err.message : ''
         if (msg === 'invalid_question') {
-          setQuestionError('Invalid question. Check all fields and ensure exactly one correct option.')
+          setQuestionError('Pregunta no válida. Revisa todos los campos y asegúrate de marcar exactamente una opción correcta.')
         } else if (msg === 'trivia_not_found') {
-          setQuestionError('Trivia quiz no longer exists.')
+          setQuestionError('El cuestionario de trivia ya no existe.')
         } else {
-          setQuestionError('Failed to update question. Try again.')
+          setQuestionError('No se pudo actualizar la pregunta. Inténtalo de nuevo.')
         }
       }
     })
@@ -186,11 +201,11 @@ export function TriviasPanel({ role }: { role: DashboardRole }) {
       } catch (err) {
         const msg = err instanceof Error ? err.message : ''
         if (msg === 'trivia_not_found') {
-          setQuestionError('That question no longer exists. Refresh the quiz and try again.')
+          setQuestionError('Esa pregunta ya no existe. Actualiza el cuestionario e inténtalo de nuevo.')
         } else if (msg === 'trivia_not_editable') {
-          setQuestionError('This quiz can no longer be edited (it is no longer in Draft status).')
+          setQuestionError('Este cuestionario ya no se puede editar (ya no está en estado Borrador).')
         } else {
-          setQuestionError('Failed to remove question. Try again.')
+          setQuestionError('No se pudo eliminar la pregunta. Inténtalo de nuevo.')
         }
         setConfirmRemoveId(null)
       }
@@ -210,12 +225,12 @@ export function TriviasPanel({ role }: { role: DashboardRole }) {
         const msg = err instanceof Error ? err.message : ''
         if (msg === 'trivia_publish_conflict') {
           setLifecycleError(
-            'Publication failed. Ensure the quiz is in Draft status and all questions have score values, time limits, and valid options.',
+            'Falló la publicación. Asegúrate de que el cuestionario esté en estado Borrador y de que todas las preguntas tengan valor de puntaje, límite de tiempo y opciones válidas.',
           )
         } else if (msg === 'trivia_not_found') {
-          setLifecycleError('Trivia quiz no longer exists.')
+          setLifecycleError('El cuestionario de trivia ya no existe.')
         } else {
-          setLifecycleError('Failed to publish quiz. Try again.')
+          setLifecycleError('No se pudo publicar el cuestionario. Inténtalo de nuevo.')
         }
         setConfirmPublish(false)
       }
@@ -234,11 +249,11 @@ export function TriviasPanel({ role }: { role: DashboardRole }) {
       } catch (err) {
         const msg = err instanceof Error ? err.message : ''
         if (msg === 'trivia_archive_conflict') {
-          setLifecycleError('This quiz cannot be archived in its current state.')
+          setLifecycleError('Este cuestionario no se puede archivar en su estado actual.')
         } else if (msg === 'trivia_not_found') {
-          setLifecycleError('Trivia quiz no longer exists.')
+          setLifecycleError('El cuestionario de trivia ya no existe.')
         } else {
-          setLifecycleError('Failed to archive quiz. Try again.')
+          setLifecycleError('No se pudo archivar el cuestionario. Inténtalo de nuevo.')
         }
         setConfirmArchive(false)
       }
@@ -257,11 +272,11 @@ export function TriviasPanel({ role }: { role: DashboardRole }) {
       } catch (err) {
         const msg = err instanceof Error ? err.message : ''
         if (msg === 'trivia_duplicate_conflict') {
-          setLifecycleError('Cannot duplicate an archived quiz.')
+          setLifecycleError('No se puede duplicar un cuestionario archivado.')
         } else if (msg === 'trivia_not_found') {
-          setLifecycleError('Trivia quiz no longer exists.')
+          setLifecycleError('El cuestionario de trivia ya no existe.')
         } else {
-          setLifecycleError('Failed to duplicate quiz. Try again.')
+          setLifecycleError('No se pudo duplicar el cuestionario. Inténtalo de nuevo.')
         }
         setConfirmDuplicate(false)
       }
@@ -283,12 +298,12 @@ export function TriviasPanel({ role }: { role: DashboardRole }) {
         // `detail` names the actual blocker — an active mission still referencing the quiz, or its
         // current lifecycle state. Prefer it; the generic line is only for an unreadable body.
         setLifecycleError(
-          result.detail ?? 'This quiz cannot be retired in its current state.',
+          result.detail ?? 'Este cuestionario no se puede retirar en su estado actual.',
         )
       } else if (result.error === 'trivia_not_found') {
-        setLifecycleError('Trivia quiz no longer exists.')
+        setLifecycleError('El cuestionario de trivia ya no existe.')
       } else {
-        setLifecycleError('Failed to retire quiz. Try again.')
+        setLifecycleError('No se pudo retirar el cuestionario. Inténtalo de nuevo.')
       }
       setConfirmRetire(false)
     })
@@ -310,7 +325,7 @@ export function TriviasPanel({ role }: { role: DashboardRole }) {
     return (
       <div data-testid="trivia-questions-section">
         <div className={styles.subsectionHeader}>
-          <h3>Questions</h3>
+          <h3>Preguntas</h3>
           {canEdit && (
             <button
               className={styles.primaryButton}
@@ -319,7 +334,7 @@ export function TriviasPanel({ role }: { role: DashboardRole }) {
               onClick={() => { setQuestionError(null); setConfirmRemoveId(null); setSelectedQuestion(null); setView('add-question') }}
               type="button"
             >
-              Add question
+              Agregar pregunta
             </button>
           )}
         </div>
@@ -344,7 +359,7 @@ export function TriviasPanel({ role }: { role: DashboardRole }) {
                         onClick={() => handleRemoveQuestion(q.id)}
                         type="button"
                       >
-                        Confirm remove
+                        Confirmar eliminación
                       </button>
                       <button
                         className={styles.inlineButton}
@@ -352,7 +367,7 @@ export function TriviasPanel({ role }: { role: DashboardRole }) {
                         onClick={() => setConfirmRemoveId(null)}
                         type="button"
                       >
-                        Cancel
+                        Cancelar
                       </button>
                     </span>
                   ) : (
@@ -369,7 +384,7 @@ export function TriviasPanel({ role }: { role: DashboardRole }) {
                         }}
                         type="button"
                       >
-                        Edit
+                        Editar
                       </button>
                       <button
                         className={styles.inlineButton}
@@ -378,7 +393,7 @@ export function TriviasPanel({ role }: { role: DashboardRole }) {
                         onClick={() => { setQuestionError(null); setConfirmRemoveId(q.id) }}
                         type="button"
                       >
-                        Remove
+                        Eliminar
                       </button>
                     </span>
                   )
@@ -400,7 +415,7 @@ export function TriviasPanel({ role }: { role: DashboardRole }) {
           ← {selectedQuiz.title}
         </button>
 
-        <h2 className={styles.missionDetailTitle}>Add question</h2>
+        <h2 className={styles.missionDetailTitle}>Agregar pregunta</h2>
 
         <TriviaQuestionForm
           initial={null}
@@ -424,7 +439,7 @@ export function TriviasPanel({ role }: { role: DashboardRole }) {
           ← {selectedQuiz.title}
         </button>
 
-        <h2 className={styles.missionDetailTitle}>Edit question</h2>
+        <h2 className={styles.missionDetailTitle}>Editar pregunta</h2>
 
         <TriviaQuestionForm
           initial={selectedQuestion}
@@ -445,7 +460,7 @@ export function TriviasPanel({ role }: { role: DashboardRole }) {
           onClick={() => { setView('list'); setConfirmPublish(false); setConfirmArchive(false); setConfirmDuplicate(false); setConfirmRetire(false); setLifecycleError(null); setConfirmRemoveId(null); setQuestionError(null) }}
           type="button"
         >
-          ← Back to trivia quizzes
+          ← Volver a los cuestionarios de trivia
         </button>
 
         <h2 className={styles.missionDetailTitle} data-testid="trivia-detail-title">
@@ -453,40 +468,40 @@ export function TriviasPanel({ role }: { role: DashboardRole }) {
         </h2>
 
         <div className={styles.missionDetailDescCard}>
-          <span className={styles.missionDetailDescLabel}>Description</span>
+          <span className={styles.missionDetailDescLabel}>Descripción</span>
           <p data-testid="trivia-detail-description">{selectedQuiz.description}</p>
         </div>
 
         <div className={styles.missionDetailInlineMeta}>
           <span>
-            Status:
+            Estado:
             <span
               className={styles.chip}
               data-tone={statusTone(selectedQuiz.status)}
               data-testid="trivia-detail-status"
             >
-              {selectedQuiz.status}
+              {displayStatus(selectedQuiz.status)}
             </span>
           </span>
           <span>
-            Source ready:
+            Fuente lista:
             <span
               className={styles.chip}
               data-tone={selectedQuiz.isSourceReady ? 'success' : 'muted'}
               data-testid="trivia-source-ready"
             >
-              {selectedQuiz.isSourceReady ? 'Yes' : 'No'}
+              {selectedQuiz.isSourceReady ? 'Sí' : 'No'}
             </span>
           </span>
           {selectedQuiz.isDuplicate && selectedQuiz.sourceTriviaQuizId !== null && (
             <span>
-              Copied from:
+              Copiado de:
               <span
                 className={styles.chip}
                 data-tone="muted"
                 data-testid="trivia-source-quiz-id"
               >
-                Quiz #{selectedQuiz.sourceTriviaQuizId}
+                Cuestionario n.º {selectedQuiz.sourceTriviaQuizId}
               </span>
             </span>
           )}
@@ -497,7 +512,7 @@ export function TriviasPanel({ role }: { role: DashboardRole }) {
                 data-tone="warning"
                 data-testid="trivia-has-usage-history"
               >
-                Has usage history
+                Tiene historial de uso
               </span>
             </span>
           )}
@@ -507,7 +522,7 @@ export function TriviasPanel({ role }: { role: DashboardRole }) {
           const { isReady, reasons } = computeReadiness(selectedQuiz)
           return !isReady ? (
             <div className={styles.missionDetailDescCard} data-testid="trivia-readiness-indicator">
-              <span className={styles.missionDetailDescLabel}>Publication readiness</span>
+              <span className={styles.missionDetailDescLabel}>Preparación para publicar</span>
               <ul style={{ margin: 0, paddingLeft: '1.2rem', color: 'var(--text-secondary)' }}>
                 {reasons.map((r, i) => <li key={i}>{r}</li>)}
               </ul>
@@ -530,7 +545,7 @@ export function TriviasPanel({ role }: { role: DashboardRole }) {
             onClick={() => { setFormError(null); setView('edit') }}
             type="button"
           >
-            Edit
+            Editar
           </button>
 
           {/* Publish trigger — only Draft, operator, no confirmations open */}
@@ -545,7 +560,7 @@ export function TriviasPanel({ role }: { role: DashboardRole }) {
                 onClick={() => { setLifecycleError(null); setConfirmPublish(true) }}
                 type="button"
               >
-                Publish
+                Publicar
               </button>
             )
           })()}
@@ -560,7 +575,7 @@ export function TriviasPanel({ role }: { role: DashboardRole }) {
                 onClick={handlePublish}
                 type="button"
               >
-                Confirm publish
+                Confirmar publicación
               </button>
               <button
                 className={styles.inlineButton}
@@ -568,7 +583,7 @@ export function TriviasPanel({ role }: { role: DashboardRole }) {
                 onClick={() => { setConfirmPublish(false); setLifecycleError(null) }}
                 type="button"
               >
-                Cancel
+                Cancelar
               </button>
             </span>
           )}
@@ -582,7 +597,7 @@ export function TriviasPanel({ role }: { role: DashboardRole }) {
               onClick={() => { setLifecycleError(null); setConfirmArchive(true) }}
               type="button"
             >
-              Archive
+              Archivar
             </button>
           )}
 
@@ -596,7 +611,7 @@ export function TriviasPanel({ role }: { role: DashboardRole }) {
                 onClick={handleArchive}
                 type="button"
               >
-                Confirm archive
+                Confirmar archivado
               </button>
               <button
                 className={styles.inlineButton}
@@ -604,7 +619,7 @@ export function TriviasPanel({ role }: { role: DashboardRole }) {
                 onClick={() => { setConfirmArchive(false); setLifecycleError(null) }}
                 type="button"
               >
-                Cancel
+                Cancelar
               </button>
             </span>
           )}
@@ -618,7 +633,7 @@ export function TriviasPanel({ role }: { role: DashboardRole }) {
               onClick={() => { setLifecycleError(null); setConfirmDuplicate(true) }}
               type="button"
             >
-              Duplicate
+              Duplicar
             </button>
           )}
 
@@ -632,7 +647,7 @@ export function TriviasPanel({ role }: { role: DashboardRole }) {
                 onClick={handleDuplicate}
                 type="button"
               >
-                Confirm duplicate
+                Confirmar duplicación
               </button>
               <button
                 className={styles.inlineButton}
@@ -640,7 +655,7 @@ export function TriviasPanel({ role }: { role: DashboardRole }) {
                 onClick={() => { setConfirmDuplicate(false); setLifecycleError(null) }}
                 type="button"
               >
-                Cancel
+                Cancelar
               </button>
             </span>
           )}
@@ -651,11 +666,11 @@ export function TriviasPanel({ role }: { role: DashboardRole }) {
               className={styles.inlineButton}
               data-testid="retire-trivia-btn"
               disabled={isPending}
-              title="Withdraw from future use — session history is preserved."
+              title="Retirar de uso futuro: se conserva el historial de sesiones."
               onClick={() => { setLifecycleError(null); setConfirmRetire(true) }}
               type="button"
             >
-              Retire
+              Retirar
             </button>
           )}
 
@@ -669,7 +684,7 @@ export function TriviasPanel({ role }: { role: DashboardRole }) {
                 onClick={handleRetire}
                 type="button"
               >
-                Confirm retire
+                Confirmar retiro
               </button>
               <button
                 className={styles.inlineButton}
@@ -677,7 +692,7 @@ export function TriviasPanel({ role }: { role: DashboardRole }) {
                 onClick={() => { setConfirmRetire(false); setLifecycleError(null) }}
                 type="button"
               >
-                Cancel
+                Cancelar
               </button>
             </span>
           )}
@@ -696,10 +711,10 @@ export function TriviasPanel({ role }: { role: DashboardRole }) {
           onClick={() => { setFormError(null); setView('list') }}
           type="button"
         >
-          ← Back to trivia quizzes
+          ← Volver a los cuestionarios de trivia
         </button>
 
-        <h2 className={styles.missionDetailTitle}>Create trivia quiz</h2>
+        <h2 className={styles.missionDetailTitle}>Crear cuestionario de trivia</h2>
 
         <TriviaQuizForm
           initial={{ title: '', description: '' }}
@@ -723,7 +738,7 @@ export function TriviasPanel({ role }: { role: DashboardRole }) {
           ← {selectedQuiz.title}
         </button>
 
-        <h2 className={styles.missionDetailTitle}>Edit trivia quiz</h2>
+        <h2 className={styles.missionDetailTitle}>Editar cuestionario de trivia</h2>
 
         <TriviaQuizForm
           initial={{ title: selectedQuiz.title, description: selectedQuiz.description }}
@@ -743,7 +758,7 @@ export function TriviasPanel({ role }: { role: DashboardRole }) {
     <section className={styles.panel} data-testid="trivias-panel">
       <div className={styles.panelHeader}>
         <div>
-          <h2>Trivia quizzes</h2>
+          <h2>Cuestionarios de trivia</h2>
         </div>
         {role === 'operator' && (
           <button
@@ -753,7 +768,7 @@ export function TriviasPanel({ role }: { role: DashboardRole }) {
             onClick={() => { setFormError(null); setView('create') }}
             type="button"
           >
-            Create trivia quiz
+            Crear cuestionario de trivia
           </button>
         )}
       </div>
@@ -764,12 +779,12 @@ export function TriviasPanel({ role }: { role: DashboardRole }) {
           <table className={styles.table}>
             <thead>
               <tr>
-                <th>Title</th>
-                <th>Description</th>
-                <th>Status</th>
-                <th>Source ready</th>
-                <th>Provenance</th>
-                <th>Actions</th>
+                <th>Título</th>
+                <th>Descripción</th>
+                <th>Estado</th>
+                <th>Fuente lista</th>
+                <th>Procedencia</th>
+                <th>Acciones</th>
               </tr>
             </thead>
             <tbody>
@@ -783,7 +798,7 @@ export function TriviasPanel({ role }: { role: DashboardRole }) {
                       data-tone={statusTone(quiz.status)}
                       data-testid={`trivia-status-${quiz.id}`}
                     >
-                      {quiz.status}
+                      {displayStatus(quiz.status)}
                     </span>
                   </td>
                   <td data-label="Source ready">
@@ -792,7 +807,7 @@ export function TriviasPanel({ role }: { role: DashboardRole }) {
                       data-tone={quiz.isSourceReady ? 'success' : 'muted'}
                       data-testid={`trivia-source-ready-${quiz.id}`}
                     >
-                      {quiz.isSourceReady ? 'Yes' : 'No'}
+                      {quiz.isSourceReady ? 'Sí' : 'No'}
                     </span>
                   </td>
                   <td data-label="Provenance">
@@ -802,7 +817,7 @@ export function TriviasPanel({ role }: { role: DashboardRole }) {
                         data-tone="muted"
                         data-testid={`trivia-copy-chip-${quiz.id}`}
                       >
-                        Copy
+                        Copia
                       </span>
                     ) : quiz.hasUsageHistory ? (
                       <span
@@ -810,7 +825,7 @@ export function TriviasPanel({ role }: { role: DashboardRole }) {
                         data-tone="warning"
                         data-testid={`trivia-usage-chip-${quiz.id}`}
                       >
-                        Used
+                        Usado
                       </span>
                     ) : (
                       <span style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>—</span>
@@ -824,7 +839,7 @@ export function TriviasPanel({ role }: { role: DashboardRole }) {
                       onClick={() => handleOpenDetail(quiz.id)}
                       type="button"
                     >
-                      View details
+                      Ver detalles
                     </button>
                   </td>
                 </tr>
@@ -864,13 +879,13 @@ function TriviaQuizForm({
       {error && <p className={styles.formError} role="alert">{error}</p>}
 
       <div className={styles.missionFormNameCard}>
-        <span className={styles.missionDetailDescLabel}>Quiz Title</span>
+        <span className={styles.missionDetailDescLabel}>Título del cuestionario</span>
         <input
           className={styles.missionFormNameInput}
           data-testid="trivia-title-input"
           disabled={isPending}
           maxLength={200}
-          placeholder="Enter quiz title"
+          placeholder="Ingresa el título del cuestionario"
           required
           value={title}
           onChange={(e) => setTitle(e.target.value)}
@@ -878,13 +893,13 @@ function TriviaQuizForm({
       </div>
 
       <div className={styles.missionFormDescCard}>
-        <span className={styles.missionDetailDescLabel}>Description</span>
+        <span className={styles.missionDetailDescLabel}>Descripción</span>
         <textarea
           className={styles.missionFormDescTextarea}
           data-testid="trivia-description-input"
           disabled={isPending}
           maxLength={2000}
-          placeholder="Describe the quiz"
+          placeholder="Describe el cuestionario"
           required
           rows={4}
           value={description}
@@ -899,7 +914,7 @@ function TriviaQuizForm({
           disabled={isPending}
           type="submit"
         >
-          Save
+          Guardar
         </button>
         <button
           className={styles.inlineButton}
@@ -907,7 +922,7 @@ function TriviaQuizForm({
           type="button"
           onClick={onCancel}
         >
-          Cancel
+          Cancelar
         </button>
       </div>
     </form>
@@ -934,8 +949,11 @@ function TriviaQuestionForm({
   onCancel: () => void
 }) {
   const [prompt, setPrompt] = useState(initial?.prompt ?? '')
-  const [scoreValue, setScoreValue] = useState(initial?.scoreValue ?? 100)
-  const [timeLimitSeconds, setTimeLimitSeconds] = useState(initial?.timeLimitSeconds ?? 30)
+  // Every trivia question is worth a fixed score of 100; operators do not set it.
+  const scoreValue = FIXED_QUESTION_SCORE
+  const [timeLimitSeconds, setTimeLimitSeconds] = useState<number | null>(
+    initial?.timeLimitSeconds ?? 15,
+  )
   const [explanation, setExplanation] = useState(initial?.explanation ?? '')
   const [isActive, setIsActive] = useState(initial?.isActive ?? true)
   const [options, setOptions] = useState<OptionDraft[]>(
@@ -977,17 +995,22 @@ function TriviaQuestionForm({
     e.preventDefault()
     setFormError(null)
 
+    if (timeLimitSeconds === null || timeLimitSeconds < 15 || timeLimitSeconds > 30) {
+      setFormError('El límite de tiempo es obligatorio y debe estar entre 15 y 30 segundos.')
+      return
+    }
+
     const correctCount = options.filter((o) => o.isCorrect).length
     if (correctCount !== 1) {
-      setFormError('Exactly one option must be marked as correct.')
+      setFormError('Se debe marcar exactamente una opción como correcta.')
       return
     }
     if (options.some((o) => o.optionText.trim() === '')) {
-      setFormError('All option texts are required.')
+      setFormError('Todos los textos de las opciones son obligatorios.')
       return
     }
     if (options.length < 2 || options.length > 4) {
-      setFormError('A question must have between 2 and 4 options.')
+      setFormError('Una pregunta debe tener entre 2 y 4 opciones.')
       return
     }
 
@@ -1015,58 +1038,52 @@ function TriviaQuestionForm({
     >
       {/* Prompt */}
       <div className={styles.missionFormNameCard}>
-        <span className={styles.missionDetailDescLabel}>Prompt</span>
+        <span className={styles.missionDetailDescLabel}>Enunciado</span>
         <input
           className={styles.missionFormNameInput}
           data-testid="question-prompt-input"
           disabled={isPending}
           maxLength={2000}
-          placeholder="Enter question prompt"
+          placeholder="Ingresa el enunciado de la pregunta"
           required
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
         />
       </div>
 
-      {/* Score */}
+      {/* Score — fixed at 100 for every question */}
       <div className={styles.missionFormNameCard}>
-        <span className={styles.missionDetailDescLabel}>Score value</span>
-        <input
-          className={styles.missionFormNameInput}
-          data-testid="question-score-value-input"
-          disabled={isPending}
-          min={1}
-          required
-          type="number"
-          value={scoreValue}
-          onChange={(e) => setScoreValue(Number(e.target.value))}
-        />
+        <span className={styles.missionDetailDescLabel}>Valor de puntaje</span>
+        <p data-testid="question-score-value">{scoreValue} puntos (fijo)</p>
       </div>
 
       {/* Timer */}
       <div className={styles.missionFormNameCard}>
-        <span className={styles.missionDetailDescLabel}>Time limit (seconds)</span>
+        <span className={styles.missionDetailDescLabel}>Límite de tiempo (15–30 segundos)</span>
         <input
           className={styles.missionFormNameInput}
           data-testid="question-timer-input"
           disabled={isPending}
-          min={1}
+          min={15}
+          max={30}
           required
           type="number"
-          value={timeLimitSeconds}
-          onChange={(e) => setTimeLimitSeconds(Number(e.target.value))}
+          value={timeLimitSeconds ?? ''}
+          onChange={(e) =>
+            setTimeLimitSeconds(e.target.value === '' ? null : Number(e.target.value))
+          }
         />
       </div>
 
       {/* Explanation */}
       <div className={styles.missionFormDescCard}>
-        <span className={styles.missionDetailDescLabel}>Explanation (optional)</span>
+        <span className={styles.missionDetailDescLabel}>Explicación (opcional)</span>
         <textarea
           className={styles.missionFormDescTextarea}
           data-testid="question-explanation-input"
           disabled={isPending}
           maxLength={4000}
-          placeholder="Explain why the correct answer is right"
+          placeholder="Explica por qué la respuesta correcta es la correcta"
           rows={3}
           value={explanation}
           onChange={(e) => setExplanation(e.target.value)}
@@ -1083,13 +1100,13 @@ function TriviaQuestionForm({
             type="checkbox"
             onChange={(e) => setIsActive(e.target.checked)}
           />
-          <span className={styles.missionDetailDescLabel}>Active</span>
+          <span className={styles.missionDetailDescLabel}>Activa</span>
         </label>
       </div>
 
       {/* Options */}
       <div className={styles.missionFormDescCard}>
-        <span className={styles.missionDetailDescLabel}>Options (2–4)</span>
+        <span className={styles.missionDetailDescLabel}>Opciones (2–4)</span>
         {options.map((opt, index) => (
           <div
             key={index}
@@ -1102,7 +1119,7 @@ function TriviaQuestionForm({
               data-testid={`question-option-text-${index}`}
               disabled={isPending}
               maxLength={1000}
-              placeholder={`Option ${index + 1}`}
+              placeholder={`Opción ${index + 1}`}
               required
               value={opt.optionText}
               onChange={(e) => updateOption(index, { optionText: e.target.value })}
@@ -1113,11 +1130,11 @@ function TriviaQuestionForm({
               disabled={isPending}
               name="correct-option"
               style={{ marginLeft: '0.75rem' }}
-              title="Mark as correct"
+              title="Marcar como correcta"
               type="radio"
               onChange={() => markCorrect(index)}
             />
-            <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginLeft: '0.35rem' }}>Correct</span>
+            <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginLeft: '0.35rem' }}>Correcta</span>
             {options.length > 2 && (
               <button
                 className={styles.inlineButton}
@@ -1141,7 +1158,7 @@ function TriviaQuestionForm({
               onClick={addOption}
               type="button"
             >
-              + Add option
+              + Agregar opción
             </button>
           </div>
         )}
@@ -1159,7 +1176,7 @@ function TriviaQuestionForm({
           disabled={isPending}
           type="submit"
         >
-          Save
+          Guardar
         </button>
         <button
           className={styles.inlineButton}
@@ -1167,7 +1184,7 @@ function TriviaQuestionForm({
           type="button"
           onClick={onCancel}
         >
-          Cancel
+          Cancelar
         </button>
       </div>
     </form>

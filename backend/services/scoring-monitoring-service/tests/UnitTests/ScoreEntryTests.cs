@@ -101,8 +101,40 @@ public sealed class ScoreEntryTests
             penaltyId,
             appliedAt);
 
-        entry.DomainEvents.Should().ContainSingle();
         entry.DomainEvents.OfType<ScoreEntryRegistered>().Should().ContainSingle();
+    }
+
+    [Fact]
+    public void Penalty_ShouldRaisePenaltyApplied_WithUnclampedMagnitude()
+    {
+        // The explicit penalty notification the participant toast is driven from. It must carry the true
+        // deduction magnitude (positive) and the routing identifiers, independent of the clamped ranking.
+        var liveSessionId = Guid.NewGuid();
+        var teamId = Guid.NewGuid();
+        var scoreEntryId = Guid.NewGuid();
+        var penaltyId = Guid.NewGuid();
+        var appliedAt = new DateTimeOffset(2026, 7, 15, 10, 0, 0, TimeSpan.Zero);
+
+        var entry = ScoreEntry.Penalty(
+            scoreEntryId,
+            liveSessionId,
+            teamId,
+            "Crimson Foxes",
+            "Unsportsmanlike conduct",
+            ScoreValue.Create(100),
+            penaltyId,
+            appliedAt);
+
+        var penaltyApplied = entry.DomainEvents
+            .OfType<PenaltyApplied>()
+            .Should().ContainSingle().Subject;
+        penaltyApplied.LiveSessionId.Should().Be(liveSessionId);
+        penaltyApplied.TeamId.Should().Be(teamId);
+        penaltyApplied.PenaltyId.Should().Be(penaltyId);
+        penaltyApplied.ScoreEntryId.Should().Be(scoreEntryId);
+        penaltyApplied.DeductionMagnitude.Should().Be(100);
+        penaltyApplied.Reason.Should().Be("Unsportsmanlike conduct");
+        penaltyApplied.AppliedAt.Should().Be(appliedAt);
     }
 
     [Fact]

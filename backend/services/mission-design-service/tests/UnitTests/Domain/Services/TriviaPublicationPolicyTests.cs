@@ -15,7 +15,7 @@ public class TriviaPublicationPolicyTests
         quiz.AddQuestion(
             "Capital of France?",
             100,
-            45,
+            25,
             null,
             [
                 TriviaOption.Create("Paris", 1, true),
@@ -37,7 +37,7 @@ public class TriviaPublicationPolicyTests
                 TriviaQuestion.Create(
                     "Question 1",
                     null,
-                    45,
+                    25,
                     null,
                     [
                         TriviaOption.Create("Option A", 1, true),
@@ -57,7 +57,7 @@ public class TriviaPublicationPolicyTests
             TriviaQuestion.Create(
                 "Question 1",
                 100,
-                45,
+                25,
                 null,
                 [TriviaOption.Create("Only option", 1, true)]));
 
@@ -73,7 +73,7 @@ public class TriviaPublicationPolicyTests
             TriviaQuestion.Create(
                 "Question 1",
                 100,
-                45,
+                25,
                 null,
                 [
                     TriviaOption.Create("Option A", 1, true),
@@ -95,7 +95,7 @@ public class TriviaPublicationPolicyTests
             TriviaQuestion.Create(
                 "Question 1",
                 100,
-                45,
+                25,
                 null,
                 [
                     TriviaOption.Create("Option A", 1, false),

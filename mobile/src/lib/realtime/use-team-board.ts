@@ -21,7 +21,7 @@ export type UseTeamBoardResult = {
  * server-side `team:{perSessionId}` group that already scopes the push to this
  * team. A client-side `teamId` check would in fact drop every push: the DTO
  * carries the per-session team id (`Team.TeamId`), whereas the `teamId` prop —
- * used for the REST fetch/guard — is the identity-access reference id, so the
+ * used for the REST fetch/guard — is the users-service reference id, so the
  * two never compare equal. It does NOT own the timer countdown — the ticking
  * value stays `useSessionTimer.display`; `board.timer` is only a seed.
  *

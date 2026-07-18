@@ -18,7 +18,7 @@ public sealed class DomainExceptionCoverageTests
     [Fact]
     public void MissionAlreadyActive_ThrownWhenActivatingReadyMission()
     {
-        var mission = Mission.Create("Mission", "Briefing", "Advanced", 45);
+        var mission = Mission.Create("Mission", "Briefing", "Advanced", 30);
         var stage = mission.AddStage("Stage", 1);
         stage.Id = 10;
         var substage = mission.AddSubstage(stage.Id, Substage.CreateTreasureHunt("Substage", 1));

@@ -40,7 +40,7 @@ All of this is on `develop`. This is the surface HU-08 **verifies** — it is th
 - HU-34 — `SignalRTeamAnsweredBroadcaster` operator-only group `live-session-operators:{id}`.
 - HU-21/22/24 — `SessionStateBroadcaster`, `SignalRSessionTimerBroadcaster`, `SignalRSessionQuestionBroadcaster` → `live-session:{id}` group (reach every participant device joined to the session).
 
-**Coverage:** `session-operations-service` is under the ADR-0005 `cover-gate.sh` bar (line **and** branch). X.4 must keep the merged suite at or above the enforced threshold; the new multi-device test only adds coverage.
+**Coverage:** `session-operations-service` must reach at least 95% aggregate branch coverage under ADR-0005. X.4 must keep the merged suite at or above that threshold; the new multi-device test only adds coverage.
 
 ## What this HU adds
 
@@ -132,4 +132,4 @@ HU-08 adds **no new domain/application/infrastructure types and no new endpoints
 - create `tests/IntegrationTests/Api/MultiDeviceTeamSyncHubTests.cs` — mirror `tests/IntegrationTests/Api/SignalRTeamBoardDeliveryTests.cs` + `tests/IntegrationTests/Api/ConnectionTrackerTests.cs`
 
 **Pattern this phase owns:** none.
-**Gate (the real deliverable):** one integration test asserting **AC1–AC4 together** — (AC1/AC2) two concurrent connections for the same participant both receive `TeamBoardUpdated` after a team change; (last-device) the participant is not disconnected until the last connection drops; (AC4) a device on a **different** team never receives the first team's board; (AC3) a fresh/reconnecting connection is admitted idempotently and receives current `SessionState`/timer. Service stays at/above the ADR-0005 coverage gate (line **and** branch). **No new endpoint.**
+**Gate (the real deliverable):** one integration test asserting **AC1–AC4 together** — (AC1/AC2) two concurrent connections for the same participant both receive `TeamBoardUpdated` after a team change; (last-device) the participant is not disconnected until the last connection drops; (AC4) a device on a **different** team never receives the first team's board; (AC3) a fresh/reconnecting connection is admitted idempotently and receives current `SessionState`/timer. Service stays at or above the ADR-0005 aggregate branch-coverage gate. **No new endpoint.**

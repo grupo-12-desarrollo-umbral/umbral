@@ -239,7 +239,7 @@ tests/
 
 ```bash
 make test SVC=«service-id»
-make gate SVC=«service-id»   # gate de cobertura ADR-0005, umbral >= 90% de línea
+make gate SVC=«service-id»   # gate ADR-0005, cobertura agregada de ramas >= 95%
 ```
 
 «No hardcodear porcentajes ni número de tests.»

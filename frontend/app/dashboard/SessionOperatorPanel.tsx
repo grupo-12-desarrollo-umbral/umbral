@@ -13,7 +13,20 @@ import type {
   MissionSummaryDto,
   SessionAssignmentSummaryDto,
 } from '@/app/lib/definitions'
+import { lifecycleStateLabel } from '@/app/lib/session-lifecycle'
 import styles from './dashboard.module.css'
+
+const backendRoleLabel: Record<string, string> = {
+  Administrator: 'Administrador',
+  Operator: 'Operador',
+  Participant: 'Participante',
+}
+function displayRole(role: string) {
+  return backendRoleLabel[role] ?? role
+}
+function stateLabel(state: string) {
+  return lifecycleStateLabel[state as keyof typeof lifecycleStateLabel] ?? state
+}
 
 export function SessionOperatorPanel() {
   const [sessions, setSessions] = useState<SessionAssignmentSummaryDto[]>([])
@@ -47,7 +60,7 @@ export function SessionOperatorPanel() {
   useEffect(() => {
     getActiveMissions()
       .then(setMissions)
-      .catch(() => setMissionsError('Failed to load available missions. Reload the page.'))
+      .catch(() => setMissionsError('No se pudieron cargar las misiones disponibles. Recarga la página.'))
   }, [])
 
   useEffect(() => {
@@ -71,8 +84,8 @@ export function SessionOperatorPanel() {
         setPendingOperatorId(null)
         setListError(
           err instanceof Error && err.message.includes('Administrator')
-            ? 'Administrator role required.'
-            : 'Failed to load sessions. Try again.',
+            ? 'Se requiere el rol de Administrador.'
+            : 'No se pudieron cargar las sesiones. Inténtalo de nuevo.',
         )
       }
     })
@@ -117,8 +130,8 @@ export function SessionOperatorPanel() {
       } catch (err) {
         setListError(
           err instanceof Error && err.message.includes('Administrator')
-            ? 'Administrator role required.'
-            : 'Failed to load sessions. Try again.',
+            ? 'Se requiere el rol de Administrador.'
+            : 'No se pudieron cargar las sesiones. Inténtalo de nuevo.',
         )
       }
     })
@@ -143,24 +156,24 @@ export function SessionOperatorPanel() {
       } catch (err) {
         if (err instanceof Error && err.message === 'mission_not_eligible') {
           setFormError(
-            'The selected mission is inactive or not runtime-ready and cannot be used for session creation. ' +
-            'Activate the mission and ensure all stages, substages, and targets are configured.',
+            'La misión seleccionada está inactiva o no está lista para ejecución y no puede usarse para crear una sesión. ' +
+            'Activa la misión y asegúrate de que todas las etapas, subetapas y targets estén configurados.',
           )
         } else if (err instanceof Error && err.message === 'mission_not_found') {
-          setFormError('The selected mission was not found. Reload the page and try again.')
+          setFormError('No se encontró la misión seleccionada. Recarga la página e inténtalo de nuevo.')
         } else if (err instanceof Error && err.message === 'invalid_input') {
-          setFormError('Invalid session data. Check all fields and try again.')
+          setFormError('Datos de sesión no válidos. Revisa todos los campos e inténtalo de nuevo.')
         } else {
-          setFormError('Session creation failed. Try again.')
+          setFormError('Falló la creación de la sesión. Inténtalo de nuevo.')
         }
       }
     })
   }
 
   function currentOperatorLabel(s: SessionAssignmentSummaryDto): string {
-    if (s.assignedOperatorUserId == null) return 'Unassigned'
+    if (s.assignedOperatorUserId == null) return 'Sin asignar'
     const op = operators.find((o) => o.id === s.assignedOperatorUserId)
-    return op ? `${op.displayName} (${op.email})` : `User #${s.assignedOperatorUserId}`
+    return op ? `${op.displayName} (${op.email})` : `Usuario #${s.assignedOperatorUserId}`
   }
 
   function handleAssign() {
@@ -182,12 +195,12 @@ export function SessionOperatorPanel() {
         setPendingOperatorId(previous)
         setAssignError(
           err instanceof Error && err.message === 'ineligible_operator'
-            ? 'That user cannot be assigned as the responsible operator.'
+            ? 'Ese usuario no puede asignarse como operador responsable.'
             : err instanceof Error && err.message === 'session_not_found'
-              ? 'Session not found.'
+              ? 'Sesión no encontrada.'
               : err instanceof Error && err.message.includes('Administrator')
-                ? 'Administrator role required.'
-                : 'Assignment failed. Try again.',
+                ? 'Se requiere el rol de Administrador.'
+                : 'Falló la asignación. Inténtalo de nuevo.',
         )
       }
     })
@@ -213,7 +226,7 @@ export function SessionOperatorPanel() {
     sessions.length === 0 && !listError
       ? (
           <div className={styles.assignmentCard}>
-            <p className={styles.emptyList}>No active sessions to assign.</p>
+            <p className={styles.emptyList}>No hay sesiones activas para asignar.</p>
           </div>
         )
       : (
@@ -233,12 +246,12 @@ export function SessionOperatorPanel() {
                     </div>
                   </div>
                   <span className={styles.chip} data-tone={getSessionStateTone(session.sessionState)}>
-                    {session.sessionState}
+                    {stateLabel(session.sessionState)}
                   </span>
                 </div>
                 <div className={styles.sessionOperatorBody}>
                   <div className={styles.sessionOperatorInfo}>
-                    <span className={styles.sessionOperatorLabel}>Current operator</span>
+                    <span className={styles.sessionOperatorLabel}>Operador actual</span>
                     <strong>{currentOperatorLabel(session)}</strong>
                   </div>
                   <button
@@ -246,7 +259,7 @@ export function SessionOperatorPanel() {
                     className={styles.primaryButton}
                     onClick={() => openAssignmentModal(session)}
                   >
-                    {session.assignedOperatorUserId == null ? 'Assign operator' : 'Change operator'}
+                    {session.assignedOperatorUserId == null ? 'Asignar operador' : 'Cambiar operador'}
                   </button>
                 </div>
               </article>
@@ -258,9 +271,9 @@ export function SessionOperatorPanel() {
     <section className={styles.panel} data-testid="session-operator-panel">
       <div className={styles.panelHeader}>
         <div>
-          <h2>Assign operators</h2>
+          <h2>Asignar operadores</h2>
           <div className={styles.panelMeta}>
-            Assign or change the responsible operator for an existing session.
+            Asigna o cambia el operador responsable de una sesión existente.
           </div>
         </div>
         <div className={styles.confirmRow}>
@@ -270,9 +283,9 @@ export function SessionOperatorPanel() {
             onClick={refreshSessions}
             disabled={isPending}
           >
-            Refresh
+            Actualizar
           </button>
-          {isPending && <span className={styles.chip}>Loading…</span>}
+          {isPending && <span className={styles.chip}>Cargando…</span>}
         </div>
       </div>
 
@@ -285,9 +298,9 @@ export function SessionOperatorPanel() {
       <section className={styles.assignmentCard} aria-labelledby="create-session-heading">
         <div className={styles.panelHeader}>
           <div>
-            <h3 id="create-session-heading">Create session</h3>
+            <h3 id="create-session-heading">Crear sesión</h3>
             <div className={styles.panelMeta}>
-              Create a session from an active mission, then assign a responsible operator below.
+              Crea una sesión a partir de una misión activa y luego asigna un operador responsable más abajo.
             </div>
           </div>
         </div>
@@ -306,7 +319,7 @@ export function SessionOperatorPanel() {
 
         <form onSubmit={handleCreate} data-testid="session-create-form">
           <div className={styles.formGroup}>
-            <label htmlFor="session-mission-select">Mission</label>
+            <label htmlFor="session-mission-select">Misión</label>
             <select
               id="session-mission-select"
               data-testid="session-mission-select"
@@ -316,7 +329,7 @@ export function SessionOperatorPanel() {
               required
               disabled={isCreating || !missions}
             >
-              <option value="" disabled>— Select a runtime-ready mission —</option>
+              <option value="" disabled>— Selecciona una misión lista para ejecución —</option>
               {sortedMissions?.map((m) => (
                 // A mission only becomes a valid session source once it is runtime-ready
                 // (authored + activated). Draft missions still surface here so the admin can
@@ -327,7 +340,7 @@ export function SessionOperatorPanel() {
                   value={String(m.id)}
                   disabled={!m.isSourceReady}
                 >
-                  {m.isSourceReady ? m.name : `${m.name} — not runtime-ready`}
+                  {m.isSourceReady ? m.name : `${m.name} — no está lista para ejecución`}
                 </option>
               ))}
             </select>
@@ -335,19 +348,19 @@ export function SessionOperatorPanel() {
 
           {missions?.length === 0 && (
             <p className={styles.emptyList} data-testid="session-no-missions">
-              No active missions available. Activate a mission before creating a session.
+              No hay misiones activas disponibles. Activa una misión antes de crear una sesión.
             </p>
           )}
 
           {missions !== null && missions.length > 0 && !missions.some((m) => m.isSourceReady) && (
             <p className={styles.emptyList} data-testid="session-no-ready-missions">
-              No runtime-ready missions available. Finish authoring a mission and activate it
-              before creating a session.
+              No hay misiones listas para ejecución disponibles. Termina de crear una misión y actívala
+              antes de crear una sesión.
             </p>
           )}
 
           <div className={styles.formGroup}>
-            <label htmlFor="session-title">Session title</label>
+            <label htmlFor="session-title">Título de la sesión</label>
             <input
               id="session-title"
               data-testid="session-title-input"
@@ -361,7 +374,7 @@ export function SessionOperatorPanel() {
           </div>
 
           <div className={styles.formGroup}>
-            <label htmlFor="session-max-time">Maximum time (minutes)</label>
+            <label htmlFor="session-max-time">Tiempo máximo (minutos)</label>
             <input
               id="session-max-time"
               data-testid="session-max-time-input"
@@ -377,7 +390,7 @@ export function SessionOperatorPanel() {
           </div>
 
           <div className={styles.formGroup}>
-            <label htmlFor="session-scheduled-at">Scheduled at</label>
+            <label htmlFor="session-scheduled-at">Programada para</label>
             <input
               id="session-scheduled-at"
               data-testid="session-scheduled-at-input"
@@ -402,7 +415,7 @@ export function SessionOperatorPanel() {
               !scheduledAt
             }
           >
-            {isCreating ? 'Creating…' : 'Create session'}
+            {isCreating ? 'Creando…' : 'Crear sesión'}
           </button>
         </form>
       </section>
@@ -426,7 +439,7 @@ export function SessionOperatorPanel() {
           >
             <div className={styles.panelHeader}>
               <div>
-                <h2 id="session-operator-modal-title">Operator assignment</h2>
+                <h2 id="session-operator-modal-title">Asignación de operador</h2>
                 <div className={styles.panelMeta}>
                   {selectedSession.title} · {selectedSession.sessionCode}
                 </div>
@@ -436,29 +449,29 @@ export function SessionOperatorPanel() {
                 type="button"
                 onClick={handleCancel}
                 disabled={isPending}
-                aria-label="Close operator assignment dialog"
+                aria-label="Cerrar el diálogo de asignación de operador"
               >
-                Close
+                Cerrar
               </button>
             </div>
 
             <div className={styles.sessionOperatorModalDetails}>
               <div className={styles.assignmentCard}>
-                <span className={styles.sessionOperatorLabel}>Scheduled</span>
+                <span className={styles.sessionOperatorLabel}>Programada</span>
                 <strong>{new Date(selectedSession.scheduledAt).toLocaleString()}</strong>
               </div>
               <div className={styles.assignmentCard}>
-                <span className={styles.sessionOperatorLabel}>Current operator</span>
+                <span className={styles.sessionOperatorLabel}>Operador actual</span>
                 <strong>{currentOperatorLabel(selectedSession)}</strong>
               </div>
             </div>
 
             <p className={styles.panelMeta}>
-              This changes responsibility for an existing session. It does not create the session.
+              Esto cambia la responsabilidad de una sesión existente. No crea la sesión.
             </p>
 
             <div className={styles.formGroup}>
-              <label htmlFor="operator-select">Operator</label>
+              <label htmlFor="operator-select">Operador</label>
               <select
                 id="operator-select"
                 data-testid="operator-select"
@@ -467,10 +480,10 @@ export function SessionOperatorPanel() {
                 onChange={(e) => setPendingOperatorId(e.target.value ? Number(e.target.value) : null)}
                 disabled={isPending}
               >
-                <option value="" disabled>— Select an operator —</option>
+                <option value="" disabled>— Selecciona un operador —</option>
                 {operators.map((op) => (
                   <option key={op.id} value={op.id}>
-                    {op.displayName} ({op.email}) — {op.role}
+                    {op.displayName} ({op.email}) — {displayRole(op.role)}
                   </option>
                 ))}
               </select>
@@ -490,7 +503,7 @@ export function SessionOperatorPanel() {
                 disabled={isPending || pendingOperatorId === selectedSession.assignedOperatorUserId}
                 onClick={handleAssign}
               >
-                Save operator
+                Guardar operador
               </button>
               <button
                 className={styles.inlineButton}
@@ -498,7 +511,7 @@ export function SessionOperatorPanel() {
                 disabled={isPending}
                 onClick={handleCancel}
               >
-                Cancel
+                Cancelar
               </button>
             </div>
           </div>

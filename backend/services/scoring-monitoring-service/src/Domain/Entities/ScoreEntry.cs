@@ -154,6 +154,18 @@ public sealed class ScoreEntry : BaseAuditableEntity
             entry.SourceEntityId,
             entry.RecordedByUserId));
 
+        // Sibling to the ledger fact: the ScoreEntryRegistered above recalculates the ranking, while this
+        // event drives the explicit participant-facing penalty notification. Both must ride the same
+        // ScoreEntry so they share one persistence transaction and one applied-at instant.
+        entry.AddDomainEvent(new PenaltyApplied(
+            penaltyId,
+            entry.ScoreEntryId,
+            entry.LiveSessionId,
+            entry.TeamId,
+            entry.ScoreValue.Value,
+            entry.ReasonCode,
+            entry.RecordedAt));
+
         return entry;
     }
 }

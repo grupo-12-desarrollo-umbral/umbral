@@ -12,6 +12,7 @@ import {
 } from '@/app/actions/teams'
 import { listSessionsForOperator, associateTeamToSession } from '@/app/actions/sessions'
 import { getAssignableParticipants } from '@/app/actions/users'
+import { lifecycleStateLabel, toLifecycleState } from '@/app/lib/session-lifecycle'
 import type {
   AssignableParticipantDto,
   PagedResult,
@@ -59,7 +60,7 @@ export function TeamsPanel({ role }: { role: DashboardRole }) {
         const result = await getTeamsPage(page)
         setListData(result)
       } catch {
-        setListError('Failed to load teams.')
+        setListError('No se pudieron cargar los equipos.')
       }
     })
   }, [page, refreshKey])
@@ -72,7 +73,7 @@ export function TeamsPanel({ role }: { role: DashboardRole }) {
         const result = await getTeamParticipants(selectedTeam.teamId)
         setParticipants(result)
       } catch {
-        setParticipantsError('Failed to load participants.')
+        setParticipantsError('No se pudieron cargar los participantes.')
       }
     })
   }, [view, selectedTeam])
@@ -88,9 +89,9 @@ export function TeamsPanel({ role }: { role: DashboardRole }) {
       } catch (err) {
         const msg = err instanceof Error ? err.message : ''
         if (msg === 'already_inactive') {
-          setDeactivateError('This team is already inactive.')
+          setDeactivateError('Este equipo ya está inactivo.')
         } else {
-          setDeactivateError('Deactivation failed. Try again.')
+          setDeactivateError('Falló la desactivación. Inténtalo de nuevo.')
         }
         setConfirmDeactivate(false)
       }
@@ -111,9 +112,9 @@ export function TeamsPanel({ role }: { role: DashboardRole }) {
       } catch (err) {
         const msg = err instanceof Error ? err.message : ''
         if (msg === 'duplicate_team_code') {
-          setFormError('A team with this code already exists.')
+          setFormError('Ya existe un equipo con este código.')
         } else {
-          setFormError('Failed to create team. Try again.')
+          setFormError('No se pudo crear el equipo. Inténtalo de nuevo.')
         }
       }
     })
@@ -132,11 +133,11 @@ export function TeamsPanel({ role }: { role: DashboardRole }) {
       } catch (err) {
         const msg = err instanceof Error ? err.message : ''
         if (msg === 'duplicate_team_code') {
-          setFormError('A team with this code already exists.')
+          setFormError('Ya existe un equipo con este código.')
         } else if (msg === 'team_not_found') {
-          setFormError('This team no longer exists.')
+          setFormError('Este equipo ya no existe.')
         } else {
-          setFormError('Failed to save changes. Try again.')
+          setFormError('No se pudieron guardar los cambios. Inténtalo de nuevo.')
         }
       }
     })
@@ -175,13 +176,13 @@ export function TeamsPanel({ role }: { role: DashboardRole }) {
       } catch (err) {
         const msg = err instanceof Error ? err.message : ''
         if (msg === 'team_not_active') {
-          setAssignError('This team is inactive and cannot accept new members.')
+          setAssignError('Este equipo está inactivo y no puede aceptar nuevos miembros.')
         } else if (msg === 'participant_already_assigned') {
-          setAssignError('This user is already assigned to the team.')
+          setAssignError('Este usuario ya está asignado al equipo.')
         } else if (msg === 'user_not_participant_role') {
-          setAssignError('The selected user does not have the Participant role.')
+          setAssignError('El usuario seleccionado no tiene el rol de Participante.')
         } else {
-          setAssignError('Assignment failed. Try again.')
+          setAssignError('Falló la asignación. Inténtalo de nuevo.')
         }
       }
     })
@@ -206,7 +207,7 @@ export function TeamsPanel({ role }: { role: DashboardRole }) {
         setOperatorSessions(sessions)
       } catch {
         setOperatorSessions([])
-        setSessionsError('Failed to load your assigned sessions.')
+        setSessionsError('No se pudieron cargar tus sesiones asignadas.')
       }
     })
   }
@@ -222,15 +223,15 @@ export function TeamsPanel({ role }: { role: DashboardRole }) {
       } catch (err) {
         const msg = err instanceof Error ? err.message : ''
         if (msg === 'duplicate_association') {
-          setSessionAssignError('This team is already associated with that session.')
+          setSessionAssignError('Este equipo ya está asociado a esa sesión.')
         } else if (msg === 'inactive_team') {
-          setSessionAssignError('Inactive teams cannot be assigned to a session.')
+          setSessionAssignError('Los equipos inactivos no pueden asignarse a una sesión.')
         } else if (msg === 'session_not_scheduled') {
-          setSessionAssignError('Only scheduled sessions can accept new teams.')
+          setSessionAssignError('Solo las sesiones programadas pueden aceptar nuevos equipos.')
         } else if (msg === 'not_found') {
-          setSessionAssignError('The team or session no longer exists.')
+          setSessionAssignError('El equipo o la sesión ya no existe.')
         } else {
-          setSessionAssignError('Failed to assign the team to the selected session.')
+          setSessionAssignError('No se pudo asignar el equipo a la sesión seleccionada.')
         }
       }
     })
@@ -260,7 +261,7 @@ export function TeamsPanel({ role }: { role: DashboardRole }) {
               }}
               type="button"
             >
-              ← Teams
+              ← Equipos
             </button>
             <h2 id="team-detail-title">{selectedTeam.displayName}</h2>
             <div className={styles.panelMeta}>{selectedTeam.teamCode}</div>
@@ -284,7 +285,7 @@ export function TeamsPanel({ role }: { role: DashboardRole }) {
                   }}
                   type="button"
                 >
-                  Edit
+                  Editar
                 </button>
               )}
               {!confirmDeactivate ? (
@@ -295,7 +296,7 @@ export function TeamsPanel({ role }: { role: DashboardRole }) {
                   onClick={() => setConfirmDeactivate(true)}
                   type="button"
                 >
-                  Deactivate
+                  Desactivar
                 </button>
               ) : (
                 <span className={styles.confirmRow}>
@@ -307,7 +308,7 @@ export function TeamsPanel({ role }: { role: DashboardRole }) {
                     onClick={() => handleDeactivate(selectedTeam.teamId)}
                     type="button"
                   >
-                    Confirm
+                    Confirmar
                   </button>
                   <button
                     className={styles.inlineButton}
@@ -315,7 +316,7 @@ export function TeamsPanel({ role }: { role: DashboardRole }) {
                     onClick={() => setConfirmDeactivate(false)}
                     type="button"
                   >
-                    Cancel
+                    Cancelar
                   </button>
                 </span>
               )}
@@ -330,23 +331,23 @@ export function TeamsPanel({ role }: { role: DashboardRole }) {
         )}
 
         <dl className={styles.detailList} data-testid="team-detail-fields">
-          <dt>Display name</dt>
+          <dt>Nombre visible</dt>
           <dd data-testid="detail-display-name">{selectedTeam.displayName}</dd>
-          <dt>Team code</dt>
+          <dt>Código de equipo</dt>
           <dd data-testid="detail-team-code">{selectedTeam.teamCode}</dd>
-          <dt>Status</dt>
+          <dt>Estado</dt>
           <dd>
             <span
               className={styles.chip}
               data-tone={selectedTeam.isActive ? 'success' : 'critical'}
               data-testid="detail-status"
             >
-              {selectedTeam.isActive ? 'Active' : 'Inactive'}
+              {selectedTeam.isActive ? 'Activo' : 'Inactivo'}
             </span>
           </dd>
-          <dt>Created</dt>
+          <dt>Creado</dt>
           <dd>{new Date(selectedTeam.createdAt).toLocaleDateString()}</dd>
-          <dt>Last updated</dt>
+          <dt>Última actualización</dt>
           <dd>{new Date(selectedTeam.updatedAt).toLocaleDateString()}</dd>
         </dl>
 
@@ -355,7 +356,7 @@ export function TeamsPanel({ role }: { role: DashboardRole }) {
           data-testid="participants-section"
         >
           <div className={styles.subsectionHeader}>
-            <h3 id="participants-section-title">Participants</h3>
+            <h3 id="participants-section-title">Participantes</h3>
             {canManageTeams && selectedTeam.isActive && (
               <button
                 className={styles.inlineButton}
@@ -368,14 +369,14 @@ export function TeamsPanel({ role }: { role: DashboardRole }) {
                 }}
                 type="button"
               >
-                + Assign participant
+                + Asignar participante
               </button>
             )}
           </div>
 
           {showAssignForm && canManageTeams && (
             <div className={styles.formGroup} data-testid="assign-form">
-              <label htmlFor="participant-select">Select participant</label>
+              <label htmlFor="participant-select">Seleccionar participante</label>
               <select
                 id="participant-select"
                 className={styles.inlineSelect}
@@ -384,7 +385,7 @@ export function TeamsPanel({ role }: { role: DashboardRole }) {
                 onChange={(e) => setSelectedUserId(Number(e.target.value))}
                 disabled={isAssignPending}
               >
-                <option value={0}>— Select a participant —</option>
+                <option value={0}>— Selecciona un participante —</option>
                 {participantUsers.map((u) => (
                   <option key={u.id} value={u.id}>
                     {u.displayName} ({u.email})
@@ -406,7 +407,7 @@ export function TeamsPanel({ role }: { role: DashboardRole }) {
                   onClick={handleAssign}
                   type="button"
                 >
-                  Assign
+                  Asignar
                 </button>
                 <button
                   className={styles.inlineButton}
@@ -418,7 +419,7 @@ export function TeamsPanel({ role }: { role: DashboardRole }) {
                   }}
                   type="button"
                 >
-                  Cancel
+                  Cancelar
                 </button>
               </div>
             </div>
@@ -431,12 +432,12 @@ export function TeamsPanel({ role }: { role: DashboardRole }) {
           )}
 
           {isAssignPending && !participants.length && (
-            <span className={styles.chip}>Loading…</span>
+            <span className={styles.chip}>Cargando…</span>
           )}
 
           {!participantsError && !isAssignPending && participants.length === 0 && (
             <p className={styles.panelMeta} data-testid="no-participants-message">
-              No participants assigned yet.
+              Aún no hay participantes asignados.
             </p>
           )}
 
@@ -444,8 +445,8 @@ export function TeamsPanel({ role }: { role: DashboardRole }) {
             <table className={styles.table} data-testid="participants-table">
               <thead>
                 <tr>
-                  <th>User</th>
-                  <th>Email</th>
+                  <th>Usuario</th>
+                  <th>Correo</th>
                 </tr>
               </thead>
               <tbody>
@@ -477,9 +478,9 @@ export function TeamsPanel({ role }: { role: DashboardRole }) {
               onClick={() => { setView('list'); setFormError(null) }}
               type="button"
             >
-              ← Teams
+              ← Equipos
             </button>
-            <h2 id="create-team-title">New team</h2>
+            <h2 id="create-team-title">Nuevo equipo</h2>
           </div>
         </div>
 
@@ -510,7 +511,7 @@ export function TeamsPanel({ role }: { role: DashboardRole }) {
             >
               ← {selectedTeam.displayName}
             </button>
-            <h2 id="edit-team-title">Edit team</h2>
+            <h2 id="edit-team-title">Editar equipo</h2>
           </div>
         </div>
 
@@ -538,11 +539,11 @@ export function TeamsPanel({ role }: { role: DashboardRole }) {
     >
       <div className={styles.panelHeader}>
         <div>
-          <h2 id="teams-panel-title">Registered teams</h2>
+          <h2 id="teams-panel-title">Equipos registrados</h2>
           <div className={styles.panelMeta}>
             {canManageTeams
-              ? 'Team registry. Inactive teams are preserved for audit.'
-              : 'Read-only team catalog.'}
+              ? 'Registro de equipos. Los equipos inactivos se conservan para auditoría.'
+              : 'Catálogo de equipos de solo lectura.'}
           </div>
         </div>
         <div className={styles.panelActions}>
@@ -555,7 +556,7 @@ export function TeamsPanel({ role }: { role: DashboardRole }) {
               onClick={() => { setFormError(null); setView('create') }}
               type="button"
             >
-              + New team
+              + Nuevo equipo
             </button>
           )}
         </div>
@@ -572,11 +573,11 @@ export function TeamsPanel({ role }: { role: DashboardRole }) {
           <table className={styles.table}>
             <thead>
               <tr>
-                <th>Name</th>
-                <th>Code</th>
-                <th>Status</th>
-                <th>Created</th>
-                {role === 'operator' && <th>Actions</th>}
+                <th>Nombre</th>
+                <th>Código</th>
+                <th>Estado</th>
+                <th>Creado</th>
+                {role === 'operator' && <th>Acciones</th>}
               </tr>
             </thead>
             <tbody>
@@ -599,7 +600,7 @@ export function TeamsPanel({ role }: { role: DashboardRole }) {
                       className={styles.chip}
                       data-tone={team.isActive ? 'success' : 'critical'}
                     >
-                      {team.isActive ? 'Active' : 'Inactive'}
+                      {team.isActive ? 'Activo' : 'Inactivo'}
                     </span>
                   </td>
                   <td data-label="Created">{new Date(team.createdAt).toLocaleDateString()}</td>
@@ -615,7 +616,7 @@ export function TeamsPanel({ role }: { role: DashboardRole }) {
                             event.stopPropagation()
                             openSessionAssignmentModal(team)
                           }}
-                          aria-label={`Assign ${team.displayName} to one of your sessions`}
+                          aria-label={`Asignar ${team.displayName} a una de tus sesiones`}
                         >
                           ...
                         </button>
@@ -629,7 +630,7 @@ export function TeamsPanel({ role }: { role: DashboardRole }) {
 
           <div className={styles.pagination} data-testid="teams-pagination">
             <span className={styles.panelMeta}>
-              Page {listData.page} of {listData.totalPages} ({listData.totalCount} teams)
+              Página {listData.page} de {listData.totalPages} ({listData.totalCount} equipos)
             </span>
             <span className={styles.paginationButtons}>
               <button
@@ -638,7 +639,7 @@ export function TeamsPanel({ role }: { role: DashboardRole }) {
                 onClick={() => setPage((p) => p - 1)}
                 type="button"
               >
-                ← Previous
+                ← Anterior
               </button>
               <button
                 className={styles.inlineButton}
@@ -646,7 +647,7 @@ export function TeamsPanel({ role }: { role: DashboardRole }) {
                 onClick={() => setPage((p) => p + 1)}
                 type="button"
               >
-                Next →
+                Siguiente →
               </button>
             </span>
           </div>
@@ -668,7 +669,7 @@ export function TeamsPanel({ role }: { role: DashboardRole }) {
           >
             <div className={styles.panelHeader}>
               <div>
-                <h2 id="team-session-assignment-title">Assign team to session</h2>
+                <h2 id="team-session-assignment-title">Asignar equipo a sesión</h2>
                 <div className={styles.panelMeta}>
                   {sessionAssignmentTeam.displayName} · {sessionAssignmentTeam.teamCode}
                 </div>
@@ -678,26 +679,26 @@ export function TeamsPanel({ role }: { role: DashboardRole }) {
                 type="button"
                 onClick={closeSessionAssignmentModal}
                 disabled={isSessionModalPending}
-                aria-label="Close team session assignment dialog"
+                aria-label="Cerrar el diálogo de asignación de equipo a sesión"
               >
-                Close
+                Cerrar
               </button>
             </div>
 
             <div className={styles.sessionOperatorModalDetails}>
               <div className={styles.assignmentCard}>
-                <span className={styles.sessionOperatorLabel}>Team status</span>
-                <strong>{sessionAssignmentTeam.isActive ? 'Active' : 'Inactive'}</strong>
+                <span className={styles.sessionOperatorLabel}>Estado del equipo</span>
+                <strong>{sessionAssignmentTeam.isActive ? 'Activo' : 'Inactivo'}</strong>
               </div>
               <div className={styles.assignmentCard}>
-                <span className={styles.sessionOperatorLabel}>Available sessions</span>
+                <span className={styles.sessionOperatorLabel}>Sesiones disponibles</span>
                 <strong>{scheduledOperatorSessions.length}</strong>
               </div>
             </div>
 
             <p className={styles.panelMeta}>
-              Choose one of your scheduled sessions. Sessions already in preparation or live cannot
-              accept new teams.
+              Elige una de tus sesiones programadas. Las sesiones ya en preparación o en vivo no pueden
+              aceptar nuevos equipos.
             </p>
 
             {sessionsError && (
@@ -713,10 +714,10 @@ export function TeamsPanel({ role }: { role: DashboardRole }) {
             )}
 
             {isSessionModalPending && scheduledOperatorSessions.length === 0 && !sessionsError ? (
-              <span className={styles.chip}>Loading…</span>
+              <span className={styles.chip}>Cargando…</span>
             ) : scheduledOperatorSessions.length === 0 ? (
               <p className={styles.emptyList} data-testid="team-session-empty">
-                You have no scheduled sessions available for this team.
+                No tienes sesiones programadas disponibles para este equipo.
               </p>
             ) : (
               <div className={styles.sessionOperatorList} data-testid="team-session-list">
@@ -731,13 +732,13 @@ export function TeamsPanel({ role }: { role: DashboardRole }) {
                         </div>
                       </div>
                       <span className={styles.chip} data-tone="muted">
-                        {session.sessionState}
+                        {lifecycleStateLabel[toLifecycleState(session.sessionState) ?? 'Scheduled'] ?? session.sessionState}
                       </span>
                     </div>
                     <div className={styles.sessionOperatorBody}>
                       <div className={styles.sessionOperatorInfo}>
-                        <span className={styles.sessionOperatorLabel}>Responsible operator</span>
-                        <strong>You</strong>
+                        <span className={styles.sessionOperatorLabel}>Operador responsable</span>
+                        <strong>Tú</strong>
                       </div>
                       <button
                         type="button"
@@ -746,7 +747,7 @@ export function TeamsPanel({ role }: { role: DashboardRole }) {
                         disabled={isSessionModalPending}
                         onClick={() => handleAssociateTeamToSession(session.liveSessionId)}
                       >
-                        Assign to session
+                        Asignar a la sesión
                       </button>
                     </div>
                   </article>
@@ -785,8 +786,8 @@ function TeamForm({
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     const errors: { displayName?: string; teamCode?: string } = {}
-    if (!displayName.trim()) errors.displayName = 'Display name is required.'
-    if (!teamCode.trim()) errors.teamCode = 'Team code is required.'
+    if (!displayName.trim()) errors.displayName = 'El nombre visible es obligatorio.'
+    if (!teamCode.trim()) errors.teamCode = 'El código de equipo es obligatorio.'
     if (Object.keys(errors).length > 0) {
       setFieldErrors(errors)
       return
@@ -804,7 +805,7 @@ function TeamForm({
       )}
 
       <div className={styles.formGroup}>
-        <label htmlFor="team-display-name">Display name</label>
+        <label htmlFor="team-display-name">Nombre visible</label>
         <input
           id="team-display-name"
           className={styles.formInput}
@@ -822,7 +823,7 @@ function TeamForm({
       </div>
 
       <div className={styles.formGroup}>
-        <label htmlFor="team-code">Team code</label>
+        <label htmlFor="team-code">Código de equipo</label>
         <input
           id="team-code"
           className={styles.formInput}

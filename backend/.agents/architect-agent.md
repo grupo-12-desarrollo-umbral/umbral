@@ -58,7 +58,7 @@ outside them.
 | `MissionDesign`     | `mission-design-service`     | `Mission`, `TriviaQuiz`           |
 | `SessionOperations` | `session-operations-service` | `LiveSession`                     |
 | `ScoringMonitoring` | `scoring-monitoring-service` | `ScoreEntry`, `Penalty`           |
-| `Identity`          | `identity-access-service`    | `User`, `IdentityProviderSession` |
+| `Users`          | `users-service`    | `User`, `IdentityProviderSession` |
 
 Dependency direction per service: `Api` → `Application` → `Domain` ← nothing.
 `Infrastructure` depends on `Application`. `Domain` depends on nothing inside

@@ -126,7 +126,7 @@ endpoint becomes unused by both callers but is harmless — leave it (optional l
 - **Mobile:** delete `membership-policy.test.ts`; add/adjust a team-lobby test — successful join saves
   reconnect context with `teamId === referenceTeamId`, navigates to team-space, and makes **no**
   membership-validate call.
-- **Coverage gate:** `backend/scripts/cover-gate.sh` enforces THRESHOLD=93 on line **and** branch; the new
+- **Coverage gate:** `backend/scripts/cover-gate.sh` enforces at least 95% aggregate branch coverage; the new
   eligibility-deny and checker-deny branches each need a covering test (included above).
 
 ## Verification (end-to-end)

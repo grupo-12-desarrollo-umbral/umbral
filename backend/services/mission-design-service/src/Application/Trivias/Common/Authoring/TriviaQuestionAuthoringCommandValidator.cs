@@ -3,10 +3,9 @@ namespace umbral_backend.Application.Trivias.Common.Authoring;
 public abstract class TriviaQuestionAuthoringCommandValidator<TCommand> : AbstractValidator<TCommand>
     where TCommand : ITriviaQuestionAuthoringCommand
 {
-    private const int MinimumScoreValue = 1;
-    private const int MaximumScoreValue = 100;
-    private const int MinimumTimeLimitSeconds = 5;
-    private const int MaximumTimeLimitSeconds = 120;
+    private const int FixedScoreValue = 100;
+    private const int MinimumTimeLimitSeconds = 15;
+    private const int MaximumTimeLimitSeconds = 30;
     private const int MaximumPromptLength = 2000;
     private const int MaximumOptionTextLength = 1000;
     private const int MaximumExplanationLength = 4000;
@@ -21,7 +20,8 @@ public abstract class TriviaQuestionAuthoringCommandValidator<TCommand> : Abstra
             .MaximumLength(MaximumPromptLength);
 
         RuleFor(command => command.ScoreValue)
-            .InclusiveBetween(MinimumScoreValue, MaximumScoreValue);
+            .Equal(FixedScoreValue)
+            .WithMessage($"A trivia question score value must be exactly {FixedScoreValue}.");
 
         RuleFor(command => command.TimeLimitSeconds)
             .InclusiveBetween(MinimumTimeLimitSeconds, MaximumTimeLimitSeconds);

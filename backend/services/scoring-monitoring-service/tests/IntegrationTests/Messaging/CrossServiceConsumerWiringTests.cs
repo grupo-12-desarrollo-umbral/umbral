@@ -53,6 +53,7 @@ public sealed class CrossServiceConsumerWiringTests : IAsyncLifetime
             Guid.NewGuid(),
             Guid.NewGuid(),
             300,
+            3,
             DateTimeOffset.UtcNow);
 
         await _harness.PublishAndWaitForEffectAsync(

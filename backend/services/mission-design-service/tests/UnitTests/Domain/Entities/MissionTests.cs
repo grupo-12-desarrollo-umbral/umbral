@@ -10,12 +10,12 @@ public class MissionTests
     [Fact]
     public void Create_SetsDraftBaselineAndRaisesCreatedEvent()
     {
-        var mission = Mission.Create(" Mission One ", " Briefing ", "Advanced", 45);
+        var mission = Mission.Create(" Mission One ", " Briefing ", "Advanced", 30);
 
         mission.Name.Should().Be("Mission One");
         mission.Description.Should().Be("Briefing");
         mission.Difficulty.Value.Should().Be("Advanced");
-        mission.MaximumTime.Minutes.Should().Be(45);
+        mission.MaximumTime.Minutes.Should().Be(30);
         mission.IsActive.Should().BeTrue();
         mission.ArchivedAt.Should().BeNull();
         mission.ActivationState.Should().Be(MissionActivation.Draft);
@@ -25,7 +25,7 @@ public class MissionTests
     [Fact]
     public void UpdateDetails_RefreshesMissionAndRaisesUpdatedEvent()
     {
-        var mission = Mission.Create("Mission One", "Briefing", "Advanced", 45);
+        var mission = Mission.Create("Mission One", "Briefing", "Advanced", 30);
         mission.ClearDomainEvents();
 
         mission.UpdateDetails(" Mission Two ", " Updated Briefing ", "Beginner", 30);
@@ -42,7 +42,7 @@ public class MissionTests
     [Fact]
     public void UpdateDetails_WhenMissionIsInactive_Throws()
     {
-        var mission = Mission.Create("Mission One", "Briefing", "Advanced", 45);
+        var mission = Mission.Create("Mission One", "Briefing", "Advanced", 30);
         mission.Deactivate(new DateTimeOffset(2026, 5, 31, 12, 0, 0, TimeSpan.Zero));
         mission.ClearDomainEvents();
 
@@ -53,14 +53,14 @@ public class MissionTests
         mission.Name.Should().Be("Mission One");
         mission.Description.Should().Be("Briefing");
         mission.Difficulty.Value.Should().Be("Advanced");
-        mission.MaximumTime.Minutes.Should().Be(45);
+        mission.MaximumTime.Minutes.Should().Be(30);
         mission.DomainEvents.Should().NotContain(e => e is MissionDetailsUpdatedEvent);
     }
 
     [Fact]
     public void UpdateDetails_GuardRunsBeforeFieldValidation_OnInactiveMission()
     {
-        var mission = Mission.Create("Mission One", "Briefing", "Advanced", 45);
+        var mission = Mission.Create("Mission One", "Briefing", "Advanced", 30);
         mission.Deactivate(new DateTimeOffset(2026, 5, 31, 12, 0, 0, TimeSpan.Zero));
 
         // An invalid payload on a retired mission still reports the retirement conflict, not a
@@ -73,7 +73,7 @@ public class MissionTests
     [Fact]
     public void RecordStructureChanged_RaisesStructureEventWithoutRevalidatingDetails()
     {
-        var mission = Mission.Create("Mission One", "Briefing", "Advanced", 45);
+        var mission = Mission.Create("Mission One", "Briefing", "Advanced", 30);
         var stage = mission.AddStage("Stage 1", 1);
         stage.Id = 10;
         var substage = mission.AddSubstage(stage.Id, Substage.CreateTreasureHunt("Substage 1", 1));
@@ -92,7 +92,7 @@ public class MissionTests
     [Fact]
     public void Deactivate_MarksMissionInactiveAndRaisesDeactivatedEvent()
     {
-        var mission = Mission.Create("Mission One", "Briefing", "Advanced", 45);
+        var mission = Mission.Create("Mission One", "Briefing", "Advanced", 30);
         var archivedAt = new DateTimeOffset(2026, 5, 31, 12, 0, 0, TimeSpan.Zero);
         mission.ClearDomainEvents();
 
@@ -107,7 +107,7 @@ public class MissionTests
     [Fact]
     public void Deactivate_WhenMissionIsAlreadyInactive_Throws()
     {
-        var mission = Mission.Create("Mission One", "Briefing", "Advanced", 45);
+        var mission = Mission.Create("Mission One", "Briefing", "Advanced", 30);
         mission.Deactivate(new DateTimeOffset(2026, 5, 31, 12, 0, 0, TimeSpan.Zero));
 
         var act = () => mission.Deactivate(new DateTimeOffset(2026, 5, 31, 12, 30, 0, TimeSpan.Zero));
@@ -121,7 +121,7 @@ public class MissionTests
     [InlineData("  ")]
     public void Create_WhenNameIsInvalid_ThrowsMissionNameRequiredException(string? name)
     {
-        var act = () => Mission.Create(name!, "Briefing", "Advanced", 45);
+        var act = () => Mission.Create(name!, "Briefing", "Advanced", 30);
 
         act.Should().Throw<MissionNameRequiredException>();
     }
@@ -132,7 +132,7 @@ public class MissionTests
     [InlineData("  ")]
     public void Create_WhenDescriptionIsInvalid_ThrowsMissionDescriptionRequiredException(string? description)
     {
-        var act = () => Mission.Create("Mission One", description!, "Advanced", 45);
+        var act = () => Mission.Create("Mission One", description!, "Advanced", 30);
 
         act.Should().Throw<MissionDescriptionRequiredException>();
     }
@@ -143,7 +143,7 @@ public class MissionTests
     [InlineData("  ")]
     public void UpdateDetails_WhenNameIsInvalid_ThrowsMissionNameRequiredException(string? name)
     {
-        var mission = Mission.Create("Mission One", "Briefing", "Advanced", 45);
+        var mission = Mission.Create("Mission One", "Briefing", "Advanced", 30);
 
         var act = () => mission.UpdateDetails(name!, "Updated Briefing", "Beginner", 30);
 
@@ -156,7 +156,7 @@ public class MissionTests
     [InlineData("  ")]
     public void UpdateDetails_WhenDescriptionIsInvalid_ThrowsMissionDescriptionRequiredException(string? description)
     {
-        var mission = Mission.Create("Mission One", "Briefing", "Advanced", 45);
+        var mission = Mission.Create("Mission One", "Briefing", "Advanced", 30);
 
         var act = () => mission.UpdateDetails("Mission Two", description!, "Beginner", 30);
 
@@ -166,7 +166,7 @@ public class MissionTests
     [Fact]
     public void AddTarget_WhenSubstageDoesNotExist_ThrowsMissionNodeNotFound()
     {
-        var mission = Mission.Create("Mission One", "Briefing", "Advanced", 45);
+        var mission = Mission.Create("Mission One", "Briefing", "Advanced", 30);
         var stage = mission.AddStage("Stage 1", 1);
         stage.Id = 10;
 
@@ -178,7 +178,7 @@ public class MissionTests
     [Fact]
     public void StructureChange_OnDeactivatedMission_IsRejected()
     {
-        var mission = Mission.Create("Mission One", "Briefing", "Advanced", 45);
+        var mission = Mission.Create("Mission One", "Briefing", "Advanced", 30);
         var stage = mission.AddStage("Stage 1", 1);
         stage.Id = 10;
         var substage = mission.AddSubstage(stage.Id, Substage.CreateTreasureHunt("Substage 1", 1));
@@ -205,7 +205,7 @@ public class MissionTests
     [Fact]
     public void Activate_OnDeactivatedMission_IsRejectedAndDoesNotResurrect()
     {
-        var mission = Mission.Create("Mission One", "Briefing", "Advanced", 45);
+        var mission = Mission.Create("Mission One", "Briefing", "Advanced", 30);
         var stage = mission.AddStage("Stage 1", 1);
         stage.Id = 10;
         var substage = mission.AddSubstage(stage.Id, Substage.CreateTreasureHunt("Substage 1", 1));

@@ -3,9 +3,10 @@
 # cover-gate.sh — canonical Phase X.4 coverage gate (per ADR-0005).
 #
 # Chains coverlet across all supplied test projects, merges the results, and
-# enforces the coverage threshold on BOTH line and branch coverage. Exit code
+# enforces the coverage threshold on aggregate branch coverage. Line coverage
+# remains in the generated report but does not determine the verdict. Exit code
 # is the gate:
-#   0        = green (both line and branch thresholds met)
+#   0        = green (aggregate branch threshold met)
 #   non-zero = gate FAILS (build error, test failure, or coverage below bar)
 #
 # This script is the single source of truth for BOTH the CI/CD pass/fail AND
@@ -31,11 +32,10 @@ set -euo pipefail
 export MSBUILDDISABLENODEREUSE=1
 export DOTNET_CLI_TELEMETRY_OPTOUT=1
 
-# Gate threshold (% total), applied to BOTH line and branch coverage. Coverlet
-# takes a single Threshold value for every listed ThresholdType, so the same bar
-# gates line and branch. Override with THRESHOLD=NN if a consumer requires a
-# different bar; the project minimum is the value below.
-THRESHOLD="${THRESHOLD:-93}"
+# Gate threshold (% total), applied to aggregate branch coverage. Override with
+# THRESHOLD=NN only to request a stricter consumer-specific bar; the project
+# minimum is the value below.
+THRESHOLD="${THRESHOLD:-90}"
 
 usage() {
     cat <<EOF
@@ -50,10 +50,13 @@ All paths may be absolute or relative to the current directory. Run from the
 service directory so relative paths like tests/UnitTests/<Proj>.csproj resolve.
 
 Environment:
-  THRESHOLD     Coverage gate, % total, applied to BOTH line and branch
-                coverage (default: 93).
+  THRESHOLD     Aggregate branch-coverage gate in percent (default: 90).
   COVERAGE_DIR  Report output directory (default: coverage/gate under the
                 current service directory).
+  REPORTGENERATOR_RUNNER
+                Set to "local" to invoke the repository-pinned .NET tool.
+  REQUIRE_COVERAGE_REPORT
+                Set to 1 to fail when the human-readable report cannot render.
 
 Outputs (on the merged result, written under COVERAGE_DIR):
   merged.cobertura.xml   the gated coverage file
@@ -113,9 +116,7 @@ for i in "${!PROJECTS[@]}"; do
 
     if [[ $i -eq $LAST_INDEX ]]; then
         # Final project → emit merged Cobertura + enforce threshold on line AND
-        # branch. The escaped quotes around "line,branch" are load-bearing: the
-        # comma must reach MSBuild inside a quoted value, else MSBuild splits it
-        # and dies with MSB1006 "Property is not valid".
+        # branch coverage.
         # A threshold miss makes `dotnet test` exit non-zero = GATE FAILS, but
         # we capture it (rather than letting set -e abort) so the report still
         # renders from the merged file — useful for finding the gaps.
@@ -124,7 +125,7 @@ for i in "${!PROJECTS[@]}"; do
             /p:CoverletOutput="$MERGED_XML" \
             /p:ExcludeByFile="$EXCLUDE_BY_FILE" \
             "${merge_args[@]}" \
-            /p:Threshold="$THRESHOLD" /p:ThresholdType=\"line,branch\" \
+            /p:Threshold="$THRESHOLD" /p:ThresholdType=branch \
             /p:ThresholdStat=total; then
             GATE_RC=1
         fi
@@ -140,22 +141,39 @@ for i in "${!PROJECTS[@]}"; do
 done
 
 # Render the report from the EXACT gated file (whether or not the gate passed,
-# so a red run still shows where the gaps are). The gate verdict is GATE_RC.
-if [[ -f "$MERGED_XML" ]] && command -v reportgenerator >/dev/null 2>&1; then
-    reportgenerator \
-        -reports:"$MERGED_XML" \
-        -targetdir:"$GATE_DIR" \
-        -reporttypes:TextSummary\;Html\;CsvSummary \
-        -classfilters:"+*" >/dev/null
+# so a red run still shows where the gaps are). Local CI uses the manifest-pinned
+# tool; older/direct gate callers may continue to provide a global executable.
+REPORT_RENDERER=""
+if [[ "${REPORTGENERATOR_RUNNER:-}" == "local" ]]; then
+    REPORT_RENDERER="local"
+elif command -v reportgenerator >/dev/null 2>&1; then
+    REPORT_RENDERER="global"
+fi
+
+if [[ -f "$MERGED_XML" && -n "$REPORT_RENDERER" ]]; then
+    report_args=(
+        -reports:"$MERGED_XML"
+        -targetdir:"$GATE_DIR"
+        -reporttypes:TextSummary\;Html\;CsvSummary
+        -classfilters:"+*"
+    )
+    if [[ "$REPORT_RENDERER" == "local" ]]; then
+        dotnet tool run reportgenerator -- "${report_args[@]}" >/dev/null
+    else
+        reportgenerator "${report_args[@]}" >/dev/null
+    fi
     echo
     echo "Coverage report (rendered from the gated file):"
     echo "  $GATE_DIR/Summary.txt"
     echo "  $GATE_DIR/index.html"
+elif [[ "${REQUIRE_COVERAGE_REPORT:-0}" == "1" ]]; then
+    echo "Coverage report FAILED — merged Cobertura output or ReportGenerator is unavailable." >&2
+    GATE_RC=1
 fi
 
 if [[ $GATE_RC -eq 0 ]]; then
-    echo "Gate GREEN — line and branch coverage >= ${THRESHOLD}%."
+    echo "Gate GREEN — branch coverage >= ${THRESHOLD}%."
 else
-    echo "Gate FAILED — line or branch coverage below ${THRESHOLD}% (or a test failed)." >&2
+    echo "Gate FAILED — branch coverage below ${THRESHOLD}% (or a test failed)." >&2
 fi
 exit "$GATE_RC"

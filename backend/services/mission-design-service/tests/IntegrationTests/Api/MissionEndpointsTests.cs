@@ -40,7 +40,7 @@ public sealed class MissionEndpointsTests : IClassFixture<PostgreSqlFixture>, IA
                 name = "Mission Atlas",
                 description = "Locate the relay point.",
                 difficulty = "Advanced",
-                maximumTimeMinutes = 50
+                maximumTimeMinutes = 30
             });
 
         response.StatusCode.Should().Be(HttpStatusCode.Created);
@@ -51,7 +51,7 @@ public sealed class MissionEndpointsTests : IClassFixture<PostgreSqlFixture>, IA
         payload!.Name.Should().Be("Mission Atlas");
         payload.Description.Should().Be("Locate the relay point.");
         payload.Difficulty.Should().Be("Advanced");
-        payload.MaximumTimeMinutes.Should().Be(50);
+        payload.MaximumTimeMinutes.Should().Be(30);
         payload.IsActive.Should().BeTrue();
         payload.ActivationState.Should().Be("Draft");
         payload.IsSourceReady.Should().BeFalse();
@@ -190,7 +190,7 @@ public sealed class MissionEndpointsTests : IClassFixture<PostgreSqlFixture>, IA
                 name = "Missing Mission",
                 description = "Missing briefing.",
                 difficulty = "Advanced",
-                maximumTimeMinutes = 45
+                maximumTimeMinutes = 30
             });
 
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
@@ -551,7 +551,7 @@ public sealed class MissionEndpointsTests : IClassFixture<PostgreSqlFixture>, IA
                     new
                     {
                         prompt = "First question",
-                        scoreValue = 50,
+                        scoreValue = 100,
                         timeLimitSeconds = 30,
                         explanation = "First explanation.",
                         isActive = true,
@@ -564,7 +564,7 @@ public sealed class MissionEndpointsTests : IClassFixture<PostgreSqlFixture>, IA
                     new
                     {
                         prompt = "Second question",
-                        scoreValue = 35,
+                        scoreValue = 100,
                         timeLimitSeconds = 20,
                         explanation = "Second explanation.",
                         isActive = true,
@@ -692,7 +692,7 @@ public sealed class MissionEndpointsTests : IClassFixture<PostgreSqlFixture>, IA
         var runtimePlan = await runtimePlanResponse.Content.ReadFromJsonAsync<MissionsController.MissionRuntimePlanResponse>();
         runtimePlan.Should().NotBeNull();
         runtimePlan!.Title.Should().Be("Mission Runtime Plan");
-        runtimePlan.MaximumTime.Should().Be(45);
+        runtimePlan.MaximumTime.Should().Be(30);
         runtimePlan.Stages.Should().HaveCount(2);
 
         runtimePlan.Stages[0].Title.Should().Be("Stage 1");
@@ -731,7 +731,7 @@ public sealed class MissionEndpointsTests : IClassFixture<PostgreSqlFixture>, IA
             .Should().Equal("VisibleWhenSubstageStarts", "HiddenUntilOperatorRelease");
         triviaSubstage.TriviaQuestions.Select(question => question.Prompt).Should().Equal("First question", "Second question");
         triviaSubstage.TriviaQuestions.Select(question => question.SequenceOrder).Should().Equal(1, 2);
-        triviaSubstage.TriviaQuestions.Select(question => question.ScoreValue).Should().Equal(50, 35);
+        triviaSubstage.TriviaQuestions.Select(question => question.ScoreValue).Should().Equal(100, 100);
         triviaSubstage.TriviaQuestions.Select(question => question.TimeLimitSeconds).Should().Equal(30, 20);
         triviaSubstage.TriviaQuestions[0].Options.Select(option => option.OptionText).Should().Equal("First correct", "First wrong");
         triviaSubstage.TriviaQuestions[0].Options.Select(option => option.SequenceOrder).Should().Equal(1, 2);
@@ -922,7 +922,7 @@ public sealed class MissionEndpointsTests : IClassFixture<PostgreSqlFixture>, IA
                 name,
                 description = "Mission briefing.",
                 difficulty = "Advanced",
-                maximumTimeMinutes = 45
+                maximumTimeMinutes = 30
             });
 
         response.EnsureSuccessStatusCode();
@@ -1052,7 +1052,7 @@ public sealed class MissionEndpointsTests : IClassFixture<PostgreSqlFixture>, IA
                     {
                         prompt = $"{title} question?",
                         scoreValue = 100,
-                        timeLimitSeconds = 45,
+                        timeLimitSeconds = 25,
                         explanation = "Published quiz setup.",
                         isActive = true,
                         options = new[]

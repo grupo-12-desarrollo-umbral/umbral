@@ -1,5 +1,5 @@
 import { ActivityIndicator, Pressable, View } from 'react-native';
-import { colors, radii, spacing, typography } from '@/constants/theme';
+import { colors, radii, shadows, spacing, typography } from '@/constants/theme';
 import { Card } from '@/components/ui/card';
 import { Text } from '@/components/ui/text';
 import type { ActiveQuestion } from '@/lib/realtime/active-question-types';
@@ -14,6 +14,17 @@ const STATE_DOT_COLORS: Record<string, string> = {
   Paused: colors.signalWarning,
   Finished: colors.textMuted,
   Cancelled: colors.signalCritical,
+};
+
+// Participant-facing Spanish labels for the backend session-state enum. Falls back to the raw value
+// so an unmapped/newer state still renders rather than showing blank.
+const STATE_LABELS: Record<string, string> = {
+  Scheduled: 'Programada',
+  Preparing: 'Preparando',
+  Active: 'Activa',
+  Paused: 'En pausa',
+  Finished: 'Finalizada',
+  Cancelled: 'Cancelada',
 };
 
 const TIMER_FILL_COLORS: Record<TimerTone, string> = {
@@ -32,7 +43,7 @@ export function CountdownBar({ display }: { display: TimerDisplay }) {
       <View
         accessibilityRole="progressbar"
         accessibilityValue={{ min: 0, max: 100, now: clampedPct }}
-        accessibilityLabel={`Question timer: ${display.label}`}
+        accessibilityLabel={`Temporizador de pregunta: ${display.label}`}
         style={{
           backgroundColor: colors.raisedSurface,
           borderRadius: radii.control,
@@ -76,11 +87,11 @@ function MissionDeadlineLine({ display }: { display: TimerDisplay }) {
   return (
     <View
       accessibilityRole="text"
-      accessibilityLabel={`Mission timer: ${display.label}`}
+      accessibilityLabel={`Temporizador de misión: ${display.label}`}
       style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.xs }}
     >
       <Text variant="label" muted>
-        MISSION
+        MISIÓN
       </Text>
       <Text variant="mono" style={{ color: timeColor, fontVariant: ['tabular-nums'] }}>
         {display.label}
@@ -95,6 +106,7 @@ function StageHeader({
   questionSequenceOrder,
   timerDisplay,
   missionDisplay,
+  topInset = spacing.lg,
 }: {
   sessionState: string;
   score: number;
@@ -103,6 +115,10 @@ function StageHeader({
   // The whole-mission deadline, shown beneath the per-question countdown so the two clocks read as
   // distinct. Null/absent before the deadline is seeded or on an older backend.
   missionDisplay?: TimerDisplay | null;
+  // Top padding above the state badge. Defaults to a tight inset because on the trivia surface this
+  // header is embedded below the mission card, not at the top of the screen — a status-bar-sized inset
+  // there just reads as a floating gap. Pass a larger value when the header owns the top of the screen.
+  topInset?: number;
 }) {
   const dotColor = STATE_DOT_COLORS[sessionState] ?? colors.textMuted;
   const showTimer = questionSequenceOrder !== undefined && timerDisplay !== undefined;
@@ -114,64 +130,71 @@ function StageHeader({
         borderBottomWidth: 1,
         borderBottomColor: colors.borderSoft,
         paddingHorizontal: spacing.lg,
-        paddingTop: 52,
+        paddingTop: topInset,
         paddingBottom: spacing.md,
       }}
     >
-      <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: spacing.md }}>
-        {/* Left column: state badge, question number, timer */}
-        <View style={{ flex: 1, gap: spacing.sm }}>
-          {/* State badge */}
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.xs }}>
-            <View
-              style={{
-                width: 8,
-                height: 8,
-                borderRadius: radii.pill,
-                backgroundColor: dotColor,
-              }}
-            />
-            <Text
-              variant="label"
-              style={{
-                color: sessionState === 'Active' ? colors.signalSuccess : dotColor,
-                textTransform: 'uppercase',
-              }}
-            >
-              {sessionState}
-            </Text>
-          </View>
-
+      {/* Row 1: state + question on one line, compact score inline on the right. Collapsing these
+          onto a single row keeps the player's eye on the question rather than a wall of metadata. */}
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.md }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.xs, flex: 1 }}>
+          <View
+            style={{
+              width: 8,
+              height: 8,
+              borderRadius: radii.pill,
+              backgroundColor: dotColor,
+            }}
+          />
+          <Text
+            variant="label"
+            style={{
+              color: sessionState === 'Active' ? colors.signalSuccess : dotColor,
+              textTransform: 'uppercase',
+            }}
+          >
+            {STATE_LABELS[sessionState] ?? sessionState}
+          </Text>
           {showTimer ? (
-            <>
-              <Text variant="label" muted>
-                {`QUESTION ${questionSequenceOrder}`}
-              </Text>
-              <CountdownBar display={timerDisplay} />
-            </>
+            <Text variant="label" muted style={{ textTransform: 'uppercase' }}>
+              {`· Pregunta ${questionSequenceOrder}`}
+            </Text>
           ) : null}
-
-          {missionDisplay ? <MissionDeadlineLine display={missionDisplay} /> : null}
         </View>
 
-        {/* Right column: score */}
-        <View style={{ alignItems: 'flex-end', gap: 2 }}>
+        {/* Score — compact and inline, no longer a giant stacked block competing with the prompt. */}
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.xs }}>
           <Text variant="label" muted style={{ textTransform: 'uppercase' }}>
-            SCORE
+            PUNTUACIÓN
           </Text>
           <Text
             variant="headline"
             style={{
               color: colors.emberAccentStrong,
               fontVariant: ['tabular-nums'],
-              fontSize: 28,
-              lineHeight: 32,
+              fontSize: 22,
+              lineHeight: 24,
             }}
           >
             {score}
           </Text>
         </View>
       </View>
+
+      {/* Row 2: the per-question countdown stays prominent — it's the clock the player acts on. */}
+      {showTimer ? (
+        <View style={{ marginTop: spacing.sm }}>
+          <CountdownBar display={timerDisplay} />
+        </View>
+      ) : null}
+
+      {/* Row 3: the whole-mission deadline, demoted to one quiet line so it stops reading as a second
+          equally-urgent clock next to the question countdown. */}
+      {missionDisplay ? (
+        <View style={{ marginTop: spacing.xs }}>
+          <MissionDeadlineLine display={missionDisplay} />
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -191,7 +214,7 @@ function RevealOutcome({ teamResult }: { teamResult: TriviaTeamQuestionResultDto
       >
         <ActivityIndicator size="small" color={colors.textMuted} />
         <Text variant="body" muted>
-          Loading result…
+          Cargando resultado…
         </Text>
       </View>
     );
@@ -238,7 +261,7 @@ function RevealOutcome({ teamResult }: { teamResult: TriviaTeamQuestionResultDto
           </Text>
         </View>
         <Text variant="title" style={{ color: outcomeColor }}>
-          {isCorrect ? 'Correct' : isNoAnswer ? 'No answer' : 'Incorrect'}
+          {isCorrect ? 'Correcta' : isNoAnswer ? 'Sin respuesta' : 'Incorrecta'}
         </Text>
       </View>
       <Text
@@ -317,7 +340,13 @@ export function ActiveQuestionStage({
         </Text>
       </View>
 
-      <View testID={correctOptionSequenceOrder !== undefined ? 'question-reveal' : undefined}>
+      {/* Answers are cards, not table rows — spaced, rounded and bordered to match the treasure-hunt
+          clue cards, so trivia and treasure hunt read as one product and each option is an obvious
+          tap target rather than a strip in a list. */}
+      <View
+        testID={correctOptionSequenceOrder !== undefined ? 'question-reveal' : undefined}
+        style={{ paddingHorizontal: spacing.lg, paddingTop: spacing.md, gap: spacing.sm }}
+      >
         {question.options.map((option, index) => {
           const seq = index + 1;
           const inReveal = correctOptionSequenceOrder !== undefined;
@@ -338,7 +367,10 @@ export function ActiveQuestionStage({
           let pillFillBg: string;
           let pillTextColor: string;
           let textColor: string;
-          let borderBottomColor: string;
+          let cardBorderColor: string;
+          // Emphasised states (selection + reveal outcomes) carry a slightly heavier border so the
+          // active card reads at a glance; a plain option keeps the hairline card border.
+          let cardBorderWidth: number;
 
           if (isCorrectOption) {
             rowBg = colors.signalSuccess + '22';
@@ -346,47 +378,51 @@ export function ActiveQuestionStage({
             pillFillBg = colors.signalSuccess;
             pillTextColor = colors.ivoryFog;
             textColor = colors.signalSuccess;
-            borderBottomColor = colors.signalSuccess;
+            cardBorderColor = colors.signalSuccess;
+            cardBorderWidth = 1.5;
           } else if (isUserAnswer) {
             rowBg = colors.signalCritical + '12';
             pillBorderColor = colors.signalCritical;
             pillFillBg = colors.signalCritical;
             pillTextColor = colors.ivoryFog;
             textColor = colors.signalCritical;
-            borderBottomColor = colors.borderSoft;
+            cardBorderColor = colors.signalCritical;
+            cardBorderWidth = 1.5;
           } else if (isSelected) {
             rowBg = colors.emberAccentSoft;
             pillBorderColor = colors.emberAccentStrong;
             pillFillBg = colors.emberAccent;
             pillTextColor = colors.ivoryFog;
             textColor = colors.textInk;
-            borderBottomColor = colors.borderSoft;
+            cardBorderColor = colors.emberAccentStrong;
+            cardBorderWidth = 1.5;
           } else {
-            rowBg = index % 2 === 0 ? colors.ivoryFog : colors.warmMist;
+            rowBg = colors.raisedSurface;
             pillBorderColor = colors.emberAccent;
             pillFillBg = 'transparent';
             pillTextColor = colors.emberAccent;
             textColor = colors.textInk;
-            borderBottomColor = colors.borderSoft;
+            cardBorderColor = colors.borderSoft;
+            cardBorderWidth = 1;
           }
 
           const chip = isCorrectOption
-            ? 'CORRECT'
+            ? 'CORRECTA'
             : isUserAnswer
-              ? 'YOUR ANSWER'
+              ? 'TU RESPUESTA'
               : undefined;
 
           const hint = closed
             ? isCorrectOption
-              ? 'This is the correct answer.'
+              ? 'Esta es la respuesta correcta.'
               : isUserAnswer
-                ? 'This was your team\'s answer.'
-                : 'This question is closed.'
+                ? 'Esta fue la respuesta de tu equipo.'
+                : 'Esta pregunta está cerrada.'
             : locked
-              ? 'Answer already submitted.'
+              ? 'Respuesta ya enviada.'
               : hasSubmitProps
-                ? 'Select to submit as your team\'s answer.'
-                : 'Answering is not yet available.';
+                ? 'Selecciona para enviar como la respuesta de tu equipo.'
+                : 'Responder aún no está disponible.';
 
           const Row = interactive ? Pressable : View;
 
@@ -407,12 +443,15 @@ export function ActiveQuestionStage({
                   })}
               style={{
                 backgroundColor: rowBg,
-                borderBottomWidth: 1,
-                borderBottomColor: borderBottomColor,
+                borderWidth: cardBorderWidth,
+                borderColor: cardBorderColor,
+                borderRadius: radii.card,
+                borderCurve: 'continuous' as const,
+                boxShadow: shadows.card,
                 flexDirection: 'row' as const,
                 alignItems: 'center' as const,
                 gap: spacing.md,
-                paddingHorizontal: spacing.lg,
+                paddingHorizontal: spacing.md,
                 paddingVertical: spacing.md,
               }}
             >
@@ -483,7 +522,7 @@ export function ActiveQuestionStage({
                   >
                     <View style={{ gap: spacing.xs }}>
                       <Text variant="label" muted>
-                        WHY
+                        ¿POR QUÉ?
                       </Text>
                       <Text variant="body" muted>
                         {explanation}
@@ -513,7 +552,7 @@ export function ActiveQuestionStage({
                   }}
                 />
                 <Text variant="label" style={{ color: colors.textMuted }}>
-                  Question closed — waiting for the next
+                  Pregunta cerrada — esperando la siguiente
                 </Text>
               </View>
             )
@@ -536,13 +575,13 @@ export function ActiveQuestionStage({
                 }}
               />
               <Text variant="label" style={{ color: colors.signalSuccess }}>
-                Answer submitted
+                Respuesta enviada
               </Text>
             </View>
           ) : (
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="Submit answer"
+              accessibilityLabel="Enviar respuesta"
               disabled={selected === null || submitting || locked}
               onPress={onSubmit}
               style={({ pressed }) => ({
@@ -571,7 +610,7 @@ export function ActiveQuestionStage({
                   variant="label"
                   style={{ color: colors.ivoryFog }}
                 >
-                  Submit answer
+                  Enviar respuesta
                 </Text>
               )}
             </Pressable>
@@ -602,7 +641,7 @@ export function ActiveQuestionStage({
                 </Text>
                 <Pressable
                   accessibilityRole="button"
-                  accessibilityLabel="Dismiss"
+                  accessibilityLabel="Descartar"
                   onPress={onDismissRejection}
                   hitSlop={spacing.xs}
                   style={{

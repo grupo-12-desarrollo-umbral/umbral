@@ -93,12 +93,12 @@ test.beforeAll(async () => {
 
   // Sub-keyed admin row so operator-assignment (gateway->JWT) resolves the actor (mirrors the sibling specs).
   const adminSub = subOf(admin)
-  sql('identity_access', `
+  sql('users', `
     DELETE FROM users WHERE "ExternalIdentityId"='${adminSub}';
     INSERT INTO users ("ExternalIdentityId","DisplayName","Email","Role","IsActive","Created","LastModified")
     VALUES ('${adminSub}','Administrator One','admin-1@umbral.local','Administrator',true,NOW(),NOW());
   `)
-  const opId = Number(sql('identity_access', `SELECT "Id" FROM users WHERE "Email"='op-1@umbral.local'`))
+  const opId = Number(sql('users', `SELECT "Id" FROM users WHERE "Email"='op-1@umbral.local'`))
 
   const missionId = Number(sql('mission_design', `SELECT "Id" FROM "Missions" WHERE "Name"='E2E Seed Mission' ORDER BY "Id" DESC LIMIT 1`))
   expect(missionId).toBeGreaterThan(0)
@@ -140,7 +140,7 @@ async function openLiveOperation(page: import('@playwright/test').Page, code: st
   const card = page.locator('[data-testid="assigned-session-button"]', { hasText: code })
   await expect(card).toBeVisible({ timeout: 15000 })
   await card.click()
-  await page.getByRole('button', { name: 'Open live operation' }).click()
+  await page.getByRole('button', { name: 'Abrir operación en vivo' }).click()
   await expect(page.locator('[data-testid="operator-session-panel"]')).toBeVisible({ timeout: 15000 })
 }
 

@@ -24,32 +24,32 @@ public static class DependencyInjection
         builder.Services.Configure<ParticipantMembershipAccessClientOptions>(
             builder.Configuration.GetSection(ParticipantMembershipAccessClientOptions.SectionName));
 
-        var identityAccessBaseAddress = builder.Configuration
+        var usersServiceBaseAddress = builder.Configuration
             .GetSection(ParticipantMembershipAccessClientOptions.SectionName)
             .GetValue<string>(nameof(ParticipantMembershipAccessClientOptions.BaseAddress))
             ?? new ParticipantMembershipAccessClientOptions().BaseAddress;
 
         builder.Services.AddHttpClient<IAssignableSessionOperatorAccessClient, AssignableSessionOperatorAccessClient>(client =>
         {
-            client.BaseAddress = new Uri(identityAccessBaseAddress);
+            client.BaseAddress = new Uri(usersServiceBaseAddress);
             client.Timeout = TimeSpan.FromSeconds(10);
         });
 
         builder.Services.AddHttpClient<ITeamReferenceCatalogClient, TeamReferenceCatalogClient>(client =>
         {
-            client.BaseAddress = new Uri(identityAccessBaseAddress);
+            client.BaseAddress = new Uri(usersServiceBaseAddress);
             client.Timeout = TimeSpan.FromSeconds(10);
         });
 
         builder.Services.AddHttpClient<IAuthenticatedActorProfileAccessClient, AuthenticatedActorProfileAccessClient>(client =>
         {
-            client.BaseAddress = new Uri(identityAccessBaseAddress);
+            client.BaseAddress = new Uri(usersServiceBaseAddress);
             client.Timeout = TimeSpan.FromSeconds(10);
         });
 
         builder.Services.AddHttpClient<IParticipantEligibleTeamsClient, ParticipantEligibleTeamsClient>(client =>
         {
-            client.BaseAddress = new Uri(identityAccessBaseAddress);
+            client.BaseAddress = new Uri(usersServiceBaseAddress);
             client.Timeout = TimeSpan.FromSeconds(10);
         });
 

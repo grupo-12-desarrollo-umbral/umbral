@@ -53,8 +53,8 @@ describe('SessionHistoryPanel', () => {
 
     expect(html).toContain(`session-history-row-${STATE_CHANGE_ID}`)
     expect(html).toContain(`session-history-row-${QUESTION_CLOSED_ID}`)
-    expect(html).toContain('Session state changed')
-    expect(html).toContain('Question closed')
+    expect(html).toContain('Cambio de estado de la sesión')
+    expect(html).toContain('Pregunta cerrada')
     expect(html).toContain('Gilded Owls')
   })
 
@@ -66,14 +66,14 @@ describe('SessionHistoryPanel', () => {
   it('labels a null teamId as a session-wide event, not an unknown team', () => {
     const html = render()
 
-    expect(html).toContain('Whole session')
-    expect(html).not.toContain('Unknown team')
+    expect(html).toContain('Toda la sesión')
+    expect(html).not.toContain('Equipo desconocido')
   })
 
   it('names an unresolved teamId as unknown', () => {
     const html = render({ teamNames: {} })
 
-    expect(html).toContain('Unknown team')
+    expect(html).toContain('Equipo desconocido')
   })
 
   it('preserves the server ordering instead of re-sorting', () => {
@@ -85,8 +85,8 @@ describe('SessionHistoryPanel', () => {
   })
 
   it('distinguishes an empty history from a load in flight', () => {
-    expect(render({ events: [] })).toContain('No events recorded yet.')
-    expect(render({ events: [], loading: true })).toContain('Loading history…')
+    expect(render({ events: [] })).toContain('Aún no hay eventos registrados.')
+    expect(render({ events: [], loading: true })).toContain('Cargando el historial…')
   })
 
   it('shows an authorization state without any rows', () => {
@@ -109,7 +109,7 @@ describe('SessionHistoryPanel', () => {
     // Without onRetry the mount is one that self-heals (DashboardClient refetches on hub reconnect).
     const html = render({ error: 'boom' })
 
-    expect(html).toContain('It will refresh automatically.')
+    expect(html).toContain('Se actualizará automáticamente.')
     expect(html).not.toContain('session-history-retry')
   })
 
@@ -118,13 +118,13 @@ describe('SessionHistoryPanel', () => {
     const html = render({ error: 'boom', onRetry: () => {} })
 
     expect(html).toContain('session-history-retry')
-    expect(html).not.toContain('It will refresh automatically.')
+    expect(html).not.toContain('Se actualizará automáticamente.')
   })
 
   it('disables the retry while a read is already in flight', () => {
     const html = render({ error: 'boom', onRetry: () => {}, loading: true })
 
-    expect(html).toContain('Retrying…')
+    expect(html).toContain('Reintentando…')
     expect(html).toContain('disabled')
   })
 })

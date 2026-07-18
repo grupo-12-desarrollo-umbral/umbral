@@ -33,7 +33,7 @@ HU-05 assumes the user/access stack from HU-01 through HU-03 plus the team regis
 - HU-04 team endpoints: `POST /api/teams`, `GET /api/teams`, `GET /api/teams/{id}`, `PATCH /api/teams/{id}`, `DELETE /api/teams/{id}/status`
 - HU-04 persistence surface: `teams` table plus `AddTeams` migration must exist before HU-05 infrastructure work continues
 
-**Coverage:** Aggregate line coverage was 94.95% before the team-management slices. HU-05 API work must verify the merged suite still clears the ≥95% gate after membership paths are added.
+**Coverage:** HU-05 API work must verify that the merged suite clears the ≥95% aggregate branch-coverage gate after membership paths are added.
 
 ## What HU-05 adds on top (per PRD DES-67)
 

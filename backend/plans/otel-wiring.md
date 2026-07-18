@@ -192,7 +192,7 @@ New file `src/Api/ObservabilityExtensions.cs`, marked `[ExcludeFromCodeCoverage]
   byte-identical to today.
 
 One call added to `AddWebServices` in `src/Api/DependencyInjection.cs` (already
-`[ExcludeFromCodeCoverage]`, so the ADR-0005 93% gate is unaffected).
+`[ExcludeFromCodeCoverage]`, so the ADR-0005 branch-coverage gate is unaffected).
 
 Also add `Npgsql.OpenTelemetry` → `.AddNpgsql()` for DB spans. Prefer this over
 `OpenTelemetry.Instrumentation.EntityFrameworkCore`, which is still prerelease.
@@ -242,7 +242,8 @@ The wrinkles, as they landed:
   tests that boot the factory (34 hits in the cobertura report — confirmed, not assumed).
 
 Gates re-run for both: mission-design 475 tests, line coverage **96.6%** (was 96.6%);
-identity-access 261 tests, line coverage **93.7%**. `structure-guard` OK for both. The unset-guard was
+identity-access 261 tests. `structure-guard` was OK for both. Those historical
+results must be rerun against the current aggregate branch-coverage gate. The unset-guard was
 proven **both ways** in each service with a throwaway probe (`TracerProvider` null when the endpoint
 is unset, non-null when set) — asserting only the null case would pass even if `AddObservability` were
 dead code. Probes deleted. `OpenTelemetry.Api` resolves to `1.16.0` in both, absent from

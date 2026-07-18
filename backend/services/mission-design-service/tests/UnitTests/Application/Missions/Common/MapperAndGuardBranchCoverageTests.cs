@@ -14,7 +14,7 @@ public sealed class MapperAndGuardBranchCoverageTests
     [Fact]
     public void MapMission_WithTriviaSubstage_MapsTriviaQuizSelection()
     {
-        var mission = Mission.Create("M", "D", "Advanced", 45);
+        var mission = Mission.Create("M", "D", "Advanced", 30);
         var stage = mission.AddStage("S", 1);
         stage.Id = 1;
         var triviaSubstage = mission.AddSubstage(stage.Id, Substage.CreateTrivia("Trivia", 1));
@@ -31,7 +31,7 @@ public sealed class MapperAndGuardBranchCoverageTests
     [Fact]
     public void MapMission_WithTreasureSubstage_MapsNullTriviaQuizSelection()
     {
-        var mission = Mission.Create("M", "D", "Advanced", 45);
+        var mission = Mission.Create("M", "D", "Advanced", 30);
         var stage = mission.AddStage("S", 1);
         stage.Id = 1;
         var treasureSubstage = mission.AddSubstage(stage.Id, Substage.CreateTreasureHunt("Hunt", 1));
@@ -66,7 +66,7 @@ public sealed class MapperAndGuardBranchCoverageTests
     [Fact]
     public void MapMission_WithClues_MapsClueDetails()
     {
-        var mission = Mission.Create("M", "D", "Advanced", 45);
+        var mission = Mission.Create("M", "D", "Advanced", 30);
         var stage = mission.AddStage("S", 1);
         stage.Id = 1;
         var substage = mission.AddSubstage(stage.Id, Substage.CreateTreasureHunt("Hunt", 1));
@@ -85,7 +85,7 @@ public sealed class MapperAndGuardBranchCoverageTests
     [Fact]
     public void MapMission_MultipleStagesOrderedBySequence()
     {
-        var mission = Mission.Create("M", "D", "Advanced", 45);
+        var mission = Mission.Create("M", "D", "Advanced", 30);
         var stage2 = mission.AddStage("Second", 2);
         stage2.Id = 2;
         var stage1 = mission.AddStage("First", 1);
@@ -166,7 +166,7 @@ public sealed class MapperAndGuardBranchCoverageTests
     [Fact]
     public void Evaluate_WhenSubstageIsTreasureHunt_SkipsTriviaCheck()
     {
-        var mission = Mission.Create("M", "D", "Advanced", 45);
+        var mission = Mission.Create("M", "D", "Advanced", 30);
         var stage = mission.AddStage("S", 1);
         stage.Id = 1;
         var treasure = mission.AddSubstage(stage.Id, Substage.CreateTreasureHunt("Hunt", 1));
@@ -180,7 +180,7 @@ public sealed class MapperAndGuardBranchCoverageTests
     [Fact]
     public void Evaluate_WhenSubstageIsTriviaWithoutSelection_SkipsTriviaCheck()
     {
-        var mission = Mission.Create("M", "D", "Advanced", 45);
+        var mission = Mission.Create("M", "D", "Advanced", 30);
         var stage = mission.AddStage("S", 1);
         stage.Id = 1;
         var trivia = mission.AddSubstage(stage.Id, Substage.CreateTrivia("Trivia", 1));
@@ -195,7 +195,7 @@ public sealed class MapperAndGuardBranchCoverageTests
     [Fact]
     public void CollectTriviaQuizIds_WhenNoTriviaSubstages_ReturnsEmpty()
     {
-        var mission = Mission.Create("M", "D", "Advanced", 45);
+        var mission = Mission.Create("M", "D", "Advanced", 30);
         var stage = mission.AddStage("S", 1);
         stage.Id = 1;
         var treasure = mission.AddSubstage(stage.Id, Substage.CreateTreasureHunt("Hunt", 1));
@@ -207,7 +207,7 @@ public sealed class MapperAndGuardBranchCoverageTests
     [Fact]
     public void CollectTriviaQuizIds_WhenMultipleSubstagesReferenceSameQuiz_ReturnsDistinct()
     {
-        var mission = Mission.Create("M", "D", "Advanced", 45);
+        var mission = Mission.Create("M", "D", "Advanced", 30);
         var stage = mission.AddStage("S", 1);
         stage.Id = 1;
         var trivia1 = mission.AddSubstage(stage.Id, Substage.CreateTrivia("T1", 1));

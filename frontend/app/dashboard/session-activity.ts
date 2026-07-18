@@ -7,7 +7,10 @@ import type {
   SessionStateChangedNotificationDto,
   SubstageAdvancedNotificationDto,
   TeamAnsweredNotificationDto,
+  SessionLifecycleState,
 } from '@/app/lib/definitions'
+import { lifecycleStateLabel } from '@/app/lib/session-lifecycle'
+import { PLAY_MODE_LABELS, type PlayMode } from './mission/labels'
 
 // Operator live activity feed. A purely client-side projection of the SignalR pushes the operator
 // already receives (state, question open/close, substage advance, team answered, evidence in/out) into a
@@ -56,17 +59,32 @@ export type SessionActivityAction =
 function submissionTypeLabel(type: EvidenceSubmissionType): string {
   switch (type) {
     case 'TreasureHuntQrScan':
-      return 'QR scan'
+      return 'escaneo QR'
     case 'TriviaAnswer':
-      return 'trivia answer'
+      return 'respuesta de trivia'
     default:
       // Forward-compat: a submission type the client doesn't know yet still reads sensibly.
-      return 'evidence'
+      return 'evidencia'
   }
 }
 
 function capitalize(value: string): string {
   return value.charAt(0).toUpperCase() + value.slice(1)
+}
+
+function stateText(value: string): string {
+  return lifecycleStateLabel[value as SessionLifecycleState] ?? value
+}
+
+function playModeText(value: string): string {
+  return PLAY_MODE_LABELS[value as PlayMode] ?? value
+}
+
+// Spanish display for an evidence validation state (backend enum stays raw on the wire).
+const validationStateText: Record<string, string> = {
+  Pending: 'pendiente',
+  Accepted: 'aceptada',
+  Rejected: 'rechazada',
 }
 
 function push(state: SessionActivityState, entry: Omit<SessionActivityEntry, 'id'>): SessionActivityState {
@@ -85,41 +103,41 @@ export function sessionActivityReducer(
     case 'state': {
       const n = action.data
       // previousState is '' when a normalizer couldn't resolve it — then just report the new state.
-      const summary = n.previousState ? `${n.previousState} → ${n.currentState}` : `Now ${n.currentState}`
-      return push(state, { at: n.changedAt, kind: 'state', label: 'State', teamId: null, summary })
+      const summary = n.previousState ? `${stateText(n.previousState)} → ${stateText(n.currentState)}` : `Ahora ${stateText(n.currentState)}`
+      return push(state, { at: n.changedAt, kind: 'state', label: 'Estado', teamId: null, summary })
     }
     case 'questionActivated': {
       const n = action.data
       return push(state, {
         at: n.activatedAt,
         kind: 'questionActivated',
-        label: 'Question',
+        label: 'Pregunta',
         teamId: null,
-        summary: `Question ${n.sequenceOrder} opened`,
+        summary: `Pregunta ${n.sequenceOrder} abierta`,
       })
     }
     case 'questionClosed': {
       const n = action.data
       // QuestionClosed carries the zero-based questionIndex (no sequenceOrder); +1 for the display number.
-      const summary = `Question ${n.questionIndex + 1} closed${n.wasExpiredByTimer ? ' (time expired)' : ''}`
-      return push(state, { at: n.closedAt, kind: 'questionClosed', label: 'Question', teamId: null, summary })
+      const summary = `Pregunta ${n.questionIndex + 1} cerrada${n.wasExpiredByTimer ? ' (tiempo agotado)' : ''}`
+      return push(state, { at: n.closedAt, kind: 'questionClosed', label: 'Pregunta', teamId: null, summary })
     }
     case 'substageAdvanced': {
       const n = action.data
       const summary =
         n.toSubstageId === null
-          ? `Final ${n.fromPlayMode} substage complete`
-          : `Advanced from ${n.fromPlayMode} substage`
-      return push(state, { at: action.receivedAt, kind: 'substageAdvanced', label: 'Substage', teamId: null, summary })
+          ? `Subetapa final de ${playModeText(n.fromPlayMode)} completada`
+          : `Avance desde subetapa de ${playModeText(n.fromPlayMode)}`
+      return push(state, { at: action.receivedAt, kind: 'substageAdvanced', label: 'Subetapa', teamId: null, summary })
     }
     case 'teamAnswered': {
       const n = action.data
       return push(state, {
         at: n.answeredAt,
         kind: 'teamAnswered',
-        label: 'Answer',
+        label: 'Respuesta',
         teamId: n.teamId,
-        summary: `Answered question ${n.questionSequenceOrder}`,
+        summary: `Respondió la pregunta ${n.questionSequenceOrder}`,
       })
     }
     case 'evidenceRegistered': {
@@ -127,17 +145,17 @@ export function sessionActivityReducer(
       return push(state, {
         at: n.submittedAt,
         kind: 'evidenceRegistered',
-        label: 'Evidence',
+        label: 'Evidencia',
         teamId: n.teamId,
-        summary: `Submitted ${submissionTypeLabel(n.submissionType)}`,
+        summary: `Envió ${submissionTypeLabel(n.submissionType)}`,
       })
     }
     case 'evidenceResolved': {
       const n = action.data
-      const base = `${capitalize(submissionTypeLabel(n.submissionType))} ${n.validationState.toLowerCase()}`
+      const base = `${capitalize(submissionTypeLabel(n.submissionType))} ${validationStateText[n.validationState] ?? n.validationState.toLowerCase()}`
       const summary =
         n.validationState === 'Rejected' && n.rejectionReason ? `${base}: ${n.rejectionReason}` : base
-      return push(state, { at: n.resolvedAt, kind: 'evidenceResolved', label: 'Evidence', teamId: n.teamId, summary })
+      return push(state, { at: n.resolvedAt, kind: 'evidenceResolved', label: 'Evidencia', teamId: n.teamId, summary })
     }
   }
 }

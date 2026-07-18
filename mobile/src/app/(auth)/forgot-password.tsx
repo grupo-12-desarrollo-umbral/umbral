@@ -31,16 +31,16 @@ function fireHaptic(type: 'success' | 'error') {
 function messageForError(error: unknown): string {
   if (error instanceof ApiError) {
     if (error.status === 0) {
-      return 'Network error. Check your connection and try again.';
+      return 'Error de red. Revisa tu conexión e inténtalo de nuevo.';
     }
     if (error.status === 429) {
-      return 'Too many attempts. Please try again in a few minutes.';
+      return 'Demasiados intentos. Inténtalo de nuevo en unos minutos.';
     }
     if (error.status === 400) {
-      return 'Please check your details and try again.';
+      return 'Revisa tus datos e inténtalo de nuevo.';
     }
   }
-  return 'Something went wrong. Please try again.';
+  return 'Algo salió mal. Inténtalo de nuevo.';
 }
 
 export default function ForgotPasswordScreen() {
@@ -67,12 +67,12 @@ export default function ForgotPasswordScreen() {
     const trimmedEmail = email.trim();
 
     if (!trimmedEmail) {
-      setEmailError('Email is required.');
+      setEmailError('Correo electrónico es obligatorio.');
       fireHaptic('error');
       return;
     }
     if (!isValidEmail(trimmedEmail)) {
-      setEmailError('Enter a valid email address.');
+      setEmailError('Ingresa un correo electrónico válido.');
       fireHaptic('error');
       return;
     }
@@ -106,13 +106,13 @@ export default function ForgotPasswordScreen() {
         </View>
 
         <Text variant="title" style={{ textAlign: 'center' }}>
-          Check your email
+          Revisa tu correo
         </Text>
         <Text variant="body" style={{ color: colors.textMuted, textAlign: 'center' }}>
-          If an account exists for that email, we&apos;ve sent password reset instructions.
+          Si existe una cuenta para ese correo, te enviamos las instrucciones para restablecer tu contraseña.
         </Text>
 
-        <Button label="Back to sign in" variant="primary" onPress={handleBackToLogin} />
+        <Button label="Volver a iniciar sesión" variant="primary" onPress={handleBackToLogin} />
       </Screen>
     );
   }
@@ -124,14 +124,14 @@ export default function ForgotPasswordScreen() {
       </View>
 
       <Text variant="title" style={{ textAlign: 'center' }}>
-        Reset your password
+        Restablece tu contraseña
       </Text>
       <Text variant="body" style={{ color: colors.textMuted, textAlign: 'center' }}>
-        Enter your email and we&apos;ll send you a link to reset your password.
+        Ingresa tu correo y te enviaremos un enlace para restablecer tu contraseña.
       </Text>
 
       <TextField
-        label="Email"
+        label="Correo electrónico"
         value={email}
         onChangeText={setEmail}
         placeholder="you@example.com"
@@ -154,7 +154,7 @@ export default function ForgotPasswordScreen() {
       ) : null}
 
       <Button
-        label="Send reset link"
+        label="Enviar enlace"
         variant="primary"
         onPress={handleSubmit}
         disabled={submitting}
@@ -174,7 +174,7 @@ export default function ForgotPasswordScreen() {
             textDecorationLine: 'underline',
           }}
         >
-          Back to sign in
+          Volver a iniciar sesión
         </Text>
       </Pressable>
     </Screen>

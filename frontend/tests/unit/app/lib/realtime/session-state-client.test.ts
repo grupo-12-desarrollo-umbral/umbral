@@ -446,8 +446,48 @@ describe('createSessionStateRealtimeClient — SessionTimerUpdated', () => {
         sessionState: 'Active',
         missionRemainingMilliseconds: 600_000,
         missionTotalMilliseconds: 1_800_000,
+        isPregameCountdown: false,
       },
     ])
+  })
+
+  it('carries the authoritative isPregameCountdown flag (both wire casings)', () => {
+    const received: Array<{ isPregameCountdown?: boolean }> = []
+    createSessionStateRealtimeClient({ ...baseOptions, onTimerUpdated: (n) => received.push(n) })
+
+    lastConnection.handlers.get('SessionTimerUpdated')!({
+      liveSessionId: 's1',
+      remainingMilliseconds: 5_000,
+      isPaused: false,
+      emittedAt: '2026-07-10T10:00:00Z',
+      totalMilliseconds: 5_000,
+      isExpired: false,
+      sessionState: 'Active',
+      isPregameCountdown: true,
+    })
+    lastConnection.handlers.get('SessionTimerUpdated')!({
+      LiveSessionId: 's1',
+      RemainingMilliseconds: 5_000,
+      IsPaused: false,
+      EmittedAt: '2026-07-10T10:00:00Z',
+      TotalMilliseconds: 5_000,
+      IsExpired: false,
+      SessionState: 'Active',
+      IsPregameCountdown: true,
+    })
+
+    // A missing flag reads as a real tick (false), not pregame.
+    lastConnection.handlers.get('SessionTimerUpdated')!({
+      liveSessionId: 's1',
+      remainingMilliseconds: 8_000,
+      isPaused: false,
+      emittedAt: '2026-07-10T10:00:01Z',
+      totalMilliseconds: 8_000,
+      isExpired: false,
+      sessionState: 'Active',
+    })
+
+    expect(received.map((n) => n.isPregameCountdown)).toEqual([true, true, false])
   })
 
   it('normalizes a PascalCase (C# wire) payload and carries the mission fields', () => {

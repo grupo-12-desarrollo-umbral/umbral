@@ -61,12 +61,12 @@ test.beforeAll(async () => {
   // Sub-keyed admin identity for the gateway-JWT assign path (see file header). Additive; only clears a
   // stale sub-keyed row from a prior run of THIS spec (the sub is a UUID, never the literal 'admin-1').
   const adminSub = subOf(admin)
-  sql('identity_access', `
+  sql('users', `
     DELETE FROM users WHERE "ExternalIdentityId"='${adminSub}';
     INSERT INTO users ("ExternalIdentityId","DisplayName","Email","Role","IsActive","Created","LastModified")
     VALUES ('${adminSub}','Administrator One','admin-1@umbral.local','Administrator',true,NOW(),NOW());
   `)
-  const opId = Number(sql('identity_access', `SELECT "Id" FROM users WHERE "Email"='op-1@umbral.local'`))
+  const opId = Number(sql('users', `SELECT "Id" FROM users WHERE "Email"='op-1@umbral.local'`))
   // global-setup seeds "E2E Seed Mission" active + runtime-ready; its id drifts in a persistent DB.
   const missionId = Number(
     sql('mission_design', `SELECT "Id" FROM "Missions" WHERE "Name"='E2E Seed Mission' AND "IsActive"=true AND "ActivationState"='Ready' ORDER BY "Id" DESC LIMIT 1`),
@@ -104,7 +104,7 @@ async function openMonitor(page: import('@playwright/test').Page) {
   const card = page.locator('[data-testid="assigned-session-button"]', { hasText: sessionCode })
   await expect(card).toBeVisible({ timeout: 15000 })
   await card.click()
-  await page.getByRole('button', { name: 'Open live operation' }).click()
+  await page.getByRole('button', { name: 'Abrir operación en vivo' }).click()
   await expect(page.locator('[data-testid="answered-monitor-panel"]')).toBeVisible({ timeout: 15000 })
 }
 
@@ -112,7 +112,7 @@ test('board renders the active-question roster with every team not-answered and 
   await openMonitor(page)
 
   // Active-question identity is exposed as the sequence order only — never a prompt/option.
-  await expect(page.locator('[data-testid="answered-monitor-active-question"]')).toContainText('Question')
+  await expect(page.locator('[data-testid="answered-monitor-active-question"]')).toContainText('Pregunta')
 
   const row = page.locator(`[data-testid="team-answer-status-${runtimeTeamId}"]`)
   await expect(row).toBeVisible()

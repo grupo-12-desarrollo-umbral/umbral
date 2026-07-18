@@ -31,7 +31,7 @@ function chips(renderer: ReturnType<typeof create>) {
     (n) =>
       typeof n.type === 'string' &&
       typeof n.props?.accessibilityLabel === 'string' &&
-      /^Substage \d+:/.test(n.props.accessibilityLabel as string),
+      /^Subetapa \d+:/.test(n.props.accessibilityLabel as string),
   );
 }
 
@@ -67,7 +67,7 @@ describe('SubstageProgress', () => {
 
     expect(texts).toContain('The Vault');
     expect(texts).toContain('Trivia');
-    expect(texts).toContain('Treasure Hunt');
+    expect(texts).toContain('Búsqueda del tesoro');
     expect(chips(renderer)).toHaveLength(2);
 
     const active = chips(renderer).filter(

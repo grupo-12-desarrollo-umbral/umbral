@@ -61,7 +61,7 @@ describe `Access Facts`; the **final admission** into a `LiveSession` is always 
 | **RNF-06** | The solution must follow hexagonal architecture or a variant compatible with clean architecture. |
 | **RNF-07** | The domain must not depend on infrastructure or web-framework details. |
 | **RNF-08** | The application must incorporate consistent logging, exception handling, and validation. |
-| **RNF-09** | The backend must reach an academic target of at least 90% test coverage. |
+| **RNF-09** | The backend must reach at least 95% aggregate branch coverage. |
 | **RNF-10** | The solution must be runnable locally through Docker Compose. |
 | **RNF-11** | The repository must include a continuous-integration pipeline for build and test execution. |
 | **RNF-12** | The interface must be clear, usable, and coherent with the system's main flows. |

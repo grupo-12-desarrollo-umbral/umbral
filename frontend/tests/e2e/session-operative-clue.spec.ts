@@ -124,12 +124,12 @@ test.beforeAll(async () => {
   const op = await token('op-1', 'operator123')
 
   const adminSub = subOf(admin)
-  sql('identity_access', `
+  sql('users', `
     DELETE FROM users WHERE "ExternalIdentityId"='${adminSub}';
     INSERT INTO users ("ExternalIdentityId","DisplayName","Email","Role","IsActive","Created","LastModified")
     VALUES ('${adminSub}','Administrator One','admin-1@umbral.local','Administrator',true,NOW(),NOW());
   `)
-  const opId = Number(sql('identity_access', `SELECT "Id" FROM users WHERE "Email"='op-1@umbral.local'`))
+  const opId = Number(sql('users', `SELECT "Id" FROM users WHERE "Email"='op-1@umbral.local'`))
 
   authorMission()
   const missionId = Number(
@@ -149,7 +149,7 @@ async function openLiveOperation(page: import('@playwright/test').Page, code: st
   const card = page.locator('[data-testid="assigned-session-button"]', { hasText: code })
   await expect(card).toBeVisible({ timeout: 15000 })
   await card.click()
-  await page.getByRole('button', { name: 'Open live operation' }).click()
+  await page.getByRole('button', { name: 'Abrir operación en vivo' }).click()
   await expect(page.locator('[data-testid="operator-panel"]')).toBeVisible({ timeout: 15000 })
   await expect(page.locator('[data-testid="operative-clue-panel"]')).toBeVisible({ timeout: 15000 })
 }

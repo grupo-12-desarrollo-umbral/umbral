@@ -38,7 +38,7 @@ All of this is on `feature/hu-03-role-permission-assignment` (or `develop` once 
 - Endpoints already exposed: `POST /api/users/authenticated`, `GET /api/users/me`, `GET /api/users`, `DELETE /api/users/{id}/access`, `PATCH /api/users/{id}/role`, `GET /api/permissions/authenticated-platform-access`
 - `ProblemDetailsExceptionHandler` already maps common validation/auth/not-found failures for the user and access flows
 
-**Coverage:** 94.95% total line before HU-04/HU-05 expansion; threshold is 95% aggregate line coverage, so HU-04 API/integration work must close the gap rather than assume it is already passing.
+**Coverage:** The threshold is at least 95% aggregate branch coverage, so HU-04 API/integration work must verify the current result rather than assume it is already passing.
 
 ## What HU-04 adds on top (per PRD DES-67)
 

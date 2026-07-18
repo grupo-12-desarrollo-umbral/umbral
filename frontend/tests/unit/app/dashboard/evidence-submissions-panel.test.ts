@@ -70,8 +70,8 @@ describe('EvidenceSubmissionsPanel', () => {
   it('shows both evidence forms, typed', () => {
     const html = render()
 
-    expect(html).toContain('QR scan')
-    expect(html).toContain('Trivia answer')
+    expect(html).toContain('Escaneo QR')
+    expect(html).toContain('Respuesta de trivia')
   })
 
   // The backend assigns no order, so the panel owns it: newest first, so the operator watches the head.
@@ -115,13 +115,13 @@ describe('EvidenceSubmissionsPanel', () => {
     // The panel must not block on the operator-panel fetch that supplies the names.
     const html = render({ teamNames: {} })
 
-    expect(html).toContain('Unknown team')
+    expect(html).toContain('Equipo desconocido')
     expect(html).toContain(`evidence-row-${QR_ID}`)
   })
 
   it('reports an empty trace and a loading trace distinctly', () => {
-    expect(render({ items: [] })).toContain('No submissions yet.')
-    expect(render({ items: [], loading: true })).toContain('Loading submissions…')
+    expect(render({ items: [] })).toContain('Aún no hay envíos.')
+    expect(render({ items: [], loading: true })).toContain('Cargando los envíos…')
   })
 
   it('shows the not-authorized state without any submission data', () => {

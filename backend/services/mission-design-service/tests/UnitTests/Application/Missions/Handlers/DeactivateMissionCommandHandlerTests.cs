@@ -29,7 +29,7 @@ public sealed class DeactivateMissionCommandHandlerTests
     public async Task Handle_WhenMissionExists_DeactivatesMission()
     {
         var repository = new InMemoryMissionRepository();
-        var mission = Mission.Create("Mission", "Briefing", "Advanced", 45);
+        var mission = Mission.Create("Mission", "Briefing", "Advanced", 30);
         repository.Seed(mission);
         var archivedAt = new DateTimeOffset(2026, 5, 31, 14, 0, 0, TimeSpan.Zero);
         var handler = new DeactivateMissionCommandHandler(repository, new StubClock(archivedAt));
@@ -60,7 +60,7 @@ public sealed class DeactivateMissionCommandHandlerTests
     public async Task Handle_WhenMissionIsAlreadyInactive_ThrowsDomainException()
     {
         var repository = new InMemoryMissionRepository();
-        var mission = Mission.Create("Mission", "Briefing", "Advanced", 45);
+        var mission = Mission.Create("Mission", "Briefing", "Advanced", 30);
         mission.Deactivate(new DateTimeOffset(2026, 5, 31, 13, 0, 0, TimeSpan.Zero));
         repository.Seed(mission);
         var handler = new DeactivateMissionCommandHandler(

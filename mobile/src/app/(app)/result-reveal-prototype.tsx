@@ -21,7 +21,7 @@ import type { ActiveQuestion } from '@/lib/realtime/active-question-types';
 const STUB_QUESTION: ActiveQuestion = {
   questionIndex: 0,
   sequenceOrder: 3,
-  prompt: 'Which street borders the north colonnade of the Plaza Mayor?',
+  prompt: '¿Qué calle bordea la columnata norte de la Plaza Mayor?',
   options: ['Calle del Sol', 'Avenida Mayor', 'Paseo del Prado', 'Rambla Vella'],
   timeLimitSeconds: 60,
   triviaSubstageSnapshotId: 'stub',
@@ -30,7 +30,7 @@ const STUB_QUESTION: ActiveQuestion = {
 const CORRECT_INDEX = 1; // Avenida Mayor
 
 const STUB_EXPLANATION =
-  'The Plaza Mayor was built by Philip III in 1619. The north colonnade is bordered by Calle de Ciudad Rodrigo, but the closest named street on the standard map is Avenida Mayor.';
+  'La Plaza Mayor fue construida por Felipe III en 1619. La columnata norte está bordeada por la Calle de Ciudad Rodrigo, pero la calle con nombre más cercana en el mapa estándar es la Avenida Mayor.';
 
 // ------------------------------------------------------------------
 // Reveal DTO stub (mirrors TriviaTeamQuestionResultDto from hu-m4 plan)
@@ -55,17 +55,17 @@ function RevealControls({
   return (
     <View style={{ flexDirection: 'row', gap: spacing.xs }}>
       <ControlPill
-        label="Correct (+20)"
+        label="Correcta (+20)"
         active={reveal.kind === 'correct'}
         onPress={() => onSetReveal({ kind: 'correct', selectedOptionSequenceOrder: CORRECT_INDEX, points: 20 })}
       />
       <ControlPill
-        label="Wrong (-10)"
+        label="Incorrecta (-10)"
         active={reveal.kind === 'incorrect'}
         onPress={() => onSetReveal({ kind: 'incorrect', selectedOptionSequenceOrder: 2, points: -10 })}
       />
       <ControlPill
-        label="No answer"
+        label="Sin respuesta"
         active={reveal.kind === 'no-answer'}
         onPress={() => onSetReveal({ kind: 'no-answer', selectedOptionSequenceOrder: null, points: 0 })}
       />
@@ -240,7 +240,7 @@ function VariantBOptionCentric({ reveal }: { reveal: RevealState }) {
               }}
             />
             <Text variant="label" style={{ color: colors.textMuted }}>
-              QUESTION CLOSED
+              PREGUNTA CERRADA
             </Text>
           </View>
         </View>
@@ -265,7 +265,7 @@ function VariantBOptionCentric({ reveal }: { reveal: RevealState }) {
                 option={option}
                 isCorrectOption={isCorrectOption}
                 isSelected={isSelected}
-                chip={isCorrectOption ? 'CORRECT' : isSelected ? 'YOUR ANSWER' : undefined}
+                chip={isCorrectOption ? 'CORRECTA' : isSelected ? 'TU RESPUESTA' : undefined}
               />
             );
           })}
@@ -297,7 +297,7 @@ function VariantBOptionCentric({ reveal }: { reveal: RevealState }) {
               </Text>
             </View>
             <Text variant="title" style={{ color: outcomeColor }}>
-              {isCorrect ? 'Correct' : isNoAnswer ? 'No answer' : 'Incorrect'}
+              {isCorrect ? 'Correcta' : isNoAnswer ? 'Sin respuesta' : 'Incorrecta'}
             </Text>
           </View>
           <Text
@@ -312,7 +312,7 @@ function VariantBOptionCentric({ reveal }: { reveal: RevealState }) {
         <View style={{ paddingHorizontal: spacing.lg, paddingBottom: spacing.lg }}>
           <Card style={{ backgroundColor: colors.paperSurface, borderColor: colors.borderSoft }}>
             <View style={{ gap: spacing.xs }}>
-              <Text variant="label" muted>WHY</Text>
+              <Text variant="label" muted>POR QUÉ</Text>
               <Text variant="body" muted>
                 {STUB_EXPLANATION}
               </Text>
@@ -354,7 +354,7 @@ export default function ResultRevealPrototypeScreen() {
           gap: spacing.xs,
         }}
       >
-        <Text variant="label" muted>PROTOTYPE · RESULT REVEAL</Text>
+        <Text variant="label" muted>PROTOTIPO · REVELACIÓN DE RESULTADO</Text>
         <RevealControls reveal={reveal} onSetReveal={setReveal} />
       </View>
 

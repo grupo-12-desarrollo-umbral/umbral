@@ -35,19 +35,19 @@ function fireHaptic(type: 'success' | 'error') {
 function messageForError(error: unknown): string {
   if (error instanceof ApiError) {
     if (error.status === 0) {
-      return 'Network error. Check your connection and try again.';
+      return 'Error de red. Revisa tu conexión e inténtalo de nuevo.';
     }
     if (error.status === 409) {
-      return 'An account with this email already exists.';
+      return 'Ya existe una cuenta con este correo electrónico.';
     }
     if (error.status === 429) {
-      return 'Too many attempts. Please try again in a few minutes.';
+      return 'Demasiados intentos. Inténtalo de nuevo en unos minutos.';
     }
     if (error.status === 400) {
-      return 'Please check your details and try again.';
+      return 'Revisa tus datos e inténtalo de nuevo.';
     }
   }
-  return 'Something went wrong. Please try again.';
+  return 'Algo salió mal. Inténtalo de nuevo.';
 }
 
 export default function RegisterScreen() {
@@ -80,27 +80,27 @@ export default function RegisterScreen() {
 
     let valid = true;
     if (!trimmedName) {
-      setDisplayNameError('Display name is required.');
+      setDisplayNameError('El nombre para mostrar es obligatorio.');
       valid = false;
     } else {
       setDisplayNameError('');
     }
 
     if (!trimmedEmail) {
-      setEmailError('Email is required.');
+      setEmailError('Correo electrónico es obligatorio.');
       valid = false;
     } else if (!isValidEmail(trimmedEmail)) {
-      setEmailError('Enter a valid email address.');
+      setEmailError('Ingresa un correo electrónico válido.');
       valid = false;
     } else {
       setEmailError('');
     }
 
     if (!password) {
-      setPasswordError('Password is required.');
+      setPasswordError('La contraseña es obligatoria.');
       valid = false;
     } else if (password.length < MIN_PASSWORD_LENGTH) {
-      setPasswordError(`Password must be at least ${MIN_PASSWORD_LENGTH} characters.`);
+      setPasswordError(`La contraseña debe tener al menos ${MIN_PASSWORD_LENGTH} caracteres.`);
       valid = false;
     } else {
       setPasswordError('');
@@ -137,13 +137,13 @@ export default function RegisterScreen() {
         </View>
 
         <Text variant="title" style={{ textAlign: 'center' }}>
-          Check your email
+          Revisa tu correo
         </Text>
         <Text variant="body" style={{ color: colors.textMuted, textAlign: 'center' }}>
-          We sent a verification link to {email.trim()}. Verify your email, then sign in.
+          Enviamos un enlace de verificación a {email.trim()}. Verifica tu correo y luego inicia sesión.
         </Text>
 
-        <Button label="Back to sign in" variant="primary" onPress={handleBackToLogin} />
+        <Button label="Volver a iniciar sesión" variant="primary" onPress={handleBackToLogin} />
       </Screen>
     );
   }
@@ -155,17 +155,17 @@ export default function RegisterScreen() {
       </View>
 
       <TextField
-        label="Display name"
+        label="Nombre para mostrar"
         value={displayName}
         onChangeText={setDisplayName}
-        placeholder="Your name"
+        placeholder="Tu nombre"
         autoCapitalize="words"
         returnKeyType="next"
         error={displayNameError}
       />
 
       <TextField
-        label="Email"
+        label="Correo electrónico"
         value={email}
         onChangeText={setEmail}
         placeholder="you@example.com"
@@ -177,7 +177,7 @@ export default function RegisterScreen() {
       />
 
       <TextField
-        label="Password"
+        label="Contraseña"
         value={password}
         onChangeText={setPassword}
         placeholder="••••••••"
@@ -198,7 +198,7 @@ export default function RegisterScreen() {
       ) : null}
 
       <Button
-        label="Create account"
+        label="Crear cuenta"
         variant="primary"
         onPress={handleSubmit}
         disabled={submitting}
@@ -218,7 +218,7 @@ export default function RegisterScreen() {
             textDecorationLine: 'underline',
           }}
         >
-          Already have an account? Sign in
+          ¿Ya tienes una cuenta? Inicia sesión
         </Text>
       </Pressable>
     </Screen>

@@ -34,6 +34,21 @@ internal sealed class InMemoryTriviaQuizRepository : ITriviaQuizRepository
         return Task.FromResult(statuses);
     }
 
+    public Task<IReadOnlyDictionary<int, int>> GetActiveQuestionTimerSecondsByIdsAsync(
+        IReadOnlyCollection<int> triviaQuizIds,
+        CancellationToken cancellationToken)
+    {
+        IReadOnlyDictionary<int, int> totals = _triviaQuizzes.Values
+            .Where(triviaQuiz => triviaQuizIds.Contains(triviaQuiz.Id))
+            .ToDictionary(
+                triviaQuiz => triviaQuiz.Id,
+                triviaQuiz => triviaQuiz.Questions
+                    .Where(question => question.IsActive)
+                    .Sum(question => question.TimeLimit?.Seconds ?? 0));
+
+        return Task.FromResult(totals);
+    }
+
     public Task AddAsync(TriviaQuiz triviaQuiz, CancellationToken cancellationToken)
     {
         LastAddedTriviaQuiz = triviaQuiz;

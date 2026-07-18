@@ -175,6 +175,7 @@ public sealed class SnapshotGuardTests
             1,
             true,
             100,
+            1,
             4.711,
             -74.0721,
             null,

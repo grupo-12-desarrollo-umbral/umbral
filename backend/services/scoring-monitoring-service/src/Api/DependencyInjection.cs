@@ -22,6 +22,7 @@ public static class DependencyInjection
             options.EnableDetailedErrors = builder.Environment.IsDevelopment();
         });
         builder.Services.AddSingleton<IRankingBroadcaster, RankingBroadcaster>();
+        builder.Services.AddSingleton<IPenaltyBroadcaster, PenaltyBroadcaster>();
         builder.Services
             .AddAuthentication(TrustedHeadersAuthenticationDefaults.Scheme)
             .AddScheme<AuthenticationSchemeOptions, TrustedHeadersAuthenticationHandler>(

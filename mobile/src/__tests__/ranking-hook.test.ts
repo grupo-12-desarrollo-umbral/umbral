@@ -46,6 +46,7 @@ function makeScoringClient() {
       closedHandlers.add(cb);
       return () => closedHandlers.delete(cb);
     },
+    onPenaltyApplied: jest.fn(() => () => {}),
   };
 }
 

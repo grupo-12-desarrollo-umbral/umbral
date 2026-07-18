@@ -11,6 +11,7 @@ public sealed class TargetResolvedEvent : BaseEvent
         Guid activeSubstageId,
         Guid targetSnapshotId,
         int scoreValue,
+        int difficultyFactor,
         DateTimeOffset resolvedAt)
     {
         LiveSessionId = liveSessionId;
@@ -21,6 +22,7 @@ public sealed class TargetResolvedEvent : BaseEvent
         ActiveSubstageId = activeSubstageId;
         TargetSnapshotId = targetSnapshotId;
         ScoreValue = scoreValue;
+        DifficultyFactor = difficultyFactor;
         ResolvedAt = resolvedAt;
     }
 
@@ -43,6 +45,10 @@ public sealed class TargetResolvedEvent : BaseEvent
     public Guid TargetSnapshotId { get; }
 
     public int ScoreValue { get; }
+
+    // Mission difficulty multiplier (1/2/3) behind ScoreValue; forwarded to scoring so the
+    // difficulty-weighted award is computed there by the TargetScorePolicy Strategy.
+    public int DifficultyFactor { get; }
 
     public DateTimeOffset ResolvedAt { get; }
 }

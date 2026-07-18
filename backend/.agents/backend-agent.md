@@ -72,7 +72,7 @@ derivation block cites):
 | `mission-design-service` | `MissionDesign` | `Mission`, `TriviaQuiz` |
 | `session-operations-service` | `SessionOperations` | `LiveSession` |
 | `scoring-monitoring-service` | `ScoringMonitoring` | `ScoreEntry`, `Penalty` |
-| `identity-access-service` | `Identity` | `User`, `IdentityProviderSession` |
+| `users-service` | `Users` | `User`, `IdentityProviderSession` |
 
 ---
 
@@ -182,7 +182,7 @@ ask the driver** — do not silently drop it.
   connections, `UsingRabbitMq`, and endpoint/topology configuration stay in
   `Infrastructure/Messaging` (ADR-0017). Legacy hand-rolled publisher code may remain
   until its migration scope is taken — session-operations and scoring-monitoring only.
-- Keycloak wiring under `Infrastructure/Identity/Keycloak/` — identity-access-service only
+- Keycloak wiring under `Infrastructure/Identity/Keycloak/` — users-service only
 
 ### Api (Phase X.4)
 - MVC controllers only — no minimal-API endpoint groups
@@ -202,7 +202,7 @@ ask the driver** — do not silently drop it.
 | X.1 Domain | `dotnet build` exits 0; at least one unit test per public domain type (each aggregate/entity, each value object, each enum behavior) |
 | X.2 Application | `dotnet build` clean; every handler has unit tests for all paths (valid path + every rejection/error branch); every validator has tests for valid and each invalid input |
 | X.3 Infrastructure | `dotnet ef migrations add` succeeds; repository integration test green |
-| X.4 Api | At least one endpoint returns expected response; aggregate ≥93% line coverage gate passes |
+| X.4 Api | At least one endpoint returns expected response; aggregate branch coverage gate of at least 95% passes |
 
 Coverage exclusions allowed only on: `Program.cs`, DI extension methods, generated EF migrations. Never exclude Domain or Application code.
 
@@ -224,7 +224,7 @@ MSBuild node-reuse so the build survives the agent sandbox.
 |---|---|
 | `cqrs-mediatr-aspnetcore` | Structuring commands, queries, handlers, pipeline behaviours |
 | `ef-core-postgresql` | EF Core configurations, migrations, DbContext setup |
-| `aspnet-backend-testing` | Writing unit/integration tests, enforcing ≥93% aggregate coverage |
+| `aspnet-backend-testing` | Writing unit/integration tests, enforcing at least 95% aggregate branch coverage |
 | `rabbitmq-events-dotnet` | Outbound event publishing and consumer wiring |
 | `signalr-websockets-aspnetcore` | Hub setup, group management, real-time notifier implementation |
 

@@ -28,7 +28,7 @@ import { sessionActivityReducer, emptySessionActivity } from './session-activity
 import { isNonLiveQuestionSnapshot, revealAnswerReviewSequenceOrder } from './timer-snapshot'
 import { createSessionStateRealtimeClient, type SessionRealtimeStatus } from '@/app/lib/realtime/session-state-client'
 import { createRankingRealtimeClient } from '@/app/lib/realtime/ranking-client'
-import { lifecycleActions, toLifecycleState } from '@/app/lib/session-lifecycle'
+import { lifecycleActions, toLifecycleState, lifecycleStateLabel, isTransitionAllowed } from '@/app/lib/session-lifecycle'
 import { getAccountStatus, accountStatusLabel, accountStatusTone } from '@/app/lib/account-status'
 import { useTriviaRoundState } from '@/app/lib/realtime/use-trivia-round-state'
 import type {
@@ -54,11 +54,28 @@ type DashboardRole = 'operator' | 'admin' | 'participant';
 type Theme = 'dark' | 'light';
 
 const transportStatusLabel: Record<SessionRealtimeStatus, string> = {
-  Connected: 'Connected',
-  Reconnecting: 'Reconnecting',
-  Offline: 'Offline',
-  AuthExpired: 'Auth expired',
+  Connected: 'Conectado',
+  Reconnecting: 'Reconectando',
+  Offline: 'Desconectado',
+  AuthExpired: 'Autenticación expirada',
 };
+
+const roleLabel: Record<DashboardRole, string> = {
+  operator: 'operador',
+  admin: 'administrador',
+  participant: 'participante',
+};
+
+// Spanish display for the backend role names (kept as raw enum strings in payloads).
+const backendRoleLabel: Record<string, string> = {
+  Administrator: 'Administrador',
+  Operator: 'Operador',
+  Participant: 'Participante',
+};
+
+function displayRole(role: string) {
+  return backendRoleLabel[role] ?? role;
+}
 
 const navigation = [
   { key: 'overview', icon: '⌂' },
@@ -80,7 +97,7 @@ const lifecycleTone: Record<SessionLifecycleState, 'success' | 'warning' | 'crit
 }
 
 function formatDateTime(value: string | null | undefined) {
-  if (!value) return 'Not available'
+  if (!value) return 'No disponible'
   return new Date(value).toLocaleString()
 }
 
@@ -136,17 +153,17 @@ function getSidebarServerSnapshot() {
 
 function getNavigationLabel(role: DashboardRole, key: string) {
   if (key === 'sessions') {
-    return role === 'operator' ? 'My sessions' : 'Assign operators'
+    return role === 'operator' ? 'Mis sesiones' : 'Asignar operadores'
   }
 
   return (
     {
-      overview: 'Overview',
-      operator: 'Operator',
-      teams: 'Teams',
+      overview: 'Resumen',
+      operator: 'Operador',
+      teams: 'Equipos',
       trivias: 'Trivias',
-      missions: 'Missions',
-      users: 'Users',
+      missions: 'Misiones',
+      users: 'Usuarios',
     } satisfies Record<string, string>
   )[key] ?? key
 }
@@ -542,7 +559,7 @@ export default function DashboardClient({
       })
       .catch(() => {
         setOperatorSessionsError(
-          'Assigned sessions could not be loaded through the gateway. The backend needs an operator-authorized session listing endpoint.',
+          'No se pudieron cargar las sesiones asignadas a través del gateway. El backend necesita un endpoint de listado de sesiones autorizado para operadores.',
         )
         setOperatorSessionsRequestState('failed')
       })
@@ -597,22 +614,22 @@ export default function DashboardClient({
   ).length
   const adminMetrics = [
     {
-      label: 'Active sessions',
+      label: 'Sesiones activas',
       value: String(adminActiveCount),
-      hint: adminPausedCount > 0 ? `${adminPausedCount} paused` : 'None paused',
-      pill: 'Live overview',
+      hint: adminPausedCount > 0 ? `${adminPausedCount} en pausa` : 'Ninguna en pausa',
+      pill: 'Resumen en vivo',
     },
     {
-      label: 'Scheduled sessions',
+      label: 'Sesiones programadas',
       value: String(adminScheduledCount),
-      hint: 'Awaiting kickoff',
-      pill: 'Upcoming',
+      hint: 'A la espera del inicio',
+      pill: 'Próximas',
     },
     {
-      label: 'Total sessions',
+      label: 'Total de sesiones',
       value: String(adminSessions.length),
-      hint: 'Across all events',
-      pill: 'All sessions',
+      hint: 'En todos los eventos',
+      pill: 'Todas las sesiones',
     },
   ]
 
@@ -788,17 +805,18 @@ export default function DashboardClient({
           void loadReleasableClues(selectedRealtimeSessionId)
         }
         dispatchActivity({ type: 'state', data: notification })
-        setLiveUpdateNote('State updated live from another client or tab.')
+        setLiveUpdateNote('Estado actualizado en vivo desde otro cliente o pestaña.')
       },
       onTimerUpdated: (notification: SessionTimerUpdatedNotificationDto) => {
         if (notification.liveSessionId !== selectedRealtimeSessionId) return
 
-        // The pre-game countdown reuses SessionTimerUpdated with a short total window.
-        // The session-creation form enforces a 1-minute (60 000 ms) minimum, so a tiny
-        // total while Active can only be the orchestration's pre-game ticks. Route those
-        // to the trivia state machine and do NOT patch the session timer with them.
+        // The pre-game countdown reuses SessionTimerUpdated, distinguished by the backend's
+        // authoritative IsPregameCountdown flag — NOT by a short total window. A short trivia
+        // question (or a near-expiry remainder re-emitted on resume) also has a tiny total, so
+        // inferring "pregame" from the duration misroutes real ticks into the countdown panel.
+        // Route genuine pre-game ticks to the trivia state machine; do NOT patch the session timer.
         const isPregame =
-          notification.totalMilliseconds <= 10_000 &&
+          notification.isPregameCountdown === true &&
           notification.sessionState === 'Active'
 
         if (isPregame) {
@@ -989,6 +1007,10 @@ export default function DashboardClient({
     // A superseded client (session switched, or its async stop() still settling) must not write the
     // new session's live status — gate every callback on this flag, flipped in cleanup.
     let active = true
+    // A penalty recomputes standings asynchronously (scoring outbox → RankingChanged). The push can be
+    // missed or clamp to an unchanged snapshot, so re-fetch across the recalc window; a later push still
+    // wins if it lands. Cleared on cleanup so a session switch cannot fire a stale session's refetch.
+    const penaltyCatchUpTimers: ReturnType<typeof setTimeout>[] = []
     const client = createRankingRealtimeClient({
       liveSessionId: selectedRealtimeSessionId,
       onStatusChange: (status) => {
@@ -1002,11 +1024,23 @@ export default function DashboardClient({
       onReconnected: () => {
         if (active && selectedRealtimeSessionId) void loadRanking(selectedRealtimeSessionId)
       },
+      onPenaltyApplied: () => {
+        penaltyCatchUpTimers.forEach(clearTimeout)
+        penaltyCatchUpTimers.length = 0
+        for (const delay of [1500, 3500, 6000]) {
+          penaltyCatchUpTimers.push(
+            setTimeout(() => {
+              if (active && selectedRealtimeSessionId) void loadRanking(selectedRealtimeSessionId)
+            }, delay),
+          )
+        }
+      },
     })
 
     void client.start()
     return () => {
       active = false
+      penaltyCatchUpTimers.forEach(clearTimeout)
       // Reset so a session switch never leaves the panel showing the prior session's live state.
       setRankingRealtimeStatus('Offline')
       void client.stop()
@@ -1068,25 +1102,23 @@ export default function DashboardClient({
     )
   }
 
-  function mapTransitionError(code: string, detail?: string) {
-    // invalid_transition carries the specific rejected from->to edge in `detail`
-    // (InvalidSessionStateTransitionException.PublicDetail, returned by transitionSessionState)
-    // when the backend supplied one; fall back to the generic message otherwise.
-    if (code === 'invalid_transition' && detail?.trim()) {
-      return detail
-    }
-
+  function mapTransitionError(code: string) {
+    // Note: invalid_transition carries the rejected from->to edge in the backend's `detail`
+    // (InvalidSessionStateTransitionException.PublicDetail), but that string is English backend copy
+    // ("Session cannot transition from 'Active' to 'Active'.") — never surfaced to the operator here.
+    // The pre-flight guard in runTransition already pre-empts the common stale-button case; anything
+    // that still reaches the backend gets the localized message below.
     return (
       {
-        not_assigned_operator: 'You are not the assigned operator for this session.',
-        session_not_found: 'Session not found. It may have been removed or reassigned.',
-        no_teams: 'This session has no teams yet. Add at least one team before starting it.',
-        session_unassigned: 'This session has no assigned operator. Ask an administrator to assign one before changing its state.',
-        invalid_transition: 'That state change is not allowed from the current session state.',
-        invalid_payload: 'Invalid state change payload. Reload the page and try again.',
-        forbidden: 'Only an operator can change a session state.',
+        not_assigned_operator: 'No eres el operador asignado a esta sesión.',
+        session_not_found: 'Sesión no encontrada. Puede que se haya eliminado o reasignado.',
+        no_teams: 'Esta sesión aún no tiene equipos. Agrega al menos un equipo antes de iniciarla.',
+        session_unassigned: 'Esta sesión no tiene operador asignado. Pide a un administrador que asigne uno antes de cambiar su estado.',
+        invalid_transition: 'Ese cambio de estado no está permitido desde el estado actual de la sesión.',
+        invalid_payload: 'Datos de cambio de estado no válidos. Recarga la página e inténtalo de nuevo.',
+        forbidden: 'Solo un operador puede cambiar el estado de una sesión.',
       } satisfies Record<string, string>
-    )[code] ?? 'State transition failed. Try again.'
+    )[code] ?? 'Falló el cambio de estado. Inténtalo de nuevo.'
   }
 
   function requestTransition(targetState: SessionLifecycleState) {
@@ -1107,6 +1139,18 @@ export default function DashboardClient({
   async function runTransition(targetState: SessionLifecycleState) {
     if (!selectedOperatorSession) return
 
+    // Pre-flight guard against a stale double-transition: if the live session state has already moved
+    // on (a resume that landed via another tab or the SignalR echo), the lifecycle button the operator
+    // clicked no longer maps to a valid edge. Firing it anyway makes the backend reject e.g. Active->Active
+    // and surfaces a raw conflict. Bail benignly — the live state already reflects reality.
+    const currentState = toLifecycleState(selectedOperatorSession.sessionState)
+    if (!currentState || !isTransitionAllowed(currentState, targetState)) {
+      setConfirmTransition(null)
+      setCancelReason('')
+      setLiveUpdateNote('La sesión ya cambió de estado (actualizada en vivo). No se aplicó la acción.')
+      return
+    }
+
     setPendingTransition(targetState)
     setTransitionError(null)
     try {
@@ -1116,14 +1160,14 @@ export default function DashboardClient({
         targetState === 'Cancelled' ? cancelReason : undefined,
       )
       if ('error' in outcome) {
-        setTransitionError(mapTransitionError(outcome.error, outcome.detail))
+        setTransitionError(mapTransitionError(outcome.error))
         return
       }
       const result = outcome.data
       applyTransitionResult(result)
       setConfirmTransition(null)
       setCancelReason('')
-      announce(`${selectedOperatorSession.title} moved to ${result.currentState}`, 'The backend accepted the lifecycle transition.')
+      announce(`${selectedOperatorSession.title} cambió a ${lifecycleStateLabel[result.currentState as SessionLifecycleState] ?? result.currentState}`, 'El backend aceptó la transición de ciclo de vida.')
       if (result.timer) {
         // The Start (→ Active) response carries a pre-game placeholder timer (expired, zero remaining);
         // don't display it — SignalR's QuestionActivated/timer ticks deliver the real countdown.
@@ -1136,7 +1180,7 @@ export default function DashboardClient({
       }
     } catch {
       // Only unexpected faults reach here now — expected failures come back as { error }.
-      setTransitionError('State transition failed. Try again.')
+      setTransitionError('Falló el cambio de estado. Inténtalo de nuevo.')
     } finally {
       setPendingTransition(null)
     }
@@ -1157,7 +1201,8 @@ export default function DashboardClient({
   const visibleNavigation = navigation.filter((item) => {
     if (role === 'participant') return item.key === 'overview'
     // HU-19: admins get the sessions nav for operator assignment; operator stub is dead
-    if (role === 'admin') return item.key !== 'operator'
+    // Issue #173: trivia authoring is Operator-owned, so admins no longer see the trivias nav.
+    if (role === 'admin') return item.key !== 'operator' && item.key !== 'trivias'
     // HU-09 (DES-14): mission authoring is admin-only; operators never see the missions nav.
     // Issue #173: trivia authoring is now Operator-owned, so operators keep the trivias nav.
     // Issue #148: the Users view is Administrator-only; operators never see the users nav.
@@ -1183,42 +1228,42 @@ export default function DashboardClient({
                 <div className={styles.headerButtons}>
                   <h1 id="session-title">{selectedOperatorSession.title}</h1>
                   <span className={styles.chip} data-tone={statusTone}>
-                    {selectedOperatorState}
+                    {lifecycleStateLabel[selectedOperatorState]}
                   </span>
                 </div>
 
                 {operatorPanelState.panel?.missionTitle ? (
                   <p className={styles.heroMission} data-testid="operator-hero-mission">
-                    Mission: <strong>{operatorPanelState.panel.missionTitle}</strong>
+                    Misión: <strong>{operatorPanelState.panel.missionTitle}</strong>
                   </p>
                 ) : null}
 
                 <div className={styles.sessionMeta}>
                   <span>{selectedOperatorSession.sessionCode}</span>
                   <span>•</span>
-                  <span>Scheduled {formatDateTime(selectedOperatorSession.scheduledAt)}</span>
+                  <span>Programada {formatDateTime(selectedOperatorSession.scheduledAt)}</span>
                   <span>•</span>
-                  <span>{selectedOperatorSession.assignedOperatorUserId == null ? 'Unassigned' : 'Assigned to you'}</span>
+                  <span>{selectedOperatorSession.assignedOperatorUserId == null ? 'Sin asignar' : 'Asignada a ti'}</span>
                 </div>
               </div>
             </div>
 
             <div className={styles.heroMetrics}>
               <div className={styles.metricBlock}>
-                <span className={styles.metricValue}>{selectedOperatorState}</span>
-                <span className={styles.metricLabel}>Current state</span>
+                <span className={styles.metricValue}>{lifecycleStateLabel[selectedOperatorState]}</span>
+                <span className={styles.metricLabel}>Estado actual</span>
               </div>
               <div className={styles.metricBlock}>
                 <span className={styles.metricValue}>{transportStatusText}</span>
-                <span className={styles.metricLabel}>Transport</span>
+                <span className={styles.metricLabel}>Transporte</span>
               </div>
               <div className={styles.metricBlock}>
                 <span className={styles.metricValue}>
                   {selectedOperatorSession.lastTransitionedAt
                     ? new Date(selectedOperatorSession.lastTransitionedAt).toLocaleTimeString()
-                    : 'None'}
+                    : 'Ninguna'}
                 </span>
-                <span className={styles.metricLabel}>Last transition</span>
+                <span className={styles.metricLabel}>Última transición</span>
               </div>
             </div>
           </div>
@@ -1294,7 +1339,7 @@ export default function DashboardClient({
             }))}
             releasableClues={releasableClues}
             onReleased={(label, count) =>
-              announce('Clue released', `${label} revealed to ${count} team${count === 1 ? '' : 's'}.`)
+              announce('Pista liberada', `${label} revelada a ${count} equipo${count === 1 ? '' : 's'}.`)
             }
           />
 
@@ -1306,7 +1351,7 @@ export default function DashboardClient({
               displayName: t.displayName,
             }))}
             onAdded={(count) =>
-              announce('Operative clue assigned', `Clue assigned to ${count} team${count === 1 ? '' : 's'}.`)
+              announce('Pista operativa asignada', `Pista asignada a ${count} equipo${count === 1 ? '' : 's'}.`)
             }
           />
 
@@ -1324,7 +1369,7 @@ export default function DashboardClient({
                 displayName: t.displayName,
               }))}
             onApplied={(teamId, amount) =>
-              announce('Penalty applied', `−${amount} pts recorded for the selected team.`)
+              announce('Penalización aplicada', `−${amount} pts registrados para el equipo seleccionado.`)
             }
           />
         </div>
@@ -1361,8 +1406,8 @@ export default function DashboardClient({
         <section className={styles.panel} aria-labelledby="session-controls-title">
           <div className={styles.panelHeader}>
             <div>
-              <h2 id="session-controls-title">Session controls</h2>
-              <div className={styles.panelMeta}>Allowed next actions are derived from the backend lifecycle state.</div>
+              <h2 id="session-controls-title">Controles de la sesión</h2>
+              <div className={styles.panelMeta}>Las próximas acciones permitidas se derivan del estado del ciclo de vida en el backend.</div>
             </div>
           </div>
 
@@ -1385,7 +1430,7 @@ export default function DashboardClient({
               >
                 <span className={styles.controlKicker}>{action.destructive ? '!' : '>'}</span>
                 <span className={styles.controlTitle}>
-                  {pendingTransition === action.targetState ? 'Working...' : action.label}
+                  {pendingTransition === action.targetState ? 'Procesando...' : action.label}
                 </span>
                 <span className={styles.controlCopy}>{action.description}</span>
               </button>
@@ -1394,19 +1439,19 @@ export default function DashboardClient({
 
           {lifecycleActions[selectedOperatorState].length === 0 && (
             <p className={styles.emptyStateCopy} data-testid="session-no-actions">
-              This session is terminal. No further lifecycle actions are available.
+              Esta sesión es terminal. No hay más acciones de ciclo de vida disponibles.
             </p>
           )}
 
           {confirmTransition && (
-            <section className={styles.confirmPanel} aria-label="Confirm terminal transition">
-              <h3>Confirm {confirmTransition}</h3>
+            <section className={styles.confirmPanel} aria-label="Confirmar transición terminal">
+              <h3>Confirmar «{lifecycleStateLabel[confirmTransition]}»</h3>
               <p className={styles.panelMeta}>
-                This is a terminal lifecycle action. The backend will reject it if the transition is no longer valid.
+                Esta es una acción de ciclo de vida terminal. El backend la rechazará si la transición ya no es válida.
               </p>
               {confirmTransition === 'Cancelled' && (
                 <label className={styles.reasonField}>
-                  <span>Cancellation reason (optional)</span>
+                  <span>Motivo de cancelación (opcional)</span>
                   <textarea
                     value={cancelReason}
                     onChange={(event) => setCancelReason(event.target.value)}
@@ -1423,7 +1468,7 @@ export default function DashboardClient({
                   onClick={() => void runTransition(confirmTransition)}
                   type="button"
                 >
-                  Confirm {confirmTransition}
+                  Confirmar «{lifecycleStateLabel[confirmTransition]}»
                 </button>
                 <button
                   className={styles.inlineButton}
@@ -1434,7 +1479,7 @@ export default function DashboardClient({
                   }}
                   type="button"
                 >
-                  Keep session open
+                  Mantener la sesión abierta
                 </button>
               </div>
             </section>
@@ -1445,23 +1490,23 @@ export default function DashboardClient({
         <section className={styles.panel} aria-labelledby="session-detail-title">
           <div className={styles.panelHeader}>
             <div>
-              <h2 id="session-detail-title">Session detail</h2>
-              <div className={styles.panelMeta}>Backend summary for the selected operator session.</div>
+              <h2 id="session-detail-title">Detalle de la sesión</h2>
+              <div className={styles.panelMeta}>Resumen del backend para la sesión de operador seleccionada.</div>
             </div>
           </div>
 
           <dl className={styles.detailList}>
-            <dt>Title</dt>
+            <dt>Título</dt>
             <dd>{selectedOperatorSession.title}</dd>
-            <dt>Code</dt>
+            <dt>Código</dt>
             <dd>{selectedOperatorSession.sessionCode}</dd>
-            <dt>Scheduled time</dt>
+            <dt>Horario programado</dt>
             <dd>{formatDateTime(selectedOperatorSession.scheduledAt)}</dd>
-            <dt>Ownership</dt>
-            <dd>{selectedOperatorSession.assignedOperatorUserId == null ? 'No assigned operator' : 'Assigned operator present'}</dd>
-            <dt>Last transition</dt>
+            <dt>Titularidad</dt>
+            <dd>{selectedOperatorSession.assignedOperatorUserId == null ? 'Sin operador asignado' : 'Operador asignado presente'}</dd>
+            <dt>Última transición</dt>
             <dd>{formatDateTime(selectedOperatorSession.lastTransitionedAt)}</dd>
-            <dt>Transport</dt>
+            <dt>Transporte</dt>
             <dd>{transportStatusText}</dd>
           </dl>
         </section>
@@ -1477,15 +1522,15 @@ export default function DashboardClient({
           {realtimeAuthExpired && (
             <section className={styles.authBanner} role="alert" data-testid="session-auth-expired-banner">
               <div>
-                <strong>Realtime authentication expired.</strong> Your dashboard session is still active, but SignalR cannot reconnect until you sign in again.
+                <strong>La autenticación en tiempo real expiró.</strong> Tu sesión del panel sigue activa, pero SignalR no puede reconectarse hasta que inicies sesión de nuevo.
               </div>
               <div className={styles.authBannerActions}>
                 <a className={styles.primaryButton} href="/api/auth/login">
-                  Sign in again
+                  Iniciar sesión de nuevo
                 </a>
                 <form action={logout}>
                   <button className={styles.inlineButton} type="submit">
-                    Sign out
+                    Cerrar sesión
                   </button>
                 </form>
               </div>
@@ -1499,22 +1544,22 @@ export default function DashboardClient({
   return (
     <div className={styles.page}>
       <a className={styles.skipLink} href="#main-content">
-        Skip to main content
+        Saltar al contenido principal
       </a>
 
       <div className={styles.frame} data-collapsed={sidebarCollapsed}>
-        <aside className={styles.sidebar} aria-label="Primary navigation">
+        <aside className={styles.sidebar} aria-label="Navegación principal">
           <div className={styles.brand}>
             <div className={styles.brandMark} aria-hidden="true">
               <CompassMark />
             </div>
             <div>
               <div className={styles.brandTitle}>Umbral</div>
-              <div className={styles.brandMeta}>Command center</div>
+              <div className={styles.brandMeta}>Centro de mando</div>
             </div>
           </div>
 
-          <div className={styles.rolePill} data-testid="role-chip">{role}</div>
+          <div className={styles.rolePill} data-testid="role-chip">{roleLabel[role]}</div>
 
           <nav className={styles.nav}>
             {visibleNavigation.map((item) => (
@@ -1541,16 +1586,16 @@ export default function DashboardClient({
             {role === 'operator' && (
               <section className={styles.healthCard} aria-labelledby="session-health-title">
                 <div className={styles.eyebrow} id="session-health-title">
-                  Session health
+                  Estado de la sesión
                 </div>
                 <div className={styles.healthStatus}>
                   <span className={styles.statusDot} aria-hidden="true" data-tone={healthIsGood ? 'success' : 'critical'} />
-                  <span>{healthIsGood ? 'Good' : 'Needs attention'}</span>
+                  <span>{healthIsGood ? 'Correcto' : 'Requiere atención'}</span>
                 </div>
                 <p className={styles.healthText}>
                   {realtimeAuthExpired
-                    ? 'Realtime authentication expired. Sign in again to restore live updates.'
-                    : `Realtime transport: ${transportStatusText}.`}
+                    ? 'La autenticación en tiempo real expiró. Inicia sesión de nuevo para restaurar las actualizaciones en vivo.'
+                    : `Transporte en tiempo real: ${transportStatusText}.`}
                 </p>
               </section>
             )}
@@ -1560,30 +1605,30 @@ export default function DashboardClient({
               type="button"
               onClick={toggleSidebar}
               aria-pressed={sidebarCollapsed}
-              title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+              title={sidebarCollapsed ? 'Expandir barra lateral' : 'Contraer barra lateral'}
             >
               <span aria-hidden="true">{sidebarCollapsed ? '›' : '‹'}</span>
-              <span className={styles.navLabel}>{sidebarCollapsed ? 'Expand' : 'Collapse'}</span>
+              <span className={styles.navLabel}>{sidebarCollapsed ? 'Expandir' : 'Contraer'}</span>
             </button>
           </div>
         </aside>
 
         <main className={styles.main} id="main-content">
-          <section className={styles.topbar} aria-label="Dashboard controls">
+          <section className={styles.topbar} aria-label="Controles del panel">
             <div className={styles.topbarLeft}>
               {isOperatorSessionsWorkspace ? (
                 <>
-                  <span className={styles.chip}>My sessions</span>
+                  <span className={styles.chip}>Mis sesiones</span>
                   <span className={styles.panelMeta}>
                     {selectedOperatorSession
-                      ? `${selectedOperatorSession.title} is part of your current workload. Select one of your sessions to review it before live operation.`
-                      : 'Review the sessions assigned to you, or ask an administrator to assign or reassign a session.'}
+                      ? `${selectedOperatorSession.title} forma parte de tu carga de trabajo actual. Selecciona una de tus sesiones para revisarla antes de la operación en vivo.`
+                      : 'Revisa las sesiones que te fueron asignadas, o pide a un administrador que asigne o reasigne una sesión.'}
                   </span>
                 </>
               ) : (
                 <>
                   <label>
-                    <span className="sr-only">Session switcher</span>
+                    <span className="sr-only">Selector de sesión</span>
                     <select
                       className={styles.sessionSelect}
                       data-testid="session-switcher"
@@ -1592,7 +1637,7 @@ export default function DashboardClient({
                     >
                     {role === 'operator' ? (
                       <>
-                        <option value="assigned-list">My sessions</option>
+                        <option value="assigned-list">Mis sesiones</option>
                         {activeOperatorSessions.map((session) => (
                           <option key={session.liveSessionId} value={session.liveSessionId}>
                             {session.title}
@@ -1601,7 +1646,7 @@ export default function DashboardClient({
                       </>
                     ) : (
                       <>
-                        <option value="">Select a session</option>
+                        <option value="">Selecciona una sesión</option>
                         {activeAdminSessions.map((session) => (
                           <option key={session.liveSessionId} value={session.liveSessionId}>
                             {session.title}
@@ -1626,17 +1671,17 @@ export default function DashboardClient({
                     }
                   >
                     {role === 'operator'
-                      ? selectedOperatorState ?? transportStatusText
-                      : selectedAdminState ?? 'No session selected'}
+                      ? (selectedOperatorState ? lifecycleStateLabel[selectedOperatorState] : transportStatusText)
+                      : (selectedAdminState ? lifecycleStateLabel[selectedAdminState] : 'Sin sesión seleccionada')}
                   </span>
                   <span className={styles.panelMeta}>
                     {role === 'operator'
                       ? selectedOperatorSession
-                        ? `Scheduled ${formatDateTime(selectedOperatorSession.scheduledAt)}`
-                        : 'Choose a session to inspect'
+                        ? `Programada ${formatDateTime(selectedOperatorSession.scheduledAt)}`
+                        : 'Elige una sesión para inspeccionar'
                       : selectedAdminSession
-                        ? `Scheduled ${formatDateTime(selectedAdminSession.scheduledAt)}`
-                        : 'Choose a session to inspect'}
+                        ? `Programada ${formatDateTime(selectedAdminSession.scheduledAt)}`
+                        : 'Elige una sesión para inspeccionar'}
                   </span>
                 </>
               )}
@@ -1657,8 +1702,8 @@ export default function DashboardClient({
                 className={styles.themeButton}
                 onClick={toggleTheme}
                 type="button"
-                aria-label={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
-                title={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
+                aria-label={theme === 'dark' ? 'Cambiar al tema claro' : 'Cambiar al tema oscuro'}
+                title={theme === 'dark' ? 'Cambiar al tema claro' : 'Cambiar al tema oscuro'}
               >
                 {theme === 'dark' ? '☾' : '☼'}
               </button>
@@ -1668,9 +1713,9 @@ export default function DashboardClient({
                   className={styles.smallButton}
                   type="submit"
                   data-testid="logout-button"
-                  title="Sign out"
+                  title="Cerrar sesión"
                 >
-                  Sign out
+                  Cerrar sesión
                 </button>
               </form>
             </div>
@@ -1679,10 +1724,10 @@ export default function DashboardClient({
           {role === 'participant' ? (
             <section className={styles.emptyState} aria-labelledby="participant-title" data-testid="participant-panel">
               <div>
-                <h1 id="participant-title">Welcome, {displayName}</h1>
+                <h1 id="participant-title">Bienvenido, {displayName}</h1>
                 <p className={styles.emptyStateCopy}>
-                  You are logged in as a participant. Operator and admin controls are not available
-                  in this view.
+                  Has iniciado sesión como participante. Los controles de operador y administrador no están
+                  disponibles en esta vista.
                 </p>
               </div>
             </section>
@@ -1713,9 +1758,9 @@ export default function DashboardClient({
           ) : role === 'operator' && selectedSessionId === 'assigned-list' ? (
             <section className={styles.emptyState} aria-labelledby="assigned-sessions-title" data-testid="operator-panel">
               <div>
-                <h1 id="assigned-sessions-title">My sessions</h1>
+                <h1 id="assigned-sessions-title">Mis sesiones</h1>
                 <p className={styles.emptyStateCopy}>
-                  Review the sessions you are responsible for, or ask an administrator to assign or reassign a session when the live floor changes.
+                  Revisa las sesiones de las que eres responsable, o pide a un administrador que asigne o reasigne una sesión cuando cambie la operación en vivo.
                 </p>
               </div>
 
@@ -1726,13 +1771,13 @@ export default function DashboardClient({
               )}
 
               {isLoadingOperatorSessions && (
-                <p className={styles.panelMeta}>Loading your assigned sessions…</p>
+                <p className={styles.panelMeta}>Cargando tus sesiones asignadas…</p>
               )}
 
               {operatorSessionsRequestState === 'loaded' && activeOperatorSessions.length === 0 && (
                 <p className={styles.emptyStateCopy} data-testid="no-assigned-sessions">
-                  No active sessions are assigned to you right now. When an administrator assigns
-                  one, it will appear here.
+                  Ahora mismo no tienes ninguna sesión activa asignada. Cuando un administrador te
+                  asigne una, aparecerá aquí.
                 </p>
               )}
 
@@ -1752,11 +1797,11 @@ export default function DashboardClient({
                         <div>
                           <h3>{session.title}</h3>
                           <div className={styles.sessionCardMeta}>
-                            {session.sessionCode} • Scheduled {formatDateTime(session.scheduledAt)}
+                            {session.sessionCode} • Programada {formatDateTime(session.scheduledAt)}
                           </div>
                         </div>
                         <span className={styles.chip} data-tone={sessionState ? lifecycleTone[sessionState] : 'muted'}>
-                          {sessionState ?? session.sessionState}
+                          {sessionState ? lifecycleStateLabel[sessionState] : session.sessionState}
                         </span>
                       </div>
                     </button>
@@ -1766,7 +1811,7 @@ export default function DashboardClient({
 
               <div className={styles.emptyActions}>
                 <button className={styles.primaryButton} onClick={() => activeOperatorSessions[0] && setSelectedSessionId(activeOperatorSessions[0].liveSessionId)} type="button" disabled={activeOperatorSessions.length === 0}>
-                  Open live session
+                  Abrir sesión en vivo
                 </button>
               </div>
             </section>
@@ -1775,14 +1820,14 @@ export default function DashboardClient({
           ) : role === 'operator' ? (
             <section className={styles.emptyState} aria-labelledby="operator-session-unavailable-title" data-testid="operator-panel">
               <div>
-                <h1 id="operator-session-unavailable-title">No operator session selected</h1>
+                <h1 id="operator-session-unavailable-title">Ninguna sesión de operador seleccionada</h1>
                 <p className={styles.emptyStateCopy}>
-                  Select one of your assigned sessions before opening lifecycle controls.
+                  Selecciona una de tus sesiones asignadas antes de abrir los controles de ciclo de vida.
                 </p>
               </div>
               <div className={styles.emptyActions}>
                 <button className={styles.primaryButton} onClick={() => setActiveNav('sessions')} type="button">
-                  Back to my sessions
+                  Volver a mis sesiones
                 </button>
               </div>
             </section>
@@ -1796,27 +1841,27 @@ export default function DashboardClient({
                     </div>
                     <div className={styles.heroHeading}>
                       <div className={styles.headerButtons}>
-                        <h1 id="admin-title">Trivia night overview</h1>
+                        <h1 id="admin-title">Resumen de la noche de trivia</h1>
                       </div>
                       <div className={styles.sessionMeta}>
-                        <span>Tonight&apos;s trivia events</span>
+                        <span>Los eventos de trivia de esta noche</span>
                         <span>•</span>
-                        <span>{adminActiveCount} {adminActiveCount === 1 ? 'session' : 'sessions'} active</span>
+                        <span>{adminActiveCount} {adminActiveCount === 1 ? 'sesión activa' : 'sesiones activas'}</span>
                         <span>•</span>
-                        <span>{adminSessions.length} total</span>
+                        <span>{adminSessions.length} en total</span>
                       </div>
                     </div>
                   </div>
 
                   <div className={styles.heroActions}>
                     <button className={styles.secondaryButton} type="button" onClick={() => setActiveNav('sessions')}>
-                      Assign operators
+                      Asignar operadores
                     </button>
                   </div>
                 </div>
               </section>
 
-              <section className={styles.adminMetrics} aria-label="Admin overview metrics">
+              <section className={styles.adminMetrics} aria-label="Métricas del resumen del administrador">
                 {adminMetrics.map((metric) => (
                   <article className={styles.metricCard} key={metric.label}>
                     <div className={styles.metricNumber}>{metric.value}</div>
@@ -1829,24 +1874,24 @@ export default function DashboardClient({
                 ))}
               </section>
 
-              <section className={styles.adminPanels} aria-label="Admin control panels">
+              <section className={styles.adminPanels} aria-label="Paneles de control del administrador">
                 <article className={`${styles.panel} ${styles.adminPanel}`}>
                   <div className={styles.panelHeader}>
                     <div>
-                      <h2>Configuration shortcuts</h2>
-                      <div className={styles.panelMeta}>Quiz, team, and session management stays close to the top of the surface.</div>
+                      <h2>Accesos de configuración</h2>
+                      <div className={styles.panelMeta}>La gestión de cuestionarios, equipos y sesiones se mantiene cerca de la parte superior de la vista.</div>
                     </div>
                   </div>
                   <div className={styles.controlGrid}>
                     <button className={styles.controlTile} type="button">
                       <span className={styles.controlKicker}>▤</span>
-                      <span className={styles.controlTitle}>Quizzes</span>
-                      <span className={styles.controlCopy}>Balance trivia difficulty and answer timing.</span>
+                      <span className={styles.controlTitle}>Cuestionarios</span>
+                      <span className={styles.controlCopy}>Equilibra la dificultad de la trivia y los tiempos de respuesta.</span>
                     </button>
                     <button className={styles.controlTile} type="button">
                       <span className={styles.controlKicker}>◫</span>
-                      <span className={styles.controlTitle}>Teams</span>
-                      <span className={styles.controlCopy}>Review rosters, team badges, and check-in states.</span>
+                      <span className={styles.controlTitle}>Equipos</span>
+                      <span className={styles.controlCopy}>Revisa las listas, los distintivos de equipo y los estados de registro.</span>
                     </button>
                   </div>
                 </article>
@@ -1854,8 +1899,8 @@ export default function DashboardClient({
                 <article className={`${styles.panel} ${styles.adminPanel}`}>
                   <div className={styles.panelHeader}>
                     <div>
-                      <h2>Live sessions</h2>
-                      <div className={styles.panelMeta}>Active and paused sessions across all events.</div>
+                      <h2>Sesiones en vivo</h2>
+                      <div className={styles.panelMeta}>Sesiones activas y en pausa en todos los eventos.</div>
                     </div>
                   </div>
                   <div className={styles.sessionList}>
@@ -1864,12 +1909,12 @@ export default function DashboardClient({
                         (session) => toLifecycleState(session.sessionState) !== 'Scheduled',
                       )
                       if (adminSessionsRequestState === 'failed') {
-                        return <p className={styles.panelMeta}>Live sessions could not be loaded through the gateway.</p>
+                        return <p className={styles.panelMeta}>No se pudieron cargar las sesiones en vivo a través del gateway.</p>
                       }
                       if (liveList.length === 0) {
                         return (
                           <p className={styles.panelMeta}>
-                            {adminSessionsRequestState === 'loaded' ? 'No sessions are live right now.' : 'Loading sessions…'}
+                            {adminSessionsRequestState === 'loaded' ? 'No hay sesiones en vivo ahora mismo.' : 'Cargando sesiones…'}
                           </p>
                         )
                       }
@@ -1886,11 +1931,11 @@ export default function DashboardClient({
                               <div>
                                 <h3>{session.title}</h3>
                                 <div className={styles.sessionCardMeta}>
-                                  {session.sessionCode} • Scheduled {formatDateTime(session.scheduledAt)}
+                                  {session.sessionCode} • Programada {formatDateTime(session.scheduledAt)}
                                 </div>
                               </div>
                               <span className={styles.chip} data-tone={state ? lifecycleTone[state] : 'muted'}>
-                                {state ?? session.sessionState}
+                                {state ? lifecycleStateLabel[state] : session.sessionState}
                               </span>
                             </div>
                           </button>
@@ -1915,7 +1960,7 @@ export default function DashboardClient({
             className={styles.toastClose}
             onClick={() => setToast(null)}
             type="button"
-            aria-label="Dismiss notification"
+            aria-label="Descartar notificación"
           >
             ×
           </button>
@@ -1947,7 +1992,7 @@ function UsersPanel({ role }: { role: DashboardRole }) {
           const result = await getUsersPage(target)
           setData(result)
         } catch {
-          setError('Failed to load users.')
+          setError('No se pudieron cargar los usuarios.')
         }
       })
     },
@@ -1964,23 +2009,31 @@ function UsersPanel({ role }: { role: DashboardRole }) {
     setInviteError(null)
     setInviteNotice(null)
     if (!email) {
-      setInviteError('Enter an email address to invite.')
+      setInviteError('Ingresa una dirección de correo para invitar.')
       return
     }
     startTransition(async () => {
+      let result
       try {
-        await inviteUser(email, inviteRole)
-        setInviteNotice(`Invitation sent to ${email}. It appears in the users list as a pending invitation once the account is provisioned — on a large user base it may be on a later page.`)
-        setInviteEmail('')
-        setInviteRole('Operator')
-        // Re-read from the first page so the newly invited (pending) account is visible immediately.
-        if (page === 1) {
-          loadUsers(1)
-        } else {
-          setPage(1)
-        }
-      } catch (err) {
-        setInviteError(err instanceof Error && err.message ? err.message : 'The invitation could not be sent. Try again.')
+        result = await inviteUser(email, inviteRole)
+      } catch {
+        // The action returns expected failures as data; a throw here is an unexpected
+        // infrastructure error (e.g. the session expired mid-request).
+        setInviteError('No se pudo enviar la invitación. Inténtalo de nuevo.')
+        return
+      }
+      if (!result.ok) {
+        setInviteError(result.error)
+        return
+      }
+      setInviteNotice(`Invitación enviada a ${email}. Aparecerá en la lista de usuarios como invitación pendiente una vez que la cuenta se aprovisione; con muchos usuarios podría estar en una página posterior.`)
+      setInviteEmail('')
+      setInviteRole('Operator')
+      // Re-read from the first page so the newly invited (pending) account is visible immediately.
+      if (page === 1) {
+        loadUsers(1)
+      } else {
+        setPage(1)
       }
     })
   }
@@ -2003,7 +2056,7 @@ function UsersPanel({ role }: { role: DashboardRole }) {
         )
         setConfirmId(null)
       } catch {
-        setError('Deactivation failed. Try again.')
+        setError('Falló la desactivación. Inténtalo de nuevo.')
         setConfirmId(null)
       }
     })
@@ -2026,7 +2079,7 @@ function UsersPanel({ role }: { role: DashboardRole }) {
         )
         setRoleEditId(null)
       } catch {
-        setRoleError('Role change failed. Try again.')
+        setRoleError('Falló el cambio de rol. Inténtalo de nuevo.')
         setPendingRole(previousRole)
         setRoleEditId(null)
       }
@@ -2041,14 +2094,14 @@ function UsersPanel({ role }: { role: DashboardRole }) {
     >
       <div className={styles.panelHeader}>
         <div>
-          <h2 id="users-panel-title">Registered users</h2>
+          <h2 id="users-panel-title">Usuarios registrados</h2>
           <div className={styles.panelMeta}>
             {role === 'admin'
-              ? 'Admin and operator accounts. Deactivated users cannot log in.'
-              : 'Registered accounts visible to operators.'}
+              ? 'Cuentas de administrador y operador. Los usuarios desactivados no pueden iniciar sesión.'
+              : 'Cuentas registradas visibles para los operadores.'}
           </div>
         </div>
-        {isPending && <span className={styles.chip}>Loading…</span>}
+        {isPending && <span className={styles.chip}>Cargando…</span>}
       </div>
 
       {role === 'admin' && (
@@ -2057,26 +2110,26 @@ function UsersPanel({ role }: { role: DashboardRole }) {
           data-testid="invite-user-form"
           onSubmit={(e) => { e.preventDefault(); void handleInvite() }}
         >
-          <div className={styles.fieldLabel}>Invite a user</div>
+          <div className={styles.fieldLabel}>Invitar a un usuario</div>
           <div className={styles.panelMeta}>
-            The invitee sets their own password from the email they receive — no password is set here.
+            La persona invitada define su propia contraseña desde el correo que recibe; aquí no se establece ninguna contraseña.
           </div>
 
           <label>
-            <span>Email</span>
+            <span>Correo</span>
             <input
               className={styles.formInput}
               data-testid="invite-email-input"
               type="email"
               value={inviteEmail}
               onChange={(e) => setInviteEmail(e.target.value)}
-              placeholder="name@example.com"
+              placeholder="nombre@ejemplo.com"
               disabled={isPending}
             />
           </label>
 
           <label>
-            <span>Role</span>
+            <span>Rol</span>
             <select
               className={styles.inlineSelect}
               data-testid="invite-role-select"
@@ -2084,8 +2137,8 @@ function UsersPanel({ role }: { role: DashboardRole }) {
               onChange={(e) => setInviteRole(e.target.value as InvitableRole)}
               disabled={isPending}
             >
-              <option value="Operator">Operator</option>
-              <option value="Administrator">Administrator</option>
+              <option value="Operator">Operador</option>
+              <option value="Administrator">Administrador</option>
             </select>
           </label>
 
@@ -2108,7 +2161,7 @@ function UsersPanel({ role }: { role: DashboardRole }) {
               type="submit"
               disabled={isPending}
             >
-              {isPending ? 'Sending…' : 'Send invitation'}
+              {isPending ? 'Enviando…' : 'Enviar invitación'}
             </button>
           </div>
         </form>
@@ -2131,11 +2184,11 @@ function UsersPanel({ role }: { role: DashboardRole }) {
           <table className={styles.table}>
             <thead>
               <tr>
-                <th>Name</th>
-                <th>Email</th>
-                <th>Role</th>
-                <th>Status</th>
-                {role === 'admin' && <th>Actions</th>}
+                <th>Nombre</th>
+                <th>Correo</th>
+                <th>Rol</th>
+                <th>Estado</th>
+                {role === 'admin' && <th>Acciones</th>}
               </tr>
             </thead>
             <tbody>
@@ -2143,9 +2196,9 @@ function UsersPanel({ role }: { role: DashboardRole }) {
                 const status = getAccountStatus(user)
                 return (
                 <tr key={user.id} data-testid={`user-row-${user.id}`} data-status={status}>
-                  <td data-label="Name">{status === 'pending' ? <span className={styles.mutedText}>Pending sign-in</span> : user.displayName}</td>
-                  <td data-label="Email">{user.email}</td>
-                  <td data-label="Role">
+                  <td data-label="Nombre">{status === 'pending' ? <span className={styles.mutedText}>Registro pendiente</span> : user.displayName}</td>
+                  <td data-label="Correo">{user.email}</td>
+                  <td data-label="Rol">
                     {role === 'admin' && roleEditId === user.id ? (
                       <select
                         className={styles.inlineSelect}
@@ -2153,15 +2206,15 @@ function UsersPanel({ role }: { role: DashboardRole }) {
                         value={pendingRole}
                         onChange={(e) => setPendingRole(e.target.value)}
                       >
-                        <option value="Administrator">Administrator</option>
-                        <option value="Operator">Operator</option>
-                        <option value="Participant">Participant</option>
+                        <option value="Administrator">Administrador</option>
+                        <option value="Operator">Operador</option>
+                        <option value="Participant">Participante</option>
                       </select>
                     ) : (
-                      user.role
+                      displayRole(user.role)
                     )}
                   </td>
-                  <td data-label="Status">
+                  <td data-label="Estado">
                     <span
                       className={styles.chip}
                       data-tone={accountStatusTone[status]}
@@ -2171,7 +2224,7 @@ function UsersPanel({ role }: { role: DashboardRole }) {
                     </span>
                   </td>
                   {role === 'admin' && (
-                    <td data-label="Actions">
+                    <td data-label="Acciones">
                       {user.isActive && confirmId !== user.id && roleEditId !== user.id && (
                         <button
                           className={styles.inlineButton}
@@ -2180,7 +2233,7 @@ function UsersPanel({ role }: { role: DashboardRole }) {
                           onClick={() => setConfirmId(user.id)}
                           type="button"
                         >
-                          Deactivate
+                          Desactivar
                         </button>
                       )}
                       {user.isActive && confirmId === user.id && (
@@ -2193,7 +2246,7 @@ function UsersPanel({ role }: { role: DashboardRole }) {
                             onClick={() => handleDeactivate(user.id)}
                             type="button"
                           >
-                            Confirm
+                            Confirmar
                           </button>
                           <button
                             className={styles.inlineButton}
@@ -2201,7 +2254,7 @@ function UsersPanel({ role }: { role: DashboardRole }) {
                             onClick={() => setConfirmId(null)}
                             type="button"
                           >
-                            Cancel
+                            Cancelar
                           </button>
                         </span>
                       )}
@@ -2214,7 +2267,7 @@ function UsersPanel({ role }: { role: DashboardRole }) {
                           onClick={() => { setRoleEditId(user.id); setPendingRole(user.role) }}
                           type="button"
                         >
-                          Change role
+                          Cambiar rol
                         </button>
                       )}
                       {/* Role save/cancel — only shown when this row is in role-edit mode */}
@@ -2227,7 +2280,7 @@ function UsersPanel({ role }: { role: DashboardRole }) {
                             onClick={() => handleRoleChange(user.id, user.role)}
                             type="button"
                           >
-                            Save
+                            Guardar
                           </button>
                           <button
                             className={styles.inlineButton}
@@ -2235,7 +2288,7 @@ function UsersPanel({ role }: { role: DashboardRole }) {
                             onClick={() => { setRoleEditId(null); setRoleError(null) }}
                             type="button"
                           >
-                            Cancel
+                            Cancelar
                           </button>
                         </span>
                       )}
@@ -2252,7 +2305,7 @@ function UsersPanel({ role }: { role: DashboardRole }) {
 
           <div className={styles.pagination} data-testid="users-pagination">
             <span className={styles.panelMeta}>
-              Page {data.page} of {data.totalPages} ({data.totalCount} users)
+              Página {data.page} de {data.totalPages} ({data.totalCount} usuarios)
             </span>
             <span className={styles.paginationButtons}>
               <button
@@ -2261,7 +2314,7 @@ function UsersPanel({ role }: { role: DashboardRole }) {
                 onClick={() => setPage((p) => p - 1)}
                 type="button"
               >
-                ← Previous
+                ← Anterior
               </button>
               <button
                 className={styles.inlineButton}
@@ -2269,7 +2322,7 @@ function UsersPanel({ role }: { role: DashboardRole }) {
                 onClick={() => setPage((p) => p + 1)}
                 type="button"
               >
-                Next →
+                Siguiente →
               </button>
             </span>
           </div>

@@ -102,7 +102,7 @@ async function sealStoredTokens(tokens: StoredKeycloakTokens): Promise<string> {
 
 // Returns the sealed kc_session cookie plus the Keycloak `sub` (UUID) from the access token.
 // The gateway forwards `sub` as X-User-Id on Bearer-JWT calls, so callers that must match a
-// seeded identity-access row (operator session-listing) need it — the literal username won't do.
+// seeded users-service row (operator session-listing) need it — the literal username won't do.
 export async function createKeycloakSession(
   username: string,
   password: string,

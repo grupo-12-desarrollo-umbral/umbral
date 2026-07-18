@@ -47,12 +47,12 @@ test.beforeAll(async () => {
   const admin = await token('admin-1', 'admin123')
   const op = await token('op-1', 'operator123')
   const adminSub = subOf(admin)
-  sql('identity_access', `
+  sql('users', `
     DELETE FROM users WHERE "ExternalIdentityId"='${adminSub}';
     INSERT INTO users ("ExternalIdentityId","DisplayName","Email","Role","IsActive","Created","LastModified")
     VALUES ('${adminSub}','Administrator One','admin-1@umbral.local','Administrator',true,NOW(),NOW());
   `)
-  const opId = Number(sql('identity_access', `SELECT "Id" FROM users WHERE "Email"='op-1@umbral.local'`))
+  const opId = Number(sql('users', `SELECT "Id" FROM users WHERE "Email"='op-1@umbral.local'`))
   const missionId = Number(sql('mission_design',
     `SELECT "Id" FROM "Missions" WHERE "Name"='E2E Seed Mission' AND "IsActive"=true AND "ActivationState"='Ready' ORDER BY "Id" DESC LIMIT 1`))
 
@@ -80,7 +80,7 @@ test('starting a session keeps both countdowns in sync and renders the answered 
   const card = page.locator('[data-testid="assigned-session-button"]', { hasText: sessionCode })
   await expect(card).toBeVisible({ timeout: 15000 })
   await card.click()
-  await page.getByRole('button', { name: 'Open live operation' }).click()
+  await page.getByRole('button', { name: 'Abrir operación en vivo' }).click()
 
   // Preparing -> Active (Start). The UI then runs the ~5s pre-game before the first question activates.
   await page.locator('[data-testid="session-action-Active"]').click()
@@ -109,7 +109,7 @@ test('starting a session keeps both countdowns in sync and renders the answered 
   expect(Math.abs(triviaLater - topLater)).toBeLessThanOrEqual(3)
 
   // Bug 2 regression: the answered board renders the associated roster (not "Waiting for the roster…").
-  await expect(page.locator('[data-testid="answered-monitor-active-question"]')).toContainText('Question')
+  await expect(page.locator('[data-testid="answered-monitor-active-question"]')).toContainText('Pregunta')
   await expect(page.locator('[data-testid^="team-answer-status-"]').first()).toBeVisible()
   await expect(page.locator('[data-testid="answered-monitor-count"]')).toContainText('/ 3 answered')
 
@@ -117,7 +117,7 @@ test('starting a session keeps both countdowns in sync and renders the answered 
   // non-live-snapshot refactor runs through): a paused question carries remaining time, so it is hydrated
   // frozen rather than skipped. Sample twice and assert neither clock moved and they agree.
   await page.locator('[data-testid="session-action-Paused"]').click()
-  await expect(page.locator('[data-testid="timer-chip"]')).toHaveText('Paused', { timeout: 15000 })
+  await expect(page.locator('[data-testid="timer-chip"]')).toHaveText('Pausado', { timeout: 15000 })
   const triviaPaused = secondsOf((await timeLeft.textContent()) ?? '')
   const topPaused = secondsOf((await topTimer.textContent()) ?? '')
   await page.waitForTimeout(3000)

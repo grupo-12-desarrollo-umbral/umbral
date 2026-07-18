@@ -8,26 +8,26 @@ type EmptyKind = Exclude<ActiveQuestionView['kind'], 'active'>;
 
 const EMPTY_COPY: Record<EmptyKind, { title: string; body: string }> = {
   waiting: {
-    title: 'Waiting for the next question...',
-    body: "The operator hasn't activated the next one.",
+    title: 'Esperando la siguiente pregunta...',
+    body: 'El operador aún no ha activado la siguiente.',
   },
   none: {
-    title: 'No active question yet.',
-    body: 'Sit tight - the host will start the round.',
+    title: 'Aún no hay pregunta activa.',
+    body: 'Espera un momento - el anfitrión iniciará la ronda.',
   },
   reveal: {
-    title: 'Question closed.',
-    body: 'Results are being revealed.',
+    title: 'Pregunta cerrada.',
+    body: 'Se están revelando los resultados.',
   },
   closed: {
-    title: 'Session closed.',
-    body: 'This session has ended. Thanks for playing.',
+    title: 'Sesión cerrada.',
+    body: 'Esta sesión ha terminado. Gracias por jugar.',
   },
 };
 
 function closedBody(sessionState: string): string {
-  if (sessionState === 'Cancelled') return 'This session was cancelled by the host.';
-  return 'This session has ended. Thanks for playing.';
+  if (sessionState === 'Cancelled') return 'Esta sesión fue cancelada por el anfitrión.';
+  return 'Esta sesión ha terminado. Gracias por jugar.';
 }
 
 export function QuestionEmptyState({ kind, sessionState }: { kind: EmptyKind; sessionState: string }) {

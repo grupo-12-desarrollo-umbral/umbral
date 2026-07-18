@@ -35,7 +35,7 @@ public sealed class AssignableSessionOperatorAccessClientTests
         var result = await client.GetEligibilityAsync(27, CancellationToken.None);
 
         result.Should().Be(new SessionOperatorEligibilityDecisionDto(
-            "identity-access-service.user-catalog",
+            "users-service.user-catalog",
             true,
             27,
             "Operator",
@@ -131,7 +131,7 @@ public sealed class AssignableSessionOperatorAccessClientTests
     {
         var httpClient = new HttpClient(handler)
         {
-            BaseAddress = new Uri("http://identity-access-service")
+            BaseAddress = new Uri("http://users-service")
         };
 
         return new AssignableSessionOperatorAccessClient(

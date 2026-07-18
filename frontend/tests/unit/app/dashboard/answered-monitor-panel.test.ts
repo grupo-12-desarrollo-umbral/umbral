@@ -37,7 +37,7 @@ describe('AnsweredMonitorPanel', () => {
     // both rows carry data-answered="false"
     expect(html.match(/data-answered="false"/g)?.length).toBeGreaterThanOrEqual(2)
     expect(html).not.toContain('data-answered="true"')
-    expect(html).toContain('0 / 2 answered')
+    expect(html).toContain('0 / 2 respondieron')
   })
 
   it('flips a row to data-answered="true" when that team is in the answered set', () => {
@@ -47,13 +47,13 @@ describe('AnsweredMonitorPanel', () => {
     ]
     const html = render({ teams })
     expect(html).toMatch(/data-testid="team-answer-status-team-a"[^>]*data-answered="true"/)
-    expect(html).toContain('1 / 2 answered')
+    expect(html).toContain('1 / 2 respondieron')
   })
 
   it('shows the active question sequence order only (never a prompt)', () => {
     const html = render({ activeQuestionOrder: 5 })
     expect(html).toContain('data-testid="answered-monitor-active-question"')
-    expect(html).toContain('Question 5')
+    expect(html).toContain('Pregunta 5')
   })
 
   it('renders the empty state when no trivia question is active', () => {
@@ -70,7 +70,7 @@ describe('AnsweredMonitorPanel', () => {
   it('renders the waiting-for-roster state (not "no active question") when a question is active but the roster is empty', () => {
     const html = render({ activeQuestionOrder: 3, teams: [] })
     expect(html).toContain('data-testid="answered-monitor-no-roster"')
-    expect(html).toContain('Question 3')
+    expect(html).toContain('Pregunta 3')
     expect(html).not.toContain('data-testid="answered-monitor-empty"')
   })
 

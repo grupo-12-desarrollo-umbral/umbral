@@ -54,12 +54,12 @@ test.beforeAll(async () => {
   const op = await token('op-1', 'operator123')
 
   const adminSub = subOf(admin)
-  sql('identity_access', `
+  sql('users', `
     DELETE FROM users WHERE "ExternalIdentityId"='${adminSub}';
     INSERT INTO users ("ExternalIdentityId","DisplayName","Email","Role","IsActive","Created","LastModified")
     VALUES ('${adminSub}','Administrator One','admin-1@umbral.local','Administrator',true,NOW(),NOW());
   `)
-  const opId = Number(sql('identity_access', `SELECT "Id" FROM users WHERE "Email"='op-1@umbral.local'`))
+  const opId = Number(sql('users', `SELECT "Id" FROM users WHERE "Email"='op-1@umbral.local'`))
 
   // Resolve the seeded mission by NAME, not a literal id: seed-all.sh reseeds push mission ids up
   // across runs, so a hardcoded `missionId: 1` 404s on a reused volume. global-setup guarantees the
@@ -86,7 +86,7 @@ async function openLiveOperation(page: import('@playwright/test').Page, code: st
   const card = page.locator('[data-testid="assigned-session-button"]', { hasText: code })
   await expect(card).toBeVisible({ timeout: 15000 })
   await card.click()
-  await page.getByRole('button', { name: 'Open live operation' }).click()
+  await page.getByRole('button', { name: 'Abrir operación en vivo' }).click()
   await expect(page.locator('[data-testid="operator-session-panel"]')).toBeVisible({ timeout: 15000 })
 }
 
@@ -112,5 +112,5 @@ test('a session-state transition updates the panel state without manual reload',
   // AC5: pausing pushes OperatorSessionPanelUpdated (re-projected on SessionStateChangedEvent);
   // the panel state readout reflects Paused with no page reload.
   await page.locator('[data-testid="session-action-Paused"]').click()
-  await expect(page.locator('[data-testid="panel-session-state"]')).toHaveText('Paused', { timeout: 15000 })
+  await expect(page.locator('[data-testid="panel-session-state"]')).toHaveText('Pausada', { timeout: 15000 })
 })

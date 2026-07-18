@@ -24,6 +24,10 @@ public sealed record MissionRuntimePlanTargetDto(
     int SequenceOrder,
     bool IsActive,
     int Score,
+    // Mission difficulty multiplier (1/2/3) that produced Score (= base 50 × factor). Carried through
+    // to the runtime so downstream scoring owns the "puntaje según dificultad" rule instead of
+    // reverse-engineering it from the already-weighted Score.
+    int DifficultyFactor,
     double Latitude,
     double Longitude,
     MissionRuntimePlanClueDto? Clue);

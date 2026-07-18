@@ -87,7 +87,7 @@ describe('OperatorTeamProgressPanel', () => {
   it('renders the session-state readout and an ordered per-team rollup', () => {
     const html = render()
     expect(html).toContain('data-testid="panel-session-state"')
-    expect(html).toContain('Active')
+    expect(html).toContain('Activa')
     expect(html).toContain('data-testid="team-progress-team-a"')
     expect(html).toContain('data-testid="team-progress-team-b"')
     // Alpha (treasure-hunt) precedes Bravo (backend teamCode order).
@@ -103,7 +103,7 @@ describe('OperatorTeamProgressPanel', () => {
   it('shows the active-question order for a trivia team', () => {
     const html = render()
     expect(html).toContain('data-testid="team-progress-question-team-b"')
-    expect(html).toContain('Question 3')
+    expect(html).toContain('Pregunta 3')
   })
 
   it('shows the active substage title for every play mode', () => {
@@ -144,14 +144,14 @@ describe('OperatorTeamProgressPanel', () => {
     const html = render()
     // Bravo has 2 clues; Alpha has none, so no clue tally is rendered for it.
     expect(html).toContain('data-testid="team-progress-clues-team-b"')
-    expect(html).toContain('2 clues')
+    expect(html).toContain('2 pistas')
     expect(html).not.toContain('data-testid="team-progress-clues-team-a"')
   })
 
   it('rolls up how many teams have clues released', () => {
     const html = render()
     expect(html).toContain('data-testid="panel-clue-rollup"')
-    expect(html).toContain('Clues released to 1 team.')
+    expect(html).toContain('Pistas liberadas a 1 equipo.')
   })
 
   it('omits the clue rollup when no team has released clues', () => {
@@ -181,19 +181,19 @@ describe('OperatorTeamProgressPanel', () => {
   it('renders the no-data state when the panel is null', () => {
     const html = render({ panel: null })
     expect(html).toContain('data-testid="panel-no-teams"')
-    expect(html).toContain('No progress data yet.')
+    expect(html).toContain('Aún no hay datos de progreso.')
   })
 
   it('renders a loading note when the panel is null and loading', () => {
     const html = render({ panel: null, loading: true })
     expect(html).toContain('data-testid="panel-no-teams"')
-    expect(html).toContain('Loading session progress…')
+    expect(html).toContain('Cargando el progreso de la sesión…')
   })
 
   it('renders the no-teams state when the panel has an empty roster', () => {
     const html = render({ panel: { ...panel, teamProgress: [] } })
     expect(html).toContain('data-testid="panel-no-teams"')
-    expect(html).toContain('No teams associated yet.')
+    expect(html).toContain('Aún no hay equipos asociados.')
     expect(html).toContain('data-testid="panel-session-state"')
   })
 })

@@ -59,12 +59,12 @@ test.beforeAll(async () => {
   // specs need (Email isn't unique, so both admin rows coexist). Only clear a stale sub-keyed
   // row left by a prior run of this spec; the sub is a UUID, never the literal 'admin-1'.
   const adminSub = subOf(admin)
-  sql('identity_access', `
+  sql('users', `
     DELETE FROM users WHERE "ExternalIdentityId"='${adminSub}';
     INSERT INTO users ("ExternalIdentityId","DisplayName","Email","Role","IsActive","Created","LastModified")
     VALUES ('${adminSub}','Administrator One','admin-1@umbral.local','Administrator',true,NOW(),NOW());
   `)
-  const opId = Number(sql('identity_access', `SELECT "Id" FROM users WHERE "Email"='op-1@umbral.local'`))
+  const opId = Number(sql('users', `SELECT "Id" FROM users WHERE "Email"='op-1@umbral.local'`))
 
   // Resolve the trivia seed mission by name: ids are never 1 and drift across reseeds
   // (see tests/setup/global-setup.ts), so a literal id 404s on session create.
@@ -105,7 +105,7 @@ async function selectSession(page: import('@playwright/test').Page, code: string
   await expect(card).toBeVisible({ timeout: 15000 })
   await card.click()
   // Moving into live operation switches to the overview hero, which mounts the timer panel.
-  await page.getByRole('button', { name: 'Open live operation' }).click()
+  await page.getByRole('button', { name: 'Abrir operación en vivo' }).click()
   await expect(page.locator('[data-testid="session-timer-panel"]')).toBeVisible({ timeout: 15000 })
 }
 
@@ -113,14 +113,14 @@ test('active trivia question renders the question-timer countdown', async ({ ope
   await selectSession(page, activeCode)
   await expect(page.locator('[data-testid="timer-remaining"]')).toBeVisible()
   await expect(page.locator('[data-testid="timer-remaining"]')).toHaveText(/^\d{1,2}:\d{2}$/)
-  await expect(page.locator('[data-testid="timer-chip"]')).toHaveText('Running')
+  await expect(page.locator('[data-testid="timer-chip"]')).toHaveText('En curso')
   await expect(page.locator('[data-testid="timer-no-countdown"]')).toHaveCount(0)
 })
 
 test('pausing the session freezes the question timer (chip Paused)', async ({ operatorPage: page }) => {
   await selectSession(page, activeCode)
   await page.locator('[data-testid="session-action-Paused"]').click()
-  await expect(page.locator('[data-testid="timer-chip"]')).toHaveText('Paused')
+  await expect(page.locator('[data-testid="timer-chip"]')).toHaveText('Pausado')
   // Frozen remainder is still shown — the panel keeps rendering the question window, not 00:00-reset.
   await expect(page.locator('[data-testid="timer-remaining"]')).toBeVisible()
 })
@@ -128,6 +128,6 @@ test('pausing the session freezes the question timer (chip Paused)', async ({ op
 test('no active question renders the no-countdown state (OD-1)', async ({ operatorPage: page }) => {
   await selectSession(page, scheduledCode)
   await expect(page.locator('[data-testid="timer-no-countdown"]')).toBeVisible()
-  await expect(page.locator('[data-testid="timer-chip"]')).toHaveText('No question')
+  await expect(page.locator('[data-testid="timer-chip"]')).toHaveText('Sin pregunta')
   await expect(page.locator('[data-testid="timer-remaining"]')).toHaveCount(0)
 })

@@ -8,13 +8,15 @@ namespace umbral_backend.Application.Sessions.EventHandlers;
 
 /// <summary>
 /// Pushes each team's participant board (HU-23) on the transitions that change what the board shows:
-/// a session-state change (state/timer) and a substage advancement (active substage/clues). Re-loads
-/// the session read-only and projects per team — never mutates state, so there is no re-entrancy loop.
+/// a session-state change (state/timer), a substage advancement (active substage/clues), an operative
+/// clue, and a resolved target (the X/n target-progress numerator). Re-loads the session read-only and
+/// projects per team — never mutates state, so there is no re-entrancy loop.
 /// </summary>
 public sealed class BroadcastTeamBoardNotificationHandler
     : INotificationHandler<SessionStateChangedEvent>,
         INotificationHandler<SubstageAdvancedEvent>,
-        INotificationHandler<OperativeClueAddedEvent>
+        INotificationHandler<OperativeClueAddedEvent>,
+        INotificationHandler<TargetResolvedEvent>
 {
     private readonly ILiveSessionRepository _liveSessionRepository;
     private readonly ITeamBoardBroadcaster _teamBoardBroadcaster;
@@ -41,6 +43,17 @@ public sealed class BroadcastTeamBoardNotificationHandler
     }
 
     public Task Handle(OperativeClueAddedEvent notification, CancellationToken cancellationToken)
+    {
+        return BroadcastSingleTeamBoardAsync(
+            notification.LiveSessionId,
+            notification.TeamId,
+            cancellationToken);
+    }
+
+    // A target scan bumps the team's resolved-target count, but only the scanning participant learns it
+    // (they pull their own board over REST). Re-project and push the whole team's board so every member's
+    // X/n numerator advances live — keyed on the session-scoped TeamId the team group and projection use.
+    public Task Handle(TargetResolvedEvent notification, CancellationToken cancellationToken)
     {
         return BroadcastSingleTeamBoardAsync(
             notification.LiveSessionId,

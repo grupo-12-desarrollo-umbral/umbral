@@ -87,7 +87,7 @@ describe('useTargetScan', () => {
     expect(hook.get().outcome).toEqual({
       kind: 'rejected',
       reasonCode: 'retained-rejection',
-      title: 'Scan not accepted',
+      title: 'Escaneo no aceptado',
       message: 'The target has already been resolved by this team.',
     });
     expect(onResolved).not.toHaveBeenCalled();

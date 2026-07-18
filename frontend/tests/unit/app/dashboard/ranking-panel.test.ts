@@ -112,25 +112,25 @@ describe('RankingPanel', () => {
   it('renders the empty-standings state for the backend well-known empty snapshot', () => {
     const html = render({ snapshot: { ...snapshot, rows: [] } })
 
-    expect(html).toContain('No standings yet.')
+    expect(html).toContain('Aún no hay posiciones.')
   })
 
   it('renders the not-authorized state without any team data', () => {
     const html = render({ unauthorized: true })
 
-    expect(html).toContain('not authorized')
+    expect(html).toContain('No tienes autorización')
     expect(html).not.toContain('Bravo')
   })
 
   it('renders a transient read failure as retryable, never as not-authorized', () => {
     const html = render({ error: 'boom' })
 
-    expect(html).toContain('refresh automatically')
-    expect(html).not.toContain('not authorized')
+    expect(html).toContain('Se actualizará automáticamente')
+    expect(html).not.toContain('No tienes autorización')
   })
 
   it('renders the loading state before the first snapshot resolves', () => {
-    expect(render({ snapshot: null, loading: true })).toContain('Loading ranking…')
+    expect(render({ snapshot: null, loading: true })).toContain('Cargando el ranking…')
   })
 
   it('flags standings as possibly stale when the live scoring channel is down', () => {
@@ -139,7 +139,7 @@ describe('RankingPanel', () => {
     const html = render({ live: false })
 
     expect(html).toContain('ranking-live-paused')
-    expect(html).toContain('Live updates paused')
+    expect(html).toContain('Actualizaciones en vivo pausadas')
     // Still renders the last-known standings underneath the notice.
     expect(html).toContain('Bravo')
   })

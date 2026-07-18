@@ -72,9 +72,9 @@ All three checks below were **re-run against the Phase 1 code as committed** (th
 the results still stand). Their results are recorded in the PR #125 body. Re-run before committing if
 you change anything.
 
-- Gates: `make -C backend test|gate|structure-guard SVC=session-operations-service` → **509 tests pass
-  (139 + 187 + 183), line coverage 94.2% (≥93%), structure-guard OK.** (An earlier run reported 94.3%;
-  the 0.1% drift is coverage-tool noise, not a regression.)
+- Historical gates: `make -C backend test|gate|structure-guard SVC=session-operations-service` →
+  **509 tests pass and structure-guard OK.** Rerun the current branch-coverage gate before relying on
+  this handoff.
 - **The unset-guard, proven both ways.** A throwaway xUnit probe (since deleted) booted the real factory
   twice and asserted `Services.GetService<TracerProvider>()` is `null` when `OTEL_EXPORTER_OTLP_ENDPOINT`
   is unset and non-`null` when set. Both directions matter: a probe asserting only the null case passes

@@ -42,7 +42,7 @@ public sealed class UpdateTriviaQuestionCommandHandlerTests
                 question.Id,
                 "Updated question?",
                 100,
-                45,
+                25,
                 "Updated explanation",
                 false,
                 [
@@ -56,7 +56,7 @@ public sealed class UpdateTriviaQuestionCommandHandlerTests
         result.Questions[0].Id.Should().Be(question.Id);
         result.Questions[0].Prompt.Should().Be("Updated question?");
         result.Questions[0].ScoreValue.Should().Be(100);
-        result.Questions[0].TimeLimitSeconds.Should().Be(45);
+        result.Questions[0].TimeLimitSeconds.Should().Be(25);
         result.Questions[0].Explanation.Should().Be("Updated explanation");
         result.Questions[0].IsActive.Should().BeFalse();
     }

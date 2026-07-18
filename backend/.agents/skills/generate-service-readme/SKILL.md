@@ -1,6 +1,6 @@
 ---
 name: generate-service-readme
-description: Generate or rewrite a backend microservice README as professional API documentation, following the canonical section structure used across Umbral services (identity-access-service is the reference). Use when the user wants to document a microservice, write/improve a service README, document the API of a service, or asks for endpoint/config/error documentation for a backend service.
+description: Generate or rewrite a backend microservice README as professional API documentation, following the canonical section structure used across Umbral services (users-service is the reference). Use when the user wants to document a microservice, write/improve a service README, document the API of a service, or asks for endpoint/config/error documentation for a backend service.
 ---
 
 # Generate Service README
@@ -18,7 +18,7 @@ Do **not** trust an existing README — they go stale (wrong response shapes, wr
 3. **Gather facts from source** using the sourcing map below. Record exact request/response shapes from the DTO/record definitions, exact auth from `[Authorize]` attributes and controller/action policies, and the exact exception→status mapping.
 4. **Verify against the old README** (if any): list every discrepancy you correct (shapes, auth roles, missing/removed endpoints, config). Mention these corrections to the user.
 5. **Write the README** following [references/template.md](references/template.md) section order. Drop sections that don't apply (e.g. no Keycloak sync) rather than padding them.
-6. **Avoid time-sensitive rot.** Do not hardcode coverage percentages, test counts, or commit hashes. Point at the command (`make gate SVC=...`) instead, or use a threshold (`>= 90%`).
+6. **Avoid time-sensitive rot.** Do not hardcode test counts or commit hashes. Point at the command (`make gate SVC=...`) and, when the policy must be stated, use the current aggregate branch threshold (`>= 95%`).
 7. **Review with the user.** Summarize corrections made and ask what to adjust.
 
 ## Sourcing map — where each fact lives

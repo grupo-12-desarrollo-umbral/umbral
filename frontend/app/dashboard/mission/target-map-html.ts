@@ -71,6 +71,10 @@ export function buildTargetMapHtml(options: BuildTargetMapOptions = {}): string 
   const interactive = options.interactive ?? false
   const defaultCenter = options.defaultCenter ?? null
   const view = resolveView(markers, draft, defaultCenter)
+  // The read-only overview shows several targets at once; anchoring on markers[0] (see resolveView) hid
+  // any target in a different place. Frame all of them instead. Interactive per-target maps keep the
+  // single fixed view so picking doesn't re-zoom the map on every click.
+  const fitAllMarkers = !interactive && markers.length > 1
 
   // Operator-authored target names reach this string, so serialise through JSON and neutralise `<` so a
   // name can never break out of the <script> block or inject markup.
@@ -99,7 +103,7 @@ export function buildTargetMapHtml(options: BuildTargetMapOptions = {}): string 
 </head>
 <body>
 <div id="map"></div>
-${interactive ? '<div class="pick-hint">Click the map to place this target</div>' : ''}
+${interactive ? '<div class="pick-hint">Haz clic en el mapa para ubicar este target</div>' : ''}
 <script src="https://unpkg.com/leaflet@${LEAFLET_VERSION}/dist/leaflet.js"></script>
 <script>
   var markers = ${escape(markers)};
@@ -122,6 +126,11 @@ ${interactive ? '<div class="pick-hint">Click the map to place this target</div>
   markers.forEach(function (m) {
     L.marker([m.latitude, m.longitude], { icon: pin(false), title: m.name }).addTo(map).bindPopup(m.name);
   });
+  ${fitAllMarkers ? `// resolveView anchored the initial view on markers[0] at a fixed zoom, which is right for a single
+  // point but leaves targets in other places outside the viewport — they look collapsed onto the first
+  // pin. In the read-only overview, reframe to fit every marker. (Interactive mode keeps the draft-centred
+  // view so the map doesn't re-zoom on each pick.)
+  map.fitBounds(markers.map(function (m) { return [m.latitude, m.longitude]; }), { padding: [40, 40], maxZoom: ${PLACED_ZOOM} });` : ''}
   var draftMarker = null;
   function placeDraft(lat, lng) {
     if (draftMarker) {

@@ -29,7 +29,10 @@ public class LoggingBehaviour<TRequest> : IRequestPreProcessor<TRequest>
             userName = await _identityService.GetUserNameAsync(userId);
         }
 
-        _logger.LogInformation("umbral_backend Request: {Name} {@UserId} {@UserName} {@Request}",
-            requestName, userId, userName, request);
+        // Log only the request name and actor — never the request body. Mission-design commands
+        // carry gameplay secrets (QR codes, target coordinates, trivia prompts and answer options);
+        // destructuring the whole request with {@Request} would retain them in the log sink. (#7)
+        _logger.LogInformation("umbral_backend Request: {Name} {UserId} {UserName}",
+            requestName, userId, userName);
     }
 }

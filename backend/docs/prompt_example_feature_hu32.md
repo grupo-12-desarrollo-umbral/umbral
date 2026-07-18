@@ -373,7 +373,7 @@ Gate:
   eventually consistent by AC#5 — including a rejected scan carrying its reason
 - the write path is unaffected when the broker is down: the evidence write still commits and the trace
   catches up on recovery (bus outbox off the critical path)
-- service coverage passes the ADR-0005 gate (coverlet.msbuild, aggregate line+branch >= 93)
+- service coverage passes the ADR-0005 gate (coverlet.msbuild, aggregate branch coverage >= 95%)
 
 Do not touch frontend or mobile.
 ```

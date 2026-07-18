@@ -4,6 +4,7 @@ using umbral_backend.Application.Dtos.Scores;
 using umbral_backend.Application.Scores.Commands.ApplyPenalty;
 using umbral_backend.Application.Scores.Common.Authorization;
 using umbral_backend.Domain.Entities;
+using umbral_backend.Domain.Enums;
 using umbral_backend.Domain.Events;
 using umbral_backend.Domain.Exceptions;
 using umbral_backend.Domain.Services;
@@ -16,6 +17,7 @@ public sealed class ApplyPenaltyCommandHandlerTests
     private readonly Mock<IScoringSessionAccessResolver> _accessResolver = new();
     private readonly Mock<IPenaltyPolicy> _penaltyPolicy = new();
     private readonly Mock<IScorePolicy> _scorePolicy = new();
+    private readonly Mock<IScorePolicySelector> _scorePolicySelector = new();
     private readonly Mock<IScoreEntryRepository> _scoreEntryRepository = new();
     private readonly Mock<IPenaltyRepository> _penaltyRepository = new();
     private readonly Mock<ICurrentUser> _currentUser = new();
@@ -23,7 +25,18 @@ public sealed class ApplyPenaltyCommandHandlerTests
     public ApplyPenaltyCommandHandlerTests()
     {
         _currentUser.SetupGet(u => u.Id).Returns(Guid.NewGuid().ToString());
+        _scorePolicySelector
+            .Setup(selector => selector.For(ScoreSourceType.Penalty))
+            .Returns(_scorePolicy.Object);
     }
+
+    private ApplyPenaltyCommandHandler CreateHandler() => new(
+        _accessResolver.Object,
+        _penaltyPolicy.Object,
+        _scorePolicySelector.Object,
+        _scoreEntryRepository.Object,
+        _penaltyRepository.Object,
+        _currentUser.Object);
 
     [Fact]
     public async Task Handle_WhenPenaltyIsValid_PersistsBothEntitiesAndReturnsDto()
@@ -38,7 +51,7 @@ public sealed class ApplyPenaltyCommandHandlerTests
             .Returns(Task.CompletedTask);
 
         _scorePolicy
-            .Setup(p => p.Award(It.IsAny<ScoreValue>()))
+            .Setup(p => p.Award(It.IsAny<ScoreValue>(), It.IsAny<int>()))
             .Returns(deductionValue);
 
         ScoreEntry? savedEntry = null;
@@ -53,13 +66,7 @@ public sealed class ApplyPenaltyCommandHandlerTests
             .Callback<Penalty, CancellationToken>((penalty, _) => savedPenalty = penalty)
             .Returns(Task.CompletedTask);
 
-        var handler = new ApplyPenaltyCommandHandler(
-            _accessResolver.Object,
-            _penaltyPolicy.Object,
-            _scorePolicy.Object,
-            _scoreEntryRepository.Object,
-            _penaltyRepository.Object,
-            _currentUser.Object);
+        var handler = CreateHandler();
 
         var result = await handler.Handle(
             new ApplyPenaltyCommand(liveSessionId, teamId, reason),
@@ -74,7 +81,7 @@ public sealed class ApplyPenaltyCommandHandlerTests
             Times.Once);
 
         _scorePolicy.Verify(
-            p => p.Award(It.IsAny<ScoreValue>()),
+            p => p.Award(It.IsAny<ScoreValue>(), It.IsAny<int>()),
             Times.Once);
 
         _scoreEntryRepository.Verify(
@@ -113,13 +120,7 @@ public sealed class ApplyPenaltyCommandHandlerTests
             .Setup(r => r.EnsureAccessAsync(liveSessionId, It.IsAny<CancellationToken>()))
             .ThrowsAsync(new ForbiddenAccessException());
 
-        var handler = new ApplyPenaltyCommandHandler(
-            _accessResolver.Object,
-            _penaltyPolicy.Object,
-            _scorePolicy.Object,
-            _scoreEntryRepository.Object,
-            _penaltyRepository.Object,
-            _currentUser.Object);
+        var handler = CreateHandler();
 
         var act = () => handler.Handle(
             new ApplyPenaltyCommand(liveSessionId, Guid.NewGuid(), "Reason"),
@@ -155,13 +156,7 @@ public sealed class ApplyPenaltyCommandHandlerTests
             .Setup(p => p.ValidateEligibility(liveSessionId, teamId, reason))
             .Throws(new PenaltyNotEligibleException(liveSessionId, teamId, reason));
 
-        var handler = new ApplyPenaltyCommandHandler(
-            _accessResolver.Object,
-            _penaltyPolicy.Object,
-            _scorePolicy.Object,
-            _scoreEntryRepository.Object,
-            _penaltyRepository.Object,
-            _currentUser.Object);
+        var handler = CreateHandler();
 
         var act = () => handler.Handle(
             new ApplyPenaltyCommand(liveSessionId, teamId, reason),
@@ -191,7 +186,7 @@ public sealed class ApplyPenaltyCommandHandlerTests
             .Returns(Task.CompletedTask);
 
         _scorePolicy
-            .Setup(p => p.Award(It.IsAny<ScoreValue>()))
+            .Setup(p => p.Award(It.IsAny<ScoreValue>(), It.IsAny<int>()))
             .Returns(ScoreValue.Create(100));
 
         ScoreEntry? savedEntry = null;
@@ -200,13 +195,7 @@ public sealed class ApplyPenaltyCommandHandlerTests
             .Callback<ScoreEntry, CancellationToken>((entry, _) => savedEntry = entry)
             .Returns(Task.CompletedTask);
 
-        var handler = new ApplyPenaltyCommandHandler(
-            _accessResolver.Object,
-            _penaltyPolicy.Object,
-            _scorePolicy.Object,
-            _scoreEntryRepository.Object,
-            _penaltyRepository.Object,
-            _currentUser.Object);
+        var handler = CreateHandler();
 
         var result = await handler.Handle(
             new ApplyPenaltyCommand(liveSessionId, teamId, reason),
@@ -227,7 +216,7 @@ public sealed class ApplyPenaltyCommandHandlerTests
             .Returns(Task.CompletedTask);
 
         _scorePolicy
-            .Setup(p => p.Award(It.IsAny<ScoreValue>()))
+            .Setup(p => p.Award(It.IsAny<ScoreValue>(), It.IsAny<int>()))
             .Returns(customDeduction);
 
         ScoreEntry? savedEntry = null;
@@ -236,13 +225,7 @@ public sealed class ApplyPenaltyCommandHandlerTests
             .Callback<ScoreEntry, CancellationToken>((entry, _) => savedEntry = entry)
             .Returns(Task.CompletedTask);
 
-        var handler = new ApplyPenaltyCommandHandler(
-            _accessResolver.Object,
-            _penaltyPolicy.Object,
-            _scorePolicy.Object,
-            _scoreEntryRepository.Object,
-            _penaltyRepository.Object,
-            _currentUser.Object);
+        var handler = CreateHandler();
 
         var result = await handler.Handle(
             new ApplyPenaltyCommand(liveSessionId, Guid.NewGuid(), "Valid reason"),
@@ -250,6 +233,6 @@ public sealed class ApplyPenaltyCommandHandlerTests
 
         savedEntry.Should().NotBeNull();
         result.PenaltyAmount.Should().Be(75);
-        _scorePolicy.Verify(p => p.Award(It.IsAny<ScoreValue>()), Times.Once);
+        _scorePolicy.Verify(p => p.Award(It.IsAny<ScoreValue>(), It.IsAny<int>()), Times.Once);
     }
 }

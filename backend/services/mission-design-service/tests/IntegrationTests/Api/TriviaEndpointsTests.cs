@@ -45,7 +45,7 @@ public sealed class TriviaEndpointsTests : IClassFixture<PostgreSqlFixture>, IAs
                     {
                         prompt = "Capital of France?",
                         scoreValue = 100,
-                        timeLimitSeconds = 45,
+                        timeLimitSeconds = 25,
                         explanation = "Paris is the French capital.",
                         isActive = true,
                         options = new[]
@@ -69,7 +69,7 @@ public sealed class TriviaEndpointsTests : IClassFixture<PostgreSqlFixture>, IAs
         payload.Questions.Should().ContainSingle();
         payload.Questions[0].Prompt.Should().Be("Capital of France?");
         payload.Questions[0].ScoreValue.Should().Be(100);
-        payload.Questions[0].TimeLimitSeconds.Should().Be(45);
+        payload.Questions[0].TimeLimitSeconds.Should().Be(25);
         payload.Questions[0].Explanation.Should().Be("Paris is the French capital.");
         payload.Questions[0].Options.Select(option => option.OptionText).Should().Equal("Paris", "Berlin");
     }
@@ -126,7 +126,7 @@ public sealed class TriviaEndpointsTests : IClassFixture<PostgreSqlFixture>, IAs
                     new
                     {
                         prompt = "2 + 2?",
-                        scoreValue = 25,
+                        scoreValue = 100,
                         timeLimitSeconds = 30,
                         explanation = "Arithmetic baseline.",
                         isActive = true,
@@ -139,8 +139,8 @@ public sealed class TriviaEndpointsTests : IClassFixture<PostgreSqlFixture>, IAs
                     new
                     {
                         prompt = "3 + 3?",
-                        scoreValue = 30,
-                        timeLimitSeconds = 35,
+                        scoreValue = 100,
+                        timeLimitSeconds = 20,
                         explanation = "Second arithmetic baseline.",
                         isActive = true,
                         options = new[]
@@ -160,7 +160,7 @@ public sealed class TriviaEndpointsTests : IClassFixture<PostgreSqlFixture>, IAs
         payload.Title.Should().Be("Trivia After");
         payload.Description.Should().Be("Updated draft.");
         payload.IsSourceReady.Should().BeFalse();
-        payload.Questions[0].ScoreValue.Should().Be(25);
+        payload.Questions[0].ScoreValue.Should().Be(100);
         payload.Questions[0].TimeLimitSeconds.Should().Be(30);
         payload.Questions[0].Explanation.Should().Be("Arithmetic baseline.");
     }
@@ -211,7 +211,7 @@ public sealed class TriviaEndpointsTests : IClassFixture<PostgreSqlFixture>, IAs
             {
                 prompt = "Largest ocean?",
                 scoreValue = 100,
-                timeLimitSeconds = 60,
+                timeLimitSeconds = 25,
                 explanation = "The Pacific Ocean is the largest.",
                 isActive = true,
                 options = new[]
@@ -232,7 +232,7 @@ public sealed class TriviaEndpointsTests : IClassFixture<PostgreSqlFixture>, IAs
         var addedQuestion = payload.Questions.Single(question => question.Prompt == "Largest ocean?");
         addedQuestion.Prompt.Should().Be("Largest ocean?");
         addedQuestion.ScoreValue.Should().Be(100);
-        addedQuestion.TimeLimitSeconds.Should().Be(60);
+        addedQuestion.TimeLimitSeconds.Should().Be(25);
         addedQuestion.Explanation.Should().Be("The Pacific Ocean is the largest.");
         addedQuestion.Options.Should().HaveCount(3);
         addedQuestion.Options.Should().ContainSingle(option => option.IsCorrect && option.OptionText == "Pacific");
@@ -245,7 +245,7 @@ public sealed class TriviaEndpointsTests : IClassFixture<PostgreSqlFixture>, IAs
         detail!.Questions.Should().ContainSingle(question =>
             question.Prompt == "Largest ocean?" &&
             question.ScoreValue == 100 &&
-            question.TimeLimitSeconds == 60 &&
+            question.TimeLimitSeconds == 25 &&
             question.Explanation == "The Pacific Ocean is the largest.");
     }
 
@@ -263,7 +263,7 @@ public sealed class TriviaEndpointsTests : IClassFixture<PostgreSqlFixture>, IAs
             {
                 prompt = "Capital of Colombia?",
                 scoreValue = 100,
-                timeLimitSeconds = 50,
+                timeLimitSeconds = 25,
                 explanation = "Bogota is the capital city.",
                 isActive = true,
                 options = new[]
@@ -283,7 +283,7 @@ public sealed class TriviaEndpointsTests : IClassFixture<PostgreSqlFixture>, IAs
         var updatedQuestion = payload.Questions.Single(question => question.Id == questionId);
         updatedQuestion.Prompt.Should().Be("Capital of Colombia?");
         updatedQuestion.ScoreValue.Should().Be(100);
-        updatedQuestion.TimeLimitSeconds.Should().Be(50);
+        updatedQuestion.TimeLimitSeconds.Should().Be(25);
         updatedQuestion.Explanation.Should().Be("Bogota is the capital city.");
         updatedQuestion.Options.Should().HaveCount(3);
         updatedQuestion.Options.Should().ContainSingle(option => option.IsCorrect && option.OptionText == "Bogota");
@@ -297,7 +297,7 @@ public sealed class TriviaEndpointsTests : IClassFixture<PostgreSqlFixture>, IAs
             question.Id == questionId &&
             question.Prompt == "Capital of Colombia?" &&
             question.ScoreValue == 100 &&
-            question.TimeLimitSeconds == 50 &&
+            question.TimeLimitSeconds == 25 &&
             question.Explanation == "Bogota is the capital city." &&
             question.Options.Count == 3);
     }
@@ -316,7 +316,7 @@ public sealed class TriviaEndpointsTests : IClassFixture<PostgreSqlFixture>, IAs
             new
             {
                 prompt = "Capital of Spain?",
-                scoreValue = 75,
+                scoreValue = 100,
                 timeLimitSeconds = 25,
                 explanation = "Madrid is the capital.",
                 isActive = true,
@@ -589,7 +589,7 @@ public sealed class TriviaEndpointsTests : IClassFixture<PostgreSqlFixture>, IAs
             new
             {
                 prompt = "Second question?",
-                scoreValue = 50,
+                scoreValue = 100,
                 timeLimitSeconds = 20,
                 explanation = "Second explanation.",
                 isActive = true,

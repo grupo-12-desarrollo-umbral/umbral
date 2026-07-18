@@ -34,9 +34,9 @@ export function TriviaAnswerReviewPanel({
         data-testid="trivia-answer-review-panel"
         aria-labelledby="trivia-answer-review-title"
       >
-        <div className={styles.eyebrow} id="trivia-answer-review-title">Answer review</div>
+        <div className={styles.eyebrow} id="trivia-answer-review-title">Revisión de respuestas</div>
         <p className={styles.stateNote} role="status" data-testid="trivia-answer-review-unauthorized">
-          You are not authorized to review this session.
+          No tienes autorización para revisar esta sesión.
         </p>
       </section>
     )
@@ -49,7 +49,7 @@ export function TriviaAnswerReviewPanel({
         data-testid="trivia-answer-review-panel"
         aria-labelledby="trivia-answer-review-title"
       >
-        <div className={styles.eyebrow} id="trivia-answer-review-title">Answer review</div>
+        <div className={styles.eyebrow} id="trivia-answer-review-title">Revisión de respuestas</div>
         <p className={styles.stateNote} role="status" data-testid="trivia-answer-review-error">
           {error}
         </p>
@@ -64,9 +64,9 @@ export function TriviaAnswerReviewPanel({
         data-testid="trivia-answer-review-panel"
         aria-labelledby="trivia-answer-review-title"
       >
-        <div className={styles.eyebrow} id="trivia-answer-review-title">Answer review</div>
+        <div className={styles.eyebrow} id="trivia-answer-review-title">Revisión de respuestas</div>
         <p className={styles.stateNote} data-testid="trivia-answer-review-empty">
-          {loading ? 'Loading answer review…' : 'No closed question to review.'}
+          {loading ? 'Cargando la revisión de respuestas…' : 'No hay ninguna pregunta cerrada para revisar.'}
         </p>
       </section>
     )
@@ -81,11 +81,11 @@ export function TriviaAnswerReviewPanel({
       >
         <div className={styles.header}>
           <span className={styles.eyebrow} id="trivia-answer-review-title" data-testid="trivia-answer-review-question">
-            Question {questionSequenceOrder}
+            Pregunta {questionSequenceOrder}
           </span>
         </div>
         <p className={styles.stateNote} data-testid="trivia-answer-review-no-roster">
-          Waiting for the team roster…
+          Esperando la lista de equipos…
         </p>
       </section>
     )
@@ -99,17 +99,17 @@ export function TriviaAnswerReviewPanel({
     >
       <div className={styles.header}>
         <span className={styles.eyebrow} id="trivia-answer-review-title" data-testid="trivia-answer-review-question">
-          Question {questionSequenceOrder}
+          Pregunta {questionSequenceOrder}
         </span>
       </div>
       <ul className={styles.list}>
         {teams.map((team) => {
           const hasAnswer = team.selectedOptionSequenceOrder != null
           const badgeLabel = team.isCorrect === true
-            ? 'Correct'
+            ? 'Correcta'
             : team.isCorrect === false
-              ? 'Incorrect'
-              : 'No answer'
+              ? 'Incorrecta'
+              : 'Sin respuesta'
           const badgeTone = team.isCorrect === true
             ? 'success'
             : team.isCorrect === false
@@ -126,7 +126,7 @@ export function TriviaAnswerReviewPanel({
               <span className={styles.teamName}>{team.displayName}</span>
               <span className={styles.teamCode}>{team.teamCode}</span>
               <span className={styles.option}>
-                {hasAnswer ? `Option ${team.selectedOptionSequenceOrder}` : '—'}
+                {hasAnswer ? `Opción ${team.selectedOptionSequenceOrder}` : '—'}
               </span>
               <span
                 className={styles.badge}

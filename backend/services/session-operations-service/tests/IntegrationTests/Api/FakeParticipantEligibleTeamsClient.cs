@@ -4,7 +4,7 @@ namespace umbral_backend.Infrastructure.IntegrationTests.Api;
 
 /// <summary>
 /// In-process replacement for the participant eligibility access-fact client.
-/// Each test configures the decision it wants identity-access to have returned.
+/// Each test configures the decision it wants users-service to have returned.
 /// </summary>
 public sealed class FakeParticipantEligibleTeamsClient : IParticipantEligibleTeamsClient
 {

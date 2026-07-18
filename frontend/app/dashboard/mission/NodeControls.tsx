@@ -82,7 +82,7 @@ function AddNodeControl({
         reset()
       } catch (e) {
         // Backend rejection (400/409 containment) surfaced verbatim; the UI never pre-empts it.
-        setError(e instanceof Error ? e.message : 'Could not add node.')
+        setError(e instanceof Error ? e.message : 'No se pudo agregar el nodo.')
       }
     })
   }
@@ -101,7 +101,8 @@ function AddNodeControl({
     )
   }
 
-  const titleLabel = isClue ? 'Clue title' : `${nodeType} title`
+  const nodeNoun = nodeType === 'Stage' ? 'la etapa' : nodeType === 'Substage' ? 'la subetapa' : 'la pista'
+  const titleLabel = `Título de ${nodeNoun}`
 
   return (
     <div className={isClue ? `${styles.nodeForm} ${styles.nodeFormWide}` : styles.nodeForm}>
@@ -119,17 +120,17 @@ function AddNodeControl({
         {isClue && (
           <>
             <label className={styles.nodeField}>
-              <span className={styles.fieldLabel}>Clue text</span>
+              <span className={styles.fieldLabel}>Texto de la pista</span>
               <input
                 className={styles.inlineInput}
                 data-testid="clue-text-input"
                 value={clueText}
                 onChange={(e) => setClueText(e.target.value)}
-                placeholder="Clue text"
+                placeholder="Texto de la pista"
               />
             </label>
             <label className={styles.nodeField}>
-              <span className={styles.fieldLabel}>Clue visibility</span>
+              <span className={styles.fieldLabel}>Visibilidad de la pista</span>
               <select
                 className={styles.inlineInput}
                 data-testid="clue-visibility-input"
@@ -154,10 +155,10 @@ function AddNodeControl({
           onClick={submit}
           type="button"
         >
-          Save
+          Guardar
         </button>
         <button className={styles.inlineButton} disabled={isPending} onClick={reset} type="button">
-          Cancel
+          Cancelar
         </button>
       </div>
       {error && (
@@ -185,7 +186,7 @@ export function AddStageControl({
       nodeType="Stage"
       triggerTestId="add-stage-btn"
       confirmTestId="confirm-add-stage-btn"
-      triggerLabel="+ Add stage"
+      triggerLabel="+ Agregar etapa"
       onMutated={onMutated}
     />
   )
@@ -210,7 +211,7 @@ export function AddSubstageControl({
       stageId={stageId}
       triggerTestId={`add-substage-btn-${stageId}`}
       confirmTestId={`confirm-add-substage-btn-${stageId}`}
-      triggerLabel="+ Add substage"
+      triggerLabel="+ Agregar subetapa"
       playMode="TreasureHunt"
       onMutated={onMutated}
     />
@@ -239,7 +240,7 @@ export function AddClueControl({
       substageId={substageId}
       triggerTestId={`add-clue-btn-${substageId}`}
       confirmTestId={`confirm-add-clue-btn-${substageId}`}
-      triggerLabel="+ Add clue"
+      triggerLabel="+ Agregar pista"
       onMutated={onMutated}
     />
   )
@@ -289,7 +290,7 @@ function NodeEditForm({
   function saveEdit() {
     const seq = parseInt(sequenceOrder, 10)
     if (Number.isNaN(seq)) {
-      setError('Sequence order must be a number.')
+      setError('El orden de secuencia debe ser un número.')
       return
     }
     startTransition(async () => {
@@ -303,7 +304,7 @@ function NodeEditForm({
         onMutated(updated)
         onDone()
       } catch (e) {
-        setError(e instanceof Error ? e.message : 'Could not update node.')
+        setError(e instanceof Error ? e.message : 'No se pudo actualizar el nodo.')
       }
     })
   }
@@ -312,17 +313,17 @@ function NodeEditForm({
     <div className={isClue ? `${styles.nodeForm} ${styles.nodeFormWide}` : styles.nodeForm}>
       <div className={styles.nodeFormGrid}>
         <label className={styles.nodeField}>
-          <span className={styles.fieldLabel}>{isClue ? 'Clue title' : 'Title'}</span>
+          <span className={styles.fieldLabel}>{isClue ? 'Título de la pista' : 'Título'}</span>
           <input
             className={styles.inlineInput}
             data-testid="node-title-input"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            placeholder="Title"
+            placeholder="Título"
           />
         </label>
         <label className={styles.nodeField}>
-          <span className={styles.fieldLabel}>Order</span>
+          <span className={styles.fieldLabel}>Orden</span>
           <input
             className={styles.inlineInput}
             data-testid="node-sequence-input"
@@ -334,17 +335,17 @@ function NodeEditForm({
         {isClue && (
           <>
             <label className={styles.nodeField}>
-              <span className={styles.fieldLabel}>Clue text</span>
+              <span className={styles.fieldLabel}>Texto de la pista</span>
               <input
                 className={styles.inlineInput}
                 data-testid="clue-text-input"
                 value={clueText}
                 onChange={(e) => setClueText(e.target.value)}
-                placeholder="Clue text"
+                placeholder="Texto de la pista"
               />
             </label>
             <label className={styles.nodeField}>
-              <span className={styles.fieldLabel}>Clue visibility</span>
+              <span className={styles.fieldLabel}>Visibilidad de la pista</span>
               <select
                 className={styles.inlineInput}
                 data-testid="clue-visibility-input"
@@ -368,7 +369,7 @@ function NodeEditForm({
           onClick={saveEdit}
           type="button"
         >
-          Save
+          Guardar
         </button>
         <button
           className={styles.inlineButton}
@@ -376,7 +377,7 @@ function NodeEditForm({
           onClick={onDone}
           type="button"
         >
-          Cancel
+          Cancelar
         </button>
       </div>
       {error && (
@@ -421,7 +422,7 @@ export function NodeRowControls({
         onMutated(updated)
         setConfirmRemove(false)
       } catch (e) {
-        setError(e instanceof Error ? e.message : 'Could not remove node.')
+        setError(e instanceof Error ? e.message : 'No se pudo eliminar el nodo.')
       }
     })
   }
@@ -454,7 +455,7 @@ export function NodeRowControls({
         }}
         type="button"
       >
-        Edit
+        Editar
       </button>
       {!confirmRemove && (
         <button
@@ -464,7 +465,7 @@ export function NodeRowControls({
           onClick={() => setConfirmRemove(true)}
           type="button"
         >
-          Remove
+          Eliminar
         </button>
       )}
       {confirmRemove && (
@@ -476,7 +477,7 @@ export function NodeRowControls({
             onClick={remove}
             type="button"
           >
-            Confirm remove
+            Confirmar eliminación
           </button>
           <button
             className={styles.inlineButton}
@@ -484,7 +485,7 @@ export function NodeRowControls({
             onClick={() => setConfirmRemove(false)}
             type="button"
           >
-            Cancel
+            Cancelar
           </button>
         </>
       )}

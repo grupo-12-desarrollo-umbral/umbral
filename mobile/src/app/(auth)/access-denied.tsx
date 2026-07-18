@@ -11,19 +11,19 @@ import type { RejectionReason } from '@/lib/auth/access-policy';
 function getRejectionCopy(reason: RejectionReason | null): { title: string; body: string } {
   if (reason === 'deactivated') {
     return {
-      title: 'Account Deactivated',
-      body: 'Your account has been deactivated. Contact the event organiser for assistance.',
+      title: 'Cuenta desactivada',
+      body: 'Tu cuenta ha sido desactivada. Comunícate con el organizador del evento para obtener ayuda.',
     };
   }
   if (reason === 'wrong-role') {
     return {
-      title: 'Access Restricted',
-      body: 'This app is for participants only. Administrator and operator accounts cannot sign in here.',
+      title: 'Acceso restringido',
+      body: 'Esta app es solo para participantes. Las cuentas de administrador y operador no pueden iniciar sesión aquí.',
     };
   }
   return {
-    title: 'Access Denied',
-    body: 'You are not permitted to access this app at this time.',
+    title: 'Acceso denegado',
+    body: 'No tienes permiso para acceder a esta app en este momento.',
   };
 }
 
@@ -48,7 +48,7 @@ export default function AccessDeniedScreen() {
         </View>
       </Panel>
 
-      <Button label="Sign out" variant="secondary" onPress={signOut} />
+      <Button label="Cerrar sesión" variant="secondary" onPress={signOut} />
     </Screen>
   );
 }

@@ -5,6 +5,7 @@ using Microsoft.Extensions.Hosting;
 using Testcontainers.RabbitMq;
 using umbral_backend.Application.Common.Interfaces;
 using umbral_backend.Application.Dtos.Rankings;
+using umbral_backend.Application.Dtos.Scores;
 using umbral_backend.Application.Rankings.Common;
 using umbral_backend.Application.Scores.Common;
 using umbral_backend.Domain.Entities;
@@ -148,6 +149,7 @@ public sealed class OutboxDeliveryOnRecoveryTests
         builder.AddInfrastructureServices();
         builder.Services.AddSingleton<ICurrentUser>(StubCurrentUser.Instance);
         builder.Services.AddSingleton<IRankingBroadcaster, NoOpRankingBroadcaster>();
+        builder.Services.AddSingleton<IPenaltyBroadcaster, NoOpPenaltyBroadcaster>();
         return builder.Build();
     }
 
@@ -219,6 +221,14 @@ public sealed class OutboxDeliveryOnRecoveryTests
         public Task RankingChanged(
             Guid liveSessionId,
             RankingSnapshotDto snapshot,
+            CancellationToken cancellationToken) => Task.CompletedTask;
+    }
+
+    private sealed class NoOpPenaltyBroadcaster : IPenaltyBroadcaster
+    {
+        public Task PenaltyApplied(
+            Guid liveSessionId,
+            PenaltyAppliedNotificationDto notification,
             CancellationToken cancellationToken) => Task.CompletedTask;
     }
 }

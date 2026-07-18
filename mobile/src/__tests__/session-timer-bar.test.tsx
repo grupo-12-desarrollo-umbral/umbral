@@ -42,25 +42,25 @@ describe('SessionTimerBar', () => {
   test('running tone shows time label and Running chip', () => {
     const texts = allText(render({ label: '05:00', pct: 50, tone: 'running' }));
     expect(texts).toContain('05:00');
-    expect(texts).toContain('Running');
+    expect(texts).toContain('En curso');
   });
 
   test('paused tone shows Paused chip', () => {
     const texts = allText(render({ label: '03:30', pct: 30, tone: 'paused' }));
     expect(texts).toContain('03:30');
-    expect(texts).toContain('Paused');
+    expect(texts).toContain('En pausa');
   });
 
   test('expired tone shows 00:00 and Expired chip', () => {
     const texts = allText(render({ label: '00:00', pct: 0, tone: 'expired' }));
     expect(texts).toContain('00:00');
-    expect(texts).toContain('Expired');
+    expect(texts).toContain('Expirado');
   });
 
   test('unavailable shows --:-- and Unavailable chip', () => {
     const texts = allText(render(UNAVAILABLE_TIMER_DISPLAY));
     expect(texts).toContain('--:--');
-    expect(texts).toContain('Unavailable');
+    expect(texts).toContain('No disponible');
   });
 
   test('sets accessibilityRole=progressbar with correct value', () => {
@@ -92,7 +92,7 @@ describe('SessionTimerBar', () => {
 
   test('running → paused → expired → unavailable renders distinct chip labels', () => {
     const tones: TimerDisplay['tone'][] = ['running', 'paused', 'expired', 'unavailable'];
-    const labels = ['Running', 'Paused', 'Expired', 'Unavailable'];
+    const labels = ['En curso', 'En pausa', 'Expirado', 'No disponible'];
 
     tones.forEach((tone, i) => {
       const texts = allText(render({ label: '02:00', pct: 40, tone }));

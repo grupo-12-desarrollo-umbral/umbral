@@ -4,8 +4,8 @@ namespace umbral_backend.Domain.ValueObjects;
 
 public sealed class QuestionTimer : ValueObject
 {
-    internal const int MinimumSeconds = 5;
-    internal const int MaximumSeconds = 120;
+    internal const int MinimumSeconds = 15;
+    internal const int MaximumSeconds = 30;
 
     private QuestionTimer()
     {

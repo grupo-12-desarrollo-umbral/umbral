@@ -4,10 +4,10 @@ import { Text } from '@/components/ui/text';
 import type { TimerDisplay, TimerTone } from '@/lib/realtime/timer-types';
 
 const CHIP_LABELS: Record<TimerTone, string> = {
-  running: 'Running',
-  paused: 'Paused',
-  expired: 'Expired',
-  unavailable: 'Unavailable',
+  running: 'En curso',
+  paused: 'En pausa',
+  expired: 'Expirado',
+  unavailable: 'No disponible',
 };
 
 const FILL_COLORS: Record<TimerTone, string> = {
@@ -29,7 +29,7 @@ export function SessionTimerBar({ display }: { display: TimerDisplay }) {
       <View
         accessibilityRole="progressbar"
         accessibilityValue={{ min: 0, max: 100, now: clampedPct }}
-        accessibilityLabel={`Session timer: ${label}`}
+        accessibilityLabel={`Temporizador de sesión: ${label}`}
         style={{
           backgroundColor: colors.raisedSurface,
           borderRadius: radii.control,

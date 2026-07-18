@@ -5,7 +5,7 @@
 #
 # 1. Seeds trivia + sessions + teams directly in postgres
 # 2. Waits for the gateway to come online
-# 3. Seeds users in Keycloak and bootstraps them into identity-access
+# 3. Seeds users in Keycloak and bootstraps them into users
 # 4. Seeds team memberships
 #
 # Environment variables (all optional):
@@ -69,7 +69,7 @@ if [[ "$_ready" -eq 0 ]]; then
 fi
 
 # Delete from session_operations first (cascades to teams/participants).
-# identity_access rows are handled by ON CONFLICT DO NOTHING below.
+# users rows are handled by ON CONFLICT DO NOTHING below.
 for CODE in "${!SESSIONS[@]}"; do
   psql -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d session_operations -c "
     DELETE FROM live_sessions WHERE session_code = '$CODE';
@@ -374,11 +374,11 @@ UNION ALL
 SELECT sub.\"Id\", 'Target 2', 'PANA-QR-2', 2, true, 50, clue2.\"Id\" FROM sub, clue2;
 "
 
-echo "  identity_access (registered teams) …"
+echo "  users (registered teams) …"
 for CODE in "${!SESSIONS[@]}"; do
   IFS=: read -r SID STATE TID TCODE TDISPLAY <<< "${SESSIONS[$CODE]}"
 
-  psql -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d identity_access -c "
+  psql -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d users -c "
     INSERT INTO registered_teams (id, display_name, team_code, is_active, created_at, updated_at)
     VALUES ('$TID', '$TDISPLAY Team', '$TCODE', true, now(), now())
     ON CONFLICT (id) DO NOTHING;
@@ -482,7 +482,7 @@ for CODE in "${!SECOND_TEAMS[@]}"; do
   IFS=: read -r SID _ _ _ _ <<< "${SESSIONS[$CODE]}"
   RUNTIME_TID="c${TID:1}"
 
-  psql -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d identity_access -c "
+  psql -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d users -c "
     INSERT INTO registered_teams (id, display_name, team_code, is_active, created_at, updated_at)
     VALUES ('$TID', '$TDISPLAY Team', '$TCODE', true, now(), now())
     ON CONFLICT (id) DO NOTHING;
@@ -993,7 +993,7 @@ if [[ -z "$OPERATOR_USER_ID" ]]; then
 fi
 
 # Assign the seeded operator to the psql-seeded SMOKE sessions. The transition path resolves
-# operator ownership by calling identity-access GET /api/users/me (keyed by the operator's
+# operator ownership by calling users GET /api/users/me (keyed by the operator's
 # current Keycloak sub, which the USERS loop above bootstrapped) and comparing the returned
 # app user id against live_sessions.assigned_operator_user_id. Without this assignment the
 # OperatorAssignmentGate rejects Scheduled→Preparing (operator required) and the resolver's

@@ -13,7 +13,7 @@ public sealed class AddMissionNodeClueVisibilityTests
     public async Task AddClue_WithExplicitVisibilityPolicy_ParsesIt()
     {
         var repository = new InMemoryMissionRepository();
-        var mission = Mission.Create("Mission", "Briefing", "Advanced", 45);
+        var mission = Mission.Create("Mission", "Briefing", "Advanced", 30);
         repository.Seed(mission);
         var handler = new AddMissionNodeCommandHandler(repository);
 
@@ -40,7 +40,7 @@ public sealed class AddMissionNodeClueVisibilityTests
     public async Task Handle_WithUnrecognizedNodeType_ThrowsValidationException()
     {
         var repository = new InMemoryMissionRepository();
-        var mission = Mission.Create("Mission", "Briefing", "Advanced", 45);
+        var mission = Mission.Create("Mission", "Briefing", "Advanced", 30);
         repository.Seed(mission);
         var handler = new AddMissionNodeCommandHandler(repository);
 

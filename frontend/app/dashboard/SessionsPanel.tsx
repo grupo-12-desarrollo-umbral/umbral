@@ -15,6 +15,7 @@ import type {
   TeamDto,
 } from '@/app/lib/definitions'
 import { SessionHistoryPanel } from './SessionHistoryPanel'
+import { lifecycleStateLabel } from '@/app/lib/session-lifecycle'
 import styles from './dashboard.module.css'
 
 interface SessionsPanelProps {
@@ -37,6 +38,10 @@ const lifecycleTones: Record<SessionLifecycleState, 'success' | 'warning' | 'cri
 
 function getLifecycleTone(state: string) {
   return lifecycleTones[state as SessionLifecycleState] ?? 'muted'
+}
+
+function stateLabel(state: string) {
+  return lifecycleStateLabel[state as SessionLifecycleState] ?? state
 }
 
 const concludedStates = new Set<SessionLifecycleState>(['Finished', 'Cancelled'])
@@ -103,7 +108,7 @@ export function SessionsPanel({
         setAssociatedTeams(sessionTeams)
         setCatalogTeams(activeTeams)
       } catch {
-        setTeamsError('Failed to load session teams.')
+        setTeamsError('No se pudieron cargar los equipos de la sesión.')
       }
     })
   }, [selectedLiveSessionId])
@@ -182,20 +187,20 @@ export function SessionsPanel({
         const message = error instanceof Error ? error.message : ''
         switch (message) {
           case 'inactive_team':
-            setAssociateError('This team is inactive and cannot be associated.')
+            setAssociateError('Este equipo está inactivo y no puede asociarse.')
             break
           case 'duplicate_association':
-            setAssociateError('This team is already associated to the session.')
+            setAssociateError('Este equipo ya está asociado a la sesión.')
             break
           case 'session_not_scheduled':
-            setAssociateError('Teams can only be associated while the session is scheduled.')
+            setAssociateError('Los equipos solo pueden asociarse mientras la sesión está programada.')
             break
           case 'not_found':
           case 'session_not_found':
-            setAssociateError('The session or selected team no longer exists.')
+            setAssociateError('La sesión o el equipo seleccionado ya no existe.')
             break
           default:
-            setAssociateError('Failed to associate the team.')
+            setAssociateError('No se pudo asociar el equipo.')
             break
         }
       }
@@ -206,10 +211,10 @@ export function SessionsPanel({
     <section className={`${styles.panel} ${styles.sessionsPanel}`} data-testid="sessions-panel">
       <div className={styles.panelHeader}>
         <div>
-          <h2>My sessions</h2>
+          <h2>Mis sesiones</h2>
           <div className={styles.panelMeta}>
-            Operate the sessions an administrator has assigned to you. Select one to review it, then
-            move into live operation.
+            Opera las sesiones que un administrador te ha asignado. Selecciona una para revisarla y luego
+            pasa a la operación en vivo.
           </div>
         </div>
       </div>
@@ -218,9 +223,9 @@ export function SessionsPanel({
         <section className={styles.assignmentCard} aria-labelledby="assigned-sessions-heading">
           <div className={styles.panelHeader}>
             <div>
-              <h3 id="assigned-sessions-heading">Sessions you&apos;re responsible for</h3>
+              <h3 id="assigned-sessions-heading">Sesiones de las que eres responsable</h3>
               <div className={styles.panelMeta}>
-                Pick a session to review it or open its live controls.
+                Elige una sesión para revisarla o abrir sus controles en vivo.
               </div>
             </div>
           </div>
@@ -232,12 +237,12 @@ export function SessionsPanel({
           )}
 
           {isLoadingAssignedSessions ? (
-            <p className={styles.emptyStateCopy}>Loading assigned sessions...</p>
+            <p className={styles.emptyStateCopy}>Cargando sesiones asignadas...</p>
           ) : activeSessions.length === 0 ? (
             <p className={styles.emptyStateCopy} data-testid="session-empty-state">
               {concludedSessions.length === 0
-                ? 'You have no assigned sessions yet. Ask an administrator to assign one to you.'
-                : 'You have no active sessions right now. Past sessions are available below.'}
+                ? 'Aún no tienes sesiones asignadas. Pide a un administrador que te asigne una.'
+                : 'No tienes sesiones activas ahora mismo. Las sesiones anteriores están disponibles más abajo.'}
             </p>
           ) : (
             <div className={styles.sessionCards} data-testid="assigned-sessions-list">
@@ -254,14 +259,14 @@ export function SessionsPanel({
                     <div>
                       <h3>{session.title}</h3>
                       <div className={styles.sessionCardMeta}>
-                        {session.sessionCode} • Scheduled {formatDateTime(session.scheduledAt)}
+                        {session.sessionCode} • Programada {formatDateTime(session.scheduledAt)}
                       </div>
                     </div>
                     <span
                       className={styles.chip}
                       data-tone={getLifecycleTone(session.sessionState)}
                     >
-                      {session.sessionState}
+                      {stateLabel(session.sessionState)}
                     </span>
                   </div>
                 </button>
@@ -272,10 +277,10 @@ export function SessionsPanel({
           {concludedSessions.length > 0 && (
             <details className={styles.concludedSessions} data-testid="concluded-sessions-section">
               <summary className={styles.concludedSessionsSummary}>
-                Past sessions ({concludedSessions.length})
+                Sesiones anteriores ({concludedSessions.length})
               </summary>
               <div className={styles.panelMeta}>
-                Finished and cancelled sessions are read-only. Select one to review it.
+                Las sesiones finalizadas y canceladas son de solo lectura. Selecciona una para revisarla.
               </div>
               <div className={styles.sessionCards} data-testid="concluded-sessions-list">
                 {concludedSessions.map((session) => (
@@ -291,14 +296,14 @@ export function SessionsPanel({
                       <div>
                         <h3>{session.title}</h3>
                         <div className={styles.sessionCardMeta}>
-                          {session.sessionCode} • Scheduled {formatDateTime(session.scheduledAt)}
+                          {session.sessionCode} • Programada {formatDateTime(session.scheduledAt)}
                         </div>
                       </div>
                       <span
                         className={styles.chip}
                         data-tone={getLifecycleTone(session.sessionState)}
                       >
-                        {session.sessionState}
+                        {stateLabel(session.sessionState)}
                       </span>
                     </div>
                   </button>
@@ -311,11 +316,11 @@ export function SessionsPanel({
         <section className={styles.assignmentCard} aria-labelledby="session-setup-heading">
           <div className={styles.panelHeader}>
             <div>
-              <h3 id="session-setup-heading">Session setup</h3>
+              <h3 id="session-setup-heading">Configuración de la sesión</h3>
               <div className={styles.panelMeta}>
                 {selectedAssignedSession
-                  ? 'Review the current session before moving into live operation.'
-                  : 'Select one of your sessions to continue setup and operation.'}
+                  ? 'Revisa la sesión actual antes de pasar a la operación en vivo.'
+                  : 'Selecciona una de tus sesiones para continuar con la configuración y la operación.'}
               </div>
             </div>
           </div>
@@ -325,17 +330,17 @@ export function SessionsPanel({
               <section className={styles.sessionCard} data-testid="selected-session-setup-card">
                 <h3>{selectedAssignedSession.title}</h3>
                 <dl className={styles.detailList}>
-                  <dt>Session code</dt>
+                  <dt>Código de sesión</dt>
                   <dd>{selectedAssignedSession.sessionCode}</dd>
 
-                  <dt>Scheduled at</dt>
+                  <dt>Programada para</dt>
                   <dd>{formatDateTime(selectedAssignedSession.scheduledAt)}</dd>
 
-                  <dt>Status</dt>
-                  <dd>{selectedAssignedSession.sessionState}</dd>
+                  <dt>Estado</dt>
+                  <dd>{stateLabel(selectedAssignedSession.sessionState)}</dd>
 
-                  <dt>Ownership</dt>
-                  <dd>{selectedAssignedSession.assignedOperatorUserId == null ? 'Unassigned' : 'Assigned to you'}</dd>
+                  <dt>Titularidad</dt>
+                  <dd>{selectedAssignedSession.assignedOperatorUserId == null ? 'Sin asignar' : 'Asignada a ti'}</dd>
                 </dl>
               </section>
 
@@ -354,17 +359,17 @@ export function SessionsPanel({
               <section className={styles.assignmentCard} data-testid="session-associated-teams-card">
                 <div className={styles.panelHeader}>
                   <div>
-                    <h3>Associated teams</h3>
+                    <h3>Equipos asociados</h3>
                     <div className={styles.panelMeta}>
-                      Add active teams before moving the session into live operation.
+                      Agrega equipos activos antes de pasar la sesión a la operación en vivo.
                     </div>
                   </div>
-                  {isTeamsPending && <span className={styles.chip}>Loading...</span>}
+                  {isTeamsPending && <span className={styles.chip}>Cargando...</span>}
                 </div>
 
                 {visibleAssociatedTeams == null || visibleAssociatedTeams.teams.length === 0 ? (
                   <p className={styles.emptyStateCopy} data-testid="session-associated-teams-empty">
-                    No teams associated yet.
+                    Aún no hay equipos asociados.
                   </p>
                 ) : (
                   <div className={styles.sessionCards} data-testid="session-associated-teams-list">
@@ -374,7 +379,7 @@ export function SessionsPanel({
                           <div>
                             <h3>{team.displayName}</h3>
                             <div className={styles.sessionCardMeta}>
-                              {team.teamCode} • Join status {team.joinStatus}
+                              {team.teamCode} • Estado de unión {team.joinStatus}
                             </div>
                           </div>
                           <span className={styles.chip}>{team.teamCode}</span>
@@ -389,16 +394,16 @@ export function SessionsPanel({
               <section className={styles.assignmentCard} data-testid="session-team-catalog-card">
                 <div className={styles.panelHeader}>
                   <div>
-                    <h3>Available active teams</h3>
+                    <h3>Equipos activos disponibles</h3>
                     <div className={styles.panelMeta}>
-                      Only active teams not already associated are shown here.
+                      Aquí solo se muestran los equipos activos que aún no están asociados.
                     </div>
                   </div>
                 </div>
 
                 {availableTeams.length === 0 ? (
                   <p className={styles.emptyStateCopy} data-testid="session-team-catalog-empty">
-                    No additional active teams available to associate.
+                    No hay equipos activos adicionales disponibles para asociar.
                   </p>
                 ) : (
                   <div className={styles.sessionCards} data-testid="session-team-catalog-list">
@@ -419,7 +424,7 @@ export function SessionsPanel({
                             }
                             data-testid={`associate-team-btn-${team.teamId}`}
                           >
-                            Associate
+                            Asociar
                           </button>
                         </div>
                       </section>
@@ -432,8 +437,8 @@ export function SessionsPanel({
               {selectedIsConcluded ? (
                 <>
                   <p className={styles.emptyStateCopy} data-testid="concluded-session-readonly-note">
-                    This session is {selectedAssignedSession.sessionState.toLowerCase()} and can only be
-                    reviewed in read-only mode.
+                    Esta sesión está {stateLabel(selectedAssignedSession.sessionState).toLowerCase()} y solo puede
+                    revisarse en modo de solo lectura.
                   </p>
                   <SessionHistoryPanel
                     events={visibleSessionHistory?.events ?? []}
@@ -450,12 +455,12 @@ export function SessionsPanel({
                   className={styles.primaryButton}
                   onClick={() => onOpenLiveOperation(selectedAssignedSession.liveSessionId)}
                 >
-                  Open live operation
+                  Abrir operación en vivo
                 </button>
               )}
             </div>
           ) : (
-            <p className={styles.emptyStateCopy}>No session selected yet.</p>
+            <p className={styles.emptyStateCopy}>Aún no hay ninguna sesión seleccionada.</p>
           )}
         </section>
       </div>

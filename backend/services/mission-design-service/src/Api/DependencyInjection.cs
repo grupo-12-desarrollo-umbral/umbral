@@ -111,9 +111,9 @@ public static class DependencyInjection
 // own (api-gateway/src/Transforms/TrustedHeadersTransform.cs), so they are trusted implicitly here.
 //
 // Requires X-User-Id and X-User-Role only. X-User-Email is deliberately NOT required, unlike
-// identity-access-service: the gateway forwards it only when the token carries an email claim, so
+// users-service: the gateway forwards it only when the token carries an email claim, so
 // requiring it would 401 a Keycloak user with no email. mission-design's ICurrentUser exposes no
-// Email at all, so nothing here needs it. (identity-access does require it, because User.Email is a
+// Email at all, so nothing here needs it. (users-service does require it, because User.Email is a
 // required domain field there.)
 [ExcludeFromCodeCoverage]
 file sealed class TrustedHeadersAuthenticationHandler : AuthenticationHandler<AuthenticationSchemeOptions>

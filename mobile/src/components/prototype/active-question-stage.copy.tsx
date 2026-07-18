@@ -38,7 +38,7 @@ export function CountdownBar({ display }: { display: TimerDisplay }) {
       <View
         accessibilityRole="progressbar"
         accessibilityValue={{ min: 0, max: 100, now: clampedPct }}
-        accessibilityLabel={`Question timer: ${display.label}`}
+        accessibilityLabel={`Temporizador de pregunta: ${display.label}`}
         style={{
           backgroundColor: colors.raisedSurface,
           borderRadius: radii.control,
@@ -123,7 +123,7 @@ function StageHeader({
           {showTimer ? (
             <>
               <Text variant="label" muted>
-                {`QUESTION ${questionSequenceOrder}`}
+                {`PREGUNTA ${questionSequenceOrder}`}
               </Text>
               <CountdownBar display={timerDisplay} />
             </>
@@ -133,7 +133,7 @@ function StageHeader({
         {/* Right column: score */}
         <View style={{ alignItems: 'flex-end', gap: 2 }}>
           <Text variant="label" muted style={{ textTransform: 'uppercase' }}>
-            SCORE
+            PUNTUACIÓN
           </Text>
           <Text
             variant="headline"
@@ -217,12 +217,12 @@ export function ActiveQuestionStage({
           const pillTextColor = isSelected ? colors.ivoryFog : colors.emberAccent;
 
           const hint = closed
-            ? 'This question is closed.'
+            ? 'Esta pregunta está cerrada.'
             : locked
-              ? 'Answer already submitted.'
+              ? 'Respuesta ya enviada.'
               : hasSubmitProps
-                ? 'Select to submit as your team\'s answer.'
-                : 'Answering is not yet available.';
+                ? 'Selecciona para enviar como la respuesta de tu equipo.'
+                : 'Responder aún no está disponible.';
 
           const Row = interactive ? Pressable : View;
 
@@ -301,7 +301,7 @@ export function ActiveQuestionStage({
                 }}
               />
               <Text variant="label" style={{ color: colors.textMuted }}>
-                Question closed — waiting for the next
+                Pregunta cerrada — esperando la siguiente
               </Text>
             </View>
           ) : locked ? (
@@ -323,13 +323,13 @@ export function ActiveQuestionStage({
                 }}
               />
               <Text variant="label" style={{ color: colors.signalSuccess }}>
-                Answer submitted
+                Respuesta enviada
               </Text>
             </View>
           ) : (
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="Submit answer"
+              accessibilityLabel="Enviar respuesta"
               disabled={selected === null || submitting || locked}
               onPress={onSubmit}
               style={({ pressed }) => ({
@@ -358,7 +358,7 @@ export function ActiveQuestionStage({
                   variant="label"
                   style={{ color: colors.ivoryFog }}
                 >
-                  Submit answer
+                  Enviar respuesta
                 </Text>
               )}
             </Pressable>
@@ -389,7 +389,7 @@ export function ActiveQuestionStage({
                 </Text>
                 <Pressable
                   accessibilityRole="button"
-                  accessibilityLabel="Dismiss"
+                  accessibilityLabel="Descartar"
                   onPress={onDismissRejection}
                   hitSlop={spacing.xs}
                   style={{

@@ -38,10 +38,10 @@ export function OperatorClueReleasePanel({
     return (
       <section className={styles.cluePanel} data-testid="clue-release-panel" aria-labelledby="clue-release-title">
         <div className={styles.panelHeader}>
-          <h2 id="clue-release-title">Release clue</h2>
+          <h2 id="clue-release-title">Liberar pista</h2>
         </div>
         <p className={styles.panelMeta} data-testid="clue-release-inactive">
-          Clue release is available once the session is Active.
+          La liberación de pistas está disponible una vez que la sesión esté Activa.
         </p>
       </section>
     )
@@ -62,18 +62,18 @@ export function OperatorClueReleasePanel({
       })
       if ('data' in result) {
         const count = result.data.releasedTeamIds.length
-        setSuccess(`Released to ${count} team${count === 1 ? '' : 's'}.`)
+        setSuccess(`Liberada a ${count} equipo${count === 1 ? '' : 's'}.`)
         setSelectedId('')
         const label = clue.targetName ?? `Pista ${clue.sequenceOrder}`
         onReleased?.(label, count)
       } else if ('duplicate' in result) {
-        setError('That clue is already released to that team for this target.')
+        setError('Esa pista ya fue liberada a ese equipo para este target.')
       } else if ('notReleasable' in result) {
-        setError('That target has no releasable hidden clue in the active substage.')
+        setError('Ese target no tiene ninguna pista oculta liberable en la subetapa activa.')
       } else if ('notActive' in result) {
-        setError('The session must be Active to release clues.')
+        setError('La sesión debe estar Activa para liberar pistas.')
       } else if ('unauthorized' in result) {
-        setError('You are not authorized to release clues for this session.')
+        setError('No tienes autorización para liberar pistas en esta sesión.')
       } else {
         setError(result.error)
       }
@@ -83,26 +83,26 @@ export function OperatorClueReleasePanel({
   return (
     <section className={styles.cluePanel} data-testid="clue-release-panel" aria-labelledby="clue-release-title">
       <div className={styles.panelHeader}>
-        <h2 id="clue-release-title">Release clue</h2>
-        <div className={styles.panelMeta}>Reveal a hidden clue to one team or all teams.</div>
+        <h2 id="clue-release-title">Liberar pista</h2>
+        <div className={styles.panelMeta}>Revela una pista oculta a un equipo o a todos los equipos.</div>
       </div>
 
       {releasableClues.length === 0 ? (
         <p className={styles.panelMeta} data-testid="clue-release-no-targets">
-          No hidden clues are available to release in the active substage.
+          No hay pistas ocultas disponibles para liberar en la subetapa activa.
         </p>
       ) : (
         <>
           <div className={styles.clueFieldRow}>
             <label className={styles.clueField}>
-              <span className={styles.clueFieldLabel}>Clue</span>
+              <span className={styles.clueFieldLabel}>Pista</span>
               <select
                 className={styles.clueControl}
                 data-testid="clue-release-target-select"
                 value={selectedId}
                 onChange={(e) => setSelectedId(e.target.value)}
               >
-                <option value="">Select a clue…</option>
+                <option value="">Selecciona una pista…</option>
                 {releasableClues.map((c) => {
                   const id = c.targetId ?? c.clueId!
                   const label = c.targetName ?? `Pista ${c.sequenceOrder}`
@@ -116,14 +116,14 @@ export function OperatorClueReleasePanel({
             </label>
 
             <label className={styles.clueField}>
-              <span className={styles.clueFieldLabel}>Team</span>
+              <span className={styles.clueFieldLabel}>Equipo</span>
               <select
                 className={styles.clueControl}
                 data-testid="clue-release-team-select"
                 value={teamId}
                 onChange={(e) => setTeamId(e.target.value)}
               >
-                <option value="">All teams</option>
+                <option value="">Todos los equipos</option>
                 {teams.map((t) => (
                   <option key={t.teamId} value={t.teamId}>
                     {t.displayName}
@@ -147,7 +147,7 @@ export function OperatorClueReleasePanel({
               onClick={submit}
               type="button"
             >
-              {isPending ? 'Releasing…' : 'Release'}
+              {isPending ? 'Liberando…' : 'Liberar'}
             </button>
           </div>
         </>

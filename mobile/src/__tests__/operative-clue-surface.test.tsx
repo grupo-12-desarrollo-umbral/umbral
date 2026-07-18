@@ -52,27 +52,33 @@ function byTestId(renderer: ReturnType<typeof create>, id: string) {
   );
 }
 
-function renderSurface(clues: VisibleClueDto[]) {
+type SurfaceProps = { substageId?: string | null; suppressToast?: boolean };
+
+function renderSurface(clues: VisibleClueDto[], extra: SurfaceProps = {}) {
   let renderer: ReturnType<typeof create> | null = null;
   act(() => {
     renderer = create(
       React.createElement(
         OperativeCluePortalHost,
         null,
-        React.createElement(OperativeClueSurface, { visibleClues: clues }),
+        React.createElement(OperativeClueSurface, { visibleClues: clues, ...extra }),
       ),
     );
   });
   return renderer!;
 }
 
-function update(renderer: ReturnType<typeof create>, clues: VisibleClueDto[]) {
+function update(
+  renderer: ReturnType<typeof create>,
+  clues: VisibleClueDto[],
+  extra: SurfaceProps = {},
+) {
   act(() => {
     renderer.update(
       React.createElement(
         OperativeCluePortalHost,
         null,
-        React.createElement(OperativeClueSurface, { visibleClues: clues }),
+        React.createElement(OperativeClueSurface, { visibleClues: clues, ...extra }),
       ),
     );
   });
@@ -83,7 +89,7 @@ function chip(renderer: ReturnType<typeof create>) {
   return renderer.root.findAll(
     (n) =>
       typeof n.props?.accessibilityLabel === 'string' &&
-      (n.props.accessibilityLabel as string).startsWith('Clues,') &&
+      (n.props.accessibilityLabel as string).startsWith('Pistas,') &&
       typeof n.props?.onPress === 'function',
   )[0];
 }
@@ -120,7 +126,7 @@ describe('OperativeClueSurface', () => {
     const renderer = renderSurface([OP('op-1', 'Look beneath the blue banner.')]);
     const texts = allText(renderer.toJSON());
 
-    expect(texts).toContain('CLUES · 1');
+    expect(texts).toContain('PISTAS · 1');
     // Collapsed by default — the artifact body is not rendered yet.
     expect(texts).not.toContain('Look beneath the blue banner.');
     // No per-kind "OPERATIVE CLUE" wording anymore.
@@ -129,7 +135,7 @@ describe('OperativeClueSurface', () => {
 
   test('counts every clue kind in the one chip (operative + substage-initial)', () => {
     const renderer = renderSurface([MISSION('Initial guidance.'), OP('op-1', 'An operator push.')]);
-    expect(allText(renderer.toJSON())).toContain('CLUES · 2');
+    expect(allText(renderer.toJSON())).toContain('PISTAS · 2');
   });
 
   test('renders nothing when there are no clues', () => {
@@ -144,7 +150,7 @@ describe('OperativeClueSurface', () => {
     const texts = allText(renderer.toJSON());
 
     // Target-less clues read the unified "CLUE" label — never "OPERATIVE"/"MISSION".
-    expect(texts).toContain('CLUE');
+    expect(texts).toContain('PISTA');
     expect(texts).toContain('Look beneath the blue banner.');
     expect(texts).not.toContain('OPERATIVE CLUE');
     expect(texts).not.toContain('MISSION CLUE');
@@ -154,7 +160,7 @@ describe('OperativeClueSurface', () => {
     const renderer = renderSurface([OP('op-1', 'Look beneath the blue banner.')]);
     expect(byTestId(renderer, 'operative-clue-toast')).toHaveLength(0);
     // No ", N new" suffix on the chip label.
-    expect(chipLabel(renderer)).toBe('Clues, 1');
+    expect(chipLabel(renderer)).toBe('Pistas, 1');
   });
 
   test('a newly-arrived operative clue flags the chip as unseen and raises the toast', () => {
@@ -165,11 +171,11 @@ describe('OperativeClueSurface', () => {
     update(renderer, [OP('op-1', 'Look beneath the blue banner.')]);
 
     // Chip shows the unseen signal…
-    expect(chipLabel(renderer)).toBe('Clues, 1, 1 new');
+    expect(chipLabel(renderer)).toBe('Pistas, 1, 1 nuevas');
     // …and the toast fires with the label + the (single) clue line.
     expect(byTestId(renderer, 'operative-clue-toast')).toHaveLength(1);
     const texts = allText(renderer.toJSON());
-    expect(texts).toContain('NEW CLUE');
+    expect(texts).toContain('NUEVA PISTA');
     expect(texts).toContain('Look beneath the blue banner.');
   });
 
@@ -182,7 +188,7 @@ describe('OperativeClueSurface', () => {
     expect(byTestId(renderer, 'operative-clue-toast')).toHaveLength(1);
     expect(allText(renderer.toJSON())).toContain('The gate opens at dusk.');
     // Dot (b) — the chip flags it unseen …
-    expect(chipLabel(renderer)).toBe('Clues, 1, 1 new');
+    expect(chipLabel(renderer)).toBe('Pistas, 1, 1 nuevas');
     // Dropdown — expanding shows it, with no "MISSION CLUE" separate-surface wording.
     pressChip(renderer);
     const texts = allText(renderer.toJSON());
@@ -204,19 +210,123 @@ describe('OperativeClueSurface', () => {
     expect(byTestId(renderer, 'operative-clue-toast')).toHaveLength(0);
   });
 
+  test('a substage change re-arms the baseline: the new substage’s visible-on-start clue toasts', () => {
+    // The clue rides the SAME board push that swaps the substage, so it is present in the very
+    // projection that carries the new substageId — the mount-baseline rule would otherwise swallow it.
+    const renderer = renderSurface([MISSION('First substage clue.')], { substageId: 's1' });
+    // s1's initial clue was present at mount → already seen, no toast.
+    expect(byTestId(renderer, 'operative-clue-toast')).toHaveLength(0);
+
+    update(renderer, [MISSION('Second substage clue.')], { substageId: 's2' });
+
+    // The boundary re-arms the seen-set, so s2's initial clue is fresh → toast.
+    expect(byTestId(renderer, 'operative-clue-toast')).toHaveLength(1);
+    expect(allText(renderer.toJSON())).toContain('Second substage clue.');
+  });
+
+  test('survives the reveal remount: a clue on the new substage toasts after the surface unmounts/remounts', () => {
+    // Reproduces the substage ranking reveal: it replaces the whole play surface (unmounting the
+    // surface) for the length of the reveal and closes on the very board push that swaps the substage,
+    // so the surface REMOUNTS already on the next substage. Left to a fresh mount baseline it would
+    // swallow the new substage's visible-on-start clue; the host-owned toast memory must carry the
+    // pre-reveal substage across the gap so the boundary is still seen.
+    let renderer: ReturnType<typeof create> | null = null;
+    // Surface present on s1 (its initial clue is the mount snapshot → already seen).
+    act(() => {
+      renderer = create(
+        React.createElement(
+          OperativeCluePortalHost,
+          null,
+          React.createElement(OperativeClueSurface, {
+            visibleClues: [MISSION('First substage clue.')],
+            substageId: 's1',
+          }),
+        ),
+      );
+    });
+    expect(byTestId(renderer!, 'operative-clue-toast')).toHaveLength(0);
+
+    // Reveal takes over → the surface unmounts (host stays mounted, holding the toast memory).
+    act(() => {
+      renderer!.update(React.createElement(OperativeCluePortalHost, null, null));
+    });
+    expect(byTestId(renderer!, 'operative-clue-toast')).toHaveLength(0);
+
+    // Reveal closes on the advance into s2 → the surface remounts, already carrying s2's clue.
+    act(() => {
+      renderer!.update(
+        React.createElement(
+          OperativeCluePortalHost,
+          null,
+          React.createElement(OperativeClueSurface, {
+            visibleClues: [MISSION('Second substage clue.')],
+            substageId: 's2',
+          }),
+        ),
+      );
+    });
+
+    // The pre-reveal substage survived in the host memory, so the s1→s2 boundary is seen → toast.
+    expect(byTestId(renderer!, 'operative-clue-toast')).toHaveLength(1);
+    expect(allText(renderer!.toJSON())).toContain('Second substage clue.');
+  });
+
+  test('a reload into a running substage stays quiet across a bare remount (no host memory carryover)', () => {
+    // The mirror case: a fresh session join / reload with no prior substage in memory must NOT toast
+    // the clue already present — the reconnect/late-join rule. A brand-new host has empty memory, so
+    // the first mount baselines s2's clue as already-seen.
+    let renderer: ReturnType<typeof create> | null = null;
+    act(() => {
+      renderer = create(
+        React.createElement(
+          OperativeCluePortalHost,
+          null,
+          React.createElement(OperativeClueSurface, {
+            visibleClues: [MISSION('Second substage clue.')],
+            substageId: 's2',
+          }),
+        ),
+      );
+    });
+    expect(byTestId(renderer!, 'operative-clue-toast')).toHaveLength(0);
+  });
+
+  test('a re-projection within the same substage still does not re-toast', () => {
+    const renderer = renderSurface([MISSION('Only clue.')], { substageId: 's1' });
+    // Same substage, same clue re-projected (e.g. a score-only update) → no re-arm, no toast.
+    update(renderer, [MISSION('Only clue.')], { substageId: 's1' });
+    expect(byTestId(renderer, 'operative-clue-toast')).toHaveLength(0);
+  });
+
+  test('suppressToast defers the re-armed substage clue until suppression lifts', () => {
+    // Mirrors the trivia pre-game countdown: the substage flips with suppressToast on, so the
+    // re-armed clue stays fresh (not toasted) and fires only once the countdown ends.
+    const renderer = renderSurface([MISSION('First substage clue.')], { substageId: 's1' });
+
+    update(renderer, [MISSION('Second substage clue.')], { substageId: 's2', suppressToast: true });
+    // Suppressed during the countdown → no toast yet, but the chip already flags it unseen.
+    expect(byTestId(renderer, 'operative-clue-toast')).toHaveLength(0);
+    expect(chipLabel(renderer)).toBe('Pistas, 1, 1 nuevas');
+
+    update(renderer, [MISSION('Second substage clue.')], { substageId: 's2', suppressToast: false });
+    // Countdown ended → the deferred clue toasts.
+    expect(byTestId(renderer, 'operative-clue-toast')).toHaveLength(1);
+    expect(allText(renderer.toJSON())).toContain('Second substage clue.');
+  });
+
   test('tapping the toast opens the list and reveals the artifact', () => {
     const renderer = renderSurface([]);
     update(renderer, [OP('op-1', 'Look beneath the blue banner.')]);
     expect(byTestId(renderer, 'operative-clue-toast')).toHaveLength(1);
     // Collapsed → artifact not shown yet.
-    expect(allText(renderer.toJSON())).not.toContain('CLUE');
+    expect(allText(renderer.toJSON())).not.toContain('PISTA');
 
     pressTestId(renderer, 'operative-clue-toast');
 
     // The chip expands → the durable parchment artifact is now shown and the chip is acknowledged.
     const texts = allText(renderer.toJSON());
-    expect(texts).toContain('CLUE');
+    expect(texts).toContain('PISTA');
     expect(texts).toContain('Look beneath the blue banner.');
-    expect(chipLabel(renderer)).toBe('Clues, 1');
+    expect(chipLabel(renderer)).toBe('Pistas, 1');
   });
 });

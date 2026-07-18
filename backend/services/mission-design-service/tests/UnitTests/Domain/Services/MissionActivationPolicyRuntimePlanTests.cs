@@ -5,7 +5,7 @@ namespace umbral_backend.Application.UnitTests.Domain.Services;
 
 public class MissionActivationPolicyRuntimePlanTests
 {
-    private static Mission NewMission() => Mission.Create("Mission", "Briefing", "Advanced", 45);
+    private static Mission NewMission() => Mission.Create("Mission", "Briefing", "Advanced", 30);
 
     [Fact]
     public void EvaluateReadiness_WhenNoStages_ReportsMissingStage()

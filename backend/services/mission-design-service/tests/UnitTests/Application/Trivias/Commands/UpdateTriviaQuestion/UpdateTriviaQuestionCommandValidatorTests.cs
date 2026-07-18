@@ -47,8 +47,10 @@ public sealed class UpdateTriviaQuestionCommandValidatorTests
 
     [Theory]
     [InlineData(0)]
+    [InlineData(50)]
+    [InlineData(99)]
     [InlineData(101)]
-    public void Validate_WhenScoreValueIsOutsideRange_ReturnsError(int scoreValue)
+    public void Validate_WhenScoreValueIsNotExactlyOneHundred_ReturnsError(int scoreValue)
     {
         var result = _validator.Validate(new UpdateTriviaQuestionCommand(
             1,
@@ -67,8 +69,8 @@ public sealed class UpdateTriviaQuestionCommandValidatorTests
     }
 
     [Theory]
-    [InlineData(4)]
-    [InlineData(121)]
+    [InlineData(14)]
+    [InlineData(31)]
     public void Validate_WhenTimeLimitIsOutsideRange_ReturnsError(int timeLimitSeconds)
     {
         var result = _validator.Validate(new UpdateTriviaQuestionCommand(

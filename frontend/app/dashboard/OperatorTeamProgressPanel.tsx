@@ -2,7 +2,9 @@ import type {
   OperatorSessionPanelDto,
   OperatorTeamProgressDto,
   RankingSnapshotDto,
+  SessionLifecycleState,
 } from '@/app/lib/definitions'
+import { lifecycleStateLabel } from '@/app/lib/session-lifecycle'
 import styles from './operatorTeamProgressPanel.module.css'
 
 type OperatorTeamProgressPanelProps = {
@@ -21,7 +23,7 @@ function ProgressCell({ team }: { team: OperatorTeamProgressDto }) {
   if (sub && sub.playMode === 'Trivia' && sub.activeQuestionSequenceOrder !== null) {
     return (
       <span className={styles.progress} data-testid={`team-progress-question-${team.teamId}`}>
-        Question {sub.activeQuestionSequenceOrder}
+        Pregunta {sub.activeQuestionSequenceOrder}
       </span>
     )
   }
@@ -44,9 +46,9 @@ export function OperatorTeamProgressPanel({
   if (unauthorized) {
     return (
       <section className={styles.panel} data-testid="operator-session-panel" aria-labelledby="operator-session-panel-title">
-        <div className={styles.eyebrow} id="operator-session-panel-title">Session panel</div>
+        <div className={styles.eyebrow} id="operator-session-panel-title">Panel de la sesión</div>
         <p className={styles.stateNote} role="status" data-testid="panel-unauthorized">
-          You are not authorized to monitor this session.
+          No tienes autorización para monitorear esta sesión.
         </p>
       </section>
     )
@@ -57,9 +59,9 @@ export function OperatorTeamProgressPanel({
   if (error !== null) {
     return (
       <section className={styles.panel} data-testid="operator-session-panel" aria-labelledby="operator-session-panel-title">
-        <div className={styles.eyebrow} id="operator-session-panel-title">Session panel</div>
+        <div className={styles.eyebrow} id="operator-session-panel-title">Panel de la sesión</div>
         <p className={styles.stateNote} role="status" data-testid="panel-error">
-          Couldn’t load session progress. It will refresh automatically.
+          No se pudo cargar el progreso de la sesión. Se actualizará automáticamente.
         </p>
       </section>
     )
@@ -68,9 +70,9 @@ export function OperatorTeamProgressPanel({
   if (panel === null) {
     return (
       <section className={styles.panel} data-testid="operator-session-panel" aria-labelledby="operator-session-panel-title">
-        <div className={styles.eyebrow} id="operator-session-panel-title">Session panel</div>
+        <div className={styles.eyebrow} id="operator-session-panel-title">Panel de la sesión</div>
         <p className={styles.stateNote} data-testid="panel-no-teams">
-          {loading ? 'Loading session progress…' : 'No progress data yet.'}
+          {loading ? 'Cargando el progreso de la sesión…' : 'Aún no hay datos de progreso.'}
         </p>
       </section>
     )
@@ -89,18 +91,18 @@ export function OperatorTeamProgressPanel({
   return (
     <section className={styles.panel} data-testid="operator-session-panel" aria-labelledby="operator-session-panel-title">
       <div className={styles.header}>
-        <span className={styles.eyebrow} id="operator-session-panel-title">Session panel</span>
+        <span className={styles.eyebrow} id="operator-session-panel-title">Panel de la sesión</span>
         <span className={styles.state} data-testid="panel-session-state" aria-live="polite">
-          {panel.state}
+          {lifecycleStateLabel[panel.state as SessionLifecycleState] ?? panel.state}
         </span>
       </div>
       {teamsWithClues > 0 && (
         <p className={styles.stateNote} data-testid="panel-clue-rollup">
-          Clues released to {teamsWithClues} team{teamsWithClues === 1 ? '' : 's'}.
+          Pistas liberadas a {teamsWithClues} equipo{teamsWithClues === 1 ? '' : 's'}.
         </p>
       )}
       {panel.teamProgress.length === 0 ? (
-        <p className={styles.stateNote} data-testid="panel-no-teams">No teams associated yet.</p>
+        <p className={styles.stateNote} data-testid="panel-no-teams">Aún no hay equipos asociados.</p>
       ) : (
         <ul className={styles.list}>
           {panel.teamProgress.map((team) => {
@@ -115,7 +117,7 @@ export function OperatorTeamProgressPanel({
                 <span className={styles.teamCode}>{team.teamCode}</span>
                 {team.releasedClueCount > 0 && (
                   <span className={styles.clues} data-testid={`team-progress-clues-${team.teamId}`}>
-                    {team.releasedClueCount} clue{team.releasedClueCount === 1 ? '' : 's'}
+                    {team.releasedClueCount} pista{team.releasedClueCount === 1 ? '' : 's'}
                   </span>
                 )}
                 <span className={styles.score} data-testid={`team-progress-score-${team.teamId}`}>

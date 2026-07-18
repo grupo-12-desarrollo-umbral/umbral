@@ -73,7 +73,7 @@ public sealed class MissionReadModelRepository : IMissionReadModelRepository
                     stage.Title,
                     stage.SequenceOrder,
                     stage.Substages
-                        .Select(substage => MapSubstage(substage, triviaQuestionsByQuizId))
+                        .Select(substage => MapSubstage(substage, triviaQuestionsByQuizId, mission.Difficulty.ScoreFactor))
                         .ToList()))
                 .ToList());
     }
@@ -105,7 +105,8 @@ public sealed class MissionReadModelRepository : IMissionReadModelRepository
 
     private static MissionRuntimePlanSubstageDto MapSubstage(
         Substage substage,
-        IReadOnlyDictionary<int, IReadOnlyList<MissionRuntimePlanTriviaQuestionDto>> triviaQuestionsByQuizId)
+        IReadOnlyDictionary<int, IReadOnlyList<MissionRuntimePlanTriviaQuestionDto>> triviaQuestionsByQuizId,
+        int difficultyFactor)
     {
         var cluesById = substage.Clues.ToDictionary(clue => clue.Id);
         var triviaQuestions = substage.TriviaQuizId is int triviaQuizId
@@ -118,7 +119,7 @@ public sealed class MissionReadModelRepository : IMissionReadModelRepository
             substage.SequenceOrder,
             substage.PlayMode.ToString(),
             substage.Targets
-                .Select(target => MapTarget(target, cluesById))
+                .Select(target => MapTarget(target, cluesById, difficultyFactor))
                 .ToList(),
             triviaQuestions,
             // Substage-scoped clue superset (#145): every clue authored under the substage,
@@ -131,7 +132,8 @@ public sealed class MissionReadModelRepository : IMissionReadModelRepository
 
     private static MissionRuntimePlanTargetDto MapTarget(
         Target target,
-        IReadOnlyDictionary<int, Clue> cluesById)
+        IReadOnlyDictionary<int, Clue> cluesById,
+        int difficultyFactor)
     {
         return new MissionRuntimePlanTargetDto(
             target.Name,
@@ -139,6 +141,7 @@ public sealed class MissionReadModelRepository : IMissionReadModelRepository
             target.SequenceOrder,
             target.IsActive,
             target.Score.Points,
+            difficultyFactor,
             target.Coordinates.Latitude,
             target.Coordinates.Longitude,
             target.ClueId is int clueId && cluesById.TryGetValue(clueId, out var clue)

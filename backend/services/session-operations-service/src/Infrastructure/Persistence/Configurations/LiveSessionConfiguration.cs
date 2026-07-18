@@ -291,6 +291,11 @@ public sealed class LiveSessionConfiguration : IEntityTypeConfiguration<LiveSess
                     .HasColumnName("score")
                     .IsRequired();
 
+                targetBuilder.Property(target => target.DifficultyFactor)
+                    .HasColumnName("difficulty_factor")
+                    .HasDefaultValue(1)
+                    .IsRequired();
+
                 targetBuilder.Property(target => target.Latitude)
                     .HasColumnName("latitude")
                     .IsRequired();

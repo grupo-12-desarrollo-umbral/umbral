@@ -43,12 +43,12 @@ export function TargetMap({
     return (
       <View
         accessibilityRole="image"
-        accessibilityLabel="No target location on the map yet"
+        accessibilityLabel="Aún no hay ubicación de target en el mapa"
         style={[styles.frame, styles.empty, style]}
       >
-        <Text variant="label" muted>NO MAP LOCATION YET</Text>
+        <Text variant="label" muted>AÚN SIN UBICACIÓN EN EL MAPA</Text>
         <Text variant="body" muted style={{ textAlign: 'center' }}>
-          This target has no place on the map.
+          Este target no tiene lugar en el mapa.
         </Text>
       </View>
     );
@@ -62,7 +62,7 @@ export function TargetMap({
   }));
 
   return (
-    <View accessibilityLabel="Target map" style={[styles.frame, style]}>
+    <View accessibilityLabel="Mapa de targets" style={[styles.frame, style]}>
       <WebView
         testID="target-map-webview"
         originWhitelist={['*']}

@@ -1,7 +1,15 @@
 import 'server-only'
 import { randomBytes, createHash } from 'crypto'
 
+// KEYCLOAK_URL is the back-channel base: the URL this server process uses to
+// reach Keycloak directly (token exchange, refresh). In Docker that is the
+// internal service name, e.g. http://keycloak:8080.
 const KEYCLOAK_URL = process.env.KEYCLOAK_URL
+// PUBLIC_KEYCLOAK_URL is the front-channel base: the URL the user's *browser*
+// is redirected to (authorize + reset-credentials). It must be reachable from
+// the browser, e.g. http://localhost:8080. NEXT_PUBLIC_* is inlined at build
+// time; it falls back to KEYCLOAK_URL for local `next dev` where both match.
+const PUBLIC_KEYCLOAK_URL = process.env.NEXT_PUBLIC_KEYCLOAK_URL ?? KEYCLOAK_URL
 const KEYCLOAK_REALM = process.env.KEYCLOAK_REALM
 const KEYCLOAK_CLIENT_ID = process.env.KEYCLOAK_CLIENT_ID
 const KEYCLOAK_CLIENT_SECRET = process.env.KEYCLOAK_CLIENT_SECRET
@@ -69,8 +77,9 @@ export function generateCodeChallenge(verifier: string): string {
 
 export function buildAuthorizationUrl(state: string, codeChallenge: string): string {
   assertEnv()
+  // Front-channel: the browser follows this redirect, so use the public URL.
   const url = new URL(
-    `${KEYCLOAK_URL}/realms/${KEYCLOAK_REALM}/protocol/openid-connect/auth`
+    `${PUBLIC_KEYCLOAK_URL}/realms/${KEYCLOAK_REALM}/protocol/openid-connect/auth`
   )
   url.searchParams.set('client_id', KEYCLOAK_CLIENT_ID!)
   url.searchParams.set('redirect_uri', REDIRECT_URI)
@@ -89,7 +98,8 @@ export function buildAuthorizationUrl(state: string, codeChallenge: string): str
 // (`/realms/<realm>/account/`) — which this realm never configures, so it errors
 // with "unexpected error". client_id + redirect_uri land the user back on /login.
 export function buildResetCredentialsUrl(
-  keycloakUrl: string = KEYCLOAK_URL ?? '',
+  // Front-channel: the browser is redirected here, so default to the public URL.
+  keycloakUrl: string = PUBLIC_KEYCLOAK_URL ?? '',
   realm: string = KEYCLOAK_REALM ?? '',
 ): string {
   if (!keycloakUrl || !realm) {

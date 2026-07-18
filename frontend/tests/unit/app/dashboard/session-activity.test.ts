@@ -28,9 +28,9 @@ describe('sessionActivityReducer', () => {
     expect(state.entries).toHaveLength(1)
     expect(state.entries[0]).toMatchObject({
       kind: 'state',
-      label: 'State',
+      label: 'Estado',
       teamId: null,
-      summary: 'Active → Paused',
+      summary: 'Activa → Pausada',
       at: '2026-07-16T10:00:00.000Z',
     })
   })
@@ -41,7 +41,7 @@ describe('sessionActivityReducer', () => {
       data: { liveSessionId: SESSION, previousState: '', currentState: 'Active', changedAt: '2026-07-16T10:00:00.000Z' },
     })
 
-    expect(state.entries[0].summary).toBe('Now Active')
+    expect(state.entries[0].summary).toBe('Ahora Activa')
   })
 
   it('maps a question open, using the one-based sequence order', () => {
@@ -58,7 +58,7 @@ describe('sessionActivityReducer', () => {
       },
     })
 
-    expect(state.entries[0]).toMatchObject({ kind: 'questionActivated', label: 'Question', summary: 'Question 5 opened' })
+    expect(state.entries[0]).toMatchObject({ kind: 'questionActivated', label: 'Pregunta', summary: 'Pregunta 5 abierta' })
   })
 
   it('maps a question close from the zero-based index (+1) and flags a timer expiry', () => {
@@ -74,7 +74,7 @@ describe('sessionActivityReducer', () => {
       },
     })
 
-    expect(state.entries[0].summary).toBe('Question 5 closed (time expired)')
+    expect(state.entries[0].summary).toBe('Pregunta 5 cerrada (tiempo agotado)')
   })
 
   it('stamps a substage advance with the injected receipt time and marks the final substage', () => {
@@ -83,14 +83,14 @@ describe('sessionActivityReducer', () => {
       data: { liveSessionId: SESSION, fromSubstageId: 's1', fromPlayMode: 'Trivia', toSubstageId: 's2' },
       receivedAt: '2026-07-16T10:03:00.000Z',
     })
-    expect(advanced.entries[0]).toMatchObject({ kind: 'substageAdvanced', summary: 'Advanced from Trivia substage', at: '2026-07-16T10:03:00.000Z' })
+    expect(advanced.entries[0]).toMatchObject({ kind: 'substageAdvanced', summary: 'Avance desde subetapa de Trivia', at: '2026-07-16T10:03:00.000Z' })
 
     const final = reduce(emptySessionActivity, {
       type: 'substageAdvanced',
       data: { liveSessionId: SESSION, fromSubstageId: 's1', fromPlayMode: 'TreasureHunt', toSubstageId: null },
       receivedAt: '2026-07-16T10:03:00.000Z',
     })
-    expect(final.entries[0].summary).toBe('Final TreasureHunt substage complete')
+    expect(final.entries[0].summary).toBe('Subetapa final de Búsqueda del tesoro completada')
   })
 
   it('maps a team answer to a team-scoped line', () => {
@@ -105,7 +105,7 @@ describe('sessionActivityReducer', () => {
       },
     })
 
-    expect(state.entries[0]).toMatchObject({ kind: 'teamAnswered', teamId: TEAM_ID, summary: 'Answered question 3' })
+    expect(state.entries[0]).toMatchObject({ kind: 'teamAnswered', teamId: TEAM_ID, summary: 'Respondió la pregunta 3' })
   })
 
   it('maps evidence registration and a rejection (with reason) to readable lines', () => {
@@ -122,7 +122,7 @@ describe('sessionActivityReducer', () => {
         validationState: 'Pending',
       },
     })
-    expect(registered.entries[0]).toMatchObject({ kind: 'evidenceRegistered', teamId: TEAM_ID, summary: 'Submitted QR scan' })
+    expect(registered.entries[0]).toMatchObject({ kind: 'evidenceRegistered', teamId: TEAM_ID, summary: 'Envió escaneo QR' })
 
     const rejected = reduce(emptySessionActivity, {
       type: 'evidenceResolved',
@@ -138,7 +138,7 @@ describe('sessionActivityReducer', () => {
         resolvedAt: '2026-07-16T10:05:09.000Z',
       },
     })
-    expect(rejected.entries[0].summary).toBe('QR scan rejected: Already resolved by another team.')
+    expect(rejected.entries[0].summary).toBe('Escaneo QR rechazada: Already resolved by another team.')
   })
 
   it('prepends newest first and assigns collision-free ids', () => {
@@ -148,7 +148,7 @@ describe('sessionActivityReducer', () => {
       { type: 'questionActivated', data: { liveSessionId: SESSION, questionIndex: 1, sequenceOrder: 2, prompt: '', options: [], timeLimitSeconds: 30, activatedAt: '2026-07-16T10:01:00.000Z' } },
     )
 
-    expect(state.entries.map((e) => e.summary)).toEqual(['Question 2 opened', 'Question 1 opened'])
+    expect(state.entries.map((e) => e.summary)).toEqual(['Pregunta 2 abierta', 'Pregunta 1 abierta'])
     expect(new Set(state.entries.map((e) => e.id)).size).toBe(2)
   })
 
@@ -162,8 +162,8 @@ describe('sessionActivityReducer', () => {
     }
 
     expect(state.entries).toHaveLength(50)
-    expect(state.entries[0].summary).toBe('Question 60 opened')
-    expect(state.entries[49].summary).toBe('Question 11 opened')
+    expect(state.entries[0].summary).toBe('Pregunta 60 abierta')
+    expect(state.entries[49].summary).toBe('Pregunta 11 abierta')
     // seq keeps climbing so a post-cap id can never collide with a surviving entry's id.
     expect(state.entries[0].id).toBe('activity-60')
   })
